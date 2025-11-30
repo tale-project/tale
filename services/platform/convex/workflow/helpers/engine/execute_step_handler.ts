@@ -1,0 +1,131 @@
+/**
+ * Execute Step Handler - Business Logic
+ *
+ * Contains the business logic for executing a single workflow step.
+ */
+
+import type { ActionCtx } from '../../../_generated/server';
+import { replaceVariables } from '../../../lib/variables/replace_variables';
+import { loadAndValidateExecution } from '../step_execution/load_and_validate_execution';
+import { initializeExecutionVariables } from '../step_execution/initialize_execution_variables';
+import { executeStepByType } from '../step_execution/execute_step_by_type';
+import { buildStepsMap } from '../step_execution/build_steps_map';
+import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
+import { persistExecutionResult } from '../step_execution/persist_execution_result';
+
+export type ExecuteStepArgs = {
+  organizationId: string;
+  executionId: string;
+  stepSlug: string;
+  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepName?: string;
+  threadId?: string;
+  initialInput?: unknown;
+  resumeVariables?: unknown;
+};
+
+export type ExecuteStepResult = {
+  port: string;
+  error?: string;
+};
+
+/**
+ * Handle execution of a single workflow step
+ */
+export async function handleExecuteStep(
+  ctx: ActionCtx,
+  args: ExecuteStepArgs,
+): Promise<ExecuteStepResult> {
+  // 1. Load and validate execution data
+  const { execution, stepConfig, workflowConfig } =
+    await loadAndValidateExecution(ctx, args.executionId, args.stepSlug);
+
+  // 2. Build step definition
+  const stepDef = {
+    stepSlug: args.stepSlug,
+    name: args.stepName || args.stepSlug,
+    stepType: args.stepType,
+    config: stepConfig,
+    organizationId: args.organizationId,
+  };
+
+  // 3. Initialize and merge variables
+  const fullVariables = await initializeExecutionVariables(
+    ctx,
+    execution,
+    {
+      executionId: args.executionId,
+      organizationId: args.organizationId,
+      resumeVariables: args.resumeVariables,
+      initialInput: args.initialInput,
+    },
+    workflowConfig,
+  );
+
+  // 4. Process config with variable replacement
+  // Special handling for set_variables action: skip pre-processing to allow
+  // sequential variable resolution within the action itself
+  const isSetVariablesAction =
+    args.stepType === 'action' &&
+    (stepDef.config as { type?: string }).type === 'set_variables';
+
+  // Debug: Log loop variables before processing
+  if (fullVariables.loop) {
+    const loopVar = fullVariables.loop as Record<string, unknown>;
+    console.log('[handleExecuteStep] Loop variables before processing:', {
+      stepSlug: args.stepSlug,
+      loopIndex: loopVar.index,
+      loopState: loopVar.state,
+      hasParent: !!loopVar.parent,
+    });
+  }
+
+  const processedConfig = isSetVariablesAction
+    ? stepDef.config
+    : replaceVariables(stepDef.config, fullVariables);
+  const processedStepDef = { ...stepDef, config: processedConfig };
+
+  // 5. Execute step by type
+  const result = await executeStepByType(
+    ctx,
+    processedStepDef as {
+      stepSlug: string;
+      name: string;
+      stepType: typeof args.stepType;
+      config: Record<string, unknown>;
+      organizationId: typeof args.organizationId;
+    },
+    fullVariables,
+    args.executionId,
+    args.threadId,
+  );
+
+  // 6. Build steps map
+  const stepsMap = await buildStepsMap(
+    ctx,
+    args.executionId,
+    stepDef,
+    result,
+  );
+
+  // 7. Extract essential loop variables
+  const essentialLoop = extractEssentialLoopVariables(result.variables);
+
+  // 8. Persist execution result
+  await persistExecutionResult(
+    ctx,
+    args.executionId,
+    fullVariables,
+    result,
+    stepDef,
+    stepsMap,
+    essentialLoop,
+  );
+
+  // 9. Return essential control information
+  return {
+    port: result.port,
+    error: result.error,
+  };
+}
+

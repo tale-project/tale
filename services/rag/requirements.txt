@@ -1,0 +1,32 @@
+# FastAPI and server dependencies
+# fastapi, uvicorn, pydantic, and pydantic-settings versions are determined by cognee dependency
+
+# Cognee - RAG framework
+# Updated to latest version to fix UUID TypeError in graph processing
+# Includes baml extras for structured output
+cognee[baml]==0.4.0
+
+# Additional dependencies for cognee
+# Note: openai version is determined by cognee's dependencies (requires <2.0.1)
+# langchain versions are determined by cognee's dependencies
+
+# Enable XLSX document support in unstructured (required for partition_xlsx)
+unstructured[xlsx]==0.18.21
+
+# Database drivers (for cognee storage and PGVector)
+asyncpg==0.31.0
+psycopg2-binary==2.9.11
+pgvector==0.3.6
+
+# Utilities
+python-multipart==0.0.20
+python-dotenv==1.2.1
+loguru==0.7.3
+httpx==0.28.1
+
+# Web crawling (for automatic website discovery and crawling)
+# NOTE: crawl4ai is currently disabled due to dependency conflict with cognee
+# crawl4ai>=0.4.0 requires aiofiles>=24.1.0, but cognee==0.3.6 requires aiofiles<24.0.0
+# The website crawling feature will be unavailable until this conflict is resolved
+# crawl4ai>=0.4.0
+

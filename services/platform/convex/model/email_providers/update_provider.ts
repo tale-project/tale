@@ -1,0 +1,71 @@
+/**
+ * Update an email provider
+ */
+
+import type { MutationCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
+import type { SmtpConfig, ImapConfig, EmailProviderStatus } from './types';
+
+export interface UpdateProviderArgs {
+  providerId: Doc<'emailProviders'>['_id'];
+  name?: string;
+  isDefault?: boolean;
+  smtpConfig?: SmtpConfig;
+  imapConfig?: ImapConfig;
+  status?: EmailProviderStatus;
+  lastTestedAt?: number;
+  lastSyncAt?: number;
+  errorMessage?: string;
+  metadata?: unknown;
+}
+
+export async function updateProvider(
+  ctx: MutationCtx,
+  args: UpdateProviderArgs,
+): Promise<null> {
+  const { providerId } = args;
+
+  const provider = await ctx.db.get(providerId);
+  if (!provider) {
+    throw new Error('Email provider not found');
+  }
+
+  // If setting as default, unset other defaults
+  if (args.isDefault) {
+    const existingDefaults = await ctx.db
+      .query('emailProviders')
+      .withIndex('by_organizationId_and_isDefault', (q) =>
+        q.eq('organizationId', provider.organizationId).eq('isDefault', true),
+      )
+      .collect();
+
+    for (const existingProvider of existingDefaults) {
+      if (existingProvider._id !== providerId) {
+        await ctx.db.patch(existingProvider._id, { isDefault: false });
+      }
+    }
+  }
+
+  // Build update object with only provided fields
+  const updateData: Record<string, unknown> = {};
+  if (args.name !== undefined) updateData.name = args.name;
+  if (args.isDefault !== undefined) updateData.isDefault = args.isDefault;
+  if (args.smtpConfig !== undefined) updateData.smtpConfig = args.smtpConfig;
+  if (args.imapConfig !== undefined) updateData.imapConfig = args.imapConfig;
+  if (args.status !== undefined) updateData.status = args.status;
+  if (args.lastTestedAt !== undefined)
+    updateData.lastTestedAt = args.lastTestedAt;
+  if (args.lastSyncAt !== undefined) updateData.lastSyncAt = args.lastSyncAt;
+  if (args.errorMessage !== undefined)
+    updateData.errorMessage = args.errorMessage;
+  if (args.metadata !== undefined) {
+    updateData.metadata = {
+      ...(provider.metadata || {}),
+      ...args.metadata,
+    };
+  }
+
+  await ctx.db.patch(providerId, updateData as any);
+  return null;
+}
+

@@ -1,0 +1,253 @@
+/**
+ * Business logic for sending a conversation message via API (Gmail API / Microsoft Graph)
+ * and updating the message with the external message ID
+ */
+
+import type { ActionCtx } from '../../_generated/server';
+import { api, internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
+import { decryptAndRefreshOAuth2Token } from './decrypt_and_refresh_oauth2';
+
+export async function sendMessageViaAPI(
+  ctx: ActionCtx,
+  args: {
+    messageId: Id<'conversationMessages'>;
+    organizationId: string;
+    providerId?: Id<'emailProviders'>;
+    from: string;
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject: string;
+    html?: string;
+    text?: string;
+    replyTo?: string;
+    inReplyTo?: string;
+    references?: string[];
+    headers?: Record<string, string>;
+  },
+): Promise<{ success: boolean; messageId: string }> {
+  try {
+    // Get email provider (use default if not specified)
+    let provider: unknown;
+    if (args.providerId) {
+      provider = await ctx.runQuery(internal.email_providers.getInternal, {
+        providerId: args.providerId,
+      });
+    } else {
+      provider = await ctx.runQuery(
+        internal.email_providers.getDefaultInternal,
+        {
+          organizationId: args.organizationId,
+        },
+      );
+    }
+
+    if (!provider) {
+      throw new Error('Email provider not found');
+    }
+
+    const typedProvider = provider as {
+      _id: Id<'emailProviders'>;
+      vendor: 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other';
+      authMethod?: 'password' | 'oauth2';
+      oauth2Auth?: {
+        provider: string;
+        clientId: string;
+        clientSecretEncrypted: string;
+        accessTokenEncrypted?: string;
+        refreshTokenEncrypted?: string;
+        tokenExpiry?: number;
+        tokenUrl?: string;
+      };
+      metadata?: Record<string, unknown>;
+    };
+
+    // API sending requires OAuth2
+    if (typedProvider.authMethod !== 'oauth2' || !typedProvider.oauth2Auth) {
+      throw new Error('API sending requires OAuth2 authentication');
+    }
+
+    // Get and refresh OAuth2 token for the provider's native resource (Outlook/Gmail)
+    const { accessToken } = await decryptAndRefreshOAuth2Token(
+      ctx,
+      typedProvider._id,
+      typedProvider.oauth2Auth,
+      async (encrypted) =>
+        await ctx.runAction(internal.oauth2.decryptStringInternal, {
+          encrypted,
+        }),
+      async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
+        await ctx.runAction(api.oauth2.refreshToken, {
+          provider,
+          clientId,
+          clientSecret,
+          refreshToken,
+          tokenUrl,
+        }),
+      async ({
+        emailProviderId,
+        accessToken,
+        refreshToken,
+        tokenType,
+        expiresIn,
+        scope,
+      }) =>
+        await ctx.runAction(api.email_providers.storeOAuth2Tokens, {
+          emailProviderId,
+          accessToken,
+          refreshToken,
+          tokenType,
+          expiresIn,
+          scope,
+        }),
+    );
+
+    let result: { success: boolean; messageId: string };
+
+    // Send via appropriate API based on provider
+    if (
+      typedProvider.oauth2Auth.provider === 'gmail' ||
+      typedProvider.vendor === 'gmail'
+    ) {
+      // Send via Gmail API
+      const gmailResult = await ctx.runAction(
+        internal.node_only.gmail.send_email.sendEmail,
+        {
+          accessToken,
+          from: args.from,
+          to: args.to,
+          cc: args.cc,
+          bcc: args.bcc,
+          subject: args.subject,
+          html: args.html,
+          text: args.text,
+          replyTo: args.replyTo,
+          inReplyTo: args.inReplyTo,
+          references: args.references,
+          headers: args.headers,
+        },
+      );
+
+      result = {
+        success: gmailResult.success,
+        messageId: gmailResult.messageId,
+      };
+
+      console.log('✓ Message sent via Gmail API', {
+        messageId: args.messageId,
+        gmailMessageId: gmailResult.gmailMessageId,
+        internetMessageId: gmailResult.messageId,
+      });
+    } else if (
+      typedProvider.oauth2Auth.provider === 'microsoft' ||
+      typedProvider.vendor === 'outlook'
+    ) {
+      // Send via Microsoft Graph API
+      // Important: Microsoft Graph requires a token with audience graph.microsoft.com.
+      // Our stored token may be for outlook.office.com from the Outlook scopes used for IMAP/SMTP.
+      // Use the refresh token to mint a Graph-scoped access token just-in-time without storing it.
+      // For Microsoft Graph we require a Graph-scoped access token (audience graph.microsoft.com)
+      if (
+        !typedProvider.oauth2Auth.refreshTokenEncrypted ||
+        !typedProvider.oauth2Auth.clientSecretEncrypted
+      ) {
+        throw new Error(
+          'Missing OAuth2 client secret or refresh token for Microsoft Graph send. Please re-authorize the provider.',
+        );
+      }
+
+      const clientSecret = await ctx.runAction(
+        internal.oauth2.decryptStringInternal,
+        {
+          encrypted: typedProvider.oauth2Auth.clientSecretEncrypted,
+        },
+      );
+      const refreshToken = await ctx.runAction(
+        internal.oauth2.decryptStringInternal,
+        {
+          encrypted: typedProvider.oauth2Auth.refreshTokenEncrypted,
+        },
+      );
+
+      const { accessToken: graphAccessToken } = await ctx.runAction(
+        api.oauth2.refreshToken,
+        {
+          provider: typedProvider.oauth2Auth.provider,
+          clientId: typedProvider.oauth2Auth.clientId,
+          clientSecret,
+          refreshToken,
+          scope:
+            'https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send',
+          tokenUrl: typedProvider.oauth2Auth.tokenUrl,
+        },
+      );
+
+      const graphResult = await ctx.runAction(
+        internal.node_only.microsoft_graph.send_email.sendEmail,
+        {
+          accessToken: graphAccessToken,
+          from: args.from,
+          to: args.to,
+          cc: args.cc,
+          bcc: args.bcc,
+          subject: args.subject,
+          html: args.html,
+          text: args.text,
+          replyTo: args.replyTo,
+          inReplyTo: args.inReplyTo,
+          references: args.references,
+          headers: args.headers,
+        },
+      );
+
+      result = {
+        success: graphResult.success,
+        messageId: graphResult.messageId,
+      };
+
+      console.log('✓ Message sent via Microsoft Graph API', {
+        messageId: args.messageId,
+        graphMessageId: graphResult.graphMessageId,
+        internetMessageId: graphResult.messageId,
+      });
+    } else {
+      throw new Error(
+        `Unsupported provider for API sending: ${typedProvider.oauth2Auth.provider}`,
+      );
+    }
+
+    // Update the conversation message with the external message ID
+    await ctx.runMutation(
+      internal.conversations.updateConversationMessageInternal,
+      {
+        messageId: args.messageId,
+        externalMessageId: result.messageId,
+        deliveryState: 'sent',
+        sentAt: Date.now(),
+      },
+    );
+
+    console.log('✓ Message sent and updated', {
+      messageId: args.messageId,
+      externalMessageId: result.messageId,
+    });
+
+    return {
+      success: true,
+      messageId: result.messageId,
+    };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    await ctx.runMutation(
+      internal.conversations.updateConversationMessageInternal,
+      {
+        messageId: args.messageId,
+        deliveryState: 'failed',
+        metadata: { errorMessage },
+      },
+    );
+    // Do not throw; return a failure response so scheduler doesn't error out
+    return { success: false, messageId: '' };
+  }
+}

@@ -1,0 +1,95 @@
+---
+alwaysApply: true
+---
+# TypeScript React Styling Rules
+
+## Font Family Rules
+
+- Avoid specifying `font-['Inter:Regular',_sans-serif]` as it should be the default
+- Only specify font-family when using non-default fonts like `font-['Inter:Medium',_sans-serif]`
+- Ensure font-family matches font-weight (Inter:Regular with font-normal, Inter:Medium with font-medium)
+
+## Tailwind Class Preferences
+
+- Use `leading-normal` instead of `leading-[normal]`
+- Use standard font size classes instead of arbitrary values:
+  - `text-[12px]` → `text-xs`
+  - `text-[14px]` → `text-sm`
+  - `text-[16px]` → `text-base`
+  - `text-[18px]` → `text-lg`
+  - `text-[20px]` → `text-xl`
+  - `text-[24px]` → `text-2xl`
+
+## Spacing Classes
+
+- Use semantic spacing classes when available:
+  - `p-[4px]` → `p-1`
+  - `p-[8px]` → `p-2`
+  - `m-[4px]` → `m-1`
+  - `m-[8px]` → `m-2`
+
+## Example Transformation
+
+❌ Before:
+
+```tsx
+<div className="font-['Inter:Regular',_sans-serif] font-normal text-[16px] leading-normal">
+  <p className="leading-[normal]">Text</p>
+</div>
+```
+
+✅ After:
+
+```tsx
+<div className="text-base">
+  <p className="leading-normal">Text</p>
+</div>
+```
+
+## Width and Height Measurements
+
+- Convert pixel values to rem using the 16px base:
+  - `w-[278px]` → `w-[17.375rem]`
+  - `h-[48px]` → `h-[3rem]`
+  - `min-w-[120px]` → `min-w-[7.5rem]`
+  - `max-w-[400px]` → `max-w-[25rem]`
+
+## Color System Rules
+
+- **NEVER use hardcoded colors** like `text-gray-500`, `bg-gray-100`, `border-gray-200`
+- **ALWAYS use design system semantic colors**:
+  - `text-foreground` for primary text (instead of `text-gray-950`, `text-black`)
+  - `text-muted-foreground` for secondary text (instead of `text-gray-500`, `text-gray-600`)
+  - `bg-background` for main backgrounds (instead of `bg-white`)
+  - `bg-muted` for subtle backgrounds and hover states (instead of `bg-gray-100`, `bg-gray-50`)
+  - `border-border` for borders (instead of `border-gray-200`, `border-gray-300`)
+  - `text-muted-foreground` for icons (instead of `text-gray-400`, `text-gray-600`)
+
+## Color Transformation Examples
+
+❌ Before (hardcoded colors):
+
+```tsx
+<div className="bg-white border border-gray-200">
+  <h1 className="text-gray-950">Title</h1>
+  <p className="text-gray-600">Description</p>
+  <button className="hover:bg-gray-100 text-gray-500">Action</button>
+</div>
+```
+
+✅ After (design system colors):
+
+```tsx
+<div className="bg-background border border-border">
+  <h1 className="text-foreground">Title</h1>
+  <p className="text-muted-foreground">Description</p>
+  <button className="hover:bg-muted text-muted-foreground">Action</button>
+</div>
+```
+
+## Table Component Usage
+
+- **ALWAYS use the Table component** instead of custom flex layouts
+- Use `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`
+- Apply proper column widths using rem units
+- Use semantic colors for all text and backgrounds

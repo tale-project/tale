@@ -1,0 +1,189 @@
+'use node';
+
+/**
+ * Internal action implementation for generating an agent response.
+ *
+ * This encapsulates the heavy lifting for generateAgentResponse so the
+ * Convex entrypoint file can remain a thin wrapper.
+ */
+
+import type { ActionCtx } from '../../_generated/server';
+import { internal } from '../../_generated/api';
+import { createChatAgent } from '../../lib/create_chat_agent';
+import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
+
+type Usage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
+};
+
+export interface GenerateAgentResponseArgs {
+  threadId: string;
+  organizationId: string;
+  maxSteps: number;
+  promptMessageId: string;
+}
+
+export interface GenerateAgentResponseResult {
+  threadId: string;
+  text: string;
+  toolCalls?: Array<{ toolName: string; status: string }>;
+  model: string;
+  provider: string;
+  usage?: Usage;
+  reasoning?: string;
+}
+
+export async function generateAgentResponse(
+  ctx: ActionCtx,
+  args: GenerateAgentResponseArgs,
+): Promise<GenerateAgentResponseResult> {
+  const { threadId, organizationId, maxSteps, promptMessageId } = args;
+
+  const TIMEOUT_MS = 9 * 60 * 1000;
+  const startTime = Date.now();
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.log(
+      `[chat_agent] Aborting request after ${TIMEOUT_MS / 1000}s timeout`,
+    );
+    abortController.abort();
+  }, TIMEOUT_MS);
+
+  try {
+    const summarizationResult: {
+      summarized: boolean;
+      existingSummary?: string;
+      totalMessagesSummarized: number;
+    } = await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
+      threadId,
+    });
+
+    const contextSummary = summarizationResult.existingSummary;
+
+    console.log('[chat_agent] Auto-summarization check', {
+      threadId,
+      summarized: summarizationResult.summarized,
+      totalMessagesSummarized: summarizationResult.totalMessagesSummarized,
+      hasSummary: !!contextSummary,
+    });
+
+    const agent = await createChatAgent({
+      withTools: true,
+      maxSteps,
+      convexToolNames: [
+        'customer_search',
+        'list_products',
+        'list_customers',
+        'rag_search',
+        'rag_knowledge',
+        'fetch_url',
+        'web_search',
+        'generate_excel',
+        'generate_file',
+        'context_search',
+      ],
+    });
+
+    const contextWithOrg = {
+      ...ctx,
+      organizationId,
+      threadId,
+      variables: {},
+    };
+
+    const contextMessages: Array<{ role: 'user'; content: string }> = [];
+
+    // Always inject threadId so the AI knows which thread to use for context_search
+    contextMessages.push({
+      role: 'user',
+      content: `[SYSTEM] Current thread ID: ${threadId}`,
+    });
+
+    if (contextSummary) {
+      contextMessages.push({
+        role: 'user',
+        content: `[CONTEXT] Previous Conversation Summary:\n\n${contextSummary}`,
+      });
+    }
+
+    const result: { text?: string; steps?: unknown[]; usage?: Usage } =
+      await agent.generateText(
+        contextWithOrg,
+        { threadId },
+        {
+          promptMessageId,
+          abortSignal: abortController.signal,
+          messages: contextMessages,
+        },
+        {
+          contextOptions: {
+            recentMessages: 20,
+            excludeToolMessages: true,
+            searchOtherThreads: false,
+          },
+        },
+      );
+
+    clearTimeout(timeoutId);
+    const elapsedMs = Date.now() - startTime;
+    console.log(
+      `[chat_agent] generateAgentResponse completed in ${(
+        elapsedMs / 1000
+      ).toFixed(1)}s for thread ${threadId}`,
+    );
+
+    const steps = (result.steps ?? []) as Array<{ [key: string]: any }>;
+    const toolCalls = steps
+      .filter((step) => step.type === 'tool-call')
+      .map((step) => ({
+        toolName: String(step.toolName ?? 'unknown'),
+        status: String(step.result?.success ? 'completed' : 'failed'),
+      }));
+
+    const envModel = (process.env.OPENAI_MODEL || '').trim();
+    if (!envModel) {
+      throw new Error(
+        'OPENAI_MODEL environment variable is required but is not set',
+      );
+    }
+
+    let responseText = (result.text || '').trim();
+
+    if (!responseText) {
+      responseText = await handleContextOverflowNoToolRetry(ctx, {
+        threadId,
+        promptMessageId,
+        toolCallCount: toolCalls.length,
+        usage: result.usage,
+        contextWithOrg,
+      });
+    }
+
+    return {
+      threadId,
+      text: responseText,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      model: envModel,
+      provider: 'openai',
+      usage: result.usage,
+      reasoning: (result as { reasoningText?: string }).reasoningText,
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (abortController.signal.aborted) {
+      const elapsedMs = Date.now() - startTime;
+      throw new Error(
+        `generateAgentResponse timed out after ${(elapsedMs / 1000).toFixed(
+          1,
+        )} seconds (limit: ${TIMEOUT_MS / 1000}s)`,
+      );
+    }
+
+    throw error;
+  }
+}

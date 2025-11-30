@@ -1,0 +1,115 @@
+/**
+ * Create a new conversation with an initial message (business logic)
+ *
+ * This is an atomic operation that creates both a conversation and its first message.
+ * Useful for email workflows and other scenarios where a conversation always starts with a message.
+ */
+
+import type { MutationCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
+import { createConversation } from './create_conversation';
+import type { CreateConversationArgs } from './types';
+
+export interface CreateConversationWithMessageArgs
+  extends CreateConversationArgs {
+  // Initial message fields
+  initialMessage: {
+    sender: string;
+    content: string;
+    isCustomer: boolean;
+    status?: string;
+    attachment?: unknown;
+    externalMessageId?: string;
+    metadata?: unknown;
+    sentAt?: number; // Timestamp when message was sent (for outbound) or received (for inbound)
+    deliveredAt?: number; // Timestamp when message was delivered (for email sync)
+  };
+}
+
+export interface CreateConversationWithMessageResult {
+  success: boolean;
+  conversationId: Id<'conversations'>;
+  messageId: Id<'conversationMessages'>;
+}
+
+/**
+ * Create a conversation and add the initial message atomically.
+ * Both operations succeed or fail together.
+ */
+export async function createConversationWithMessage(
+  ctx: MutationCtx,
+  args: CreateConversationWithMessageArgs,
+): Promise<CreateConversationWithMessageResult> {
+  // Create the conversation
+  const conversationResult = await createConversation(ctx, args);
+  const conversationId = conversationResult.conversationId;
+
+  // Get the conversation to access its channel
+  const conversation = await ctx.db.get(conversationId);
+  if (!conversation) {
+    throw new Error('Failed to retrieve created conversation');
+  }
+
+  // Determine message direction and delivery state
+  const direction: 'inbound' | 'outbound' = args.initialMessage.isCustomer
+    ? 'inbound'
+    : 'outbound';
+
+  const deliveryStateCandidates = [
+    'queued',
+    'sent',
+    'delivered',
+    'failed',
+  ] as const;
+
+  const explicit = (args.initialMessage.status || '').toLowerCase();
+  const deliveryState = (deliveryStateCandidates as readonly string[]).includes(
+    explicit,
+  )
+    ? (explicit as 'queued' | 'sent' | 'delivered' | 'failed')
+    : direction === 'inbound'
+      ? 'delivered'
+      : 'sent';
+
+  // Insert the initial message
+  // Only set sentAt/deliveredAt if we have an actual timestamp
+  const messageId = await ctx.db.insert('conversationMessages', {
+    organizationId: args.organizationId,
+    conversationId,
+    providerId: conversation.providerId, // Inherit from parent conversation
+    channel: conversation.channel || 'unknown',
+    direction,
+    externalMessageId: args.initialMessage.externalMessageId,
+    deliveryState,
+    content: args.initialMessage.content,
+    sentAt: args.initialMessage.sentAt ? args.initialMessage.sentAt : undefined,
+    deliveredAt: args.initialMessage.deliveredAt
+      ? args.initialMessage.deliveredAt
+      : direction === 'inbound' && args.initialMessage.sentAt
+        ? args.initialMessage.sentAt
+        : undefined,
+    metadata: {
+      sender: args.initialMessage.sender,
+      isCustomer: args.initialMessage.isCustomer,
+      attachment: args.initialMessage.attachment,
+      ...(args.initialMessage.metadata as Record<string, unknown> | undefined),
+    },
+  });
+
+  // Update conversation metadata with initial message info
+  const existingMetadata =
+    (conversation.metadata as Record<string, unknown>) || {};
+  await ctx.db.patch(conversationId, {
+    metadata: {
+      ...existingMetadata,
+      last_message_at: Date.now(),
+      unread_count: args.initialMessage.isCustomer ? 1 : 0,
+    },
+  });
+
+  return {
+    success: true,
+    conversationId,
+    messageId,
+  };
+}

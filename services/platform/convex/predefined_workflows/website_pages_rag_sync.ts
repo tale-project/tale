@@ -1,0 +1,125 @@
+/**
+ * Website Pages RAG Sync Workflow
+ *
+ * This workflow finds one unprocessed website page and uploads its content to the RAG service.
+ * It follows the standard pattern for entity-processing workflows:
+ * 1. Find one unprocessed entity using workflow_processing_records
+ * 2. Upload the entity to RAG
+ * 3. Record it as processed
+ */
+
+export const websitePagesRagSyncWorkflow = {
+  workflowConfig: {
+    name: 'Website Pages RAG Sync',
+    description:
+      'Find one unprocessed website page and upload it to the RAG service',
+    version: '1.0.0',
+    workflowType: 'predefined',
+    config: {
+      timeout: 120000,
+      retryPolicy: { maxRetries: 3, backoffMs: 2000 },
+      variables: {
+        organizationId: 'org_demo',
+        backoffHours: 72,
+        workflowId: 'website_pages_rag_sync',
+      },
+    },
+  },
+  stepsConfig: [
+    {
+      stepSlug: 'start',
+      name: 'start',
+      stepType: 'trigger',
+      order: 1,
+      config: {
+        type: 'manual',
+      },
+      nextSteps: { success: 'find_unprocessed_page' },
+    },
+    {
+      stepSlug: 'find_unprocessed_page',
+      name: 'Find Unprocessed Website Page',
+      stepType: 'action',
+      order: 2,
+      config: {
+        type: 'workflow_processing_records',
+        parameters: {
+          operation: 'find_unprocessed',
+          organizationId: '{{organizationId}}',
+          tableName: 'websitePages',
+          workflowId: '{{workflowId}}',
+          backoffHours: '{{backoffHours}}',
+        },
+      },
+      nextSteps: {
+        success: 'check_page_found',
+      },
+    },
+    {
+      stepSlug: 'check_page_found',
+      name: 'Check Page Found',
+      stepType: 'condition',
+      order: 3,
+      config: {
+        expression: 'steps.find_unprocessed_page.output.data.count > 0',
+        description: 'Check if any unprocessed website page was found',
+      },
+      nextSteps: {
+        true: 'upload_to_rag',
+        false: 'noop',
+      },
+    },
+    {
+      stepSlug: 'upload_to_rag',
+      name: 'Upload to RAG',
+      stepType: 'action',
+      order: 4,
+      config: {
+        type: 'rag',
+        parameters: {
+          operation: 'upload_text',
+          content:
+            '{{steps.find_unprocessed_page.output.data.documents[0].content}}',
+          metadata: {
+            type: 'website_page',
+            title:
+              '{{steps.find_unprocessed_page.output.data.documents[0].title}}',
+            url: '{{steps.find_unprocessed_page.output.data.documents[0].url}}',
+            websiteId:
+              '{{steps.find_unprocessed_page.output.data.documents[0].websiteId}}',
+          },
+          // Async ingestion means this timeout only covers the HTTP request to
+          // enqueue the page content, not full cognee processing.
+          timeout: 120000,
+        },
+      },
+      nextSteps: {
+        success: 'record_processed',
+      },
+    },
+    {
+      stepSlug: 'record_processed',
+      name: 'Record Processed',
+      stepType: 'action',
+      order: 5,
+      config: {
+        type: 'workflow_processing_records',
+        parameters: {
+          operation: 'record_processed',
+          organizationId: '{{organizationId}}',
+          tableName: 'websitePages',
+          documentId:
+            '{{steps.find_unprocessed_page.output.data.documents[0]._id}}',
+          documentCreationTime:
+            '{{steps.find_unprocessed_page.output.data.documents[0]._creationTime}}',
+          workflowId: '{{workflowId}}',
+        },
+      },
+      nextSteps: {
+        success: 'noop',
+      },
+    },
+  ],
+};
+
+export default websitePagesRagSyncWorkflow;

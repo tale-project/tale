@@ -1,0 +1,180 @@
+import dayjs, { Dayjs } from 'dayjs';
+import './dayjs-setup'; // Ensure dayjs is configured with all plugins and locales
+
+export type DatePreset = 'short' | 'medium' | 'long' | 'time' | 'relative';
+
+export interface FormatDateOptions {
+  preset?: DatePreset;
+  locale?: string;
+  timezone?: string;
+  customFormat?: string;
+}
+
+/**
+ * Check if timestamp has timezone information using ISO 8601 format patterns
+ */
+function hasTimezoneInfo(timestamp: string): boolean {
+  // Check for 'Z' (UTC) or timezone offset patterns (+/-HH:MM or +/-HHMM)
+  const timezonePattern = /Z$|[+-]\d{2}:?\d{2}$/;
+  return timezonePattern.test(timestamp);
+}
+
+/**
+ * Centralized date formatting function with locale support and presets
+ */
+export function formatDate(
+  date: string | Date | Dayjs,
+  options: FormatDateOptions = {},
+): string {
+  const {
+    preset = 'medium',
+    locale = 'en-US',
+    timezone,
+    customFormat,
+  } = options;
+
+  if (!date) return '';
+
+  try {
+    let dayjsDate: Dayjs;
+
+    // Handle different input types
+    if (typeof date === 'string') {
+      // Ensure timestamp is treated as UTC if it doesn't have timezone info
+      const utcTimestamp = hasTimezoneInfo(date) ? date : date + 'Z';
+      dayjsDate = dayjs(utcTimestamp);
+    } else {
+      dayjsDate = dayjs(date);
+    }
+
+    // Validate the date
+    if (!dayjsDate.isValid()) {
+      console.warn('Invalid date provided to formatDate:', date);
+      return '';
+    }
+
+    // Set locale
+    const baseLocale = locale.split('-')[0].toLowerCase();
+    dayjsDate = dayjsDate.locale(baseLocale);
+
+    // Apply timezone if specified
+    if (timezone) {
+      dayjsDate = dayjsDate.tz(timezone);
+    }
+
+    // Handle relative formatting
+    if (preset === 'relative') {
+      return dayjsDate.fromNow();
+    }
+
+    // Use custom format if provided
+    if (customFormat) {
+      return dayjsDate.format(customFormat);
+    }
+
+    // Use dayjs localized formats
+    switch (preset) {
+      case 'short':
+        return dayjsDate.format('L'); // 09/04/1986 (localized)
+      case 'medium':
+        return dayjsDate.format('LL'); // September 4, 1986 (localized)
+      case 'long':
+        return dayjsDate.format('LLL'); // September 4, 1986 8:30 PM (localized)
+      case 'time':
+        return dayjsDate.format('LT'); // 8:30 PM (localized)
+      default:
+        return dayjsDate.format('LL');
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error, { date, options });
+    return '';
+  }
+}
+
+/**
+ * Format date with relative time for today/yesterday, otherwise use preset
+ */
+export function formatDateSmart(
+  date: string | Date | Dayjs,
+  options: FormatDateOptions = {},
+): string {
+  const { locale = 'en-US', preset = 'short' } = options;
+
+  if (!date) return '';
+
+  try {
+    let dayjsDate: Dayjs;
+
+    if (typeof date === 'string') {
+      const utcTimestamp = hasTimezoneInfo(date) ? date : date + 'Z';
+      dayjsDate = dayjs(utcTimestamp);
+    } else {
+      dayjsDate = dayjs(date);
+    }
+
+    if (!dayjsDate.isValid()) return '';
+
+    const baseLocale = locale.split('-')[0].toLowerCase();
+    dayjsDate = dayjsDate.locale(baseLocale);
+
+    if (dayjsDate.isToday()) {
+      return formatDate(dayjsDate, { preset: 'time', locale });
+    }
+
+    if (dayjsDate.isYesterday()) {
+      const timeStr = formatDate(dayjsDate, { preset: 'time', locale });
+      return `Yesterday ${timeStr}`;
+    }
+
+    return formatDate(dayjsDate, { preset, locale });
+  } catch (error) {
+    console.error('Error in formatDateSmart:', error);
+    return '';
+  }
+}
+
+/**
+ * Format date header for grouping (Today, Yesterday, or full date)
+ */
+export function formatDateHeader(
+  date: string | Date | Dayjs,
+  options: FormatDateOptions = {},
+): string {
+  const { locale = 'en-US' } = options;
+
+  if (!date) return '';
+
+  try {
+    let dayjsDate: Dayjs;
+
+    if (typeof date === 'string') {
+      const utcTimestamp = hasTimezoneInfo(date) ? date : date + 'Z';
+      dayjsDate = dayjs(utcTimestamp);
+    } else {
+      dayjsDate = dayjs(date);
+    }
+
+    if (!dayjsDate.isValid()) return '';
+
+    const baseLocale = locale.split('-')[0].toLowerCase();
+    dayjsDate = dayjsDate.locale(baseLocale);
+
+    if (dayjsDate.isToday()) {
+      return 'Today';
+    }
+
+    if (dayjsDate.isYesterday()) {
+      return 'Yesterday';
+    }
+
+    return formatDate(dayjsDate, { preset: 'medium', locale });
+  } catch (error) {
+    console.error('Error in formatDateHeader:', error);
+    return '';
+  }
+}
+
+/**
+ * Export dayjs instance for direct use when needed
+ */
+export { default as dayjs } from './dayjs-setup';

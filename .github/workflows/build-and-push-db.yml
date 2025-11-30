@@ -1,0 +1,205 @@
+name: Build and Push Tale DB
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0, latest)'
+        required: false
+        default: 'latest'
+
+  # Automatic trigger on tags
+  push:
+    tags:
+      - 'db-v*.*.*'
+
+  # Automatic trigger on main branch (optional)
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'db/**'
+  #     - '.github/workflows/build-and-push-db.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/tale-db
+
+jobs:
+  build-and-push:
+    name: Build and Push Multi-Arch Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # ======================================================================
+      # Checkout
+      # ======================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # ======================================================================
+      # Docker Setup
+      # ======================================================================
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # Enable BuildKit features
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      # ======================================================================
+      # Authentication
+      # ======================================================================
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ======================================================================
+      # Metadata
+      # ======================================================================
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Use manual input version if provided
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            # Tag with version from git tag (e.g., db-v1.0.0 -> 1.0.0)
+            type=match,pattern=db-v(.*),group=1
+            # Tag with branch name
+            type=ref,event=branch
+            # Tag with PR number
+            type=ref,event=pr
+            # Tag with git SHA (short)
+            type=sha,prefix={{branch}}-,format=short
+            # Always tag as latest on main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # ======================================================================
+      # Build and Push
+      # ======================================================================
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: db/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Enable provenance and SBOM
+          provenance: true
+          sbom: true
+
+      # ======================================================================
+      # Output
+      # ======================================================================
+      - name: Output image details
+        run: |
+          echo "## Docker Image Built Successfully! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Run Command" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker run -d -p 5432:5432 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  -e DB_PASSWORD=your-secure-password \\" >> $GITHUB_STEP_SUMMARY
+          echo "  -v tale-db-data:/var/lib/postgresql/data \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ============================================================================
+  # Optional: Test the built image
+  # ============================================================================
+  test-image:
+    name: Test Docker Image
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and test image
+        run: |
+          # Pull the image
+          docker pull --platform ${{ matrix.platform }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+          # Run basic health check
+          docker run --rm --platform ${{ matrix.platform }} \
+            -e DB_PASSWORD=test_password \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            postgres --version
+
+      - name: Test database initialization
+        run: |
+          # Start the database
+          docker run -d --name test-db --platform ${{ matrix.platform }} \
+            -e DB_PASSWORD=test_password \
+            -e DB_NAME=test \
+            -e DB_USER=test \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+          # Wait for database to be ready
+          sleep 30
+
+          # Check if database is ready
+          docker exec test-db pg_isready -U test -d test
+
+          # Verify TimescaleDB extension
+          docker exec test-db psql -U test -d test -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
+
+          # Verify tale schema exists
+          docker exec test-db psql -U test -d test -c "\dn tale"
+
+          # Verify metrics table exists
+          docker exec test-db psql -U test -d test -c "\dt tale.metrics"
+
+          # Verify events table exists
+          docker exec test-db psql -U test -d test -c "\dt tale.events"
+
+          # Clean up
+          docker stop test-db
+          docker rm test-db
+
+      - name: Test summary
+        run: |
+          echo "✅ Image test passed for ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY

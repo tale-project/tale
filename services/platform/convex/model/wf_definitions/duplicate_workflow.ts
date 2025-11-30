@@ -1,0 +1,73 @@
+/**
+ * Duplicate a workflow definition and all of its steps.
+ */
+
+import type { MutationCtx } from '../../_generated/server';
+import type { Doc, Id } from '../../_generated/dataModel';
+
+export interface DuplicateWorkflowArgs {
+  wfDefinitionId: Id<'wfDefinitions'>;
+  newName?: string;
+}
+
+export async function duplicateWorkflow(
+  ctx: MutationCtx,
+  args: DuplicateWorkflowArgs,
+): Promise<Id<'wfDefinitions'>> {
+  // Load source workflow
+  const source = (await ctx.db.get(args.wfDefinitionId)) as
+    | Doc<'wfDefinitions'>
+    | null;
+
+  if (!source) {
+    throw new Error('Workflow not found');
+  }
+
+  // Create new workflow (draft v1) using the same config
+  const newWorkflowId = await ctx.db.insert('wfDefinitions', {
+    organizationId: source.organizationId,
+    name: args.newName || `${source.name} (Copy)`,
+    description: source.description,
+    category: (source as any).category,
+    version: 'v1',
+    versionNumber: 1,
+    status: 'draft',
+    workflowType: source.workflowType,
+    config: source.config || {},
+    rootVersionId: undefined,
+    metadata: {
+      ...(source.metadata || {}),
+      createdAt: Date.now(),
+      createdBy: 'user',
+      duplicatedFrom: source._id,
+    },
+  });
+
+  // For duplicated workflows, treat the new workflow as the root of its own family
+  await ctx.db.patch(newWorkflowId, {
+    rootVersionId: newWorkflowId,
+  });
+
+  // Copy steps from the source workflow
+  const steps = await ctx.db
+    .query('wfStepDefs')
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))
+    .collect();
+
+  for (const step of steps) {
+    await ctx.db.insert('wfStepDefs', {
+      organizationId: step.organizationId,
+      wfDefinitionId: newWorkflowId,
+      stepSlug: step.stepSlug, // stepSlug uniqueness is per workflow
+      name: step.name,
+      stepType: step.stepType,
+      order: step.order,
+      config: step.config,
+      nextSteps: step.nextSteps,
+      metadata: step.metadata,
+    });
+  }
+
+  return newWorkflowId;
+}
+
