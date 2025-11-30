@@ -1,0 +1,85 @@
+# ============================================================================
+# Docker Ignore File (Project Root)
+# ============================================================================
+# This file tells Docker which files to exclude when building images.
+# Since the build context is the project root, this file applies to all
+# COPY commands in Dockerfiles.
+
+# ============================================================================
+# Local Environment Files
+# ============================================================================
+# These files contain local development settings and should never be
+# included in Docker images. Use environment variables from compose.yml
+# or the root .env file instead.
+
+services/platform/.env.local
+services/platform/.env.development.local
+services/platform/.env.test.local
+services/platform/.env.production.local
+services/platform/.env*.local
+
+# ============================================================================
+# Git
+# ============================================================================
+.git
+.gitignore
+.gitattributes
+
+# ============================================================================
+# Documentation
+# ============================================================================
+*.md
+docs/
+README.md
+
+# ============================================================================
+# IDE and Editor Files
+# ============================================================================
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================================================
+# Node.js (Project Root)
+# ============================================================================
+# Exclude root node_modules - each service has its own
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ============================================================================
+# Build Artifacts
+# ============================================================================
+*.tsbuildinfo
+
+# ============================================================================
+# Docker Files
+# ============================================================================
+# Don't copy Docker files into images
+docker-compose.yml
+compose.yml
+.dockerignore
+
+# ============================================================================
+# Testing
+# ============================================================================
+coverage/
+.nyc_output/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# ============================================================================
+# Temporary Files
+# ============================================================================
+*.log
+*.tmp
+*.temp
+.cache/
+

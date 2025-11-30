@@ -1,0 +1,501 @@
+# Docker Compose configuration for Tale Services
+# This file defines the services needed to run the Tale platform
+
+services:
+  # ============================================================================
+  # Tale DB (TimescaleDB)
+  # ============================================================================
+  db:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/db/Dockerfile
+
+    # Container name
+    container_name: tale-db
+
+    # Port mapping: host:container
+    # Access PostgreSQL at localhost:5432
+    ports:
+      - '5432:5432'
+
+    # Volume mounts
+    # Persist database data
+    volumes:
+      # PostgreSQL data directory (timescaledb-ha uses /home/postgres/pgdata/data)
+      - db-data:/home/postgres/pgdata/data
+      # Backup directory (optional)
+      - db-backup:/var/lib/postgresql/backup
+
+    # Environment file
+    # Create a .env file in the project root with your database credentials
+    env_file:
+      - .env
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the database is ready
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-tale} -d ${POSTGRES_DB:-tale}',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Resource limits (optional, adjust based on your needs)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4'
+    #       memory: 8G
+    #     reservations:
+    #       cpus: '2'
+    #       memory: 4G
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Graph DB (Kuzu)
+  # ============================================================================
+  graph-db:
+    # Build from local Dockerfile
+    build:
+      context: ./services/graph-db
+      dockerfile: Dockerfile
+
+    # Container name
+    container_name: tale-graph-db
+
+    # Port mapping: host:container
+    # - 8000: HTTP REST API (Cognee compatible)
+    ports:
+      - '7000:8000'
+
+    # Volume mounts
+    # Persist graph database data
+    volumes:
+      - graph-db-data:/data
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the service is healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Crawler (Crawl4AI)
+  # ============================================================================
+  crawler:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/crawler/Dockerfile
+
+    # Container name
+    container_name: tale-crawler
+
+    # Port mapping: host:container
+    # Access the API at http://localhost:8002
+    ports:
+      - '8002:8002'
+
+    # Environment file
+    # Create a .env file in the project root with your configuration
+    env_file:
+      - .env
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the service is healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (optional, adjust based on your needs)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 4G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 2G
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale RAG (Cognee)
+  # ============================================================================
+  rag:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/rag/Dockerfile
+
+    # Container name
+    container_name: tale-rag
+
+    # Port mapping: host:container
+    # Access the API at http://localhost:8001
+    ports:
+      - '8001:8001'
+
+    # Volume mounts
+    # Persist cognee data
+    volumes:
+      # Cognee data directory
+      - rag-data:/app/data
+
+    # Environment file
+    # Create a .env file in the project root with your API keys
+    env_file:
+      - .env
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the service is healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Dependencies
+    # Wait for database to be ready (PGVector uses the same PostgreSQL database)
+    depends_on:
+      - db
+
+    # Resource limits (optional, adjust based on your needs)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 4G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 2G
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Platform (Next.js + Convex)
+  # ============================================================================
+  platform:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+
+    # Container name
+    container_name: tale-platform
+
+    # Port mapping: host:container
+    # Note: When using the proxy service, all traffic should go through the proxy
+    # The proxy handles HTTPS and forwards to the platform service over HTTP
+    # With proxy: Access via https://yourdomain.com (configured in proxy service)
+    ports:
+      # Uncomment for direct access during development/debugging:
+      - '3000:3000'
+      # Convex dashboard UI (direct access)
+      - '6791:6791'
+
+    # Volume mounts
+    # Persist Convex local data
+    volumes:
+      # Convex local backend data
+      - platform-convex-data:/app/convex-data
+
+    # Environment file
+    # Create a .env file in the project root with your configuration
+    env_file:
+      - .env
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the service is healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Dependencies
+    # Wait for backend services to be ready
+    depends_on:
+      - db
+      - graph-db
+      - rag
+      - crawler
+      - search
+
+    # Resource limits (optional, adjust based on your needs)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 4G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 2G
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Search (SearXNG) - Self-hosted Meta Search Engine
+  # ============================================================================
+  search:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/search/Dockerfile
+
+    # Container name
+    container_name: tale-search
+
+    # Port mapping: host:container
+    # Access the search API at http://localhost:8003
+    # Note: SearXNG internally listens on 8080, mapped to 8003 externally
+    ports:
+      - '8003:8080'
+
+    # Environment file
+    env_file:
+      - .env
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://localhost:8080/healthz',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
+  # Tale Proxy (Caddy) - OPTIONAL
+  # ============================================================================
+  # The proxy service is OPTIONAL and only needed for production HTTPS.
+  #
+  # For local development:
+  #   - Run: docker compose up (proxy will NOT start by default)
+  #   - Access: http://localhost:3000
+  #
+  # For production with HTTPS:
+  #   - Run: docker compose --profile production up
+  #   - Access: https://yourdomain.com (via proxy on ports 80/443)
+  #   - Set DOMAIN=https://yourdomain.com in .env
+  #
+  proxy:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: services/proxy/Dockerfile
+
+    # Container name
+    container_name: tale-proxy
+
+    # Profile: Only start when explicitly requested
+    profiles:
+      - production
+
+    # Port mapping: host:container
+    # Access the platform via HTTP (80) or HTTPS (443)
+    # HTTPS will be automatically configured when using a domain name
+    ports:
+      - '80:80'
+      - '443:443'
+
+    # Volume mounts
+    # Persist Caddy data (certificates, etc.)
+    volumes:
+      # Caddy data directory for certificates and configuration
+      - caddy-data:/data
+      # Caddy config directory
+      - caddy-config:/config
+
+    # Environment file
+    # Create a .env file in the project root with your domain configuration
+    env_file:
+      - .env
+
+    # Restart policy
+    # Automatically restart the container if it crashes
+    restart: unless-stopped
+
+    # Health check
+    # Docker will check if the proxy is healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://localhost:80/',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Dependencies
+    # Wait for platform to be ready
+    depends_on:
+      - platform
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  # Tale DB persistent storage
+  db-data:
+    driver: local
+    # Optional: Use named volume with specific driver options
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /path/to/db/data
+
+  # Tale DB backup storage
+  db-backup:
+    driver: local
+
+  # Persistent storage for graph database data (Kuzu)
+  graph-db-data:
+    driver: local
+
+  # Persistent storage for RAG service data
+  rag-data:
+    driver: local
+
+  # Persistent storage for Platform Convex local backend
+  platform-convex-data:
+    driver: local
+
+  # Persistent storage for Caddy proxy data (certificates, etc.)
+  caddy-data:
+    driver: local
+
+  # Persistent storage for Caddy proxy configuration
+  caddy-config:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  # Internal network for Tale services
+  internal:
+    driver: bridge
+    # Optional: Configure network settings
+    # ipam:
+    #   config:
+    #     - subnet: 172.28.0.0/16

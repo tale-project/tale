@@ -1,0 +1,46 @@
+/**
+ * Documents Model - Index
+ *
+ * Central export point for all document model functions
+ */
+
+// Export types
+export type {
+  CreateDocumentArgs,
+  CreateDocumentResult,
+  QueryDocumentsArgs,
+  QueryDocumentsResult,
+  DocumentItemResponse,
+  DocumentListResponse,
+  CheckMembershipArgs,
+  MembershipResult,
+  DocumentSourceType,
+  DocumentOutputFormat,
+  GenerateDocumentArgs,
+  GenerateDocumentResult,
+} from './types';
+
+// Export validators
+export {
+  DocumentItem,
+  DocumentListResponseValidator,
+  DocumentRecord,
+} from './types';
+
+// Export functions
+export { createDocument } from './create_document';
+export { getDocumentById } from './get_document_by_id';
+export { queryDocuments } from './query_documents';
+export { checkMembership } from './check_membership';
+export { generateSignedUrl } from './generate_signed_url';
+export { transformToDocumentItem } from './transform_to_document_item';
+export { getDocuments } from './get_documents';
+export { getDocumentByIdPublic } from './get_document_by_id_public';
+export { getDocumentByPath } from './get_document_by_path';
+export { updateDocument } from './update_document';
+export { deleteDocument } from './delete_document';
+export { createOneDriveSyncConfig } from './create_onedrive_sync_config';
+export { getOneDriveSyncConfigs } from './get_onedrive_sync_configs';
+export { uploadBase64ToStorage } from './upload_base64_to_storage';
+export { readFileBase64FromStorage } from './read_file_base64_from_storage';
+export { generateDocument } from './generate_document';
