@@ -8,7 +8,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import { createChatAgent } from '../../lib/create_chat_agent';
 import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
 
@@ -54,20 +54,37 @@ export async function generateAgentResponse(
   }, TIMEOUT_MS);
 
   try {
-    const summarizationResult: {
-      summarized: boolean;
-      existingSummary?: string;
-      totalMessagesSummarized: number;
-    } = await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
-      threadId,
-    });
+    // Load any existing incremental summary for this thread without blocking
+    // on a fresh summarization run. Summarization itself is handled
+    // asynchronously in onChatComplete and on-demand in the
+    // context_overflow_retry flow.
+    let contextSummary: string | undefined;
+    try {
+      const thread = await ctx.runQuery(components.agent.threads.getThread, {
+        threadId,
+      });
 
-    const contextSummary = summarizationResult.existingSummary;
+      if (thread?.summary) {
+        try {
+          const summaryData = JSON.parse(thread.summary) as {
+            contextSummary?: string;
+          };
+          if (typeof summaryData.contextSummary === 'string') {
+            contextSummary = summaryData.contextSummary;
+          }
+        } catch {
+          // Ignore malformed summary JSON and proceed without it
+        }
+      }
+    } catch (error) {
+      console.error('[chat_agent] Failed to load existing thread summary', {
+        threadId,
+        error,
+      });
+    }
 
-    console.log('[chat_agent] Auto-summarization check', {
+    console.log('[chat_agent] Using existing context summary (if any)', {
       threadId,
-      summarized: summarizationResult.summarized,
-      totalMessagesSummarized: summarizationResult.totalMessagesSummarized,
       hasSummary: !!contextSummary,
     });
 

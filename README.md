@@ -16,7 +16,7 @@ Get Tale running in 3 steps:
 ### 2. Clone & Configure
 
 ```bash
-git clone https://github.com/your-repo/tale.git
+git clone https://github.com/tale-project/tale.git
 cd tale
 cp .env.example .env
 ```
