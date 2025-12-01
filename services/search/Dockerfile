@@ -23,7 +23,7 @@ ENV SEARCH_INSTANCE_NAME="Tale Search" \
     SEARCH_SECRET_KEY="tale-search-secret-key-change-in-production" \
     SEARCH_BIND_ADDRESS="0.0.0.0" \
     SEARCH_PORT=8080 \
-    SEARCH_DEBUG=false \
+	SEARCH_DEBUG=false \
     SEARCH_SAFE_SEARCH=0 \
     SEARCH_DEFAULT_LANG="all" \
     SEARCH_PUBLIC_INSTANCE=false \
@@ -38,8 +38,11 @@ ENV SEARCH_INSTANCE_NAME="Tale Search" \
 EXPOSE 8080
 
 # Health check
+# Include X-Real-IP header so SearXNG's botdetection does not log a
+# noisy "X-Forwarded-For nor X-Real-IP header is set!" error when
+# the healthcheck runs.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
+	CMD wget --no-verbose --tries=1 --spider --header="X-Real-IP: 127.0.0.1" http://localhost:8080/healthz || exit 1
 
 # Use custom entrypoint wrapper that handles SEARCH_ env vars
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-wrapper.sh"]

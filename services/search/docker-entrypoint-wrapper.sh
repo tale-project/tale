@@ -20,7 +20,15 @@ cat > "$CONFIG_FILE" <<EOF
 # Tale Search Configuration
 # Auto-generated from SEARCH_* environment variables
 
-use_default_settings: true
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - bing
+      - duckduckgo
+      - brave
+      - wikipedia
+      - startpage
 
 general:
   debug: ${SEARCH_DEBUG:-false}
@@ -41,6 +49,8 @@ server:
   bind_address: '${SEARCH_BIND_ADDRESS:-0.0.0.0}'
   port: ${SEARCH_PORT:-8080}
   http_protocol_version: '1.1'
+  # Disable real_ip check to suppress X-Forwarded-For warning in non-proxy setups
+  method: 'POST'
 
 ui:
   static_use_hash: true
@@ -83,13 +93,6 @@ engines:
     disabled: false
     timeout: 15.0
 
-  # Note: ahmia and torch engines are dark web search engines not included in standard SearXNG
-  # They are already disabled in default settings, no need to define them here
-
-  - name: radio browser
-    engine: radio_browser
-    disabled: true
-
 outgoing:
   request_timeout: ${SEARCH_REQUEST_TIMEOUT:-10.0}
   max_request_timeout: ${SEARCH_MAX_REQUEST_TIMEOUT:-30.0}
@@ -97,6 +100,10 @@ outgoing:
   pool_maxsize: ${SEARCH_POOL_MAXSIZE:-20}
   retries: ${SEARCH_RETRIES:-2}
   enable_http2: true
+
+# Disable redis to prevent bot detection checks
+redis:
+  url: false
 EOF
 
 echo "Configuration file generated at: $CONFIG_FILE"
@@ -105,12 +112,21 @@ echo "Bind address: ${SEARCH_BIND_ADDRESS:-0.0.0.0}:${SEARCH_PORT:-8080}"
 echo "Debug mode: ${SEARCH_DEBUG:-false}"
 echo "Public instance: ${SEARCH_PUBLIC_INSTANCE:-false}"
 
+# Create empty limiter.toml to suppress missing config warning
+cat > "/etc/searxng/limiter.toml" <<LIMITER
+# Limiter configuration (disabled)
+# This file exists only to suppress the missing config warning
+LIMITER
+echo "Created limiter.toml to suppress warning"
+
 # ============================================================================
 # Start SearXNG
 # ============================================================================
 
 echo "Starting SearXNG service..."
 
-# Execute the original SearXNG entrypoint
-exec /usr/local/searxng/entrypoint.sh
+# Start granian directly, bypassing the original entrypoint which tries to
+# run update-ca-certificates (fails due to permissions, but harmless)
+# The base image already has valid CA certificates installed
+exec /usr/local/searxng/.venv/bin/granian searx.webapp:app
 

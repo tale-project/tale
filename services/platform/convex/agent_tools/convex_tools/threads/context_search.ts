@@ -45,7 +45,9 @@ Retrieves messages from the specified thread and returns the top 10 most similar
 Each matched message includes 1 message before and 1 message after for context.
 Provide a single, focused keyword or short phrase per call. If you need to search for multiple distinct keywords, call this tool multiple times, once per keyword or phrase, instead of combining them with boolean operators or complex queries such as 
 "Apps_with_love_Enhanced_Report_Icons OR 72938217 OR \"Icons Edition\"".
-Use this tool to find relevant context from previous messages in a conversation thread.`,
+	If an initial search does not return any relevant results (for example, an empty messages array), you MUST proactively try again with 3 to 5 alternative, more focused queries in separate calls before concluding that there is no useful context to retrieve.
+	When the user asks to regenerate or modify a specific file, first try searching using that files URL or file name as the query so you can retrieve any prior messages, code snippets, or discussions related to that file.
+	Use this tool to find relevant context from previous messages in a conversation thread.`,
     args: z.object({
       threadId: z.string().describe('The thread ID to search messages in.'),
       query: z
