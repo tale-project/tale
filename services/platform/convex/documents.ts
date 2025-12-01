@@ -17,6 +17,7 @@ import {
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import { paginationOptsValidator } from 'convex/server';
 import { internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';
@@ -78,6 +79,86 @@ export const uploadBase64Internal = internalAction({
   }),
   handler: async (ctx, args) => {
     return await DocumentsModel.uploadBase64ToStorage(ctx, args);
+  },
+});
+
+/**
+ * Generate an Excel workbook via a Node-only action and upload it to storage.
+ *
+ * This action runs in the default Convex runtime and is responsible for
+ * storage operations. It delegates the actual XLSX generation to the
+ * node_only generate_excel_internal action, which returns the file as
+ * base64.
+ */
+export const generateExcelInternal = internalAction({
+  args: {
+    fileName: v.string(),
+    sheets: v.array(
+      v.object({
+        name: v.string(),
+        headers: v.array(v.string()),
+        rows: v.array(
+          v.array(v.union(v.string(), v.number(), v.boolean(), v.null())),
+        ),
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    fileId: v.id('_storage'),
+    url: v.string(),
+    fileName: v.string(),
+    rowCount: v.number(),
+    sheetCount: v.number(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    success: boolean;
+    fileId: Id<'_storage'>;
+    url: string;
+    fileName: string;
+    rowCount: number;
+    sheetCount: number;
+  }> => {
+    // 1. Build the Excel workbook in the Node runtime.
+    const nodeResult: {
+      fileBase64: string;
+      fileName: string;
+      rowCount: number;
+      sheetCount: number;
+    } = await ctx.runAction(
+      internal.node_only.documents.generate_excel_internal
+        .generateExcelInternal,
+      {
+        fileName: args.fileName,
+        sheets: args.sheets,
+      },
+    );
+
+    const { fileBase64, fileName, rowCount, sheetCount } = nodeResult;
+
+    // 2. Upload the base64-encoded Excel file to Convex storage using the
+    // same helper used elsewhere in the documents model.
+    const uploadResult = await DocumentsModel.uploadBase64ToStorage(
+      ctx as any,
+      {
+        fileName,
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dataBase64: fileBase64,
+      },
+    );
+
+    return {
+      success: uploadResult.success,
+      fileId: uploadResult.fileId,
+      url: uploadResult.url,
+      fileName: uploadResult.fileName,
+      rowCount,
+      sheetCount,
+    };
   },
 });
 

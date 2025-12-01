@@ -16,19 +16,21 @@ export const generateExcelInternal = internalAction({
       v.object({
         name: v.string(),
         headers: v.array(v.string()),
-        rows: v.array(v.array(v.union(v.string(), v.number(), v.boolean(), v.null()))),
+        rows: v.array(
+          v.array(v.union(v.string(), v.number(), v.boolean(), v.null())),
+        ),
       }),
     ),
   },
+  // Node-only action: generate the Excel workbook and return it as base64 + metadata.
+  // Storage upload must be done from a default-runtime Convex action.
   returns: v.object({
-    success: v.boolean(),
-    fileId: v.string(),
-    url: v.string(),
+    fileBase64: v.string(),
     fileName: v.string(),
     rowCount: v.number(),
     sheetCount: v.number(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     console.log('[generate_excel_internal] start', {
       fileName: args.fileName,
       sheetCount: args.sheets.length,
@@ -58,49 +60,24 @@ export const generateExcelInternal = internalAction({
       totalRows += sheet.rows.length;
     }
 
-    // Generate buffer
+    // Generate buffer and convert to base64 so it can be safely returned to the
+    // default-runtime action, which will handle storage upload.
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-    // Upload to Convex storage
-    const uploadUrl = await ctx.storage.generateUploadUrl();
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      },
-      body: buffer,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload Excel file: ${response.statusText}`);
-    }
-
-    const { storageId } = await response.json();
-
-    // Get download URL
-    const url = await ctx.storage.getUrl(storageId);
-    if (!url) {
-      throw new Error('Failed to get download URL for Excel file');
-    }
+    const fileBase64 = (buffer as any).toString('base64');
 
     const finalFileName = `${args.fileName}.xlsx`;
 
-    console.log('[generate_excel_internal] success', {
+    console.log('[generate_excel_internal] built workbook', {
       fileName: finalFileName,
-      storageId,
       rowCount: totalRows,
       sheetCount: args.sheets.length,
     });
 
     return {
-      success: true,
-      fileId: storageId,
-      url,
+      fileBase64,
       fileName: finalFileName,
       rowCount: totalRows,
       sheetCount: args.sheets.length,
     };
   },
 });
-
