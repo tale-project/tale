@@ -41,6 +41,39 @@ export interface GenerateAgentResponseResult {
   reasoning?: string;
 }
 
+/**
+ * Attempts to load and parse the context summary from a thread.
+ * Returns undefined if the thread doesn't exist, has no summary, or the summary is malformed.
+ */
+async function loadContextSummary(
+  ctx: ActionCtx,
+  threadId: string,
+): Promise<string | undefined> {
+  try {
+    const thread = await ctx.runQuery(components.agent.threads.getThread, {
+      threadId,
+    });
+
+    if (!thread?.summary) {
+      return undefined;
+    }
+
+    const summaryData = JSON.parse(thread.summary) as {
+      contextSummary?: string;
+    };
+    return typeof summaryData.contextSummary === 'string'
+      ? summaryData.contextSummary
+      : undefined;
+  } catch (error) {
+    // Log and gracefully degrade - missing summary is non-fatal
+    console.error('[chat_agent] Failed to load existing thread summary', {
+      threadId,
+      error,
+    });
+    return undefined;
+  }
+}
+
 export async function generateAgentResponse(
   ctx: ActionCtx,
   args: GenerateAgentResponseArgs,
@@ -60,30 +93,7 @@ export async function generateAgentResponse(
     // on a fresh summarization run. Summarization itself is handled
     // asynchronously in onChatComplete and on-demand in the
     // context_overflow_retry flow.
-    let contextSummary: string | undefined;
-    try {
-      const thread = await ctx.runQuery(components.agent.threads.getThread, {
-        threadId,
-      });
-
-      if (thread?.summary) {
-        try {
-          const summaryData = JSON.parse(thread.summary) as {
-            contextSummary?: string;
-          };
-          if (typeof summaryData.contextSummary === 'string') {
-            contextSummary = summaryData.contextSummary;
-          }
-        } catch {
-          // Ignore malformed summary JSON and proceed without it
-        }
-      }
-    } catch (error) {
-      console.error('[chat_agent] Failed to load existing thread summary', {
-        threadId,
-        error,
-      });
-    }
+    const contextSummary = await loadContextSummary(ctx, threadId);
 
     debugLog('Using existing context summary (if any)', {
       threadId,
