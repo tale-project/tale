@@ -1,0 +1,92 @@
+import type { ActionCtx } from '../../../../_generated/server';
+import type { Doc } from '../../../../_generated/dataModel';
+import { internal } from '../../../../_generated/api';
+import type { WorkflowReadSearchExamplesResult } from './types';
+
+export async function readWorkflowExamples(
+  ctx: unknown,
+  args: { query: string; limit?: number; includeInactive?: boolean },
+): Promise<WorkflowReadSearchExamplesResult> {
+  const actionCtx = ctx as ActionCtx;
+  const organizationId = (ctx as unknown as { organizationId?: string })
+    .organizationId;
+
+  if (!organizationId) {
+    return {
+      operation: 'search_examples',
+      totalFound: 0,
+      returned: 0,
+      examples: [],
+      suggestion: '',
+      message:
+        'No organizationId in context - cannot search workflows. This tool requires organizationId to be set.',
+    };
+  }
+
+  try {
+    const allWorkflows = (await actionCtx.runQuery(
+      internal.wf_definitions.listWorkflows,
+      {
+        organizationId,
+      },
+    )) as Doc<'wfDefinitions'>[];
+
+    const includeInactive = args.includeInactive ?? false;
+    const workflows = includeInactive
+      ? allWorkflows
+      : allWorkflows.filter((wf) => wf.status === 'active');
+
+    const queryLower = args.query.toLowerCase();
+    const matchingWorkflows = workflows.filter((wf) => {
+      const nameLower = wf.name.toLowerCase();
+      const descLower = (wf.description || '').toLowerCase();
+      return nameLower.includes(queryLower) || descLower.includes(queryLower);
+    });
+
+    const limit = args.limit ?? 5;
+
+    const examples = await Promise.all(
+      matchingWorkflows.slice(0, limit).map(async (wf) => {
+        const steps = (await actionCtx.runQuery(
+          internal.wf_step_defs.listWorkflowSteps,
+          {
+            wfDefinitionId: wf._id,
+          },
+        )) as Doc<'wfStepDefs'>[];
+
+        const sortedSteps = steps.sort((a, b) => a.order - b.order);
+
+        return {
+          workflowId: wf._id as string,
+          name: wf.name,
+          description: wf.description || 'No description',
+          status: wf.status,
+          stepCount: steps.length,
+          steps: sortedSteps,
+        };
+      }),
+    );
+
+    return {
+      operation: 'search_examples',
+      totalFound: matchingWorkflows.length,
+      returned: examples.length,
+      examples,
+      suggestion:
+        examples.length === 0
+          ? `No workflows found matching "${args.query}". Try broader search terms or use list_available_actions to see what actions are available.`
+          : `Found ${examples.length} example(s). Study the step structure to create similar workflows.`,
+    };
+  } catch (error) {
+    return {
+      operation: 'search_examples',
+      totalFound: 0,
+      returned: 0,
+      examples: [],
+      suggestion: '',
+      error: `Failed to search workflows: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    };
+  }
+}

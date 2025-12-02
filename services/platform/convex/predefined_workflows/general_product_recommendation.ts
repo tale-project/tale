@@ -188,7 +188,7 @@ Example of a VALID response (do NOT explain it, just return JSON like this):
         maxTokens: 4000,
         maxSteps: 20,
         outputFormat: 'json',
-        tools: ['product_get', 'list_products', 'rag_search'],
+        tools: ['product_read', 'rag_search'],
         systemPrompt: '{{llmSystemPrompt}}',
         userPrompt: '{{llmUserPrompt}}',
       },

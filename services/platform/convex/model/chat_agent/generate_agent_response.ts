@@ -91,18 +91,6 @@ export async function generateAgentResponse(
     const agent = await createChatAgent({
       withTools: true,
       maxSteps,
-      convexToolNames: [
-        'customer_search',
-        'list_products',
-        'list_customers',
-        'rag_search',
-        'rag_knowledge',
-        'fetch_url',
-        'web_search',
-        'generate_excel',
-        'generate_file',
-        'context_search',
-      ],
     });
 
     const contextWithOrg = {
@@ -192,8 +180,27 @@ export async function generateAgentResponse(
   } catch (error) {
     clearTimeout(timeoutId);
 
+    const elapsedMs = Date.now() - startTime;
+
+    // Log sanitized error details to help diagnose provider issues like
+    // AI_APICallError without leaking sensitive request data.
+    // NOTE: We only log high-level metadata (status, type, code, message).
+    const err = error as any;
+    console.error('[chat_agent] generateAgentResponse error', {
+      threadId,
+      elapsedMs,
+      aborted: abortController.signal.aborted,
+      name: err?.name,
+      message: err?.message,
+      status: err?.status ?? err?.statusCode,
+      type: err?.type,
+      code: err?.code,
+      // Capture response body for API errors (helps debug schema issues)
+      responseBody: err?.responseBody ?? err?.data ?? err?.cause?.responseBody,
+      cause: err?.cause?.message,
+    });
+
     if (abortController.signal.aborted) {
-      const elapsedMs = Date.now() - startTime;
       throw new Error(
         `generateAgentResponse timed out after ${(elapsedMs / 1000).toFixed(
           1,
