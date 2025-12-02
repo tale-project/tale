@@ -12,23 +12,23 @@ interface ConversationsNavigationProps {
 const getConversationsNavigationItems = ({
   organizationId,
 }: ConversationsNavigationProps) => [
-    {
-      label: 'Open',
-      href: `/dashboard/${organizationId}/conversations?status=open`,
-    },
-    {
-      label: 'Closed',
-      href: `/dashboard/${organizationId}/conversations?status=closed`,
-    },
-    {
-      label: 'Spam',
-      href: `/dashboard/${organizationId}/conversations?status=spam`,
-    },
-    {
-      label: 'Archived',
-      href: `/dashboard/${organizationId}/conversations?status=archived`,
-    },
-  ];
+  {
+    label: 'Open',
+    href: `/dashboard/${organizationId}/conversations?status=open`,
+  },
+  {
+    label: 'Closed',
+    href: `/dashboard/${organizationId}/conversations?status=closed`,
+  },
+  {
+    label: 'Spam',
+    href: `/dashboard/${organizationId}/conversations?status=spam`,
+  },
+  {
+    label: 'Archived',
+    href: `/dashboard/${organizationId}/conversations?status=archived`,
+  },
+];
 
 export default function ConversationsNavigation({
   organizationId,

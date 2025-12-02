@@ -18,8 +18,10 @@ interface FileAttachment {
   previewUrl?: string; // For showing image previews before upload
 }
 
-interface ChatInputProps
-  extends Omit<ComponentPropsWithoutRef<'div'>, 'onChange'> {
+interface ChatInputProps extends Omit<
+  ComponentPropsWithoutRef<'div'>,
+  'onChange'
+> {
   onSendMessage: (message: string, attachments?: FileAttachment[]) => void;
   onAttachFiles?: () => void;
   isLoading?: boolean;
@@ -210,7 +212,7 @@ export default function ChatInput({
       {/* Main input container */}
       <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
         <div
-          className={`flex relative flex-col gap-2 bg-background/50 backdrop-blur-sm rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0 ${
+          className={`flex relative flex-col gap-2 bg-background rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0 ${
             isDragOver ? 'border-primary bg-primary/5' : ''
           }`}
           onDragOver={handleDragOver}

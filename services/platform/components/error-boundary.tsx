@@ -22,17 +22,19 @@ interface ErrorBoundaryState {
 // Error display component with configurable size
 function ErrorDisplay({
   error,
-  reset,
   organizationId,
   size = 'default',
   header,
 }: {
   error: Error;
-  reset: () => void;
   organizationId?: string;
   size?: ErrorSize;
   header?: ReactNode;
 }) {
+  const reset = () => {
+    window.location.reload();
+  };
+
   useEffect(() => {
     console.error('ErrorBoundary caught an error:', error, {
       organizationId,
@@ -132,7 +134,6 @@ export class ErrorBoundary extends Component<
       return (
         <ErrorDisplay
           error={this.state.error}
-          reset={this.reset}
           organizationId={this.props.organizationId}
           size={this.props.size}
           header={this.props.header}
@@ -165,21 +166,18 @@ export function ErrorBoundaryWithParams({ children }: { children: ReactNode }) {
 // Component for Next.js error.tsx files (large format)
 interface DashboardErrorBoundaryProps {
   error: Error & { digest?: string };
-  reset: () => void;
   organizationId?: string;
   header?: ReactNode;
 }
 
 export function DashboardErrorBoundary({
   error,
-  reset,
   organizationId,
   header,
 }: DashboardErrorBoundaryProps) {
   return (
     <ErrorDisplay
       error={error}
-      reset={reset}
       organizationId={organizationId}
       size="default"
       header={header}

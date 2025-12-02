@@ -194,7 +194,12 @@ export default function ChatInterface({
       setIsOptimisticLoading(false);
       setOptimisticMessage(null);
     },
-    [setIsOptimisticLoading, setOptimisticMessage, threadId, clearActiveRunIdMutation],
+    [
+      setIsOptimisticLoading,
+      setOptimisticMessage,
+      threadId,
+      clearActiveRunIdMutation,
+    ],
   );
 
   // React to chat status changes
@@ -385,16 +390,16 @@ export default function ChatInterface({
     <div className="relative flex flex-col h-full flex-1 min-h-0">
       <div
         ref={containerRef}
-        className="flex flex-col h-full flex-1 min-h-0 scrollbar-hide overflow-y-auto"
+        className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto"
       >
         {/* Messages area */}
         <div
           className={cn(
             'flex-1 overflow-y-visible p-8',
             !threadId &&
-            threadMessages?.length === 0 &&
-            !userDraftMessage &&
-            'flex flex-col items-center justify-end',
+              threadMessages?.length === 0 &&
+              !userDraftMessage &&
+              'flex flex-col items-center justify-end',
           )}
         >
           {!isLoading &&
@@ -445,7 +450,7 @@ export default function ChatInterface({
         </div>
 
         <ChatInput
-          className="max-w-[48rem] mx-auto w-full sticky bottom-0"
+          className="max-w-[48rem] mx-auto w-full sticky bottom-0 z-50"
           value={inputValue}
           onChange={setInputValue}
           onSendMessage={handleSendMessage}

@@ -71,7 +71,7 @@ export default function ExampleMessagesTable({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h3 className="text-base font-semibold text-foreground tracking-[-0.096px]">
+          <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
             Example messages
           </h3>
           <p className="text-sm text-muted-foreground tracking-[-0.084px]">

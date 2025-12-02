@@ -15,7 +15,6 @@ export default function AppError({ error, reset }: AppErrorProps) {
     <section>
       <DashboardErrorBoundary
         error={error}
-        reset={reset}
         header={
           <div className="pt-8 px-20 flex items-center">
             <Link href="/dashboard" className="hover:opacity-70">

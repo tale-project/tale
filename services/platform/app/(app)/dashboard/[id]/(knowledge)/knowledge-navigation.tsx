@@ -22,31 +22,31 @@ interface NavItem {
 const getKnowledgeNavigationItems = ({
   businessId,
 }: GetKnowledgeNavigationItemsProps): NavItem[] => [
-    {
-      label: 'Documents',
-      href: `/dashboard/${businessId}/documents`,
-    },
-    {
-      label: 'Websites',
-      href: `/dashboard/${businessId}/websites`,
-    },
-    {
-      label: 'Products',
-      href: `/dashboard/${businessId}/products`,
-    },
-    {
-      label: 'Customers',
-      href: `/dashboard/${businessId}/customers`,
-    },
-    {
-      label: 'Vendors',
-      href: `/dashboard/${businessId}/vendors`,
-    },
-    {
-      label: 'Tone of voice',
-      href: `/dashboard/${businessId}/tone-of-voice`,
-    },
-  ];
+  {
+    label: 'Documents',
+    href: `/dashboard/${businessId}/documents`,
+  },
+  {
+    label: 'Websites',
+    href: `/dashboard/${businessId}/websites`,
+  },
+  {
+    label: 'Products',
+    href: `/dashboard/${businessId}/products`,
+  },
+  {
+    label: 'Customers',
+    href: `/dashboard/${businessId}/customers`,
+  },
+  {
+    label: 'Vendors',
+    href: `/dashboard/${businessId}/vendors`,
+  },
+  {
+    label: 'Tone of voice',
+    href: `/dashboard/${businessId}/tone-of-voice`,
+  },
+];
 
 const hasRequiredRole = (
   userRole?: string | null,
@@ -103,7 +103,7 @@ export default function KnowledgeNavigation({
   }, [updateIndicator]);
 
   return (
-    <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-10 border-b border-border px-4 py-2 min-h-12 flex items-center gap-4">
+    <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-50 border-b border-border px-4 py-2 min-h-12 flex items-center gap-4">
       {accessibleItems.map((item, index) => {
         // Check if current path matches the nav item
         const isActive = pathname.startsWith(item.href);

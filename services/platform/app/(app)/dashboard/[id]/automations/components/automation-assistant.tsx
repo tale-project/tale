@@ -93,7 +93,7 @@ function ThinkingAnimation() {
           duration: 0.2,
           ease: 'easeInOut',
         }}
-        className="text-xs text-muted-foreground flex items-center gap-2"
+        className="text-xs text-muted-foreground flex items-center gap-2 px-3"
       >
         <motion.span
           key={currentStep}
@@ -313,7 +313,7 @@ export function AutomationAssistant({
       {/* Chat messages */}
       <div
         ref={containerRef}
-        className="flex-1 flex flex-col overflow-y-auto p-2 space-y-2.5 scrollbar-hide"
+        className="flex-1 flex flex-col overflow-y-auto p-2 space-y-2.5"
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-start justify-start h-full py-4">
@@ -379,8 +379,8 @@ export function AutomationAssistant({
       </div>
 
       {/* Chat input */}
-      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0">
-        <div className="bg-background/70 backdrop-blur-sm rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
+      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50">
+        <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
           <div className="transition-all duration-300 ease-in-out overflow-y-auto h-[3rem]">
             <Textarea
               value={inputValue}

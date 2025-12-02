@@ -216,7 +216,7 @@ export default function ToneOfVoiceForm({
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
         <div className="flex items-end justify-between">
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-foreground tracking-[-0.096px]">
+            <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
               Tone of voice
               <span className="text-xs text-muted-foreground ml-2">
                 {'(optional)'}

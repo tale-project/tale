@@ -41,19 +41,19 @@ const getAutomationNavigationItems = ({
   organizationId,
   automationId,
 }: GetAutomationNavigationItemsProps): NavItem[] => [
-    {
-      label: 'Editor',
-      href: `/dashboard/${organizationId}/automations/${automationId}`,
-    },
-    {
-      label: 'Executions',
-      href: `/dashboard/${organizationId}/automations/${automationId}/executions`,
-    },
-    {
-      label: 'Configurations',
-      href: `/dashboard/${organizationId}/automations/${automationId}/configuration`,
-    },
-  ];
+  {
+    label: 'Editor',
+    href: `/dashboard/${organizationId}/automations/${automationId}`,
+  },
+  {
+    label: 'Executions',
+    href: `/dashboard/${organizationId}/automations/${automationId}/executions`,
+  },
+  {
+    label: 'Configuration',
+    href: `/dashboard/${organizationId}/automations/${automationId}/configuration`,
+  },
+];
 
 const hasRequiredRole = (
   userRole?: string | null,
@@ -92,20 +92,21 @@ export default function AutomationNavigation({
   );
 
   // Fetch all versions of this automation
-  const versions = useQuery(api.wf_definitions.listVersionsPublic, (
+  const versions = useQuery(
+    api.wf_definitions.listVersionsPublic,
     automation?.name && organizationId
       ? {
-        organizationId: organizationId,
-        name: automation.name,
-      }
-      : 'skip') as any,
+          organizationId: organizationId,
+          name: automation.name,
+        }
+      : 'skip',
   );
 
   const navigationItems = automationId
     ? getAutomationNavigationItems({
-      organizationId,
-      automationId,
-    })
+        organizationId,
+        automationId,
+      })
     : [];
 
   // Filter out items that are not accessible

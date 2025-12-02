@@ -1,7 +1,7 @@
 import { SuspenseLoader } from '@/components/suspense-loader';
 import { api } from '@/convex/_generated/api';
 
-import AutomationsList from './components/automations-list';
+import AutomationsTable from './components/automations-table';
 import { fetchQuery } from 'convex/nextjs';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
@@ -51,7 +51,7 @@ async function AutomationsPageContent({ params }: AutomationsPageProps) {
   );
 
   return (
-    <AutomationsList
+    <AutomationsTable
       automations={automations}
       organizationId={organizationId}
     />

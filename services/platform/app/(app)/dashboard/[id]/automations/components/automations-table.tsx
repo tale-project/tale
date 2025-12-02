@@ -36,15 +36,15 @@ import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useDateFormat } from '@/hooks/use-date-format';
 
-interface AutomationsListProps {
+interface AutomationsTableProps {
   automations: Doc<'wfDefinitions'>[];
   organizationId: string;
 }
 
-export default function AutomationsList({
+export default function AutomationsTable({
   automations,
   organizationId,
-}: AutomationsListProps) {
+}: AutomationsTableProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [automationToDelete, setAutomationToDelete] =
@@ -61,9 +61,7 @@ export default function AutomationsList({
   const duplicateAutomation = useMutation(
     api.wf_definitions.duplicateWorkflowPublic,
   );
-  const deleteAutomation = useMutation(
-    api.wf_definitions.deleteWorkflowPublic,
-  );
+  const deleteAutomation = useMutation(api.wf_definitions.deleteWorkflowPublic);
 
   const handleCreateAutomation = () => {
     setCreateDialogOpen(true);
@@ -148,7 +146,7 @@ export default function AutomationsList({
   // Helper function to get status badge color
   const getStatusBadge = (status: string) => {
     return (
-      <Badge dot variant={status === 'active' ? 'green' : null}>
+      <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
         {status === 'active' ? 'Published' : 'Draft'}
       </Badge>
     );
