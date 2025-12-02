@@ -3,13 +3,17 @@ import type { Id } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type ProductReadGetByIdResult } from './types';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export async function readProductById(
   ctx: unknown,
   args: { productId: string; fields?: string[] },
 ): Promise<ProductReadGetByIdResult> {
   const organizationId = (ctx as { organizationId?: string }).organizationId;
 
-  console.log('[tool:product_read] get_by_id start', {
+  debugLog('tool:product_read get_by_id start', {
     organizationId,
     productId: args.productId,
   });
@@ -20,7 +24,7 @@ export async function readProductById(
   });
 
   if (!product) {
-    console.log('[tool:product_read] get_by_id not found', {
+    debugLog('tool:product_read get_by_id not found', {
       organizationId,
       productId: args.productId,
     });
@@ -43,7 +47,7 @@ export async function readProductById(
   }
 
   const presentKeys = Object.keys(out).filter((k) => out[k] !== undefined);
-  console.log('[tool:product_read] get_by_id return', {
+  debugLog('tool:product_read get_by_id return', {
     productId: args.productId,
     presentKeys,
   });

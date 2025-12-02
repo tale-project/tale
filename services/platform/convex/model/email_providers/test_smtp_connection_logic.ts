@@ -9,6 +9,10 @@ import type {
   SingleConnectionResult,
 } from './test_connection_types';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export async function testSmtpConnectionLogic(
   args: TestConnectionArgs,
   deps: TestConnectionDeps,
@@ -17,7 +21,7 @@ export async function testSmtpConnectionLogic(
   const { smtpConfig } = args;
 
   try {
-    console.log(
+    debugLog(
       `Testing SMTP connection to ${smtpConfig.host}:${smtpConfig.port}...`,
     );
 
@@ -46,7 +50,9 @@ export async function testSmtpConnectionLogic(
     await deps.verifySmtpConnection({ smtpConfig, auth });
 
     const latencyMs = Date.now() - startTime;
-    console.log(`\x1b[32mSMTP connection successful (\x1b[1m${latencyMs}\x1b[0mms)`);
+    debugLog(
+      `\x1b[32mSMTP connection successful (\x1b[1m${latencyMs}\x1b[0mms)`,
+    );
 
     return {
       success: true,

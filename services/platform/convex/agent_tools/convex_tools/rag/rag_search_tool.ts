@@ -8,6 +8,10 @@ import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 interface SearchResult {
   content: string;
   score: number;
@@ -66,7 +70,7 @@ Use this tool to find information from previously uploaded documents, websites, 
 
       const ragServiceUrl = getRagServiceUrl(variables);
 
-      console.log('[tool:rag_search] start', {
+      debugLog('tool:rag_search start', {
         query: args.query,
         top_k: args.top_k,
         ragServiceUrl,
@@ -97,7 +101,7 @@ Use this tool to find information from previously uploaded documents, websites, 
 
         const result = (await response.json()) as QueryResponse;
 
-        console.log('[tool:rag_search] success', {
+        debugLog('tool:rag_search success', {
           query: args.query,
           total_results: result.total_results,
           processing_time_ms: result.processing_time_ms,
@@ -114,4 +118,3 @@ Use this tool to find information from previously uploaded documents, websites, 
     },
   }),
 } as const satisfies ToolDefinition;
-

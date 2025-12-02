@@ -10,6 +10,10 @@ import type {
   VerifyImapConnectionParams,
 } from './test_connection_types';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export async function testImapConnectionLogic(
   args: TestConnectionArgs,
   deps: TestConnectionDeps,
@@ -18,7 +22,7 @@ export async function testImapConnectionLogic(
   const { imapConfig } = args;
 
   try {
-    console.log(
+    debugLog(
       `Testing IMAP connection to ${imapConfig.host}:${imapConfig.port}...`,
     );
 
@@ -46,7 +50,7 @@ export async function testImapConnectionLogic(
     await deps.verifyImapConnection({ imapConfig, auth });
 
     const latencyMs = Date.now() - startTime;
-    console.log(
+    debugLog(
       `\x1b[32mIMAP connection successful (\x1b[1m${latencyMs}\x1b[0mms)`,
     );
 

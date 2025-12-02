@@ -3,13 +3,17 @@ import type { Id } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByIdResult } from './types';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export async function readCustomerById(
   ctx: unknown,
   args: { customerId: string; fields?: string[] },
 ): Promise<CustomerReadGetByIdResult> {
   const organizationId = (ctx as { organizationId?: string }).organizationId;
 
-  console.log('[tool:customer_read] get_by_id start', {
+  debugLog('tool:customer_read get_by_id start', {
     organizationId,
     customerId: args.customerId,
   });
@@ -23,7 +27,7 @@ export async function readCustomerById(
   );
 
   if (!customer) {
-    console.log('[tool:customer_read] get_by_id not found', {
+    debugLog('tool:customer_read get_by_id not found', {
       organizationId,
       customerId: args.customerId,
     });
@@ -46,7 +50,7 @@ export async function readCustomerById(
   }
 
   const presentKeys = Object.keys(out).filter((k) => out[k] !== undefined);
-  console.log('[tool:customer_read] get_by_id return', {
+  debugLog('tool:customer_read get_by_id return', {
     customerId: args.customerId,
     presentKeys,
   });

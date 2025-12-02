@@ -9,6 +9,10 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { base64ToBytes } from '../../lib/crypto/base64_to_bytes';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
+
 export interface UploadBase64Args {
   fileName: string;
   contentType: string;
@@ -30,7 +34,7 @@ export async function uploadBase64ToStorage(
 ): Promise<UploadBase64Result> {
   const { fileName, contentType, dataBase64 } = args;
 
-  console.log('[documents.uploadBase64ToStorage] start', {
+  debugLog('documents.uploadBase64ToStorage start', {
     fileName,
     contentType,
     dataLength: dataBase64.length,
@@ -70,7 +74,7 @@ export async function uploadBase64ToStorage(
     );
   }
 
-  console.log('[documents.uploadBase64ToStorage] success', {
+  debugLog('documents.uploadBase64ToStorage success', {
     fileName,
     storageId,
     size,

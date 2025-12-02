@@ -1,3 +1,7 @@
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_IMAP_THREAD', '[IMAP Thread]');
+
 /**
  * Extract message IDs from threading headers In-Reply-To and References.
  *
@@ -19,7 +23,7 @@ export default function extractThreadMessageIds(
   if (inReplyTo) {
     const trimmed = inReplyTo.trim();
     messageIds.push(trimmed);
-    console.log(`[IMAP Thread] Found In-Reply-To: ${trimmed}`);
+    debugLog(`Found In-Reply-To: ${trimmed}`);
   }
 
   // Extract References header (full thread ancestry)
@@ -30,15 +34,11 @@ export default function extractThreadMessageIds(
       .map((id) => id.trim())
       .filter((id) => id.length > 0 && id !== ',');
     messageIds.push(...refIds);
-    console.log(
-      `[IMAP Thread] Found ${refIds.length} Reference(s): ${refIds.join(', ')}`,
-    );
+    debugLog(`Found ${refIds.length} Reference(s): ${refIds.join(', ')}`);
   }
 
   const uniqueIds = Array.from(new Set(messageIds));
-  console.log(
-    `[IMAP Thread] Extracted ${uniqueIds.length} unique Message-ID(s) from headers`,
-  );
+  debugLog(`Extracted ${uniqueIds.length} unique Message-ID(s) from headers`);
 
   return uniqueIds;
 }

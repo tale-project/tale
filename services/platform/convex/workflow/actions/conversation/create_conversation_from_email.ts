@@ -10,6 +10,10 @@ import { updateMessage } from './helpers/update_message';
 import { buildInitialMessage } from './helpers/build_initial_message';
 import { buildConversationMetadata } from './helpers/build_conversation_metadata';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
+
 // Helper to extract the first (root) message ID from References header
 function extractRootMessageId(email: EmailType): string | null {
   if (!email.headers) return null;
@@ -46,7 +50,7 @@ export async function createConversationFromEmail(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
-  console.log('[create_from_email] Processing', emailsArray.length, 'emails');
+  debugLog('create_from_email Processing', emailsArray.length, 'emails');
 
   // Determine the root message ID for the conversation
   // Priority:
@@ -63,8 +67,8 @@ export async function createConversationFromEmail(
   if (firstEmailWithReferences) {
     const referencesRootId = extractRootMessageId(firstEmailWithReferences);
     if (referencesRootId) {
-      console.log(
-        '[create_from_email] Found root message ID from References:',
+      debugLog(
+        'create_from_email Found root message ID from References:',
         referencesRootId,
       );
 
@@ -74,12 +78,12 @@ export async function createConversationFromEmail(
       );
 
       if (rootEmailFromReferences) {
-        console.log('[create_from_email] Root message found in fetched emails');
+        debugLog('create_from_email Root message found in fetched emails');
         rootEmail = rootEmailFromReferences;
         rootMessageId = referencesRootId;
       } else {
-        console.log(
-          '[create_from_email] Root message not in fetched emails, checking if conversation exists...',
+        debugLog(
+          'create_from_email Root message not in fetched emails, checking if conversation exists...',
         );
         // Check if a conversation already exists for this root message ID
         const existingConvForRoot = await checkConversationExists(
@@ -89,8 +93,8 @@ export async function createConversationFromEmail(
         );
 
         if (existingConvForRoot) {
-          console.log(
-            '[create_from_email] Found existing conversation for root message:',
+          debugLog(
+            'create_from_email Found existing conversation for root message:',
             existingConvForRoot._id,
           );
           // Add all emails as messages to this existing conversation
@@ -103,8 +107,8 @@ export async function createConversationFromEmail(
             );
 
             if (existingMessage) {
-              console.log(
-                '[create_from_email] Message already exists, updating:',
+              debugLog(
+                'create_from_email Message already exists, updating:',
                 email.messageId,
               );
               // Update existing message with delivered state and metadata
@@ -140,8 +144,8 @@ export async function createConversationFromEmail(
         }
 
         // Root message not found, use oldest email as root
-        console.log(
-          '[create_from_email] Root message not found, using oldest email as root',
+        debugLog(
+          'create_from_email Root message not found, using oldest email as root',
         );
         rootEmail = emailsArray[0];
         rootMessageId = rootEmail.messageId;
@@ -157,7 +161,7 @@ export async function createConversationFromEmail(
     rootMessageId = rootEmail.messageId;
   }
 
-  console.log('[create_from_email] Using root message ID:', rootMessageId);
+  debugLog('create_from_email Using root message ID:', rootMessageId);
 
   // Check if conversation already exists for the root email
   const existingConversation = await checkConversationExists(
@@ -172,8 +176,8 @@ export async function createConversationFromEmail(
 
   // If conversation exists, use it
   if (existingConversation) {
-    console.log(
-      '[create_from_email] Conversation already exists:',
+    debugLog(
+      'create_from_email Conversation already exists:',
       existingConversation._id,
     );
     conversationId = existingConversation._id;
@@ -200,7 +204,7 @@ export async function createConversationFromEmail(
     senderEmail = customerResult.email;
 
     // Create new conversation with initial message
-    console.log('[create_from_email] Creating conversation from root email');
+    debugLog('create_from_email Creating conversation from root email');
     const result = await ctx.runMutation(
       internal.conversations.createConversationWithMessage,
       {
@@ -223,7 +227,7 @@ export async function createConversationFromEmail(
 
     conversationId = result.conversationId;
     conversationCreated = true;
-    console.log('[create_from_email] Created conversation:', conversationId);
+    debugLog('create_from_email Created conversation:', conversationId);
   }
 
   // Create conversationMessages for remaining emails in the thread
@@ -233,8 +237,8 @@ export async function createConversationFromEmail(
   );
 
   if (emailsToAdd.length > 0) {
-    console.log(
-      '[create_from_email] Creating',
+    debugLog(
+      'create_from_email Creating',
       emailsToAdd.length,
       'additional messages',
     );
@@ -248,8 +252,8 @@ export async function createConversationFromEmail(
       );
 
       if (existingMsg) {
-        console.log(
-          '[create_from_email] Message already exists, updating:',
+        debugLog(
+          'create_from_email Message already exists, updating:',
           email.messageId,
         );
         // Update existing message with delivered state and metadata
@@ -270,7 +274,7 @@ export async function createConversationFromEmail(
         params.providerId,
       );
 
-      console.log('[create_from_email] Created message:', email.messageId);
+      debugLog('create_from_email Created message:', email.messageId);
     }
   }
 

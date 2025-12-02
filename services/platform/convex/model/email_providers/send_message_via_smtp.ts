@@ -11,6 +11,10 @@ import {
   decryptPasswordAuth,
 } from './decrypt_and_refresh_oauth2';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export async function sendMessageViaSMTP(
   ctx: ActionCtx,
   args: {
@@ -190,7 +194,7 @@ export async function sendMessageViaSMTP(
       },
     );
 
-    console.log('✓ Message sent and updated', {
+    debugLog('✓ Message sent and updated', {
       messageId: args.messageId,
       externalMessageId: result.messageId,
     });

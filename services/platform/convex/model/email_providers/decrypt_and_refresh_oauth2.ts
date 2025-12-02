@@ -5,6 +5,10 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 export interface OAuth2TokenRefreshResult {
   accessToken: string;
   wasRefreshed: boolean;
@@ -64,7 +68,7 @@ export async function decryptAndRefreshOAuth2Token(
   const needsRefresh = tokenExpiry && currentTime >= tokenExpiry - 300; // Refresh if expires in < 5 minutes
 
   if (needsRefresh && oauth2Auth.refreshTokenEncrypted) {
-    console.log(
+    debugLog(
       `OAuth2 token expired or expiring soon for provider ${providerId}, refreshing...`,
     );
 
@@ -110,7 +114,7 @@ export async function decryptAndRefreshOAuth2Token(
         scope: newTokens.scope,
       });
 
-      console.log(
+      debugLog(
         `✓ Successfully refreshed OAuth2 token for provider ${providerId}`,
       );
 

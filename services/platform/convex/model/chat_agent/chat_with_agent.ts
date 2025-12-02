@@ -15,6 +15,10 @@ import type { RunId } from '@convex-dev/action-retrier';
 import { chatAgentRetrier } from '../../lib/chat_agent_retrier';
 import { computeDeduplicationState } from './message_deduplication';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 export interface ChatWithAgentArgs {
   threadId: string;
   organizationId: string;
@@ -47,7 +51,7 @@ export async function chatWithAgent(
     trimmedMessage,
   } = computeDeduplicationState(existingMessages, message);
 
-  console.log('[chat_agent] chatWithAgent called', {
+  debugLog('chatWithAgent called', {
     threadId,
     organizationId,
     messageAlreadyExists,

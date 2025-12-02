@@ -7,6 +7,10 @@
 
 import type { Id } from '../../../_generated/dataModel';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 /**
  * Deserialize variables in action context (supports storage fetch)
  *
@@ -26,8 +30,8 @@ export async function deserializeVariablesInAction(
   // Check if this is a storage reference
   if (parsed._storageRef) {
     const storageId = parsed._storageRef as Id<'_storage'>;
-    console.log(
-      '[deserializeVariablesInAction] Fetching variables from storage:',
+    debugLog(
+      'deserializeVariablesInAction Fetching variables from storage:',
       storageId,
     );
 

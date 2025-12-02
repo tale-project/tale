@@ -10,6 +10,10 @@ import type { ToolDefinition } from '../../types';
 import type { Doc, Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
   tool: createTool({
@@ -143,7 +147,7 @@ LOOP (iteration):
       message: string;
       step: Doc<'wfStepDefs'> | null;
     }> => {
-      console.log('[update_workflow_step] tool called', {
+      debugLog('update_workflow_step tool called', {
         stepRecordId: args.stepRecordId,
         updates: args.updates,
       });
@@ -156,7 +160,7 @@ LOOP (iteration):
         },
       )) as Doc<'wfStepDefs'> | null;
 
-      console.log('[update_workflow_step] tool success', {
+      debugLog('update_workflow_step tool success', {
         stepRecordId: args.stepRecordId,
         updatedStep,
       });

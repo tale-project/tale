@@ -2,6 +2,10 @@
 
 import type { ImapFlow } from 'imapflow';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_IMAP', '[IMAP]');
+
 /**
  * Compute which UID to fetch (returns a single UID or null)
  *
@@ -28,8 +32,8 @@ export default async function computeUidToFetch(
 ): Promise<number | null> {
   if (afterUid && afterUid > 0) {
     const searchRange = `${afterUid + 1}:*`;
-    console.log(
-      `[IMAP] Computing UID to fetch after ${afterUid}, searching range: ${searchRange}`,
+    debugLog(
+      `Computing UID to fetch after ${afterUid}, searching range: ${searchRange}`,
     );
     // Collect all UIDs - must fully consume the iterator
     const fetchedMessages: { uid: number }[] = [];
@@ -38,7 +42,7 @@ export default async function computeUidToFetch(
       { uid: true },
       { uid: true },
     )) {
-      console.log(`[IMAP] Fetched message with UID: ${message.uid}`);
+      debugLog(`Fetched message with UID: ${message.uid}`);
       fetchedMessages.push({ uid: message.uid });
     }
 
@@ -48,12 +52,12 @@ export default async function computeUidToFetch(
     validMessages.sort((a, b) => a.uid - b.uid);
 
     const result = validMessages.length > 0 ? validMessages[0].uid : null;
-    console.log(
-      `[IMAP] Found ${fetchedMessages.length} message(s) from server, ${validMessages.length} with UID > ${afterUid}, all UIDs: [${fetchedMessages.map((m) => m.uid).join(', ')}], returning UID: ${result}`,
+    debugLog(
+      `Found ${fetchedMessages.length} message(s) from server, ${validMessages.length} with UID > ${afterUid}, all UIDs: [${fetchedMessages.map((m) => m.uid).join(', ')}], returning UID: ${result}`,
     );
     return result;
   } else {
-    console.log(`[IMAP] Computing latest UID (no afterUid specified)`);
+    debugLog(`Computing latest UID (no afterUid specified)`);
     // Fetch latest message - must fully consume the iterator
     const latestSeq = totalMessages;
     const fetchedMessages: { uid: number }[] = [];
@@ -63,7 +67,7 @@ export default async function computeUidToFetch(
       fetchedMessages.push({ uid: message.uid });
     }
     const result = fetchedMessages.length > 0 ? fetchedMessages[0].uid : null;
-    console.log(`[IMAP] Latest UID: ${result}`);
+    debugLog(`Latest UID: ${result}`);
     return result;
   }
 }

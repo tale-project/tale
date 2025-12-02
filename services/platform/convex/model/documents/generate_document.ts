@@ -7,16 +7,17 @@
 
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import type {
-  GenerateDocumentArgs,
-  GenerateDocumentResult,
-} from './types';
+import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
 import {
   buildRequestBody,
   getCrawlerUrl,
   getEndpointPath,
   getOutputInfo,
 } from './generate_document_helpers';
+
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
 /**
  * Generate a document (PDF/image) using the crawler and upload it to storage.
@@ -41,7 +42,7 @@ export async function generateDocument(
     args.wrapInTemplate,
   );
 
-  console.log('[documents.generateDocument] start', {
+  debugLog('documents.generateDocument start', {
     fileName: args.fileName,
     sourceType: args.sourceType,
     outputFormat: args.outputFormat,
@@ -112,7 +113,7 @@ export async function generateDocument(
     ? args.fileName
     : `${args.fileName}.${safeExtension}`;
 
-  console.log('[documents.generateDocument] success', {
+  debugLog('documents.generateDocument success', {
     fileName: finalFileName,
     storageId,
     size,

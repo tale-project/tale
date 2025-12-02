@@ -2,6 +2,8 @@
 
 import type { ImapFlow } from 'imapflow';
 import type { EmailMessage } from '../../../workflow/actions/imap/types';
+
+import { createDebugLog } from '../../../lib/debug_log';
 import collectThreadMessageIds from './collect_thread_message_ids';
 import findMessageInFolders from './find_message_in_folders';
 import fetchMessagesFromSearchResults from './fetch_messages_from_search_results';
@@ -16,6 +18,8 @@ interface Options {
 }
 
 const MAX_THREAD_DEPTH = 100; // Safety limit to prevent infinite loops
+
+const debugLog = createDebugLog('DEBUG_IMAP_THREAD', '[IMAP Thread]');
 
 /**
  * Recursively search for all messages in a thread using BIDIRECTIONAL search.
@@ -54,8 +58,8 @@ export default async function searchThreadMessages(
 ): Promise<EmailMessage[]> {
   if (messages.length === 0) return [];
 
-  console.log(
-    `[IMAP Thread] Starting BIDIRECTIONAL thread search with ${messages.length} initial message(s)`,
+  debugLog(
+    `Starting BIDIRECTIONAL thread search with ${messages.length} initial message(s)`,
   );
 
   // Track all Message-IDs we've already fetched (including initial messages)
@@ -76,8 +80,8 @@ export default async function searchThreadMessages(
   while (messagesToProcess.length > 0 && depth < MAX_THREAD_DEPTH) {
     depth++;
 
-    console.log(
-      `[IMAP Thread] Depth ${depth}: Processing ${messagesToProcess.length} message(s)`,
+    debugLog(
+      `Depth ${depth}: Processing ${messagesToProcess.length} message(s)`,
     );
 
     // STEP 1: BACKWARD SEARCH - Extract Message-IDs from References/In-Reply-To headers
@@ -86,16 +90,16 @@ export default async function searchThreadMessages(
       fetchedMessageIds,
     );
 
-    console.log(
-      `[IMAP Thread] Depth ${depth}: Backward search found ${backwardMessageIds.size} parent Message-ID(s)`,
+    debugLog(
+      `Depth ${depth}: Backward search found ${backwardMessageIds.size} parent Message-ID(s)`,
     );
 
     // STEP 2: FORWARD SEARCH - Find messages that reference current messages
     const forwardMessageIds = new Set<string>();
 
     for (const message of messagesToProcess) {
-      console.log(
-        `[IMAP Thread] Depth ${depth}: Forward searching for replies to ${message.messageId}`,
+      debugLog(
+        `Depth ${depth}: Forward searching for replies to ${message.messageId}`,
       );
 
       const replyResults = await findRepliesToMessage(
@@ -124,8 +128,8 @@ export default async function searchThreadMessages(
               forwardMessageIds.add(foundMessage.messageId);
               fetchedMessageIds.add(foundMessage.messageId);
               threadMessages.push(foundMessage);
-              console.log(
-                `[IMAP Thread] Forward search added: ${foundMessage.subject} (${foundMessage.messageId})`,
+              debugLog(
+                `Forward search added: ${foundMessage.subject} (${foundMessage.messageId})`,
               );
             }
           }
@@ -133,8 +137,8 @@ export default async function searchThreadMessages(
       }
     }
 
-    console.log(
-      `[IMAP Thread] Depth ${depth}: Forward search found ${forwardMessageIds.size} child Message-ID(s)`,
+    debugLog(
+      `Depth ${depth}: Forward search found ${forwardMessageIds.size} child Message-ID(s)`,
     );
 
     // STEP 3: Combine backward and forward Message-IDs
@@ -143,15 +147,13 @@ export default async function searchThreadMessages(
       ...forwardMessageIds,
     ]);
 
-    console.log(
-      `[IMAP Thread] Depth ${depth}: Total ${allNewMessageIds.size} new Message-ID(s) to fetch`,
+    debugLog(
+      `Depth ${depth}: Total ${allNewMessageIds.size} new Message-ID(s) to fetch`,
     );
 
     if (allNewMessageIds.size === 0) {
       // No new Message-IDs to fetch, we're done
-      console.log(
-        '[IMAP Thread] No more Message-IDs to fetch, thread complete',
-      );
+      debugLog('No more Message-IDs to fetch, thread complete');
       break;
     }
 
@@ -169,14 +171,12 @@ export default async function searchThreadMessages(
       );
 
       if (!searchResult) {
-        console.log(
-          `[IMAP Thread] Message-ID not found in any folder: ${messageId}`,
-        );
+        debugLog(`Message-ID not found in any folder: ${messageId}`);
         continue;
       }
 
-      console.log(
-        `[IMAP Thread] Found Message-ID in folder ${searchResult.folder}: ${messageId}`,
+      debugLog(
+        `Found Message-ID in folder ${searchResult.folder}: ${messageId}`,
       );
 
       const foundMessages = await fetchMessagesFromSearchResults(
@@ -192,15 +192,15 @@ export default async function searchThreadMessages(
           fetchedMessageIds.add(message.messageId);
           threadMessages.push(message);
           newlyFetchedMessages.push(message);
-          console.log(
-            `[IMAP Thread] Backward search added: ${message.subject} (${message.messageId})`,
+          debugLog(
+            `Backward search added: ${message.subject} (${message.messageId})`,
           );
         }
       }
     }
 
-    console.log(
-      `[IMAP Thread] Depth ${depth}: Fetched ${newlyFetchedMessages.length} new message(s) from backward search`,
+    debugLog(
+      `Depth ${depth}: Fetched ${newlyFetchedMessages.length} new message(s) from backward search`,
     );
 
     // STEP 5: Process newly fetched messages in the next iteration
@@ -219,8 +219,8 @@ export default async function searchThreadMessages(
     );
   }
 
-  console.log(
-    `[IMAP Thread] BIDIRECTIONAL thread search complete: ${threadMessages.length} message(s) found in ${depth} iteration(s)`,
+  debugLog(
+    `BIDIRECTIONAL thread search complete: ${threadMessages.length} message(s) found in ${depth} iteration(s)`,
   );
 
   return threadMessages;

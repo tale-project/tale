@@ -6,6 +6,10 @@ import type { WorkflowCtx } from '@convex-dev/workflow';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export type DynamicWorkflowArgs = {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
@@ -38,7 +42,7 @@ export async function handleDynamicWorkflow(
   step: WorkflowCtx,
   args: DynamicWorkflowArgs,
 ): Promise<void> {
-  console.log('[dynamicWorkflow] Starting workflow execution', {
+  debugLog('dynamicWorkflow Starting workflow execution', {
     executionId: args.executionId,
     workflowName: args.workflowDefinition.name,
     stepsCount: args.steps.length,
@@ -128,7 +132,7 @@ export async function handleDynamicWorkflow(
 
     // Handle special 'noop' keyword - means do nothing and end workflow
     if (nextStepSlug === 'noop') {
-      console.log('[dynamicWorkflow] Noop step reached, finishing workflow', {
+      debugLog('dynamicWorkflow Noop step reached, finishing workflow', {
         fromStepSlug: stepDef.stepSlug,
         port: stepResult.port,
       });

@@ -4,6 +4,10 @@
 
 import { StepExecutionResult, LoopVars } from '../../../../types/workflow';
 
+import { createDebugLog } from '../../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export function createLoopResult(
   port: string,
   items: unknown[],
@@ -22,7 +26,7 @@ export function createLoopResult(
     parent: parentLoop,
   };
 
-  console.log('[createLoopResult] Creating loop result:', {
+  debugLog('createLoopResult Creating loop result:', {
     port,
     currentIndex,
     hasParent: !!parentLoop,

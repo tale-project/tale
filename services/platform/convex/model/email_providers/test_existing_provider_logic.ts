@@ -17,6 +17,10 @@ import {
   decryptAndRefreshOAuth2Token,
 } from './decrypt_and_refresh_oauth2';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export interface TestExistingProviderDependencies {
   getProvider: (providerId: Doc<'emailProviders'>['_id']) => Promise<unknown>;
   updateStatus: (
@@ -183,7 +187,7 @@ export async function testExistingProviderLogic(
   await deps.updateStatus(providerId, 'testing');
 
   // Test the connection
-  console.log(`Testing connection for provider ${providerId}...`);
+  debugLog(`Testing connection for provider ${providerId}...`);
 
   const result = await deps.testConnection({
     vendor: providerData.vendor,
@@ -196,7 +200,7 @@ export async function testExistingProviderLogic(
 
   // Log the result
   if (result.success) {
-    console.log(`✓ Connection test successful for provider ${providerId}`, {
+    debugLog(`✓ Connection test successful for provider ${providerId}`, {
       smtpLatency: result.smtp.latencyMs,
       imapLatency: result.imap.latencyMs,
     });

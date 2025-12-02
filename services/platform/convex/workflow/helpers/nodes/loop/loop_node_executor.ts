@@ -17,6 +17,11 @@ import { getLoopItems } from './utils/get_loop_items';
 import { getInputData } from './utils/get_input_data';
 import { createLoopState } from './utils/create_loop_state';
 import { createLoopResult } from './utils/create_loop_result';
+
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export class LoopNodeExecutor {
   /**
    * Execute the loop node
@@ -35,7 +40,7 @@ export class LoopNodeExecutor {
       loop?.ownerStepSlug === ctx.stepDef.stepSlug
     ) {
       const items = getLoopItems(loop, ctx, config);
-      console.log('[LoopNodeExecutor] Continuing loop:', {
+      debugLog('LoopNodeExecutor Continuing loop:', {
         stepSlug: ctx.stepDef.stepSlug,
         currentIndex: loop!.state!.currentIndex,
         hasParent: !!loop!.parent,
@@ -56,7 +61,7 @@ export class LoopNodeExecutor {
       loop.ownerStepSlug !== ctx.stepDef.stepSlug
         ? loop
         : undefined;
-    console.log('[LoopNodeExecutor] Starting new loop:', {
+    debugLog('LoopNodeExecutor Starting new loop:', {
       stepSlug: ctx.stepDef.stepSlug,
       itemsCount: inputData.length,
       hasParent: !!parentLoop,

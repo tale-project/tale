@@ -10,6 +10,10 @@ import { internal } from '../../_generated/api';
 import emailSyncImap from '../../predefined_workflows/email_sync_imap';
 import conversationAutoReply from '../../predefined_workflows/conversation_auto_reply';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 interface SaveRelatedWorkflowsArgs {
   organizationId: string;
   accountEmail: string; // The email address for this provider
@@ -22,8 +26,8 @@ export async function saveRelatedWorkflows(
   ctx: ActionCtx,
   args: SaveRelatedWorkflowsArgs,
 ): Promise<Id<'wfDefinitions'>[]> {
-  console.log(
-    `[Email Provider Workflows] Saving workflows for ${args.accountEmail}...`,
+  debugLog(
+    `Email Provider Workflows Saving workflows for ${args.accountEmail}...`,
   );
 
   const workflowIds: Id<'wfDefinitions'>[] = [];
@@ -57,8 +61,8 @@ export async function saveRelatedWorkflows(
     );
 
     if (existingWorkflow) {
-      console.log(
-        `[Email Provider Workflows] Workflow with name "${workflowName}" already exists, reusing ${(existingWorkflow as any)._id}`,
+      debugLog(
+        `Email Provider Workflows Workflow with name "${workflowName}" already exists, reusing ${(existingWorkflow as any)._id}`,
       );
       workflowIds.push((existingWorkflow as any)._id as Id<'wfDefinitions'>);
       continue;
@@ -111,13 +115,13 @@ export async function saveRelatedWorkflows(
 
     workflowIds.push(result.workflowId);
 
-    console.log(
-      `[Email Provider Workflows] Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
+    debugLog(
+      `Email Provider Workflows Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
     );
   }
 
-  console.log(
-    `[Email Provider Workflows] Successfully saved ${workflowIds.length} workflow(s)`,
+  debugLog(
+    `Email Provider Workflows Successfully saved ${workflowIds.length} workflow(s)`,
   );
 
   return workflowIds;

@@ -3,8 +3,12 @@
 import type { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import type { EmailMessage } from '../../../workflow/actions/imap/types';
+
+import { createDebugLog } from '../../../lib/debug_log';
 import buildEmailMessage from './build_email_message';
 import normalizeMessageId from './normalize_message_id';
+
+const debugLog = createDebugLog('DEBUG_IMAP', '[IMAP]');
 
 interface Options {
   includeAttachments: boolean;
@@ -35,8 +39,8 @@ export default async function fetchAndParseMessage(
       !parsedMsgId ||
       normalizeMessageId(parsedMsgId) !== normalizeMessageId(expectedMessageId)
     ) {
-      console.log(
-        `[IMAP Fetch] Message-ID mismatch: expected ${expectedMessageId}, got ${parsedMsgId}`,
+      debugLog(
+        `[Fetch] Message-ID mismatch: expected ${expectedMessageId}, got ${parsedMsgId}`,
       );
       return null;
     }

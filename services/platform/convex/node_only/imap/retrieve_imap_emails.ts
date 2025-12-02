@@ -5,10 +5,13 @@ import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 import type { EmailMessage } from '../../workflow/actions/imap/types';
 
+import { createDebugLog } from '../../lib/debug_log';
 import computeUidToFetch from './lib/compute_uids_to_fetch';
 import fetchEmailByUid from './lib/fetch_email_by_uid';
 import searchThreadMessages from './lib/search_thread_messages';
 import listAllFolders from './lib/list_all_folders';
+
+const debugLog = createDebugLog('DEBUG_IMAP', '[IMAP]');
 
 /**
  * Convex action wrapper for retrieving IMAP emails
@@ -91,7 +94,7 @@ export const retrieveImapEmails = internalAction({
       threadSearchFolders,
     } = args;
 
-    console.log('[IMAP] Connecting', {
+    debugLog('Connecting', {
       host: credentials.host,
       port: credentials.port,
       mailbox,
@@ -152,7 +155,7 @@ export const retrieveImapEmails = internalAction({
       Array.isArray(threadSearchFolders) && threadSearchFolders.length > 0
         ? Array.from(new Set(threadSearchFolders))
         : await listAllFolders(client);
-    console.log('[IMAP] Thread search folders:', resolvedThreadFolders);
+    debugLog('Thread search folders:', resolvedThreadFolders);
 
     const threadMessages = await searchThreadMessages(client, messages, {
       threadSearchFolders: resolvedThreadFolders,

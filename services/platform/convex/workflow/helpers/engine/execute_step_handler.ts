@@ -13,6 +13,10 @@ import { buildStepsMap } from '../step_execution/build_steps_map';
 import { extractEssentialLoopVariables } from '../step_execution/extract_essential_loop_variables';
 import { persistExecutionResult } from '../step_execution/persist_execution_result';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export type ExecuteStepArgs = {
   organizationId: string;
   executionId: string;
@@ -72,7 +76,7 @@ export async function handleExecuteStep(
   // Debug: Log loop variables before processing
   if (fullVariables.loop) {
     const loopVar = fullVariables.loop as Record<string, unknown>;
-    console.log('[handleExecuteStep] Loop variables before processing:', {
+    debugLog('handleExecuteStep Loop variables before processing:', {
       stepSlug: args.stepSlug,
       loopIndex: loopVar.index,
       loopState: loopVar.state,
@@ -101,12 +105,7 @@ export async function handleExecuteStep(
   );
 
   // 6. Build steps map
-  const stepsMap = await buildStepsMap(
-    ctx,
-    args.executionId,
-    stepDef,
-    result,
-  );
+  const stepsMap = await buildStepsMap(ctx, args.executionId, stepDef, result);
 
   // 7. Extract essential loop variables
   const essentialLoop = extractEssentialLoopVariables(result.variables);
@@ -128,4 +127,3 @@ export async function handleExecuteStep(
     error: result.error,
   };
 }
-

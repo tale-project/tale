@@ -9,6 +9,10 @@ import type { ToolDefinition } from '../../types';
 import type { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 interface GenerateFileResult {
   success: boolean;
   fileId: string;
@@ -112,7 +116,7 @@ CRITICAL:
 
       const outputFormat = args.outputFormat ?? 'pdf';
 
-      console.log('[tool:generate_file] start', {
+      debugLog('tool:generate_file start', {
         fileName: args.fileName,
         sourceType: args.sourceType,
         outputFormat,
@@ -134,7 +138,7 @@ CRITICAL:
           },
         );
 
-        console.log('[tool:generate_file] success', {
+        debugLog('tool:generate_file success', {
           fileName: result.fileName,
           fileId: result.fileId,
           size: result.size,

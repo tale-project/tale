@@ -17,6 +17,10 @@ import { failExecution } from '../../../model/wf_executions/fail_execution';
 import { updateExecutionMetadata } from '../../../model/wf_executions/update_execution_metadata';
 import type { WorkflowManager } from '@convex-dev/workflow';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export type ExecuteWorkflowStartArgs = {
   executionId: Doc<'wfExecutions'>['_id'];
   organizationId: string;
@@ -31,7 +35,7 @@ export async function executeWorkflowStart(
   ctx: MutationCtx,
   args: ExecuteWorkflowStartArgs,
 ): Promise<void> {
-  console.log('[executeWorkflowStart] Starting workflow execution', {
+  debugLog('executeWorkflowStart Starting workflow execution', {
     executionId: args.executionId,
     wfDefinitionId: args.wfDefinitionId,
   });
@@ -71,7 +75,7 @@ export async function executeWorkflowStart(
   // Extract common fields from definition (works for both inline and database workflows)
   const definition = workflowData.definition as Doc<'wfDefinitions'>;
 
-  console.log('[executeWorkflowStart] Workflow data loaded', {
+  debugLog('executeWorkflowStart Workflow data loaded', {
     workflowName: definition.name,
     stepsCount: workflowData.steps.length,
   });
@@ -91,8 +95,8 @@ export async function executeWorkflowStart(
   // definition for accurate auditability.
   if (definition._id !== args.wfDefinitionId) {
     executionPatch.wfDefinitionId = definition._id;
-    console.log(
-      '[executeWorkflowStart] Switched to active workflow version for execution',
+    debugLog(
+      'executeWorkflowStart Switched to active workflow version for execution',
       {
         requestedId: args.wfDefinitionId,
         effectiveId: definition._id,
@@ -108,7 +112,7 @@ export async function executeWorkflowStart(
     (definition.workflowType as WorkflowType | undefined) || 'predefined';
 
   // Step 4: Start workflow via WorkflowManager
-  console.log('[executeWorkflowStart] Starting workflow via WorkflowManager', {
+  debugLog('executeWorkflowStart Starting workflow via WorkflowManager', {
     workflowType,
   });
 
@@ -130,7 +134,7 @@ export async function executeWorkflowStart(
     },
   );
 
-  console.log('[executeWorkflowStart] Workflow started successfully', {
+  debugLog('executeWorkflowStart Workflow started successfully', {
     componentWorkflowId,
   });
 
@@ -144,5 +148,5 @@ export async function executeWorkflowStart(
     },
   });
 
-  console.log('[executeWorkflowStart] Workflow startup complete');
+  debugLog('executeWorkflowStart Workflow startup complete');
 }

@@ -3,6 +3,10 @@
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 type GraphRecipient = { emailAddress: { address: string } };
 
 type SendResult = { graphMessageId: string; internetMessageId: string };
@@ -183,7 +187,7 @@ export const sendEmail = internalAction({
         cc: args.cc,
         bcc: args.bcc,
       });
-      console.log('✓ Email reply sent successfully via Microsoft Graph API', {
+      debugLog('✓ Email reply sent successfully via Microsoft Graph API', {
         graphMessageId: result.graphMessageId,
         internetMessageId: result.internetMessageId,
         inReplyTo: args.inReplyTo,
@@ -303,7 +307,7 @@ export const sendEmail = internalAction({
       internetMessageId = `<${graphMessageId}@graph.microsoft.com>`;
     }
 
-    console.log('✓ Email sent successfully via Microsoft Graph API', {
+    debugLog('✓ Email sent successfully via Microsoft Graph API', {
       graphMessageId,
       internetMessageId,
       from: args.from,

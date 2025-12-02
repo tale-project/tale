@@ -6,6 +6,10 @@ import type { QueryCtx } from '../../../_generated/server';
 import { components } from '../../../_generated/api';
 import type { OAuthAccount } from '../index';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
+
 /**
  * Get Microsoft OAuth account for a specific user by userId
  * This is used for background jobs and scheduled syncs that need to access
@@ -16,7 +20,7 @@ export async function getMicrosoftAccountByUserId(
   userId: string,
 ): Promise<OAuthAccount | null> {
   try {
-    console.log('getMicrosoftAccountByUserId: Looking for Microsoft account', {
+    debugLog('getMicrosoftAccountByUserId: Looking for Microsoft account', {
       userId,
     });
 

@@ -13,6 +13,10 @@ import type { ToolDefinition } from '../../types';
 import { components } from '../../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 interface SearchResultMessage {
   _id: string;
   _creationTime: number;
@@ -62,7 +66,7 @@ Provide a single, focused keyword or short phrase per call. If you need to searc
       const maxMatches = 10;
       const MAX_TOTAL_CONTENT_CHARS = 100_000;
 
-      console.log('[tool:context_search] start', {
+      debugLog('tool:context_search start', {
         threadId,
         query,
         maxMatches,
@@ -126,7 +130,7 @@ Provide a single, focused keyword or short phrase per call. If you need to searc
         cursor = result.continueCursor;
         isDone = result.isDone;
 
-        console.log('[tool:context_search] page collected', {
+        debugLog('tool:context_search page collected', {
           threadId,
           pageSize: result.page.length,
           totalCollected: allMessages.length,
@@ -239,7 +243,7 @@ Provide a single, focused keyword or short phrase per call. If you need to searc
 
       // 3) Keep results in score-prioritized order (best match first,
       //    newest first as a tie-breaker).
-      console.log('[tool:context_search] complete', {
+      debugLog('tool:context_search complete', {
         threadId,
         query,
         totalSearched: totalMessagesSearched,

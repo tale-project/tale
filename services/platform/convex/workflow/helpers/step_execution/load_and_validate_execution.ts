@@ -8,6 +8,10 @@ import { Id } from '../../../_generated/dataModel';
 import { LoadExecutionResult } from './types';
 import { deserializeVariablesInAction } from '../../helpers/serialization/deserialize_variables';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export async function loadAndValidateExecution(
   ctx: ActionCtx,
   executionId: string,
@@ -29,7 +33,7 @@ export async function loadAndValidateExecution(
     typeof variables === 'object' &&
     '_storageRef' in variables
   ) {
-    console.log('[loadAndValidateExecution] Variables in storage, fetching...');
+    debugLog('loadAndValidateExecution Variables in storage, fetching...');
     // Get the raw execution to access the serialized variables string
     const rawExecution = await ctx.runQuery(
       internal.wf_executions.getRawExecution,

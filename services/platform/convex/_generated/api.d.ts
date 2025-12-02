@@ -77,6 +77,7 @@ import type * as lib_crypto_encrypt_string from "../lib/crypto/encrypt_string.js
 import type * as lib_crypto_generate_secure_state from "../lib/crypto/generate_secure_state.js";
 import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js";
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
+import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
@@ -667,6 +668,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/generate_secure_state": typeof lib_crypto_generate_secure_state;
   "lib/crypto/get_secret_key": typeof lib_crypto_get_secret_key;
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
+  "lib/debug_log": typeof lib_debug_log;
   "lib/openai_provider": typeof lib_openai_provider;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;

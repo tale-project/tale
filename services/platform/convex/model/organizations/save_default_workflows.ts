@@ -14,6 +14,10 @@ import generalCustomerStatusAssessmentWorkflow from '../../predefined_workflows/
 import generalProductRecommendationWorkflow from '../../predefined_workflows/general_product_recommendation';
 import productRecommendationEmailWorkflow from '../../predefined_workflows/product_recommendation_email';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 interface SaveDefaultWorkflowsArgs {
   organizationId: string;
 }
@@ -32,8 +36,8 @@ export async function saveDefaultWorkflows(
   ctx: ActionCtx,
   args: SaveDefaultWorkflowsArgs,
 ): Promise<Id<'wfDefinitions'>[]> {
-  console.log(
-    `[Organization Setup] Saving default workflows for organization ${args.organizationId}...`,
+  debugLog(
+    `Organization Setup Saving default workflows for organization ${args.organizationId}...`,
   );
 
   const workflowIds: Id<'wfDefinitions'>[] = [];
@@ -129,13 +133,13 @@ export async function saveDefaultWorkflows(
 
     workflowIds.push(result.workflowId);
 
-    console.log(
-      `[Organization Setup] Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
+    debugLog(
+      `Organization Setup Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
     );
   }
 
-  console.log(
-    `[Organization Setup] Successfully saved ${workflowIds.length} default workflow(s)`,
+  debugLog(
+    `Organization Setup Successfully saved ${workflowIds.length} default workflow(s)`,
   );
 
   return workflowIds;

@@ -7,6 +7,10 @@ import type { MCPServerConfig } from './types';
 import { findMcpServerById } from './mcp_tools/find_mcp_server_by_id';
 import { replaceVariables } from '../lib/variables/replace_variables';
 
+import { createDebugLog } from '../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export async function loadMCPTools(
   mcpServerIds?: string[],
   variables: Record<string, unknown> = {},
@@ -49,7 +53,7 @@ export async function loadMCPTools(
     mcpToolsObject = { ...mcpToolsObject, ...obj };
   }
 
-  console.log(
+  debugLog(
     `Loaded MCP tools from ${resolvedConfigs.length} servers; ${Object.keys(mcpToolsObject).length} total tools`,
   );
 
@@ -57,7 +61,7 @@ export async function loadMCPTools(
   for (const [name, def] of Object.entries(mcpToolsObject)) {
     const exec = (def as Record<string, unknown>)?.['execute'];
     const execType = typeof exec;
-    console.log(`MCP tool loaded: ${name}, execute type: ${execType}`);
+    debugLog(`MCP tool loaded: ${name}, execute type: ${execType}`);
   }
 
   return mcpToolsObject;

@@ -16,6 +16,15 @@ export type WorkflowExecutionStats = {
   lastExecution: number | null;
 };
 
+interface ExecutionCounts {
+  completed: number;
+  failed: number;
+  suspended: number;
+  running: number;
+  completedExecutionTimeSum: number;
+  completedWithTimeCount: number;
+}
+
 export async function getWorkflowExecutionStats(
   ctx: QueryCtx,
   args: GetWorkflowExecutionStatsArgs,
@@ -29,29 +38,52 @@ export async function getWorkflowExecutionStats(
     .take(1000)) as Doc<'wfExecutions'>[];
 
   const total = executions.length;
-  const completed = executions.filter((e) => e.status === 'completed').length;
-  const failed = executions.filter((e) => e.status === 'failed').length;
-  const suspended = executions.filter((e) => e.status === 'suspended').length;
-  const running = executions.filter((e) => e.status === 'running').length;
 
-  const completedExecutions = executions.filter(
-    (e) => e.status === 'completed' && e.completedAt,
+  // Single pass to count all statuses and compute execution time sum
+  const counts = executions.reduce<ExecutionCounts>(
+    (acc, e) => {
+      switch (e.status) {
+        case 'completed':
+          acc.completed++;
+          if (e.completedAt) {
+            acc.completedExecutionTimeSum += e.completedAt - e.startedAt;
+            acc.completedWithTimeCount++;
+          }
+          break;
+        case 'failed':
+          acc.failed++;
+          break;
+        case 'suspended':
+          acc.suspended++;
+          break;
+        case 'running':
+          acc.running++;
+          break;
+      }
+      return acc;
+    },
+    {
+      completed: 0,
+      failed: 0,
+      suspended: 0,
+      running: 0,
+      completedExecutionTimeSum: 0,
+      completedWithTimeCount: 0,
+    },
   );
+
   const avgExecutionTimeMs =
-    completedExecutions.length > 0
-      ? completedExecutions.reduce(
-          (sum: number, e) => sum + (e.completedAt! - e.startedAt),
-          0,
-        ) / completedExecutions.length
+    counts.completedWithTimeCount > 0
+      ? counts.completedExecutionTimeSum / counts.completedWithTimeCount
       : 0;
 
   return {
     total,
-    completed,
-    failed,
-    suspended,
-    running,
-    successRate: total > 0 ? (completed / total) * 100 : 0,
+    completed: counts.completed,
+    failed: counts.failed,
+    suspended: counts.suspended,
+    running: counts.running,
+    successRate: total > 0 ? (counts.completed / total) * 100 : 0,
     avgExecutionTimeSeconds: Math.round(avgExecutionTimeMs / 1000),
     lastExecution: executions[0]?.startedAt ?? null,
   };

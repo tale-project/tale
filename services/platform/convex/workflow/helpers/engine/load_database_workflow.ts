@@ -11,6 +11,10 @@ import { buildStepsConfigMap } from './build_steps_config_map';
 import type { WorkflowData } from './workflow_data';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 /**
  * Load database workflow data
  *
@@ -56,9 +60,12 @@ export async function loadDatabaseWorkflow(
     }
 
     if (candidate && (candidate.status as unknown as string) === 'active') {
-      console.log(
-        '[loadDatabaseWorkflow] Falling back to active ancestor via parentVersionId',
-        { requestedId: wfDefinitionId, activeId: candidate._id },
+      debugLog(
+        'loadDatabaseWorkflow Falling back to active ancestor via parentVersionId',
+        {
+          requestedId: wfDefinitionId,
+          activeId: candidate._id,
+        },
       );
       effectiveDefinition = candidate;
     } else {
@@ -74,9 +81,12 @@ export async function loadDatabaseWorkflow(
         .first();
 
       if (active) {
-        console.log(
-          '[loadDatabaseWorkflow] Falling back to active version by name',
-          { requestedId: wfDefinitionId, activeId: active._id },
+        debugLog(
+          'loadDatabaseWorkflow Falling back to active version by name',
+          {
+            requestedId: wfDefinitionId,
+            activeId: active._id,
+          },
         );
         effectiveDefinition = active as Doc<'wfDefinitions'>;
       }

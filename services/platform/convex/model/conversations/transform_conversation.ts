@@ -7,6 +7,10 @@ import type { Doc } from '../../_generated/dataModel';
 import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
 import { getPendingApprovalForResource } from '../approvals/get_approval_history';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
+
 export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
@@ -67,8 +71,8 @@ export async function transformConversation(
     return a._creationTime - b._creationTime;
   });
 
-  console.log('messageDocs', messageDocs.length);
-  console.log('conversation', conversation._id);
+  debugLog('messageDocs', messageDocs.length);
+  debugLog('conversation', conversation._id);
   const messages: MessageInfo[] = messageDocs.map((m) => {
     let timestamp = '';
 

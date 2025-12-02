@@ -9,9 +9,13 @@ import { getScheduledWorkflows } from './get_scheduled_workflows';
 import { getLastExecutionTime } from './get_last_execution_time';
 import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
   try {
-    console.log('Starting scheduled workflow scan...');
+    debugLog('Starting scheduled workflow scan...');
 
     // Get all active workflows with schedule triggers (from first trigger step)
     const scheduled = await ctx.runQuery(
@@ -19,7 +23,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       {},
     );
 
-    console.log(`Found ${scheduled.length} scheduled workflows`);
+    debugLog(`Found ${scheduled.length} scheduled workflows`);
 
     let triggeredCount = 0;
 
@@ -44,7 +48,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
         );
 
         if (shouldTrigger) {
-          console.log(
+          debugLog(
             `Triggering scheduled workflow: ${name} (${wfDefinitionId})`,
           );
 
@@ -69,7 +73,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       }
     }
 
-    console.log(
+    debugLog(
       `Scheduled workflow scan completed. Triggered ${triggeredCount} workflows.`,
     );
   } catch (error) {

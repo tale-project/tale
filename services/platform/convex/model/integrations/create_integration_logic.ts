@@ -17,6 +17,10 @@ import { saveRelatedWorkflows } from './save_related_workflows';
 import { encryptCredentials } from './encrypt_credentials';
 import { runHealthCheck } from './run_health_check';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export interface CreateIntegrationLogicArgs {
   organizationId: string;
   name: string;
@@ -73,8 +77,8 @@ export async function createIntegrationLogic(
     },
   );
 
-  console.log(
-    `[Integration Create] Successfully created ${args.name} integration with ID: ${integrationId}`,
+  debugLog(
+    `Integration Create Successfully created ${args.name} integration with ID: ${integrationId}`,
   );
 
   // Save related workflows for this integration
@@ -84,9 +88,7 @@ export async function createIntegrationLogic(
     connectionConfig: args.connectionConfig,
   });
 
-  console.log(
-    `[Integration Create] Saved ${workflowIds.length} related workflows`,
-  );
+  debugLog(`Integration Create Saved ${workflowIds.length} related workflows`);
 
   return integrationId;
 }

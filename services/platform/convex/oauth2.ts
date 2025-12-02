@@ -4,6 +4,10 @@ import { action, internalAction } from './_generated/server';
 import { v } from 'convex/values';
 import { CompactEncrypt, compactDecrypt } from 'jose';
 
+import { createDebugLog } from './lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 /**
  * OAuth2 Authentication Module
  *
@@ -227,7 +231,7 @@ export const exchangeCode = action({
       tokenParams.set('scope', config.scope.join(' '));
     }
 
-    console.log('Exchanging OAuth2 code for tokens', {
+    debugLog('Exchanging OAuth2 code for tokens', {
       provider: args.provider,
       tokenUrl: config.tokenUrl,
       redirectUri: config.redirectUri,
@@ -303,7 +307,7 @@ export const refreshToken = action({
     let tokenUrl: string;
     if (args.tokenUrl) {
       tokenUrl = args.tokenUrl;
-      console.log('Using stored tenant-specific token URL:', tokenUrl);
+      debugLog('Using stored tenant-specific token URL:', tokenUrl);
     } else {
       const config = getOAuth2Config(
         args.provider as OAuth2Provider,
@@ -313,7 +317,7 @@ export const refreshToken = action({
         args.accountType as 'personal' | 'organizational' | 'both' | undefined,
       );
       tokenUrl = config.tokenUrl;
-      console.log('Using generated token URL:', tokenUrl);
+      debugLog('Using generated token URL:', tokenUrl);
     }
 
     // Build refresh request

@@ -17,6 +17,10 @@ import type { IntegrationExecutionResult } from '../../../node_only/integration_
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './build_secrets_from_integration';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export const integrationAction: ActionDefinition<{
   // The name/type of integration to use (e.g., 'shopify', 'circuly', 'my_erp')
   name: string;
@@ -84,9 +88,7 @@ export const integrationAction: ActionDefinition<{
     const secrets = await buildSecretsFromIntegration(ctx, integration);
 
     // 5. Execute the connector in sandbox (via Node.js action)
-    console.log(
-      `[Integration] Executing ${name}.${operation} (v${connectorConfig.version})`,
-    );
+    debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
     const result = (await ctx.runAction!(
       internal.node_only.integration_sandbox.execute_integration_internal
@@ -103,7 +105,7 @@ export const integrationAction: ActionDefinition<{
     )) as IntegrationExecutionResult;
 
     if (result.logs && result.logs.length > 0) {
-      console.log(`[Integration] Logs:`, result.logs);
+      debugLog('Logs:', result.logs);
     }
 
     if (!result.success) {

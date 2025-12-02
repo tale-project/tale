@@ -2,6 +2,10 @@
 
 import type { EmailMessage } from '../../../workflow/actions/imap/types';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_IMAP_THREAD', '[IMAP Thread]');
+
 /**
  * Find the root message(s) in a thread.
  *
@@ -27,15 +31,15 @@ export default function findRootMessage(
     // A message is a root if it has neither References nor In-Reply-To
     if (!hasReferences && !hasInReplyTo) {
       rootMessages.push(message);
-      console.log(
-        `[IMAP Thread] Identified root message: ${message.subject} (${message.messageId})`,
+      debugLog(
+        `Identified root message: ${message.subject} (${message.messageId})`,
       );
     }
   }
 
   if (rootMessages.length === 0) {
-    console.warn(
-      '[IMAP Thread] No root message found! All messages have parent references. Using earliest message as root.',
+    debugLog(
+      'No root message found! All messages have parent references. Using earliest message as root.',
     );
     // Fallback: use the earliest message by date
     const sorted = [...messages].sort(
@@ -47,8 +51,8 @@ export default function findRootMessage(
   }
 
   if (rootMessages.length > 1) {
-    console.warn(
-      `[IMAP Thread] Found ${rootMessages.length} root messages. This might indicate merged threads.`,
+    debugLog(
+      `Found ${rootMessages.length} root messages. This might indicate merged threads.`,
     );
   }
 

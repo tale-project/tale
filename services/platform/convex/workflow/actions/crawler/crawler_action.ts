@@ -7,6 +7,10 @@ import type {
   FetchUrlsResult,
 } from './types';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CRAWLER', '[Crawler]');
+
 export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
   type: 'crawler',
   title: 'Website Crawler',
@@ -79,10 +83,8 @@ async function discoverUrls(
     timeout: timeout / 1000, // Convert milliseconds to seconds
   };
 
-  console.log(
-    `[Crawler Action] Discovering URLs from: ${domain} with timeout: ${timeout}ms`,
-  );
-  console.log({ payload });
+  debugLog(`Discovering URLs from: ${domain} with timeout: ${timeout}ms`);
+  debugLog({ payload });
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -111,9 +113,7 @@ async function discoverUrls(
     throw new Error(`URL discovery failed: ${errorMessage}`);
   }
 
-  console.log(
-    `[Crawler Action] Discovered ${result.urls_discovered} URLs from ${domain}`,
-  );
+  debugLog(`Discovered ${result.urls_discovered} URLs from ${domain}`);
 
   return result;
 }
@@ -132,8 +132,8 @@ async function fetchUrls(
     word_count_threshold: params.wordCountThreshold || 100,
   };
 
-  console.log(`[Crawler Action] Fetching ${params.urls.length} URLs`);
-  console.log({ payload });
+  debugLog(`Fetching ${params.urls.length} URLs`);
+  debugLog({ payload });
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -162,8 +162,8 @@ async function fetchUrls(
     throw new Error(`URL fetch failed: ${errorMessage}`);
   }
 
-  console.log(
-    `[Crawler Action] Successfully fetched ${result.urls_fetched} of ${result.urls_requested} URLs`,
+  debugLog(
+    `Successfully fetched ${result.urls_fetched} of ${result.urls_requested} URLs`,
   );
 
   return result;
@@ -186,11 +186,9 @@ async function crawlWebsite(
     ...(params.query && { query: params.query }),
   };
 
-  console.log(
-    `[Crawler Action] Crawling website: ${params.url} timeout: ${timeout}`,
-  );
-  console.log({ payload });
-  console.log(`[Crawler Action] Service URL: ${serviceUrl}`);
+  debugLog(`Crawling website: ${params.url} timeout: ${timeout}`);
+  debugLog({ payload });
+  debugLog(`Service URL: ${serviceUrl}`);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -219,9 +217,7 @@ async function crawlWebsite(
     throw new Error(`Crawler failed: ${errorMessage}`);
   }
 
-  console.log(
-    `[Crawler Action] Successfully crawled ${result.pages_crawled} pages`,
-  );
+  debugLog(`Successfully crawled ${result.pages_crawled} pages`);
 
   return result;
 }

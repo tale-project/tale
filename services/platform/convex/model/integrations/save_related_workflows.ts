@@ -8,6 +8,10 @@ import { internal } from '../../_generated/api';
 import { ConnectionConfig } from './types';
 import { getWorkflowsForIntegration } from './get_workflows_for_integration';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 interface SaveRelatedWorkflowsArgs {
   organizationId: string;
   name: string;
@@ -21,16 +25,14 @@ export async function saveRelatedWorkflows(
   ctx: ActionCtx,
   args: SaveRelatedWorkflowsArgs,
 ): Promise<Id<'wfDefinitions'>[]> {
-  console.log(
-    `[Integration Workflows] Saving related workflows for ${args.name}...`,
+  debugLog(
+    `Integration Workflows Saving related workflows for ${args.name}...`,
   );
 
   const { workflows, schedules } = getWorkflowsForIntegration(args.name);
 
   if (workflows.length === 0) {
-    console.log(
-      `[Integration Workflows] No predefined workflows for ${args.name}`,
-    );
+    debugLog(`Integration Workflows No predefined workflows for ${args.name}`);
     return [];
   }
 
@@ -90,13 +92,13 @@ export async function saveRelatedWorkflows(
 
     workflowIds.push(result.workflowId);
 
-    console.log(
-      `[Integration Workflows] Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
+    debugLog(
+      `Integration Workflows Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
     );
   }
 
-  console.log(
-    `[Integration Workflows] Successfully saved ${workflowIds.length} workflows for ${args.name}`,
+  debugLog(
+    `Integration Workflows Successfully saved ${workflowIds.length} workflows for ${args.name}`,
   );
 
   return workflowIds;

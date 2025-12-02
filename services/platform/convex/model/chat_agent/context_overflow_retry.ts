@@ -9,6 +9,10 @@ import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { createChatAgent } from '../../lib/create_chat_agent';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 const MIN_SUMMARY_LENGTH_FOR_RETRY = 50000; // 50k characters
 const MAX_NO_TOOL_RETRIES = 5;
 
@@ -45,7 +49,7 @@ export async function handleContextOverflowNoToolRetry(
       } output`
     : '';
 
-  console.log('[chat_agent] Forcing summarization before retry check...');
+  debugLog('Forcing summarization before retry check...');
 
   const forcedSummaryResult: { summarized: boolean; existingSummary?: string } =
     await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
@@ -56,8 +60,8 @@ export async function handleContextOverflowNoToolRetry(
   const summaryLength = fallbackSummary.length;
 
   if (!fallbackSummary || summaryLength <= MIN_SUMMARY_LENGTH_FOR_RETRY) {
-    console.log(
-      `[chat_agent] Context overflow detected (${toolCallCount} tool calls${tokenInfo}), but summary not sufficient for retry`,
+    debugLog(
+      `Context overflow detected (${toolCallCount} tool calls${tokenInfo}), but summary not sufficient for retry`,
       { summaryLength, minRequired: MIN_SUMMARY_LENGTH_FOR_RETRY },
     );
     throw new Error(
@@ -65,8 +69,8 @@ export async function handleContextOverflowNoToolRetry(
     );
   }
 
-  console.log(
-    `[chat_agent] Context overflow detected (${toolCallCount} tool calls${tokenInfo}). Summary is ${summaryLength} chars. Retrying without tools...`,
+  debugLog(
+    `Context overflow detected (${toolCallCount} tool calls${tokenInfo}). Summary is ${summaryLength} chars. Retrying without tools...`,
   );
 
   // Get the user's original message
@@ -83,9 +87,7 @@ export async function handleContextOverflowNoToolRetry(
 
   // Retry up to MAX_NO_TOOL_RETRIES times without tools
   for (let attempt = 1; attempt <= MAX_NO_TOOL_RETRIES; attempt++) {
-    console.log(
-      `[chat_agent] No-tool retry attempt ${attempt}/${MAX_NO_TOOL_RETRIES}`,
-    );
+    debugLog(`No-tool retry attempt ${attempt}/${MAX_NO_TOOL_RETRIES}`);
 
     const noToolAgent = await createChatAgent({
       withTools: false,
@@ -104,9 +106,7 @@ export async function handleContextOverflowNoToolRetry(
 
       const retryText = (retryResult as { text?: string }).text?.trim();
       if (retryText) {
-        console.log(
-          `[chat_agent] No-tool retry succeeded on attempt ${attempt}`,
-        );
+        debugLog(`No-tool retry succeeded on attempt ${attempt}`);
         await saveMessage(ctx, components.agent, {
           threadId,
           message: { role: 'assistant', content: retryText },
@@ -114,14 +114,9 @@ export async function handleContextOverflowNoToolRetry(
         return retryText;
       }
 
-      console.log(
-        `[chat_agent] No-tool retry attempt ${attempt} returned empty`,
-      );
+      debugLog(`No-tool retry attempt ${attempt} returned empty`);
     } catch (retryError) {
-      console.log(
-        `[chat_agent] No-tool retry attempt ${attempt} failed:`,
-        retryError,
-      );
+      debugLog(`No-tool retry attempt ${attempt} failed:`, retryError);
     }
   }
 

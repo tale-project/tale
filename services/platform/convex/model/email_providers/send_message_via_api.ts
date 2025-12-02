@@ -8,6 +8,10 @@ import { api, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { decryptAndRefreshOAuth2Token } from './decrypt_and_refresh_oauth2';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export async function sendMessageViaAPI(
   ctx: ActionCtx,
   args: {
@@ -134,7 +138,7 @@ export async function sendMessageViaAPI(
         messageId: gmailResult.messageId,
       };
 
-      console.log('✓ Message sent via Gmail API', {
+      debugLog('✓ Message sent via Gmail API', {
         messageId: args.messageId,
         gmailMessageId: gmailResult.gmailMessageId,
         internetMessageId: gmailResult.messageId,
@@ -206,7 +210,7 @@ export async function sendMessageViaAPI(
         messageId: graphResult.messageId,
       };
 
-      console.log('✓ Message sent via Microsoft Graph API', {
+      debugLog('✓ Message sent via Microsoft Graph API', {
         messageId: args.messageId,
         graphMessageId: graphResult.graphMessageId,
         internetMessageId: graphResult.messageId,
@@ -228,7 +232,7 @@ export async function sendMessageViaAPI(
       },
     );
 
-    console.log('✓ Message sent and updated', {
+    debugLog('✓ Message sent and updated', {
       messageId: args.messageId,
       externalMessageId: result.messageId,
     });

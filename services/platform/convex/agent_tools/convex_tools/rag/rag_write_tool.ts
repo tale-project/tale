@@ -9,6 +9,10 @@ import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 interface DocumentAddResponse {
   success: boolean;
   document_id: string;
@@ -70,7 +74,7 @@ Parameters:
       const ragServiceUrl = getRagServiceUrl(variables);
       const isCorrection = !!args.incorrect_info;
 
-      console.log('[tool:rag_write] start', {
+      debugLog('tool:rag_write start', {
         topic: args.topic,
         isCorrection,
         ragServiceUrl,
@@ -128,7 +132,7 @@ Note: This information was provided by the user and added to the knowledge base.
 
         const result = (await response.json()) as DocumentAddResponse;
 
-        console.log('[tool:rag_write] success', {
+        debugLog('tool:rag_write success', {
           topic: args.topic,
           isCorrection,
           document_id: result.document_id,
@@ -150,4 +154,3 @@ Note: This information was provided by the user and added to the knowledge base.
     },
   }),
 } as const satisfies ToolDefinition;
-
