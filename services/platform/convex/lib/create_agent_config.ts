@@ -77,12 +77,16 @@ export function createAgentConfig(opts: {
     }
   }
 
+  const hasMaxTokens = typeof opts.maxTokens === 'number';
+
   return {
     name: opts.name,
     instructions: finalInstructions,
     languageModel: openai.chat(model),
     ...(callSettings ? { callSettings } : {}),
-    providerOptions: { openai: { maxOutputTokens: opts.maxTokens } },
+    ...(hasMaxTokens
+      ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
+      : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
     ...(typeof opts.maxSteps === 'number' ? { maxSteps: opts.maxSteps } : {}),
     // Add text embedding model for vector search

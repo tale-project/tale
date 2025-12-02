@@ -6,32 +6,19 @@
  */
 
 import type { ToolDefinition } from './types';
-import { customerSearchTool } from './convex_tools/customers/customer_search';
-import { listCustomersTool } from './convex_tools/customers/list_customers';
-import { updateCustomerTool } from './convex_tools/customers/update_customer';
-import {
-  productGetTool,
-  productSearchAliasTool,
-} from './convex_tools/products/product_get';
-import { listProductsTool } from './convex_tools/products/list_products';
-import { updateProductTool } from './convex_tools/products/update_product';
-import { findUnprocessedEntitiesTool } from './convex_tools/workflow_processing_records/find_unprocessed_entities';
-import { findUnprocessedOpenConversationTool } from './convex_tools/workflow_processing_records/find_unprocessed_open_conversation';
-import { markEntityProcessedTool } from './convex_tools/workflow_processing_records/mark_entity_processed';
-import { ragSearchTool } from './convex_tools/rag/rag_search';
-import { ragKnowledgeTool } from './convex_tools/rag/rag_knowledge';
-import { fetchUrlTool } from './convex_tools/crawler/fetch_url';
-import { webSearchTool } from './convex_tools/crawler/web_search';
-import { getWorkflowStructureTool } from './convex_tools/workflows/get_workflow_structure';
-import { updateWorkflowStepTool } from './convex_tools/workflows/update_workflow_step';
-import { generateWorkflowFromDescriptionTool } from './convex_tools/workflows/generate_workflow_from_description';
-import { listAvailableActionsTool } from './convex_tools/workflows/list_available_actions';
-import { searchWorkflowExamplesTool } from './convex_tools/workflows/search_workflow_examples';
-import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workflow_definition';
-import { validateWorkflowDefinitionTool } from './convex_tools/workflows/validate_workflow_definition';
-import { generateExcelTool } from './convex_tools/files/generate_excel';
-import { generateFileTool } from './convex_tools/files/generate_file';
-import { contextSearchTool } from './convex_tools/threads/context_search';
+import { customerReadTool } from './convex_tools/customers/customer_read_tool';
+import { productReadTool } from './convex_tools/products/product_read_tool';
+import { ragSearchTool } from './convex_tools/rag/rag_search_tool';
+import { ragWriteTool } from './convex_tools/rag/rag_write_tool';
+import { webReadTool } from './convex_tools/crawler/web_read_tool';
+import { workflowReadTool } from './convex_tools/workflows/workflow_read_tool';
+import { updateWorkflowStepTool } from './convex_tools/workflows/update_workflow_step_tool';
+import { generateWorkflowFromDescriptionTool } from './convex_tools/workflows/generate_workflow_from_description_tool';
+import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workflow_definition_tool';
+import { validateWorkflowDefinitionTool } from './convex_tools/workflows/validate_workflow_definition_tool';
+import { generateExcelTool } from './convex_tools/files/generate_excel_tool';
+import { generateFileTool } from './convex_tools/files/generate_file_tool';
+import { contextSearchTool } from './convex_tools/threads/context_search_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -40,26 +27,15 @@ import { contextSearchTool } from './convex_tools/threads/context_search';
  * while still giving us a precise string literal union for ToolName.
  */
 export const TOOL_NAMES = [
-  'customer_search',
-  'list_customers',
-  'update_customer',
-  'product_get',
-  'product_search_alias',
-  'list_products',
-  'update_product',
-  'find_unprocessed_entities',
-  'find_unprocessed_open_conversation',
-  'mark_entity_processed',
+  'customer_read',
+  'product_read',
   'rag_search',
-  'rag_knowledge',
-  'fetch_url',
-  'web_search',
+  'rag_write',
+  'web_read',
   'generate_file',
-  'get_workflow_structure',
+  'workflow_read',
   'update_workflow_step',
   'generate_workflow_from_description',
-  'list_available_actions',
-  'search_workflow_examples',
   'save_workflow_definition',
   'validate_workflow_definition',
   'generate_excel',
@@ -70,25 +46,14 @@ export const TOOL_NAMES = [
  * Tool registry as array - enables TypeScript to infer tool names
  */
 export const TOOL_REGISTRY = [
-  customerSearchTool,
-  listCustomersTool,
-  updateCustomerTool,
-  productGetTool,
-  productSearchAliasTool,
-  listProductsTool,
-  updateProductTool,
-  findUnprocessedEntitiesTool,
-  findUnprocessedOpenConversationTool,
-  markEntityProcessedTool,
+  customerReadTool,
+  productReadTool,
   ragSearchTool,
-  ragKnowledgeTool,
-  fetchUrlTool,
-  webSearchTool,
-  getWorkflowStructureTool,
+  ragWriteTool,
+  webReadTool,
+  workflowReadTool,
   updateWorkflowStepTool,
   generateWorkflowFromDescriptionTool,
-  listAvailableActionsTool,
-  searchWorkflowExamplesTool,
   saveWorkflowDefinitionTool,
   validateWorkflowDefinitionTool,
   generateExcelTool,

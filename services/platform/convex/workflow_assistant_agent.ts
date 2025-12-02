@@ -121,16 +121,12 @@ ${toonifiedSteps}
 
     // Base tool list: edit/update existing workflows and fetch context data
     const convexToolNames: ToolName[] = [
-      'get_workflow_structure',
+      'workflow_read',
       'update_workflow_step',
       'save_workflow_definition',
-      'list_available_actions',
-      'search_workflow_examples',
       // Also include data tools for context
-      'customer_search',
-      'list_customers',
-      'list_products',
-      'product_get',
+      'customer_read',
+      'product_read',
       'rag_search',
     ];
 
