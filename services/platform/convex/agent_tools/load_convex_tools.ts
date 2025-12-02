@@ -4,6 +4,10 @@
 
 import { TOOL_REGISTRY_MAP, type ToolName } from './tool_registry';
 
+import { createDebugLog } from '../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export function loadConvexTools(toolNames?: readonly ToolName[]): unknown[] {
   if (!toolNames || toolNames.length === 0) {
     return [];
@@ -20,6 +24,6 @@ export function loadConvexTools(toolNames?: readonly ToolName[]): unknown[] {
     }
   }
 
-  console.log(`Loaded ${tools.length} Convex tools: ${toolNames.join(', ')}`);
+  debugLog(`Loaded ${tools.length} Convex tools: ${toolNames.join(', ')}`);
   return tools;
 }

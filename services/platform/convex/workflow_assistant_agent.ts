@@ -11,6 +11,10 @@ import { internal } from './_generated/api';
 import { toonify } from '../lib/utils/toonify';
 import type { ToolName } from './agent_tools/tool_registry';
 
+import { createDebugLog } from './lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW_AGENT', '[WorkflowAgent]');
+
 export const chatWithWorkflowAssistant = action({
   args: {
     threadId: v.string(),
@@ -94,13 +98,10 @@ ${toonifiedSteps}
     if (existingThreadId) {
       // Reuse existing threadId from workflow metadata
       threadId = existingThreadId;
-      console.log(
-        '[workflow_assistant] Reusing threadId from workflow metadata',
-        {
-          threadId,
-          workflowId: args.workflowId,
-        },
-      );
+      debugLog('Reusing threadId from workflow metadata', {
+        threadId,
+        workflowId: args.workflowId,
+      });
     } else if (args.workflowId) {
       // Store the threadId in workflow metadata for future use
       await ctx.runMutation(internal.wf_definitions.updateWorkflow, {
@@ -113,7 +114,7 @@ ${toonifiedSteps}
         },
         updatedBy: 'system',
       });
-      console.log('[workflow_assistant] Stored threadId in workflow metadata', {
+      debugLog('Stored threadId in workflow metadata', {
         threadId: args.threadId,
         workflowId: args.workflowId,
       });
@@ -156,7 +157,7 @@ ${toonifiedSteps}
 
     // Generate response with automatic tool handling
     // Use a real Agent thread id so context and search work correctly
-    console.log('[workflow_assistant] invoking agent.generateText', {
+    debugLog('invoking agent.generateText', {
       threadId,
       organizationId: args.organizationId,
       workflowId: args.workflowId,
@@ -171,7 +172,7 @@ ${toonifiedSteps}
       },
     );
 
-    console.log('[workflow_assistant] agent result', {
+    debugLog('agent result', {
       text: (result as { text?: string }).text,
       // steps may be large; we only log high-level info
       stepsSummary: ((result as { steps?: unknown[] })?.steps || []).map(

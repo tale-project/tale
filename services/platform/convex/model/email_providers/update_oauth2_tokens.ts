@@ -5,6 +5,10 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 export interface UpdateOAuth2TokensArgs {
   emailProviderId: Doc<'emailProviders'>['_id'];
   accessTokenEncrypted: string;
@@ -41,8 +45,8 @@ export async function updateOAuth2Tokens(
       if (match) {
         const tenantId = match[1];
         tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
-        console.log(
-          `[EmailProviders] Derived tenant tokenUrl for Microsoft provider ${provider._id}: ${tokenUrl}`,
+        debugLog(
+          `Derived tenant tokenUrl for Microsoft provider ${provider._id}: ${tokenUrl}`,
         );
       }
     }

@@ -3,6 +3,10 @@
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 /**
  * Internal action to send an email via Gmail API
  * Returns the Internet Message ID for email threading
@@ -66,7 +70,9 @@ export const sendEmail = internalAction({
     if (args.html && args.text) {
       // Multipart: both HTML and plain text
       const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      emailLines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
+      emailLines.push(
+        `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      );
       emailLines.push('');
       emailLines.push(`--${boundary}`);
       emailLines.push('Content-Type: text/plain; charset="UTF-8"');
@@ -163,9 +169,10 @@ export const sendEmail = internalAction({
     const messageIdHeader = messageDetails.payload.headers.find(
       (h) => h.name.toLowerCase() === 'message-id',
     );
-    const internetMessageId = messageIdHeader?.value || `<${result.id}@gmail.googleapis.com>`;
+    const internetMessageId =
+      messageIdHeader?.value || `<${result.id}@gmail.googleapis.com>`;
 
-    console.log('✓ Email sent successfully via Gmail API', {
+    debugLog('✓ Email sent successfully via Gmail API', {
       gmailMessageId: result.id,
       internetMessageId,
       from: args.from,
@@ -180,4 +187,3 @@ export const sendEmail = internalAction({
     };
   },
 });
-

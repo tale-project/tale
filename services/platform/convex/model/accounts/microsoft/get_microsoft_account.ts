@@ -7,6 +7,10 @@ import { components } from '../../../_generated/api';
 import { authComponent } from '../../../auth';
 import type { OAuthAccount } from '../index';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
+
 /**
  * Get Microsoft OAuth account for the current authenticated user
  *
@@ -28,7 +32,7 @@ export async function getMicrosoftAccount(
     // Note: authUser.userId is a different field (optional custom userId)
     const betterAuthInternalUserId = String(authUser._id);
 
-    console.log('getMicrosoftAccount: Looking for Microsoft account', {
+    debugLog('getMicrosoftAccount: Looking for Microsoft account', {
       userId: betterAuthInternalUserId,
       authUserEmail: authUser.email,
       authUserObject: authUser,
@@ -55,7 +59,7 @@ export async function getMicrosoftAccount(
 
     const microsoftAccounts = microsoftResult?.page || [];
 
-    console.log('getMicrosoftAccount: Query result', {
+    debugLog('getMicrosoftAccount: Query result', {
       foundAccounts: microsoftAccounts.length,
       accounts: microsoftAccounts.map((acc: any) => ({
         accountId: acc.accountId,

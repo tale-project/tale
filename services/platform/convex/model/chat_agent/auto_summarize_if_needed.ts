@@ -14,6 +14,10 @@ import {
   type MessageForSummary,
 } from '../../lib/summarize_context';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 /**
  * Minimum number of messages required before summarization.
  * We need at least a couple of messages to make summarization worthwhile.
@@ -110,7 +114,7 @@ export async function autoSummarizeIfNeededModel(
     (m) => m.message?.role === 'tool',
   ).length;
 
-  console.log('[autoSummarizeIfNeeded] check', {
+  debugLog('autoSummarizeIfNeeded check', {
     threadId: args.threadId,
     totalMessages: allMessages.length,
     newMessages: newMessages.length,
@@ -131,13 +135,11 @@ export async function autoSummarizeIfNeededModel(
   }
 
   // Filter to only tool messages for summarization
-  const newToolMessages = newMessages.filter(
-    (m) => m.message?.role === 'tool',
-  );
+  const newToolMessages = newMessages.filter((m) => m.message?.role === 'tool');
 
   // Skip if no tool messages to summarize
   if (newToolMessages.length === 0) {
-    console.log('[autoSummarizeIfNeeded] no tool messages to summarize');
+    debugLog('autoSummarizeIfNeeded no tool messages to summarize');
     return {
       summarized: false,
       existingSummary,
@@ -158,7 +160,7 @@ export async function autoSummarizeIfNeededModel(
       toolName: 'tool_result',
     }));
 
-  console.log('[autoSummarizeIfNeeded] summarizing tool messages incrementally', {
+  debugLog('autoSummarizeIfNeeded summarizing tool messages incrementally', {
     threadId: args.threadId,
     newToolMessagesCount: newMessagesForSummary.length,
     existingSummaryLength: existingSummary?.length || 0,
@@ -168,7 +170,11 @@ export async function autoSummarizeIfNeededModel(
   let newSummary: string;
   if (existingSummary) {
     // Incremental: merge existing summary with new messages
-    newSummary = await updateSummary(ctx, existingSummary, newMessagesForSummary);
+    newSummary = await updateSummary(
+      ctx,
+      existingSummary,
+      newMessagesForSummary,
+    );
   } else {
     // First summary: summarize all new messages
     newSummary = await summarizeMessages(ctx, newMessagesForSummary);
@@ -189,7 +195,7 @@ export async function autoSummarizeIfNeededModel(
     patch: { summary: JSON.stringify(summaryData) },
   });
 
-  console.log('[autoSummarizeIfNeeded] complete', {
+  debugLog('autoSummarizeIfNeeded complete', {
     threadId: args.threadId,
     newSummaryLength: newSummary.length,
     messagesSummarized: newMessagesForSummary.length,
@@ -205,4 +211,3 @@ export async function autoSummarizeIfNeededModel(
     totalMessagesSummarized: newTotalSummarized,
   };
 }
-

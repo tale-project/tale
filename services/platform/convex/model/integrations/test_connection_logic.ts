@@ -9,6 +9,10 @@ import { TestConnectionResult } from './types';
 import { testShopifyConnection } from './test_shopify_connection';
 import { testCirculyConnection } from './test_circuly_connection';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export interface TestConnectionLogicArgs {
   integrationId: Id<'integrations'>;
 }
@@ -32,7 +36,7 @@ export async function testConnectionLogic(
   }
 
   try {
-    console.log(`[Test Connection] Testing ${integration.name} integration...`);
+    debugLog(`Test Connection Testing ${integration.name} integration...`);
 
     if (integration.apiKeyAuth) {
       const key = await ctx.runAction(internal.oauth2.decryptStringInternal, {
@@ -77,8 +81,8 @@ export async function testConnectionLogic(
       errorMessage: undefined,
     });
 
-    console.log(
-      `[Test Connection] Successfully tested ${integration.name} integration`,
+    debugLog(
+      `Test Connection Successfully tested ${integration.name} integration`,
     );
 
     return {

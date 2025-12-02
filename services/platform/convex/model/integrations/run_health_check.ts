@@ -7,10 +7,14 @@ import { testShopifyConnection } from './test_shopify_connection';
 import { testCirculyConnection } from './test_circuly_connection';
 import type { CreateIntegrationLogicArgs } from './create_integration_logic';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export async function runHealthCheck(
   args: CreateIntegrationLogicArgs,
 ): Promise<void> {
-  console.log(`[Integration Create] Running health check for ${args.name}...`);
+  debugLog(`Integration Create Running health check for ${args.name}...`);
 
   if (args.name === 'shopify') {
     if (!args.connectionConfig?.domain || !args.apiKeyAuth?.key) {
@@ -30,5 +34,5 @@ export async function runHealthCheck(
     );
   }
 
-  console.log(`[Integration Create] Health check passed for ${args.name}`);
+  debugLog(`Integration Create Health check passed for ${args.name}`);
 }

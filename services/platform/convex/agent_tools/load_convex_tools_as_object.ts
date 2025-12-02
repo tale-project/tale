@@ -4,6 +4,10 @@
 
 import { TOOL_REGISTRY_MAP, type ToolName } from './tool_registry';
 
+import { createDebugLog } from '../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export function loadConvexToolsAsObject(
   toolNames?: readonly ToolName[],
 ): Record<string, unknown> {
@@ -22,7 +26,7 @@ export function loadConvexToolsAsObject(
     }
   }
 
-  console.log(
+  debugLog(
     `Loaded ${Object.keys(tools).length} Convex tools: ${toolNames.join(', ')}`,
   );
   return tools;

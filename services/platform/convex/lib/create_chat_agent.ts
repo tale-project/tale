@@ -5,6 +5,10 @@ import { loadMCPTools } from '../agent_tools/load_mcp_tools';
 import { createAgentConfig } from './create_agent_config';
 import { type ToolName, TOOL_REGISTRY_MAP } from '../agent_tools/tool_registry';
 
+import { createDebugLog } from './debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 /**
  * Create a chat agent instance with shared configuration
  * Supports both Convex and MCP tools
@@ -31,7 +35,7 @@ export async function createChatAgent(options?: {
     const mcpServerIds = options?.mcpServerIds;
     mcpTools = await loadMCPTools(mcpServerIds, options?.variables);
 
-    console.log('[createChatAgent] Loaded tools', {
+    debugLog('createChatAgent Loaded tools', {
       convexCount: convexToolNames.length,
       mcpCount: Object.keys(mcpTools).length,
       totalCount: convexToolNames.length + Object.keys(mcpTools).length,

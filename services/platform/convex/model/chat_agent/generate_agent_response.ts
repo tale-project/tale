@@ -12,6 +12,10 @@ import { components } from '../../_generated/api';
 import { createChatAgent } from '../../lib/create_chat_agent';
 import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 type Usage = {
   inputTokens?: number;
   outputTokens?: number;
@@ -47,9 +51,7 @@ export async function generateAgentResponse(
   const startTime = Date.now();
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.log(
-      `[chat_agent] Aborting request after ${TIMEOUT_MS / 1000}s timeout`,
-    );
+    debugLog(`Aborting request after ${TIMEOUT_MS / 1000}s timeout`);
     abortController.abort();
   }, TIMEOUT_MS);
 
@@ -83,7 +85,7 @@ export async function generateAgentResponse(
       });
     }
 
-    console.log('[chat_agent] Using existing context summary (if any)', {
+    debugLog('Using existing context summary (if any)', {
       threadId,
       hasSummary: !!contextSummary,
     });
@@ -135,10 +137,8 @@ export async function generateAgentResponse(
 
     clearTimeout(timeoutId);
     const elapsedMs = Date.now() - startTime;
-    console.log(
-      `[chat_agent] generateAgentResponse completed in ${(
-        elapsedMs / 1000
-      ).toFixed(1)}s for thread ${threadId}`,
+    debugLog(
+      `generateAgentResponse completed in ${(elapsedMs / 1000).toFixed(1)}s for thread ${threadId}`,
     );
 
     const steps = (result.steps ?? []) as Array<{ [key: string]: any }>;

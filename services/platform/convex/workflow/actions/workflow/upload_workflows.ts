@@ -3,6 +3,10 @@ import * as workflowExports from '../../../predefined_workflows';
 import { getRagConfig } from '../rag/get_rag_config';
 import { uploadTextDocument } from '../rag/upload_text_document';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 /**
  * Upload all predefined workflow definitions to RAG service
  */
@@ -10,13 +14,13 @@ export async function uploadAllWorkflows(
   organizationId: string,
   timeout = 120000,
 ): Promise<UploadAllWorkflowsResult> {
-  console.log(
-    `[Workflow RAG Upload] Starting upload of predefined workflows to RAG service...`,
+  debugLog(
+    'Workflow RAG Upload Starting upload of predefined workflows to RAG service...',
   );
-  console.log(`[Workflow RAG Upload] Organization ID: ${organizationId}`);
+  debugLog(`Workflow RAG Upload Organization ID: ${organizationId}`);
 
   const ragConfig = getRagConfig();
-  console.log(`[Workflow RAG Upload] RAG Service URL: ${ragConfig.serviceUrl}`);
+  debugLog(`Workflow RAG Upload RAG Service URL: ${ragConfig.serviceUrl}`);
 
   let uploaded = 0;
   const details: Array<{
@@ -27,12 +31,12 @@ export async function uploadAllWorkflows(
   }> = [];
 
   // Upload individual workflows
-  console.log(
-    `[Workflow RAG Upload] Uploading ${Object.keys(workflowExports.workflows).length} individual workflows...`,
+  debugLog(
+    `Workflow RAG Upload Uploading ${Object.keys(workflowExports.workflows).length} individual workflows...`,
   );
 
   for (const [key, workflow] of Object.entries(workflowExports.workflows)) {
-    console.log(`[Workflow RAG Upload] Processing workflow: ${key}`);
+    debugLog(`Workflow RAG Upload Processing workflow: ${key}`);
 
     // Serialize workflow definition to JSON
     const content = JSON.stringify(workflow, null, 2);
@@ -62,8 +66,8 @@ export async function uploadAllWorkflows(
       timeout,
     );
 
-    console.log(
-      `[Workflow RAG Upload] ✓ Successfully uploaded: ${key} (${result.chunksCreated} chunks)`,
+    debugLog(
+      `Workflow RAG Upload ✓ Successfully uploaded: ${key} (${result.chunksCreated} chunks)`,
     );
 
     uploaded++;
@@ -74,8 +78,8 @@ export async function uploadAllWorkflows(
     });
   }
 
-  console.log(`[Workflow RAG Upload] Upload complete!`);
-  console.log(`[Workflow RAG Upload] Successfully uploaded: ${uploaded}`);
+  debugLog('Workflow RAG Upload Upload complete!');
+  debugLog(`Workflow RAG Upload Successfully uploaded: ${uploaded}`);
 
   return {
     success: true,

@@ -8,6 +8,10 @@ import type { Id } from '../../_generated/dataModel';
 import { snakeCase } from 'lodash';
 import type { CreateExecutionArgs, ExecutionVariables } from './types';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export async function createExecution(
   ctx: MutationCtx,
   args: CreateExecutionArgs,
@@ -26,7 +30,7 @@ export async function createExecution(
     ? snakeCase(args.workflowName)
     : undefined;
 
-  console.log('[createExecution] Creating execution', {
+  debugLog('createExecution Creating execution', {
     workflowName: args.workflowName,
     workflowSlug,
     organizationId: args.organizationId,

@@ -9,6 +9,10 @@ import { LoopNodeConfig } from '../../../types/nodes';
 import { LoopNodeExecutor } from './loop_node_executor';
 import type { Id } from '../../../../_generated/dataModel';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 // =============================================================================
 // HELPER FUNCTION
 // =============================================================================
@@ -23,7 +27,7 @@ export async function executeLoopNode(
   executionId: string | Id<'wfExecutions'>,
   threadId?: string,
 ): Promise<StepExecutionResult> {
-  console.log('[LOOP ACTION] executeLoopNode called for stepSlug:', stepSlug);
+  debugLog('LOOP ACTION executeLoopNode called for stepSlug:', stepSlug);
 
   const context: StepExecutionContext = {
     stepDef: {

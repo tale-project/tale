@@ -6,6 +6,10 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import { saveRelatedWorkflows } from './save_related_workflows';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export interface CreateProviderArgs {
   organizationId: string;
   name: string;
@@ -142,8 +146,8 @@ export async function createProviderLogic(
       accountEmail: args.passwordAuth.user,
     });
 
-    console.log(
-      `[Email Provider Create] Saved ${workflowIds.length} related workflows`,
+    debugLog(
+      `Email Provider Create Saved ${workflowIds.length} related workflows`,
     );
   }
 

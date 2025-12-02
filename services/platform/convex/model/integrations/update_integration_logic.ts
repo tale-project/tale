@@ -19,6 +19,10 @@ import {
 import { testShopifyConnection } from './test_shopify_connection';
 import { testCirculyConnection } from './test_circuly_connection';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export interface UpdateIntegrationLogicArgs {
   integrationId: Id<'integrations'>;
   status?: Status;
@@ -114,8 +118,8 @@ async function runHealthCheckIfNeeded(
     return;
   }
 
-  console.log(
-    `[Integration Update] Running health check for ${integration.name}...`,
+  debugLog(
+    `Integration Update Running health check for ${integration.name}...`,
   );
 
   try {
@@ -138,9 +142,7 @@ async function runHealthCheckIfNeeded(
       await testCirculyConnection(username, password);
     }
 
-    console.log(
-      `[Integration Update] Health check passed for ${integration.name}`,
-    );
+    debugLog(`Integration Update Health check passed for ${integration.name}`);
   } catch (error) {
     console.error(
       `[Integration Update] Health check failed for ${integration.name}:`,

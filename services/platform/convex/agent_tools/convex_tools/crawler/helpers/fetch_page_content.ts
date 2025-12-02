@@ -7,6 +7,10 @@
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import { type FetchUrlsApiResponse, type WebReadFetchUrlResult } from './types';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CRAWLER', '[Crawler]');
+
 // Convex imposes a 1 MiB per-value limit. Some pages can be very large and would
 // cause tool result messages to exceed this limit when stored by @convex-dev/agent.
 // Truncate the extracted page content to keep each message comfortably below
@@ -20,7 +24,7 @@ export async function fetchPageContent(
   const variables = (ctx as { variables?: Record<string, unknown> }).variables;
   const crawlerServiceUrl = getCrawlerServiceUrl(variables);
 
-  console.log('[tool:web_read:fetch_url] start', {
+  debugLog('tool:web_read:fetch_url start', {
     url: args.url,
     crawlerServiceUrl,
   });
@@ -72,7 +76,7 @@ export async function fetchPageContent(
       ? rawContent.slice(0, MAX_CONTENT_CHARS)
       : rawContent;
 
-    console.log('[tool:web_read:fetch_url] success', {
+    debugLog('tool:web_read:fetch_url success', {
       url: args.url,
       title: page.title,
       word_count: page.word_count,

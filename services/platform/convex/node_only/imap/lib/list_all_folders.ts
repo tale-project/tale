@@ -2,6 +2,10 @@
 
 import type { ImapFlow } from 'imapflow';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_IMAP', '[IMAP]');
+
 /**
  * List all available folders/mailboxes from the IMAP server.
  *
@@ -21,7 +25,7 @@ export default async function listAllFolders(
     .map((mailbox) => mailbox.path)
     .filter((path) => path && path.length > 0);
 
-  console.log(`[IMAP] Discovered ${folders.length} folder(s):`, folders);
+  debugLog(`Discovered ${folders.length} folder(s):`, folders);
 
   return folders;
 }

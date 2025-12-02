@@ -9,6 +9,10 @@ import { getSearchServiceUrl } from './get_search_service_url';
 import { fetchSearXNGResults } from './fetch_searxng_results';
 import { type WebReadSearchResult } from './types';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CRAWLER', '[Crawler]');
+
 // =============================================================================
 // SEARCH WEB OPERATION
 // =============================================================================
@@ -34,7 +38,7 @@ export async function searchWeb(
   const pageNumber = args.page_number ?? 1;
 
   // Standard search mode
-  console.log('[tool:web_read:search] start', {
+  debugLog('tool:web_read:search start', {
     query: args.query,
     num_results: numResults,
     page_number: pageNumber,
@@ -58,7 +62,7 @@ export async function searchWeb(
 
     const hasMore = pageData.items.length >= numResults;
 
-    console.log('[tool:web_read:search] success', {
+    debugLog('tool:web_read:search success', {
       query: args.query,
       results_count: pageData.items.length,
       has_more: hasMore,

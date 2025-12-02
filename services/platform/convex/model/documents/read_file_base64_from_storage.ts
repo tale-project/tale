@@ -9,6 +9,10 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { bytesToBase64 } from '../../lib/crypto/base64_to_bytes';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
+
 export interface ReadFileBase64Args {
   fileId: Id<'_storage'>;
 }
@@ -27,7 +31,7 @@ export async function readFileBase64FromStorage(
 ): Promise<ReadFileBase64Result> {
   const { fileId } = args;
 
-  console.log('[documents.readFileBase64FromStorage] start', {
+  debugLog('documents.readFileBase64FromStorage start', {
     fileId,
   });
 
@@ -45,7 +49,7 @@ export async function readFileBase64FromStorage(
   const size = bytes.byteLength;
   const contentType = blob.type || 'application/octet-stream';
 
-  console.log('[documents.readFileBase64FromStorage] success', {
+  debugLog('documents.readFileBase64FromStorage success', {
     fileId,
     size,
     contentType,

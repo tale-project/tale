@@ -17,6 +17,10 @@ import { createAgentConfig } from '../../../../lib/create_agent_config';
 import type { ToolName } from '../../../../agent_tools/tool_registry';
 import { processAgentResult } from './utils/process_agent_result';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 // =============================================================================
 // AGENT EXECUTION
 // =============================================================================
@@ -63,7 +67,7 @@ export async function executeAgentWithTools(
   if (_args.threadId) {
     // Reuse shared thread when threadId is provided
     threadId = _args.threadId;
-    console.log('[executeAgentWithTools] Reusing shared thread', { threadId });
+    debugLog('executeAgentWithTools Reusing shared thread', { threadId });
   } else {
     // Workflows without a threadId (e.g., data sync or standalone LLM) create a new thread
     const thread = await ctx.runMutation(
@@ -73,7 +77,7 @@ export async function executeAgentWithTools(
       },
     );
     threadId = thread._id as string;
-    console.log('[executeAgentWithTools] Created new thread', { threadId });
+    debugLog('executeAgentWithTools Created new thread', { threadId });
   }
 
   const agent = new Agent(components.agent, agentConfig);

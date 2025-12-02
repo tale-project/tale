@@ -8,6 +8,10 @@ import type { ToolDefinition } from '../../types';
 import type { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 interface GenerateExcelResult {
   success: boolean;
   fileId: string;
@@ -67,7 +71,7 @@ CRITICAL:
     handler: async (ctx, args): Promise<GenerateExcelResult> => {
       const actionCtx = ctx as unknown as ActionCtx;
 
-      console.log('[tool:generate_excel] start', {
+      debugLog('tool:generate_excel start', {
         fileName: args.fileName,
         sheetCount: args.sheets.length,
       });
@@ -81,7 +85,7 @@ CRITICAL:
           },
         );
 
-        console.log('[tool:generate_excel] success', {
+        debugLog('tool:generate_excel success', {
           fileName: result.fileName,
           fileId: result.fileId,
           rowCount: result.rowCount,

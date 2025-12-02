@@ -20,6 +20,10 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../helpers/nodes/action/types';
 import { replaceVariables } from '../../lib/variables/replace_variables';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export const setVariablesAction: ActionDefinition<{
   variables: Array<{ name: string; value: unknown; secure?: boolean }>;
 }> = {
@@ -42,8 +46,8 @@ export const setVariablesAction: ActionDefinition<{
     // because execute_step.ts skips replaceVariables for set_variables action
     const processedVariables: Record<string, unknown> = {};
     const workingContext = { ...variables };
-    console.log(
-      '[set_variables] Processing variables:',
+    debugLog(
+      'set_variables Processing variables:',
       params.variables
         .map((v) => `${v.name}${v.secure ? ' (secure)' : ''}`)
         .join(', '),
@@ -61,8 +65,8 @@ export const setVariablesAction: ActionDefinition<{
           processedValue === null ||
           processedValue === ''
         ) {
-          console.log(
-            `[set_variables] Skipping undefined/null/empty secure variable '${name}'`,
+          debugLog(
+            `set_variables Skipping undefined/null/empty secure variable '${name}'`,
           );
           continue;
         }
@@ -85,14 +89,14 @@ export const setVariablesAction: ActionDefinition<{
         processedVariables.secrets = secrets;
         workingContext.secrets = secrets;
 
-        console.log(`[set_variables] Stored secure wrapper in secrets.${name}`);
+        debugLog(`set_variables Stored secure wrapper in secrets.${name}`);
       } else {
         // Regular variable: store as-is
         processedVariables[name] = processedValue;
         workingContext[name] = processedValue;
       }
     }
-    console.log('[set_variables] Processed variables:', processedVariables);
+    debugLog('set_variables Processed variables:', processedVariables);
 
     // Return processed variables in the result
     // execute_action_node will extract them and add to StepExecutionResult.variables

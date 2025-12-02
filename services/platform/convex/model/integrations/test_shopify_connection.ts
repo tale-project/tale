@@ -4,6 +4,10 @@
 
 import { SHOPIFY_API_VERSION } from './types';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export async function testShopifyConnection(
   domain: string,
   accessToken: string,
@@ -11,7 +15,7 @@ export async function testShopifyConnection(
   // Skip health check in test mode (for testing the integration flow)
   // To enable test mode, use domain: "test-skip-healthcheck.myshopify.com"
   if (domain.includes('test-skip-healthcheck')) {
-    console.log('[Shopify Health Check] TEST MODE - Skipping actual API call');
+    debugLog('Shopify Health Check TEST MODE - Skipping actual API call');
     return;
   }
 
@@ -26,12 +30,10 @@ export async function testShopifyConnection(
 
   const url = `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/shop.json`;
 
-  console.log(`[Shopify Health Check] Testing connection to: ${shopDomain}`);
-  console.log(
-    `[Shopify Health Check] Using API version: ${SHOPIFY_API_VERSION}`,
-  );
-  console.log(
-    `[Shopify Health Check] Access token starts with: ${accessToken.substring(0, 10)}...`,
+  debugLog(`Shopify Health Check Testing connection to: ${shopDomain}`);
+  debugLog(`Shopify Health Check Using API version: ${SHOPIFY_API_VERSION}`);
+  debugLog(
+    `Shopify Health Check Access token starts with: ${accessToken.substring(0, 10)}...`,
   );
 
   try {
@@ -43,7 +45,7 @@ export async function testShopifyConnection(
       },
     });
 
-    console.log(`[Shopify Health Check] Response status: ${response.status}`);
+    debugLog(`Shopify Health Check Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -73,8 +75,8 @@ export async function testShopifyConnection(
       throw new Error('Invalid response from Shopify API');
     }
 
-    console.log(
-      `[Shopify Health Check] Successfully connected to ${data.shop.name}`,
+    debugLog(
+      `Shopify Health Check Successfully connected to ${data.shop.name}`,
     );
   } catch (error) {
     if (error instanceof Error) {

@@ -4,6 +4,10 @@ import nodemailer from 'nodemailer';
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 /**
  * Internal action to send an email via SMTP
  * Returns the message ID from the SMTP server
@@ -94,7 +98,7 @@ export const sendEmail = internalAction({
 
     transporter.close();
 
-    console.log('✓ Email sent successfully via SMTP', {
+    debugLog('✓ Email sent successfully via SMTP', {
       messageId: info.messageId,
       from: args.from,
       to: args.to,

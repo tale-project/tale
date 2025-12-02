@@ -17,6 +17,10 @@ import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as EmailProviders from './model/email_providers';
 import { saveRelatedWorkflows } from './model/email_providers/save_related_workflows';
 
+import { createDebugLog } from './lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 // ============================================================================
 // Public Queries
 // ============================================================================
@@ -495,7 +499,7 @@ export const handleOAuth2Callback = action({
       (metadata?.oauth2_redirect_uri as string | undefined);
     const effectiveRedirectUri = storedRedirectUri || args.redirectUri;
 
-    console.log('[OAuth2 Server] Using redirectUri for token exchange', {
+    debugLog('Using redirectUri for token exchange', {
       storedRedirectUri,
       argsRedirectUri: args.redirectUri,
       effectiveRedirectUri,
@@ -573,9 +577,7 @@ export const handleOAuth2Callback = action({
         accountEmail: userEmail,
       });
 
-      console.log(
-        `[Email Provider OAuth2] Saved ${workflowIds.length} related workflows`,
-      );
+      debugLog(`Saved ${workflowIds.length} related workflows`);
     }
 
     return {

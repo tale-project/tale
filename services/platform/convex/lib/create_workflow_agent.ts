@@ -10,6 +10,10 @@ import { loadMCPTools } from '../agent_tools/load_mcp_tools';
 import { createAgentConfig } from './create_agent_config';
 import { type ToolName } from '../agent_tools/tool_registry';
 
+import { createDebugLog } from './debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 export async function createWorkflowAgent(options?: {
   withTools?: boolean;
   maxSteps?: number;
@@ -44,7 +48,7 @@ export async function createWorkflowAgent(options?: {
     const mcpServerIds = options?.mcpServerIds;
     mcpTools = await loadMCPTools(mcpServerIds, options?.variables);
 
-    console.log('[createWorkflowAgent] Loaded tools', {
+    debugLog('createWorkflowAgent Loaded tools', {
       convexCount: convexToolNames.length,
       mcpCount: Object.keys(mcpTools).length,
       totalCount: convexToolNames.length + Object.keys(mcpTools).length,

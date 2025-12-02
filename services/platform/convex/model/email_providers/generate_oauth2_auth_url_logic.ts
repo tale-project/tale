@@ -6,6 +6,10 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import { buildOAuth2AuthUrl } from './generate_oauth2_auth_url';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 export interface GenerateOAuth2AuthUrlArgs {
   emailProviderId: Doc<'emailProviders'>['_id'];
   organizationId: string;
@@ -58,15 +62,12 @@ export async function generateOAuth2AuthUrlLogic(
   // Build and return OAuth2 authorization URL
   // Use redirectUri from args (passed from client) if available,
   // otherwise fall back to metadata, then to default
-  console.log(
-    '[OAuth2 Server] Received redirectUri from client:',
-    args.redirectUri,
-  );
-  console.log('[OAuth2 Server] Metadata redirectUri:', metadata?.redirectUri);
+  debugLog('Received redirectUri from client:', args.redirectUri);
+  debugLog('Metadata redirectUri:', metadata?.redirectUri);
 
   const finalRedirectUri =
     args.redirectUri || (metadata?.redirectUri as string | undefined);
-  console.log('[OAuth2 Server] Final redirectUri to use:', finalRedirectUri);
+  debugLog('Final redirectUri to use:', finalRedirectUri);
 
   // Persist the redirectUri/origin for use during the callback (when Host may be 0.0.0.0)
   if (finalRedirectUri) {

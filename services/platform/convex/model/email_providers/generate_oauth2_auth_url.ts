@@ -4,6 +4,10 @@
 
 import type { Doc } from '../../_generated/dataModel';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
+
 export interface OAuth2UrlConfig {
   provider: string;
   clientId: string;
@@ -90,7 +94,7 @@ export function buildOAuth2AuthUrl(config: OAuth2UrlConfig): string {
     params.set('prompt', 'select_account');
   }
 
-  console.log('Generated OAuth2 authorization URL', {
+  debugLog('Generated OAuth2 authorization URL', {
     provider: config.provider,
     redirectUri,
     clientId: config.clientId.substring(0, 10) + '...',

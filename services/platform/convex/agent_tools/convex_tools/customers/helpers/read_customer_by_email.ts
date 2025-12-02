@@ -2,6 +2,10 @@ import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByEmailResult } from './types';
 
+import { createDebugLog } from '../../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export async function readCustomerByEmail(
   ctx: unknown,
   args: { email: string; fields?: string[] },
@@ -16,7 +20,7 @@ export async function readCustomerByEmail(
     );
   }
 
-  console.log('[tool:customer_read] get_by_email start', {
+  debugLog('tool:customer_read get_by_email start', {
     organizationId,
     email: args.email,
   });
@@ -30,7 +34,7 @@ export async function readCustomerByEmail(
   );
 
   if (!customer) {
-    console.log('[tool:customer_read] get_by_email not found', {
+    debugLog('tool:customer_read get_by_email not found', {
       organizationId,
       email: args.email,
     });
@@ -53,7 +57,7 @@ export async function readCustomerByEmail(
   }
 
   const presentKeys = Object.keys(out).filter((k) => out[k] !== undefined);
-  console.log('[tool:customer_read] get_by_email return', {
+  debugLog('tool:customer_read get_by_email return', {
     email: args.email,
     presentKeys,
   });

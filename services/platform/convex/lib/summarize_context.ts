@@ -13,6 +13,10 @@ import type { ActionCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import { openai } from './openai_provider';
 
+import { createDebugLog } from './debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 /**
  * Message structure for summarization - includes tool messages
  */
@@ -188,7 +192,7 @@ export async function summarizeMessages(
   currentPrompt?: string,
 ): Promise<string> {
   if (messages.length === 0) {
-    console.log('[summarizeMessages] No messages to summarize');
+    debugLog('summarizeMessages No messages to summarize');
     return '';
   }
 
@@ -205,8 +209,8 @@ export async function summarizeMessages(
     (sum, m) => sum + estimateTokens(m),
     0,
   );
-  console.log(
-    `[summarizeMessages] Chunked summarization: ${messages.length} messages, ~${totalTokensEstimate} tokens, ${chunks.length} chunks`,
+  debugLog(
+    `summarizeMessages Chunked summarization: ${messages.length} messages, ~${totalTokensEstimate} tokens, ${chunks.length} chunks`,
   );
 
   let rollingSummary = '';
@@ -216,8 +220,8 @@ export async function summarizeMessages(
     const chunk = chunks[chunkIndex];
     const chunkTokens = chunk.reduce((sum, m) => sum + estimateTokens(m), 0);
 
-    console.log(
-      `[summarizeMessages] Processing chunk ${chunkIndex + 1}/${chunks.length}: ${chunk.length} messages, ~${chunkTokens} tokens`,
+    debugLog(
+      `summarizeMessages Processing chunk ${chunkIndex + 1}/${chunks.length}: ${chunk.length} messages, ~${chunkTokens} tokens`,
     );
 
     if (chunkIndex === 0) {
@@ -234,13 +238,13 @@ export async function summarizeMessages(
     }
 
     processedMessages += chunk.length;
-    console.log(
-      `[summarizeMessages] Chunk ${chunkIndex + 1} complete, rolling summary: ${rollingSummary.length} chars`,
+    debugLog(
+      `summarizeMessages Chunk ${chunkIndex + 1} complete, rolling summary: ${rollingSummary.length} chars`,
     );
   }
 
-  console.log(
-    `[summarizeMessages] Chunked summarization complete: ${processedMessages} messages → ${rollingSummary.length} chars`,
+  debugLog(
+    `summarizeMessages Chunked summarization complete: ${processedMessages} messages → ${rollingSummary.length} chars`,
   );
 
   return rollingSummary;
@@ -255,8 +259,8 @@ async function summarizeSingleChunk(
   currentPrompt?: string,
 ): Promise<string> {
   const formattedMessages = formatMessagesForSummary(messages);
-  console.log(
-    `[summarizeSingleChunk] Formatted ${messages.length} messages, total chars: ${formattedMessages.length}`,
+  debugLog(
+    `summarizeSingleChunk Formatted ${messages.length} messages, total chars: ${formattedMessages.length}`,
   );
 
   const summarizer = createSummarizerAgent(false);

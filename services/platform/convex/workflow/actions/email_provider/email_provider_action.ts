@@ -10,6 +10,10 @@ import { api, internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import { decryptAndRefreshOAuth2Token } from '../../../model/email_providers/decrypt_and_refresh_oauth2';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
 export const emailProviderAction: ActionDefinition<{
   operation: 'get_default' | 'get_imap_credentials';
   organizationId: string;
@@ -35,8 +39,8 @@ export const emailProviderAction: ActionDefinition<{
           );
         }
 
-        console.log(
-          `[email_provider] Fetching default provider for organization: ${params.organizationId}`,
+        debugLog(
+          `email_provider Fetching default provider for organization: ${params.organizationId}`,
         );
 
         // Call internal query to get default provider (bypasses RLS)
@@ -47,8 +51,8 @@ export const emailProviderAction: ActionDefinition<{
           },
         )) as Doc<'emailProviders'> | null;
 
-        console.log(
-          `[email_provider] Provider found: ${provider ? provider._id : 'null'}`,
+        debugLog(
+          `email_provider Provider found: ${provider ? provider._id : 'null'}`,
         );
 
         if (!provider) {
@@ -91,8 +95,8 @@ export const emailProviderAction: ActionDefinition<{
           );
         }
 
-        console.log(
-          `[email_provider] Getting IMAP credentials for organization: ${params.organizationId}`,
+        debugLog(
+          `email_provider Getting IMAP credentials for organization: ${params.organizationId}`,
         );
 
         // Get default provider
@@ -167,8 +171,8 @@ export const emailProviderAction: ActionDefinition<{
               ),
           );
 
-          console.log(
-            `[email_provider] OAuth2 token ${tokenResult.wasRefreshed ? 'refreshed' : 'retrieved'} for provider ${provider._id}`,
+          debugLog(
+            `email_provider OAuth2 token ${tokenResult.wasRefreshed ? 'refreshed' : 'retrieved'} for provider ${provider._id}`,
           );
 
           // After potential refresh, read the latest encrypted token from DB

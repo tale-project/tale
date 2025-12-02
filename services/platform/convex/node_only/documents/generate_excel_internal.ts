@@ -9,6 +9,10 @@ import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 import * as XLSX from 'xlsx';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
+
 export const generateExcelInternal = internalAction({
   args: {
     fileName: v.string(),
@@ -31,7 +35,7 @@ export const generateExcelInternal = internalAction({
     sheetCount: v.number(),
   }),
   handler: async (_ctx, args) => {
-    console.log('[generate_excel_internal] start', {
+    debugLog('generate_excel_internal start', {
       fileName: args.fileName,
       sheetCount: args.sheets.length,
     });
@@ -67,7 +71,7 @@ export const generateExcelInternal = internalAction({
 
     const finalFileName = `${args.fileName}.xlsx`;
 
-    console.log('[generate_excel_internal] built workbook', {
+    debugLog('generate_excel_internal built workbook', {
       fileName: finalFileName,
       rowCount: totalRows,
       sheetCount: args.sheets.length,

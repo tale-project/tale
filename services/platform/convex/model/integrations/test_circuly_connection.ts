@@ -4,6 +4,10 @@
 
 import { CIRCULY_API_URL } from '../../constants';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
 export async function testCirculyConnection(
   username: string,
   password: string,
@@ -11,7 +15,7 @@ export async function testCirculyConnection(
   // Skip health check in test mode (for testing the integration flow)
   // To enable test mode, use username: "test-skip-healthcheck"
   if (username === 'test-skip-healthcheck') {
-    console.log('[Circuly Health Check] TEST MODE - Skipping actual API call');
+    debugLog('Circuly Health Check TEST MODE - Skipping actual API call');
     return;
   }
 
@@ -52,7 +56,7 @@ export async function testCirculyConnection(
     }
 
     const data = await response.json();
-    console.log(`[Circuly Health Check] Successfully connected to account`);
+    debugLog(`Circuly Health Check Successfully connected to account`);
   } catch (error) {
     if (error instanceof Error) {
       throw error;

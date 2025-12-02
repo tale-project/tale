@@ -10,6 +10,10 @@ import { updateMessage } from './helpers/update_message';
 import { buildInitialMessage } from './helpers/build_initial_message';
 import { buildConversationMetadata } from './helpers/build_conversation_metadata';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
+
 export async function createConversationFromSentEmail(
   ctx: ActionCtx,
   params: {
@@ -31,11 +35,7 @@ export async function createConversationFromSentEmail(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 
-  console.log(
-    '[create_from_sent_email] Processing',
-    emailsArray.length,
-    'emails',
-  );
+  debugLog('create_from_sent_email Processing', emailsArray.length, 'emails');
 
   // Use the first (oldest) email as the root
   const rootEmail = emailsArray[0];
@@ -48,8 +48,8 @@ export async function createConversationFromSentEmail(
   );
 
   if (existing) {
-    console.log(
-      '[create_from_sent_email] Root conversation already exists:',
+    debugLog(
+      'create_from_sent_email Root conversation already exists:',
       existing.conversationId,
       '- checking for new messages to add',
     );
@@ -68,8 +68,8 @@ export async function createConversationFromSentEmail(
       );
 
       if (existingMsg) {
-        console.log(
-          '[create_from_sent_email] Message already exists, updating:',
+        debugLog(
+          'create_from_sent_email Message already exists, updating:',
           email.messageId,
         );
         // Update existing message with delivered state and metadata
@@ -127,8 +127,8 @@ export async function createConversationFromSentEmail(
       }
 
       if (!customerEmail) {
-        console.log(
-          '[create_from_sent_email] Could not determine customer email for message:',
+        debugLog(
+          'create_from_sent_email Could not determine customer email for message:',
           email.messageId,
         );
         continue;
@@ -151,10 +151,7 @@ export async function createConversationFromSentEmail(
       );
 
       newMessagesAdded++;
-      console.log(
-        '[create_from_sent_email] Added new message:',
-        email.messageId,
-      );
+      debugLog('create_from_sent_email Added new message:', email.messageId);
     }
 
     return {
@@ -320,10 +317,7 @@ export async function createConversationFromSentEmail(
     );
     conversationId = created.conversationId;
     conversationCreated = true;
-    console.log(
-      '[create_from_sent_email] Created conversation:',
-      conversationId,
-    );
+    debugLog('create_from_sent_email Created conversation:', conversationId);
   }
 
   // Add remaining emails as messages to the conversation
@@ -332,8 +326,8 @@ export async function createConversationFromSentEmail(
   );
 
   if (emailsToAdd.length > 0) {
-    console.log(
-      '[create_from_sent_email] Creating',
+    debugLog(
+      'create_from_sent_email Creating',
       emailsToAdd.length,
       'additional messages',
     );
@@ -347,8 +341,8 @@ export async function createConversationFromSentEmail(
       );
 
       if (existingMsg) {
-        console.log(
-          '[create_from_sent_email] Message already exists, updating:',
+        debugLog(
+          'create_from_sent_email Message already exists, updating:',
           email.messageId,
         );
         // Update existing message with delivered state and metadata
@@ -372,7 +366,7 @@ export async function createConversationFromSentEmail(
         params.providerId,
       );
 
-      console.log('[create_from_sent_email] Created message:', email.messageId);
+      debugLog('create_from_sent_email Created message:', email.messageId);
     }
   }
 

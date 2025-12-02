@@ -8,6 +8,10 @@ import { Id } from '../../../_generated/dataModel';
 import { serializeVariables } from '../../../workflow/helpers/serialization/serialize_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export async function persistExecutionResult(
   ctx: ActionCtx,
   executionId: string,
@@ -19,7 +23,7 @@ export async function persistExecutionResult(
 ): Promise<void> {
   // Debug: Log loop variables being persisted
   if (result.variables?.loop || essentialLoop) {
-    console.log('[persistExecutionResult] Loop variables:', {
+    debugLog('persistExecutionResult Loop variables:', {
       stepSlug: stepDef.stepSlug,
       resultLoop: result.variables?.loop
         ? {

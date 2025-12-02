@@ -8,6 +8,10 @@ import { snakeCase } from 'lodash';
 import type { WorkflowManager } from '@convex-dev/workflow';
 import { executeWorkflowStart } from './execute_workflow_start';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export type StartWorkflowArgs = {
   organizationId: string;
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -44,7 +48,7 @@ export async function handleStartWorkflow(
   // Generate workflowSlug from workflow name
   const workflowSlug = snakeCase(workflowName);
 
-  console.log('[startWorkflow] Creating execution', {
+  debugLog('startWorkflow Creating execution', {
     workflowName,
     workflowSlug,
   });
@@ -66,7 +70,7 @@ export async function handleStartWorkflow(
   });
 
   // Start workflow via shared helper to avoid extra nested mutations
-  console.log('[startWorkflow] Starting workflow via helper', {
+  debugLog('startWorkflow Starting workflow via helper', {
     executionId,
     wfDefinitionId: args.wfDefinitionId,
   });
@@ -81,7 +85,7 @@ export async function handleStartWorkflow(
     workflowManager,
   });
 
-  console.log('[startWorkflow] Workflow scheduled successfully', {
+  debugLog('startWorkflow Workflow scheduled successfully', {
     executionId,
     workflowName,
   });

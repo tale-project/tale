@@ -2,7 +2,10 @@
 
 import type { ImapFlow } from 'imapflow';
 
+import { createDebugLog } from '../../../lib/debug_log';
 import normalizeMessageIdForSearch from './normalize_message_id_for_search';
+
+const debugLog = createDebugLog('DEBUG_IMAP', '[IMAP]');
 
 interface SearchResult {
   folder: string;
@@ -28,13 +31,13 @@ export default async function findRepliesToMessage(
   const variants = normalizeMessageIdForSearch(messageId);
   const baseSubject = (subject || '').trim();
 
-  console.log(
-    `[IMAP Forward Search] Searching for replies to Message-ID: ${messageId}. Variants: [${variants.join(', ')}], baseSubject='${baseSubject}'`,
+  debugLog(
+    `[Forward Search] Searching for replies to Message-ID: ${messageId}. Variants: [${variants.join(', ')}], baseSubject='${baseSubject}'`,
   );
 
   if (!baseSubject) {
-    console.log(
-      `[IMAP Forward Search] Subject is empty or whitespace for Message-ID ${messageId}, skipping forward search`,
+    debugLog(
+      `[Forward Search] Subject is empty or whitespace for Message-ID ${messageId}, skipping forward search`,
     );
     return results;
   }
@@ -42,10 +45,9 @@ export default async function findRepliesToMessage(
   for (const folder of folders) {
     try {
       await client.mailboxOpen(folder);
-    } catch (e) {
-      console.warn(
-        `[IMAP Forward Search] Skipping folder '${folder}' - mailboxOpen failed`,
-        e,
+    } catch {
+      debugLog(
+        `[Forward Search] Skipping folder '${folder}' - mailboxOpen failed`,
       );
       continue;
     }
@@ -57,13 +59,12 @@ export default async function findRepliesToMessage(
         { uid: true },
       );
       candidateUids = Array.isArray(searchResult) ? searchResult : [];
-      console.log(
-        `[IMAP Forward Search] Folder '${folder}': SUBJECT search for '${baseSubject}' returned UIDs [${candidateUids.join(', ')}]`,
+      debugLog(
+        `[Forward Search] Folder '${folder}': SUBJECT search for '${baseSubject}' returned UIDs [${candidateUids.join(', ')}]`,
       );
-    } catch (e) {
-      console.warn(
-        `[IMAP Forward Search] SUBJECT search failed in folder '${folder}' for baseSubject='${baseSubject}'`,
-        e,
+    } catch {
+      debugLog(
+        `[Forward Search] SUBJECT search failed in folder '${folder}' for baseSubject='${baseSubject}'`,
       );
       continue;
     }
@@ -92,14 +93,13 @@ export default async function findRepliesToMessage(
 
         if (matched) {
           uidSet.add(msg.uid);
-          console.log(
-            `[IMAP Forward Search] Match in folder '${folder}': candidate UID ${msg.uid} with In-Reply-To='${inReplyToRaw}'`,
+          debugLog(
+            `[Forward Search] Match in folder '${folder}': candidate UID ${msg.uid} with In-Reply-To='${inReplyToRaw}'`,
           );
         }
-      } catch (e) {
-        console.warn(
-          `[IMAP Forward Search] Failed to fetch candidate UID ${uid} in folder '${folder}'`,
-          e,
+      } catch {
+        debugLog(
+          `[Forward Search] Failed to fetch candidate UID ${uid} in folder '${folder}'`,
         );
       }
     }
@@ -107,15 +107,15 @@ export default async function findRepliesToMessage(
     const allUids = Array.from(uidSet);
 
     if (allUids.length > 0) {
-      console.log(
-        `[IMAP Forward Search] Found ${allUids.length} reply/replies in folder ${folder}`,
+      debugLog(
+        `[Forward Search] Found ${allUids.length} reply/replies in folder ${folder}`,
       );
       results.push({ folder, uids: allUids });
     }
   }
 
-  console.log(
-    `[IMAP Forward Search] Total: ${results.reduce((sum, r) => sum + r.uids.length, 0)} reply/replies found across ${results.length} folder(s)`,
+  debugLog(
+    `[Forward Search] Total: ${results.reduce((sum, r) => sum + r.uids.length, 0)} reply/replies found across ${results.length} folder(s)`,
   );
 
   return results;

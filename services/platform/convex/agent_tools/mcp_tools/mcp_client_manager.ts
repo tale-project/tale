@@ -10,6 +10,10 @@ import { experimental_createMCPClient as createMCPClient } from 'ai';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { MCPServerConfig } from '../types';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
 export class MCPClientManager {
   private clients = new Map<
     string,
@@ -41,7 +45,7 @@ export class MCPClientManager {
     });
 
     this.clients.set(config.serverId, mcpClient);
-    console.log(`Created MCP client for server: ${config.serverId}`);
+    debugLog(`Created MCP client for server: ${config.serverId}`);
     return mcpClient;
   }
 

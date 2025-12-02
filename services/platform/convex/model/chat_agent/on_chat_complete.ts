@@ -11,6 +11,10 @@ import type { RunId } from '@convex-dev/action-retrier';
 import { listMessages } from '@convex-dev/agent';
 import type { GenerateAgentResponseResult } from './generate_agent_response';
 
+import { createDebugLog } from '../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
 export interface OnChatCompleteArgs {
   runId: RunId;
   result:
@@ -25,7 +29,7 @@ export async function onChatComplete(
 ): Promise<null> {
   const { runId, result } = args;
 
-  console.log('[chat_agent] onChatComplete called', {
+  debugLog('onChatComplete called', {
     runId,
     type: result.type,
   });
@@ -109,7 +113,7 @@ export async function onChatComplete(
   } else if (result.type === 'failed') {
     console.error('[chat_agent] Generation failed:', result.error);
   } else if (result.type === 'canceled') {
-    console.log('[chat_agent] Generation was canceled');
+    debugLog('Generation was canceled');
   }
 
   return null;

@@ -9,6 +9,10 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
 export const toneOfVoiceAction: ActionDefinition<{
   operation: 'get_tone_of_voice';
   organizationId: string;
@@ -30,8 +34,8 @@ export const toneOfVoiceAction: ActionDefinition<{
           );
         }
 
-        console.log(
-          `[tone_of_voice] Fetching tone of voice for organization: ${params.organizationId}`,
+        debugLog(
+          `tone_of_voice Fetching tone of voice for organization: ${params.organizationId}`,
         );
 
         // Call internal query to get tone of voice (bypasses RLS)
@@ -42,8 +46,8 @@ export const toneOfVoiceAction: ActionDefinition<{
           },
         )) as Doc<'toneOfVoice'> | null;
 
-        console.log(
-          `[tone_of_voice] Tone of voice found: ${toneOfVoice ? toneOfVoice._id : 'null'}`,
+        debugLog(
+          `tone_of_voice Tone of voice found: ${toneOfVoice ? toneOfVoice._id : 'null'}`,
         );
 
         // Return tone of voice (can be null if not configured)
@@ -59,4 +63,3 @@ export const toneOfVoiceAction: ActionDefinition<{
     }
   },
 };
-
