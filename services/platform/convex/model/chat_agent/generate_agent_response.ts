@@ -8,7 +8,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { components } from '../../_generated/api';
+import { components, internal } from '../../_generated/api';
 import { createChatAgent } from '../../lib/create_chat_agent';
 import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
 
@@ -179,6 +179,13 @@ export async function generateAgentResponse(
     };
   } catch (error) {
     clearTimeout(timeoutId);
+
+    // Trigger summarization before retry to reduce context for next attempt.
+    // This runs synchronously so the retrier waits for it to complete before
+    // scheduling the retry.
+    await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
+      threadId,
+    });
 
     const elapsedMs = Date.now() - startTime;
 
