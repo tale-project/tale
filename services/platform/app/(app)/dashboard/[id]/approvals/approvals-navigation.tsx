@@ -12,15 +12,15 @@ interface ApprovalsNavigationProps {
 const getApprovalsNavigationItems = ({
   organizationId,
 }: ApprovalsNavigationProps) => [
-    {
-      label: 'Pending',
-      href: `/dashboard/${organizationId}/approvals?status=pending`,
-    },
-    {
-      label: 'Resolved',
-      href: `/dashboard/${organizationId}/approvals?status=resolved`,
-    },
-  ];
+  {
+    label: 'Pending',
+    href: `/dashboard/${organizationId}/approvals?status=pending`,
+  },
+  {
+    label: 'Resolved',
+    href: `/dashboard/${organizationId}/approvals?status=resolved`,
+  },
+];
 
 export default function ApprovalsNavigation({
   organizationId,
@@ -64,7 +64,7 @@ export default function ApprovalsNavigation({
   }, [activeIndex, status]);
 
   return (
-    <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-10 px-4 py-2 border-b border-border min-h-12 flex items-center gap-4 ">
+    <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-50 px-4 py-2 border-b border-border min-h-12 flex items-center gap-4 ">
       {navigationItems.map((item, index) => {
         // Extract status from item href for comparison
         const itemStatus = new URL(item.href, 'http://dummy').searchParams.get(

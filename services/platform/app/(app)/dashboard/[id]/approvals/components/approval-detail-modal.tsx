@@ -170,7 +170,7 @@ export default function ApprovalDetailModal({
 
           {/* Recommended Products */}
           <div className="space-y-4">
-            <h4 className="text-base font-semibold text-foreground">
+            <h4 className="text-lg font-semibold text-foreground">
               Recommended products
             </h4>
             {firstProduct && (
@@ -218,7 +218,7 @@ export default function ApprovalDetailModal({
           {/* Previous Purchases */}
           {approvalDetail.previousPurchases.length > 0 && (
             <div className="space-y-4">
-              <h4 className="text-base font-semibold text-foreground">
+              <h4 className="text-lg font-semibold text-foreground">
                 User purchased
               </h4>
               <div className="border border-border rounded-[10px] overflow-hidden">

@@ -279,7 +279,7 @@ export default function StepDetailsDialog({
         step.config &&
         typeof step.config === 'object'
       ) {
-        const config = step.config as { type?: string;[key: string]: unknown };
+        const config = step.config as { type?: string; [key: string]: unknown };
 
         // Remove type from config for display
         const { type: _type, ...configWithoutType } = config;
@@ -308,7 +308,8 @@ export default function StepDetailsDialog({
     // Step editing is currently read-only until public Convex mutations are available.
     toast({
       title: 'Step editing not yet available',
-      description: 'Public APIs for editing workflow steps are not wired up yet.',
+      description:
+        'Public APIs for editing workflow steps are not wired up yet.',
     });
 
     return;
@@ -320,7 +321,8 @@ export default function StepDetailsDialog({
     // Step deletion is currently disabled until public Convex mutations are available.
     toast({
       title: 'Step deletion not yet available',
-      description: 'Public APIs for editing workflow steps are not wired up yet.',
+      description:
+        'Public APIs for editing workflow steps are not wired up yet.',
     });
 
     setShowDeleteConfirm(false);
@@ -333,7 +335,7 @@ export default function StepDetailsDialog({
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-lg !p-0">
           <form onSubmit={handleSubmit}>
-            <DialogHeader className="sticky top-0 bg-background/50 backdrop-blur-sm shadow-sm px-6 py-4 rounded-t-2xl">
+            <DialogHeader className="sticky top-0 bg-background shadow-sm px-6 py-4 rounded-t-2xl">
               <div className="flex items-center gap-3">
                 <TooltipProvider>
                   <Tooltip>

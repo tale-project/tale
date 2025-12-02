@@ -27,12 +27,12 @@ export interface ConversationsProps {
 
 type SelectionState =
   | {
-    type: 'individual';
-    selectedIds: Set<string>;
-  }
+      type: 'individual';
+      selectedIds: Set<string>;
+    }
   | {
-    type: 'all';
-  };
+      type: 'all';
+    };
 
 function isAllSelection(state: SelectionState): state is { type: 'all' } {
   return state.type === 'all';
@@ -57,11 +57,11 @@ export default function Conversations({
     api.conversations.getConversationsPage,
     businessId
       ? {
-        organizationId: businessId as string,
-        status: status || 'open',
-        page,
-        limit: 20,
-      }
+          organizationId: businessId as string,
+          status: status || 'open',
+          page,
+          limit: 20,
+        }
       : 'skip',
   );
 
