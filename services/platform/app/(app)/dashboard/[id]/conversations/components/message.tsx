@@ -33,57 +33,59 @@ export default function Message({ message }: MessageProps) {
           message.isCustomer ? 'justify-start' : 'justify-end',
         )}
       >
-        <div
-          className={cn(
-            'max-w-[40rem] relative overflow-x-auto',
-            message.isCustomer
-              ? 'text-foreground'
-              : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-[2.25rem]',
-          )}
-        >
-          {(() => {
-            if (
-              message.attachment &&
-              typeof message.attachment === 'object' &&
-              message.attachment !== null &&
-              'url' in message.attachment
-            ) {
-              const attachment = message.attachment as {
-                url: string;
-                type?: string;
-                alt?: string;
-              };
-              return (
-                <div className="mb-3">
-                  <Image
-                    src={attachment.url}
-                    alt={
-                      attachment.type === 'image'
-                        ? attachment.alt || 'Image attachment'
-                        : 'Attachment'
-                    }
-                    width={460}
-                    height={300}
-                    className="rounded-lg w-full h-auto"
-                    unoptimized={/^https?:\/\//.test(attachment.url)}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target.src !== '/assets/placeholder-image.png') {
-                        target.src = '/assets/placeholder-image.png';
+        <div>
+          <div
+            className={cn(
+              'max-w-[40rem] relative overflow-x-auto',
+              message.isCustomer
+                ? 'text-foreground'
+                : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-6',
+            )}
+          >
+            {(() => {
+              if (
+                message.attachment &&
+                typeof message.attachment === 'object' &&
+                message.attachment !== null &&
+                'url' in message.attachment
+              ) {
+                const attachment = message.attachment as {
+                  url: string;
+                  type?: string;
+                  alt?: string;
+                };
+                return (
+                  <div className="mb-3">
+                    <Image
+                      src={attachment.url}
+                      alt={
+                        attachment.type === 'image'
+                          ? attachment.alt || 'Image attachment'
+                          : 'Attachment'
                       }
-                    }}
-                  />
-                </div>
-              );
-            }
-            return null;
-          })()}
-          <div className="text-xs leading-5">
-            <EmailPreview html={message.content} />
+                      width={460}
+                      height={300}
+                      className="rounded-lg w-full h-auto"
+                      unoptimized={/^https?:\/\//.test(attachment.url)}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== '/assets/placeholder-image.png') {
+                          target.src = '/assets/placeholder-image.png';
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            <div className="text-xs leading-5">
+              <EmailPreview html={message.content} />
+            </div>
           </div>
           <div
             className={cn(
-              'mt-2 text-xs flex items-center gap-1.5 justify-end',
+              'text-xs flex items-center gap-1.5 justify-end',
               message.isCustomer
                 ? 'text-muted-foreground text-left'
                 : 'text-muted-foreground/70 text-right absolute -bottom-6 right-0',

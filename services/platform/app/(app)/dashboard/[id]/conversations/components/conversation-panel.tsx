@@ -105,7 +105,7 @@ export default function ConversationPanel({
         conversation.last_message_at &&
         (!conversation.last_read_at ||
           new Date(conversation.last_message_at) >
-          new Date(conversation.last_read_at));
+            new Date(conversation.last_read_at));
 
       if (hasUnreadMessages) {
         markAsRead({
@@ -270,15 +270,15 @@ export default function ConversationPanel({
   // Create pending message from approval if it exists (emailBody only)
   const pendingMessage =
     conversation.pendingApproval?.metadata &&
-      typeof conversation.pendingApproval.metadata === 'object' &&
-      'emailBody' in conversation.pendingApproval.metadata
+    typeof conversation.pendingApproval.metadata === 'object' &&
+    'emailBody' in conversation.pendingApproval.metadata
       ? {
-        id: conversation.pendingApproval._id,
-        content: (
-          conversation.pendingApproval.metadata as { emailBody: string }
-        ).emailBody,
-        status: 'pending' as const,
-      }
+          id: conversation.pendingApproval._id,
+          content: (
+            conversation.pendingApproval.metadata as { emailBody: string }
+          ).emailBody,
+          status: 'pending' as const,
+        }
       : undefined;
 
   const messageGroups = groupMessagesByDate(displayMessages);
@@ -288,7 +288,7 @@ export default function ConversationPanel({
       ref={containerRef}
       className="flex-[1_1_0] p-0 relative scrollbar-hide flex flex-col overflow-y-auto"
     >
-      <div className="flex items-center flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-10 border-b border-border shadow-sm">
+      <div className="flex items-center flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
         <ConversationHeader
           conversation={conversation}
           onResolve={() => {
@@ -328,13 +328,7 @@ export default function ConversationPanel({
           ))
         )}
       </div>
-      <div
-        className={cn(
-          'sticky bottom-0',
-          conversation.status === 'closed' &&
-          'bg-background/50 backdrop-blur-sm',
-        )}
-      >
+      <div className="sticky bottom-0 z-50 bg-background">
         {conversation.status === 'open' ? (
           <div ref={messageComposerRef} className="max-w-3xl mx-auto w-full">
             <MessageEditor

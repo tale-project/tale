@@ -381,7 +381,7 @@ function MilkdownEditorInner({
 
   return (
     <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
-      <div className="bg-background/50 backdrop-blur-sm rounded-t-[0.875rem] relative px-3 pt-1 border border-muted-foreground/50 border-b-0">
+      <div className="bg-background rounded-t-[0.875rem] relative px-3 pt-1 border border-muted-foreground/50 border-b-0">
         {/* Editor Container */}
         <div
           className={cn(

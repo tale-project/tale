@@ -208,7 +208,7 @@ const PDFViewer = ({ url }: { url: string }) => {
           style={{ maxWidth: `calc(48rem * ${scale})`, height: 'auto' }}
         />
         {/* Sticky center-bottom toolbar */}
-        <div className="sticky top-[95%] z-20 flex w-full justify-center">
+        <div className="sticky top-[95%] flex w-full justify-center z-50">
           <div className="flex items-center gap-4 rounded-full bg-background text-foreground px-4 py-2 shadow-xl ring-1 ring-white/10">
             <div className="flex items-center gap-2">
               <button

@@ -13,10 +13,6 @@ export default function DashboardError({ error, reset }: ErrorProps) {
   const organizationId = params.id as string | undefined;
 
   return (
-    <DashboardErrorBoundary
-      error={error}
-      reset={reset}
-      organizationId={organizationId}
-    />
+    <DashboardErrorBoundary error={error} organizationId={organizationId} />
   );
 }
