@@ -1,7 +1,7 @@
 /**
- * Convex Tool: RAG Knowledge
+ * Convex Tool: RAG Write
  *
- * Add or update knowledge in the RAG knowledge base.
+ * Write (add or update) knowledge in the RAG knowledge base.
  * Supports both corrections (updating incorrect info) and adding new information.
  */
 
@@ -27,10 +27,10 @@ function getRagServiceUrl(variables?: Record<string, unknown>): string {
   return url;
 }
 
-export const ragKnowledgeTool = {
-  name: 'rag_knowledge' as const,
+export const ragWriteTool = {
+  name: 'rag_write' as const,
   tool: createTool({
-    description: `Add or update knowledge in the knowledge base.
+    description: `Write (add or update) knowledge in the knowledge base.
 
 Use this tool to:
 1. ADD new information the user provides that should be remembered
@@ -70,7 +70,7 @@ Parameters:
       const ragServiceUrl = getRagServiceUrl(variables);
       const isCorrection = !!args.incorrect_info;
 
-      console.log('[tool:rag_knowledge] start', {
+      console.log('[tool:rag_write] start', {
         topic: args.topic,
         isCorrection,
         ragServiceUrl,
@@ -128,7 +128,7 @@ Note: This information was provided by the user and added to the knowledge base.
 
         const result = (await response.json()) as DocumentAddResponse;
 
-        console.log('[tool:rag_knowledge] success', {
+        console.log('[tool:rag_write] success', {
           topic: args.topic,
           isCorrection,
           document_id: result.document_id,
@@ -141,7 +141,7 @@ Note: This information was provided by the user and added to the knowledge base.
           message: `Knowledge base ${action} for "${args.topic}". Future queries will use this information.`,
         };
       } catch (error) {
-        console.error('[tool:rag_knowledge] error', {
+        console.error('[tool:rag_write] error', {
           topic: args.topic,
           error: error instanceof Error ? error.message : String(error),
         });

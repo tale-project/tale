@@ -115,8 +115,8 @@ Requirements:
 8. Use 'noop' in nextSteps to end workflow gracefully
 
 		Available tools for LLM steps:
-		- customer_search, list_customers, update_customer
-		- product_get, list_products, update_product
+		- customer_read (operations: get_by_id, get_by_email, list), update_customer
+		- product_read (operations: get_by_id, list), update_product
 		- find_unprocessed_entities, mark_entity_processed
 		- rag_search
 		

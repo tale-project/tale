@@ -218,11 +218,12 @@ export const loopiProductRecommendationWorkflow = {
               name: 'llmSystemPrompt',
               value: `You are an expert product recommendation engine for a subscription-based baby product rental service. Analyze the customer's current subscriptions and product relationships to recommend relevant products they might be interested in.
 
-⚠️ CRITICAL REQUIREMENT: You MUST provide EXACTLY 5 product recommendations. This is non-negotiable. If you don't have 5 recommendations from relationships, you MUST use the list_products tool to browse and find more products.
+	⚠️ CRITICAL REQUIREMENT: You MUST provide EXACTLY 5 product recommendations. This is non-negotiable. If you don't have 5 recommendations from relationships, you MUST use the product_read tool with operation = 'list' to browse and find more products.
 
-You have access to two tools:
-1. 'product_get' - Look up product details by productId (supports 'fields' selection to return only needed fields)
-2. 'list_products' - List all available products with pagination (MUST USE if relationships give < 5 products)
+	You have access to one unified product tool:
+	- 'product_read'
+	  - Use operation = 'get_by_id' to look up product details by productId (supports 'fields' selection to return only needed fields)
+	  - Use operation = 'list' to list all available products with pagination (MUST USE if relationships give < 5 products)
 
 RECOMMENDATION STRATEGY:
 1. PRIORITY 1: Use relationship metadata from customer's current products
@@ -261,35 +262,36 @@ Customer's Current Products (these are the products they already have subscripti
 Task:
 Generate EXACTLY 5 product recommendations for this customer. This is MANDATORY - you must provide 5 recommendations.
 
-⚠️ CRITICAL: You MUST use the 'list_products' tool if relationships don't give you 5 products. Do NOT return fewer than 5 recommendations. Do NOT say you need to browse more - actually call the list_products tool and browse until you have 5 recommendations.
+	⚠️ CRITICAL: You MUST use the 'product_read' tool with operation = 'list' if relationships don't give you 5 products. Do NOT return fewer than 5 recommendations. Do NOT say you need to browse more - actually call the product_read tool and browse until you have 5 recommendations.
 
 STEP 1 - PRIORITY: Use Relationship Metadata (PREFERRED)
 1. Examine the relationships metadata in each of the customer's current products
 2. Identify relationships with confidence > 0.5 (lowered threshold) and types: "Complementary", "Upgrade", or "Bundle"
-3. Use the 'product_get' tool to look up each related product by its productId
+	3. Use the 'product_read' tool with operation = 'get_by_id' to look up each related product by its productId
 4. CRITICAL: Verify the product has stock > 0 (reject if stock is 0 or undefined)
 5. Add these to your recommendations list
 
 STEP 2 - MANDATORY FALLBACK: Browse All Products
-If you have fewer than 5 recommendations from relationships, you MUST immediately:
-1. Call 'list_products' tool with these parameters:
+	If you have fewer than 5 recommendations from relationships, you MUST immediately:
+	1. Call 'product_read' tool with these parameters:
+	   - operation: 'list'
    - fields: ['_id', 'name', 'description', 'price', 'currency', 'status', 'category', 'imageUrl', 'stock']
    - numItems: 100 (to get a good selection)
 2. Review the returned products and identify ones with stock > 0 that complement the customer's subscriptions
-3. For each suitable product, call 'product_get' to get full details
+	3. For each suitable product, call 'product_read' with operation = 'get_by_id' to get full details
 4. Add products to your recommendations list until you have EXACTLY 5 total
-5. If the first page doesn't have enough products with stock > 0:
-   - Call 'list_products' again with the cursor from pagination.cursor
+	5. If the first page doesn't have enough products with stock > 0:
+	   - Call 'product_read' again with operation = 'list' and the cursor from pagination.cursor
    - Continue until you have 5 recommendations
 6. DO NOT STOP until you have exactly 5 recommendations with stock > 0
 
 EXAMPLE WORKFLOW:
 - Found 1 product from relationships → Need 4 more
-- Call list_products (no cursor, numItems: 100)
+	- Call product_read with operation = 'list' (no cursor, numItems: 100)
 - Review products, find 3 with stock > 0 that fit
 - Call product_get for each of those 3 products
 - Add to recommendations (now have 4 total)
-- Still need 1 more → Call list_products again with cursor from previous response
+	- Still need 1 more → Call product_read again with operation = 'list' and cursor from previous response
 - Find 1 more product with stock > 0
 - Call product_get for it
 - Add to recommendations (now have 5 total) → DONE
@@ -298,15 +300,15 @@ IMPORTANT RULES:
 - YOU MUST PROVIDE EXACTLY 5 RECOMMENDATIONS - this is non-negotiable
 - EVERY recommended product MUST have stock > 0 (this is critical)
 - Relationship-based recommendations should ALWAYS be prioritized over browsed products
-- Use product_get tool to get full details before including any product in recommendations
-- When calling product_get, include fields: ['_id', 'name', 'description', 'price', 'currency', 'status', 'category', 'imageUrl', 'stock']
-- Mandatory finalization: For EACH final recommendation, call product_get for that productId with the fields above and use the returned values in your JSON output. Do not skip this step.
+	- Use product_read tool with operation = 'get_by_id' to get full details before including any product in recommendations
+	- When calling product_read with operation = 'get_by_id', include fields: ['_id', 'name', 'description', 'price', 'currency', 'status', 'category', 'imageUrl', 'stock']
+	- Mandatory finalization: For EACH final recommendation, call product_read with operation = 'get_by_id' for that productId with the fields above and use the returned values in your JSON output. Do not skip this step.
 - Do not limit fields to only 'metadata' in the final call; ensure 'imageUrl' is included.
 - Do NOT recommend products the customer already has
 - Ensure all recommended products are active and have stock > 0
-- Extract the imageUrl field from the product data returned by product_get tool
+	- Extract the imageUrl field from the product data returned by product_read tool (operation = 'get_by_id')
 - Provide clear reasoning for each recommendation
-- If you cannot find 5 products with stock > 0, keep browsing with list_products until you do
+	- If you cannot find 5 products with stock > 0, keep browsing with product_read (operation = 'list') until you do
 
 CONFIDENCE SCORING RULES:
 Calculate a confidence score (0.0 to 1.0) for each recommendation based on:
@@ -375,7 +377,7 @@ DO NOT use the same confidence score for all recommendations.`,
         maxTokens: 100000,
         maxSteps: 30, // Allow up to 30 tool calls to browse products and gather recommendations
         outputFormat: 'json',
-        tools: ['product_get', 'list_products'], // Enable product tools for looking up products
+        tools: ['product_read'], // Unified product tool for looking up products
         systemPrompt: '{{llmSystemPrompt}}',
         userPrompt: '{{llmUserPrompt}}',
       },

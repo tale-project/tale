@@ -26,12 +26,13 @@ export async function createWorkflowAgent(options?: {
 
   if (withTools) {
     // Default workflow tools
+    // Note: read-only workflow operations like list_available_actions,
+    // get_structure, and search_examples are now handled by the single
+    // "workflow_read" tool via its "operation" argument.
     const defaultWorkflowTools: ToolName[] = [
-      'get_workflow_structure',
+      'workflow_read', // list_available_actions, get_structure, search_examples
       'update_workflow_step',
       'generate_workflow_from_description',
-      'list_available_actions', // Discover available actions
-      'search_workflow_examples', // Learn from existing workflows
       'save_workflow_definition', // Save or update entire workflow atomically
       'validate_workflow_definition', // Validate workflow before saving
       'rag_search', // Search knowledge base for relevant context

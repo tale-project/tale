@@ -108,6 +108,20 @@ export const listVersions = internalQuery({
 });
 
 /**
+ * Get the active version of a workflow by name
+ */
+export const getActiveVersion = internalQuery({
+  args: {
+    organizationId: v.string(),
+    name: v.string(),
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    return await WfDefinitionsModel.getActiveVersion(ctx, args);
+  },
+});
+
+/**
  * PUBLIC: List all versions of a workflow
  */
 export const listVersionsPublic = query({

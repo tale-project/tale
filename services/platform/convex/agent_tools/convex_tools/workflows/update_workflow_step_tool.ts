@@ -99,7 +99,7 @@ TRIGGER (manual):
 - type: "manual" for on-demand triggers
 
 LLM (AI agent):
-{ name: "Analyze Customer", systemPrompt: "You are a customer analyst...", userPrompt: "Analyze this customer data", temperature: 0.7, tools: ["product_search", "customer_get"] }
+{ name: "Analyze Customer", systemPrompt: "You are a customer analyst...", userPrompt: "Analyze this customer data", temperature: 0.7, tools: ["product_get", "customer_get"] }
 - name: human-readable name for this LLM step (REQUIRED)
 - systemPrompt: system instructions/role definition for the AI agent (REQUIRED, not "prompt")
 - userPrompt: specific task prompt for this execution (OPTIONAL but recommended - separates role from task)

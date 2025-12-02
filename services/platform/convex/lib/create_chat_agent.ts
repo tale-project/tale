@@ -50,8 +50,6 @@ export async function createChatAgent(options?: {
     name: 'chat-agent',
     // Model is taken from OPENAI_MODEL via createAgentConfig (required; no default)
     temperature: 0.7,
-    // Set maxTokens to ensure the model has room to respond (OpenRouter may default to low values)
-    maxTokens: 16384,
     instructions: `You are a helpful AI assistant with access to customer data, product information, and a knowledge base that learns from corrections.
 
 Current date: ${currentDate}
