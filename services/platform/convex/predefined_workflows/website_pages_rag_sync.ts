@@ -1,7 +1,7 @@
 /**
  * Website Pages RAG Sync Workflow
  *
- * This workflow finds one unprocessed website page and uploads its content to the RAG service.
+ * This workflow finds one unprocessed website page and uploads its full record (as JSON) to the RAG service.
  * It follows the standard pattern for entity-processing workflows:
  * 1. Find one unprocessed entity using workflow_processing_records
  * 2. Upload the entity to RAG
@@ -78,15 +78,11 @@ export const websitePagesRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
-          content:
-            '{{steps.find_unprocessed_page.output.data.documents[0].content}}',
+          content: '{{steps.find_unprocessed_page.output.data.documents[0]}} ',
           metadata: {
-            type: 'website_page',
-            title:
-              '{{steps.find_unprocessed_page.output.data.documents[0].title}}',
-            url: '{{steps.find_unprocessed_page.output.data.documents[0].url}}',
             websiteId:
               '{{steps.find_unprocessed_page.output.data.documents[0].websiteId}}',
+            _id: '{{steps.find_unprocessed_page.output.data.documents[0]._id}}',
           },
           // Async ingestion means this timeout only covers the HTTP request to
           // enqueue the page content, not full cognee processing.
