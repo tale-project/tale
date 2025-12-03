@@ -17,7 +17,7 @@
  * const result = await findUnprocessedWithCustomQuery(ctx, {
  *   organizationId,
  *   tableName: 'conversations',
- *   workflowId,
+ *   wfDefinitionId,
  *   cutoffTimestamp,
  *   limit: 10,
  *   buildQuery: (resumeFrom) => {
@@ -65,7 +65,7 @@ export async function findUnprocessedWithCustomQuery<T = unknown>(
   ctx: QueryCtx,
   args: FindUnprocessedWithCustomQueryArgs<T>,
 ): Promise<FindUnprocessedWithCustomQueryResult<T>> {
-  const { organizationId, tableName, workflowId } = args;
+  const { organizationId, tableName, wfDefinitionId } = args;
   const limitVal = args.limit ?? 1;
 
   if (limitVal < 1 || limitVal > 10) {
@@ -78,7 +78,7 @@ export async function findUnprocessedWithCustomQuery<T = unknown>(
   const resumeFrom = await getLatestProcessedCreationTime(ctx, {
     organizationId,
     tableName,
-    workflowId,
+    wfDefinitionId,
   });
 
   // First, try starting from the latest processed creation time (resumeFrom)

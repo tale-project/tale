@@ -68,7 +68,7 @@ export const productRelationshipAnalysisWorkflow = {
           operation: 'find_unprocessed',
           organizationId: '{{organizationId}}',
           tableName: 'products',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -474,9 +474,9 @@ BIDIRECTIONAL RELATIONSHIPS:
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'products',
-          workflowId: '{{workflowId}}',
-          documentId: '{{sourceProductId}}',
-          documentCreationTime: '{{sourceProduct._creationTime}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
+          recordId: '{{sourceProductId}}',
+          recordCreationTime: '{{sourceProduct._creationTime}}',
           metadata: {
             relationshipsFound:
               '{{steps.analyze_product_relationships.output.data.relationships|length}}',

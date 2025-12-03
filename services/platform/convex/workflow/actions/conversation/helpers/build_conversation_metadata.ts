@@ -1,4 +1,4 @@
-import type { EmailType } from '../types';
+import type { EmailType } from './types';
 
 /**
  * Build conversation metadata object

@@ -66,7 +66,7 @@ export const conversationAutoReplyWorkflow = {
         parameters: {
           operation: 'find_unprocessed_open_conversation',
           organizationId: '{{organizationId}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -439,9 +439,9 @@ Task: As John, generate a warm and professional reply in markdown format that ad
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'conversations',
-          documentId: '{{currentConversationId}}',
-          workflowId: '{{workflowId}}',
-          documentCreationTime: '{{currentConversationCreationTime}}',
+          recordId: '{{currentConversationId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
+          recordCreationTime: '{{currentConversationCreationTime}}',
           metadata: {
             needsReply: '{{steps.check_needs_reply.output.data.needs_reply}}',
             urgency: '{{steps.check_needs_reply.output.data.urgency}}',

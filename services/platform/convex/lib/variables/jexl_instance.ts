@@ -46,7 +46,13 @@ jexlInstance.addTransform('join', (arr: unknown[], separator = ',') => {
 });
 
 // Add custom transforms for type conversion
-jexlInstance.addTransform('string', (val: unknown) => toString(val));
+jexlInstance.addTransform('string', (val: unknown) => {
+  // For objects and arrays, use JSON.stringify to get proper string representation
+  if (val !== null && typeof val === 'object') {
+    return JSON.stringify(val);
+  }
+  return toString(val);
+});
 jexlInstance.addTransform('number', (val: unknown) => toNumber(val));
 jexlInstance.addTransform('boolean', (val: unknown) => Boolean(val));
 

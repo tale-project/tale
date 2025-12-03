@@ -62,7 +62,7 @@ export const onedriveSyncWorkflow = {
           operation: 'find_unprocessed',
           organizationId: '{{organizationId}}',
           tableName: 'onedriveSyncConfigs',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -334,10 +334,10 @@ export const onedriveSyncWorkflow = {
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'onedriveSyncConfigs',
-          documentId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
-          documentCreationTime:
+          recordId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
+          recordCreationTime:
             '{{steps.find_sync_config.output.data.documents[0]._creationTime}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
         },
       },
       nextSteps: {

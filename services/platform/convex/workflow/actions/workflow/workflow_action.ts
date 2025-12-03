@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { WorkflowActionParams } from './types';
-import { uploadAllWorkflows } from './upload_workflows';
+import type { WorkflowActionParams } from './helpers/types';
+import { uploadAllWorkflows } from './helpers/upload_workflows';
 
 export const workflowAction: ActionDefinition<WorkflowActionParams> = {
   type: 'workflow',

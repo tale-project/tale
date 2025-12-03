@@ -21,7 +21,7 @@ export type TableName =
 export interface FindUnprocessedWithCustomQueryArgs<T = unknown> {
   organizationId: string;
   tableName: TableName;
-  workflowId: string;
+  wfDefinitionId: string;
   cutoffTimestamp: string;
   limit?: number;
 

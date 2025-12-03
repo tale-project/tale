@@ -3,7 +3,7 @@
 import type { ImapFlow } from 'imapflow';
 import { simpleParser, type ParsedMail } from 'mailparser';
 import extractAddresses from './addresses';
-import type { EmailMessage } from '../../../workflow/actions/imap/types';
+import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
 
 export interface FetchOptions {
   includeAttachments: boolean;

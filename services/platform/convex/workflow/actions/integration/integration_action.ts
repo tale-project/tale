@@ -15,7 +15,7 @@ import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
 import { getPredefinedIntegration } from '../../../predefined_integrations';
-import { buildSecretsFromIntegration } from './build_secrets_from_integration';
+import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 
 import { createDebugLog } from '../../../lib/debug_log';
 

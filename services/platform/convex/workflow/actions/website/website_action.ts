@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { WebsiteActionParams } from './types';
+import type { WebsiteActionParams } from './helpers/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
