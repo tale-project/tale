@@ -26,11 +26,11 @@ interface SaveDefaultWorkflowsArgs {
  * Save default workflows for a new organization
  *
  * This includes:
- * - Document RAG Sync (scheduled every hour)
+ * - Document RAG Sync (scheduled every 20 minutes)
  * - OneDrive Sync (scheduled every hour)
- * - Product RAG Sync (scheduled every hour)
- * - Website Pages RAG Sync (scheduled every hour)
- * - Customer RAG Sync (scheduled every hour)
+ * - Product RAG Sync (scheduled every 20 minutes)
+ * - Website Pages RAG Sync (scheduled every 20 minutes)
+ * - Customer RAG Sync (scheduled every 20 minutes)
  */
 export async function saveDefaultWorkflows(
   ctx: ActionCtx,
@@ -46,7 +46,7 @@ export async function saveDefaultWorkflows(
   const workflowsToSave = [
     {
       workflow: documentRagSync,
-      schedule: '0 */1 * * *', // Every hour
+      schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {
@@ -56,17 +56,17 @@ export async function saveDefaultWorkflows(
     },
     {
       workflow: productRagSync,
-      schedule: '0 */1 * * *', // Every hour
+      schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {
       workflow: websitePagesRagSync,
-      schedule: '0 */1 * * *', // Every hour
+      schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {
       workflow: customerRagSync,
-      schedule: '0 */1 * * *', // Every hour
+      schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {

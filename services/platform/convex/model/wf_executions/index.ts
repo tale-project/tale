@@ -7,7 +7,6 @@
 export * from './types';
 
 // Export business logic functions
-export { createExecution } from './create_execution';
 export { getExecution } from './get_execution';
 export { getRawExecution } from './get_raw_execution';
 export { listExecutions } from './list_executions';

@@ -21,12 +21,15 @@ export async function initializeExecutionVariables(
   args: InitializeVariablesArgs,
   workflowConfig: WorkflowConfig,
 ): Promise<Record<string, unknown>> {
-  // Determine workflowId: prefer wfDefinitionId, fallback to workflowSlug for inline workflows
-  const workflowId = execution.wfDefinitionId ?? execution.workflowSlug;
+  // Determine wfDefinitionId: prefer wfDefinitionId, fallback to workflowSlug for inline workflows
+  const wfDefinitionId = execution.wfDefinitionId ?? execution.workflowSlug;
+  // rootWfDefinitionId: root version of the workflow family (for tracking across versions)
+  const rootWfDefinitionId = execution.rootWfDefinitionId;
 
   let fullVariables: Record<string, unknown> = {
     organizationId: args.organizationId,
-    workflowId, // Auto-inject wfDefinitionId or workflowSlug as workflowId
+    wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
+    rootWfDefinitionId, // Auto-inject root workflow definition ID
   };
 
   // Use execution variables as the base, or initialize if empty
@@ -34,7 +37,8 @@ export async function initializeExecutionVariables(
     fullVariables = {
       ...(execution.variables as Record<string, unknown>),
       organizationId: args.organizationId,
-      workflowId, // Auto-inject wfDefinitionId or workflowSlug as workflowId
+      wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
+      rootWfDefinitionId, // Auto-inject root workflow definition ID
     };
   } else {
     // Initialize execution variables for the first time
@@ -42,7 +46,8 @@ export async function initializeExecutionVariables(
       ...((args.resumeVariables ?? args.initialInput) || {}),
       ...(workflowConfig?.config?.variables ?? {}),
       organizationId: args.organizationId,
-      workflowId, // Auto-inject wfDefinitionId or workflowSlug as workflowId
+      wfDefinitionId, // Auto-inject wfDefinitionId or workflowSlug
+      rootWfDefinitionId, // Auto-inject root workflow definition ID
     };
 
     // Handle secrets decryption for initial setup

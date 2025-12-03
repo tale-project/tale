@@ -29,22 +29,22 @@ import * as WorkflowProcessingRecordsModel from './model/workflow_processing_rec
 // =============================================================================
 
 /**
- * Find unprocessed documents in a table for a specific workflow.
+ * Find unprocessed records in a table for a specific workflow.
  *
  * Algorithm:
- * 1. Get the latest processed document (by documentCreationTime)
- * 2. Get the latest document in the target table (by _creationTime)
+ * 1. Get the latest processed record (by recordCreationTime)
+ * 2. Get the latest record in the target table (by _creationTime)
  * 3. If latest processed == latest in table OR no processing history exists:
- *    - Start from the earliest unprocessed document
+ *    - Start from the earliest unprocessed record
  * 4. Otherwise:
- *    - Continue from where we left off (documents with _creationTime > last processed)
+ *    - Continue from where we left off (records with _creationTime > last processed)
  *
  * This approach:
- * - Avoids scanning all documents
+ * - Avoids scanning all records
  * - Uses indexes efficiently
  * - Tracks processing progress per workflow per table
  * - Can resume from where it left off
- * - Always returns exactly one document (limit defaults to 1)
+ * - Always returns exactly one record (limit defaults to 1)
  */
 export const findUnprocessed = internalQuery({
   args: {
@@ -59,7 +59,7 @@ export const findUnprocessed = internalQuery({
       v.literal('websitePages'),
       v.literal('exampleMessages'),
     ),
-    workflowId: v.string(),
+    wfDefinitionId: v.string(),
     backoffHours: v.number(),
     limit: v.optional(v.number()),
   },
@@ -81,7 +81,7 @@ export const findUnprocessed = internalQuery({
 export const findUnprocessedOpenConversation = internalQuery({
   args: {
     organizationId: v.string(),
-    workflowId: v.string(),
+    wfDefinitionId: v.string(),
     backoffHours: v.number(),
   },
   returns: v.object({
@@ -105,7 +105,7 @@ export const findUnprocessedOpenConversation = internalQuery({
 export const findProductRecommendationByStatus = internalQuery({
   args: {
     organizationId: v.string(),
-    workflowId: v.string(),
+    wfDefinitionId: v.string(),
     backoffHours: v.number(),
     status: v.union(
       v.literal('pending'),
@@ -142,9 +142,9 @@ export const recordProcessed = internalMutation({
       v.literal('websitePages'),
       v.literal('exampleMessages'),
     ),
-    documentId: v.string(),
-    workflowId: v.string(),
-    documentCreationTime: v.number(),
+    recordId: v.string(),
+    wfDefinitionId: v.string(),
+    recordCreationTime: v.number(),
     metadata: v.optional(v.any()),
   },
   returns: v.id('workflowProcessingRecords'),

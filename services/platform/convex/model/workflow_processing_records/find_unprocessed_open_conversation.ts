@@ -11,7 +11,7 @@ import { getLatestConversationMessage } from './helpers/get_latest_conversation_
 
 export interface FindUnprocessedOpenConversationArgs {
   organizationId: string;
-  workflowId: string;
+  wfDefinitionId: string;
   backoffHours: number; // Number of hours to look back for processing records
 }
 
@@ -38,7 +38,7 @@ export async function findUnprocessedOpenConversation(
   ctx: QueryCtx,
   args: FindUnprocessedOpenConversationArgs,
 ): Promise<FindUnprocessedOpenConversationResult> {
-  const { organizationId, workflowId, backoffHours } = args;
+  const { organizationId, wfDefinitionId, backoffHours } = args;
 
   // Calculate cutoff timestamp from backoffHours
   const cutoffDate = new Date();
@@ -50,7 +50,7 @@ export async function findUnprocessedOpenConversation(
     {
       organizationId,
       tableName: 'conversations',
-      workflowId,
+      wfDefinitionId,
       cutoffTimestamp,
 
       // Hook 1: Build your custom query with the right index

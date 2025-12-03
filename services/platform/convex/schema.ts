@@ -640,6 +640,7 @@ export default defineSchema({
   wfExecutions: defineTable({
     organizationId: v.string(), // Better Auth organization ID
     wfDefinitionId: v.union(v.id('wfDefinitions'), v.string(), v.null()), // references workflow template, inline identifier, or null for inline workflows
+    rootWfDefinitionId: v.optional(v.id('wfDefinitions')), // Root version of the workflow family (from wfDefinitions.rootVersionId)
 
     // Version tracking (for audit and debugging)
     workflowSlug: v.optional(v.string()), // Stable workflow identifier (snake_case of name) for entity tracking
@@ -798,35 +799,35 @@ export default defineSchema({
   workflowProcessingRecords: defineTable({
     organizationId: v.string(), // Better Auth organization ID
     tableName: v.string(), // 'customers' | 'products' | 'subscriptions' | etc.
-    documentId: v.string(), // The _id of the processed document (stored as string for flexibility)
-    workflowId: v.string(), // Workflow identifier (workflowSlug or workflowId)
+    recordId: v.string(), // The _id of the processed record (stored as string for flexibility)
+    wfDefinitionId: v.string(), // Workflow definition identifier (workflowSlug or wfDefinitionId)
 
-    // Document metadata at time of processing
-    documentCreationTime: v.number(), // _creationTime of the processed document
+    // Record metadata at time of processing
+    recordCreationTime: v.number(), // _creationTime of the processed record
 
     // Processing metadata
-    processedAt: v.number(), // When this document was processed
+    processedAt: v.number(), // When this record was processed
 
     metadata: v.optional(v.any()),
   })
-    .index('by_org_table_workflow', [
+    .index('by_org_table_wfDefinition', [
       'organizationId',
       'tableName',
-      'workflowId',
+      'wfDefinitionId',
     ])
-    .index('by_org_table_workflow_creationTime', [
+    .index('by_org_table_wfDefinition_creationTime', [
       'organizationId',
       'tableName',
-      'workflowId',
-      'documentCreationTime',
+      'wfDefinitionId',
+      'recordCreationTime',
     ])
-    .index('by_org_table_workflow_processedAt', [
+    .index('by_org_table_wfDefinition_processedAt', [
       'organizationId',
       'tableName',
-      'workflowId',
+      'wfDefinitionId',
       'processedAt',
     ])
-    .index('by_document', ['tableName', 'documentId', 'workflowId']),
+    .index('by_record', ['tableName', 'recordId', 'wfDefinitionId']),
 
   // Message Metadata (for tracking LLM usage, tokens, model info)
   messageMetadata: defineTable({

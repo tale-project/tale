@@ -1,8 +1,8 @@
 /**
- * Check if a document has been processed by a workflow since the cutoff timestamp.
+ * Check if a record has been processed by a workflow since the cutoff timestamp.
  *
  * This helper allows you to write custom index queries and then check processing status
- * for individual documents during iteration.
+ * for individual records during iteration.
  *
  * @example
  * ```typescript
@@ -14,15 +14,15 @@
  *   )
  * ) {
  *   // Check if processed
- *   const isProcessed = await isDocumentProcessed(ctx, {
+ *   const isProcessed = await isRecordProcessed(ctx, {
  *     tableName: 'conversations',
- *     documentId: String(conv._id),
- *     workflowId,
+ *     recordId: String(conv._id),
+ *     wfDefinitionId,
  *     cutoffTimestamp
  *   });
  *
  *   if (!isProcessed) {
- *     // Process this document
+ *     // Process this record
  *   }
  * }
  * ```
@@ -31,33 +31,33 @@
 import { QueryCtx } from '../../../_generated/server';
 import { TableName } from '../types';
 
-export interface IsDocumentProcessedArgs {
+export interface IsRecordProcessedArgs {
   tableName: TableName;
-  documentId: string;
-  workflowId: string;
+  recordId: string;
+  wfDefinitionId: string;
   cutoffTimestamp: string; // ISO date string
 }
 
-export async function isDocumentProcessed(
+export async function isRecordProcessed(
   ctx: QueryCtx,
-  args: IsDocumentProcessedArgs,
+  args: IsRecordProcessedArgs,
 ): Promise<boolean> {
-  const { tableName, documentId, workflowId, cutoffTimestamp } = args;
+  const { tableName, recordId, wfDefinitionId, cutoffTimestamp } = args;
 
   // Convert cutoffTimestamp to milliseconds
   const cutoffMs = new Date(cutoffTimestamp).getTime();
 
-  // Check if this document has been processed since the cutoff
+  // Check if this record has been processed since the cutoff
   const processedRecord = await ctx.db
     .query('workflowProcessingRecords')
-    .withIndex('by_document', (q) =>
+    .withIndex('by_record', (q) =>
       q
         .eq('tableName', tableName)
-        .eq('documentId', documentId)
-        .eq('workflowId', workflowId),
+        .eq('recordId', recordId)
+        .eq('wfDefinitionId', wfDefinitionId),
     )
     .first();
 
-  // Document is processed if a record exists and was processed after cutoff
+  // Record is processed if a record exists and was processed after cutoff
   return processedRecord !== null && processedRecord.processedAt >= cutoffMs;
 }

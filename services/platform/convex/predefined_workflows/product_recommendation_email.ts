@@ -81,7 +81,7 @@ export const productRecommendationEmailWorkflow = {
         parameters: {
           operation: 'find_product_recommendation_by_status',
           organizationId: '{{organizationId}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
           status: 'approved',
         },
@@ -320,9 +320,9 @@ Return only the JSON object with "subject", "body", and "preview".`,
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'approvals',
-          workflowId: '{{workflowId}}',
-          documentId: '{{currentApprovalId}}',
-          documentCreationTime: '{{currentApproval._creationTime}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
+          recordId: '{{currentApprovalId}}',
+          recordCreationTime: '{{currentApproval._creationTime}}',
           metadata: {
             emailGenerated: true,
             conversationId:

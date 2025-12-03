@@ -1,6 +1,6 @@
 'use node';
 
-import type { EmailMessage } from '../../../workflow/actions/imap/types';
+import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
 import extractThreadMessageIds from './extract_thread_message_ids';
 
 export default function collectThreadMessageIds(

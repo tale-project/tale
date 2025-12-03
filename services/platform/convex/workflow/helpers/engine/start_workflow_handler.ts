@@ -25,9 +25,9 @@ export async function handleStartWorkflow(
   args: StartWorkflowArgs,
   workflowManager: WorkflowManager,
 ): Promise<Id<'wfExecutions'>> {
-  // Validate database workflow
-  const workflow = await ctx.db.get(args.wfDefinitionId);
-  if (!workflow) {
+  // Validate database workflow definition
+  const wfDefinition = await ctx.db.get(args.wfDefinitionId);
+  if (!wfDefinition) {
     throw new Error('Workflow definition not found');
   }
 
@@ -43,20 +43,25 @@ export async function handleStartWorkflow(
     throw new Error('No steps defined for workflow');
   }
 
-  const workflowName = workflow.name;
+  const workflowName = wfDefinition.name;
 
   // Generate workflowSlug from workflow name
   const workflowSlug = snakeCase(workflowName);
 
+  // Get rootWfDefinitionId: use wfDefinition's rootVersionId, or fall back to its own _id
+  const rootWfDefinitionId = wfDefinition.rootVersionId ?? wfDefinition._id;
+
   debugLog('startWorkflow Creating execution', {
     workflowName,
     workflowSlug,
+    rootWfDefinitionId,
   });
 
   // Pre-create execution record with pending status
   const executionId: Id<'wfExecutions'> = await ctx.db.insert('wfExecutions', {
     organizationId: args.organizationId,
     wfDefinitionId: args.wfDefinitionId,
+    rootWfDefinitionId,
     status: 'pending',
     currentStepSlug: '',
     input: args.input || {},

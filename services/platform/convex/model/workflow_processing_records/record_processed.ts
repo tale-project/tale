@@ -10,9 +10,9 @@ import { TableName } from './types';
 export interface RecordProcessedArgs {
   organizationId: string;
   tableName: TableName;
-  documentId: string;
-  workflowId: string;
-  documentCreationTime: number;
+  recordId: string;
+  wfDefinitionId: string;
+  recordCreationTime: number;
   metadata?: unknown;
 }
 
@@ -23,20 +23,20 @@ export async function recordProcessed(
   const {
     organizationId,
     tableName,
-    documentId,
-    workflowId,
-    documentCreationTime,
+    recordId,
+    wfDefinitionId,
+    recordCreationTime,
     metadata,
   } = args;
 
-  // Check if this document has already been recorded for this workflow
+  // Check if this record has already been recorded for this workflow
   const existing = await ctx.db
     .query('workflowProcessingRecords')
-    .withIndex('by_document', (q) =>
+    .withIndex('by_record', (q) =>
       q
         .eq('tableName', tableName)
-        .eq('documentId', documentId)
-        .eq('workflowId', workflowId),
+        .eq('recordId', recordId)
+        .eq('wfDefinitionId', wfDefinitionId),
     )
     .first();
 
@@ -53,9 +53,9 @@ export async function recordProcessed(
   return await ctx.db.insert('workflowProcessingRecords', {
     organizationId,
     tableName,
-    documentId,
-    workflowId,
-    documentCreationTime,
+    recordId,
+    wfDefinitionId,
+    recordCreationTime,
     processedAt: Date.now(),
     metadata,
   });

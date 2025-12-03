@@ -12,13 +12,13 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { Id } from '../../../_generated/dataModel';
-import { createApproval } from './create_approval';
-import { updateApprovalStatus } from './update_approval_status';
-import { getApproval } from './get_approval';
-import { listPendingApprovals } from './list_pending_approvals';
-import { listApprovalsForExecution } from './list_approvals_for_execution';
-import { listPendingApprovalsForExecution } from './list_pending_approvals_for_execution';
-import { getApprovalHistory } from './get_approval_history';
+import { createApproval } from './helpers/create_approval';
+import { updateApprovalStatus } from './helpers/update_approval_status';
+import { getApproval } from './helpers/get_approval';
+import { listPendingApprovals } from './helpers/list_pending_approvals';
+import { listApprovalsForExecution } from './helpers/list_approvals_for_execution';
+import { listPendingApprovalsForExecution } from './helpers/list_pending_approvals_for_execution';
+import { getApprovalHistory } from './helpers/get_approval_history';
 
 export const approvalAction: ActionDefinition<{
   operation:

@@ -23,17 +23,6 @@ export interface DeserializedWorkflowExecution
   variables: ExecutionVariables;
 }
 
-export interface CreateExecutionArgs {
-  organizationId: string;
-  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
-  input?: unknown;
-  triggeredBy: string;
-  triggerData?: unknown;
-  workflowConfig?: unknown;
-  stepsConfig?: Record<string, unknown>;
-  workflowName?: string;
-}
-
 export interface UpdateExecutionStatusArgs {
   executionId: Doc<'wfExecutions'>['_id'];
   status: string;
@@ -101,17 +90,6 @@ export interface ListExecutionsArgs {
 // =============================================================================
 // Convex Validators
 // =============================================================================
-
-export const createExecutionArgsValidator = {
-  organizationId: v.string(),
-  wfDefinitionId: v.id('wfDefinitions'),
-  input: v.optional(v.any()),
-  triggeredBy: v.string(),
-  triggerData: v.optional(v.any()),
-  workflowConfig: v.optional(v.any()),
-  stepsConfig: v.optional(v.record(v.string(), v.any())),
-  workflowName: v.optional(v.string()),
-};
 
 export const updateExecutionStatusArgsValidator = {
   executionId: v.id('wfExecutions'),

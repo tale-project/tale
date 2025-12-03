@@ -35,8 +35,8 @@ export type {
 } from './find_product_recommendation_by_status';
 
 // Helper functions for custom queries
-export { isDocumentProcessed } from './helpers/is_document_processed';
-export type { IsDocumentProcessedArgs } from './helpers/is_document_processed';
+export { isRecordProcessed } from './helpers/is_document_processed';
+export type { IsRecordProcessedArgs } from './helpers/is_document_processed';
 
 export { getLatestProcessedCreationTime } from './helpers/get_latest_processed_creation_time';
 export type { GetLatestProcessedCreationTimeArgs } from './helpers/get_latest_processed_creation_time';

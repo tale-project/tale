@@ -10,7 +10,7 @@ import { findUnprocessedWithCustomQuery } from './helpers/find_unprocessed_with_
 
 export interface FindProductRecommendationByStatusArgs {
   organizationId: string;
-  workflowId: string;
+  wfDefinitionId: string;
   backoffHours: number; // Number of hours to look back for processing records
   status: 'pending' | 'approved' | 'rejected';
 }
@@ -35,7 +35,7 @@ export async function findProductRecommendationByStatus(
   ctx: QueryCtx,
   args: FindProductRecommendationByStatusArgs,
 ): Promise<FindProductRecommendationByStatusResult> {
-  const { organizationId, workflowId, backoffHours, status } = args;
+  const { organizationId, wfDefinitionId, backoffHours, status } = args;
 
   // Calculate cutoff timestamp from backoffHours
   const cutoffDate = new Date();
@@ -45,7 +45,7 @@ export async function findProductRecommendationByStatus(
   const result = await findUnprocessedWithCustomQuery<Doc<'approvals'>>(ctx, {
     organizationId,
     tableName: 'approvals',
-    workflowId,
+    wfDefinitionId,
     cutoffTimestamp,
 
     // Build query with the specified status
@@ -78,4 +78,3 @@ export async function findProductRecommendationByStatus(
     count: result.count,
   };
 }
-

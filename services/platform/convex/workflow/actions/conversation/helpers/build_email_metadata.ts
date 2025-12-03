@@ -1,4 +1,4 @@
-import type { EmailType } from '../types';
+import type { EmailType } from './types';
 
 /**
  * Build rich metadata object for email message
