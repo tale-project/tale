@@ -46,8 +46,6 @@ export { getCustomerByEmail } from './get_customer_by_email';
 
 export { getCustomerByExternalId } from './get_customer_by_external_id';
 
-export { getCustomerStats } from './get_customer_stats';
-
 export { searchCustomers } from './search_customers';
 
 export { findOrCreateCustomer } from './find_or_create_customer';

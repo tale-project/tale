@@ -24,23 +24,15 @@ export const defaultGetFields: string[] = [
   '_id',
   'name',
   'email',
-  'phone',
   'status',
   'source',
-  'totalSpent',
-  'orderCount',
-  'firstPurchaseAt',
-  'lastPurchaseAt',
-  'tags',
+  'locale',
 ];
 
 export const defaultListFields: string[] = [
   '_id',
   'name',
   'email',
-  'phone',
   'status',
   'source',
-  'totalSpent',
-  'orderCount',
 ];
