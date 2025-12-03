@@ -78,7 +78,8 @@ export const websitePagesRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
-          content: '{{steps.find_unprocessed_page.output.data.documents[0]}} ',
+          content:
+            '{{steps.find_unprocessed_page.output.data.documents[0]|string}}',
           metadata: {
             websiteId:
               '{{steps.find_unprocessed_page.output.data.documents[0].websiteId}}',

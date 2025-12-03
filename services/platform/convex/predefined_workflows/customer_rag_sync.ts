@@ -89,9 +89,10 @@ export const customerRagSyncWorkflow = {
         parameters: {
           operation: 'upload_text',
           content:
-            'Customer: {{steps.find_unprocessed_customer.output.data.documents[0].name}}\nID: {{steps.find_unprocessed_customer.output.data.documents[0]._id}}\nEmail: {{steps.find_unprocessed_customer.output.data.documents[0].email}}\nPhone: {{steps.find_unprocessed_customer.output.data.documents[0].phone}}\nStatus: {{steps.find_unprocessed_customer.output.data.documents[0].status}}\nSource: {{steps.find_unprocessed_customer.output.data.documents[0].source}}\nLocale: {{steps.find_unprocessed_customer.output.data.documents[0].locale}}\nAddress: {{steps.find_unprocessed_customer.output.data.documents[0].address | string}}\nFirst Purchase: {{steps.find_unprocessed_customer.output.data.documents[0].firstPurchaseAt}}\nLast Purchase: {{steps.find_unprocessed_customer.output.data.documents[0].lastPurchaseAt}}\nTotal Spent: {{steps.find_unprocessed_customer.output.data.documents[0].totalSpent}}\nOrder Count: {{steps.find_unprocessed_customer.output.data.documents[0].orderCount}}\nTags: {{steps.find_unprocessed_customer.output.data.documents[0].tags | string}}\nExternal ID: {{steps.find_unprocessed_customer.output.data.documents[0].externalId}}\nNotes: {{steps.find_unprocessed_customer.output.data.documents[0].notes}}\nAdditional Metadata: {{steps.find_unprocessed_customer.output.data.documents[0].metadata | string}}',
-          metadata:
-            '{{steps.find_unprocessed_customer.output.data.documents[0]}}',
+            '{{steps.find_unprocessed_customer.output.data.documents[0]|string}}',
+          metadata: {
+            _id: '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+          },
           timeout: 600000, // 10 minutes for text upload
         },
       },

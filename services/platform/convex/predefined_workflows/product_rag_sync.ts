@@ -89,9 +89,10 @@ export const productRagSyncWorkflow = {
         parameters: {
           operation: 'upload_text',
           content:
-            'Product: {{steps.find_unprocessed_product.output.data.documents[0].name}}\nID: {{steps.find_unprocessed_product.output.data.documents[0]._id}}\nDescription: {{steps.find_unprocessed_product.output.data.documents[0].description}}\nCategory: {{steps.find_unprocessed_product.output.data.documents[0].category}}\nPrice: {{steps.find_unprocessed_product.output.data.documents[0].price}} {{steps.find_unprocessed_product.output.data.documents[0].currency}}\nStock: {{steps.find_unprocessed_product.output.data.documents[0].stock}}\nStatus: {{steps.find_unprocessed_product.output.data.documents[0].status}}\nTags: {{steps.find_unprocessed_product.output.data.documents[0].tags | string}}\nExternal ID: {{steps.find_unprocessed_product.output.data.documents[0].externalId}}\nImage URL: {{steps.find_unprocessed_product.output.data.documents[0].imageUrl}}\nAdditional Metadata: {{steps.find_unprocessed_product.output.data.documents[0].metadata | string}}',
-          metadata:
-            '{{steps.find_unprocessed_product.output.data.documents[0]}}',
+            '{{steps.find_unprocessed_product.output.data.documents[0]|string}}',
+          metadata: {
+            _id: '{{steps.find_unprocessed_product.output.data.documents[0]._id}}',
+          },
           timeout: 600000, // 10 minutes for text upload
         },
       },
