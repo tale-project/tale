@@ -81,7 +81,7 @@ Use this tool to find information from previously uploaded documents, websites, 
       const payload = {
         query: args.query,
         top_k: args.top_k || 5,
-        similarity_threshold: args.similarity_threshold,
+        similarity_threshold: args.similarity_threshold || 0.0001,
         include_metadata: args.include_metadata !== false,
       };
 

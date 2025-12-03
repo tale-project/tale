@@ -221,6 +221,19 @@ def _setup_cognee_environment():
         f"Configured Cognee to use Kuzu remote graph store: {settings.graph_db_url}"
     )
 
+    # Feature flags for Cognee storage/search backends
+    # These control whether Cognee will use the graph store, vector search, metrics, etc.
+    os.environ["ENABLE_GRAPH_STORAGE"] = (
+        "true" if settings.enable_graph_storage else "false"
+    )
+    os.environ["ENABLE_VECTOR_SEARCH"] = (
+        "true" if settings.enable_vector_search else "false"
+    )
+    os.environ["ENABLE_METRICS"] = "true" if settings.enable_metrics else "false"
+    os.environ["ENABLE_QUERY_LOGGING"] = (
+        "true" if settings.enable_query_logging else "false"
+    )
+
     # Set cognee data directory
     os.environ["COGNEE_DATA_DIR"] = settings.cognee_data_dir
 

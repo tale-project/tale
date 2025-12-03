@@ -200,6 +200,11 @@ services:
     env_file:
       - .env
 
+    # Environment variables
+    environment:
+      # Increase chunk size for better context in structured data
+      - CHUNK_SIZE=2048
+
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
@@ -214,9 +219,10 @@ services:
       start_period: 40s
 
     # Dependencies
-    # Wait for database to be ready (PGVector uses the same PostgreSQL database)
+    # Wait for database and graph DB to be ready
     depends_on:
       - db
+      - graph-db
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
