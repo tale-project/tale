@@ -3,7 +3,7 @@
 import { ImapFlow } from 'imapflow';
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
-import type { EmailMessage } from '../../workflow/actions/imap/types';
+import type { EmailMessage } from '../../workflow/actions/imap/helpers/types';
 
 import { createDebugLog } from '../../lib/debug_log';
 import computeUidToFetch from './lib/compute_uids_to_fetch';

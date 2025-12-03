@@ -78,6 +78,8 @@ export const websitePagesRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_text',
+          recordId:
+            '{{steps.find_unprocessed_page.output.data.documents[0]._id}}',
           content:
             '{{steps.find_unprocessed_page.output.data.documents[0]|string}}',
           metadata: {
@@ -85,9 +87,6 @@ export const websitePagesRagSyncWorkflow = {
               '{{steps.find_unprocessed_page.output.data.documents[0].websiteId}}',
             _id: '{{steps.find_unprocessed_page.output.data.documents[0]._id}}',
           },
-          // Async ingestion means this timeout only covers the HTTP request to
-          // enqueue the page content, not full cognee processing.
-          timeout: 120000,
         },
       },
       nextSteps: {

@@ -5,7 +5,7 @@ import type {
   CrawlerResult,
   DiscoverUrlsResult,
   FetchUrlsResult,
-} from './types';
+} from './helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 

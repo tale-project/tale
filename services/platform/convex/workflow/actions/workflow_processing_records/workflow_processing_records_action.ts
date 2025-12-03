@@ -12,11 +12,11 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
-import { findUnprocessed } from './find_unprocessed';
-import { findUnprocessedOpenConversation } from './find_unprocessed_open_conversation';
-import { findProductRecommendationByStatus } from './find_product_recommendation_by_status';
-import { recordProcessed } from './record_processed';
-import type { TableName } from './types';
+import { findUnprocessed } from './helpers/find_unprocessed';
+import { findUnprocessedOpenConversation } from './helpers/find_unprocessed_open_conversation';
+import { findProductRecommendationByStatus } from './helpers/find_product_recommendation_by_status';
+import { recordProcessed } from './helpers/record_processed';
+import type { TableName } from './helpers/types';
 
 export const workflowProcessingRecordsAction: ActionDefinition<{
   operation:

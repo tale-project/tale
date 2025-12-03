@@ -13,15 +13,15 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { Id } from '../../../_generated/dataModel';
-import { createConversation } from './create_conversation';
-import { getConversationById } from './get_conversation_by_id';
-import { queryConversations } from './query_conversations';
-import { queryConversationMessages } from './query_conversation_messages';
-import { queryLatestMessageByDeliveryState } from './query_latest_message_by_delivery_state';
-import { updateConversations } from './update_conversations';
-import { createConversationFromEmail } from './create_conversation_from_email';
-import { createConversationFromSentEmail } from './create_conversation_from_sent_email';
-import type { ConversationStatus } from './types';
+import { createConversation } from './helpers/create_conversation';
+import { getConversationById } from './helpers/get_conversation_by_id';
+import { queryConversations } from './helpers/query_conversations';
+import { queryConversationMessages } from './helpers/query_conversation_messages';
+import { queryLatestMessageByDeliveryState } from './helpers/query_latest_message_by_delivery_state';
+import { updateConversations } from './helpers/update_conversations';
+import { createConversationFromEmail } from './helpers/create_conversation_from_email';
+import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
+import type { ConversationStatus } from './helpers/types';
 
 export const conversationAction: ActionDefinition<{
   operation:

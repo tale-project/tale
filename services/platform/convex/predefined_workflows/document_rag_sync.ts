@@ -87,14 +87,8 @@ export const documentRagSyncWorkflow = {
         type: 'rag',
         parameters: {
           operation: 'upload_document',
-          documentId:
+          recordId:
             '{{steps.find_unprocessed_document.output.data.documents[0]._id}}',
-          organizationId: '{{organizationId}}',
-          includeMetadata: '{{includeMetadata}}',
-          // With async RAG ingestion, this timeout only covers the HTTP request
-          // to enqueue ingestion plus Convex storage download + upload. Keep
-          // this comfortably below the overall workflow timeout.
-          timeout: 120000,
         },
       },
       nextSteps: {

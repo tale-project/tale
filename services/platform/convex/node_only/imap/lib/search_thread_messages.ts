@@ -1,7 +1,7 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
-import type { EmailMessage } from '../../../workflow/actions/imap/types';
+import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 import collectThreadMessageIds from './collect_thread_message_ids';

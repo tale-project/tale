@@ -1,6 +1,6 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import type { Id } from '../../../../_generated/dataModel';
-import type { EmailType } from '../types';
+import type { EmailType } from './types';
 import { checkMessageExists } from './check_message_exists';
 
 /**
