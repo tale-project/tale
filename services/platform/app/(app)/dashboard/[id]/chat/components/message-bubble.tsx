@@ -122,7 +122,7 @@ const MarkdownWrapper = styled.div`
     overflow-y: auto;
     margin: 1rem 0;
     max-height: 400px;
-    max-width: 46rem;
+    max-width: var(--chat-max-width);
     box-sizing: border-box;
     position: relative;
 
@@ -153,7 +153,7 @@ const MarkdownWrapper = styled.div`
       line-height: 1.5;
       white-space: pre;
       display: block;
-      max-width: 46rem;
+      max-width: var(--chat-max-width);
       min-width: 100%;
     }
   }
@@ -337,7 +337,7 @@ function TypewriterText({
         rehypePlugins={[rehypeRaw]}
         components={{
           table: ({ node: _node, ...props }) => (
-            <div>
+            <div className="max-w-[var(--chat-max-width)]">
               <Table {...props} />
             </div>
           ),
@@ -444,7 +444,7 @@ export default function MessageBubble({
                   rehypePlugins={[rehypeRaw]}
                   components={{
                     table: ({ node: _node, ...props }) => (
-                      <div className="overflow-x-auto rounded-xl my-4">
+                      <div className="overflow-x-auto rounded-xl my-4 max-w-[var(--chat-max-width)]">
                         <Table {...props} />
                       </div>
                     ),
