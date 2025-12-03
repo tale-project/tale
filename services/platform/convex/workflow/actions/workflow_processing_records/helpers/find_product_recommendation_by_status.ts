@@ -11,7 +11,7 @@ export async function findProductRecommendationByStatus(
   ctx: ActionCtx,
   params: {
     organizationId: string;
-    workflowId: string;
+    wfDefinitionId: string;
     backoffHours: number;
     status: 'pending' | 'approved' | 'rejected';
   },
@@ -21,7 +21,7 @@ export async function findProductRecommendationByStatus(
     internal.workflow_processing_records.findProductRecommendationByStatus,
     {
       organizationId: params.organizationId,
-      workflowId: params.workflowId,
+      wfDefinitionId: params.wfDefinitionId,
       backoffHours: params.backoffHours,
       status: params.status,
     },
@@ -32,4 +32,3 @@ export async function findProductRecommendationByStatus(
     count: result.count,
   };
 }
-

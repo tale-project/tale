@@ -52,7 +52,7 @@ export const documentRagSyncWorkflow = {
           operation: 'find_unprocessed',
           organizationId: '{{organizationId}}',
           tableName: 'documents',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -130,11 +130,11 @@ export const documentRagSyncWorkflow = {
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'documents',
-          documentId:
+          recordId:
             '{{steps.find_unprocessed_document.output.data.documents[0]._id}}',
-          documentCreationTime:
+          recordCreationTime:
             '{{steps.find_unprocessed_document.output.data.documents[0]._creationTime}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
         },
       },
       nextSteps: {

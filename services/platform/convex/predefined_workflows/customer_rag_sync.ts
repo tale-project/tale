@@ -53,7 +53,7 @@ export const customerRagSyncWorkflow = {
           operation: 'find_unprocessed',
           organizationId: '{{organizationId}}',
           tableName: 'customers',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -114,11 +114,11 @@ export const customerRagSyncWorkflow = {
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'customers',
-          documentId:
+          recordId:
             '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
-          documentCreationTime:
+          recordCreationTime:
             '{{steps.find_unprocessed_customer.output.data.documents[0]._creationTime}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
         },
       },
       nextSteps: {

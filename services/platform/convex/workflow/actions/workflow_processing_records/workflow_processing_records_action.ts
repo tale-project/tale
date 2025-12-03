@@ -26,11 +26,11 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
     | 'record_processed';
   organizationId: string;
   tableName?: TableName;
-  workflowId: string;
+  wfDefinitionId: string;
   backoffHours?: number;
   status?: 'pending' | 'approved' | 'rejected';
-  documentId?: string;
-  documentCreationTime?: number;
+  recordId?: string;
+  recordCreationTime?: number;
   metadata?: unknown;
 }> = {
   type: 'workflow_processing_records',
@@ -57,7 +57,7 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
         v.literal('exampleMessages'),
       ),
     ),
-    workflowId: v.string(),
+    wfDefinitionId: v.string(),
     backoffHours: v.optional(v.number()),
     status: v.optional(
       v.union(
@@ -66,8 +66,8 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
         v.literal('rejected'),
       ),
     ),
-    documentId: v.optional(v.string()),
-    documentCreationTime: v.optional(v.number()),
+    recordId: v.optional(v.string()),
+    recordCreationTime: v.optional(v.number()),
     metadata: v.optional(v.any()),
   }),
 
@@ -88,7 +88,7 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
         return await findUnprocessed(ctx, {
           organizationId: params.organizationId,
           tableName: params.tableName,
-          workflowId: params.workflowId,
+          wfDefinitionId: params.wfDefinitionId,
           backoffHours: params.backoffHours,
         });
       }
@@ -102,7 +102,7 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
 
         return await findUnprocessedOpenConversation(ctx, {
           organizationId: params.organizationId,
-          workflowId: params.workflowId,
+          wfDefinitionId: params.wfDefinitionId,
           backoffHours: params.backoffHours,
         });
       }
@@ -121,7 +121,7 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
 
         return await findProductRecommendationByStatus(ctx, {
           organizationId: params.organizationId,
-          workflowId: params.workflowId,
+          wfDefinitionId: params.wfDefinitionId,
           backoffHours: params.backoffHours,
           status: params.status,
         });
@@ -133,23 +133,23 @@ export const workflowProcessingRecordsAction: ActionDefinition<{
             'record_processed operation requires tableName parameter',
           );
         }
-        if (!params.documentId) {
+        if (!params.recordId) {
           throw new Error(
-            'record_processed operation requires documentId parameter',
+            'record_processed operation requires recordId parameter',
           );
         }
-        if (params.documentCreationTime === undefined) {
+        if (params.recordCreationTime === undefined) {
           throw new Error(
-            'record_processed operation requires documentCreationTime parameter',
+            'record_processed operation requires recordCreationTime parameter',
           );
         }
 
         return await recordProcessed(ctx, {
           organizationId: params.organizationId,
           tableName: params.tableName,
-          documentId: params.documentId,
-          workflowId: params.workflowId,
-          documentCreationTime: params.documentCreationTime,
+          recordId: params.recordId,
+          wfDefinitionId: params.wfDefinitionId,
+          recordCreationTime: params.recordCreationTime,
           metadata: params.metadata,
         });
       }

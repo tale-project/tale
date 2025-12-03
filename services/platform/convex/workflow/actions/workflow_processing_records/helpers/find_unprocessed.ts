@@ -8,7 +8,7 @@ export async function findUnprocessed(
   params: {
     organizationId: string;
     tableName: TableName;
-    workflowId: string;
+    wfDefinitionId: string;
     backoffHours: number;
   },
 ): Promise<FindUnprocessedResult> {
@@ -17,7 +17,7 @@ export async function findUnprocessed(
     {
       organizationId: params.organizationId,
       tableName: params.tableName,
-      workflowId: params.workflowId,
+      wfDefinitionId: params.wfDefinitionId,
       backoffHours: params.backoffHours,
     },
   );
@@ -27,4 +27,3 @@ export async function findUnprocessed(
     count: result.count,
   };
 }
-

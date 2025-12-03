@@ -7,7 +7,7 @@ export async function findUnprocessedOpenConversation(
   ctx: ActionCtx,
   params: {
     organizationId: string;
-    workflowId: string;
+    wfDefinitionId: string;
     backoffHours: number;
   },
 ): Promise<FindUnprocessedResult> {
@@ -15,7 +15,7 @@ export async function findUnprocessedOpenConversation(
     internal.workflow_processing_records.findUnprocessedOpenConversation,
     {
       organizationId: params.organizationId,
-      workflowId: params.workflowId,
+      wfDefinitionId: params.wfDefinitionId,
       backoffHours: params.backoffHours,
     },
   );
@@ -25,4 +25,3 @@ export async function findUnprocessedOpenConversation(
     count: result.count,
   };
 }
-

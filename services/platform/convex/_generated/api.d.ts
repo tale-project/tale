@@ -347,7 +347,6 @@ import type * as model_wf_definitions_update_draft from "../model/wf_definitions
 import type * as model_wf_definitions_update_workflow from "../model/wf_definitions/update_workflow.js";
 import type * as model_wf_definitions_update_workflow_status from "../model/wf_definitions/update_workflow_status.js";
 import type * as model_wf_executions_complete_execution from "../model/wf_executions/complete_execution.js";
-import type * as model_wf_executions_create_execution from "../model/wf_executions/create_execution.js";
 import type * as model_wf_executions_fail_execution from "../model/wf_executions/fail_execution.js";
 import type * as model_wf_executions_get_execution from "../model/wf_executions/get_execution.js";
 import type * as model_wf_executions_get_execution_step_journal from "../model/wf_executions/get_execution_step_journal.js";
@@ -938,7 +937,6 @@ declare const fullApi: ApiFromModules<{
   "model/wf_definitions/update_workflow": typeof model_wf_definitions_update_workflow;
   "model/wf_definitions/update_workflow_status": typeof model_wf_definitions_update_workflow_status;
   "model/wf_executions/complete_execution": typeof model_wf_executions_complete_execution;
-  "model/wf_executions/create_execution": typeof model_wf_executions_create_execution;
   "model/wf_executions/fail_execution": typeof model_wf_executions_fail_execution;
   "model/wf_executions/get_execution": typeof model_wf_executions_get_execution;
   "model/wf_executions/get_execution_step_journal": typeof model_wf_executions_get_execution_step_journal;

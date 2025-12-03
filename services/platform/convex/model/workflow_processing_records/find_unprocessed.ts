@@ -36,7 +36,7 @@ import { findUnprocessedWithCustomQuery } from './helpers/find_unprocessed_with_
 export interface FindUnprocessedArgs {
   organizationId: string;
   tableName: TableName;
-  workflowId: string;
+  wfDefinitionId: string;
   backoffHours: number; // Number of hours to look back for processing records
   limit?: number;
 }
@@ -56,7 +56,8 @@ export async function findUnprocessed(
   ctx: QueryCtx,
   args: FindUnprocessedArgs,
 ): Promise<FindUnprocessedResult> {
-  const { organizationId, tableName, workflowId, backoffHours, limit } = args;
+  const { organizationId, tableName, wfDefinitionId, backoffHours, limit } =
+    args;
 
   // Calculate cutoff timestamp from backoffHours
   const cutoffDate = new Date();
@@ -67,7 +68,7 @@ export async function findUnprocessed(
   const result = await findUnprocessedWithCustomQuery(ctx, {
     organizationId,
     tableName,
-    workflowId,
+    wfDefinitionId,
     cutoffTimestamp,
     limit,
 

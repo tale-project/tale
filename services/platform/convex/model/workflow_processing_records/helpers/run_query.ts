@@ -1,15 +1,15 @@
 import { QueryCtx } from '../../../_generated/server';
 import { FindUnprocessedWithCustomQueryArgs } from '../types';
-import { isDocumentProcessed } from './is_document_processed';
+import { isRecordProcessed } from './is_document_processed';
 
 /**
  * Shared helper to run a workflow-processing query starting from a given
- * resume point and return matching documents.
+ * resume point and return matching records.
  *
  * This encapsulates the common logic of:
  * - Calling the caller-provided `buildQuery(startFrom)`
  * - Iterating candidates in index order
- * - Skipping already-processed documents (respecting `cutoffTimestamp`)
+ * - Skipping already-processed records (respecting `cutoffTimestamp`)
  * - Applying the optional `additionalFilter`
  */
 export async function runQuery<T = unknown>(
@@ -20,7 +20,7 @@ export async function runQuery<T = unknown>(
 ): Promise<T[]> {
   const {
     tableName,
-    workflowId,
+    wfDefinitionId,
     cutoffTimestamp,
     buildQuery,
     additionalFilter,
@@ -32,10 +32,10 @@ export async function runQuery<T = unknown>(
   for await (const doc of candidateIter) {
     const docId = String((doc as any)._id);
 
-    const processed = await isDocumentProcessed(ctx, {
+    const processed = await isRecordProcessed(ctx, {
       tableName,
-      documentId: docId,
-      workflowId,
+      recordId: docId,
+      wfDefinitionId,
       cutoffTimestamp,
     });
 

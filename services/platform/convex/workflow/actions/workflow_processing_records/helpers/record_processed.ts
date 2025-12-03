@@ -8,29 +8,29 @@ export async function recordProcessed(
   params: {
     organizationId: string;
     tableName: TableName;
-    documentId: string;
-    workflowId: string;
-    documentCreationTime: number;
+    recordId: string;
+    wfDefinitionId: string;
+    recordCreationTime: number;
     metadata?: unknown;
   },
 ): Promise<RecordProcessedResult> {
-  const recordId: Id<'workflowProcessingRecords'> = await ctx.runMutation(
-    internal.workflow_processing_records.recordProcessed,
-    {
-      organizationId: params.organizationId,
-      tableName: params.tableName,
-      documentId: params.documentId,
-      workflowId: params.workflowId,
-      documentCreationTime: params.documentCreationTime,
-      metadata: params.metadata,
-    },
-  );
+  const processingRecordId: Id<'workflowProcessingRecords'> =
+    await ctx.runMutation(
+      internal.workflow_processing_records.recordProcessed,
+      {
+        organizationId: params.organizationId,
+        tableName: params.tableName,
+        recordId: params.recordId,
+        wfDefinitionId: params.wfDefinitionId,
+        recordCreationTime: params.recordCreationTime,
+        metadata: params.metadata,
+      },
+    );
 
   return {
     operation: 'record_processed',
-    recordId,
+    recordId: processingRecordId,
     success: true,
     timestamp: Date.now(),
   };
 }
-

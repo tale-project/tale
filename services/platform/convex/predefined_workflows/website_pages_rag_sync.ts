@@ -47,7 +47,7 @@ export const websitePagesRagSyncWorkflow = {
           operation: 'find_unprocessed',
           organizationId: '{{organizationId}}',
           tableName: 'websitePages',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -104,11 +104,11 @@ export const websitePagesRagSyncWorkflow = {
           operation: 'record_processed',
           organizationId: '{{organizationId}}',
           tableName: 'websitePages',
-          documentId:
+          recordId:
             '{{steps.find_unprocessed_page.output.data.documents[0]._id}}',
-          documentCreationTime:
+          recordCreationTime:
             '{{steps.find_unprocessed_page.output.data.documents[0]._creationTime}}',
-          workflowId: '{{workflowId}}',
+          wfDefinitionId: '{{rootWfDefinitionId}}',
         },
       },
       nextSteps: {

@@ -280,9 +280,9 @@ REMINDER: All of these are action steps with stepType: "action". The "type" fiel
     operation: 'record_processed',
     organizationId: '{{organizationId}}',
     tableName: 'customers',
-    workflowId: '{{workflowId}}',
-    documentId: '{{entityId}}',
-    documentCreationTime: '{{entity._creationTime}}',
+    wfDefinitionId: '{{wfDefinitionId}}',
+    recordId: '{{entityId}}',
+    recordCreationTime: '{{entity._creationTime}}',
     metadata: { processedAt: '{{now}}' }
   }
 }
