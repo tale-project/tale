@@ -414,7 +414,7 @@ export default function ChatInterface({
             )}
           {(threadId || threadMessages?.length > 0 || userDraftMessage) && (
             // Chat messages - show when we have a threadId OR messages OR draft
-            <div className="max-w-[48rem] mx-auto space-y-4">
+            <div className="max-w-[var(--chat-max-width)] mx-auto space-y-4">
               {threadMessages?.map((message: ChatMessage) => {
                 // Show user messages always, and assistant messages even if empty (for streaming)
                 const shouldShow =
@@ -450,7 +450,7 @@ export default function ChatInterface({
         </div>
 
         <ChatInput
-          className="max-w-[48rem] mx-auto w-full sticky bottom-0 z-50"
+          className="max-w-[var(--chat-max-width)] mx-auto w-full sticky bottom-0 z-50"
           value={inputValue}
           onChange={setInputValue}
           onSendMessage={handleSendMessage}
