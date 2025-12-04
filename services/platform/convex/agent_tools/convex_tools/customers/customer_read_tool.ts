@@ -48,7 +48,7 @@ const customerReadArgs = z.object({
     .array(z.string())
     .optional()
     .describe(
-      "Optional list of fields to return. Default: ['_id','name','email','phone','status','source','totalSpent','orderCount','firstPurchaseAt','lastPurchaseAt','tags']",
+      "Optional list of fields to return. Default: ['_id','name','email','status','source','locale']",
     ),
   // For list operation
   cursor: z
@@ -85,30 +85,18 @@ System fields:
 Core customer fields:
 • name: Customer name (string, optional) - RECOMMENDED
 • email: Customer email (string, optional) - RECOMMENDED
-• phone: Customer phone number (string, optional)
 • externalId: External system ID (string or number, optional)
 • status: Customer status - 'active' | 'churned' | 'potential' (optional)
 • source: Data source - 'manual_import' | 'file_upload' | 'circuly' (string)
 • locale: Customer locale/language preference (string, optional)
-• tags: Customer tags (array of strings, optional)
-
-Customer metrics:
-• totalSpent: Customer lifetime value (number, optional)
-• orderCount: Total number of orders (number, optional)
-• firstPurchaseAt: First purchase timestamp (number, optional)
-• lastPurchaseAt: Last purchase timestamp (number, optional)
-• churned_at: Churn timestamp (number, optional)
-
-Additional fields:
-• notes: Notes and comments (string, optional)
+• address: Customer address object with street, city, state, country, postalCode (optional)
 
 Large/complex fields (use sparingly):
-• address: Customer address object (optional) - CAN BE LARGE
 • metadata: Additional metadata (object, optional) - CAN BE VERY LARGE
 
 BEST PRACTICES:
 • Always specify 'fields' to minimize response size and improve performance.
-• Avoid 'address' and 'metadata' unless specifically needed - they can be large.
+• Avoid 'metadata' unless specifically needed - it can be very large.
 • Use 'list' with pagination (cursor) for large customer bases instead of fetching all at once.
 • Default numItems is 200; reduce if selecting many fields or heavy fields.
 • If hasMore is true, continue calling with the returned cursor to fetch all customers.

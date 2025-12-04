@@ -27,14 +27,16 @@ export interface UpdateCustomersArgs {
   updates: {
     name?: string;
     email?: string;
-    phone?: string;
     status?: 'active' | 'churned' | 'potential';
     source?: string;
     locale?: string;
-    tags?: string[];
-    totalSpent?: number;
-    orderCount?: number;
-    notes?: string;
+    address?: {
+      street?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      postalCode?: string;
+    };
     metadata?: Record<string, unknown>;
   };
 }
@@ -89,16 +91,11 @@ export async function updateCustomers(
     // Copy direct field updates
     if (args.updates.name !== undefined) patch.name = args.updates.name;
     if (args.updates.email !== undefined) patch.email = args.updates.email;
-    if (args.updates.phone !== undefined) patch.phone = args.updates.phone;
     if (args.updates.status !== undefined) patch.status = args.updates.status;
     if (args.updates.source !== undefined) patch.source = args.updates.source;
     if (args.updates.locale !== undefined) patch.locale = args.updates.locale;
-    if (args.updates.tags !== undefined) patch.tags = args.updates.tags;
-    if (args.updates.totalSpent !== undefined)
-      patch.totalSpent = args.updates.totalSpent;
-    if (args.updates.orderCount !== undefined)
-      patch.orderCount = args.updates.orderCount;
-    if (args.updates.notes !== undefined) patch.notes = args.updates.notes;
+    if (args.updates.address !== undefined)
+      patch.address = args.updates.address;
 
     // Handle metadata updates with lodash
     if (args.updates.metadata) {

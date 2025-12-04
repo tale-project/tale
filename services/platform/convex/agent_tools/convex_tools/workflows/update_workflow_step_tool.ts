@@ -19,57 +19,62 @@ export const updateWorkflowStepTool = {
   tool: createTool({
     description: `Update an existing workflow step. Use this to modify step configuration, name, or connections.
 
-**CRITICAL: To update a step's configuration (like trigger schedule, LLM prompt, action parameters), you MUST pass the 'config' field in the 'updates' parameter.**
+**CRITICAL STRUCTURE RULES:**
+1. 'config' and 'nextSteps' are SEPARATE fields in the 'updates' object - NEVER nest nextSteps inside config!
+2. For ACTION steps, 'config' MUST include the 'type' field (e.g., "customer", "product")
+
+**CORRECT structure:**
+{
+  stepRecordId: "...",
+  updates: {
+    config: { type: "customer", parameters: {...} },  // config contains step-specific settings
+    nextSteps: { success: "next_step_slug" }          // nextSteps is SEPARATE, at same level as config
+  }
+}
+
+**WRONG structure (will cause validation error):**
+{
+  stepRecordId: "...",
+  updates: {
+    config: {
+      parameters: {...},
+      nextSteps: { success: "..." }  // WRONG! nextSteps should NOT be inside config!
+    }
+  }
+}
 
 **Examples of updating config:**
 
-1. **Update trigger schedule from every 6 hours to every 4 hours:**
-   Call update_workflow_step with:
+1. **Update trigger schedule:**
    {
      stepRecordId: "...",
      updates: {
-       config: {
-         schedule: "0 */4 * * *",
-         timezone: "UTC",
-         type: "scheduled"
-       }
+       config: { schedule: "0 */4 * * *", timezone: "UTC", type: "scheduled" }
      }
    }
 
 2. **Update LLM prompt:**
-   Call update_workflow_step with:
    {
      stepRecordId: "...",
      updates: {
-       config: {
-         name: "Analyze Customer",
-         systemPrompt: "You are a customer analyst...",
-         userPrompt: "Analyze this customer data",
-         model: "gpt-4o",
-         temperature: 0.7,
-         tools: ["tool1", "tool2"]
-       }
+       config: { name: "Analyze Customer", systemPrompt: "...", userPrompt: "..." }
      }
    }
 
-3. **Update action parameters:**
-   Call update_workflow_step with:
+3. **Update action parameters (MUST include 'type'):**
    {
      stepRecordId: "...",
      updates: {
-       config: {
-         type: "customer",
-         parameters: { operation: "search", query: "{{steps.previous.output}}", limit: 10 }
-       }
+       config: { type: "customer", parameters: { operation: "update", ... } },
+       nextSteps: { success: "next_step" }
      }
    }
 
 **IMPORTANT RULES:**
-- When updating config, you MUST pass the COMPLETE config object with ALL required fields for that step type
-- Do NOT just pass { order: 1 } or { stepType: "trigger" } when the user asks to change the schedule
-- Use the current config from get_workflow_structure as a base and modify only what needs to change
-- For trigger schedules: config must include schedule, timezone, and type fields
-- Cron expressions: "0 */4 * * *" means every 4 hours at minute 0, "0 */6 * * *" means every 6 hours`,
+- When updating config, you MUST pass the COMPLETE config object with ALL required fields
+- For ACTION steps: config MUST have 'type' field (action type like "customer", "product")
+- nextSteps goes at updates.nextSteps, NOT inside updates.config
+- Use get_workflow_structure to see current config before updating`,
     args: z.object({
       stepRecordId: z
         .string()
@@ -134,7 +139,7 @@ LOOP (iteration):
             .any()
             .optional()
             .describe(
-              'Updated next step connections. Keys are outcomes (e.g., "success", "failure", "true", "false"), values are stepSlugs to execute next. Example: { success: "send_email", failure: "log_error" }',
+              'Updated next step connections. IMPORTANT: This is a TOP-LEVEL field in updates, NOT inside config! Keys are outcomes (e.g., "success", "failure", "true", "false"), values are stepSlugs to execute next. Example: { success: "send_email", failure: "log_error" }',
             ),
         })
         .describe('Fields to update'),

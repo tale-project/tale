@@ -8,7 +8,6 @@
 import { v } from 'convex/values';
 import { internalQuery, internalMutation } from './_generated/server';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
-import { paginationOptsValidator } from 'convex/server';
 
 // Import model functions and validators
 import * as CustomersModel from './model/customers';
@@ -31,14 +30,10 @@ export const createCustomer = internalMutation({
     organizationId: v.string(),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
-    phone: v.optional(v.string()),
     status: v.optional(customerStatusValidator),
     source: v.optional(customerSourceValidator),
     locale: v.optional(v.string()),
-    tags: v.optional(v.array(v.string())),
-    totalSpent: v.optional(v.number()),
-    orderCount: v.optional(v.number()),
-    notes: v.optional(v.string()),
+    address: v.optional(customerAddressValidator),
     externalId: v.optional(v.union(v.string(), v.number())),
     metadata: v.optional(v.any()),
   },
@@ -85,27 +80,36 @@ export const getCustomerById = internalQuery({
   },
 });
 
+const queryCustomersArgs = {
+  organizationId: v.string(),
+  externalId: v.optional(v.union(v.string(), v.number())),
+  status: v.optional(
+    v.union(customerStatusValidator, v.array(customerStatusValidator)),
+  ),
+  source: v.optional(v.union(customerSourceValidator, v.array(v.string()))),
+  locale: v.optional(v.array(v.string())),
+  searchTerm: v.optional(v.string()),
+  fields: v.optional(v.array(v.string())),
+
+  paginationOpts: v.object({
+    numItems: v.number(),
+    cursor: v.union(v.string(), v.null()),
+  }),
+};
+
+const queryCustomersReturns = v.object({
+  page: v.array(v.any()),
+  isDone: v.boolean(),
+  continueCursor: v.union(v.string(), v.null()),
+  count: v.number(),
+});
+
 /**
  * Query customers with flexible filtering and pagination (internal)
  */
 export const queryCustomers = internalQuery({
-  args: {
-    organizationId: v.string(),
-    externalId: v.optional(v.union(v.string(), v.number())),
-    status: v.optional(customerStatusValidator),
-    source: v.optional(customerSourceValidator),
-
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-  },
-  returns: v.object({
-    page: v.array(v.any()),
-    isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    count: v.number(),
-  }),
+  args: queryCustomersArgs,
+  returns: queryCustomersReturns,
   handler: async (ctx, args) => {
     return await CustomersModel.queryCustomers(ctx, args);
   },
@@ -123,14 +127,10 @@ export const updateCustomers = internalMutation({
     updates: v.object({
       name: v.optional(v.string()),
       email: v.optional(v.string()),
-      phone: v.optional(v.string()),
       status: v.optional(customerStatusValidator),
       source: v.optional(v.string()),
       locale: v.optional(v.string()),
-      tags: v.optional(v.array(v.string())),
-      totalSpent: v.optional(v.number()),
-      orderCount: v.optional(v.number()),
-      notes: v.optional(v.string()),
+      address: v.optional(customerAddressValidator),
       metadata: v.optional(v.record(v.string(), v.any())),
     }),
   },
@@ -141,28 +141,6 @@ export const updateCustomers = internalMutation({
   }),
   handler: async (ctx, args) => {
     return await CustomersModel.updateCustomers(ctx, args);
-  },
-});
-
-/**
- * List customers by organization with pagination and field projection (internal operation)
- */
-export const listByOrganization = internalQuery({
-  args: {
-    organizationId: v.string(),
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-    fields: v.optional(v.array(v.string())),
-  },
-  returns: v.object({
-    page: v.array(v.any()),
-    isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-  }),
-  handler: async (ctx, args) => {
-    return await CustomersModel.listByOrganization(ctx, args);
   },
 });
 
@@ -188,19 +166,13 @@ export const filterCustomers = internalQuery({
 // =============================================================================
 
 /**
- * Get a paginated list of customers for an organization
+ * Query customers with flexible filtering and pagination (public, with RLS)
  */
 export const getCustomers = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-    paginationOpts: paginationOptsValidator,
-    status: v.optional(v.array(customerStatusValidator)),
-    source: v.optional(v.array(v.string())),
-    searchTerm: v.optional(v.string()),
-    locale: v.optional(v.array(v.string())),
-  },
+  args: queryCustomersArgs,
+  returns: queryCustomersReturns,
   handler: async (ctx, args) => {
-    return await CustomersModel.getCustomers(ctx, args);
+    return await CustomersModel.queryCustomers(ctx, args);
   },
 });
 
@@ -224,20 +196,12 @@ export const updateCustomer = mutationWithRLS({
     customerId: v.id('customers'),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
-    phone: v.optional(v.string()),
     externalId: v.optional(v.string()),
     status: v.optional(customerStatusValidator),
     source: v.optional(customerSourceValidator),
     locale: v.optional(v.string()),
     address: v.optional(customerAddressValidator),
-    firstPurchaseAt: v.optional(v.number()),
-    lastPurchaseAt: v.optional(v.number()),
-    churned_at: v.optional(v.number()),
-    tags: v.optional(v.array(v.string())),
-    totalSpent: v.optional(v.number()),
-    orderCount: v.optional(v.number()),
     metadata: v.optional(v.any()),
-    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await CustomersModel.updateCustomer(ctx, args);
@@ -266,20 +230,12 @@ export const bulkCreateCustomers = mutationWithRLS({
       v.object({
         name: v.optional(v.string()),
         email: v.string(),
-        phone: v.optional(v.string()),
         externalId: v.optional(v.string()),
         status: customerStatusValidator,
         source: customerSourceValidator,
         locale: v.optional(v.string()),
         address: v.optional(customerAddressValidator),
-        firstPurchaseAt: v.optional(v.number()),
-        lastPurchaseAt: v.optional(v.number()),
-        churned_at: v.optional(v.number()),
-        tags: v.optional(v.array(v.string())),
-        totalSpent: v.optional(v.number()),
-        orderCount: v.optional(v.number()),
         metadata: v.optional(v.any()),
-        notes: v.optional(v.string()),
       }),
     ),
   },

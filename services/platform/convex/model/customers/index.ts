@@ -26,9 +26,6 @@ export { updateCustomerMetadata } from './update_customer_metadata';
 export type { UpdateCustomerMetadataResult } from './update_customer_metadata';
 
 // Export public business logic functions
-export { getCustomers } from './get_customers';
-export type { GetCustomersArgs, GetCustomersResult } from './get_customers';
-
 export { getCustomer } from './get_customer';
 
 export { createCustomerPublic } from './create_customer_public';
@@ -46,8 +43,6 @@ export { getCustomerByEmail } from './get_customer_by_email';
 
 export { getCustomerByExternalId } from './get_customer_by_external_id';
 
-export { getCustomerStats } from './get_customer_stats';
-
 export { searchCustomers } from './search_customers';
 
 export { findOrCreateCustomer } from './find_or_create_customer';
@@ -55,11 +50,5 @@ export type {
   FindOrCreateCustomerArgs,
   FindOrCreateCustomerResult,
 } from './find_or_create_customer';
-
-export { listByOrganization } from './list_by_organization';
-export type {
-  ListByOrganizationArgs,
-  ListByOrganizationResult,
-} from './list_by_organization';
 
 export { filterCustomers } from './filter_customers';

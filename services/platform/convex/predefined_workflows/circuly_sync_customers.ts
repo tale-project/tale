@@ -144,6 +144,12 @@ export const circulySyncCustomersWorkflow = {
           updates: {
             name: '{{loop.item.first_name}} {{loop.item.last_name}}',
             email: '{{loop.item.email}}',
+            address: {
+              street: '{{loop.item.address.shipping.street}}',
+              city: '{{loop.item.address.shipping.city}}',
+              country: '{{loop.item.address.shipping.country}}',
+              postalCode: '{{loop.item.address.shipping.postal_code}}',
+            },
             status: 'active',
             source: 'circuly',
             locale: '{{loop.item.default_locale}}',
@@ -172,6 +178,12 @@ export const circulySyncCustomersWorkflow = {
           organizationId: '{{organizationId}}',
           name: '{{loop.item.first_name}} {{loop.item.last_name}}',
           email: '{{loop.item.email}}',
+          address: {
+            street: '{{loop.item.address.shipping.street}}',
+            city: '{{loop.item.address.shipping.city}}',
+            country: '{{loop.item.address.shipping.country}}',
+            postalCode: '{{loop.item.address.shipping.postal_code}}',
+          },
           externalId: '{{loop.item.id}}',
           status: 'active',
           source: 'circuly',

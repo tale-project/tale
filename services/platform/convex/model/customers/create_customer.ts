@@ -3,20 +3,21 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import type { CreateCustomerResult } from './types';
 
 export interface CreateCustomerArgs {
   organizationId: string;
   name?: string;
   email?: string;
-  phone?: string;
   status?: 'active' | 'churned' | 'potential';
   source?: 'manual_import' | 'file_upload' | 'circuly';
   locale?: string;
-  tags?: string[];
-  totalSpent?: number;
-  orderCount?: number;
-  notes?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    postalCode?: string;
+  };
   externalId?: string | number;
   metadata?: unknown;
 }
@@ -29,14 +30,10 @@ export async function createCustomer(
     organizationId: args.organizationId,
     name: args.name,
     email: args.email,
-    phone: args.phone,
     status: args.status,
     source: args.source ?? 'manual_import',
     locale: args.locale,
-    tags: args.tags,
-    totalSpent: args.totalSpent,
-    orderCount: args.orderCount,
-    notes: args.notes,
+    address: args.address,
     externalId: args.externalId,
     metadata: args.metadata,
   });

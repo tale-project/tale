@@ -168,10 +168,7 @@ import type * as model_customers_get_customer from "../model/customers/get_custo
 import type * as model_customers_get_customer_by_email from "../model/customers/get_customer_by_email.js";
 import type * as model_customers_get_customer_by_external_id from "../model/customers/get_customer_by_external_id.js";
 import type * as model_customers_get_customer_by_id from "../model/customers/get_customer_by_id.js";
-import type * as model_customers_get_customer_stats from "../model/customers/get_customer_stats.js";
-import type * as model_customers_get_customers from "../model/customers/get_customers.js";
 import type * as model_customers_index from "../model/customers/index.js";
-import type * as model_customers_list_by_organization from "../model/customers/list_by_organization.js";
 import type * as model_customers_query_customers from "../model/customers/query_customers.js";
 import type * as model_customers_search_customers from "../model/customers/search_customers.js";
 import type * as model_customers_types from "../model/customers/types.js";
@@ -758,10 +755,7 @@ declare const fullApi: ApiFromModules<{
   "model/customers/get_customer_by_email": typeof model_customers_get_customer_by_email;
   "model/customers/get_customer_by_external_id": typeof model_customers_get_customer_by_external_id;
   "model/customers/get_customer_by_id": typeof model_customers_get_customer_by_id;
-  "model/customers/get_customer_stats": typeof model_customers_get_customer_stats;
-  "model/customers/get_customers": typeof model_customers_get_customers;
   "model/customers/index": typeof model_customers_index;
-  "model/customers/list_by_organization": typeof model_customers_list_by_organization;
   "model/customers/query_customers": typeof model_customers_query_customers;
   "model/customers/search_customers": typeof model_customers_search_customers;
   "model/customers/types": typeof model_customers_types;

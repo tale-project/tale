@@ -83,7 +83,6 @@ export default defineSchema({
     organizationId: v.string(), // Better Auth organization ID
     name: v.optional(v.string()),
     email: v.optional(v.string()),
-    phone: v.optional(v.string()),
     externalId: v.optional(v.union(v.string(), v.number())),
 
     // Customer status: active, churned, potential
@@ -116,23 +115,8 @@ export default defineSchema({
       }),
     ),
 
-    // Customer lifecycle dates
-    firstPurchaseAt: v.optional(v.number()),
-    lastPurchaseAt: v.optional(v.number()),
-    churned_at: v.optional(v.number()),
-
-    // Customer tags and segmentation
-    tags: v.optional(v.array(v.string())),
-
-    // Customer lifetime value and metrics
-    totalSpent: v.optional(v.number()),
-    orderCount: v.optional(v.number()),
-
     // Additional flexible metadata
     metadata: v.optional(v.any()),
-
-    // Notes and comments
-    notes: v.optional(v.string()),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_email', ['organizationId', 'email'])

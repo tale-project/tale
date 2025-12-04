@@ -24,7 +24,8 @@ export async function readCustomerList(
     page: Array<Record<string, unknown>>;
     isDone: boolean;
     continueCursor: string | null;
-  } = await actionCtx.runQuery(internal.customers.listByOrganization, {
+    count: number;
+  } = await actionCtx.runQuery(internal.customers.queryCustomers, {
     organizationId,
     paginationOpts: {
       numItems,
