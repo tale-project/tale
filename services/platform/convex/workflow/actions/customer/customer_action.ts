@@ -59,15 +59,10 @@ export const customerAction: ActionDefinition<{
   organizationId?: string;
   name?: string;
   email?: string;
-  phone?: string;
   externalId?: string | number;
   status?: 'active' | 'churned' | 'potential';
   source?: string;
   locale?: string;
-  tags?: string[];
-  totalSpent?: number;
-  orderCount?: number;
-  notes?: string;
   metadata?: Record<string, unknown>;
 
   updates?: Record<string, unknown>;
@@ -93,7 +88,6 @@ export const customerAction: ActionDefinition<{
     organizationId: v.optional(v.string()),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
-    phone: v.optional(v.string()),
     externalId: v.optional(v.union(v.string(), v.number())),
     status: v.optional(
       v.union(
@@ -104,10 +98,6 @@ export const customerAction: ActionDefinition<{
     ),
     source: v.optional(v.string()),
     locale: v.optional(v.string()),
-    tags: v.optional(v.array(v.string())),
-    totalSpent: v.optional(v.number()),
-    orderCount: v.optional(v.number()),
-    notes: v.optional(v.string()),
     metadata: v.optional(v.any()),
     updates: v.optional(v.any()),
     paginationOpts: v.optional(
@@ -131,7 +121,6 @@ export const customerAction: ActionDefinition<{
             organizationId: params.organizationId,
             name: params.name,
             email: params.email,
-            phone: params.phone,
             status: params.status,
             source: params.source as
               | 'manual_import'
@@ -139,10 +128,6 @@ export const customerAction: ActionDefinition<{
               | 'circuly'
               | undefined,
             locale: params.locale,
-            tags: params.tags,
-            totalSpent: params.totalSpent,
-            orderCount: params.orderCount,
-            notes: params.notes,
             externalId: params.externalId,
             metadata: params.metadata,
           },

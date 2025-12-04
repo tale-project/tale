@@ -47,20 +47,12 @@ export const customerValidator = v.object({
   organizationId: v.string(),
   name: v.optional(v.string()),
   email: v.optional(v.string()),
-  phone: v.optional(v.string()),
   externalId: v.optional(v.union(v.string(), v.number())),
   status: v.optional(customerStatusValidator),
   source: customerSourceValidator,
   locale: v.optional(v.string()),
   address: v.optional(customerAddressValidator),
-  firstPurchaseAt: v.optional(v.number()),
-  lastPurchaseAt: v.optional(v.number()),
-  churned_at: v.optional(v.number()),
-  tags: v.optional(v.array(v.string())),
-  totalSpent: v.optional(v.number()),
-  orderCount: v.optional(v.number()),
   metadata: v.optional(v.any()),
-  notes: v.optional(v.string()),
 });
 
 // =============================================================================
@@ -82,18 +74,6 @@ export interface UpdateCustomersResult {
   success: boolean;
   updatedCount: number;
   updatedIds: Id<'customers'>[];
-}
-
-/**
- * Customer statistics
- */
-export interface CustomerStats {
-  total: number;
-  active: number;
-  churned: number;
-  potential: number;
-  totalSpent: number;
-  averageOrderValue: number;
 }
 
 /**

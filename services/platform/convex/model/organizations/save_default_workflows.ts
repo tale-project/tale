@@ -7,9 +7,6 @@ import { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 import documentRagSync from '../../predefined_workflows/document_rag_sync';
 import onedriveSync from '../../predefined_workflows/onedrive_sync';
-import productRagSync from '../../predefined_workflows/product_rag_sync';
-import websitePagesRagSync from '../../predefined_workflows/website_pages_rag_sync';
-import customerRagSync from '../../predefined_workflows/customer_rag_sync';
 import generalCustomerStatusAssessmentWorkflow from '../../predefined_workflows/general_customer_status_assessment';
 import generalProductRecommendationWorkflow from '../../predefined_workflows/general_product_recommendation';
 import productRecommendationEmailWorkflow from '../../predefined_workflows/product_recommendation_email';
@@ -28,9 +25,6 @@ interface SaveDefaultWorkflowsArgs {
  * This includes:
  * - Document RAG Sync (scheduled every 20 minutes)
  * - OneDrive Sync (scheduled every hour)
- * - Product RAG Sync (scheduled every 20 minutes)
- * - Website Pages RAG Sync (scheduled every 20 minutes)
- * - Customer RAG Sync (scheduled every 20 minutes)
  */
 export async function saveDefaultWorkflows(
   ctx: ActionCtx,
@@ -52,21 +46,6 @@ export async function saveDefaultWorkflows(
     {
       workflow: onedriveSync,
       schedule: '0 */1 * * *', // Every hour
-      timezone: 'UTC',
-    },
-    {
-      workflow: productRagSync,
-      schedule: '*/20 * * * *', // Every 20 minutes
-      timezone: 'UTC',
-    },
-    {
-      workflow: websitePagesRagSync,
-      schedule: '*/20 * * * *', // Every 20 minutes
-      timezone: 'UTC',
-    },
-    {
-      workflow: customerRagSync,
-      schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {

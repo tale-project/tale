@@ -8,7 +8,6 @@ import type { BulkCreateResult } from './types';
 export interface BulkCreateCustomerData {
   name?: string;
   email: string;
-  phone?: string;
   externalId?: string;
   status: 'active' | 'churned' | 'potential';
   source: 'manual_import' | 'file_upload' | 'circuly';
@@ -20,14 +19,7 @@ export interface BulkCreateCustomerData {
     country?: string;
     postalCode?: string;
   };
-  firstPurchaseAt?: number;
-  lastPurchaseAt?: number;
-  churned_at?: number;
-  tags?: string[];
-  totalSpent?: number;
-  orderCount?: number;
   metadata?: unknown;
-  notes?: string;
 }
 
 export async function bulkCreateCustomers(

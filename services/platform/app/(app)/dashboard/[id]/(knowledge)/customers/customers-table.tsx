@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils/cn';
 import { Users } from 'lucide-react';
 import ImportCustomersMenu from './import-customers-menu';
 import { useSearchParams } from 'next/navigation';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 interface CustomersTableProps {
   organizationId: string;
@@ -62,7 +63,7 @@ export default function CustomersTable({
     return null;
   }
 
-  const customers = result.page;
+  const customers = result.page as Doc<'customers'>[];
   const pagination = {
     total: customers.length, // This is a simplified approach
     page: currentPage,

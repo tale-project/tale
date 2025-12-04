@@ -9,7 +9,6 @@ export interface UpdateCustomerArgs {
   customerId: Id<'customers'>;
   name?: string;
   email?: string;
-  phone?: string;
   externalId?: string;
   status?: 'active' | 'churned' | 'potential';
   source?: 'manual_import' | 'file_upload' | 'circuly';
@@ -21,14 +20,7 @@ export interface UpdateCustomerArgs {
     country?: string;
     postalCode?: string;
   };
-  firstPurchaseAt?: number;
-  lastPurchaseAt?: number;
-  churned_at?: number;
-  tags?: string[];
-  totalSpent?: number;
-  orderCount?: number;
   metadata?: unknown;
-  notes?: string;
 }
 
 export async function updateCustomer(
@@ -55,9 +47,7 @@ export async function updateCustomer(
       .first();
 
     if (conflictingCustomer && conflictingCustomer._id !== customerId) {
-      throw new Error(
-        `Customer with email ${updateData.email} already exists`,
-      );
+      throw new Error(`Customer with email ${updateData.email} already exists`);
     }
   }
 
@@ -90,4 +80,3 @@ export async function updateCustomer(
   await ctx.db.patch(customerId, cleanUpdateData);
   return await ctx.db.get(customerId);
 }
-
