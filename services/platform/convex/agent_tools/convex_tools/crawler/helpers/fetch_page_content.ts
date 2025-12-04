@@ -33,7 +33,8 @@ export async function fetchPageContent(
 
   const payload = {
     urls: [args.url],
-    word_count_threshold: args.word_count_threshold ?? 50,
+    // Low threshold for single URL fetches - user explicitly requested this page
+    word_count_threshold: args.word_count_threshold ?? 0,
   };
 
   try {
@@ -82,8 +83,12 @@ export async function fetchPageContent(
       word_count: page.word_count,
       truncated: wasTruncated,
       content_length: rawContent.length,
+      has_structured_data: !!page.structured_data,
     });
 
+    // Return both structured_data (OpenGraph, JSON-LD) and content.
+    // structured_data contains machine-readable product info including variant prices.
+    // content is fallback for pages without structured data.
     return {
       operation: 'fetch_url',
       success: true,
@@ -96,6 +101,7 @@ export async function fetchPageContent(
         truncated: wasTruncated,
         original_content_length: rawContent.length,
       },
+      structured_data: page.structured_data,
     };
   } catch (error) {
     console.error('[tool:web_read:fetch_url] error', {

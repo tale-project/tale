@@ -27,9 +27,12 @@ export type WebReadFetchUrlResult = {
   success: boolean;
   url: string;
   title?: string;
+  /** Page content (markdown text extracted from page). */
   content: string;
   word_count: number;
   metadata?: Record<string, unknown>;
+  /** OpenGraph and JSON-LD structured data. Use this for product pricing/variants when available. */
+  structured_data?: Record<string, unknown>;
 };
 
 // =============================================================================

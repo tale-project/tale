@@ -185,14 +185,29 @@ export async function autoSummarizeIfNeededModel(
   const newTotalSummarized =
     (summaryData.totalMessagesSummarized || 0) + newMessagesForSummary.length;
 
-  summaryData.contextSummary = newSummary;
-  summaryData.summarizedAt = Date.now();
-  summaryData.lastSummarizedMessageId = lastMessage._id;
-  summaryData.totalMessagesSummarized = newTotalSummarized;
+  // Re-read the thread to get any fields that may have been updated during summarization
+  // (e.g., activeRunId may have been set by chat_with_agent during the AI call)
+  const freshThread = await ctx.runQuery(components.agent.threads.getThread, {
+    threadId: args.threadId,
+  });
+
+  let freshSummaryData: ThreadSummaryData = {};
+  if (freshThread?.summary) {
+    freshSummaryData = JSON.parse(freshThread.summary);
+  }
+
+  // Merge: preserve fields from fresh read (like activeRunId) while updating summarization fields
+  const mergedSummaryData: ThreadSummaryData = {
+    ...freshSummaryData,
+    contextSummary: newSummary,
+    summarizedAt: Date.now(),
+    lastSummarizedMessageId: lastMessage._id,
+    totalMessagesSummarized: newTotalSummarized,
+  };
 
   await ctx.runMutation(components.agent.threads.updateThread, {
     threadId: args.threadId,
-    patch: { summary: JSON.stringify(summaryData) },
+    patch: { summary: JSON.stringify(mergedSummaryData) },
   });
 
   debugLog('autoSummarizeIfNeeded complete', {

@@ -127,6 +127,24 @@ When the user provides a direct http/https URL and asks what is on the page or t
 Remember:
 - web_read CANNOT read binary files like PDFs or Excel directly; it is for HTML pages.
 
+IMPORTANT - STRUCTURED DATA FOR PRICING:
+
+The web_read tool returns "structured_data" containing OpenGraph and JSON-LD metadata. This is your PRIMARY source for product information:
+
+1. OpenGraph (structured_data.opengraph):
+   - "price:amount" and "price:currency" - the default/base price
+
+2. JSON-LD (structured_data.json_ld):
+   - Contains Product schema with ALL variant prices
+   - Each variant has its own "@id" with variant parameter, "offers.price", and "offers.availability"
+   - Example: "@id": "/products/xyz?variant=12345#variant" with "price": "58.00"
+
+When looking up a specific variant price:
+- Find the JSON-LD entry where "@id" contains the matching variant parameter
+- Report the "price" from that variant's "offers" object
+- Also note "availability" (InStock, OutOfStock, etc.)
+- OpenGraph only shows the default price; use JSON-LD for variant-specific prices
+
 5) MANAGING KNOWLEDGE → rag_search + rag_write
 
 Use rag_search:
