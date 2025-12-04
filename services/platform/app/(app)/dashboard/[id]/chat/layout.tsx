@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import ChatHeader from './components/chat-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 
@@ -15,10 +15,16 @@ interface OptimisticMessage {
 }
 
 interface ChatLayoutContextType {
+  // Optimistic user message shown while waiting for server confirmation
   optimisticMessage: OptimisticMessage | null;
   setOptimisticMessage: (message: OptimisticMessage | null) => void;
-  isOptimisticLoading: boolean;
-  setIsOptimisticLoading: (loading: boolean) => void;
+  // Current run ID for status polling - persists across navigation
+  currentRunId: string | null;
+  setCurrentRunId: (runId: string | null) => void;
+  // Derived loading state - true when we have an active run
+  isLoading: boolean;
+  // Clear all chat state (called on completion/error)
+  clearChatState: () => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -35,7 +41,15 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
   const { id: organizationId } = useParams();
   const [optimisticMessage, setOptimisticMessage] =
     useState<OptimisticMessage | null>(null);
-  const [isOptimisticLoading, setIsOptimisticLoading] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+
+  // Derive loading state from currentRunId - single source of truth
+  const isLoading = currentRunId !== null;
+
+  const clearChatState = useCallback(() => {
+    setCurrentRunId(null);
+    setOptimisticMessage(null);
+  }, []);
 
   // Validate organizationId is a string
   if (!organizationId || Array.isArray(organizationId)) {
@@ -47,8 +61,10 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
       value={{
         optimisticMessage,
         setOptimisticMessage,
-        isOptimisticLoading,
-        setIsOptimisticLoading,
+        currentRunId,
+        setCurrentRunId,
+        isLoading,
+        clearChatState,
       }}
     >
       <div className="flex flex-col flex-[1_1_0] h-full bg-background relative">

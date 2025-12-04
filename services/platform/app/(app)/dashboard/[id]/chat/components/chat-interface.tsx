@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ArrowDown } from 'lucide-react';
@@ -37,16 +37,6 @@ interface ChatMessage {
   timestamp: number;
   attachments?: FileAttachment[];
 }
-
-/**
- * Represents the loading state of the chat interface:
- * - false: Not loading
- * - true: Loading (showing thinking animation)
- * - 'streaming': Actively receiving streamed content from AI
- */
-type LoadingState = boolean | 'streaming';
-
-// Chat data is now managed via localStorage instead of server calls
 
 function ThinkingAnimation() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -121,25 +111,23 @@ export default function ChatInterface({
   const {
     optimisticMessage,
     setOptimisticMessage,
-    isOptimisticLoading,
-    setIsOptimisticLoading,
+    currentRunId,
+    setCurrentRunId,
+    isLoading,
+    clearChatState,
   } = useChatLayout();
-  const [isLoading, setIsLoading] = useState<LoadingState>(false);
+
   const [inputValue, setInputValue] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
-  // Track the current run ID for status polling
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 
-  // Use optimistic message from layout (persists across navigation)
-  // Show it if: no threadId restriction OR matches current thread OR we're transitioning
+  // Optimistic user message content
   const userDraftMessage = optimisticMessage?.content || '';
 
-  // Convex hooks - always call useQuery unconditionally
+  // Fetch thread messages
   const rawThreadMessages = useQuery(
     api.threads.getThreadMessages,
     threadId ? { threadId } : 'skip',
   );
-  // Transform to match expected format (normalize to ChatMessage)
   const threadMessages: ChatMessage[] = (rawThreadMessages?.messages || []).map(
     (m) => ({
       id: m._id,
@@ -149,20 +137,11 @@ export default function ChatInterface({
     }),
   );
 
-  // Query for active runId from thread summary (for recovery on page refresh)
+  // Query for active runId from thread (for recovery on page refresh)
   const activeRunIdFromThread = useQuery(
     api.threads.getActiveRunId,
     threadId ? { threadId } : 'skip',
   );
-
-  // Recover runId from thread on page load (initial mount or when thread changes)
-  useEffect(() => {
-    // Only recover if we don't already have a runId and the thread has one
-    if (!currentRunId && activeRunIdFromThread) {
-      setCurrentRunId(activeRunIdFromThread);
-      setIsLoading(true);
-    }
-  }, [activeRunIdFromThread, currentRunId]);
 
   // Poll chat status when we have an active runId
   const chatStatus = useQuery(
@@ -173,76 +152,88 @@ export default function ChatInterface({
   // Convex mutations
   const createThread = useMutation(api.threads.createChatThread);
   const updateThread = useMutation(api.threads.updateChatThread);
-  // chatWithAgent is now a mutation that kicks off a retried action
-  // It returns { runId, messageAlreadyExists } - messages appear via the query
   const chatWithAgent = useMutation(api.chat_agent.chatWithAgent);
   const clearActiveRunIdMutation = useMutation(api.threads.clearActiveRunId);
 
-  // Handle chat completion status changes
-  const handleChatComplete = useCallback(
-    async (shouldClearActiveRunId = false) => {
-      // Clear the activeRunId from thread summary if needed (for failed/canceled cases)
-      if (shouldClearActiveRunId && threadId) {
-        try {
-          await clearActiveRunIdMutation({ threadId });
-        } catch (error) {
-          console.error('Failed to clear activeRunId:', error);
-        }
-      }
-      setCurrentRunId(null);
-      setIsLoading(false);
-      setIsOptimisticLoading(false);
-      setOptimisticMessage(null);
-    },
-    [
-      setIsOptimisticLoading,
-      setOptimisticMessage,
-      threadId,
-      clearActiveRunIdMutation,
-    ],
-  );
-
-  // React to chat status changes
+  // Sync loading state with server and handle chat completion
   useEffect(() => {
+    // 1. Recover runId from thread (page refresh/navigation)
+    if (!currentRunId && activeRunIdFromThread) {
+      setCurrentRunId(activeRunIdFromThread);
+      return;
+    }
+
+    // 2. Clear stale loading state (AI completed before we could recover)
+    if (threadId && activeRunIdFromThread === null && isLoading) {
+      clearChatState();
+      return;
+    }
+
+    // 3. Handle chat status changes
     if (!chatStatus || !currentRunId) return;
 
     if (chatStatus.status === 'success') {
-      // Generation completed successfully - activeRunId cleared server-side in onChatComplete
-      handleChatComplete(false);
+      clearChatState();
     } else if (chatStatus.status === 'failed') {
-      // Generation failed - clear activeRunId from frontend
       toast({
         title: 'Failed to generate response',
         description: chatStatus.error,
         variant: 'destructive',
       });
-      handleChatComplete(true);
+      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
+      clearChatState();
     } else if (chatStatus.status === 'canceled') {
-      // Generation was canceled - clear activeRunId from frontend
-      handleChatComplete(true);
+      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
+      clearChatState();
     }
-    // 'inProgress' status means we keep polling (useQuery handles this)
-  }, [chatStatus, currentRunId, handleChatComplete]);
+  }, [
+    activeRunIdFromThread,
+    chatStatus,
+    currentRunId,
+    threadId,
+    isLoading,
+    setCurrentRunId,
+    clearChatState,
+    clearActiveRunIdMutation,
+  ]);
 
+  // Clear optimistic message when it appears in actual messages
+  useEffect(() => {
+    if (
+      optimisticMessage?.content &&
+      rawThreadMessages !== undefined &&
+      threadMessages?.some((m) => m.role === 'user' && m.content === optimisticMessage.content)
+    ) {
+      setOptimisticMessage(null);
+    }
+  }, [rawThreadMessages, threadMessages, optimisticMessage?.content, setOptimisticMessage]);
+
+  // Scroll handling
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { throttledScrollToBottom, cleanup } = useThrottledScroll({ delay: 16 });
   const messageCount = threadMessages?.length ?? 0;
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { throttledScrollToBottom, cleanup } = useThrottledScroll({
-    delay: 16,
-  });
-
   useEffect(() => {
-    if (!threadId) return;
-
-    if (containerRef.current) {
+    // Auto-scroll on new messages
+    if (threadId && containerRef.current) {
       throttledScrollToBottom(containerRef.current, 'auto');
     }
-  }, [threadId, messageCount, throttledScrollToBottom]);
 
-  // Cleanup throttled scroll on unmount
-  useEffect(() => {
+    // Setup scroll listener for "scroll to bottom" button
+    const container = containerRef.current;
+    if (container) {
+      const checkScroll = () => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        setShowScrollButton(scrollHeight - scrollTop - clientHeight >= 100);
+      };
+      container.addEventListener('scroll', checkScroll);
+      return () => {
+        container.removeEventListener('scroll', checkScroll);
+        cleanup();
+      };
+    }
     return cleanup;
-  }, [cleanup]);
+  }, [threadId, messageCount, throttledScrollToBottom, cleanup]);
 
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -250,140 +241,63 @@ export default function ChatInterface({
     }
   };
 
-  // Clear optimistic message when it appears in the actual messages
-  useEffect(() => {
-    // Don't clear if we don't have a draft or if thread is still loading
-    if (!optimisticMessage?.content) return;
-    if (threadId && threadMessages === undefined) return; // Query is loading
-
-    // Only clear draft if we found it in the loaded messages
-    if (
-      threadMessages?.some(
-        (m) => m.role === 'user' && m.content === optimisticMessage.content,
-      )
-    ) {
-      setOptimisticMessage(null);
-    }
-  }, [
-    threadId,
-    threadMessages?.length,
-    optimisticMessage?.content,
-    setOptimisticMessage,
-  ]);
-
-  const checkScroll = () => {
-    const container = containerRef.current;
-    if (!container) return;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setShowScrollButton(!isNearBottom);
-  };
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    container.addEventListener('scroll', checkScroll);
-    return () => {
-      container.removeEventListener('scroll', checkScroll);
-    };
-  }, [threadMessages?.length]);
-
-  // Messages are automatically saved by the Agent Component
-  // No need for manual save logic anymore
-
-  const handleSendMessage = async (
-    message: string,
-    attachments?: FileAttachment[],
-  ) => {
-    // Sanitize the message content before storing
+  const handleSendMessage = async (message: string, attachments?: FileAttachment[]) => {
     const sanitizedContent = sanitizeChatMessage(message);
 
     const userMessage = {
       id: uuidv7(),
       content: sanitizedContent,
       role: 'user' as const,
-      timestamp: new Date().getTime(),
+      timestamp: Date.now(),
       attachments,
     };
 
     setOptimisticMessage({ content: sanitizedContent, threadId });
-    setIsLoading(true);
-    setIsOptimisticLoading(true);
     setInputValue('');
 
     try {
       let currentThreadId = threadId;
       let isFirstMessage = false;
 
-      // If no thread exists, create one before sending the message
+      // Create thread if needed
       if (!currentThreadId) {
-        // Generate title from first message (truncate to 50 chars)
-        const title =
-          message.length > 50 ? message.substring(0, 50) + '...' : message;
-
+        const title = message.length > 50 ? message.substring(0, 50) + '...' : message;
         const newThreadId = await createThread({
-          organizationId: organizationId as string,
-          title: title,
+          organizationId,
+          title,
           chatType: 'general',
         });
         currentThreadId = newThreadId;
         isFirstMessage = true;
 
-        // Update optimistic message with the new threadId (already sanitized)
-        setOptimisticMessage({
-          content: sanitizedContent,
-          threadId: newThreadId,
-        });
-
-        // Navigate to the new thread route with the message in state for seamless transition
-        router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, {
-          scroll: false,
-        });
+        setOptimisticMessage({ content: sanitizedContent, threadId: newThreadId });
+        router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, { scroll: false });
       } else {
-        // Check if this is the first message in an existing thread
         isFirstMessage = threadMessages?.length === 0;
       }
 
-      // If this is the first message, update the thread title
+      // Update thread title for first message
       if (isFirstMessage && currentThreadId) {
-        const title =
-          message.length > 50 ? message.substring(0, 50) + '...' : message;
-        await updateThread({
-          threadId: currentThreadId,
-          title: title,
-        });
+        const title = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        await updateThread({ threadId: currentThreadId, title });
       }
 
-      // Call Convex mutation - returns runId for status tracking
+      // Send message and start polling
       const result = await chatWithAgent({
         threadId: currentThreadId,
-        organizationId: organizationId as string,
+        organizationId,
         message: userMessage.content,
       });
 
-      // Store the runId to start polling for status
-      // The useEffect watching chatStatus will handle completion
       setCurrentRunId(result.runId);
-
-      // Metadata is now saved server-side in the onChatComplete callback
-      // Messages are automatically saved by Agent Component
-      // Loading state will be cleared when chatStatus shows completion
     } catch (error) {
-      // Clear loading states on error
-      setCurrentRunId(null);
-      setOptimisticMessage(null);
-      setIsOptimisticLoading(false);
-      setIsLoading(false);
-      setInputValue(''); // Reset input on error
-
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to send message';
+      clearChatState();
+      setInputValue('');
       toast({
-        title: errorMessage,
+        title: error instanceof Error ? error.message : 'Failed to send message',
         variant: 'destructive',
       });
     }
-    // Note: No finally block - loading state is managed by chatStatus polling
   };
 
   return (
@@ -397,9 +311,9 @@ export default function ChatInterface({
           className={cn(
             'flex-1 overflow-y-visible p-8',
             !threadId &&
-              threadMessages?.length === 0 &&
-              !userDraftMessage &&
-              'flex flex-col items-center justify-end',
+            threadMessages?.length === 0 &&
+            !userDraftMessage &&
+            'flex flex-col items-center justify-end',
           )}
         >
           {!isLoading &&
@@ -444,7 +358,7 @@ export default function ChatInterface({
                   }}
                 />
               )}
-              {(isLoading || isOptimisticLoading) && <ThinkingAnimation />}
+              {isLoading && <ThinkingAnimation />}
             </div>
           )}
         </div>
@@ -454,7 +368,7 @@ export default function ChatInterface({
           value={inputValue}
           onChange={setInputValue}
           onSendMessage={handleSendMessage}
-          isLoading={!!isLoading}
+          isLoading={isLoading}
         />
       </div>
 
