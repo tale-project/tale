@@ -309,6 +309,7 @@ import type * as model_websites_bulk_create_websites from "../model/websites/bul
 import type * as model_websites_bulk_upsert_pages from "../model/websites/bulk_upsert_pages.js";
 import type * as model_websites_create_website from "../model/websites/create_website.js";
 import type * as model_websites_delete_website from "../model/websites/delete_website.js";
+import type * as model_websites_get_page_by_url from "../model/websites/get_page_by_url.js";
 import type * as model_websites_get_pages_by_website from "../model/websites/get_pages_by_website.js";
 import type * as model_websites_get_website from "../model/websites/get_website.js";
 import type * as model_websites_get_website_by_domain from "../model/websites/get_website_by_domain.js";
@@ -896,6 +897,7 @@ declare const fullApi: ApiFromModules<{
   "model/websites/bulk_upsert_pages": typeof model_websites_bulk_upsert_pages;
   "model/websites/create_website": typeof model_websites_create_website;
   "model/websites/delete_website": typeof model_websites_delete_website;
+  "model/websites/get_page_by_url": typeof model_websites_get_page_by_url;
   "model/websites/get_pages_by_website": typeof model_websites_get_pages_by_website;
   "model/websites/get_website": typeof model_websites_get_website;
   "model/websites/get_website_by_domain": typeof model_websites_get_website_by_domain;
