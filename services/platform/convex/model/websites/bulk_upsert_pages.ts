@@ -32,7 +32,7 @@ export async function bulkUpsertPages(
       .withIndex('by_organizationId_and_url', (q) =>
         q.eq('organizationId', args.organizationId).eq('url', page.url),
       )
-      .first();
+      .unique();
 
     if (existingPage) {
       // Update existing page
@@ -64,4 +64,3 @@ export async function bulkUpsertPages(
 
   return result;
 }
-

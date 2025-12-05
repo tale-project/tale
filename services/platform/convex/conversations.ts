@@ -418,6 +418,9 @@ export const getConversationsPage = queryWithRLS({
   args: {
     organizationId: v.string(),
     status: v.optional(conversationStatusValidator),
+    priority: v.optional(v.string()),
+    category: v.optional(v.string()),
+    search: v.optional(v.string()),
     page: v.optional(v.number()),
     limit: v.optional(v.number()),
   },

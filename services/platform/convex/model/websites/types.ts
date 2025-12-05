@@ -47,8 +47,8 @@ export const websitePageValidator = v.object({
   content: v.optional(v.string()),
   wordCount: v.optional(v.number()),
   lastCrawledAt: v.number(),
-  metadata: v.optional(v.any()),
-  structuredData: v.optional(v.any()),
+  metadata: v.optional(v.record(v.string(), v.any())),
+  structuredData: v.optional(v.record(v.string(), v.any())),
 });
 
 // =============================================================================
@@ -111,8 +111,8 @@ export interface BulkUpsertPagesArgs {
     title?: string;
     content?: string;
     wordCount?: number;
-    metadata?: unknown;
-    structuredData?: unknown;
+    metadata?: Record<string, unknown>;
+    structuredData?: Record<string, unknown>;
   }>;
 }
 

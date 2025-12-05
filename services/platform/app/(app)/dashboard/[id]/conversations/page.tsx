@@ -49,6 +49,9 @@ async function ConversationsContent({
         status: statusParam,
         page: parseInt(page),
         limit: 20,
+        priority: priority && priority.length > 0 ? priority : undefined,
+        category: category && category.length > 0 ? category : undefined,
+        search: search && search.length > 0 ? search : undefined,
       },
       { token },
     );

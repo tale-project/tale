@@ -2,9 +2,11 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 export type TypeFilter =
-  | 'product-recommendation'
-  | 'service-request'
-  | 'churn-survey';
+  | 'product_recommendation'
+  | 'service_request'
+  | 'churn_survey'
+  | 'general'
+  | 'spam';
 export type PriorityFilter = 'low' | 'medium' | 'high';
 
 export interface FilterState {
@@ -45,9 +47,13 @@ export function useConversationFilters(): ConversationFilters {
     const categoryValues = categoryParam.split(',');
     categoryValues.forEach((value) => {
       if (
-        ['product-recommendation', 'service-request', 'churn-survey'].includes(
-          value,
-        )
+        [
+          'product_recommendation',
+          'service_request',
+          'churn_survey',
+          'general',
+          'spam',
+        ].includes(value)
       ) {
         types.push(value as TypeFilter);
       }

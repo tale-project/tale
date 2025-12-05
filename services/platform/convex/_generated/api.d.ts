@@ -23,6 +23,8 @@ import type * as agent_tools_convex_tools_customers_helpers_read_customer_list f
 import type * as agent_tools_convex_tools_customers_helpers_types from "../agent_tools/convex_tools/customers/helpers/types.js";
 import type * as agent_tools_convex_tools_files_generate_excel_tool from "../agent_tools/convex_tools/files/generate_excel_tool.js";
 import type * as agent_tools_convex_tools_files_generate_file_tool from "../agent_tools/convex_tools/files/generate_file_tool.js";
+import type * as agent_tools_convex_tools_files_helpers_check_resource_accessible from "../agent_tools/convex_tools/files/helpers/check_resource_accessible.js";
+import type * as agent_tools_convex_tools_files_resource_check_tool from "../agent_tools/convex_tools/files/resource_check_tool.js";
 import type * as agent_tools_convex_tools_products_helpers_read_product_by_id from "../agent_tools/convex_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_convex_tools_products_helpers_read_product_list from "../agent_tools/convex_tools/products/helpers/read_product_list.js";
 import type * as agent_tools_convex_tools_products_helpers_types from "../agent_tools/convex_tools/products/helpers/types.js";
@@ -309,6 +311,7 @@ import type * as model_websites_bulk_create_websites from "../model/websites/bul
 import type * as model_websites_bulk_upsert_pages from "../model/websites/bulk_upsert_pages.js";
 import type * as model_websites_create_website from "../model/websites/create_website.js";
 import type * as model_websites_delete_website from "../model/websites/delete_website.js";
+import type * as model_websites_get_page_by_url from "../model/websites/get_page_by_url.js";
 import type * as model_websites_get_pages_by_website from "../model/websites/get_pages_by_website.js";
 import type * as model_websites_get_website from "../model/websites/get_website.js";
 import type * as model_websites_get_website_by_domain from "../model/websites/get_website_by_domain.js";
@@ -610,6 +613,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/convex_tools/customers/helpers/types": typeof agent_tools_convex_tools_customers_helpers_types;
   "agent_tools/convex_tools/files/generate_excel_tool": typeof agent_tools_convex_tools_files_generate_excel_tool;
   "agent_tools/convex_tools/files/generate_file_tool": typeof agent_tools_convex_tools_files_generate_file_tool;
+  "agent_tools/convex_tools/files/helpers/check_resource_accessible": typeof agent_tools_convex_tools_files_helpers_check_resource_accessible;
+  "agent_tools/convex_tools/files/resource_check_tool": typeof agent_tools_convex_tools_files_resource_check_tool;
   "agent_tools/convex_tools/products/helpers/read_product_by_id": typeof agent_tools_convex_tools_products_helpers_read_product_by_id;
   "agent_tools/convex_tools/products/helpers/read_product_list": typeof agent_tools_convex_tools_products_helpers_read_product_list;
   "agent_tools/convex_tools/products/helpers/types": typeof agent_tools_convex_tools_products_helpers_types;
@@ -896,6 +901,7 @@ declare const fullApi: ApiFromModules<{
   "model/websites/bulk_upsert_pages": typeof model_websites_bulk_upsert_pages;
   "model/websites/create_website": typeof model_websites_create_website;
   "model/websites/delete_website": typeof model_websites_delete_website;
+  "model/websites/get_page_by_url": typeof model_websites_get_page_by_url;
   "model/websites/get_pages_by_website": typeof model_websites_get_pages_by_website;
   "model/websites/get_website": typeof model_websites_get_website;
   "model/websites/get_website_by_domain": typeof model_websites_get_website_by_domain;

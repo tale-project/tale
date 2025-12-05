@@ -19,6 +19,7 @@ import * as WebsitesModel from './model/websites';
 import {
   websiteStatusValidator,
   websiteValidator,
+  websitePageValidator,
 } from './model/websites/types';
 
 // =============================================================================
@@ -192,6 +193,21 @@ export const getWebsiteByDomainInternal = internalQuery({
   returns: v.union(websiteValidator, v.null()),
   handler: async (ctx, args) => {
     return await WebsitesModel.getWebsiteByDomain(ctx, args);
+  },
+});
+
+/**
+ * Get a single website page by URL within an organization (internal).
+ * Used by workflows and agent tools to reuse crawled content when available.
+ */
+export const getWebsitePageByUrlInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    url: v.string(),
+  },
+  returns: v.union(websitePageValidator, v.null()),
+  handler: async (ctx, args) => {
+    return await WebsitesModel.getPageByUrl(ctx, args);
   },
 });
 

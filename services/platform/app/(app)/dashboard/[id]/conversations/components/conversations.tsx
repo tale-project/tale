@@ -27,12 +27,12 @@ export interface ConversationsProps {
 
 type SelectionState =
   | {
-      type: 'individual';
-      selectedIds: Set<string>;
-    }
+    type: 'individual';
+    selectedIds: Set<string>;
+  }
   | {
-      type: 'all';
-    };
+    type: 'all';
+  };
 
 function isAllSelection(state: SelectionState): state is { type: 'all' } {
   return state.type === 'all';
@@ -51,17 +51,23 @@ export default function Conversations({
 
   // Get current page from URL
   const page = parseInt(searchParams.get('page') || '1');
+  const search = searchParams.get('search') || undefined;
+  const category = searchParams.get('category') || undefined;
+  const priority = searchParams.get('priority') || undefined;
 
   // Use real-time Convex query for automatic updates
   const conversationsResult = useQuery(
     api.conversations.getConversationsPage,
     businessId
       ? {
-          organizationId: businessId as string,
-          status: status || 'open',
-          page,
-          limit: 20,
-        }
+        organizationId: businessId as string,
+        status: status || 'open',
+        page,
+        limit: 20,
+        search,
+        category,
+        priority,
+      }
       : 'skip',
   );
 

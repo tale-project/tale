@@ -7,6 +7,7 @@
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import { type FetchUrlsApiResponse, type WebReadFetchUrlResult } from './types';
 import type { ToolCtx } from '@convex-dev/agent';
+import { internal } from '../../../../_generated/api';
 
 import { createDebugLog } from '../../../../lib/debug_log';
 
@@ -22,13 +23,70 @@ export async function fetchPageContent(
   ctx: ToolCtx,
   args: { url: string; word_count_threshold?: number },
 ): Promise<WebReadFetchUrlResult> {
-  const { variables } = ctx;
+  const { variables, organizationId } = ctx;
   const crawlerServiceUrl = getCrawlerServiceUrl(variables);
 
   debugLog('tool:web_read:fetch_url start', {
     url: args.url,
     crawlerServiceUrl,
   });
+
+  // Try cache first when organizationId is available.
+  if (organizationId) {
+    try {
+      const cachedPage = await ctx.runQuery(
+        internal.websites.getWebsitePageByUrlInternal,
+        {
+          organizationId,
+          url: args.url,
+        },
+      );
+
+      if (cachedPage && cachedPage.content) {
+        const rawContent = cachedPage.content ?? '';
+        const wasTruncated = rawContent.length > MAX_CONTENT_CHARS;
+        const content = wasTruncated
+          ? rawContent.slice(0, MAX_CONTENT_CHARS)
+          : rawContent;
+
+        debugLog('tool:web_read:fetch_url cache_hit', {
+          url: args.url,
+          organizationId,
+          title: cachedPage.title,
+          word_count: cachedPage.wordCount,
+          truncated: wasTruncated,
+          content_length: rawContent.length,
+          has_structured_data: !!cachedPage.structuredData,
+        });
+
+        return {
+          operation: 'fetch_url',
+          success: true,
+          url: cachedPage.url,
+          title: cachedPage.title ?? undefined,
+          content,
+          word_count: cachedPage.wordCount ?? 0,
+          metadata: {
+            ...(cachedPage.metadata ?? {}),
+            truncated: wasTruncated,
+            original_content_length: rawContent.length,
+          },
+          structured_data: cachedPage.structuredData ?? undefined,
+        };
+      }
+
+      debugLog('tool:web_read:fetch_url cache_miss', {
+        url: args.url,
+        organizationId,
+      });
+    } catch (error) {
+      debugLog('tool:web_read:fetch_url cache_error', {
+        url: args.url,
+        organizationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const apiUrl = `${crawlerServiceUrl}/api/v1/fetch-urls`;
 

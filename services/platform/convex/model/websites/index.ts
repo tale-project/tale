@@ -43,3 +43,6 @@ export type {
 
 export { getPagesByWebsite } from './get_pages_by_website';
 export type { GetPagesByWebsiteArgs } from './get_pages_by_website';
+
+export { getPageByUrl } from './get_page_by_url';
+export type { GetPageByUrlArgs } from './get_page_by_url';

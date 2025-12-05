@@ -26,7 +26,7 @@ export async function createConversationPublic(
     subject: args.subject,
     status: (args.status as any) || 'open',
     priority: args.priority,
-    type: args.type || 'General',
+    type: args.type || 'general',
     direction: args.direction,
 
     metadata: args.metadata || {},

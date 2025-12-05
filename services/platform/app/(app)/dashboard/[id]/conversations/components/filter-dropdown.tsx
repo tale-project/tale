@@ -26,11 +26,13 @@ interface FilterDropdownProps {
 
 const typeOptions = [
   {
-    id: 'product-recommendation' as TypeFilter,
+    id: 'product_recommendation' as TypeFilter,
     label: 'Product recommendation',
   },
-  { id: 'service-request' as TypeFilter, label: 'Service request' },
-  { id: 'churn-survey' as TypeFilter, label: 'Churn survey' },
+  { id: 'service_request' as TypeFilter, label: 'Service request' },
+  { id: 'churn_survey' as TypeFilter, label: 'Churn survey' },
+  { id: 'general' as TypeFilter, label: 'General' },
+  { id: 'spam' as TypeFilter, label: 'Spam' },
 ];
 
 const priorityOptions = [
