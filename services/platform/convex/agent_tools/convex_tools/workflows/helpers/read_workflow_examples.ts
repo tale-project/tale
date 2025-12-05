@@ -1,15 +1,13 @@
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { Doc } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import type { WorkflowReadSearchExamplesResult } from './types';
 
 export async function readWorkflowExamples(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { query: string; limit?: number; includeInactive?: boolean },
 ): Promise<WorkflowReadSearchExamplesResult> {
-  const actionCtx = ctx as ActionCtx;
-  const organizationId = (ctx as unknown as { organizationId?: string })
-    .organizationId;
+  const { organizationId } = ctx;
 
   if (!organizationId) {
     return {
@@ -24,7 +22,7 @@ export async function readWorkflowExamples(
   }
 
   try {
-    const allWorkflows = (await actionCtx.runQuery(
+    const allWorkflows = (await ctx.runQuery(
       internal.wf_definitions.listWorkflows,
       {
         organizationId,
@@ -47,7 +45,7 @@ export async function readWorkflowExamples(
 
     const examples = await Promise.all(
       matchingWorkflows.slice(0, limit).map(async (wf) => {
-        const steps = (await actionCtx.runQuery(
+        const steps = (await ctx.runQuery(
           internal.wf_step_defs.listWorkflowSteps,
           {
             wfDefinitionId: wf._id,

@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { createTool } from '@convex-dev/agent';
+import { createTool, type ToolCtx } from '@convex-dev/agent';
 import Fuse from 'fuse.js';
 import type { ToolDefinition } from '../../types';
 import { components } from '../../../_generated/api';
@@ -58,7 +58,7 @@ Provide a single, focused keyword or short phrase per call. If you need to searc
         .string()
         .describe('Search query to match against message content'),
     }),
-    handler: async (ctx, args): Promise<ContextSearchResult> => {
+    handler: async (ctx: ToolCtx, args): Promise<ContextSearchResult> => {
       const { threadId, query } = args;
       // We always cap the number of *direct* matches at 10. Even if more
       // messages match the query, only the best 10 are used for subsequent

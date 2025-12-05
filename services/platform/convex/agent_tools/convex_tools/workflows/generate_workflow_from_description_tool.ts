@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import { generateObject } from 'ai';
 import { openai } from '../../../lib/openai_provider';
@@ -44,7 +45,7 @@ export const generateWorkflowFromDescriptionTool = {
         ),
     }),
     handler: async (
-      ctx,
+      ctx: ToolCtx,
       args,
     ): Promise<{
       success: boolean;
@@ -52,8 +53,7 @@ export const generateWorkflowFromDescriptionTool = {
       workflow?: unknown;
       message: string;
     }> => {
-      const organizationId = (ctx as unknown as { organizationId?: string })
-        .organizationId;
+      const { organizationId } = ctx;
 
       if (!organizationId) {
         throw new Error('organizationId is required in context');

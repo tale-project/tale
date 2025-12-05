@@ -11,6 +11,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import type {
@@ -129,7 +130,7 @@ BEST PRACTICES:
 • Pass 'status' parameter with 'list_all' to filter by workflow status.`,
     args: workflowReadArgs,
     handler: async (
-      ctx,
+      ctx: ToolCtx,
       args,
     ): Promise<
       | WorkflowReadListActionsResult

@@ -1,14 +1,12 @@
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../../_generated/api';
 import { defaultListFields, type ProductReadListResult } from './types';
 
 export async function readProductList(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { fields?: string[]; cursor?: string | null; numItems?: number },
 ): Promise<ProductReadListResult> {
-  const actionCtx = ctx as unknown as ActionCtx;
-  const organizationId = (ctx as unknown as { organizationId?: string })
-    .organizationId;
+  const { organizationId } = ctx;
 
   if (!organizationId) {
     throw new Error(
@@ -24,7 +22,7 @@ export async function readProductList(
     page: Array<Record<string, unknown>>;
     isDone: boolean;
     continueCursor: string | null;
-  } = await actionCtx.runQuery(internal.products.listByOrganization, {
+  } = await ctx.runQuery(internal.products.listByOrganization, {
     organizationId,
     paginationOpts: {
       numItems,

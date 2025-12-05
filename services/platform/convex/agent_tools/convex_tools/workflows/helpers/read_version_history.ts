@@ -2,7 +2,7 @@
  * Helper to read all historical versions of a workflow with their steps
  */
 
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { Doc } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import type {
@@ -16,12 +16,10 @@ export interface ReadVersionHistoryArgs {
 }
 
 export async function readVersionHistory(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: ReadVersionHistoryArgs,
 ): Promise<WorkflowReadListVersionHistoryResult> {
-  const actionCtx = ctx as ActionCtx;
-  const organizationId = (ctx as unknown as { organizationId?: string })
-    .organizationId;
+  const { organizationId } = ctx;
 
   if (!organizationId) {
     return {
@@ -35,7 +33,7 @@ export async function readVersionHistory(
 
   try {
     // Get all versions of the workflow
-    const allVersions = (await actionCtx.runQuery(
+    const allVersions = (await ctx.runQuery(
       internal.wf_definitions.listVersions,
       {
         organizationId,
@@ -60,12 +58,9 @@ export async function readVersionHistory(
         let steps: Doc<'wfStepDefs'>[] | undefined;
 
         if (includeSteps) {
-          steps = (await actionCtx.runQuery(
-            internal.wf_step_defs.listWorkflowSteps,
-            {
-              wfDefinitionId: wf._id,
-            },
-          )) as Doc<'wfStepDefs'>[];
+          steps = (await ctx.runQuery(internal.wf_step_defs.listWorkflowSteps, {
+            wfDefinitionId: wf._id,
+          })) as Doc<'wfStepDefs'>[];
         }
 
         return {
@@ -101,4 +96,3 @@ export async function readVersionHistory(
     };
   }
 }
-

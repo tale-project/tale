@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
@@ -82,7 +83,7 @@ export const saveWorkflowDefinitionTool = {
         ),
     }),
     handler: async (
-      ctx,
+      ctx: ToolCtx,
       args,
     ): Promise<{
       success: boolean;
@@ -90,15 +91,21 @@ export const saveWorkflowDefinitionTool = {
       stepCount?: number;
       message: string;
     }> => {
-      const organizationId = (ctx as unknown as { organizationId?: string })
-        .organizationId;
+      const { organizationId, workflowId: workflowIdFromContext } = ctx;
 
       if (!organizationId) {
-        throw new Error('organizationId is required in context');
+        return {
+          success: false,
+          message:
+            'organizationId is required in the tool context to save a workflow definition.',
+        } satisfies {
+          success: boolean;
+          workflowId?: string;
+          stepCount?: number;
+          message: string;
+        };
       }
 
-      const workflowIdFromContext = (ctx as unknown as { workflowId?: string })
-        .workflowId;
       const targetWorkflowId = args.workflowId ?? workflowIdFromContext;
 
       if (!targetWorkflowId) {
