@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -66,10 +67,8 @@ Parameters:
           'If this is a correction, the incorrect information that was provided',
         ),
     }),
-    handler: async (ctx, args): Promise<DocumentAddResponse> => {
-      const variables = (
-        ctx as unknown as { variables?: Record<string, unknown> }
-      ).variables;
+    handler: async (ctx: ToolCtx, args): Promise<DocumentAddResponse> => {
+      const { variables } = ctx;
 
       const ragServiceUrl = getRagServiceUrl(variables);
       const isCorrection = !!args.incorrect_info;

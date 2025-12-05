@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import type {
@@ -103,7 +104,7 @@ BEST PRACTICES:
 • If you need customer information not found in standard fields, check the 'metadata' field - it may contain additional custom attributes imported from external systems.`,
     args: customerReadArgs,
     handler: async (
-      ctx,
+      ctx: ToolCtx,
       args,
     ): Promise<
       | CustomerReadGetByIdResult

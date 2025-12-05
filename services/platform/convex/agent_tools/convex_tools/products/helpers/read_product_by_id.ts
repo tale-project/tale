@@ -1,4 +1,4 @@
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { Id } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type ProductReadGetByIdResult } from './types';
@@ -8,18 +8,17 @@ import { createDebugLog } from '../../../../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 export async function readProductById(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { productId: string; fields?: string[] },
 ): Promise<ProductReadGetByIdResult> {
-  const organizationId = (ctx as { organizationId?: string }).organizationId;
+  const { organizationId } = ctx;
 
   debugLog('tool:product_read get_by_id start', {
     organizationId,
     productId: args.productId,
   });
 
-  const actionCtx = ctx as ActionCtx;
-  const product = await actionCtx.runQuery(internal.products.getProductById, {
+  const product = await ctx.runQuery(internal.products.getProductById, {
     productId: args.productId as Id<'products'>,
   });
 

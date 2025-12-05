@@ -1,4 +1,4 @@
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByEmailResult } from './types';
 
@@ -7,12 +7,10 @@ import { createDebugLog } from '../../../../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 export async function readCustomerByEmail(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { email: string; fields?: string[] },
 ): Promise<CustomerReadGetByEmailResult> {
-  const actionCtx = ctx as ActionCtx;
-  const organizationId = (ctx as unknown as { organizationId?: string })
-    .organizationId;
+  const { organizationId } = ctx;
 
   if (!organizationId) {
     throw new Error(
@@ -25,7 +23,7 @@ export async function readCustomerByEmail(
     email: args.email,
   });
 
-  const customer = await actionCtx.runQuery(
+  const customer = await ctx.runQuery(
     internal.customers.getCustomerByEmailInternal,
     {
       organizationId,

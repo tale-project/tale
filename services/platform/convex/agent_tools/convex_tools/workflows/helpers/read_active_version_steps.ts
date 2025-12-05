@@ -2,7 +2,7 @@
  * Helper to read the active version of a workflow with all its steps
  */
 
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { Doc } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import type { WorkflowReadGetActiveVersionStepsResult } from './types';
@@ -12,12 +12,10 @@ export interface ReadActiveVersionStepsArgs {
 }
 
 export async function readActiveVersionSteps(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: ReadActiveVersionStepsArgs,
 ): Promise<WorkflowReadGetActiveVersionStepsResult> {
-  const actionCtx = ctx as ActionCtx;
-  const organizationId = (ctx as unknown as { organizationId?: string })
-    .organizationId;
+  const { organizationId } = ctx;
 
   if (!organizationId) {
     return {
@@ -31,7 +29,7 @@ export async function readActiveVersionSteps(
 
   try {
     // Get the active version of the workflow
-    const workflow = (await actionCtx.runQuery(
+    const workflow = (await ctx.runQuery(
       internal.wf_definitions.getActiveVersion,
       {
         organizationId,
@@ -49,12 +47,9 @@ export async function readActiveVersionSteps(
     }
 
     // Get all steps for the active workflow version
-    const steps = (await actionCtx.runQuery(
-      internal.wf_step_defs.listWorkflowSteps,
-      {
-        wfDefinitionId: workflow._id,
-      },
-    )) as Doc<'wfStepDefs'>[];
+    const steps = (await ctx.runQuery(internal.wf_step_defs.listWorkflowSteps, {
+      wfDefinitionId: workflow._id,
+    })) as Doc<'wfStepDefs'>[];
 
     return {
       operation: 'get_active_version_steps',
@@ -73,4 +68,3 @@ export async function readActiveVersionSteps(
     };
   }
 }
-

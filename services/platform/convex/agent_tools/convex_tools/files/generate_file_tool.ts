@@ -5,8 +5,8 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
-import type { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -111,9 +111,7 @@ CRITICAL:
           'Whether to wrap raw content in a standard HTML template before rendering',
         ),
     }),
-    handler: async (ctx, args): Promise<GenerateFileResult> => {
-      const actionCtx = ctx as unknown as ActionCtx;
-
+    handler: async (ctx: ToolCtx, args): Promise<GenerateFileResult> => {
       const outputFormat = args.outputFormat ?? 'pdf';
 
       debugLog('tool:generate_file start', {
@@ -123,7 +121,7 @@ CRITICAL:
       });
 
       try {
-        const result = await actionCtx.runAction(
+        const result = await ctx.runAction(
           internal.documents.generateDocumentInternal,
           {
             fileName: args.fileName,

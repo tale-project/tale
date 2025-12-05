@@ -8,6 +8,7 @@
 import { getSearchServiceUrl } from './get_search_service_url';
 import { fetchSearXNGResults } from './fetch_searxng_results';
 import { type WebReadSearchResult } from './types';
+import type { ToolCtx } from '@convex-dev/agent';
 
 import { createDebugLog } from '../../../../lib/debug_log';
 
@@ -29,10 +30,10 @@ export interface SearchWebArgs {
 }
 
 export async function searchWeb(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: SearchWebArgs,
 ): Promise<WebReadSearchResult> {
-  const variables = (ctx as { variables?: Record<string, unknown> }).variables;
+  const { variables } = ctx;
   const searchServiceUrl = getSearchServiceUrl(variables);
   const numResults = args.num_results ?? 10;
   const pageNumber = args.page_number ?? 1;

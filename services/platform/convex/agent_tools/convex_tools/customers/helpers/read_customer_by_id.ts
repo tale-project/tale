@@ -1,4 +1,4 @@
-import type { ActionCtx } from '../../../../_generated/server';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { Id } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByIdResult } from './types';
@@ -8,23 +8,19 @@ import { createDebugLog } from '../../../../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
 export async function readCustomerById(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { customerId: string; fields?: string[] },
 ): Promise<CustomerReadGetByIdResult> {
-  const organizationId = (ctx as { organizationId?: string }).organizationId;
+  const { organizationId } = ctx;
 
   debugLog('tool:customer_read get_by_id start', {
     organizationId,
     customerId: args.customerId,
   });
 
-  const actionCtx = ctx as ActionCtx;
-  const customer = await actionCtx.runQuery(
-    internal.customers.getCustomerById,
-    {
-      customerId: args.customerId as Id<'customers'>,
-    },
-  );
+  const customer = await ctx.runQuery(internal.customers.getCustomerById, {
+    customerId: args.customerId as Id<'customers'>,
+  });
 
   if (!customer) {
     debugLog('tool:customer_read get_by_id not found', {

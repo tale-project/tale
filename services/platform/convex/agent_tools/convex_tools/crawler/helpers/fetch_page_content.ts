@@ -6,6 +6,7 @@
 
 import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import { type FetchUrlsApiResponse, type WebReadFetchUrlResult } from './types';
+import type { ToolCtx } from '@convex-dev/agent';
 
 import { createDebugLog } from '../../../../lib/debug_log';
 
@@ -18,10 +19,10 @@ const debugLog = createDebugLog('DEBUG_CRAWLER', '[Crawler]');
 const MAX_CONTENT_CHARS = 100_000;
 
 export async function fetchPageContent(
-  ctx: unknown,
+  ctx: ToolCtx,
   args: { url: string; word_count_threshold?: number },
 ): Promise<WebReadFetchUrlResult> {
-  const variables = (ctx as { variables?: Record<string, unknown> }).variables;
+  const { variables } = ctx;
   const crawlerServiceUrl = getCrawlerServiceUrl(variables);
 
   debugLog('tool:web_read:fetch_url start', {

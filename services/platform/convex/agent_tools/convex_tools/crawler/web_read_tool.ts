@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { createTool } from '@convex-dev/agent';
+import { createTool, type ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import type {
@@ -108,7 +108,7 @@ EXAMPLE USAGE:
 • Site-specific: { operation: "search", query: "hooks tutorial", site: "react.dev" }`,
     args: webReadArgs,
     handler: async (
-      ctx,
+      ctx: ToolCtx,
       args,
     ): Promise<WebReadFetchUrlResult | WebReadSearchResult> => {
       if (args.operation === 'fetch_url') {

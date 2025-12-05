@@ -4,8 +4,8 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
-import type { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -68,16 +68,14 @@ CRITICAL:
         .nonempty()
         .describe('Sheets to include in the Excel file'),
     }),
-    handler: async (ctx, args): Promise<GenerateExcelResult> => {
-      const actionCtx = ctx as unknown as ActionCtx;
-
+    handler: async (ctx: ToolCtx, args): Promise<GenerateExcelResult> => {
       debugLog('tool:generate_excel start', {
         fileName: args.fileName,
         sheetCount: args.sheets.length,
       });
 
       try {
-        const result = await actionCtx.runAction(
+        const result = await ctx.runAction(
           internal.documents.generateExcelInternal,
           {
             fileName: args.fileName,

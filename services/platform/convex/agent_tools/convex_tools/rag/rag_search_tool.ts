@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
+import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -62,11 +63,9 @@ Use this tool to find information from previously uploaded documents, websites, 
         .optional()
         .describe('Whether to include metadata in results (default: true)'),
     }),
-    handler: async (ctx, args): Promise<QueryResponse> => {
+    handler: async (ctx: ToolCtx, args): Promise<QueryResponse> => {
       // Get variables from context (injected by agent caller)
-      const variables = (
-        ctx as unknown as { variables?: Record<string, unknown> }
-      ).variables;
+      const { variables } = ctx;
 
       const ragServiceUrl = getRagServiceUrl(variables);
 
