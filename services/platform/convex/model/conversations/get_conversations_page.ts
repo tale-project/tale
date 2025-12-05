@@ -1,5 +1,6 @@
 /**
- * Get a paged list of conversations for an organization with filtering by status (business logic)
+ * Get a paged list of conversations for an organization with filtering by
+ * status, priority, category, and search (business logic)
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -11,6 +12,9 @@ export async function getConversationsPage(
   args: {
     organizationId: string;
     status?: 'open' | 'closed' | 'spam' | 'archived';
+    priority?: string;
+    category?: string;
+    search?: string;
     page?: number;
     limit?: number;
   },
@@ -20,7 +24,7 @@ export async function getConversationsPage(
   const offset = (page - 1) * limit;
 
   // Use index query with organizationId and status (default: 'open').
-  // Collect all conversations first to enable proper ordering
+  // Collect (and filter) conversations first to enable proper ordering
   const allConversations: Array<
     Awaited<ReturnType<typeof transformConversation>>
   > = [];
@@ -33,10 +37,60 @@ export async function getConversationsPage(
         .eq('status', args.status ?? 'open'),
     );
 
-  for await (const row of baseQuery) {
-    allConversations.push(await transformConversation(ctx, row));
-  }
+  // Precompute filter helpers so they can be applied inside the async iterator
+  const allowedPriorities = args.priority
+    ? new Set(
+        args.priority
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      )
+    : null;
 
+  const allowedTypes = args.category
+    ? new Set(
+        args.category
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      )
+    : null;
+
+  const searchLower = args.search?.toLowerCase();
+
+  for await (const row of baseQuery) {
+    const conversation = await transformConversation(ctx, row);
+
+    // Priority filter: support comma-separated priorities (e.g. "low,medium")
+    if (allowedPriorities && allowedPriorities.size > 0) {
+      const priority = conversation.priority as string | undefined;
+      if (!priority || !allowedPriorities.has(priority)) {
+        continue;
+      }
+    }
+
+    // Category filter: maps to the conversation "type" field
+    if (allowedTypes && allowedTypes.size > 0) {
+      const type = conversation.type as string | undefined;
+      if (!type || !allowedTypes.has(type)) {
+        continue;
+      }
+    }
+
+    // Search filter: match against title and description
+    if (searchLower) {
+      const title =
+        (conversation.title as string | undefined)?.toLowerCase() ?? '';
+      const description =
+        (conversation.description as string | undefined)?.toLowerCase() ?? '';
+
+      if (!title.includes(searchLower) && !description.includes(searchLower)) {
+        continue;
+      }
+    }
+
+    allConversations.push(conversation);
+  }
   // Sort by last_message_at in descending order (latest first)
   allConversations.sort((a, b) => {
     const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;

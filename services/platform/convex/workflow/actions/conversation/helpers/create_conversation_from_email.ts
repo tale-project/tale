@@ -38,6 +38,7 @@ export async function createConversationFromEmail(
     status?: ConversationStatus;
     priority?: string;
     providerId?: Id<'emailProviders'>;
+    type?: string;
   },
 ) {
   // Handle both single email and array of emails
@@ -214,6 +215,7 @@ export async function createConversationFromEmail(
         subject: rootEmail.subject || '(no subject)',
         status: (params.status || 'open') as ConversationStatus,
         priority: params.priority,
+        type: params.type || 'general',
         channel: 'email',
         direction: 'inbound',
         providerId: params.providerId,

@@ -23,6 +23,7 @@ export async function createConversationFromSentEmail(
     priority?: string;
     accountEmail?: string; // The mailbox address of the account/mailbox being synced
     providerId?: Id<'emailProviders'>;
+    type?: string;
   },
 ) {
   // Handle both single email and array of emails
@@ -282,6 +283,7 @@ export async function createConversationFromSentEmail(
         subject: rootEmail.subject || '(no subject)',
         status: (params.status || 'open') as ConversationStatus,
         priority: params.priority,
+        type: params.type || 'general',
         channel: 'email',
         direction: conversationDirection,
         providerId: params.providerId,

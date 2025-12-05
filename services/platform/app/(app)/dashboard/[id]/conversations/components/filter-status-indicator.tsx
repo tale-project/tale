@@ -19,10 +19,12 @@ interface FilterStatusIndicatorProps {
   ) => void;
 }
 
-const typeLabels = {
-  'product-recommendation': 'Product Recommendation',
-  'service-request': 'Service Request',
-  'churn-survey': 'Churn Survey',
+const typeLabels: Record<TypeFilter, string> = {
+  product_recommendation: 'Product Recommendation',
+  service_request: 'Service Request',
+  churn_survey: 'Churn Survey',
+  general: 'General',
+  spam: 'Spam',
 };
 
 const priorityLabels = {

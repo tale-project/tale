@@ -770,8 +770,8 @@ export default defineSchema({
     content: v.optional(v.string()), // Page content (markdown or text)
     wordCount: v.optional(v.number()), // Word count
     lastCrawledAt: v.number(), // Last crawl timestamp
-    metadata: v.optional(v.any()), // Page metadata (description, keywords, author, etc.)
-    structuredData: v.optional(v.any()), // Structured data extracted from page
+    metadata: v.optional(v.record(v.string(), v.any())), // Page metadata as JSON object (description, keywords, author, etc.)
+    structuredData: v.optional(v.record(v.string(), v.any())), // Structured data extracted from page (JSON object)
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_websiteId', ['websiteId'])

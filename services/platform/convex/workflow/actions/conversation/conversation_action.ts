@@ -240,6 +240,7 @@ export const conversationAction: ActionDefinition<{
           status: params.status,
           priority: params.priority,
           providerId: params.providerId,
+          type: params.type,
         });
       }
 
@@ -262,6 +263,7 @@ export const conversationAction: ActionDefinition<{
           priority: params.priority,
           providerId: params.providerId,
           accountEmail: params.accountEmail,
+          type: params.type,
         });
       }
 
