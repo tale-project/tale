@@ -39,6 +39,9 @@ export default function Approvals({
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
     null,
   );
+  const [removingProductId, setRemovingProductId] = useState<string | null>(
+    null,
+  );
   const [approvalDetailModalOpen, setApprovalDetailModalOpen] = useState(false);
   const router = useRouter();
 
@@ -122,6 +125,10 @@ export default function Approvals({
     api.approvals.updateApprovalStatusPublic,
   );
 
+  const removeRecommendedProduct = useMutation(
+    api.approvals.removeRecommendedProduct,
+  );
+
   const handleApprove = async (approvalId: string) => {
     if (!memberContext?.member?._id) {
       toast({
@@ -182,6 +189,35 @@ export default function Approvals({
       });
     } finally {
       setRejecting(null);
+    }
+  };
+
+  const handleRemoveRecommendation = async (
+    approvalId: string,
+    productId: string,
+  ) => {
+    if (!memberContext?.member?._id) {
+      toast({
+        title: 'You must be logged in to update recommendations.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setRemovingProductId(productId);
+    try {
+      await removeRecommendedProduct({
+        approvalId: approvalId as Id<'approvals'>,
+        productId,
+      });
+    } catch (error) {
+      console.error('Failed to remove recommendation:', error);
+      toast({
+        title: 'Failed to remove recommendation. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemovingProductId(null);
     }
   };
 
@@ -628,6 +664,8 @@ export default function Approvals({
           onReject={handleReject}
           isApproving={approving === selectedApprovalId}
           isRejecting={rejecting === selectedApprovalId}
+          onRemoveRecommendation={handleRemoveRecommendation}
+          removingProductId={removingProductId}
         />
       </>
     );
@@ -735,6 +773,8 @@ export default function Approvals({
           onReject={handleReject}
           isApproving={approving === selectedApprovalId}
           isRejecting={rejecting === selectedApprovalId}
+          onRemoveRecommendation={handleRemoveRecommendation}
+          removingProductId={removingProductId}
         />
       </>
     );
@@ -757,6 +797,12 @@ export default function Approvals({
         approvalDetail={
           selectedApprovalId ? getApprovalDetail(selectedApprovalId) : null
         }
+        onApprove={handleApprove}
+        onReject={handleReject}
+        isApproving={approving === selectedApprovalId}
+        isRejecting={rejecting === selectedApprovalId}
+        onRemoveRecommendation={handleRemoveRecommendation}
+        removingProductId={removingProductId}
       />
     </div>
   );

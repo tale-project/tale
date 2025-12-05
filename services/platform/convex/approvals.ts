@@ -179,3 +179,18 @@ export const updateApprovalStatusPublic = mutationWithRLS({
     return null;
   },
 });
+
+/**
+ * Remove a single recommended product from an approval (public)
+ */
+export const removeRecommendedProduct = mutationWithRLS({
+  args: {
+    approvalId: v.id('approvals'),
+    productId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ApprovalsModel.removeRecommendedProduct(ctx, args);
+    return null;
+  },
+});

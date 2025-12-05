@@ -18,6 +18,7 @@ import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workfl
 import { validateWorkflowDefinitionTool } from './convex_tools/workflows/validate_workflow_definition_tool';
 import { generateExcelTool } from './convex_tools/files/generate_excel_tool';
 import { generateFileTool } from './convex_tools/files/generate_file_tool';
+import { resourceCheckTool } from './convex_tools/files/resource_check_tool';
 import { contextSearchTool } from './convex_tools/threads/context_search_tool';
 
 /**
@@ -33,6 +34,7 @@ export const TOOL_NAMES = [
   'rag_write',
   'web_read',
   'generate_file',
+  'resource_check',
   'workflow_read',
   'update_workflow_step',
   'generate_workflow_from_description',
@@ -58,6 +60,7 @@ export const TOOL_REGISTRY = [
   validateWorkflowDefinitionTool,
   generateExcelTool,
   generateFileTool,
+  resourceCheckTool,
   contextSearchTool,
 ] as const;
 

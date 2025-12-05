@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { Sparkles } from 'lucide-react';
 import {
   Dialog,
@@ -40,6 +39,8 @@ interface ApprovalDetailModalProps {
   onReject?: (approvalId: string) => void;
   isApproving?: boolean;
   isRejecting?: boolean;
+  onRemoveRecommendation?: (approvalId: string, productId: string) => void;
+  removingProductId?: string | null;
 }
 
 export default function ApprovalDetailModal({
@@ -50,6 +51,8 @@ export default function ApprovalDetailModal({
   onReject,
   isApproving,
   isRejecting,
+  onRemoveRecommendation,
+  removingProductId,
 }: ApprovalDetailModalProps) {
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
@@ -57,9 +60,9 @@ export default function ApprovalDetailModal({
     api.customers.getCustomerByEmail,
     approvalDetail?.customer.email
       ? {
-          email: approvalDetail.customer.email,
-          organizationId: approvalDetail.organizationId,
-        }
+        email: approvalDetail.customer.email,
+        organizationId: approvalDetail.organizationId,
+      }
       : 'skip',
   );
 
@@ -77,6 +80,11 @@ export default function ApprovalDetailModal({
 
   const customerRecord = customer || null;
 
+  const handleRemoveRecommendation = (productId: string) => {
+    if (!onRemoveRecommendation) return;
+    onRemoveRecommendation(approvalDetail._id, productId);
+  };
+
   const formatDate = (timestamp: number) => {
     return formatDateUtil(new Date(timestamp).toISOString(), {
       preset: 'long',
@@ -84,7 +92,7 @@ export default function ApprovalDetailModal({
     });
   };
 
-  const firstProduct = sortedProducts[0];
+  const visibleProducts = sortedProducts.slice(0, 3);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -169,51 +177,25 @@ export default function ApprovalDetailModal({
           </div>
 
           {/* Recommended Products */}
-          <div className="space-y-4">
-            <h4 className="text-lg font-semibold text-foreground">
-              Recommended products
-            </h4>
-            {firstProduct && (
-              <div className="border border-border rounded-lg p-3">
-                <div className="flex gap-3">
-                  <div className="size-[60px] bg-muted rounded-lg overflow-hidden flex-shrink-0">
-                    <Image
-                      src={
-                        firstProduct.image || '/assets/placeholder-image.png'
-                      }
-                      alt={firstProduct.name}
-                      width={60}
-                      height={60}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== '/assets/placeholder-image.png') {
-                          target.src = '/assets/placeholder-image.png';
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-medium text-foreground">
-                        {firstProduct.name}
-                      </h4>
-                      {(firstProduct.description || firstProduct.reasoning) && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {firstProduct.description || firstProduct.reasoning}
-                        </p>
-                      )}
-                    </div>
-                    {firstProduct.relationshipType && (
-                      <Badge variant="outline">
-                        {firstProduct.relationshipType}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+          {visibleProducts.length > 0 && (
+            <div className="space-y-4">
+              <h4 className="text-lg font-semibold text-foreground">
+                Recommended products
+              </h4>
+              <div className="border border-border rounded-[10px] overflow-hidden">
+                {visibleProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    type="recommended"
+                    canRemove={approvalDetail.status === 'pending'}
+                    onRemove={handleRemoveRecommendation}
+                    isRemoving={removingProductId === product.id}
+                  />
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Previous Purchases */}
           {approvalDetail.previousPurchases.length > 0 && (
