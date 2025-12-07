@@ -171,13 +171,13 @@ docker buildx build \
 
 ```bash
 # Pull from GHCR
-docker pull ghcr.io/your-org/poc2/tale-rag:latest
+docker pull ghcr.io/your-org/tale/tale-rag:latest
 
 # Run the image
 docker run -d \
   -p 8001:8001 \
   -e OPENAI_API_KEY=sk-... \
-  ghcr.io/your-org/poc2/tale-rag:latest
+  ghcr.io/your-org/tale/tale-rag:latest
 ```
 
 ### Build and Push
@@ -284,7 +284,7 @@ docker compose exec rag python -c "import asyncpg; print('DB OK')"
 curl http://localhost:6333/healthz
 
 # Check network
-docker network inspect poc2_internal
+docker network inspect tale_internal
 ```
 
 ### Performance Issues
@@ -307,7 +307,7 @@ docker compose logs --tail=100 rag
 ```bash
 # Backup cognee data
 docker run --rm \
-  -v poc2_rag-data:/data \
+  -v tale_rag-data:/data \
   -v $(pwd)/backups:/backup \
   alpine tar czf /backup/rag-data-$(date +%Y%m%d).tar.gz /data
 ```
@@ -343,6 +343,6 @@ docker compose down -v
 
 For issues and questions:
 
-- GitHub Issues: [Create an issue](https://github.com/your-org/poc2/issues)
+- GitHub Issues: [Create an issue](https://github.com/your-org/tale/issues)
 - Documentation: http://localhost:8001/docs
 - Health Check: http://localhost:8001/health

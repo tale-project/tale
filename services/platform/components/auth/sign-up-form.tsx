@@ -35,7 +35,9 @@ interface SignUpFormProps {
   microsoftEnabled?: boolean;
 }
 
-export default function SignUpForm({ microsoftEnabled = false }: SignUpFormProps) {
+export default function SignUpForm({
+  microsoftEnabled = false,
+}: SignUpFormProps) {
   const router = useRouter();
 
   // Single form for both email and password
@@ -161,23 +163,25 @@ export default function SignUpForm({ microsoftEnabled = false }: SignUpFormProps
                   className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
                   {...form.register('password')}
                 />
-                <ul className="text-xs space-y-1 text-muted-foreground list-none">
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    At least 8 characters
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Lowercase letter
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Uppercase letter
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Number
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Special character
-                  </li>
-                </ul>
+                {password && (
+                  <ul className="text-xs space-y-1 text-muted-foreground list-none">
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      At least 8 characters
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      Lowercase letter
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      Uppercase letter
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      Number
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      Special character
+                    </li>
+                  </ul>
+                )}
               </div>
 
               {/* Sign Up Button */}
