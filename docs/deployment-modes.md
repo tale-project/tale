@@ -161,4 +161,4 @@ docker compose up --build
 
 - Ensure platform service is healthy: `docker ps` (check STATUS column)
 - Check platform logs: `docker logs tale-platform`
-- Verify internal networking: `docker network inspect poc2_internal`
+- Verify internal networking: `docker network inspect tale_internal`
