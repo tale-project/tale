@@ -12,6 +12,7 @@ import FilterDropdown from './filter-dropdown';
 import { BulkSendMessagesDialog } from './bulk-send-messages-dialog';
 import { useConversationFilters } from '@/hooks/use-conversation-filters';
 import FilterStatusIndicator from './filter-status-indicator';
+import ActivateConversationsEmptyState from './activate-conversations-empty-state';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/hooks/use-toast';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -27,12 +28,12 @@ export interface ConversationsProps {
 
 type SelectionState =
   | {
-    type: 'individual';
-    selectedIds: Set<string>;
-  }
+      type: 'individual';
+      selectedIds: Set<string>;
+    }
   | {
-    type: 'all';
-  };
+      type: 'all';
+    };
 
 function isAllSelection(state: SelectionState): state is { type: 'all' } {
   return state.type === 'all';
@@ -60,21 +61,28 @@ export default function Conversations({
     api.conversations.getConversationsPage,
     businessId
       ? {
-        organizationId: businessId as string,
-        status: status || 'open',
-        page,
-        limit: 20,
-        search,
-        category,
-        priority,
-      }
+          organizationId: businessId as string,
+          status: status || 'open',
+          page,
+          limit: 20,
+          search,
+          category,
+          priority,
+        }
       : 'skip',
+  );
+
+  // Query email providers to check if any are configured
+  const emailProviders = useQuery(
+    api.email_providers.list,
+    businessId ? { organizationId: businessId as string } : 'skip',
   );
 
   // Use real-time data if available, fallback to initial data
   const conversations =
     conversationsResult?.conversations || initialConversations || [];
   const isLoadingConversations = conversationsResult === undefined;
+  const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Convex mutations
   const bulkResolve = useMutation(api.conversations.bulkCloseConversations);
@@ -346,6 +354,16 @@ export default function Conversations({
     : isSelectAllChecked()
       ? true
       : false;
+
+  // Show empty state when there are no conversations and no email providers configured
+  const showActivateEmptyState =
+    conversations.length === 0 && !hasEmailProviders;
+
+  if (showActivateEmptyState) {
+    return (
+      <ActivateConversationsEmptyState organizationId={businessId as string} />
+    );
+  }
 
   return (
     <>
