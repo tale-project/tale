@@ -5,6 +5,7 @@
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import type { DocumentItemResponse } from './types';
+import { extractExtension } from './extract_extension';
 
 export async function transformToDocumentItem(
   ctx: QueryCtx,
@@ -27,6 +28,13 @@ export async function transformToDocumentItem(
       | 'file'
       | 'folder',
     size: (document.metadata as { size?: number })?.size,
+    mimeType:
+      document.mimeType ??
+      (document.metadata as { mimeType?: string })?.mimeType,
+    extension:
+      document.extension ??
+      (document.metadata as { extension?: string })?.extension ??
+      extractExtension(document.title),
     storagePath: (document.metadata as { storagePath?: string })?.storagePath,
     sourceProvider: ((document as any).sourceProvider ??
       (document.metadata as { sourceProvider?: string })?.sourceProvider ??

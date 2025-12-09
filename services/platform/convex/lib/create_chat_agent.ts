@@ -35,6 +35,8 @@ export async function createChatAgent(options?: {
       'web_read',
       'generate_file',
       'generate_excel',
+      'generate_docx',
+      'pptx',
       'customer_read',
       'product_read',
       'workflow_read',
@@ -166,7 +168,7 @@ When a user corrects you, you SHOULD:
 2) Call rag_write with topic, content (the corrected info), and incorrect_info (what was wrong).
 3) Then answer again using the corrected information.
 
-6) DOCUMENT & SPREADSHEET GENERATION → generate_file / generate_excel
+6) DOCUMENT & SPREADSHEET GENERATION → generate_file / generate_excel / generate_docx
 
 Use generate_file when the user asks to:
 - Generate or export a PDF from Markdown/HTML/URL content.
@@ -185,7 +187,24 @@ Typical parameters:
 - fileName: Base name for the Excel file.
 - sheets: Array of sheets with names, headers, and rows.
 
-For BOTH generate_file and generate_excel:
+Use generate_docx when the user asks for a Word document (.docx):
+- Reports, proposals, documentation, letters, or any structured text document.
+- Documents with headings, paragraphs, bullet lists, numbered lists, tables, quotes, or code blocks.
+
+Typical parameters:
+- fileName: Base name for the DOCX file (without extension).
+- title: Optional document title.
+- subtitle: Optional document subtitle.
+- sections: Array of content sections. Each section has:
+  - type: "heading" | "paragraph" | "bullets" | "numbered" | "table" | "quote" | "code"
+  - text: Text content (for heading, paragraph, quote, code)
+  - level: Heading level 1-6 (for headings)
+  - items: Array of strings (for bullets/numbered lists)
+  - headers: Column headers (for tables)
+  - rows: 2D array of cell values (for tables)
+- branding: Optional styling (primaryColor, fontFamily, fontSize).
+
+For generate_file, generate_excel, and generate_docx:
 - The tool returns an object containing a url field.
 - When you share a download link with the user, you MUST copy the exact url from the tool result.
 - NEVER make up or change URLs.

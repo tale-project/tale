@@ -167,3 +167,118 @@ class UrlToImageRequest(BaseModel):
     wait_until: str = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle)")
     height: int = Field(800, description="Viewport height", ge=100, le=4096)
 
+
+# ==================== PPTX Analysis Models ====================
+
+
+class TextContentInfo(BaseModel):
+    """Text content from a slide."""
+
+    text: str = Field(..., description="Text content")
+    isPlaceholder: bool = Field(False, description="Whether this is a placeholder")
+
+
+class AnalyzeTableInfo(BaseModel):
+    """Full table data from analysis."""
+
+    rowCount: int = Field(..., description="Number of rows")
+    columnCount: int = Field(..., description="Number of columns")
+    headers: List[str] = Field(default_factory=list, description="Header row content")
+    rows: List[List[str]] = Field(default_factory=list, description="All data rows")
+
+
+class AnalyzeChartInfo(BaseModel):
+    """Chart info from analysis."""
+
+    chartType: str = Field(..., description="Chart type")
+    hasLegend: Optional[bool] = Field(None, description="Whether chart has a legend")
+    seriesCount: Optional[int] = Field(None, description="Number of data series")
+
+
+class AnalyzeImageInfo(BaseModel):
+    """Image info from analysis."""
+
+    width: Optional[int] = Field(None, description="Image width in EMUs")
+    height: Optional[int] = Field(None, description="Image height in EMUs")
+
+
+class AnalyzeSlideInfo(BaseModel):
+    """Full slide content from analysis."""
+
+    slideNumber: int = Field(..., description="Slide number (1-based)")
+    layoutName: str = Field(..., description="Slide layout name")
+    title: Optional[str] = Field(None, description="Slide title")
+    subtitle: Optional[str] = Field(None, description="Slide subtitle")
+    textContent: List[TextContentInfo] = Field(default_factory=list, description="All text content")
+    tables: List[AnalyzeTableInfo] = Field(default_factory=list, description="Full table data")
+    charts: List[AnalyzeChartInfo] = Field(default_factory=list, description="Chart info")
+    images: List[AnalyzeImageInfo] = Field(default_factory=list, description="Image info")
+
+
+class AnalyzePptxResponse(BaseModel):
+    """Response from PPTX template analysis."""
+
+    success: bool = Field(..., description="Whether analysis was successful")
+    slideCount: int = Field(0, description="Total number of slides")
+    slides: List[AnalyzeSlideInfo] = Field(default_factory=list, description="Slide information with full content")
+    availableLayouts: List[str] = Field(default_factory=list, description="Available slide layouts")
+    error: Optional[str] = Field(None, description="Error message if analysis failed")
+
+
+# ==================== PPTX Generation Models ====================
+
+
+class GeneratePptxResponse(BaseModel):
+    """Response from PPTX generation."""
+
+    success: bool = Field(..., description="Whether generation was successful")
+    file_base64: Optional[str] = Field(None, description="Generated PPTX as base64")
+    file_size: Optional[int] = Field(None, description="File size in bytes")
+    error: Optional[str] = Field(None, description="Error message if generation failed")
+
+
+# ==================== DOCX Generation Models ====================
+
+
+class DocxSection(BaseModel):
+    """A section of content in a DOCX document."""
+
+    type: str = Field(..., description="Section type: heading, paragraph, bullets, numbered, table, quote, code")
+    text: Optional[str] = Field(None, description="Text content (for heading, paragraph, quote, code)")
+    level: Optional[int] = Field(None, description="Heading level (1-9)")
+    items: Optional[List[str]] = Field(None, description="List items (for bullets, numbered)")
+    headers: Optional[List[str]] = Field(None, description="Table headers")
+    rows: Optional[List[List[Any]]] = Field(None, description="Table rows")
+
+
+class DocxContent(BaseModel):
+    """Content structure for DOCX generation."""
+
+    title: str = Field(..., description="Document title")
+    subtitle: Optional[str] = Field(None, description="Document subtitle")
+    sections: List[DocxSection] = Field(default_factory=list, description="Document sections")
+
+
+class DocxBranding(BaseModel):
+    """Branding options for DOCX generation."""
+
+    logo_url: Optional[str] = Field(None, description="URL to company logo image")
+    company_name: Optional[str] = Field(None, description="Company name")
+    primary_color: Optional[str] = Field(None, description="Primary brand color (hex)")
+
+
+class GenerateDocxRequest(BaseModel):
+    """Request to generate a DOCX document."""
+
+    content: DocxContent = Field(..., description="Document content structure")
+    branding: Optional[DocxBranding] = Field(None, description="Optional branding")
+
+
+class GenerateDocxResponse(BaseModel):
+    """Response from DOCX generation."""
+
+    success: bool = Field(..., description="Whether generation was successful")
+    file_base64: Optional[str] = Field(None, description="Generated DOCX as base64")
+    file_size: Optional[int] = Field(None, description="File size in bytes")
+    error: Optional[str] = Field(None, description="Error message if generation failed")
+

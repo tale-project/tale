@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import _ from 'lodash';
+import { extractExtension } from './extract_extension';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -14,6 +15,8 @@ export async function updateDocument(
     content?: string;
     metadata?: unknown;
     fileId?: Id<'_storage'>;
+    mimeType?: string;
+    extension?: string;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
   },
@@ -28,12 +31,21 @@ export async function updateDocument(
     content?: string;
     metadata?: unknown;
     fileId?: Id<'_storage'>;
+    mimeType?: string;
+    extension?: string;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
   } = {};
   if (args.title !== undefined) updateData.title = args.title;
   if (args.content !== undefined) updateData.content = args.content;
   if (args.fileId !== undefined) updateData.fileId = args.fileId;
+  if (args.mimeType !== undefined) updateData.mimeType = args.mimeType;
+  // Auto-extract extension from title if title is being updated but extension is not provided
+  if (args.extension !== undefined) {
+    updateData.extension = args.extension;
+  } else if (args.title !== undefined) {
+    updateData.extension = extractExtension(args.title);
+  }
   if (args.sourceProvider !== undefined)
     updateData.sourceProvider = args.sourceProvider;
   if (args.externalItemId !== undefined)

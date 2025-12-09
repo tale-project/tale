@@ -101,17 +101,20 @@ export async function generateDocument(
     storageId: Id<'_storage'>;
   };
 
-  const url = await ctx.storage.getUrl(storageId);
-  if (!url) {
-    throw new Error('[documents.generateDocument] Failed to get download URL');
-  }
-
   const safeExtension = extension || 'pdf';
   const lowerFileName = args.fileName.toLowerCase();
   const expectedSuffix = `.${safeExtension.toLowerCase()}`;
   const finalFileName = lowerFileName.endsWith(expectedSuffix)
     ? args.fileName
     : `${args.fileName}.${safeExtension}`;
+
+  // Build download URL using our custom HTTP endpoint that sets Content-Disposition
+  // This ensures the downloaded file has the correct filename instead of the storage ID
+  const siteUrl =
+    process.env.CONVEX_SITE_ORIGIN ||
+    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
+    'http://127.0.0.1:3211';
+  const downloadUrl = `${siteUrl}/storage?id=${storageId}&filename=${encodeURIComponent(finalFileName)}`;
 
   debugLog('documents.generateDocument success', {
     fileName: finalFileName,
@@ -124,7 +127,7 @@ export async function generateDocument(
   return {
     success: true,
     fileId: storageId,
-    url,
+    url: downloadUrl,
     fileName: finalFileName,
     contentType,
     size,

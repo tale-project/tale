@@ -41,6 +41,8 @@ export const createDocument = internalMutation({
 
     content: v.optional(v.string()),
     fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    extension: v.optional(v.string()),
     metadata: v.optional(v.any()),
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
@@ -287,6 +289,8 @@ export const updateDocumentInternal = internalMutation({
     content: v.optional(v.string()),
     metadata: v.optional(v.any()),
     fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    extension: v.optional(v.string()),
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
     ),
@@ -340,6 +344,34 @@ export const generateSignedUrl = internalQuery({
   ),
   handler: async (ctx, args) => {
     return await DocumentsModel.generateSignedUrl(ctx, args.documentId);
+  },
+});
+
+/**
+ * List documents by file extension (internal)
+ *
+ * Uses the by_organizationId_and_extension index to efficiently query
+ * documents of a specific type (e.g., 'pptx', 'pdf', 'docx').
+ */
+export const listDocumentsByExtension = internalQuery({
+  args: {
+    organizationId: v.string(),
+    extension: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('documents'),
+      _creationTime: v.number(),
+      title: v.optional(v.string()),
+      fileId: v.optional(v.id('_storage')),
+      mimeType: v.optional(v.string()),
+      extension: v.optional(v.string()),
+      metadata: v.optional(v.any()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.listDocumentsByExtension(ctx, args);
   },
 });
 
@@ -522,6 +554,7 @@ export const uploadFile = action({
           sourceProvider: providerFromMetadata,
           externalItemId,
           fileId: fileId,
+          mimeType: args.contentType,
           metadata: documentMetadata,
         });
 
@@ -563,3 +596,185 @@ export const createOneDriveSyncConfig = mutationWithRLS({
     return await DocumentsModel.createOneDriveSyncConfig(ctx, args);
   },
 });
+
+// =============================================================================
+// PPTX/DOCX GENERATION
+// =============================================================================
+
+/**
+ * Analyze a PPTX template to extract its full content via the crawler service.
+ */
+export const analyzePptxInternal = internalAction({
+  args: {
+    templateStorageId: v.id('_storage'),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    slideCount: v.number(),
+    slides: v.array(
+      v.object({
+        slideNumber: v.number(),
+        layoutName: v.string(),
+        title: v.union(v.string(), v.null()),
+        subtitle: v.union(v.string(), v.null()),
+        textContent: v.array(
+          v.object({
+            text: v.string(),
+            isPlaceholder: v.boolean(),
+          }),
+        ),
+        tables: v.array(
+          v.object({
+            rowCount: v.number(),
+            columnCount: v.number(),
+            headers: v.array(v.string()),
+            rows: v.array(v.array(v.string())),
+          }),
+        ),
+        charts: v.array(
+          v.object({
+            chartType: v.string(),
+            hasLegend: v.optional(v.boolean()),
+            seriesCount: v.optional(v.number()),
+          }),
+        ),
+        images: v.array(
+          v.object({
+            width: v.optional(v.number()),
+            height: v.optional(v.number()),
+          }),
+        ),
+      }),
+    ),
+    availableLayouts: v.array(v.string()),
+    branding: v.object({
+      slideWidth: v.optional(v.number()),
+      slideHeight: v.optional(v.number()),
+      titleFontName: v.optional(v.union(v.string(), v.null())),
+      bodyFontName: v.optional(v.union(v.string(), v.null())),
+      titleFontSize: v.optional(v.number()),
+      bodyFontSize: v.optional(v.number()),
+      primaryColor: v.optional(v.union(v.string(), v.null())),
+      secondaryColor: v.optional(v.union(v.string(), v.null())),
+      accentColor: v.optional(v.union(v.string(), v.null())),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.analyzePptx(ctx, {
+      templateStorageId: args.templateStorageId,
+    });
+  },
+});
+
+/**
+ * Generate a PPTX from content via the crawler service.
+ *
+ * When templateStorageId is provided, uses the template as a base, preserving
+ * all styling, backgrounds, and decorative elements.
+ */
+export const generatePptxInternal = internalAction({
+  args: {
+    fileName: v.string(),
+    slidesContent: v.array(
+      v.object({
+        title: v.optional(v.string()),
+        subtitle: v.optional(v.string()),
+        textContent: v.optional(v.array(v.string())),
+        bulletPoints: v.optional(v.array(v.string())),
+        tables: v.optional(
+          v.array(
+            v.object({
+              headers: v.array(v.string()),
+              rows: v.array(v.array(v.string())),
+            }),
+          ),
+        ),
+      }),
+    ),
+    branding: v.optional(
+      v.object({
+        slideWidth: v.optional(v.number()),
+        slideHeight: v.optional(v.number()),
+        titleFontName: v.optional(v.string()),
+        bodyFontName: v.optional(v.string()),
+        titleFontSize: v.optional(v.number()),
+        bodyFontSize: v.optional(v.number()),
+        primaryColor: v.optional(v.string()),
+        secondaryColor: v.optional(v.string()),
+        accentColor: v.optional(v.string()),
+      }),
+    ),
+    templateStorageId: v.id('_storage'),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    fileId: v.id('_storage'),
+    url: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    size: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.generatePptx(ctx, {
+      fileName: args.fileName,
+      slidesContent: args.slidesContent,
+      branding: args.branding,
+      templateStorageId: args.templateStorageId,
+    });
+  },
+});
+
+/**
+ * Generate a DOCX from structured content via the crawler service.
+ */
+export const generateDocxInternal = internalAction({
+  args: {
+    fileName: v.string(),
+    content: v.object({
+      title: v.optional(v.string()),
+      subtitle: v.optional(v.string()),
+      sections: v.array(
+        v.object({
+          type: v.union(
+            v.literal('heading'),
+            v.literal('paragraph'),
+            v.literal('bullets'),
+            v.literal('numbered'),
+            v.literal('table'),
+            v.literal('quote'),
+            v.literal('code'),
+          ),
+          text: v.optional(v.string()),
+          level: v.optional(v.number()),
+          items: v.optional(v.array(v.string())),
+          headers: v.optional(v.array(v.string())),
+          rows: v.optional(v.array(v.array(v.string()))),
+        }),
+      ),
+    }),
+    branding: v.optional(
+      v.object({
+        primaryColor: v.optional(v.string()),
+        fontFamily: v.optional(v.string()),
+        fontSize: v.optional(v.number()),
+      }),
+    ),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    fileId: v.id('_storage'),
+    url: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    size: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.generateDocx(ctx, {
+      fileName: args.fileName,
+      content: args.content,
+      branding: args.branding,
+    });
+  },
+});
+
+

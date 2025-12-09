@@ -15,6 +15,8 @@ export default defineSchema({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()), // MIME type of the file (e.g., 'application/pdf', 'image/png')
+    extension: v.optional(v.string()), // File extension without dot, lowercase (e.g., 'pdf', 'pptx', 'docx')
     // New explicit source fields
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
@@ -30,7 +32,8 @@ export default defineSchema({
     .index('by_organizationId_and_externalItemId', [
       'organizationId',
       'externalItemId',
-    ]),
+    ])
+    .index('by_organizationId_and_extension', ['organizationId', 'extension']),
 
   // Products
   products: defineTable({
