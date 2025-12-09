@@ -8,6 +8,7 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { base64ToBytes } from '../../lib/crypto/base64_to_bytes';
+import { buildDownloadUrl } from './generate_document_helpers';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -69,11 +70,7 @@ export async function uploadBase64ToStorage(
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
-  const siteUrl =
-    process.env.CONVEX_SITE_ORIGIN ||
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
-    'http://127.0.0.1:3211';
-  const downloadUrl = `${siteUrl}/storage?id=${storageId}&filename=${encodeURIComponent(fileName)}`;
+  const downloadUrl = buildDownloadUrl(storageId, fileName);
 
   debugLog('documents.uploadBase64ToStorage success', {
     fileName,

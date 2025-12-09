@@ -9,6 +9,7 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import type { GenerateDocumentArgs, GenerateDocumentResult } from './types';
 import {
+  buildDownloadUrl,
   buildRequestBody,
   getCrawlerUrl,
   getEndpointPath,
@@ -110,11 +111,7 @@ export async function generateDocument(
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
-  const siteUrl =
-    process.env.CONVEX_SITE_ORIGIN ||
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
-    'http://127.0.0.1:3211';
-  const downloadUrl = `${siteUrl}/storage?id=${storageId}&filename=${encodeURIComponent(finalFileName)}`;
+  const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 
   debugLog('documents.generateDocument success', {
     fileName: finalFileName,

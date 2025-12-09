@@ -46,16 +46,23 @@ const brandingSchema = z.object({
 // Use a flat object schema for OpenAI-compatible JSON Schema
 const pptxArgs = z.object({
   operation: z
-    .enum(['analyze_template', 'generate'])
+    .enum(['list_templates', 'analyze_template', 'generate'])
     .describe(
-      "Operation to perform: 'analyze_template' (extract content and branding from template), or 'generate' (create PPTX with new content)",
+      "Operation to perform: 'list_templates' (list available PPTX templates), 'analyze_template' (extract content and branding from template), or 'generate' (create PPTX with new content)",
     ),
-  // Required for both operations
+  // For list_templates operation
+  limit: z
+    .number()
+    .optional()
+    .describe(
+      "For 'list_templates': Maximum number of templates to return (default: 50)",
+    ),
+  // Required for analyze_template and generate operations
   templateStorageId: z
     .string()
     .optional()
     .describe(
-      "Convex storage ID of the PPTX template. Required for both 'analyze_template' and 'generate'. The template is used as base, preserving all styling, backgrounds, and decorative elements.",
+      "Convex storage ID of the PPTX template. Required for 'analyze_template' and 'generate'. The template is used as base, preserving all styling, backgrounds, and decorative elements.",
     ),
   // For generate operation
   fileName: z
@@ -74,6 +81,19 @@ const pptxArgs = z.object({
 });
 
 // Result types
+interface ListTemplatesResult {
+  operation: 'list_templates';
+  success: boolean;
+  templates: Array<{
+    documentId: string;
+    storageId: string;
+    title: string;
+    createdAt: number;
+  }>;
+  totalCount: number;
+  message: string;
+}
+
 interface AnalyzeTemplateResult {
   operation: 'analyze_template';
   success: boolean;
@@ -114,22 +134,29 @@ interface GenerateResult {
   size: number;
 }
 
-type PptxResult = AnalyzeTemplateResult | GenerateResult;
+type PptxResult = ListTemplatesResult | AnalyzeTemplateResult | GenerateResult;
 
 export const pptxTool: ToolDefinition = {
   name: 'pptx',
   tool: createTool({
-    description: `PowerPoint (PPTX) tool for analyzing templates and generating presentations.
+    description: `PowerPoint (PPTX) tool for listing templates, analyzing them, and generating presentations.
 
 OPERATIONS:
 
-1. analyze_template - Analyze an existing PPTX template
-   Pass the 'templateStorageId' from file upload.
+1. list_templates - List all available PPTX templates
+   Returns all PPTX documents available in the organization.
+   Use this to discover available templates before generating presentations.
+   Returns:
+   - templates: Array of { documentId, storageId, title, createdAt }
+   - totalCount: Number of templates found
+
+2. analyze_template - Analyze an existing PPTX template
+   Pass the 'templateStorageId' from list_templates or file upload.
    Returns:
    - slides: Full content of each slide (title, text, tables, charts, images)
    - branding: Extracted styling info (fonts, colors, dimensions)
 
-2. generate - Generate a PPTX with your content
+3. generate - Generate a PPTX with your content
    IMPORTANT: Pass templateStorageId to preserve template styling (backgrounds, colors, shapes).
    Pass slidesContent with your new content.
 
@@ -137,19 +164,23 @@ OPERATIONS:
    - title, subtitle, textContent, bulletPoints, tables
 
 WORKFLOW (RECOMMENDED - preserves template styling):
-1. Call analyze_template to understand the template structure
-2. Generate new content based on the template structure
-3. Call generate with templateStorageId AND slidesContent
-4. Copy the exact 'url' value from the result - never fabricate URLs
+1. Call list_templates to discover available templates
+2. Call analyze_template to understand the template structure
+3. Generate new content based on the template structure
+4. Call generate with templateStorageId AND slidesContent
+5. Copy the exact 'url' value from the result - never fabricate URLs
 
-EXAMPLE:
+EXAMPLES:
 
-Step 1 - Analyze: { operation: "analyze_template", templateStorageId: "abc123" }
+List templates: { operation: "list_templates" }
+Returns: { templates: [{ documentId: "...", storageId: "kg...", title: "Company Template.pptx", ... }], totalCount: 3 }
+
+Analyze: { operation: "analyze_template", templateStorageId: "kg..." }
 Returns: { slides: [...], branding: {...} }
 
-Step 2 - Generate using template: {
+Generate using template: {
   operation: "generate",
-  templateStorageId: "abc123",
+  templateStorageId: "kg...",
   fileName: "Company_Report",
   slidesContent: [
     { title: "Executive Summary", bulletPoints: ["Revenue grew 25%", "New expansion"] },
@@ -162,6 +193,67 @@ elements are preserved. New slides use the template's layouts. The branding para
 used when no template is provided.`,
     args: pptxArgs,
     handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
+      const { organizationId } = ctx;
+
+      // Handle list_templates operation
+      if (args.operation === 'list_templates') {
+        if (!organizationId) {
+          return {
+            operation: 'list_templates',
+            success: false,
+            templates: [],
+            totalCount: 0,
+            message:
+              'No organizationId in context - cannot list templates. This tool requires organizationId to be set.',
+          };
+        }
+
+        debugLog('tool:pptx list_templates start', {
+          organizationId,
+          limit: args.limit,
+        });
+
+        try {
+          const documents = await ctx.runQuery(
+            internal.documents.listDocumentsByExtension,
+            {
+              organizationId,
+              extension: 'pptx',
+              limit: args.limit,
+            },
+          );
+
+          const templates = documents
+            .filter((doc) => doc.fileId) // Only include documents with file storage
+            .map((doc) => ({
+              documentId: doc._id,
+              storageId: doc.fileId as string,
+              title: doc.title ?? 'Untitled Template',
+              createdAt: doc._creationTime,
+            }));
+
+          debugLog('tool:pptx list_templates success', {
+            totalCount: templates.length,
+          });
+
+          return {
+            operation: 'list_templates',
+            success: true,
+            templates,
+            totalCount: templates.length,
+            message:
+              templates.length > 0
+                ? `Found ${templates.length} PPTX template(s). Use the storageId as templateStorageId for analyze_template or generate operations.`
+                : 'No PPTX templates found. Upload a PPTX file first to use as a template.',
+          };
+        } catch (error) {
+          console.error('[tool:pptx list_templates] error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
+        }
+      }
+
       // Handle analyze_template operation
       if (args.operation === 'analyze_template') {
         if (!args.templateStorageId) {

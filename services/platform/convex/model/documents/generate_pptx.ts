@@ -8,7 +8,7 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { decode as decodeBase64 } from 'base64-arraybuffer';
-import { getCrawlerUrl } from './generate_document_helpers';
+import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
@@ -161,11 +161,7 @@ export async function generatePptx(
 
   // Build download URL using our custom HTTP endpoint that sets Content-Disposition
   // This ensures the downloaded file has the correct filename instead of the storage ID
-  const siteUrl =
-    process.env.CONVEX_SITE_ORIGIN ||
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL ||
-    'http://127.0.0.1:3211';
-  const downloadUrl = `${siteUrl}/storage?id=${storageId}&filename=${encodeURIComponent(finalFileName)}`;
+  const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 
   debugLog('documents.generatePptx success', {
     fileName: finalFileName,
