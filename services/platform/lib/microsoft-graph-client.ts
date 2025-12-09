@@ -17,7 +17,7 @@
 
 import type { DriveItemsResponse } from '@/types/microsoft-graph';
 import { getCurrentUser, getAuthToken } from './auth/auth-server';
-import { fetchQuery, fetchMutation } from 'convex/nextjs';
+import { fetchQuery, fetchMutation } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 
 export class MicrosoftGraphClient {

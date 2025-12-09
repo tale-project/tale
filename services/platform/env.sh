@@ -10,11 +10,6 @@ env_normalize_common() {
   export PORT="${PORT:-3000}"
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
-  # Convex backend ports
-  export CONVEX_BACKEND_PORT="${CONVEX_BACKEND_PORT:-3210}"
-  export CONVEX_SITE_PROXY_PORT="${CONVEX_SITE_PROXY_PORT:-3211}"
-  export CONVEX_DASHBOARD_PORT="${CONVEX_DASHBOARD_PORT:-6791}"
-
   # Domain configuration - auto-derive URLs
   # DOMAIN should include the protocol (e.g., "http://localhost", "https://demo.tale.dev")
   local base_url="${DOMAIN:-http://localhost}"
@@ -44,24 +39,11 @@ env_normalize_common() {
 	  export INSTANCE_NAME="${INSTANCE_NAME:-tale_platform}"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
-  # Convex URLs - backend-to-backend communication (Platform -> Convex)
-  # Use the base URL with proxy paths for backend-to-backend communication
-  export CONVEX_CLOUD_ORIGIN="${CONVEX_CLOUD_ORIGIN:-${base_url}/ws_api}"
-  export CONVEX_SITE_ORIGIN="${CONVEX_SITE_ORIGIN:-${base_url}/http_api}"
-  export CONVEX_DEPLOYMENT="${CONVEX_DEPLOYMENT:-local}"
-
   # AI provider keys
   export OPENAI_API_KEY="${OPENAI_API_KEY}"
 
-  # Frontend configuration - auto-derive from domain
-  # Client-side URLs use the base URL (which now includes port for localhost)
-  export NEXT_PUBLIC_CONVEX_URL="${NEXT_PUBLIC_CONVEX_URL:-${base_url}/ws_api}"
-  export NEXT_PUBLIC_CONVEX_SITE_URL="${NEXT_PUBLIC_CONVEX_SITE_URL:-${base_url}/http_api}"
-  export NEXT_PUBLIC_DEPLOYMENT_URL="${NEXT_PUBLIC_DEPLOYMENT_URL:-${base_url}/ws_api}"
-  export NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-${base_url}}"
-
-  # Site URL for Better Auth (used by Convex functions and Next.js server-side)
-  # For internal container-to-self communication within Docker
+  # Site URL - the canonical base URL for the platform
+  # All other URLs (Convex HTTP API, WebSocket API, etc.) are derived from this in code
   export SITE_URL="${SITE_URL:-${base_url}}"
 }
 

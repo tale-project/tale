@@ -48,9 +48,14 @@ export default {
   },
   // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
-  // Enable cache components to make rendering behavior more explicit
-  // See: https://nextjs.org/docs/app/getting-started/cache-components
-  cacheComponents: true,
+	  // Keep Cache Components disabled for now.
+	  // Enabling this turns on Partial Prerendering / Cache Components, which
+	  // requires dynamic data access (cookies(), headers(), DB queries, etc.)
+	  // to live behind <Suspense> or 'use cache'. Our app has many
+	  // authentication-protected, per-tenant routes that currently read
+	  // cookies() directly in layouts/pages, so migrating would be non-trivial
+	  // for limited benefit compared to straightforward SSR today.
+  cacheComponents: false,
   experimental: {
     // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions#bodysizelimit
     serverActions: {

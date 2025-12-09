@@ -201,11 +201,11 @@ function runConvexEnvRemove(key) {
 async function main() {
   const envMap = findEnv();
 
-  // If SITE_URL is absent, attempt to infer from NEXT_PUBLIC_APP_URL; default to http://localhost:3000
+  // If SITE_URL is absent, default to http://localhost:3000
   if (!envMap.SITE_URL) {
-    const inferred = envMap.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const inferred = 'http://localhost:3000';
     console.log(
-      `[sync-convex-env] SITE_URL not set in .env; inferring: ${inferred}`,
+      `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
     );
     envMap.SITE_URL = inferred;
   }

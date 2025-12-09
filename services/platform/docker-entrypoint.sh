@@ -220,6 +220,11 @@ wait_for_database() {
 # Convex Backend Startup
 # ============================================================================
 
+# Hardcoded Convex ports (internal to container, proxied via Next.js)
+CONVEX_BACKEND_PORT=3210
+CONVEX_SITE_PROXY_PORT=3211
+CONVEX_DASHBOARD_PORT=6791
+
 echo "📦 Starting Convex backend on port ${CONVEX_BACKEND_PORT}..."
 
 # Configure Convex backend logging
@@ -247,13 +252,12 @@ wait_for_database
 # Build Convex site arguments
 SITE_ARGS="--site-proxy-port ${CONVEX_SITE_PROXY_PORT} --port ${CONVEX_BACKEND_PORT} --interface 0.0.0.0 --do-not-require-ssl"
 
-if [ -n "$CONVEX_CLOUD_ORIGIN" ]; then
-  SITE_ARGS="$SITE_ARGS --convex-origin $CONVEX_CLOUD_ORIGIN"
-fi
+# Derive Convex origin and site URL from SITE_URL
+CONVEX_CLOUD_ORIGIN="${SITE_URL}/ws_api"
+CONVEX_SITE_URL="${SITE_URL}/http_api"
 
-if [ -n "$CONVEX_SITE_ORIGIN" ]; then
-  SITE_ARGS="$SITE_ARGS --convex-site $CONVEX_SITE_ORIGIN"
-fi
+SITE_ARGS="$SITE_ARGS --convex-origin $CONVEX_CLOUD_ORIGIN"
+SITE_ARGS="$SITE_ARGS --convex-site $CONVEX_SITE_URL"
 
 # Ensure instance secret is present (allows local dev fallback)
 ensure_instance_secret
@@ -363,7 +367,8 @@ wait_for_http "http://localhost:${PORT}/api/health" 30 "Next.js server" true
 
 echo "📊 Starting Convex Dashboard on port ${CONVEX_DASHBOARD_PORT}..."
 cd /dashboard
-NEXT_PUBLIC_DEPLOYMENT_URL="${NEXT_PUBLIC_DEPLOYMENT_URL}" \
+# Derive deployment URL from SITE_URL for dashboard
+NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}/ws_api" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \
   node server.js &

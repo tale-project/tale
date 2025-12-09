@@ -38,10 +38,13 @@ const metroSans = localFont({
   display: 'swap',
 });
 
+// Derive app URL from SITE_URL (server-side) or fallback for Vercel/local dev
+const appUrl =
+  process.env.SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  ),
+  metadataBase: new URL(appUrl),
   title: 'Tale | Reduce Churn Rate & Boost Retention',
   description:
     'Use Tale to understand customer churn rate, improve retention, and increase customer lifetime value through feedback and analytics.',
@@ -49,12 +52,11 @@ export const metadata: Metadata = {
     title: 'Tale | Reduce Churn Rate & Boost Retention',
     description:
       'Use Tale to understand customer churn rate, improve retention, and increase customer lifetime value through feedback and analytics.',
-    url:
-      process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
+    url: appUrl,
     type: 'website',
     images: [
       {
-        url: `${process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}/opengraph-image.png`,
+        url: `${appUrl}/opengraph-image.png`,
       },
     ],
   },

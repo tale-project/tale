@@ -11,7 +11,7 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { fetchMutation } from 'convex/nextjs';
+import { fetchMutation } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import {
   extractTrustedHeaders,

@@ -1,6 +1,6 @@
 import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationForm from './organization-form';
 import { TaleLogo } from '@/components/tale-logo';

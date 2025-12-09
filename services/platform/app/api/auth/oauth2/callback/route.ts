@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Logger } from '@/lib/logger';
-import { fetchAction } from 'convex/nextjs';
+import { fetchAction } from '@/lib/convex-next-server';
 import { api } from '../../../../../convex/_generated/api';
 import type { Id } from '../../../../../convex/_generated/dataModel';
 
@@ -85,8 +85,8 @@ export async function GET(request: NextRequest) {
       const refererUrl = new URL(referer);
       origin = `${refererUrl.protocol}//${refererUrl.host}`;
     } else if (requestUrl.hostname === '0.0.0.0') {
-      // Fallback to env var if no referer and hostname is 0.0.0.0
-      origin = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      // Fallback to SITE_URL if no referer and hostname is 0.0.0.0
+      origin = process.env.SITE_URL || 'http://localhost:3000';
     } else {
       // Use request hostname
       origin = `${requestUrl.protocol}//${requestUrl.host}`;
@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
     const baseUrl =
       requestUrl.hostname === '0.0.0.0'
-        ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        ? process.env.SITE_URL || 'http://localhost:3000'
         : `${requestUrl.protocol}//${requestUrl.host}`;
 
     return NextResponse.redirect(new URL(errorUrl, baseUrl));

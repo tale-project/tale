@@ -1,6 +1,6 @@
 'use server';
 
-import { fetchAction } from 'convex/nextjs';
+import { fetchAction } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 
 export async function improveMessage(
