@@ -9,18 +9,15 @@ on:
         required: false
         default: 'latest'
 
-  # Automatic trigger on tags
+  # Automatic trigger on tags or file changes
   push:
     tags:
       - 'graph-db-v*.*.*'
-
-  # Automatic trigger on main branch (optional)
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'graph-db/**'
-  #     - '.github/workflows/build-and-push-graph-db.yml'
+    branches:
+      - main
+    paths:
+      - 'services/graph-db/**'
+      - '.github/workflows/build-and-push-graph-db.yml'
 
 env:
   REGISTRY: ghcr.io

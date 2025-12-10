@@ -326,13 +326,13 @@ console.log(`Synced ${result.processed} of ${result.total} emails`);
 
 - OAuth2 callback route: `/api/auth/oauth2/callback`
 - Configure this exact URL in your OAuth2 provider console (Gmail/Microsoft)
-- Ensure `NEXT_PUBLIC_APP_URL` is set correctly in `.env`
+- Ensure `SITE_URL` is set correctly in `.env` (or `DOMAIN` in Docker Compose)
 
 ### Required Environment Variables
 
 ```bash
-# Base URL for OAuth2 callbacks
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+# Base URL for OAuth2 callbacks (set via DOMAIN in Docker Compose)
+SITE_URL=http://localhost:3000
 
 # For Microsoft existing account flow (optional)
 AUTH_MICROSOFT_ENTRA_ID_ID=your-client-id
@@ -495,7 +495,7 @@ export const test = action({
 
 - Verify scopes match exactly in provider console
 - Ensure redirect URI matches exactly (including protocol and port)
-- Check that `NEXT_PUBLIC_APP_URL` is configured correctly
+- Check that `SITE_URL` is configured correctly (or `DOMAIN` in Docker Compose)
 
 **Missing refresh tokens**
 

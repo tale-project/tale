@@ -9,18 +9,15 @@ on:
         required: false
         default: 'latest'
 
-  # Automatic trigger on tags
+  # Automatic trigger on tags or file changes
   push:
     tags:
       - 'db-v*.*.*'
-
-  # Automatic trigger on main branch (optional)
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'db/**'
-  #     - '.github/workflows/build-and-push-db.yml'
+    branches:
+      - main
+    paths:
+      - 'services/db/**'
+      - '.github/workflows/build-and-push-db.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -96,7 +93,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: db/Dockerfile
+          file: services/db/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
