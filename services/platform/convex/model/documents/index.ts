@@ -18,6 +18,8 @@ export type {
   DocumentOutputFormat,
   GenerateDocumentArgs,
   GenerateDocumentResult,
+  ListDocumentsByExtensionArgs,
+  ListDocumentsByExtensionResult,
 } from './types';
 
 // Export validators
@@ -44,3 +46,33 @@ export { getOneDriveSyncConfigs } from './get_onedrive_sync_configs';
 export { uploadBase64ToStorage } from './upload_base64_to_storage';
 export { readFileBase64FromStorage } from './read_file_base64_from_storage';
 export { generateDocument } from './generate_document';
+export { analyzePptx } from './analyze_pptx';
+export { generatePptx } from './generate_pptx';
+export { generateDocx } from './generate_docx';
+export { extractExtension } from './extract_extension';
+export { listDocumentsByExtension } from './list_documents_by_extension';
+
+// Export types for PPTX/DOCX generation
+export type {
+  TextContentInfo,
+  ChartInfo,
+  TableInfo,
+  ImageInfo,
+  SlideInfo,
+  BrandingInfo,
+  AnalyzePptxArgs,
+  AnalyzePptxResult,
+} from './analyze_pptx';
+export type {
+  SlideContentData,
+  PptxBrandingData,
+  GeneratePptxArgs,
+  GeneratePptxResult,
+} from './generate_pptx';
+export type {
+  DocxSection,
+  DocxContent,
+  DocxBranding,
+  GenerateDocxArgs,
+  GenerateDocxResult,
+} from './generate_docx';

@@ -126,7 +126,8 @@ export default function AddMemberDialog({
       let isNewUser = false;
 
       // First, check if user already exists
-      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!;
+      // Derive Convex URL from current origin (routes through Next.js proxy)
+      const convexUrl = `${window.location.origin}/ws_api`;
       const client = new ConvexHttpClient(convexUrl);
 
       const existingUserId = await client.query(api.member.getUserIdByEmail, {

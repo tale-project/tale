@@ -17,3 +17,7 @@ httpx==0.28.1
 # Document conversion (Playwright is already installed via crawl4ai)
 markdown==3.7
 
+# Office document generation
+python-pptx==1.0.2      # PPTX parsing and generation
+python-docx==1.1.2      # DOCX generation
+

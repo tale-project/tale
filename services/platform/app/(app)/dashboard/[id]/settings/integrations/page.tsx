@@ -2,7 +2,7 @@ import { SuspenseLoader } from '@/components/suspense-loader';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import Integrations from './integrations';
 import { redirect } from 'next/navigation';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 
 interface IntegrationsPageProps {

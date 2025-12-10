@@ -92,26 +92,9 @@ function envNormalizeCommon() {
   if (!process.env.INSTANCE_NAME) process.env.INSTANCE_NAME = 'tale_platform';
   // INSTANCE_SECRET handled by ensureInstanceSecret()
 
-  // Convex URLs - backend-to-backend communication
-  // Use the base URL with proxy paths for backend-to-backend communication
-  if (!process.env.CONVEX_CLOUD_ORIGIN)
-    process.env.CONVEX_CLOUD_ORIGIN = `${baseUrl}/ws_api`;
-  if (!process.env.CONVEX_SITE_ORIGIN)
-    process.env.CONVEX_SITE_ORIGIN = `${baseUrl}/http_api`;
-
   // AI providers: OPENAI_API_KEY left as-is if provided
 
-  // Frontend/public configuration derived from DOMAIN
-  if (!process.env.NEXT_PUBLIC_CONVEX_URL)
-    process.env.NEXT_PUBLIC_CONVEX_URL = `${baseUrl}/ws_api`;
-  if (!process.env.NEXT_PUBLIC_CONVEX_SITE_URL)
-    process.env.NEXT_PUBLIC_CONVEX_SITE_URL = `${baseUrl}/http_api`;
-  if (!process.env.NEXT_PUBLIC_DEPLOYMENT_URL)
-    process.env.NEXT_PUBLIC_DEPLOYMENT_URL = `${baseUrl}/ws_api`;
-  if (!process.env.NEXT_PUBLIC_APP_URL)
-    process.env.NEXT_PUBLIC_APP_URL = `${baseUrl}`;
-
-  // SITE_URL used by server-side code (Better Auth, internal fetches)
+  // SITE_URL is the canonical base URL - all other URLs are derived from it in code
   // For localhost, baseUrl already includes the port, so use it directly
   if (!process.env.SITE_URL) process.env.SITE_URL = baseUrl;
 }

@@ -2,7 +2,7 @@ import { SuspenseLoader } from '@/components/suspense-loader';
 import { api } from '@/convex/_generated/api';
 
 import AutomationsTable from './components/automations-table';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 

@@ -1,6 +1,6 @@
 import { api } from '@/convex/_generated/api';
 import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { redirect } from 'next/navigation';
 import type { NextRequest } from 'next/server';
 import { isTrustedHeadersEnabled } from '@/lib/auth/trusted-headers';

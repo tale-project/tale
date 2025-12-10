@@ -8,6 +8,7 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { base64ToBytes } from '../../lib/crypto/base64_to_bytes';
+import { buildDownloadUrl } from './generate_document_helpers';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -67,12 +68,9 @@ export async function uploadBase64ToStorage(
     storageId: Id<'_storage'>;
   };
 
-  const url = await ctx.storage.getUrl(storageId);
-  if (!url) {
-    throw new Error(
-      '[documents.uploadBase64ToStorage] Failed to get download URL for file',
-    );
-  }
+  // Build download URL using our custom HTTP endpoint that sets Content-Disposition
+  // This ensures the downloaded file has the correct filename instead of the storage ID
+  const downloadUrl = buildDownloadUrl(storageId, fileName);
 
   debugLog('documents.uploadBase64ToStorage success', {
     fileName,
@@ -83,7 +81,7 @@ export async function uploadBase64ToStorage(
   return {
     success: true,
     fileId: storageId,
-    url,
+    url: downloadUrl,
     fileName,
     size,
     contentType,

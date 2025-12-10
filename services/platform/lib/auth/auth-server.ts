@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { createAuth } from '@/convex/auth';
 import { getToken as getTokenNextjs } from '@convex-dev/better-auth/nextjs';

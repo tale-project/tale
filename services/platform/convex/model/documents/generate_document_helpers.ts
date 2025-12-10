@@ -103,3 +103,40 @@ export function getOutputInfo(
     extension: type,
   };
 }
+
+/**
+ * Get the public site URL for building download URLs returned to clients.
+ *
+ * Uses SITE_URL + /http_api to route through the Next.js proxy, which forwards
+ * requests to the Convex HTTP API (port 3211) internally.
+ *
+ * This works both in:
+ * - Local development: http://localhost:3000/http_api -> http://127.0.0.1:3211
+ * - Docker: http://localhost:3000/http_api -> http://127.0.0.1:3211 (via Next.js rewrites)
+ *
+ * Fallback to direct Convex HTTP API for cases where SITE_URL is not set.
+ */
+export function getPublicSiteUrl(): string {
+  const siteUrl = process.env.SITE_URL;
+  if (siteUrl) {
+    // Route through Next.js proxy which forwards to Convex HTTP API
+    return `${siteUrl}/http_api`;
+  }
+  // Fallback for local dev without SITE_URL set
+  return 'http://127.0.0.1:3211';
+}
+
+/**
+ * Build a download URL for a file stored in Convex storage.
+ *
+ * Uses our custom HTTP endpoint that sets Content-Disposition header,
+ * ensuring the downloaded file has the correct filename instead of the storage ID.
+ *
+ * @param storageId - The Convex storage ID of the file
+ * @param fileName - The desired filename for the download
+ * @returns The full download URL
+ */
+export function buildDownloadUrl(storageId: string, fileName: string): string {
+  const siteUrl = getPublicSiteUrl();
+  return `${siteUrl}/storage?id=${storageId}&filename=${encodeURIComponent(fileName)}`;
+}

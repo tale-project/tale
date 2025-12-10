@@ -1,6 +1,6 @@
 import { requireAuth, getAuthToken } from '@/lib/auth/auth-server';
 import ProductTable from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { SuspenseLoader } from '@/components/suspense-loader';
 import { redirect } from 'next/navigation';

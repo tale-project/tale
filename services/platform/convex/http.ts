@@ -1,6 +1,7 @@
 import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
 import { httpAction } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 
 const http = httpRouter();
 
@@ -9,6 +10,49 @@ http.route({
   path: '/ping',
   method: 'GET',
   handler: httpAction(async () => new Response('ok', { status: 200 })),
+});
+
+// File download with proper Content-Disposition header for friendly filenames
+// URL format: /storage/{storageId}?filename={encodedFilename}
+http.route({
+  path: '/storage',
+  method: 'GET',
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const storageId = url.searchParams.get('id');
+    const filename = url.searchParams.get('filename');
+
+    if (!storageId) {
+      return new Response('Missing storage ID', { status: 400 });
+    }
+
+    try {
+      const blob = await ctx.storage.get(storageId as Id<'_storage'>);
+      if (!blob) {
+        return new Response('File not found', { status: 404 });
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': blob.type || 'application/octet-stream',
+        'Content-Length': blob.size.toString(),
+      };
+
+      // Add Content-Disposition header if filename is provided
+      if (filename) {
+        // Sanitize filename and encode for Content-Disposition header
+        const sanitizedFilename = filename.replace(/[^\w\s.-]/g, '_');
+        // Use RFC 5987 encoding for non-ASCII characters
+        const encodedFilename = encodeURIComponent(filename);
+        headers['Content-Disposition'] =
+          `attachment; filename="${sanitizedFilename}"; filename*=UTF-8''${encodedFilename}`;
+      }
+
+      return new Response(blob, { status: 200, headers });
+    } catch (error) {
+      console.error('[http /storage] error:', error);
+      return new Response('Internal server error', { status: 500 });
+    }
+  }),
 });
 
 // Register Better Auth HTTP routes; no CORS needed for Next.js rewrites

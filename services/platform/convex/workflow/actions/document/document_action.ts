@@ -50,6 +50,8 @@ export const documentAction: ActionDefinition<{
 
   content?: string;
   fileId?: string;
+  mimeType?: string;
+  extension?: string;
   metadata?: Record<string, unknown>;
   sourceProvider?: 'onedrive' | 'upload';
 
@@ -77,6 +79,8 @@ export const documentAction: ActionDefinition<{
 
     content: v.optional(v.string()),
     fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    extension: v.optional(v.string()),
     metadata: v.optional(v.any()),
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
@@ -103,6 +107,8 @@ export const documentAction: ActionDefinition<{
             title: params.title,
             content: params.content,
             fileId: params.fileId as Id<'_storage'> | undefined,
+            mimeType: params.mimeType,
+            extension: params.extension,
             metadata: params.metadata,
             sourceProvider: params.sourceProvider,
           },
@@ -172,6 +178,8 @@ export const documentAction: ActionDefinition<{
           content: params.content,
           metadata: params.metadata,
           fileId: params.fileId as Id<'_storage'> | undefined,
+          mimeType: params.mimeType,
+          extension: params.extension,
           sourceProvider: params.sourceProvider,
         });
 

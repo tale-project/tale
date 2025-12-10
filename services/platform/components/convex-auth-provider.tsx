@@ -1,32 +1,46 @@
 'use client';
 
 import { ConvexReactClient } from 'convex/react';
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { authClient } from '@/lib/auth-client';
 
-// Validate required environment variables
-// During build time, use a placeholder URL to allow prerendering.
-// At runtime (in the browser), this validation will catch missing env vars.
-const convexUrl =
-  process.env.NEXT_PUBLIC_CONVEX_URL || 'http://placeholder:3210';
+/**
+ * Get the Convex WebSocket URL.
+ * Derives from window.location.origin at runtime, appending /ws_api.
+ */
+function getConvexUrl(): string {
+  return `${window.location.origin}/ws_api`;
+}
 
-// Important: ConvexReactClient must point to the Convex deployment URL (WS/HTTP),
-// not the Convex site URL. In dev this is usually http://localhost:3210.
-const convex = new ConvexReactClient(convexUrl, { expectAuth: true });
+// Singleton client instance - only created in browser
+let convexClient: ConvexReactClient | null = null;
+
+function getConvexClient(): ConvexReactClient {
+  if (!convexClient) {
+    const url = getConvexUrl();
+    convexClient = new ConvexReactClient(url, { expectAuth: true });
+  }
+  return convexClient;
+}
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  // Validate at runtime (in browser) that the env var is actually set
-  if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_CONVEX_URL) {
-    throw new Error(
-      'NEXT_PUBLIC_CONVEX_URL is not set. Please add it to your .env.local file. ' +
-        'Example: NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3210',
-    );
+  // Track whether we're mounted on the client
+  const [client, setClient] = useState<ConvexReactClient | null>(null);
+
+  useEffect(() => {
+    // Only runs on the client after hydration - safe to use Math.random() here
+    setClient(getConvexClient());
+  }, []);
+
+  // During SSR or before hydration, render nothing to avoid Math.random() during prerender
+  if (!client) {
+    return null;
   }
 
   // Wire Better Auth tokens into Convex client
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={client} authClient={authClient}>
       {children}
     </ConvexBetterAuthProvider>
   );

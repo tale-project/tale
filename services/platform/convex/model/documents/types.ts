@@ -11,6 +11,8 @@ export interface CreateDocumentArgs {
 
   content?: string;
   fileId?: Id<'_storage'>;
+  mimeType?: string;
+  extension?: string;
   metadata?: unknown;
   sourceProvider?: 'onedrive' | 'upload';
   externalItemId?: string;
@@ -41,6 +43,8 @@ export interface QueryDocumentsResult {
 
     content?: string;
     fileId?: Id<'_storage'>;
+    mimeType?: string;
+    extension?: string;
     metadata?: unknown;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
@@ -55,6 +59,8 @@ export interface DocumentItemResponse {
   name?: string;
   type: 'file' | 'folder';
   size?: number;
+  mimeType?: string;
+  extension?: string;
   storagePath?: string;
   sourceProvider?: 'onedrive' | 'upload';
   sourceMode?: 'auto' | 'manual';
@@ -87,6 +93,22 @@ export interface MembershipResult {
   identityId?: string; // Better Auth user ID
   role?: string;
 }
+
+export interface ListDocumentsByExtensionArgs {
+  organizationId: string;
+  extension: string;
+  limit?: number;
+}
+
+export type ListDocumentsByExtensionResult = Array<{
+  _id: Id<'documents'>;
+  _creationTime: number;
+  title?: string;
+  fileId?: Id<'_storage'>;
+  mimeType?: string;
+  extension?: string;
+  metadata?: unknown;
+}>;
 
 export type DocumentSourceType = 'markdown' | 'html' | 'url';
 
@@ -155,6 +177,8 @@ export const DocumentItem = v.object({
   name: v.optional(v.string()),
   type: v.union(v.literal('file'), v.literal('folder')),
   size: v.optional(v.number()),
+  mimeType: v.optional(v.string()),
+  extension: v.optional(v.string()),
   storagePath: v.optional(v.string()),
   sourceProvider: v.optional(
     v.union(v.literal('onedrive'), v.literal('upload')),
@@ -194,6 +218,8 @@ export const DocumentRecord = v.object({
 
   content: v.optional(v.string()),
   fileId: v.optional(v.id('_storage')),
+  mimeType: v.optional(v.string()),
+  extension: v.optional(v.string()),
   metadata: v.optional(v.any()),
   sourceProvider: v.optional(
     v.union(v.literal('onedrive'), v.literal('upload')),

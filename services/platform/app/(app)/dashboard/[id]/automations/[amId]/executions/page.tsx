@@ -1,6 +1,6 @@
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable, type Execution } from './components/executions-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
 

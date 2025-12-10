@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import AuthLayout from '@/components/auth-layout';
 import LogInForm from '@/components/auth/log-in-form';
