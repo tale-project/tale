@@ -1,4 +1,4 @@
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { getAuthToken } from '@/lib/auth/auth-server';

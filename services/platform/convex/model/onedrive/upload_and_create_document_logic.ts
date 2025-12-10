@@ -19,6 +19,7 @@ export interface UploadAndCreateDocDependencies {
     title: string;
 
     fileId: Id<'_storage'>;
+    mimeType?: string;
     metadata: Record<string, unknown>;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
@@ -27,6 +28,7 @@ export interface UploadAndCreateDocDependencies {
     documentId: Id<'documents'>;
     title: string;
     fileId: Id<'_storage'>;
+    mimeType?: string;
     metadata: Record<string, unknown>;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
@@ -69,6 +71,7 @@ export async function uploadAndCreateDocumentLogic(
         documentId: args.documentIdToUpdate,
         title: args.fileName,
         fileId: storageId,
+        mimeType: args.contentType,
         metadata: args.metadata,
         sourceProvider: 'onedrive',
         externalItemId:
@@ -89,6 +92,7 @@ export async function uploadAndCreateDocumentLogic(
       title: args.fileName,
 
       fileId: storageId,
+      mimeType: args.contentType,
       metadata: args.metadata,
       sourceProvider: 'onedrive',
       externalItemId:

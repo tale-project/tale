@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import ConversationsWrapper from './components/conversations-wrapper';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { SuspenseLoader } from '@/components/suspense-loader';

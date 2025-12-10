@@ -1,5 +1,5 @@
 import { SuspenseLoader } from '@/components/suspense-loader';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationSettings from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';

@@ -66,10 +66,10 @@ export function buildOAuth2AuthUrl(config: OAuth2UrlConfig): string {
     config.accountType,
   );
 
-  // Build redirect URI
+  // Build redirect URI (derive from SITE_URL)
   const redirectUri =
     config.redirectUri ||
-    `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/oauth2/callback`;
+    `${process.env.SITE_URL || 'http://localhost:3000'}/api/auth/oauth2/callback`;
 
   // Build state parameter: "provider:emailProviderId:organizationId"
   const state = `${config.provider}:${config.emailProviderId}:${config.organizationId}`;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Logger } from '@/lib/logger';
 import { encryptString } from '@/convex/lib/crypto/encrypt_string';
-import { fetchAction } from 'convex/nextjs';
+import { fetchAction } from '@/lib/convex-next-server';
 import { api } from '../../../../../../convex/_generated/api';
 
 const logger = new Logger('oauth2-existing-microsoft-callback');
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       const requestUrl = new URL(request.url);
       const baseUrl =
         requestUrl.hostname === '0.0.0.0'
-          ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+          ? process.env.SITE_URL || 'http://localhost:3000'
           : `${requestUrl.protocol}//${requestUrl.host}`;
 
       return NextResponse.redirect(new URL(redirectUrl, baseUrl));
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       const requestUrl = new URL(request.url);
       const baseUrl =
         requestUrl.hostname === '0.0.0.0'
-          ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+          ? process.env.SITE_URL || 'http://localhost:3000'
           : `${requestUrl.protocol}//${requestUrl.host}`;
 
       return NextResponse.redirect(new URL(redirectUrl, baseUrl));
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       const requestUrl = new URL(request.url);
       const baseUrl =
         requestUrl.hostname === '0.0.0.0'
-          ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+          ? process.env.SITE_URL || 'http://localhost:3000'
           : `${requestUrl.protocol}//${requestUrl.host}`;
 
       return NextResponse.redirect(new URL(redirectUrl, baseUrl));
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
           client_secret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET!,
           code,
           grant_type: 'authorization_code',
-          redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/existing-microsoft/callback`,
+          redirect_uri: `${process.env.SITE_URL}/api/auth/oauth2/existing-microsoft/callback`,
           scope: [
             'https://outlook.office.com/SMTP.Send',
             'https://outlook.office.com/IMAP.AccessAsUser.All',
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
       const requestUrl = new URL(request.url);
       const baseUrl =
         requestUrl.hostname === '0.0.0.0'
-          ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+          ? process.env.SITE_URL || 'http://localhost:3000'
           : `${requestUrl.protocol}//${requestUrl.host}`;
 
       return NextResponse.redirect(
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
       ],
       authUrl: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/authorize`,
       tokenUrl: `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
-      redirectUri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/existing-microsoft/callback`,
+      redirectUri: `${process.env.SITE_URL}/api/auth/oauth2/existing-microsoft/callback`,
     };
 
     // Create email provider in Convex with new structured config
@@ -227,7 +227,7 @@ export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
     const baseUrl =
       requestUrl.hostname === '0.0.0.0'
-        ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        ? process.env.SITE_URL || 'http://localhost:3000'
         : `${requestUrl.protocol}//${requestUrl.host}`;
 
     return NextResponse.redirect(
@@ -252,7 +252,7 @@ export async function GET(request: NextRequest) {
     const requestUrl = new URL(request.url);
     const baseUrl =
       requestUrl.hostname === '0.0.0.0'
-        ? process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        ? process.env.SITE_URL || 'http://localhost:3000'
         : `${requestUrl.protocol}//${requestUrl.host}`;
 
     return NextResponse.redirect(new URL(errorUrl, baseUrl));

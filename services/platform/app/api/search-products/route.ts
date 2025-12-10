@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchQuery } from 'convex/nextjs';
+import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 
 export async function POST(request: NextRequest) {
