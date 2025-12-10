@@ -12,7 +12,7 @@ import type {
 
 let cachedConvexHttpUrl: string | null = null;
 
-function getConvexHttpUrl(): string {
+function getConvexHttpUrl(): string { 
 	if (cachedConvexHttpUrl) return cachedConvexHttpUrl;
 
 	// SITE_URL is the single source of truth. We derive the Convex deployment
@@ -26,7 +26,7 @@ function getConvexHttpUrl(): string {
 	const url = `${trimmed}/ws_api`;
 
 	cachedConvexHttpUrl = url;
-	if (process.env.NODE_ENV !== 'production') {
+	if (process.env.NODE_ENV !== 'production') { 
 	  // Helpful for debugging misconfiguration in local/dev environments.
 	  // eslint-disable-next-line no-console
 	  console.log('[convex-next-server] Using Convex HTTP URL:', cachedConvexHttpUrl);
