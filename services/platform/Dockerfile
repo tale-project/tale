@@ -39,22 +39,14 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy application source from services/platform directory
 COPY services/platform/ .
 
-# Copy .env file from project root for build-time environment variables
-# This allows Next.js to access environment variables during build
-COPY .env .env
-
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Source env.sh to derive NEXT_PUBLIC_* variables from DOMAIN, then build
-# This ensures client-side environment variables are embedded in the JavaScript bundle
-# Use bash explicitly since env.sh uses bash-specific features like [[
-RUN bash -c 'set -a && \
-    source ./.env && \
-    source ./env.sh && \
-    env_normalize_common && \
-    npm run build'
+# Build Next.js application
+# Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
+# The build uses default/placeholder values; actual values are injected at container start
+RUN npm run build
 
 # Note: docker-entrypoint.sh is already copied as part of "COPY . ."
 

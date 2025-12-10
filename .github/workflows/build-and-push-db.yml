@@ -193,9 +193,9 @@ jobs:
           # Verify events table exists
           docker exec test-db psql -U test -d test -c "\dt tale.events"
 
-          # Clean up
-          docker stop test-db
-          docker rm test-db
+          # Clean up (ignore errors if container already stopped)
+          docker stop test-db || true
+          docker rm test-db || true
 
       - name: Test summary
         run: |
