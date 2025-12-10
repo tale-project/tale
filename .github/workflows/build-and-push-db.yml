@@ -175,11 +175,37 @@ jobs:
             -e DB_USER=test \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-          # Wait for database to be ready
-          sleep 30
+          # Wait for database to be ready with timeout
+          # ARM64 emulation on AMD64 runners is slow, so we need a longer timeout
+          MAX_ATTEMPTS=60
+          ATTEMPT=0
+          echo "Waiting for database to be ready..."
 
-          # Check if database is ready
-          docker exec test-db pg_isready -U test -d test
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            # First check if container is still running
+            if ! docker ps --filter "name=test-db" --filter "status=running" | grep -q test-db; then
+              echo "❌ Container stopped unexpectedly!"
+              echo "Container logs:"
+              docker logs test-db
+              exit 1
+            fi
+
+            # Try to connect
+            if docker exec test-db pg_isready -U test -d test 2>/dev/null; then
+              echo "✅ Database is ready after $ATTEMPT seconds"
+              break
+            fi
+
+            ATTEMPT=$((ATTEMPT + 1))
+            sleep 1
+          done
+
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Database failed to become ready within $MAX_ATTEMPTS seconds"
+            echo "Container logs:"
+            docker logs test-db
+            exit 1
+          fi
 
           # Verify TimescaleDB extension
           docker exec test-db psql -U test -d test -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"

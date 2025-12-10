@@ -124,7 +124,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Run Command" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker run -d -p 7000:7000 \\" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -d -p 7000:8000 \\" >> $GITHUB_STEP_SUMMARY
           echo "  -v graph-db-data:/app/data \\" >> $GITHUB_STEP_SUMMARY
           echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -166,19 +166,30 @@ jobs:
 
       - name: Test database initialization
         run: |
-          # Start the service
+          # Start the service (container listens on 8000, map to host 7000)
           docker run -d --name test-graph-db --platform ${{ matrix.platform }} \
-            -p 7000:7000 \
+            -p 7000:8000 \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-          # Wait for service to be ready
-          sleep 15
+          # Wait for service to be ready with retry logic
+          echo "Waiting for service to be ready..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:7000/health > /dev/null 2>&1; then
+              echo "Service is ready!"
+              break
+            fi
+            echo "Attempt $i/30: Service not ready yet, waiting..."
+            sleep 2
+          done
+
+          # Show container logs for debugging if needed
+          docker logs test-graph-db
 
           # Check health endpoint
           curl -f http://localhost:7000/health
 
           # Test query endpoint
-          curl -f -X POST http://localhost:7000/api/v1/query \
+          curl -f -X POST http://localhost:7000/query \
             -H "Content-Type: application/json" \
             -d '{"query": "RETURN 1 as test"}'
 
