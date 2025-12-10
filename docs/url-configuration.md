@@ -1,22 +1,22 @@
 # URL Configuration Guide
 
-This document explains how URLs are configured in the Tale Platform and how they're auto-derived from the `DOMAIN` environment variable.
+This document explains how URLs are configured in the Tale Platform and how they're derived at runtime.
 
 ## Architecture Overview
 
-The Tale Platform has three types of URL configurations:
+The Tale Platform uses a **runtime URL derivation strategy** to avoid baking environment-specific values into Docker images:
 
-1. **Client-side URLs** (Browser → Services via Proxy)
-2. **Backend-to-Backend URLs** (Platform Service → Convex Backend)
-3. **Public URLs** (External access)
+1. **Client-side (Browser)**: Derives URLs from `window.location.origin` at runtime
+2. **Server-side (Next.js)**: Uses `SITE_URL` environment variable
+3. **Backend-to-Backend**: Uses internal Docker network addresses
 
-## URL Auto-Derivation from DOMAIN
+**Key Principle**: No `NEXT_PUBLIC_*` environment variables are used. This ensures Docker images are portable across environments.
+
+## URL Configuration
 
 ### Setting the DOMAIN Variable
 
-The `DOMAIN` environment variable is the single source of truth for all public URLs.
-
-**Important**: Set `DOMAIN` to the full URL **including** the protocol (http:// or https://):
+The `DOMAIN` environment variable is the single source of truth for public URLs in Docker Compose:
 
 ```bash
 # Local development (HTTP)
@@ -59,32 +59,42 @@ Caddy's automatic HTTPS behavior varies by domain type:
 - Trust Caddy's root CA (run `caddy trust` as admin)
 - Or modify the Caddyfile to use `http://localhost` explicitly to disable HTTPS
 
-### Auto-Derived URLs
+## Runtime URL Derivation
 
-When you set `DOMAIN=https://demo.tale.dev`, the following URLs are automatically derived:
+### Client-Side (Browser)
 
-#### Client-Side URLs (Browser Access)
+The Convex client derives URLs at runtime from `window.location.origin`:
 
-These are used by the browser to connect to services through the Caddy proxy:
-
-```bash
-NEXT_PUBLIC_APP_URL=https://demo.tale.dev
-NEXT_PUBLIC_CONVEX_URL=https://demo.tale.dev/ws_api
-NEXT_PUBLIC_CONVEX_SITE_URL=https://demo.tale.dev/http_api
-NEXT_PUBLIC_DEPLOYMENT_URL=https://demo.tale.dev/ws_api
-SITE_URL=https://demo.tale.dev
+```typescript
+// services/platform/components/convex-auth-provider.tsx
+function getConvexUrl(): string {
+  return `${window.location.origin}/ws_api`;
+}
 ```
 
-#### Backend-to-Backend URLs
+This means:
+- **No `NEXT_PUBLIC_*` variables needed**
+- Docker images work in any environment without rebuild
+- URLs automatically match the domain the user is accessing
 
-These are used by the Platform service to connect to the Convex backend:
+### Server-Side (Next.js)
 
-```bash
-CONVEX_CLOUD_ORIGIN=${base_url}/ws_api
-CONVEX_SITE_ORIGIN=${base_url}/http_api
+Server-side code uses the `SITE_URL` environment variable:
+
+```typescript
+// services/platform/lib/convex-next-server.ts
+const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
+const url = `${rawSiteUrl.replace(/\/+$/, '')}/ws_api`;
 ```
 
-**Important**: These use the same base URL with proxy paths (`/ws_api` and `/http_api`) for backend-to-backend communication, ensuring consistent routing through the proxy.
+### Environment Variables
+
+| Variable | Scope | Purpose |
+|----------|-------|---------|
+| `SITE_URL` | Server-side | Base URL for the platform (e.g., `https://demo.tale.dev`) |
+| `DOMAIN` | Docker Compose | Passed to Caddy and derived to `SITE_URL` |
+
+**Note**: `NEXT_PUBLIC_*` variables are intentionally NOT used to keep Docker images environment-agnostic.
 
 ## Configuration Flow
 
@@ -99,46 +109,20 @@ environment:
 
 ### 2. URL Derivation in env.sh
 
-The `services/platform/env.sh` script derives all URLs from the `DOMAIN` variable:
+The `services/platform/env.sh` script derives `SITE_URL` from the `DOMAIN` variable:
 
 ```bash
-# Domain configuration - auto-derive URLs
-local domain="${DOMAIN:-localhost}"
-local protocol="http"
+# Domain configuration - auto-derive SITE_URL
+local base_url="${DOMAIN:-http://localhost}"
 
-# Use HTTPS for non-localhost domains
-if [ "$domain" != "localhost" ] && [ "$domain" != "127.0.0.1" ]; then
-  protocol="https"
+# Ensure DOMAIN includes a protocol
+if [[ ! "$base_url" =~ ^https?:// ]]; then
+  base_url="http://${base_url}"
 fi
 
-local base_url="${protocol}://${domain}"
-
-# Client-side URLs use the public domain with proxy paths
-export NEXT_PUBLIC_CONVEX_URL="${NEXT_PUBLIC_CONVEX_URL:-${base_url}/ws_api}"
-export NEXT_PUBLIC_CONVEX_SITE_URL="${NEXT_PUBLIC_CONVEX_SITE_URL:-${base_url}/http_api}"
-export NEXT_PUBLIC_DEPLOYMENT_URL="${NEXT_PUBLIC_DEPLOYMENT_URL:-${base_url}/ws_api}"
-export NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-${base_url}}"
+# Site URL - the canonical base URL for the platform
 export SITE_URL="${SITE_URL:-${base_url}}"
-
-# Backend-to-backend URLs ALWAYS use internal Docker network
-export CONVEX_CLOUD_ORIGIN="${CONVEX_CLOUD_ORIGIN:-http://127.0.0.1:3210}"
-export CONVEX_SITE_ORIGIN="${CONVEX_SITE_ORIGIN:-http://127.0.0.1:3211}"
 ```
-
-## Override Behavior
-
-You can override any auto-derived URL by setting it explicitly in your `.env` file:
-
-```bash
-# Override the auto-derived URL
-NEXT_PUBLIC_CONVEX_URL=https://custom.domain.com/ws_api
-```
-
-The override priority is:
-
-1. Explicitly set environment variable (highest priority)
-2. Auto-derived from DOMAIN
-3. Default fallback value (lowest priority)
 
 ## Examples
 
@@ -150,10 +134,8 @@ DOMAIN=http://localhost
 ```
 
 Results in:
-
-- `NEXT_PUBLIC_APP_URL=http://localhost`
-- `NEXT_PUBLIC_CONVEX_URL=http://localhost/ws_api`
-- `SITE_URL=http://localhost`
+- `SITE_URL=http://localhost:3000` (server-side)
+- Browser automatically uses `http://localhost:3000/ws_api` for Convex
 
 ### Production with Domain
 
@@ -163,10 +145,8 @@ DOMAIN=https://demo.tale.dev
 ```
 
 Results in:
-
-- `NEXT_PUBLIC_APP_URL=https://demo.tale.dev`
-- `NEXT_PUBLIC_CONVEX_URL=https://demo.tale.dev/ws_api`
-- `SITE_URL=https://demo.tale.dev`
+- `SITE_URL=https://demo.tale.dev` (server-side)
+- Browser automatically uses `https://demo.tale.dev/ws_api` for Convex
 
 ### Production with IP Address
 
@@ -176,10 +156,8 @@ DOMAIN=http://203.0.113.10
 ```
 
 Results in:
-
-- `NEXT_PUBLIC_APP_URL=http://203.0.113.10`
-- `NEXT_PUBLIC_CONVEX_URL=http://203.0.113.10/ws_api`
-- `SITE_URL=http://203.0.113.10`
+- `SITE_URL=http://203.0.113.10` (server-side)
+- Browser automatically uses `http://203.0.113.10/ws_api` for Convex
 
 ## Proxy Configuration
 
@@ -217,16 +195,17 @@ The proxy routes are configured in `services/proxy/Caddyfile`:
 **Check**:
 
 1. Verify `DOMAIN` is set correctly in `.env`
-2. Check that `NEXT_PUBLIC_CONVEX_URL` is using the correct protocol (http/https)
-3. Verify the proxy is running and accessible
+2. Verify the proxy is running and accessible
+3. Check browser console for WebSocket connection errors
+4. Ensure the `/ws_api` path is being proxied correctly
 
 ### Issue: Platform service can't connect to Convex backend
 
 **Check**:
 
-1. Verify `CONVEX_CLOUD_ORIGIN` is set to `http://127.0.0.1:3210`
-2. Check that the Convex backend is running
-3. Verify the platform service can reach the backend on the internal network
+1. Verify `SITE_URL` is set correctly
+2. Check that the Convex backend is running on port 3210
+3. Verify Next.js rewrites are configured in `next.config.ts`
 
 ### Issue: HTTPS not working
 
@@ -236,6 +215,15 @@ The proxy routes are configured in `services/proxy/Caddyfile`:
 2. Check that DNS is pointing to your server
 3. Verify ports 80 and 443 are open
 4. Check Caddy logs for certificate provisioning errors
+
+## Why No NEXT_PUBLIC_* Variables?
+
+Next.js injects `NEXT_PUBLIC_*` environment variables at **build time** into the client JavaScript bundle. This creates a problem for Docker deployments:
+
+- Images built with `NEXT_PUBLIC_CONVEX_URL=https://staging.example.com` cannot be reused for production
+- You would need to rebuild the image for each environment
+
+By deriving URLs from `window.location.origin` at runtime, the same Docker image works in any environment.
 
 ## Related Documentation
 
