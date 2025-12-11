@@ -11,7 +11,7 @@ Get Tale running in 3 steps:
 ### 1. Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+)
-- [OpenAI API Key](https://platform.openai.com/api-keys)
+- [OpenRouter API Key](https://openrouter.ai)
 
 ### 2. Clone & Configure
 
@@ -21,10 +21,10 @@ cd tale
 cp .env.example .env
 ```
 
-Edit `.env` and add your OpenAI API key:
+Edit `.env` and add your OpenRouter API key:
 
 ```bash
-OPENAI_API_KEY=sk-your-key-here
+OPENAI_API_KEY=your-openrouter-api-key
 ```
 
 ### 3. Launch
