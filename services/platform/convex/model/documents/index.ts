@@ -49,6 +49,7 @@ export { generateDocument } from './generate_document';
 export { analyzePptx } from './analyze_pptx';
 export { generatePptx } from './generate_pptx';
 export { generateDocx } from './generate_docx';
+export { generateDocxFromTemplate } from './generate_docx_from_template';
 export { extractExtension } from './extract_extension';
 export { listDocumentsByExtension } from './list_documents_by_extension';
 
@@ -72,7 +73,11 @@ export type {
 export type {
   DocxSection,
   DocxContent,
-  DocxBranding,
   GenerateDocxArgs,
   GenerateDocxResult,
 } from './generate_docx';
+
+export type {
+  GenerateDocxFromTemplateArgs,
+  GenerateDocxFromTemplateResult,
+} from './generate_docx_from_template';

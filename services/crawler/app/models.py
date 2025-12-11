@@ -259,19 +259,10 @@ class DocxContent(BaseModel):
     sections: List[DocxSection] = Field(default_factory=list, description="Document sections")
 
 
-class DocxBranding(BaseModel):
-    """Branding options for DOCX generation."""
-
-    logo_url: Optional[str] = Field(None, description="URL to company logo image")
-    company_name: Optional[str] = Field(None, description="Company name")
-    primary_color: Optional[str] = Field(None, description="Primary brand color (hex)")
-
-
 class GenerateDocxRequest(BaseModel):
     """Request to generate a DOCX document."""
 
     content: DocxContent = Field(..., description="Document content structure")
-    branding: Optional[DocxBranding] = Field(None, description="Optional branding")
 
 
 class GenerateDocxResponse(BaseModel):
@@ -281,4 +272,6 @@ class GenerateDocxResponse(BaseModel):
     file_base64: Optional[str] = Field(None, description="Generated DOCX as base64")
     file_size: Optional[int] = Field(None, description="File size in bytes")
     error: Optional[str] = Field(None, description="Error message if generation failed")
+
+
 

@@ -28,6 +28,34 @@ export function getEndpointPath(
 }
 
 /**
+ * Decode common HTML entities back to their original characters.
+ * This is needed because LLMs sometimes output HTML-encoded content.
+ */
+function decodeHtmlEntities(html: string): string {
+  return html
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&'); // Must be last to avoid double-decoding
+}
+
+/**
+ * Check if HTML content is a complete HTML document (has doctype, html, head, body).
+ * If so, it should NOT be wrapped in the default template.
+ */
+function isCompleteHtmlDocument(html: string): boolean {
+  const trimmed = html.trim().toLowerCase();
+  // Check for DOCTYPE or <html> tag at the start
+  return (
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    (trimmed.includes('<head') && trimmed.includes('<body'))
+  );
+}
+
+/**
  * Build the request body based on source type and options.
  */
 export function buildRequestBody(
@@ -46,8 +74,17 @@ export function buildRequestBody(
   if (sourceType === 'markdown') {
     body.content = content;
   } else if (sourceType === 'html') {
-    body.html = content;
-    body.wrap_in_template = wrapInTemplate ?? true;
+    // Decode HTML entities - LLMs sometimes output HTML-encoded content
+    // (e.g., &lt;div&gt; instead of <div>)
+    const decodedHtml = decodeHtmlEntities(content);
+    body.html = decodedHtml;
+    // Auto-detect: if wrapInTemplate is not explicitly set, check if content is a complete HTML document
+    // Complete HTML documents should NOT be wrapped (would cause double-wrapping and display raw HTML)
+    if (wrapInTemplate !== undefined) {
+      body.wrap_in_template = wrapInTemplate;
+    } else {
+      body.wrap_in_template = !isCompleteHtmlDocument(decodedHtml);
+    }
   } else if (sourceType === 'url') {
     body.url = content;
     if (urlOptions?.waitUntil) {

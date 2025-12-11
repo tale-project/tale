@@ -48,6 +48,8 @@ export async function generateDocument(
     sourceType: args.sourceType,
     outputFormat: args.outputFormat,
     contentLength: args.content.length,
+    wrapInTemplate: requestBody.wrap_in_template,
+    contentPreview: args.content.slice(0, 100),
   });
 
   const response = await fetch(apiUrl, {
