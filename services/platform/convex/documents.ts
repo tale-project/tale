@@ -220,7 +220,15 @@ export const generateDocumentInternal = internalAction({
     ),
     urlOptions: v.optional(
       v.object({
-        waitUntil: v.optional(v.string()),
+        waitUntil: v.optional(
+          v.union(
+            v.literal('load'),
+            v.literal('domcontentloaded'),
+            v.literal('networkidle'),
+            v.literal('commit'),
+          ),
+        ),
+        timeout: v.optional(v.number()),
       }),
     ),
     extraCss: v.optional(v.string()),

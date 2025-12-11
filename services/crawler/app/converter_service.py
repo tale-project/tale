@@ -11,6 +11,8 @@ from typing import Optional, Literal
 
 from playwright.async_api import async_playwright, Browser, Page
 
+from app.models import WaitUntilType
+
 logger = logging.getLogger(__name__)
 
 # Default HTML template for rendering content
@@ -292,7 +294,7 @@ class ConverterService:
     async def url_to_pdf(
         self,
         url: str,
-        wait_until: str = "networkidle",
+        wait_until: WaitUntilType = "networkidle",
         **pdf_options,
     ) -> bytes:
         """Capture a URL as PDF."""
@@ -321,7 +323,7 @@ class ConverterService:
     async def url_to_image(
         self,
         url: str,
-        wait_until: str = "networkidle",
+        wait_until: WaitUntilType = "networkidle",
         image_type: Literal["png", "jpeg"] = "png",
         quality: int = 90,
         full_page: bool = True,

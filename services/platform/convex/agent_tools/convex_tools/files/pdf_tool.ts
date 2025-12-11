@@ -84,13 +84,15 @@ CRITICAL RULES FOR RESPONSE:
         .describe('Advanced PDF options passed through to the crawler service'),
       urlOptions: z
         .object({
-          waitUntil: z.string().optional(),
-          timeout: z.number().optional(),
+          waitUntil: z
+            .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
+            .optional()
+            .describe(
+              'Wait condition for URL loading: "networkidle" (default, best for dynamic pages), "load" (faster, for static pages), "domcontentloaded" (DOM ready), "commit" (first response)',
+            ),
         })
         .optional()
-        .describe(
-          'Advanced options for URL capture (navigation, timeout, etc.)',
-        ),
+        .describe('Options for URL PDF capture'),
       extraCss: z
         .string()
         .optional()

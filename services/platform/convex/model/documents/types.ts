@@ -132,8 +132,11 @@ export interface GenerateDocumentImageOptions {
   height?: number; // Only for URL screenshots
 }
 
+/** Valid Playwright wait_until values */
+export type WaitUntilType = 'load' | 'domcontentloaded' | 'networkidle' | 'commit';
+
 export interface GenerateDocumentUrlOptions {
-  waitUntil?: string; // load, domcontentloaded, networkidle
+  waitUntil?: WaitUntilType;
 }
 
 export interface GenerateDocumentArgs {

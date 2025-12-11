@@ -2,8 +2,11 @@
 Data models for the Tale Crawler service.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, HttpUrl
+
+# Valid Playwright wait_until values
+WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
 
 
 class CrawlRequest(BaseModel):
@@ -156,7 +159,7 @@ class UrlToPdfRequest(BaseModel):
 
     url: HttpUrl = Field(..., description="URL to capture as PDF")
     options: PdfOptions = Field(default_factory=PdfOptions, description="PDF options")
-    wait_until: str = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle)")
+    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
 
 
 class UrlToImageRequest(BaseModel):
@@ -164,7 +167,7 @@ class UrlToImageRequest(BaseModel):
 
     url: HttpUrl = Field(..., description="URL to capture as image")
     options: ImageOptions = Field(default_factory=lambda: ImageOptions(width=1280), description="Image options")
-    wait_until: str = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle)")
+    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
     height: int = Field(800, description="Viewport height", ge=100, le=4096)
 
 
