@@ -1,5 +1,5 @@
 /**
- * Generate a DOCX document via the crawler service and store it in Convex storage.
+ * Generate a DOCX document from a template via the crawler service.
  *
  * This is the model-layer helper; Convex actions should call this via a thin
  * wrapper in `convex/documents.ts`.
@@ -10,37 +10,17 @@ import type { Id } from '../../_generated/dataModel';
 import { decode as decodeBase64 } from 'base64-arraybuffer';
 import { buildDownloadUrl, getCrawlerUrl } from './generate_document_helpers';
 import { createDebugLog } from '../../lib/debug_log';
+import type { DocxContent } from './generate_docx';
 
 const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
-export interface DocxSection {
-  type:
-    | 'heading'
-    | 'paragraph'
-    | 'bullets'
-    | 'numbered'
-    | 'table'
-    | 'quote'
-    | 'code';
-  text?: string;
-  level?: number; // For headings (1-6)
-  items?: string[]; // For bullets/numbered lists
-  headers?: string[]; // For tables
-  rows?: string[][]; // For tables
-}
-
-export interface DocxContent {
-  title?: string;
-  subtitle?: string;
-  sections: DocxSection[];
-}
-
-export interface GenerateDocxArgs {
+export interface GenerateDocxFromTemplateArgs {
   fileName: string;
   content: DocxContent;
+  templateStorageId: Id<'_storage'>;
 }
 
-export interface GenerateDocxResult {
+export interface GenerateDocxFromTemplateResult {
   success: boolean;
   fileId: Id<'_storage'>;
   url: string;
@@ -50,43 +30,67 @@ export interface GenerateDocxResult {
 }
 
 /**
- * Generate a DOCX document from structured content using the crawler service.
+ * Generate a DOCX from content using a template as the base.
+ *
+ * When templateStorageId is provided, uses the template as a base, preserving
+ * all styling, headers/footers, and document properties.
  */
-export async function generateDocx(
+export async function generateDocxFromTemplate(
   ctx: ActionCtx,
-  args: GenerateDocxArgs,
-): Promise<GenerateDocxResult> {
+  args: GenerateDocxFromTemplateArgs,
+): Promise<GenerateDocxFromTemplateResult> {
   const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/document/generate-docx`;
+  const apiUrl = `${crawlerUrl}/api/v1/template/generate-docx`;
 
-  const requestBody = {
-    content: args.content,
-  };
+  // Prepare content as JSON string
+  const contentJson = JSON.stringify(args.content);
 
-  debugLog('documents.generateDocx start', {
+  debugLog('documents.generateDocxFromTemplate start', {
     fileName: args.fileName,
     sectionsCount: args.content.sections.length,
+    templateStorageId: args.templateStorageId,
   });
+
+  // Create FormData with content
+  const formData = new FormData();
+  formData.append('content', contentJson);
+
+  // Download template and add to form data
+  const templateUrl = await ctx.storage.getUrl(args.templateStorageId);
+  if (!templateUrl) {
+    throw new Error('Template file not found in storage');
+  }
+
+  debugLog('documents.generateDocxFromTemplate downloading template', {
+    templateStorageId: args.templateStorageId,
+  });
+
+  const templateResponse = await fetch(templateUrl);
+  if (!templateResponse.ok) {
+    throw new Error(`Failed to download template: ${templateResponse.status}`);
+  }
+
+  const templateBlob = await templateResponse.blob();
+  formData.append('template_file', templateBlob, 'template.docx');
 
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
+    body: formData,
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    console.error('[documents.generateDocx] crawler error', {
+    console.error('[documents.generateDocxFromTemplate] crawler error', {
       status: response.status,
       errorText,
     });
-    throw new Error(`Crawler generateDocx failed: ${response.status}`);
+    throw new Error(`Crawler generateDocxFromTemplate failed: ${response.status}`);
   }
 
   const result = await response.json();
 
   if (!result.success || !result.file_base64) {
-    throw new Error(result.error || 'Failed to generate DOCX');
+    throw new Error(result.error || 'Failed to generate DOCX from template');
   }
 
   // Decode base64 and upload to Convex storage
@@ -114,11 +118,10 @@ export async function generateDocx(
     ? args.fileName
     : `${args.fileName}.docx`;
 
-  // Build download URL using our custom HTTP endpoint that sets Content-Disposition
-  // This ensures the downloaded file has the correct filename instead of the storage ID
+  // Build download URL using our custom HTTP endpoint
   const downloadUrl = buildDownloadUrl(storageId, finalFileName);
 
-  debugLog('documents.generateDocx success', {
+  debugLog('documents.generateDocxFromTemplate success', {
     fileName: finalFileName,
     storageId,
     size: docxBytes.length,

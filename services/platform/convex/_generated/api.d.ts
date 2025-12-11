@@ -21,7 +21,7 @@ import type * as agent_tools_convex_tools_customers_helpers_read_customer_by_ema
 import type * as agent_tools_convex_tools_customers_helpers_read_customer_by_id from "../agent_tools/convex_tools/customers/helpers/read_customer_by_id.js";
 import type * as agent_tools_convex_tools_customers_helpers_read_customer_list from "../agent_tools/convex_tools/customers/helpers/read_customer_list.js";
 import type * as agent_tools_convex_tools_customers_helpers_types from "../agent_tools/convex_tools/customers/helpers/types.js";
-import type * as agent_tools_convex_tools_files_generate_docx_tool from "../agent_tools/convex_tools/files/generate_docx_tool.js";
+import type * as agent_tools_convex_tools_files_docx_tool from "../agent_tools/convex_tools/files/docx_tool.js";
 import type * as agent_tools_convex_tools_files_generate_excel_tool from "../agent_tools/convex_tools/files/generate_excel_tool.js";
 import type * as agent_tools_convex_tools_files_generate_file_tool from "../agent_tools/convex_tools/files/generate_file_tool.js";
 import type * as agent_tools_convex_tools_files_helpers_check_resource_accessible from "../agent_tools/convex_tools/files/helpers/check_resource_accessible.js";
@@ -188,6 +188,7 @@ import type * as model_documents_extract_extension from "../model/documents/extr
 import type * as model_documents_generate_document from "../model/documents/generate_document.js";
 import type * as model_documents_generate_document_helpers from "../model/documents/generate_document_helpers.js";
 import type * as model_documents_generate_docx from "../model/documents/generate_docx.js";
+import type * as model_documents_generate_docx_from_template from "../model/documents/generate_docx_from_template.js";
 import type * as model_documents_generate_pptx from "../model/documents/generate_pptx.js";
 import type * as model_documents_generate_signed_url from "../model/documents/generate_signed_url.js";
 import type * as model_documents_get_document_by_id from "../model/documents/get_document_by_id.js";
@@ -618,7 +619,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/convex_tools/customers/helpers/read_customer_by_id": typeof agent_tools_convex_tools_customers_helpers_read_customer_by_id;
   "agent_tools/convex_tools/customers/helpers/read_customer_list": typeof agent_tools_convex_tools_customers_helpers_read_customer_list;
   "agent_tools/convex_tools/customers/helpers/types": typeof agent_tools_convex_tools_customers_helpers_types;
-  "agent_tools/convex_tools/files/generate_docx_tool": typeof agent_tools_convex_tools_files_generate_docx_tool;
+  "agent_tools/convex_tools/files/docx_tool": typeof agent_tools_convex_tools_files_docx_tool;
   "agent_tools/convex_tools/files/generate_excel_tool": typeof agent_tools_convex_tools_files_generate_excel_tool;
   "agent_tools/convex_tools/files/generate_file_tool": typeof agent_tools_convex_tools_files_generate_file_tool;
   "agent_tools/convex_tools/files/helpers/check_resource_accessible": typeof agent_tools_convex_tools_files_helpers_check_resource_accessible;
@@ -785,6 +786,7 @@ declare const fullApi: ApiFromModules<{
   "model/documents/generate_document": typeof model_documents_generate_document;
   "model/documents/generate_document_helpers": typeof model_documents_generate_document_helpers;
   "model/documents/generate_docx": typeof model_documents_generate_docx;
+  "model/documents/generate_docx_from_template": typeof model_documents_generate_docx_from_template;
   "model/documents/generate_pptx": typeof model_documents_generate_pptx;
   "model/documents/generate_signed_url": typeof model_documents_generate_signed_url;
   "model/documents/get_document_by_id": typeof model_documents_get_document_by_id;

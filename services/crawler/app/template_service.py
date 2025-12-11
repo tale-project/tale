@@ -86,16 +86,27 @@ class TemplateService:
     async def generate_docx(
         self,
         content: Dict[str, Any],
-        branding: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         """
         Generate a DOCX document from structured content.
 
         Delegated to DocxService.
         """
-        return await self._docx_service.generate_docx(
+        return await self._docx_service.generate_docx(content=content)
+
+    async def generate_docx_from_template(
+        self,
+        content: Dict[str, Any],
+        template_bytes: bytes,
+    ) -> bytes:
+        """
+        Generate a DOCX document using a template as the base.
+
+        Delegated to DocxService.
+        """
+        return await self._docx_service.generate_docx_from_template(
             content=content,
-            branding=branding,
+            template_bytes=template_bytes,
         )
 
 

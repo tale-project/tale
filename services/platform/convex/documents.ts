@@ -752,13 +752,6 @@ export const generateDocxInternal = internalAction({
         }),
       ),
     }),
-    branding: v.optional(
-      v.object({
-        primaryColor: v.optional(v.string()),
-        fontFamily: v.optional(v.string()),
-        fontSize: v.optional(v.number()),
-      }),
-    ),
   },
   returns: v.object({
     success: v.boolean(),
@@ -772,9 +765,58 @@ export const generateDocxInternal = internalAction({
     return await DocumentsModel.generateDocx(ctx, {
       fileName: args.fileName,
       content: args.content,
-      branding: args.branding,
     });
   },
 });
 
-
+/**
+ * Generate a DOCX from content using a template via the crawler service.
+ *
+ * When a template is provided, the generated document preserves:
+ * - Headers and footers (company logo, page numbers)
+ * - Font families and styles
+ * - Page setup (margins, orientation, size)
+ */
+export const generateDocxFromTemplateInternal = internalAction({
+  args: {
+    fileName: v.string(),
+    content: v.object({
+      title: v.optional(v.string()),
+      subtitle: v.optional(v.string()),
+      sections: v.array(
+        v.object({
+          type: v.union(
+            v.literal('heading'),
+            v.literal('paragraph'),
+            v.literal('bullets'),
+            v.literal('numbered'),
+            v.literal('table'),
+            v.literal('quote'),
+            v.literal('code'),
+          ),
+          text: v.optional(v.string()),
+          level: v.optional(v.number()),
+          items: v.optional(v.array(v.string())),
+          headers: v.optional(v.array(v.string())),
+          rows: v.optional(v.array(v.array(v.string()))),
+        }),
+      ),
+    }),
+    templateStorageId: v.id('_storage'),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    fileId: v.id('_storage'),
+    url: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    size: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.generateDocxFromTemplate(ctx, {
+      fileName: args.fileName,
+      content: args.content,
+      templateStorageId: args.templateStorageId,
+    });
+  },
+});
