@@ -23,8 +23,9 @@ import type * as agent_tools_convex_tools_customers_helpers_read_customer_list f
 import type * as agent_tools_convex_tools_customers_helpers_types from "../agent_tools/convex_tools/customers/helpers/types.js";
 import type * as agent_tools_convex_tools_files_docx_tool from "../agent_tools/convex_tools/files/docx_tool.js";
 import type * as agent_tools_convex_tools_files_generate_excel_tool from "../agent_tools/convex_tools/files/generate_excel_tool.js";
-import type * as agent_tools_convex_tools_files_generate_file_tool from "../agent_tools/convex_tools/files/generate_file_tool.js";
 import type * as agent_tools_convex_tools_files_helpers_check_resource_accessible from "../agent_tools/convex_tools/files/helpers/check_resource_accessible.js";
+import type * as agent_tools_convex_tools_files_image_tool from "../agent_tools/convex_tools/files/image_tool.js";
+import type * as agent_tools_convex_tools_files_pdf_tool from "../agent_tools/convex_tools/files/pdf_tool.js";
 import type * as agent_tools_convex_tools_files_pptx_tool from "../agent_tools/convex_tools/files/pptx_tool.js";
 import type * as agent_tools_convex_tools_files_resource_check_tool from "../agent_tools/convex_tools/files/resource_check_tool.js";
 import type * as agent_tools_convex_tools_products_helpers_read_product_by_id from "../agent_tools/convex_tools/products/helpers/read_product_by_id.js";
@@ -621,8 +622,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/convex_tools/customers/helpers/types": typeof agent_tools_convex_tools_customers_helpers_types;
   "agent_tools/convex_tools/files/docx_tool": typeof agent_tools_convex_tools_files_docx_tool;
   "agent_tools/convex_tools/files/generate_excel_tool": typeof agent_tools_convex_tools_files_generate_excel_tool;
-  "agent_tools/convex_tools/files/generate_file_tool": typeof agent_tools_convex_tools_files_generate_file_tool;
   "agent_tools/convex_tools/files/helpers/check_resource_accessible": typeof agent_tools_convex_tools_files_helpers_check_resource_accessible;
+  "agent_tools/convex_tools/files/image_tool": typeof agent_tools_convex_tools_files_image_tool;
+  "agent_tools/convex_tools/files/pdf_tool": typeof agent_tools_convex_tools_files_pdf_tool;
   "agent_tools/convex_tools/files/pptx_tool": typeof agent_tools_convex_tools_files_pptx_tool;
   "agent_tools/convex_tools/files/resource_check_tool": typeof agent_tools_convex_tools_files_resource_check_tool;
   "agent_tools/convex_tools/products/helpers/read_product_by_id": typeof agent_tools_convex_tools_products_helpers_read_product_by_id;

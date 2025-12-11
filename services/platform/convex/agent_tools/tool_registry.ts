@@ -17,7 +17,8 @@ import { generateWorkflowFromDescriptionTool } from './convex_tools/workflows/ge
 import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workflow_definition_tool';
 import { validateWorkflowDefinitionTool } from './convex_tools/workflows/validate_workflow_definition_tool';
 import { generateExcelTool } from './convex_tools/files/generate_excel_tool';
-import { generateFileTool } from './convex_tools/files/generate_file_tool';
+import { pdfTool } from './convex_tools/files/pdf_tool';
+import { imageTool } from './convex_tools/files/image_tool';
 import { pptxTool } from './convex_tools/files/pptx_tool';
 import { docxTool } from './convex_tools/files/docx_tool';
 import { resourceCheckTool } from './convex_tools/files/resource_check_tool';
@@ -35,7 +36,8 @@ export const TOOL_NAMES = [
   'rag_search',
   'rag_write',
   'web_read',
-  'generate_file',
+  'pdf',
+  'image',
   'pptx',
   'docx',
   'resource_check',
@@ -63,7 +65,8 @@ export const TOOL_REGISTRY = [
   saveWorkflowDefinitionTool,
   validateWorkflowDefinitionTool,
   generateExcelTool,
-  generateFileTool,
+  pdfTool,
+  imageTool,
   pptxTool,
   docxTool,
   resourceCheckTool,
