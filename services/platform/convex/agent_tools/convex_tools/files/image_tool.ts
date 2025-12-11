@@ -80,13 +80,15 @@ CRITICAL RULES FOR RESPONSE:
         .describe('Advanced image options for image output'),
       urlOptions: z
         .object({
-          waitUntil: z.string().optional(),
-          timeout: z.number().optional(),
+          waitUntil: z
+            .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
+            .optional()
+            .describe(
+              'Wait condition for URL loading: "networkidle" (default, best for dynamic pages), "load" (faster, for static pages), "domcontentloaded" (DOM ready), "commit" (first response)',
+            ),
         })
         .optional()
-        .describe(
-          'Advanced options for URL capture (navigation, timeout, etc.)',
-        ),
+        .describe('Options for URL screenshot capture'),
       extraCss: z
         .string()
         .optional()
