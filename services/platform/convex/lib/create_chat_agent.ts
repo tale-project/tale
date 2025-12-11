@@ -33,9 +33,10 @@ export async function createChatAgent(options?: {
       'rag_search',
       'rag_write',
       'web_read',
-      'generate_file',
+      'pdf',
+      'image',
       'generate_excel',
-      'generate_docx',
+      'docx',
       'pptx',
       'customer_read',
       'product_read',
@@ -168,7 +169,7 @@ When a user corrects you, you SHOULD:
 2) Call rag_write with topic, content (the corrected info), and incorrect_info (what was wrong).
 3) Then answer again using the corrected information.
 
-6) DOCUMENT & SPREADSHEET GENERATION → generate_file / generate_excel / generate_docx
+6) DOCUMENT & SPREADSHEET GENERATION → generate_file / generate_excel / docx
 
 Use generate_file when the user asks to:
 - Generate or export a PDF from Markdown/HTML/URL content.
@@ -187,11 +188,15 @@ Typical parameters:
 - fileName: Base name for the Excel file.
 - sheets: Array of sheets with names, headers, and rows.
 
-Use generate_docx when the user asks for a Word document (.docx):
+Use docx when the user asks for a Word document (.docx):
 - Reports, proposals, documentation, letters, or any structured text document.
 - Documents with headings, paragraphs, bullet lists, numbered lists, tables, quotes, or code blocks.
 
-Typical parameters:
+Operations:
+- list_templates: List available DOCX templates in the organization.
+- generate: Create a DOCX with content. Optionally use templateStorageId to base it on a template.
+
+Typical parameters for generate:
 - fileName: Base name for the DOCX file (without extension).
 - title: Optional document title.
 - subtitle: Optional document subtitle.
@@ -202,9 +207,9 @@ Typical parameters:
   - items: Array of strings (for bullets/numbered lists)
   - headers: Column headers (for tables)
   - rows: 2D array of cell values (for tables)
-- branding: Optional styling (primaryColor, fontFamily, fontSize).
+- templateStorageId: Optional storage ID of a DOCX template to use as base.
 
-For generate_file, generate_excel, and generate_docx:
+For generate_file, generate_excel, and docx:
 - The tool returns an object containing a url field.
 - When you share a download link with the user, you MUST copy the exact url from the tool result.
 - NEVER make up or change URLs.
