@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 /*
-  Sync ALL environment variables from .env/.env.local into the LOCAL Convex deployment
-  so Convex functions can read them at runtime (e.g., requireEnv("SITE_URL")).
+	Sync ALL environment variables from .env/.env.local into the LOCAL Convex deployment
+	so Convex functions can read them at runtime (e.g., requireEnv("SITE_URL")).
 
-  🔧 This script uses --local flag to sync with local Convex development backend.
+	🔧 This script uses --local flag to sync with local Convex development backend.
 
-  How it works:
-  - Reads .env and .env.local from both repository root AND services/platform
-  - Priority (highest to lowest): services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
-  - Syncs ALL environment variables to Convex using `npx convex env set --local`
-  - Optimized: Checks existing values first and skips variables that are already set with the same value
+	How it works:
+	- Reads .env and .env.local from both repository root AND services/platform
+	- Priority (highest to lowest): services/platform/.env.local > services/platform/.env > repo root/.env.local > repo root/.env
+	- Syncs ALL environment variables to Convex using `npx convex env set --local`
+	- Optimized: Checks existing values first and skips variables that are already set with the same value
 
-  Notes:
-  - Convex does NOT read your Next.js process env/.env files directly; you must use
-    `convex env set` to make variables available inside Convex functions.
-  - Keep secrets only in .env/.env.local files, never commit them.
-  - This script targets LOCAL development backend only.
-*/
+	Notes:
+	- Convex does NOT read your Next.js process env/.env files directly; you must use
+	  `convex env set` to make variables available inside Convex functions.
+	- Keep secrets only in .env/.env.local files, never commit them.
+	- This script targets LOCAL development backend only.
+	*/
 
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -201,28 +201,28 @@ function runConvexEnvRemove(key) {
 async function main() {
   const envMap = findEnv();
 
-  // If SITE_URL is absent, default to http://localhost:3000
-  if (!envMap.SITE_URL) {
-    const inferred = 'http://localhost:3000';
-    console.log(
-      `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
-    );
-    envMap.SITE_URL = inferred;
-  }
+	  // If SITE_URL is absent, default to http://localhost:3000
+	  if (!envMap.SITE_URL) {
+	    const inferred = 'http://localhost:3000';
+	    console.log(
+	      `[sync-convex-env] SITE_URL not set in .env; using default: ${inferred}`,
+	    );
+	    envMap.SITE_URL = inferred;
+	  }
 
-  // Get all keys from the environment map
-  const keys = Object.keys(envMap);
+	  // Get all keys from the environment map
+	  const keys = Object.keys(envMap);
 
-  if (keys.length === 0) {
-    console.log(
-      '[sync-convex-env] No environment variables found in .env/.env.local',
-    );
-    return;
-  }
+	  if (keys.length === 0) {
+	    console.log(
+	      '[sync-convex-env] No environment variables found in .env/.env.local',
+	    );
+	    return;
+	  }
 
-  console.log(
-    `[sync-convex-env] Found ${keys.length} environment variables to sync`,
-  );
+	  console.log(
+	    `[sync-convex-env] Found ${keys.length} environment variables to sync`,
+	  );
 
   // Step 1: Get all existing environment variables from Convex
   console.log('[sync-convex-env] Fetching existing environment variables...');
