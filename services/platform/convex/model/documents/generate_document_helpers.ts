@@ -110,9 +110,10 @@ export function buildRequestBody(
   } else {
     body.options = {
       image_type: imageOptions?.imageType ?? 'png',
-      quality: imageOptions?.quality ?? 90,
+      quality: imageOptions?.quality ?? 100,
       full_page: imageOptions?.fullPage ?? true,
-      width: imageOptions?.width ?? 800,
+      width: imageOptions?.width ?? 1200,
+      scale: imageOptions?.scale ?? 2.0,
     };
   }
 

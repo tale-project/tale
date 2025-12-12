@@ -130,6 +130,7 @@ export interface GenerateDocumentImageOptions {
   fullPage?: boolean;
   width?: number;
   height?: number; // Only for URL screenshots
+  scale?: number; // Device scale factor for high-quality images (1.0-4.0, default 2.0)
 }
 
 /** Valid Playwright wait_until values */

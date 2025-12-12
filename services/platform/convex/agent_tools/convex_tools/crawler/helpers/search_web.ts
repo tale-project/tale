@@ -69,6 +69,13 @@ export async function searchWeb(
       has_more: hasMore,
     });
 
+    // Build the next action instruction based on results
+    const hasResults = pageData.items.length > 0;
+    const firstUrl = hasResults ? pageData.items[0].link : null;
+    const nextActionRequired = hasResults
+      ? `IMPORTANT: These are only search result snippets, NOT the actual page content. To get real data (weather, prices, news, etc.), you MUST now call web_read with { operation: "fetch_url", url: "${firstUrl}" } or another relevant URL from the results above.`
+      : 'No results found. Try a different search query.';
+
     return {
       operation: 'search',
       success: true,
@@ -79,6 +86,7 @@ export async function searchWeb(
       has_more: hasMore,
       next_start_index: hasMore ? pageNumber + 1 : null,
       suggestions: pageData.suggestions,
+      next_action_required: nextActionRequired,
     };
   } catch (error) {
     console.error('[tool:web_read:search] error', {
