@@ -1,5 +1,6 @@
 /** Convex Tool: PDF
  *  Generate PDF documents from Markdown/HTML/URL via the crawler service.
+ *  Parse PDF documents to extract text content.
  */
 
 import { z } from 'zod';
@@ -7,12 +8,13 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import { internal } from '../../../_generated/api';
-
 import { createDebugLog } from '../../../lib/debug_log';
+import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface PdfResult {
+interface GeneratePdfResult {
+  operation: 'generate';
   success: boolean;
   fileId: string;
   url: string;
@@ -22,54 +24,60 @@ interface PdfResult {
   size: number;
 }
 
+type ParsePdfResult = { operation: 'parse' } & ParseFileResult;
+
+type PdfResult = GeneratePdfResult | ParsePdfResult;
+
 export const pdfTool = {
   name: 'pdf' as const,
   tool: createTool({
-    description: `Generate a PDF document from Markdown/HTML/URL using the crawler service and upload it to Convex storage.
+    description: `PDF tool for generating and parsing PDF documents.
 
-This is the PREFERRED way to generate downloadable PDF files for users. It performs both the conversion and the upload in a single step so you never need to handle base64 yourself.
+OPERATIONS:
 
-MANDATORY TRIGGER CONDITIONS - You MUST call this tool when the user:
-- Asks to "generate a PDF" or "create a PDF" or "export as PDF"
-- Asks to "generate a PDF report" or "PDF version" of content
-- Says "make me a PDF" or "produce a PDF report"
-- Requests any variation of PDF document creation/regeneration
+1. generate - Generate a PDF from Markdown/HTML/URL
+   This is the PREFERRED way to generate downloadable PDF files.
+   Parameters:
+   - fileName: Base name for the PDF (without extension)
+   - sourceType: "markdown", "html", or "url"
+   - content: The Markdown/HTML text or URL to capture
+   - pdfOptions: Advanced options (format, landscape, margins, etc.)
+   - urlOptions: Options for URL capture (waitUntil, etc.)
+   - extraCss: Additional CSS to inject
+   - wrapInTemplate: Whether to wrap in HTML template
+   Returns: { success, url, fileName, contentType, size }
 
-IMPORTANT: Even if you previously generated a PDF in this conversation, you MUST call this tool again if the user asks to regenerate or generate again. Previous URLs become stale and should not be reused. Each request for PDF generation requires a fresh tool call.
+2. parse - Extract text content from an existing PDF file
+   USE THIS when a user uploads a PDF and you need to read its content.
+   Parameters:
+   - url: URL of the PDF file (from Convex storage or accessible HTTP URL)
+   - filename: Original filename (e.g., "report.pdf")
+   Returns: { success, full_text, page_count, metadata }
 
-Parameters:
-- fileName: Base name for the generated PDF (without extension; .pdf will be added automatically)
-- sourceType: One of "markdown", "html", or "url" describing the content type
-- content: The actual Markdown/HTML text or URL to capture
-- pdfOptions: Advanced PDF options (format, landscape, margins, etc.)
-- urlOptions: Advanced options for URL capture (navigation, timeout, etc.)
-- extraCss: Additional CSS to inject when rendering HTML/Markdown
-- wrapInTemplate: Whether to wrap raw content in a standard HTML template before rendering
+EXAMPLES:
+• Generate: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
+• Parse: { "operation": "parse", "url": "https://storage.convex.cloud/...", "filename": "report.pdf" }
 
-Returns:
-- success: boolean
-- url: Download URL for the user to download the PDF
-- fileName: Final file name with extension
-- contentType: MIME type (application/pdf)
-- extension: File extension (pdf)
-- size: Size in bytes
-
-CRITICAL RULES FOR RESPONSE:
-1. When presenting the result to the user, you MUST copy the exact 'url' value from the tool result. Never fabricate or guess URLs.
-2. DO NOT display the HTML or Markdown source content in your response. The user wants to download the PDF, not see the source code.
-3. Present the download link in a clean, user-friendly way. For example: "Here's your PDF: [Download](url)"
-4. You may briefly describe what the document contains, but NEVER show the raw HTML/Markdown code.
+CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
 `,
     args: z.object({
+      operation: z
+        .enum(['generate', 'parse'])
+        .optional()
+        .describe("Operation: 'generate' (default) or 'parse'"),
+      // For generate operation
       fileName: z
         .string()
-        .describe('Base name for the PDF file (without extension)'),
+        .optional()
+        .describe("For 'generate': Base name for the PDF file (without extension)"),
       sourceType: z
         .enum(['markdown', 'html', 'url'])
-        .describe('Type of source content'),
+        .optional()
+        .describe("For 'generate': Type of source content"),
       content: z
         .string()
-        .describe('Markdown text, HTML content, or URL to capture'),
+        .optional()
+        .describe("For 'generate': Markdown text, HTML content, or URL to capture"),
       pdfOptions: z
         .object({
           format: z.string().optional(),
@@ -81,31 +89,61 @@ CRITICAL RULES FOR RESPONSE:
           printBackground: z.boolean().optional(),
         })
         .optional()
-        .describe('Advanced PDF options passed through to the crawler service'),
+        .describe("For 'generate': Advanced PDF options"),
       urlOptions: z
         .object({
           waitUntil: z
             .enum(['load', 'domcontentloaded', 'networkidle', 'commit'])
-            .optional()
-            .describe(
-              'Wait condition for URL loading: "networkidle" (default, best for dynamic pages), "load" (faster, for static pages), "domcontentloaded" (DOM ready), "commit" (first response)',
-            ),
+            .optional(),
         })
         .optional()
-        .describe('Options for URL PDF capture'),
+        .describe("For 'generate': Options for URL capture"),
       extraCss: z
         .string()
         .optional()
-        .describe('Additional CSS to inject when rendering HTML/Markdown'),
+        .describe("For 'generate': Additional CSS to inject"),
       wrapInTemplate: z
         .boolean()
         .optional()
-        .describe(
-          'Whether to wrap raw content in a standard HTML template before rendering',
-        ),
+        .describe("For 'generate': Whether to wrap in HTML template"),
+      // For parse operation
+      url: z
+        .string()
+        .optional()
+        .describe("For 'parse': URL of the PDF file to parse"),
+      filename: z
+        .string()
+        .optional()
+        .describe("For 'parse': Original filename (e.g., 'report.pdf')"),
     }),
     handler: async (ctx: ToolCtx, args): Promise<PdfResult> => {
-      debugLog('tool:pdf start', {
+      const operation = args.operation ?? 'generate';
+
+      // Handle parse operation
+      if (operation === 'parse') {
+        if (!args.url) {
+          throw new Error("Missing required 'url' for parse operation");
+        }
+        if (!args.filename) {
+          throw new Error("Missing required 'filename' for parse operation");
+        }
+
+        const result = await parseFile(args.url, args.filename, 'pdf');
+        return { operation: 'parse', ...result };
+      }
+
+      // Default: generate operation
+      if (!args.fileName) {
+        throw new Error("Missing required 'fileName' for generate operation");
+      }
+      if (!args.sourceType) {
+        throw new Error("Missing required 'sourceType' for generate operation");
+      }
+      if (!args.content) {
+        throw new Error("Missing required 'content' for generate operation");
+      }
+
+      debugLog('tool:pdf generate start', {
         fileName: args.fileName,
         sourceType: args.sourceType,
       });
@@ -125,15 +163,18 @@ CRITICAL RULES FOR RESPONSE:
           },
         );
 
-        debugLog('tool:pdf success', {
+        debugLog('tool:pdf generate success', {
           fileName: result.fileName,
           fileId: result.fileId,
           size: result.size,
         });
 
-        return result as PdfResult;
+        return {
+          operation: 'generate',
+          ...result,
+        } as GeneratePdfResult;
       } catch (error) {
-        console.error('[tool:pdf] error', {
+        console.error('[tool:pdf generate] error', {
           fileName: args.fileName,
           error: error instanceof Error ? error.message : String(error),
         });

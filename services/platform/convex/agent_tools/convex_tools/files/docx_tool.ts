@@ -1,5 +1,6 @@
 /** Convex Tool: DOCX
  *  Generate Word (.docx) documents and work with DOCX templates in the documents schema.
+ *  Parse DOCX documents to extract text content.
  */
 
 import { z } from 'zod';
@@ -9,6 +10,7 @@ import type { ToolDefinition } from '../../types';
 import type { Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -36,7 +38,9 @@ interface GenerateDocxResult {
   size: number;
 }
 
-type DocxResult = ListTemplatesResult | GenerateDocxResult;
+type ParseDocxResult = { operation: 'parse' } & ParseFileResult;
+
+type DocxResult = ListTemplatesResult | GenerateDocxResult | ParseDocxResult;
 
 const sectionSchema = z.object({
   type: z
@@ -77,10 +81,10 @@ const sectionSchema = z.object({
 
 const docxArgs = z.object({
   operation: z
-    .enum(['list_templates', 'generate'])
+    .enum(['list_templates', 'generate', 'parse'])
     .optional()
     .describe(
-      "Operation to perform: 'list_templates' (list available DOCX templates) or 'generate' (create DOCX with content). When omitted, defaults to 'generate' for backward compatibility.",
+      "Operation to perform: 'list_templates', 'generate' (default), or 'parse' (extract text from DOCX).",
     ),
   // For list_templates operation
   limit: z
@@ -110,78 +114,47 @@ const docxArgs = z.object({
     .describe(
       "For 'generate': Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.",
     ),
+  // For parse operation
+  url: z
+    .string()
+    .optional()
+    .describe("For 'parse': URL of the DOCX file to parse"),
+  filename: z
+    .string()
+    .optional()
+    .describe("For 'parse': Original filename (e.g., 'document.docx')"),
 });
 
 export const docxTool = {
   name: 'docx' as const,
   tool: createTool({
-    description: `Word document (DOCX) tool for listing templates and generating documents.
+    description: `Word document (DOCX) tool for listing templates, generating, and parsing documents.
 
 OPERATIONS:
 
 1. list_templates - List all available DOCX templates
    Returns all DOCX documents available in the organization.
-   Returns:
-   - templates: Array of { documentId, storageId, title, createdAt }
-   - totalCount: Number of templates found
+   Returns: { templates, totalCount, message }
 
 2. generate - Generate a DOCX with your content
-   Pass templateStorageId to use a template as base.
-   When a template is provided, the generated document preserves:
-   - Headers and footers (company logo, page numbers)
-   - Font families and styles
-   - Page setup (margins, orientation, size)
-
+   Pass templateStorageId to use a template as base (preserves headers, footers, fonts, page setup).
    Pass sections with your content. Each section can have:
    - type: "heading" | "paragraph" | "bullets" | "numbered" | "table" | "quote" | "code"
-   - text: Text content (for heading, paragraph, quote, code)
-   - level: Heading level 1-6 (for headings)
-   - items: Array of strings (for bullets/numbered lists)
-   - headers: Column headers (for tables)
-   - rows: 2D array of cell values (for tables)
+   - text, level, items, headers, rows as appropriate
 
-REQUIRED WORKFLOW:
-1. ALWAYS call list_templates first to get available templates
-2. Choose the most appropriate template based on context (e.g., company branding, document type)
-3. Call generate with the chosen templateStorageId AND your sections
-4. Copy the exact 'url' value from the result - never fabricate URLs
+3. parse - Extract text content from an existing DOCX file
+   USE THIS when a user uploads a DOCX and you need to read its content.
+   Parameters:
+   - url: URL of the DOCX file (from Convex storage or accessible HTTP URL)
+   - filename: Original filename (e.g., "document.docx")
+   Returns: { success, full_text, paragraph_count, metadata }
 
 EXAMPLES:
+• List templates: { "operation": "list_templates" }
+• Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "report", "sections": [...] }
+• Parse: { "operation": "parse", "url": "https://storage.convex.cloud/...", "filename": "document.docx" }
 
-Step 1 - List templates: { "operation": "list_templates" }
-Returns: { templates: [{ documentId: "...", storageId: "kg...", title: "Company Template.docx", ... }], totalCount: 3 }
-
-Step 2 - Generate with chosen template:
-{
-  "operation": "generate",
-  "templateStorageId": "kg...",
-  "fileName": "q1_report",
-  "title": "Q1 Report",
-  "sections": [
-    {"type": "heading", "level": 1, "text": "Introduction"},
-    {"type": "paragraph", "text": "This is the intro paragraph."},
-    {"type": "bullets", "items": ["Point 1", "Point 2", "Point 3"]},
-    {"type": "table", "headers": ["Name", "Value"], "rows": [["Item A", "100"], ["Item B", "200"]]}
-  ]
-}
-
-RETURNS (for generate):
-- success: boolean
-- url: Download URL for the user to download the file
-- fileName: Final file name with extension
-- contentType: MIME type of the generated file
-- size: Size in bytes
-
-RETURNS (for list_templates):
-- success: boolean
-- templates: Array of DOCX documents/templates in the organization
-- totalCount: number of templates/documents
-- message: human-readable summary
-
-CRITICAL:
-1. ALWAYS call list_templates first before generating any document.
-2. ALWAYS use a templateStorageId when templates are available.
-3. When presenting the download link to the user, you MUST copy the exact 'url' value from the tool result. Never fabricate or guess URLs.
+CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
 `,
     args: docxArgs,
     handler: async (ctx: ToolCtx, args): Promise<DocxResult> => {
@@ -245,6 +218,19 @@ CRITICAL:
           });
           throw error;
         }
+      }
+
+      // Handle parse operation
+      if (operation === 'parse') {
+        if (!args.url) {
+          throw new Error("Missing required 'url' for parse operation");
+        }
+        if (!args.filename) {
+          throw new Error("Missing required 'filename' for parse operation");
+        }
+
+        const result = await parseFile(args.url, args.filename, 'docx');
+        return { operation: 'parse', ...result };
       }
 
       // Default / generate operation
