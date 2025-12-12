@@ -407,6 +407,7 @@ async def convert_markdown_to_image(request: MarkdownToImageRequest):
             full_page=request.options.full_page,
             width=request.options.width,
             extra_css=request.extra_css,
+            scale=request.options.scale,
         )
 
         media_type = "image/png" if request.options.image_type == "png" else "image/jpeg"
@@ -493,6 +494,7 @@ async def convert_html_to_image(request: HtmlToImageRequest):
             full_page=request.options.full_page,
             width=request.options.width,
             extra_css=request.extra_css,
+            scale=request.options.scale,
         )
 
         media_type = "image/png" if request.options.image_type == "png" else "image/jpeg"
@@ -578,6 +580,7 @@ async def convert_url_to_image(request: UrlToImageRequest):
             full_page=request.options.full_page,
             width=request.options.width,
             height=request.height,
+            scale=request.options.scale,
         )
 
         media_type = "image/png" if request.options.image_type == "png" else "image/jpeg"
