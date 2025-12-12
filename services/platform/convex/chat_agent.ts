@@ -27,6 +27,16 @@ export const chatWithAgent = mutation({
     organizationId: v.string(),
     message: v.string(),
     maxSteps: v.optional(v.number()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
   },
   returns: v.object({
     runId: v.string(),
@@ -101,6 +111,17 @@ export const generateAgentResponse = internalAction({
     organizationId: v.string(),
     maxSteps: v.number(),
     promptMessageId: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
+    messageText: v.optional(v.string()),
   },
   returns: v.object({
     threadId: v.string(),

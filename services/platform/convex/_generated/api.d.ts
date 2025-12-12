@@ -24,6 +24,7 @@ import type * as agent_tools_convex_tools_customers_helpers_types from "../agent
 import type * as agent_tools_convex_tools_files_docx_tool from "../agent_tools/convex_tools/files/docx_tool.js";
 import type * as agent_tools_convex_tools_files_generate_excel_tool from "../agent_tools/convex_tools/files/generate_excel_tool.js";
 import type * as agent_tools_convex_tools_files_helpers_check_resource_accessible from "../agent_tools/convex_tools/files/helpers/check_resource_accessible.js";
+import type * as agent_tools_convex_tools_files_helpers_parse_file from "../agent_tools/convex_tools/files/helpers/parse_file.js";
 import type * as agent_tools_convex_tools_files_image_tool from "../agent_tools/convex_tools/files/image_tool.js";
 import type * as agent_tools_convex_tools_files_pdf_tool from "../agent_tools/convex_tools/files/pdf_tool.js";
 import type * as agent_tools_convex_tools_files_pptx_tool from "../agent_tools/convex_tools/files/pptx_tool.js";
@@ -623,6 +624,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/convex_tools/files/docx_tool": typeof agent_tools_convex_tools_files_docx_tool;
   "agent_tools/convex_tools/files/generate_excel_tool": typeof agent_tools_convex_tools_files_generate_excel_tool;
   "agent_tools/convex_tools/files/helpers/check_resource_accessible": typeof agent_tools_convex_tools_files_helpers_check_resource_accessible;
+  "agent_tools/convex_tools/files/helpers/parse_file": typeof agent_tools_convex_tools_files_helpers_parse_file;
   "agent_tools/convex_tools/files/image_tool": typeof agent_tools_convex_tools_files_image_tool;
   "agent_tools/convex_tools/files/pdf_tool": typeof agent_tools_convex_tools_files_pdf_tool;
   "agent_tools/convex_tools/files/pptx_tool": typeof agent_tools_convex_tools_files_pptx_tool;

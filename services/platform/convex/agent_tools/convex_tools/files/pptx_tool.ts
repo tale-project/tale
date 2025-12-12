@@ -1,7 +1,7 @@
 /**
  * Convex Tool: PPTX
  *
- * PPTX operations for agents: analyze templates and generate presentations.
+ * PPTX operations for agents: analyze templates, generate presentations, and parse existing files.
  */
 
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { BrandingInfo } from '../../../model/documents';
 import { internal } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
+import { parseFile, type ParseFileResult } from './helpers/parse_file';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -46,9 +47,9 @@ const brandingSchema = z.object({
 // Use a flat object schema for OpenAI-compatible JSON Schema
 const pptxArgs = z.object({
   operation: z
-    .enum(['list_templates', 'analyze_template', 'generate'])
+    .enum(['list_templates', 'analyze_template', 'generate', 'parse'])
     .describe(
-      "Operation to perform: 'list_templates' (list available PPTX templates), 'analyze_template' (extract content and branding from template), or 'generate' (create PPTX with new content)",
+      "Operation to perform: 'list_templates', 'analyze_template', 'generate', or 'parse' (extract text from PPTX)",
     ),
   // For list_templates operation
   limit: z
@@ -78,6 +79,15 @@ const pptxArgs = z.object({
   branding: brandingSchema
     .optional()
     .describe("For 'generate': Optional additional branding overrides"),
+  // For parse operation
+  url: z
+    .string()
+    .optional()
+    .describe("For 'parse': URL of the PPTX file to parse"),
+  filename: z
+    .string()
+    .optional()
+    .describe("For 'parse': Original filename (e.g., 'presentation.pptx')"),
 });
 
 // Result types
@@ -134,63 +144,43 @@ interface GenerateResult {
   size: number;
 }
 
-type PptxResult = ListTemplatesResult | AnalyzeTemplateResult | GenerateResult;
+type ParsePptxResult = { operation: 'parse' } & ParseFileResult;
+
+type PptxResult = ListTemplatesResult | AnalyzeTemplateResult | GenerateResult | ParsePptxResult;
 
 export const pptxTool: ToolDefinition = {
   name: 'pptx',
   tool: createTool({
-    description: `PowerPoint (PPTX) tool for listing templates, analyzing them, and generating presentations.
+    description: `PowerPoint (PPTX) tool for listing templates, analyzing, generating, and parsing presentations.
 
 OPERATIONS:
 
 1. list_templates - List all available PPTX templates
-   Returns all PPTX documents available in the organization.
-   Use this to discover available templates before generating presentations.
-   Returns:
-   - templates: Array of { documentId, storageId, title, createdAt }
-   - totalCount: Number of templates found
+   Returns: { templates, totalCount, message }
 
 2. analyze_template - Analyze an existing PPTX template
-   Pass the 'templateStorageId' from list_templates or file upload.
-   Returns:
-   - slides: Full content of each slide (title, text, tables, charts, images)
-   - branding: Extracted styling info (fonts, colors, dimensions)
+   Pass templateStorageId from list_templates or file upload.
+   Returns: { slides, branding }
 
 3. generate - Generate a PPTX with your content
-   IMPORTANT: Pass templateStorageId to preserve template styling (backgrounds, colors, shapes).
-   Pass slidesContent with your new content.
-
-   Each slide can have:
+   Pass templateStorageId to preserve template styling.
+   Pass slidesContent with your content. Each slide can have:
    - title, subtitle, textContent, bulletPoints, tables
 
-WORKFLOW (RECOMMENDED - preserves template styling):
-1. Call list_templates to discover available templates
-2. Call analyze_template to understand the template structure
-3. Generate new content based on the template structure
-4. Call generate with templateStorageId AND slidesContent
-5. Copy the exact 'url' value from the result - never fabricate URLs
+4. parse - Extract text content from an existing PPTX file
+   USE THIS when a user uploads a PPTX and you need to read its content.
+   Parameters:
+   - url: URL of the PPTX file (from Convex storage or accessible HTTP URL)
+   - filename: Original filename (e.g., "presentation.pptx")
+   Returns: { success, full_text, slide_count, metadata }
 
 EXAMPLES:
+• List templates: { "operation": "list_templates" }
+• Analyze: { "operation": "analyze_template", "templateStorageId": "kg..." }
+• Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "Report", "slidesContent": [...] }
+• Parse: { "operation": "parse", "url": "https://storage.convex.cloud/...", "filename": "presentation.pptx" }
 
-List templates: { operation: "list_templates" }
-Returns: { templates: [{ documentId: "...", storageId: "kg...", title: "Company Template.pptx", ... }], totalCount: 3 }
-
-Analyze: { operation: "analyze_template", templateStorageId: "kg..." }
-Returns: { slides: [...], branding: {...} }
-
-Generate using template: {
-  operation: "generate",
-  templateStorageId: "kg...",
-  fileName: "Company_Report",
-  slidesContent: [
-    { title: "Executive Summary", bulletPoints: ["Revenue grew 25%", "New expansion"] },
-    { title: "Financial Overview", tables: [{ headers: ["Metric", "Value"], rows: [["Revenue", "$1.25M"]] }] }
-  ]
-}
-
-Note: When templateStorageId is provided, the template's styling, backgrounds, and decorative
-elements are preserved. New slides use the template's layouts. The branding parameter is only
-used when no template is provided.`,
+CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.`,
     args: pptxArgs,
     handler: async (ctx: ToolCtx, args): Promise<PptxResult> => {
       const { organizationId } = ctx;
@@ -286,6 +276,19 @@ used when no template is provided.`,
           });
           throw error;
         }
+      }
+
+      // Handle parse operation
+      if (args.operation === 'parse') {
+        if (!args.url) {
+          throw new Error("Missing required 'url' for parse operation");
+        }
+        if (!args.filename) {
+          throw new Error("Missing required 'filename' for parse operation");
+        }
+
+        const result = await parseFile(args.url, args.filename, 'pptx');
+        return { operation: 'parse', ...result };
       }
 
       // operation === 'generate'

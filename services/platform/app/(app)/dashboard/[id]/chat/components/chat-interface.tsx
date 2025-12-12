@@ -202,7 +202,15 @@ export default function ChatInterface({
     if (
       optimisticMessage?.content &&
       rawThreadMessages !== undefined &&
-      threadMessages?.some((m) => m.role === 'user' && m.content === optimisticMessage.content)
+      threadMessages?.some((m) => {
+        if (m.role !== 'user') return false;
+        // Check for exact match OR if the message starts with the optimistic content
+        // (handles case where images are appended as markdown)
+        return (
+          m.content === optimisticMessage.content ||
+          m.content.startsWith(optimisticMessage.content)
+        );
+      })
     ) {
       setOptimisticMessage(null);
     }
@@ -283,10 +291,19 @@ export default function ChatInterface({
       }
 
       // Send message and start polling
+      // Convert attachments to the format expected by the mutation
+      const mutationAttachments = attachments?.map((a) => ({
+        fileId: a.fileId,
+        fileName: a.fileName,
+        fileType: a.fileType,
+        fileSize: a.fileSize,
+      }));
+
       const result = await chatWithAgent({
         threadId: currentThreadId,
         organizationId,
         message: userMessage.content,
+        attachments: mutationAttachments,
       });
 
       setCurrentRunId(result.runId);

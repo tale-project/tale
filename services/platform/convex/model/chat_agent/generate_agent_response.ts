@@ -9,8 +9,12 @@
 
 import type { ActionCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
+import type { Id } from '../../_generated/dataModel';
 import { createChatAgent } from '../../lib/create_chat_agent';
 import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
+import type { FileAttachment } from './chat_with_agent';
+import { getFile } from '@convex-dev/agent';
+import type { ImagePart as AIImagePart, FilePart as AIFilePart } from 'ai';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -24,11 +28,111 @@ type Usage = {
   cachedInputTokens?: number;
 };
 
+/**
+ * Result of registering files with the agent component
+ */
+interface RegisteredFile {
+  agentFileId: string;
+  storageId: Id<'_storage'>;
+  imagePart?: AIImagePart;
+  filePart: AIFilePart;
+  fileUrl: string;
+  attachment: FileAttachment;
+  isImage: boolean;
+}
+
+/**
+ * Computes SHA-256 hash of a blob
+ */
+async function computeSha256(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Registers files with the agent component and gets proper AI SDK content parts.
+ * This allows:
+ * 1. Files to be properly tracked for cleanup (vacuuming)
+ * 2. Multi-modal messages to be saved correctly
+ * 3. The AI to properly process images via URL
+ * 4. Non-image files (PDF, etc.) to be processed via tools
+ */
+async function registerFilesWithAgent(
+  ctx: ActionCtx,
+  attachments: FileAttachment[],
+): Promise<RegisteredFile[]> {
+  const registeredFiles: RegisteredFile[] = [];
+
+  for (const attachment of attachments) {
+    try {
+      // Get file from storage
+      const blob = await ctx.storage.get(attachment.fileId);
+      if (!blob) {
+        debugLog(`File not found in storage: ${attachment.fileId}`);
+        continue;
+      }
+
+      // Get file URL for non-image files
+      const fileUrl = await ctx.storage.getUrl(attachment.fileId);
+      if (!fileUrl) {
+        debugLog(`Could not get URL for file: ${attachment.fileId}`);
+        continue;
+      }
+
+      // Compute hash for the file
+      const hash = await computeSha256(blob);
+
+      // Register the file with the agent component
+      const { fileId: agentFileId } = await ctx.runMutation(
+        components.agent.files.addFile,
+        {
+          storageId: attachment.fileId as string,
+          hash,
+          mimeType: attachment.fileType,
+          filename: attachment.fileName,
+        },
+      );
+
+      // Get the proper image/file parts from the agent
+      const { imagePart, filePart } = await getFile(
+        ctx,
+        components.agent,
+        agentFileId,
+      );
+
+      // Determine if this is an image file
+      const isImage = attachment.fileType.startsWith('image/');
+
+      registeredFiles.push({
+        agentFileId,
+        storageId: attachment.fileId,
+        imagePart,
+        filePart,
+        fileUrl,
+        attachment,
+        isImage,
+      });
+    } catch (error) {
+      console.error(
+        `[chat_agent] Failed to register file ${attachment.fileName}:`,
+        error,
+      );
+    }
+  }
+
+  return registeredFiles;
+}
+
 export interface GenerateAgentResponseArgs {
   threadId: string;
   organizationId: string;
   maxSteps: number;
   promptMessageId: string;
+  attachments?: FileAttachment[];
+  messageText?: string;
 }
 
 export interface GenerateAgentResponseResult {
@@ -78,7 +182,7 @@ export async function generateAgentResponse(
   ctx: ActionCtx,
   args: GenerateAgentResponseArgs,
 ): Promise<GenerateAgentResponseResult> {
-  const { threadId, organizationId, maxSteps, promptMessageId } = args;
+  const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText } = args;
 
   const TIMEOUT_MS = 9 * 60 * 1000;
   const startTime = Date.now();
@@ -98,6 +202,7 @@ export async function generateAgentResponse(
     debugLog('Using existing context summary (if any)', {
       threadId,
       hasSummary: !!contextSummary,
+      attachmentCount: attachments?.length ?? 0,
     });
 
     const agent = await createChatAgent({
@@ -112,6 +217,8 @@ export async function generateAgentResponse(
       variables: {},
     };
 
+    // Build context messages - lightweight text-only context
+    type MessageContent = string | Array<AIImagePart | { type: 'text'; text: string }>;
     const contextMessages: Array<{ role: 'user'; content: string }> = [];
 
     // Always inject threadId so the AI knows which thread to use for context_search
@@ -127,6 +234,72 @@ export async function generateAgentResponse(
       });
     }
 
+    // Build the prompt content - this may include multi-modal content for attachments
+    let promptContent: Array<{ role: 'user'; content: MessageContent }> | undefined;
+
+    if (attachments && attachments.length > 0) {
+      debugLog('Processing file attachments', {
+        count: attachments.length,
+        files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
+      });
+
+      // Register files with the agent component for proper tracking
+      const registeredFiles = await registerFilesWithAgent(ctx, attachments);
+
+      if (registeredFiles.length > 0) {
+        // Separate images from other files
+        const imageFiles = registeredFiles.filter((f) => f.isImage);
+        const nonImageFiles = registeredFiles.filter((f) => !f.isImage);
+
+        // Build content parts
+        const contentParts: Array<AIImagePart | { type: 'text'; text: string }> = [];
+        const userText = messageText || 'Please analyze the attached files.';
+
+        contentParts.push({ type: 'text', text: userText });
+
+        // For non-image files (PDF, etc.), just provide the URL and let AI use tools
+        if (nonImageFiles.length > 0) {
+          const fileReferences = nonImageFiles.map((f) =>
+            `- **${f.attachment.fileName}** (${f.attachment.fileType}): ${f.fileUrl}`
+          ).join('\n');
+
+          contentParts.push({
+            type: 'text',
+            text: `\n\n[ATTACHMENTS] The user has attached the following files. Use the appropriate tool to read them:\n${fileReferences}`,
+          });
+        }
+
+        // For images, include them directly in the prompt for the AI to see
+        if (imageFiles.length > 0) {
+          if (nonImageFiles.length === 0) {
+            contentParts.push({
+              type: 'text',
+              text: '\n\n[IMAGES] The user has attached the following images:',
+            });
+          } else {
+            contentParts.push({
+              type: 'text',
+              text: '\n\n[IMAGES] The user has also attached the following images:',
+            });
+          }
+
+          for (const regFile of imageFiles) {
+            if (regFile.imagePart) {
+              contentParts.push(regFile.imagePart);
+            }
+          }
+        }
+
+        promptContent = [{
+          role: 'user',
+          content: contentParts as MessageContent,
+        }];
+      }
+    }
+
+    // Determine if we need special handling for attachments
+    const hasAttachmentContent = promptContent !== undefined;
+
     const result: { text?: string; steps?: unknown[]; usage?: Usage } =
       await agent.generateText(
         contextWithOrg,
@@ -135,6 +308,9 @@ export async function generateAgentResponse(
           promptMessageId,
           abortSignal: abortController.signal,
           messages: contextMessages,
+          // If we have attachments, use prompt to override the stored message content
+          // This allows multi-modal content without storing the large base64 data
+          ...(promptContent ? { prompt: promptContent } : {}),
         },
         {
           contextOptions: {
@@ -142,6 +318,8 @@ export async function generateAgentResponse(
             excludeToolMessages: true,
             searchOtherThreads: false,
           },
+          // User message was already saved in the mutation with promptMessageId.
+          // The library only saves the assistant response when promptMessageId is provided.
         },
       );
 

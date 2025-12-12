@@ -37,10 +37,24 @@ from app.models import (
     GeneratePptxResponse,
     GenerateDocxRequest,
     GenerateDocxResponse,
+    # File parsing models
+    ParseFileResponse,
 )
 from app.crawler_service import get_crawler_service
 from app.converter_service import get_converter_service
 from app.template_service import get_template_service
+from app.file_parser_service import FileParserService
+
+# Global file parser service instance
+_file_parser_service: FileParserService | None = None
+
+
+def get_file_parser_service() -> FileParserService:
+    """Get or create the file parser service instance."""
+    global _file_parser_service
+    if _file_parser_service is None:
+        _file_parser_service = FileParserService()
+    return _file_parser_service
 
 
 # Configure logging
@@ -883,6 +897,53 @@ async def generate_docx_from_template(
         return GenerateDocxResponse(
             success=False,
             error=f"Failed to generate DOCX: {str(e)}",
+        )
+
+
+# ==================== File Parsing Endpoints ====================
+
+
+@app.post("/api/v1/parse/file", response_model=ParseFileResponse)
+async def parse_file_upload(
+    file: UploadFile = File(..., description="File to parse (PDF, DOCX, or PPTX)"),
+):
+    """
+    Parse a document file and extract its text content.
+
+    Supports PDF, DOCX, and PPTX files. Returns the extracted text content
+    along with metadata like page count, paragraph count, or slide count.
+
+    Args:
+        file: The document file to parse
+
+    Returns:
+        Parsed content including full text and metadata
+    """
+    try:
+        file_bytes = await file.read()
+
+        if not file_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty file uploaded",
+            )
+
+        filename = file.filename or "unknown"
+        content_type = file.content_type or ""
+
+        parser = get_file_parser_service()
+        result = parser.parse_file(file_bytes, filename, content_type)
+
+        return ParseFileResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error parsing file: {e}")
+        return ParseFileResponse(
+            success=False,
+            filename=file.filename or "unknown",
+            error=f"Failed to parse file: {str(e)}",
         )
 
 
