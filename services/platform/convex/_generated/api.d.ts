@@ -132,7 +132,6 @@ import type * as model_chat_agent_auto_summarize_if_needed from "../model/chat_a
 import type * as model_chat_agent_cancel_chat from "../model/chat_agent/cancel_chat.js";
 import type * as model_chat_agent_chat_with_agent from "../model/chat_agent/chat_with_agent.js";
 import type * as model_chat_agent_chat_with_agent_status from "../model/chat_agent/chat_with_agent_status.js";
-import type * as model_chat_agent_context_overflow_retry from "../model/chat_agent/context_overflow_retry.js";
 import type * as model_chat_agent_generate_agent_response from "../model/chat_agent/generate_agent_response.js";
 import type * as model_chat_agent_index from "../model/chat_agent/index.js";
 import type * as model_chat_agent_message_deduplication from "../model/chat_agent/message_deduplication.js";
@@ -734,7 +733,6 @@ declare const fullApi: ApiFromModules<{
   "model/chat_agent/cancel_chat": typeof model_chat_agent_cancel_chat;
   "model/chat_agent/chat_with_agent": typeof model_chat_agent_chat_with_agent;
   "model/chat_agent/chat_with_agent_status": typeof model_chat_agent_chat_with_agent_status;
-  "model/chat_agent/context_overflow_retry": typeof model_chat_agent_context_overflow_retry;
   "model/chat_agent/generate_agent_response": typeof model_chat_agent_generate_agent_response;
   "model/chat_agent/index": typeof model_chat_agent_index;
   "model/chat_agent/message_deduplication": typeof model_chat_agent_message_deduplication;

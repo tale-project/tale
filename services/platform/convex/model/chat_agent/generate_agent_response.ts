@@ -11,7 +11,6 @@ import type { ActionCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { createChatAgent } from '../../lib/create_chat_agent';
-import { handleContextOverflowNoToolRetry } from './context_overflow_retry';
 import type { FileAttachment } from './chat_with_agent';
 import { getFile } from '@convex-dev/agent';
 import type { ImagePart as AIImagePart, FilePart as AIFilePart } from 'ai';
@@ -297,9 +296,6 @@ export async function generateAgentResponse(
       }
     }
 
-    // Determine if we need special handling for attachments
-    const hasAttachmentContent = promptContent !== undefined;
-
     // Use streamText with saveStreamDeltas for real-time UI updates
     // This allows the UI to show tool calls as they happen
     const streamResult = await agent.streamText(
@@ -334,10 +330,18 @@ export async function generateAgentResponse(
     }
 
     // Get the final result after stream completes
-    const result: { text?: string; steps?: unknown[]; usage?: Usage } = {
+    const result: {
+      text?: string;
+      steps?: unknown[];
+      usage?: Usage;
+      finishReason?: string;
+      warnings?: unknown[];
+    } = {
       text: finalText,
       steps: await streamResult.steps,
       usage: await streamResult.usage,
+      finishReason: await streamResult.finishReason,
+      warnings: await streamResult.warnings,
     };
 
     clearTimeout(timeoutId);
@@ -361,16 +365,64 @@ export async function generateAgentResponse(
       );
     }
 
-    let responseText = (result.text || '').trim();
+    const responseText = (result.text || '').trim();
 
     if (!responseText) {
-      responseText = await handleContextOverflowNoToolRetry(ctx, {
-        threadId,
-        promptMessageId,
-        toolCallCount: toolCalls.length,
-        usage: result.usage,
-        contextWithOrg,
+      const usage = result.usage;
+      const inputTokens = usage?.inputTokens ?? 0;
+      const outputTokens = usage?.outputTokens ?? 0;
+      const warnings = result.warnings;
+
+      // Build detailed step summary for debugging
+      const stepSummary = steps.map((step, i) => {
+        const finishReason = step.finishReason;
+        const textLen = step.text?.length ?? 0;
+        const toolCallsCount = step.toolCalls?.length ?? 0;
+        const toolResultsCount = step.toolResults?.length ?? 0;
+
+        // Extract content info (may contain error details)
+        let contentInfo: string | undefined;
+        if (step.content) {
+          if (typeof step.content === 'string') {
+            contentInfo = step.content.slice(0, 200);
+          } else if (Array.isArray(step.content)) {
+            contentInfo = `array[${step.content.length}]`;
+          }
+        }
+
+        // Check providerMetadata for errors
+        const providerError = step.providerMetadata?.error || step.providerMetadata?.openai?.error;
+
+        const stepInfo: Record<string, unknown> = {
+          step: i,
+          finishReason,
+          textLen,
+          toolCalls: toolCallsCount,
+          toolResults: toolResultsCount,
+        };
+
+        if (contentInfo) stepInfo.content = contentInfo;
+        if (providerError) stepInfo.providerError = providerError;
+        if (step.warnings?.length) stepInfo.warnings = step.warnings;
+
+        return stepInfo;
       });
+
+      const errorDetails: Record<string, unknown> = {
+        model: envModel,
+        inputTokens,
+        outputTokens,
+        stepCount: steps.length,
+        steps: stepSummary,
+      };
+
+      if (warnings && warnings.length > 0) {
+        errorDetails.warnings = warnings;
+      }
+
+      throw new Error(
+        `Agent returned empty response: ${JSON.stringify(errorDetails)}`,
+      );
     }
 
     return {
