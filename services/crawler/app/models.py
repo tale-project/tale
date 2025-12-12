@@ -277,4 +277,18 @@ class GenerateDocxResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if generation failed")
 
 
+# ==================== File Parsing Models ====================
 
+
+class ParseFileResponse(BaseModel):
+    """Response from file parsing."""
+
+    success: bool = Field(..., description="Whether parsing was successful")
+    filename: str = Field(..., description="Original filename")
+    file_type: Optional[str] = Field(None, description="Detected file MIME type")
+    full_text: Optional[str] = Field(None, description="Full extracted text content")
+    page_count: Optional[int] = Field(None, description="Number of pages (PDF)")
+    paragraph_count: Optional[int] = Field(None, description="Number of paragraphs (DOCX)")
+    slide_count: Optional[int] = Field(None, description="Number of slides (PPTX)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Document metadata")
+    error: Optional[str] = Field(None, description="Error message if parsing failed")

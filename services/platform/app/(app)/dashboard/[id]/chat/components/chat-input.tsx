@@ -2,7 +2,7 @@
 
 import { Textarea } from '@/components/ui/textarea';
 import { ComponentPropsWithoutRef, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Paperclip } from 'lucide-react';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
@@ -164,6 +164,36 @@ export default function ChatInput({
     }
   };
 
+  // Handle paste event for images
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a meaningful filename with timestamp
+          const extension = item.type.split('/')[1] || 'png';
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
+            type: file.type,
+          });
+          imageFiles.push(renamedFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      // Create a DataTransfer to get a FileList
+      const dataTransfer = new DataTransfer();
+      imageFiles.forEach((file) => dataTransfer.items.add(file));
+      uploadFiles(dataTransfer.files);
+    }
+  };
+
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -311,6 +341,7 @@ export default function ChatInput({
               value={value}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               className="min-h-[100px] relative border-0 shadow-none resize-none focus-visible:ring-0 focus-visible:ring-offset-0 text-foreground px-0 py-0 bg-transparent placeholder:text-muted-foreground"
               disabled={isLoading}
               placeholder=""
@@ -335,9 +366,24 @@ export default function ChatInput({
                     </svg>
                   </span>
                 </div>
-                to send or drag files here.
+                to send
               </div>
             )}
+          </div>
+
+          {/* Action buttons row */}
+          <div className="flex items-center pb-3">
+            {/* Attachment button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Attach files"
+            >
+              <Paperclip className="size-4" />
+              <span className="text-xs">Attach</span>
+            </button>
           </div>
         </div>
       </div>
