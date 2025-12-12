@@ -300,28 +300,45 @@ export async function generateAgentResponse(
     // Determine if we need special handling for attachments
     const hasAttachmentContent = promptContent !== undefined;
 
-    const result: { text?: string; steps?: unknown[]; usage?: Usage } =
-      await agent.generateText(
-        contextWithOrg,
-        { threadId },
-        {
-          promptMessageId,
-          abortSignal: abortController.signal,
-          messages: contextMessages,
-          // If we have attachments, use prompt to override the stored message content
-          // This allows multi-modal content without storing the large base64 data
-          ...(promptContent ? { prompt: promptContent } : {}),
+    // Use streamText with saveStreamDeltas for real-time UI updates
+    // This allows the UI to show tool calls as they happen
+    const streamResult = await agent.streamText(
+      contextWithOrg,
+      { threadId },
+      {
+        promptMessageId,
+        abortSignal: abortController.signal,
+        messages: contextMessages,
+        // If we have attachments, use prompt to override the stored message content
+        // This allows multi-modal content without storing the large base64 data
+        ...(promptContent ? { prompt: promptContent } : {}),
+      },
+      {
+        contextOptions: {
+          recentMessages: 20,
+          excludeToolMessages: true,
+          searchOtherThreads: false,
         },
-        {
-          contextOptions: {
-            recentMessages: 20,
-            excludeToolMessages: true,
-            searchOtherThreads: false,
-          },
-          // User message was already saved in the mutation with promptMessageId.
-          // The library only saves the assistant response when promptMessageId is provided.
-        },
-      );
+        // Save stream deltas so UI can show real-time progress
+        saveStreamDeltas: true,
+        // User message was already saved in the mutation with promptMessageId.
+        // The library only saves the assistant response when promptMessageId is provided.
+      },
+    );
+
+    // Consume the stream to completion and get the final result
+    // We need to iterate through the stream for it to complete
+    let finalText = '';
+    for await (const textPart of streamResult.textStream) {
+      finalText += textPart;
+    }
+
+    // Get the final result after stream completes
+    const result: { text?: string; steps?: unknown[]; usage?: Usage } = {
+      text: finalText,
+      steps: await streamResult.steps,
+      usage: await streamResult.usage,
+    };
 
     clearTimeout(timeoutId);
     const elapsedMs = Date.now() - startTime;

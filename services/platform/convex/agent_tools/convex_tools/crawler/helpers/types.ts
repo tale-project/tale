@@ -58,6 +58,11 @@ export type WebReadSearchResult = {
   has_more: boolean;
   next_start_index: number | null;
   suggestions?: string[];
+  /**
+   * Explicit instruction for the AI on what to do next.
+   * This helps ensure the AI calls fetch_url after search.
+   */
+  next_action_required: string;
 };
 
 // =============================================================================

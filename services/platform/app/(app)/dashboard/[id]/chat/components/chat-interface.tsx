@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useQuery, useMutation } from 'convex/react';
+import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
@@ -38,33 +39,169 @@ interface ChatMessage {
   attachments?: FileAttachment[];
 }
 
-function ThinkingAnimation() {
-  const [currentStep, setCurrentStep] = useState(0);
+/**
+ * Represents a tool invocation with its details extracted from streaming parts.
+ */
+interface ToolDetail {
+  toolName: string;
+  displayText: string;
+}
 
-  const thinkingSteps = [
-    'Thinking',
-    'Searching for related topics',
-    'Compiling an answer',
-  ];
+/**
+ * Extracts a hostname from a URL for display purposes.
+ */
+function extractHostname(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
+/**
+ * Truncates a string to a maximum length, adding ellipsis if needed.
+ */
+function truncate(str: string, maxLength: number): string {
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength - 1) + '…';
+}
 
-    if (currentStep < thinkingSteps.length - 1) {
-      interval = setInterval(() => {
-        setCurrentStep((prev) => prev + 1);
-      }, 2500);
+/**
+ * Formats a tool invocation into a human-readable display text with context.
+ * Extracts relevant details from the tool's input arguments.
+ */
+function formatToolDetail(
+  toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input?: Record<string, any>,
+): ToolDetail {
+  // Handle web_read tool with operation-specific display
+  if (toolName === 'web_read' && input) {
+    if (input.operation === 'search' && input.query) {
+      return {
+        toolName,
+        displayText: `Searching "${truncate(input.query, 30)}"`,
+      };
     }
+    if (input.operation === 'fetch_url' && input.url) {
+      return {
+        toolName,
+        displayText: `Reading ${extractHostname(input.url)}`,
+      };
+    }
+  }
 
-    return () => {
-      if (interval) clearInterval(interval);
+  // Handle rag_search with query
+  if (toolName === 'rag_search' && input?.query) {
+    return {
+      toolName,
+      displayText: `Searching knowledge base for "${truncate(input.query, 25)}"`,
     };
-  }, [currentStep, thinkingSteps.length]);
+  }
+
+  // Default fallback display names for tools without detailed input
+  const defaultDisplayNames: Record<string, string> = {
+    customer_read: 'Reading customer data',
+    product_read: 'Reading product catalog',
+    rag_search: 'Searching knowledge base',
+    rag_write: 'Updating knowledge base',
+    web_read: 'Fetching web content',
+    pdf: 'Processing PDF',
+    image: 'Analyzing image',
+    pptx: 'Processing presentation',
+    docx: 'Processing document',
+    resource_check: 'Checking resources',
+    workflow_read: 'Reading workflow',
+    update_workflow_step: 'Updating workflow step',
+    generate_workflow_from_description: 'Generating workflow',
+    save_workflow_definition: 'Saving workflow',
+    validate_workflow_definition: 'Validating workflow',
+    generate_excel: 'Generating Excel file',
+    context_search: 'Searching for related topics',
+  };
+
+  const displayText =
+    defaultDisplayNames[toolName] ||
+    toolName
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+  return { toolName, displayText };
+}
+
+interface ThinkingAnimationProps {
+  threadId?: string;
+  streamingMessage?: UIMessage;
+}
+
+function ThinkingAnimation({
+  threadId,
+  streamingMessage,
+}: ThinkingAnimationProps) {
+  // Extract tool details from streaming message parts
+  // Parts with tool info have type format 'tool-{toolName}' (e.g., 'tool-web_read')
+  // and may contain 'input' with the tool's arguments
+  const toolDetails: ToolDetail[] = [];
+
+  if (streamingMessage?.parts) {
+    for (const part of streamingMessage.parts) {
+      // The type format is 'tool-{toolName}', e.g., 'tool-web_read', 'tool-rag_search'
+      if (part.type.startsWith('tool-')) {
+        // Extract tool name from type (remove 'tool-' prefix)
+        const toolName = part.type.slice(5); // 'tool-'.length === 5
+        if (toolName && toolName !== 'invocation') {
+          // Extract input if available (cast part to access input property)
+          const toolPart = part as { input?: Record<string, unknown> };
+          const detail = formatToolDetail(toolName, toolPart.input);
+          toolDetails.push(detail);
+        }
+      }
+    }
+  }
+
+  // Determine what text to display - show tool details or default "Thinking"
+  let displayText = 'Thinking';
+
+  if (toolDetails.length === 1) {
+    // Single tool - show its detailed display text
+    displayText = toolDetails[0].displayText;
+  } else if (toolDetails.length > 1) {
+    // Multiple tools - deduplicate by display text and join them
+    const uniqueDisplayTexts = [...new Set(toolDetails.map((d) => d.displayText))];
+
+    // Check if all display texts start with the same verb (e.g., "Searching", "Reading")
+    // to create a more natural grouped message
+    const searchPrefix = 'Searching "';
+    const allSearches = uniqueDisplayTexts.every((t) => t.startsWith(searchPrefix));
+
+    if (allSearches && uniqueDisplayTexts.length > 1) {
+      // Extract just the query parts (remove "Searching " prefix and closing quote)
+      const queries = uniqueDisplayTexts.map((t) =>
+        t.slice(searchPrefix.length - 1, t.endsWith('"') ? t.length : t.length)
+      );
+      if (queries.length <= 2) {
+        displayText = `Searching ${queries.join(' and ')}`;
+      } else {
+        displayText = `Searching ${queries[0]}, ${queries[1]} and ${queries.length - 2} more`;
+      }
+    } else if (uniqueDisplayTexts.length <= 2) {
+      displayText = uniqueDisplayTexts.join(' and ');
+    } else {
+      // For 3+ different tool calls, show first two and count
+      displayText = `${uniqueDisplayTexts[0]}, ${uniqueDisplayTexts[1]} and ${uniqueDisplayTexts.length - 2} more`;
+    }
+  }
+
+  // Use tool details as key for animation
+  const animationKey =
+    toolDetails.length > 0 ? toolDetails.map((d) => d.displayText).join('-') : 'thinking';
 
   return (
     <div className="flex justify-start">
       <motion.div
-        key={currentStep}
+        key={animationKey}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -75,7 +212,7 @@ function ThinkingAnimation() {
         className="text-sm text-muted-foreground flex items-center gap-2 px-4 py-3"
       >
         <motion.span
-          key={currentStep}
+          key={animationKey}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -85,7 +222,7 @@ function ThinkingAnimation() {
           }}
           className="inline-block"
         >
-          {thinkingSteps[currentStep]}
+          {displayText}
         </motion.span>
         <div className="flex space-x-1">
           <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" />
@@ -123,18 +260,26 @@ export default function ChatInterface({
   // Optimistic user message content
   const userDraftMessage = optimisticMessage?.content || '';
 
-  // Fetch thread messages
-  const rawThreadMessages = useQuery(
-    api.threads.getThreadMessages,
+  // Fetch thread messages with streaming support
+  const { results: uiMessages } = useUIMessages(
+    api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
+    { initialNumItems: 50, stream: true },
   );
-  const threadMessages: ChatMessage[] = (rawThreadMessages?.messages || []).map(
-    (m) => ({
-      id: m._id,
-      content: m.content,
-      role: m.role,
+
+  // Convert UIMessage to ChatMessage format for compatibility
+  const threadMessages: ChatMessage[] = (uiMessages || [])
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({
+      id: m.key,
+      content: m.text,
+      role: m.role as 'user' | 'assistant',
       timestamp: m._creationTime,
-    }),
+    }));
+
+  // Find if there's currently a streaming assistant message
+  const streamingMessage = uiMessages?.find(
+    (m) => m.role === 'assistant' && m.status === 'streaming',
   );
 
   // Query for active runId from thread (for recovery on page refresh)
@@ -201,7 +346,7 @@ export default function ChatInterface({
   useEffect(() => {
     if (
       optimisticMessage?.content &&
-      rawThreadMessages !== undefined &&
+      uiMessages !== undefined &&
       threadMessages?.some((m) => {
         if (m.role !== 'user') return false;
         // Check for exact match OR if the message starts with the optimistic content
@@ -214,7 +359,7 @@ export default function ChatInterface({
     ) {
       setOptimisticMessage(null);
     }
-  }, [rawThreadMessages, threadMessages, optimisticMessage?.content, setOptimisticMessage]);
+  }, [uiMessages, threadMessages, optimisticMessage?.content, setOptimisticMessage]);
 
   // Scroll handling
   const containerRef = useRef<HTMLDivElement>(null);
@@ -375,7 +520,12 @@ export default function ChatInterface({
                   }}
                 />
               )}
-              {isLoading && <ThinkingAnimation />}
+              {isLoading && !streamingMessage?.text && (
+                <ThinkingAnimation
+                  threadId={threadId}
+                  streamingMessage={streamingMessage}
+                />
+              )}
             </div>
           )}
         </div>

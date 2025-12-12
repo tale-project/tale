@@ -288,7 +288,9 @@ import type * as model_threads_create_chat_thread from "../model/threads/create_
 import type * as model_threads_delete_chat_thread from "../model/threads/delete_chat_thread.js";
 import type * as model_threads_get_active_run_id from "../model/threads/get_active_run_id.js";
 import type * as model_threads_get_latest_thread_with_message_count from "../model/threads/get_latest_thread_with_message_count.js";
+import type * as model_threads_get_latest_tool_message from "../model/threads/get_latest_tool_message.js";
 import type * as model_threads_get_thread_messages from "../model/threads/get_thread_messages.js";
+import type * as model_threads_get_thread_messages_streaming from "../model/threads/get_thread_messages_streaming.js";
 import type * as model_threads_index from "../model/threads/index.js";
 import type * as model_threads_list_threads from "../model/threads/list_threads.js";
 import type * as model_threads_update_chat_thread from "../model/threads/update_chat_thread.js";
@@ -888,7 +890,9 @@ declare const fullApi: ApiFromModules<{
   "model/threads/delete_chat_thread": typeof model_threads_delete_chat_thread;
   "model/threads/get_active_run_id": typeof model_threads_get_active_run_id;
   "model/threads/get_latest_thread_with_message_count": typeof model_threads_get_latest_thread_with_message_count;
+  "model/threads/get_latest_tool_message": typeof model_threads_get_latest_tool_message;
   "model/threads/get_thread_messages": typeof model_threads_get_thread_messages;
+  "model/threads/get_thread_messages_streaming": typeof model_threads_get_thread_messages_streaming;
   "model/threads/index": typeof model_threads_index;
   "model/threads/list_threads": typeof model_threads_list_threads;
   "model/threads/update_chat_thread": typeof model_threads_update_chat_thread;
