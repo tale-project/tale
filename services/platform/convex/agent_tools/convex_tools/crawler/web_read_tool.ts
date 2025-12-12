@@ -91,18 +91,27 @@ OPERATIONS:
 
 1. fetch_url - Fetch and extract content from a web URL (HTML pages only)
    Use when a user provides a URL and wants to know what's on the page.
-   Returns: page title, main content text, word count.
+   Returns: page title, main content text, word count, structured_data.
    LIMITATIONS:
    - CANNOT read PDF, Excel, Word, or other binary files
    - For documents in conversation thread, use "context_search" tool
    - For knowledge base documents, use "rag_search" tool
 
 2. search - Search the web using SearXNG meta search engine
-	   Aggregates results from multiple search engines (Brave, Google, Bing, DuckDuckGo).
-	   Returns URLs with titles and snippets.
-	   Recommended workflow: use "search" to find candidate links, then call "fetch_url" on the most relevant URLs before answering.
+   Aggregates results from multiple search engines (Brave, Google, Bing, DuckDuckGo).
+   Returns URLs with titles and SHORT SNIPPETS ONLY - NOT the actual page content!
 
-EXAMPLE USAGE:
+CRITICAL: For real-world data (weather, prices, news, etc.), you MUST:
+1. First call "search" to find relevant URLs
+2. Then call "fetch_url" on the best URL(s) to get the ACTUAL content
+Without step 2, you only have brief snippets and cannot answer accurately!
+
+EXAMPLE WORKFLOW for weather/prices/news:
+1. { operation: "search", query: "weather in Zurich today" }
+2. { operation: "fetch_url", url: "https://weather.com/..." } (from search results)
+3. Read the fetched content and answer the user
+
+OTHER EXAMPLES:
 • Fetch a URL: { operation: "fetch_url", url: "https://example.com/article" }
 • Simple search: { operation: "search", query: "next.js app router" }
 • Site-specific: { operation: "search", query: "hooks tutorial", site: "react.dev" }`,

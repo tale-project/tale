@@ -41,7 +41,7 @@ Parameters:
 - fileName: Base name for the generated image (without extension; .png will be added automatically)
 - sourceType: One of "markdown", "html", or "url" describing the content type
 - content: The actual Markdown/HTML text or URL to capture
-- imageOptions: Advanced image options (width, height, fullPage)
+- imageOptions: Advanced image options (width, height, fullPage). IMPORTANT: Do NOT set width or height unless the user explicitly requests specific dimensions. Setting dimensions can cause content truncation. Let the system auto-size based on content by default.
 - urlOptions: Advanced options for URL capture (navigation, timeout, etc.)
 - extraCss: Additional CSS to inject when rendering HTML/Markdown
 - wrapInTemplate: Whether to wrap raw content in a standard HTML template before rendering
@@ -75,9 +75,10 @@ CRITICAL RULES FOR RESPONSE:
           width: z.number().optional(),
           height: z.number().optional(),
           fullPage: z.boolean().optional(),
+          scale: z.number().min(1).max(4).optional(),
         })
         .optional()
-        .describe('Advanced image options for image output'),
+        .describe('Advanced image options. ONLY set width/height if user explicitly requests specific dimensions - otherwise omit to auto-size based on content. Scale defaults to 2.0 for high-quality Retina output'),
       urlOptions: z
         .object({
           waitUntil: z

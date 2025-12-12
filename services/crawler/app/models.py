@@ -115,9 +115,10 @@ class ImageOptions(BaseModel):
     """Options for image generation."""
 
     image_type: str = Field("png", description="Image type (png or jpeg)")
-    quality: int = Field(90, description="JPEG quality (1-100)", ge=1, le=100)
+    quality: int = Field(100, description="JPEG quality (1-100)", ge=1, le=100)
     full_page: bool = Field(True, description="Capture full page or viewport only")
-    width: int = Field(800, description="Viewport width", ge=100, le=4096)
+    width: int = Field(1200, description="Viewport width", ge=100, le=4096)
+    scale: float = Field(2.0, description="Device scale factor for high-quality images (2.0 = Retina)", ge=1.0, le=4.0)
 
 
 class MarkdownToPdfRequest(BaseModel):

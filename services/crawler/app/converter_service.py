@@ -233,15 +233,16 @@ class ConverterService:
         html: str,
         wrap_in_template: bool = True,
         image_type: Literal["png", "jpeg"] = "png",
-        quality: int = 90,
+        quality: int = 100,
         full_page: bool = True,
-        width: int = 800,
+        width: int = 1200,
         extra_css: Optional[str] = None,
+        scale: float = 2.0,
     ) -> bytes:
         """Convert HTML to image (PNG or JPEG)."""
         page = await self._get_page()
         try:
-            # Set viewport width
+            # Set viewport with device scale factor for high-quality rendering
             await page.set_viewport_size({"width": width, "height": 600})
 
             # Wrap in template if requested
@@ -264,9 +265,13 @@ class ConverterService:
             screenshot_options = {
                 "type": image_type,
                 "full_page": full_page,
+                "scale": "device" if scale > 1.0 else "css",
             }
             if image_type == "jpeg":
                 screenshot_options["quality"] = quality
+
+            # Set device scale factor for high-quality output
+            await page.evaluate(f"() => {{ window.devicePixelRatio = {scale}; }}")
 
             image_bytes = await page.screenshot(**screenshot_options)
             return image_bytes
@@ -325,10 +330,11 @@ class ConverterService:
         url: str,
         wait_until: WaitUntilType = "networkidle",
         image_type: Literal["png", "jpeg"] = "png",
-        quality: int = 90,
+        quality: int = 100,
         full_page: bool = True,
         width: int = 1280,
         height: int = 800,
+        scale: float = 2.0,
     ) -> bytes:
         """Capture a URL as image (screenshot)."""
         page = await self._get_page()
@@ -339,9 +345,13 @@ class ConverterService:
             screenshot_options = {
                 "type": image_type,
                 "full_page": full_page,
+                "scale": "device" if scale > 1.0 else "css",
             }
             if image_type == "jpeg":
                 screenshot_options["quality"] = quality
+
+            # Set device scale factor for high-quality output
+            await page.evaluate(f"() => {{ window.devicePixelRatio = {scale}; }}")
 
             image_bytes = await page.screenshot(**screenshot_options)
             return image_bytes

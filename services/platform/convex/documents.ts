@@ -216,6 +216,7 @@ export const generateDocumentInternal = internalAction({
         fullPage: v.optional(v.boolean()),
         width: v.optional(v.number()),
         height: v.optional(v.number()),
+        scale: v.optional(v.number()),
       }),
     ),
     urlOptions: v.optional(

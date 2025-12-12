@@ -5,8 +5,10 @@
  * using the Convex Agent Component.
  */
 
+import { paginationOptsValidator } from 'convex/server';
 import { query, mutation } from './_generated/server';
 import { v } from 'convex/values';
+import { vStreamArgs } from '@convex-dev/agent';
 import { validateOrganizationAccess, getAuthenticatedUser } from './lib/rls';
 import * as ThreadsModel from './model/threads';
 
@@ -155,5 +157,44 @@ export const clearActiveRunId = mutation({
   handler: async (ctx, args) => {
     await ThreadsModel.clearActiveRunId(ctx, args.threadId);
     return null;
+  },
+});
+
+/**
+ * Get the latest tool message for a thread.
+ * Used to display dynamic loading status in the UI when the agent is running tools.
+ * Supports multiple tool calls in a single message.
+ */
+export const getLatestToolMessage = query({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.object({
+    toolNames: v.array(v.string()),
+    status: v.union(v.literal('calling'), v.literal('completed'), v.null()),
+    timestamp: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    return await ThreadsModel.getLatestToolMessage(ctx, args.threadId);
+  },
+});
+
+/**
+ * Get thread messages with streaming support.
+ * Used by useUIMessages hook with stream: true for real-time updates.
+ * Returns paginated messages plus streaming deltas for active streams.
+ */
+export const getThreadMessagesStreaming = query({
+  args: {
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: vStreamArgs,
+  },
+  handler: async (ctx, args) => {
+    return await ThreadsModel.getThreadMessagesStreaming(ctx, {
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+      streamArgs: args.streamArgs,
+    });
   },
 });
