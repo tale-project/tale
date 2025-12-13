@@ -88,7 +88,7 @@ export async function fetchPageContent(
     }
   }
 
-  const apiUrl = `${crawlerServiceUrl}/api/v1/fetch-urls`;
+  const apiUrl = `${crawlerServiceUrl}/api/v1/urls/fetch`;
 
   const payload = {
     urls: [args.url],

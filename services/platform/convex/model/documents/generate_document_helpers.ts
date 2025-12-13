@@ -19,12 +19,17 @@ export function getCrawlerUrl(): string {
 
 /**
  * Build the API endpoint path based on source type and output format.
+ *
+ * REST API paths:
+ * - PDF: /api/v1/pdf/from-markdown, /api/v1/pdf/from-html, /api/v1/pdf/from-url
+ * - Image: /api/v1/images/from-markdown, /api/v1/images/from-html, /api/v1/images/from-url
  */
 export function getEndpointPath(
   sourceType: DocumentSourceType,
   outputFormat: DocumentOutputFormat,
 ): string {
-  return `/api/v1/convert/${sourceType}-to-${outputFormat}`;
+  const formatPath = outputFormat === 'pdf' ? 'pdf' : 'images';
+  return `/api/v1/${formatPath}/from-${sourceType}`;
 }
 
 /**

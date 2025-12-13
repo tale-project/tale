@@ -25,6 +25,25 @@ export interface ParseFileResult {
 }
 
 /**
+ * Get the parse endpoint path based on file extension.
+ * Routes to the appropriate file-type-specific endpoint.
+ */
+function getParseEndpoint(filename: string): string {
+  const lowerFilename = filename.toLowerCase();
+
+  if (lowerFilename.endsWith('.pdf')) {
+    return '/api/v1/pdf/parse';
+  } else if (lowerFilename.endsWith('.docx')) {
+    return '/api/v1/docx/parse';
+  } else if (lowerFilename.endsWith('.pptx')) {
+    return '/api/v1/pptx/parse';
+  }
+
+  // Default to PDF for unknown extensions
+  return '/api/v1/pdf/parse';
+}
+
+/**
  * Parse a file by downloading it from a URL and sending it to the crawler service.
  * @param url - URL of the file to download
  * @param filename - Original filename with extension
@@ -43,7 +62,8 @@ export async function parseFile(
 
   try {
     const crawlerUrl = getCrawlerServiceUrl();
-    const apiUrl = `${crawlerUrl}/api/v1/parse/file`;
+    const endpointPath = getParseEndpoint(filename);
+    const apiUrl = `${crawlerUrl}${endpointPath}`;
 
     // Download the file from the URL
     const fileResponse = await fetch(url);
@@ -60,6 +80,7 @@ export async function parseFile(
     debugLog(`tool:${toolName} parse uploading to crawler`, {
       filename,
       size: fileBlob.size,
+      endpoint: endpointPath,
     });
 
     const controller = new AbortController();

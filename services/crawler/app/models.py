@@ -9,17 +9,6 @@ from pydantic import BaseModel, Field, HttpUrl
 WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
 
 
-class CrawlRequest(BaseModel):
-    """Request to crawl a website."""
-
-    url: HttpUrl = Field(..., description="The website URL to crawl")
-    max_pages: int = Field(100, description="Maximum number of pages to crawl", ge=1, le=1000)
-    pattern: Optional[str] = Field(None, description="Optional URL pattern filter (e.g., '*/docs/*')")
-    query: Optional[str] = Field(None, description="Optional search query for filtering")
-    word_count_threshold: int = Field(100, description="Minimum word count for content", ge=0)
-    timeout: Optional[float] = Field(1800.0, description="Timeout in seconds for URL discovery (default: 1800 seconds / 30 minutes)", ge=1)
-
-
 class PageContent(BaseModel):
     """Content from a crawled page."""
 
@@ -29,17 +18,6 @@ class PageContent(BaseModel):
     word_count: int = Field(..., description="Number of words in content")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
     structured_data: Optional[Dict[str, Any]] = Field(None, description="Structured data (price, images, etc.)")
-
-
-class CrawlResponse(BaseModel):
-    """Response from a crawl operation."""
-
-    success: bool = Field(..., description="Whether the crawl was successful")
-    domain: Optional[str] = Field(None, description="The domain that was crawled")
-    pages_discovered: int = Field(..., description="Number of pages discovered")
-    pages_crawled: int = Field(..., description="Number of pages successfully crawled")
-    pages: List[PageContent] = Field(default_factory=list, description="Crawled page contents")
-    error: Optional[str] = Field(None, description="Error message if crawl failed")
 
 
 class DiscoverRequest(BaseModel):
@@ -93,7 +71,8 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     version: str = Field(..., description="Service version")
     crawler_initialized: bool = Field(..., description="Whether the crawler is initialized")
-    converter_initialized: bool = Field(False, description="Whether the converter is initialized")
+    pdf_service_initialized: bool = Field(False, description="Whether the PDF service is initialized")
+    image_service_initialized: bool = Field(False, description="Whether the image service is initialized")
 
 
 # ==================== Document Conversion Models ====================
@@ -117,7 +96,7 @@ class ImageOptions(BaseModel):
     image_type: str = Field("png", description="Image type (png or jpeg)")
     quality: int = Field(100, description="JPEG quality (1-100)", ge=1, le=100)
     full_page: bool = Field(True, description="Capture full page or viewport only")
-    width: int = Field(1200, description="Viewport width", ge=100, le=4096)
+    width: int = Field(1920, description="Viewport width (default: 1920 for desktop)", ge=100, le=4096)
     scale: float = Field(2.0, description="Device scale factor for high-quality images (2.0 = Retina)", ge=1.0, le=4.0)
 
 
@@ -160,16 +139,18 @@ class UrlToPdfRequest(BaseModel):
 
     url: HttpUrl = Field(..., description="URL to capture as PDF")
     options: PdfOptions = Field(default_factory=PdfOptions, description="PDF options")
-    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
+    wait_until: WaitUntilType = Field("load", description="Wait condition (load, domcontentloaded, networkidle, commit). Default is 'load' with 60s timeout for reliability")
+    timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
 class UrlToImageRequest(BaseModel):
     """Request to convert URL to image (screenshot)."""
 
     url: HttpUrl = Field(..., description="URL to capture as image")
-    options: ImageOptions = Field(default_factory=lambda: ImageOptions(width=1280), description="Image options")
-    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
-    height: int = Field(800, description="Viewport height", ge=100, le=4096)
+    options: ImageOptions = Field(default_factory=ImageOptions, description="Image options")
+    wait_until: WaitUntilType = Field("load", description="Wait condition (load, domcontentloaded, networkidle, commit). Default is 'load' with 60s timeout for reliability")
+    height: int = Field(1080, description="Viewport height", ge=100, le=4096)
+    timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
 # ==================== PPTX Analysis Models ====================

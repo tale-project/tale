@@ -7,8 +7,8 @@
  * Features:
  * - Fetches main page first to extract title and description from metadata
  * - Updates website record with title and description before URL discovery
- * - Discovers URLs using the crawler service (/api/v1/discover)
- * - Fetches content from discovered URLs (/api/v1/fetch-urls)
+ * - Discovers URLs using the crawler service (/api/v1/urls/discover)
+ * - Fetches content from discovered URLs (/api/v1/urls/fetch)
  * - Creates or updates website record with proper metadata
  * - Can be triggered manually or scheduled based on scanInterval
  */

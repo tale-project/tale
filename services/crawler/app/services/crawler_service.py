@@ -191,7 +191,7 @@ class CrawlerService:
                 try:
                     data = json_lib.loads(script.string)
                     json_ld_data.append(data)
-                except:
+                except (json_lib.JSONDecodeError, TypeError):
                     pass
 
             if json_ld_data:
@@ -237,7 +237,6 @@ class CrawlerService:
             await self.initialize()
 
         from crawl4ai import SeedingConfig
-        import asyncio
 
         # Try with sitemap+cc first, then fallback to sitemap-only if Common Crawl fails.
         # We also rate-limit discovery to avoid hammering sites and triggering 429s.
@@ -374,69 +373,6 @@ class CrawlerService:
             await self._maybe_restart_browser()
 
         return results
-
-    async def crawl_website(
-        self,
-        url: str,
-        max_pages: int = 100,
-        pattern: Optional[str] = None,
-        query: Optional[str] = None,
-        word_count_threshold: int = 100,
-        timeout: float = 1800.0,
-    ) -> Dict[str, Any]:
-        """
-        Crawl an entire website: discover URLs and extract content.
-
-        Args:
-            url: The website URL to crawl
-            max_pages: Maximum number of pages to crawl
-            pattern: Optional URL pattern filter
-            query: Optional search query for filtering
-            word_count_threshold: Minimum word count for content
-            timeout: Timeout in seconds for URL discovery (default: 1800 seconds / 30 minutes)
-
-        Returns:
-            Dictionary with crawled pages and metadata
-        """
-        if not self.initialized:
-            await self.initialize()
-
-        # Extract domain from URL
-        parsed = urlparse(url)
-        domain = parsed.netloc
-
-        # Step 1: Discover URLs
-        discovered = await self.discover_urls(
-            domain=domain,
-            max_urls=max_pages,
-            pattern=pattern,
-            query=query,
-            timeout=timeout,
-        )
-
-        # Extract URL strings
-        url_list = [u["url"] for u in discovered]
-
-        if not url_list:
-            logger.warning(f"No URLs discovered from {url}")
-            return {
-                "success": False,
-                "error": "No URLs discovered",
-                "pages_discovered": 0,
-                "pages_crawled": 0,
-            }
-
-        # Step 2: Crawl discovered URLs
-        crawled_pages = await self.crawl_urls(url_list, word_count_threshold)
-
-        return {
-            "success": True,
-            "domain": domain,
-            "pages_discovered": len(url_list),
-            "pages_crawled": len(crawled_pages),
-            "pages": crawled_pages,
-        }
-
 
 # Global service instance
 _crawler_service: Optional[CrawlerService] = None

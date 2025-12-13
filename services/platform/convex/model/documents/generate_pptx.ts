@@ -77,7 +77,7 @@ export async function generatePptx(
   args: GeneratePptxArgs,
 ): Promise<GeneratePptxResult> {
   const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/template/generate-pptx`;
+  const apiUrl = `${crawlerUrl}/api/v1/pptx`;
 
   // Prepare slide content as JSON string
   const slidesContentJson = JSON.stringify(args.slidesContent);
