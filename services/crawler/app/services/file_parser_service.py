@@ -145,3 +145,15 @@ class FileParserService:
                 "filename": filename,
                 "error": f"Unsupported file type: {filename} ({content_type}). Supported: PDF, DOCX, PPTX.",
             }
+
+
+# Global file parser service instance
+_file_parser_service: FileParserService | None = None
+
+
+def get_file_parser_service() -> FileParserService:
+    """Get or create the file parser service instance."""
+    global _file_parser_service
+    if _file_parser_service is None:
+        _file_parser_service = FileParserService()
+    return _file_parser_service

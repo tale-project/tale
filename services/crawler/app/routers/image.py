@@ -51,12 +51,12 @@ async def convert_markdown_to_image(request: MarkdownToImageRequest):
             headers={"Content-Disposition": f"attachment; filename=document.{ext}"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting markdown to image: {e}")
+    except Exception:
+        logger.exception("Error converting markdown to image")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert markdown to image: {str(e)}",
-        )
+            detail="Failed to convert markdown to image",
+        ) from None
 
 
 @router.post("/from-html")
@@ -95,12 +95,12 @@ async def convert_html_to_image(request: HtmlToImageRequest):
             headers={"Content-Disposition": f"attachment; filename=document.{ext}"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting HTML to image: {e}")
+    except Exception:
+        logger.exception("Error converting HTML to image")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert HTML to image: {str(e)}",
-        )
+            detail="Failed to convert HTML to image",
+        ) from None
 
 
 @router.post("/from-url")
@@ -140,10 +140,10 @@ async def convert_url_to_image(request: UrlToImageRequest):
             headers={"Content-Disposition": f"attachment; filename=screenshot.{ext}"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting URL to image: {e}")
+    except Exception:
+        logger.exception("Error converting URL to image")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert URL to image: {str(e)}",
-        )
+            detail="Failed to convert URL to image",
+        ) from None
 

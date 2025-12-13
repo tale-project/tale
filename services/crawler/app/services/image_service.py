@@ -4,7 +4,7 @@ Image Converter Service.
 Converts HTML, Markdown, and URLs to images (PNG/JPEG) using Playwright.
 """
 
-from typing import Optional, Literal
+from typing import Any, Literal, Optional
 
 from loguru import logger
 
@@ -64,6 +64,7 @@ class ImageService(BaseConverterService):
                     await page.wait_for_timeout(300)
                     return
             except Exception:
+                logger.debug(f"Cookie button selector {selector} not found or not clickable")
                 continue
 
         # Fallback: try to hide common cookie banner elements via CSS
@@ -138,7 +139,7 @@ class ImageService(BaseConverterService):
     async def markdown_to_image(
         self,
         markdown: str,
-        **image_options,
+        **image_options: Any,
     ) -> bytes:
         """Convert Markdown to image."""
         html = await self.markdown_to_html(markdown)
@@ -169,15 +170,20 @@ class ImageService(BaseConverterService):
         try:
             await page.set_viewport_size({"width": width, "height": height})
 
-            # Navigate with domcontentloaded first (fast, reliable), then optionally wait for load
-            await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            # Handle different wait_until strategies
+            if wait_until == "commit":
+                # For commit, use it directly and skip extra waits
+                await page.goto(url, wait_until="commit", timeout=timeout)
+            else:
+                # Navigate with domcontentloaded first (fast, reliable), then optionally wait for more
+                await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
 
-            # If 'load' was requested, try to wait for it but don't fail if it times out
-            if wait_until == "load":
-                try:
-                    await page.wait_for_load_state("load", timeout=timeout)
-                except PlaywrightTimeoutError:
-                    logger.warning(f"'load' event timed out after {timeout}ms, continuing with domcontentloaded state")
+                # If 'load' or 'networkidle' was requested, try to wait for it but don't fail if it times out
+                if wait_until in ("load", "networkidle"):
+                    try:
+                        await page.wait_for_load_state(wait_until, timeout=timeout)
+                    except PlaywrightTimeoutError:
+                        logger.warning(f"'{wait_until}' event timed out after {timeout}ms, continuing with domcontentloaded state")
 
             # Dismiss cookie consent dialogs before taking screenshot
             await self._dismiss_cookie_dialogs(page)

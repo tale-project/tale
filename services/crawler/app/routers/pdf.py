@@ -13,20 +13,9 @@ from app.models import (
     ParseFileResponse,
 )
 from app.services.pdf_service import get_pdf_service
-from app.services.file_parser_service import FileParserService
+from app.services.file_parser_service import get_file_parser_service
 
 router = APIRouter(prefix="/api/v1/pdf", tags=["PDF"])
-
-# Global file parser service instance
-_file_parser_service: FileParserService | None = None
-
-
-def get_file_parser_service() -> FileParserService:
-    """Get or create the file parser service instance."""
-    global _file_parser_service
-    if _file_parser_service is None:
-        _file_parser_service = FileParserService()
-    return _file_parser_service
 
 
 @router.post("/from-markdown")
@@ -63,12 +52,12 @@ async def convert_markdown_to_pdf(request: MarkdownToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting markdown to PDF: {e}")
+    except Exception:
+        logger.exception("Error converting markdown to PDF")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert markdown to PDF: {str(e)}",
-        )
+            detail="Failed to convert markdown to PDF",
+        ) from None
 
 
 @router.post("/from-html")
@@ -106,12 +95,12 @@ async def convert_html_to_pdf(request: HtmlToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting HTML to PDF: {e}")
+    except Exception:
+        logger.exception("Error converting HTML to PDF")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert HTML to PDF: {str(e)}",
-        )
+            detail="Failed to convert HTML to PDF",
+        ) from None
 
 
 @router.post("/from-url")
@@ -149,12 +138,12 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
             headers={"Content-Disposition": "attachment; filename=document.pdf"},
         )
 
-    except Exception as e:
-        logger.error(f"Error converting URL to PDF: {e}")
+    except Exception:
+        logger.exception("Error converting URL to PDF")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to convert URL to PDF: {str(e)}",
-        )
+            detail="Failed to convert URL to PDF",
+        ) from None
 
 
 @router.post("/parse", response_model=ParseFileResponse)
@@ -190,10 +179,10 @@ async def parse_pdf_file(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error parsing PDF file: {e}")
+    except Exception:
+        logger.exception("Error parsing PDF file")
         return ParseFileResponse(
             success=False,
             filename=file.filename or "unknown",
-            error=f"Failed to parse PDF file: {str(e)}",
+            error="Failed to parse PDF file",
         )

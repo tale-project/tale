@@ -12,8 +12,8 @@ This module follows Clean Architecture principles:
 - models: Data transfer objects (DTOs) and request/response schemas
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,8 +48,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         crawler = get_crawler_service()
         await crawler.initialize()
         logger.info("Crawler service initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize crawler service: {e}")
+    except Exception:
+        logger.exception("Failed to initialize crawler service")
         # Don't fail startup - allow lazy initialization
 
     yield
@@ -63,8 +63,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         if crawler.initialized:
             await crawler.cleanup()
             logger.info("Crawler service cleaned up")
-    except Exception as e:
-        logger.error(f"Failed to cleanup crawler service: {e}")
+    except Exception:
+        logger.exception("Failed to cleanup crawler service")
 
 
 # Create FastAPI application
@@ -81,7 +81,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins.split(","),
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -4,7 +4,8 @@ PDF Converter Service.
 Converts HTML, Markdown, and URLs to PDF documents using Playwright.
 """
 
-from typing import Optional
+import re
+from typing import Any, Optional
 
 from app.models import WaitUntilType
 from app.services.base_converter import BaseConverterService
@@ -12,6 +13,53 @@ from app.services.base_converter import BaseConverterService
 
 class PdfService(BaseConverterService):
     """Service for converting documents to PDF."""
+
+    def _inject_css(self, html: str, css: str) -> str:
+        """Inject CSS into HTML document robustly.
+
+        Injection strategy (in order of preference):
+        1. Inside existing <head> tag (case-insensitive)
+        2. Before <body> tag if no <head> found
+        3. At the top of the document as fallback
+
+        Args:
+            html: The HTML document to inject CSS into.
+            css: The CSS content to inject (without <style> tags).
+
+        Returns:
+            The HTML document with CSS injected.
+        """
+        if not css or not css.strip():
+            return html
+
+        style_block = f"<style>{css}</style>"
+
+        # Try to find </head> tag (case-insensitive)
+        head_close_pattern = re.compile(r"(</head\s*>)", re.IGNORECASE)
+        head_close_match = head_close_pattern.search(html)
+        if head_close_match:
+            # Insert before </head>
+            insert_pos = head_close_match.start()
+            return html[:insert_pos] + style_block + html[insert_pos:]
+
+        # Try to find <head...> tag to insert after it (case-insensitive)
+        head_open_pattern = re.compile(r"(<head(?:\s[^>]*)?>)", re.IGNORECASE)
+        head_open_match = head_open_pattern.search(html)
+        if head_open_match:
+            # Insert right after <head>
+            insert_pos = head_open_match.end()
+            return html[:insert_pos] + style_block + html[insert_pos:]
+
+        # Try to find <body...> tag and insert before it (case-insensitive)
+        body_pattern = re.compile(r"(<body(?:\s[^>]*)?>)", re.IGNORECASE)
+        body_match = body_pattern.search(html)
+        if body_match:
+            # Insert before <body>
+            insert_pos = body_match.start()
+            return html[:insert_pos] + style_block + html[insert_pos:]
+
+        # Fallback: prepend at the top of the document
+        return style_block + html
 
     async def html_to_pdf(
         self,
@@ -34,10 +82,10 @@ class PdfService(BaseConverterService):
                 extra_head = f"<style>{extra_css}</style>" if extra_css else ""
                 html = self._wrap_html(html, extra_head)
             elif extra_css:
-                # Inject CSS into existing HTML
-                html = html.replace("</head>", f"<style>{extra_css}</style></head>")
+                # Inject CSS into existing HTML robustly
+                html = self._inject_css(html, extra_css)
 
-            await page.set_content(html, wait_until="networkidle")
+            await page.set_content(html, wait_until="load")
 
             # Wait for Twemoji to parse and render all emojis
             await self._wait_for_twemoji(page)
@@ -60,7 +108,7 @@ class PdfService(BaseConverterService):
     async def markdown_to_pdf(
         self,
         markdown: str,
-        **pdf_options,
+        **pdf_options: Any,
     ) -> bytes:
         """Convert Markdown to PDF."""
         html = await self.markdown_to_html(markdown)
@@ -71,7 +119,7 @@ class PdfService(BaseConverterService):
         url: str,
         wait_until: WaitUntilType = "load",
         timeout: int = 60000,
-        **pdf_options,
+        **pdf_options: Any,
     ) -> bytes:
         """Capture a URL as PDF.
 

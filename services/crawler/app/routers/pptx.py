@@ -14,20 +14,9 @@ from app.models import (
     ParseFileResponse,
 )
 from app.services.template_service import get_template_service
-from app.services.file_parser_service import FileParserService
+from app.services.file_parser_service import get_file_parser_service
 
 router = APIRouter(prefix="/api/v1/pptx", tags=["PPTX"])
-
-# Global file parser service instance
-_file_parser_service: FileParserService | None = None
-
-
-def get_file_parser_service() -> FileParserService:
-    """Get or create the file parser service instance."""
-    global _file_parser_service
-    if _file_parser_service is None:
-        _file_parser_service = FileParserService()
-    return _file_parser_service
 
 
 @router.post("/analyze", response_model=AnalyzePptxResponse)
@@ -64,11 +53,11 @@ async def analyze_pptx_template_upload(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error analyzing PPTX template (upload): {e}")
+    except Exception:
+        logger.exception("Error analyzing PPTX template (upload)")
         return AnalyzePptxResponse(
             success=False,
-            error=f"Failed to analyze PPTX template: {str(e)}",
+            error="Failed to analyze PPTX template",
         )
 
 
@@ -117,8 +106,8 @@ async def generate_pptx_from_json(
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid slides_content JSON: {str(e)}",
-            )
+                detail=f"Invalid slides_content JSON: {e!s}",
+            ) from e
 
         # Parse optional branding
         branding_dict = None
@@ -128,19 +117,19 @@ async def generate_pptx_from_json(
             except json.JSONDecodeError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid branding JSON: {str(e)}",
-                )
+                    detail=f"Invalid branding JSON: {e!s}",
+                ) from e
 
         # Read optional template file
         template_bytes = None
         if template_file:
             try:
                 template_bytes = await template_file.read()
-            except Exception as e:
+            except OSError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Failed to read template file: {str(e)}",
-                )
+                    detail=f"Failed to read template file: {e!s}",
+                ) from e
 
         template_service = get_template_service()
 
@@ -160,11 +149,11 @@ async def generate_pptx_from_json(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error generating PPTX: {e}")
+    except Exception:
+        logger.exception("Error generating PPTX")
         return GeneratePptxResponse(
             success=False,
-            error=f"Failed to generate PPTX: {str(e)}",
+            error="Failed to generate PPTX",
         )
 
 
@@ -201,10 +190,10 @@ async def parse_pptx_file(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error parsing PPTX file: {e}")
+    except Exception:
+        logger.exception("Error parsing PPTX file")
         return ParseFileResponse(
             success=False,
             filename=file.filename or "unknown",
-            error=f"Failed to parse PPTX file: {str(e)}",
+            error="Failed to parse PPTX file",
         )

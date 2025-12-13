@@ -116,7 +116,7 @@ TWEMOJI_WAIT_SCRIPT = (
 class BaseConverterService:
     """Base service for document conversion using Playwright."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.initialized = False
         self._playwright = None
         self._browser: Optional[Browser] = None
@@ -170,7 +170,7 @@ class BaseConverterService:
         """Wrap content in HTML template."""
         return DEFAULT_HTML_TEMPLATE.format(content=content, extra_head=extra_head)
 
-    async def _wait_for_twemoji(self, page: Page, timeout: int = 5000):
+    async def _wait_for_twemoji(self, page: Page, timeout: int = 5000) -> None:
         """Wait for Twemoji to parse and render all emojis."""
         await page.wait_for_function(TWEMOJI_WAIT_SCRIPT, timeout=timeout)
         # Small delay to ensure all emoji images are loaded

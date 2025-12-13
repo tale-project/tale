@@ -17,8 +17,8 @@ from app.routers.pptx import router as pptx_router
 
 __all__ = [
     "crawler_router",
-    "pdf_router",
-    "image_router",
     "docx_router",
+    "image_router",
+    "pdf_router",
     "pptx_router",
 ]

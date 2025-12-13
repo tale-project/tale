@@ -14,20 +14,9 @@ from app.models import (
     ParseFileResponse,
 )
 from app.services.template_service import get_template_service
-from app.services.file_parser_service import FileParserService
+from app.services.file_parser_service import get_file_parser_service
 
 router = APIRouter(prefix="/api/v1/docx", tags=["DOCX"])
-
-# Global file parser service instance
-_file_parser_service: FileParserService | None = None
-
-
-def get_file_parser_service() -> FileParserService:
-    """Get or create the file parser service instance."""
-    global _file_parser_service
-    if _file_parser_service is None:
-        _file_parser_service = FileParserService()
-    return _file_parser_service
 
 
 @router.post("", response_model=GenerateDocxResponse)
@@ -50,22 +39,7 @@ async def generate_docx_document(request: GenerateDocxRequest):
     try:
         template_service = get_template_service()
 
-        # Convert Pydantic models to dicts
-        content_dict = {
-            "title": request.content.title,
-            "subtitle": request.content.subtitle,
-            "sections": [
-                {
-                    "type": section.type,
-                    "text": section.text,
-                    "level": section.level,
-                    "items": section.items,
-                    "headers": section.headers,
-                    "rows": section.rows,
-                }
-                for section in request.content.sections
-            ],
-        }
+        content_dict = request.content.model_dump(exclude_none=True)
 
         docx_bytes = await template_service.generate_docx(
             content=content_dict,
@@ -79,11 +53,11 @@ async def generate_docx_document(request: GenerateDocxRequest):
             file_size=len(docx_bytes),
         )
 
-    except Exception as e:
-        logger.error(f"Error generating DOCX: {e}")
+    except Exception:
+        logger.exception("Error generating DOCX")
         return GenerateDocxResponse(
             success=False,
-            error=f"Failed to generate DOCX: {str(e)}",
+            error="Failed to generate DOCX",
         )
 
 
@@ -125,19 +99,73 @@ async def generate_docx_from_template(
         except json.JSONDecodeError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid content JSON: {str(e)}",
+                detail=f"Invalid content JSON: {e!s}",
+            ) from e
+
+        # Validate content_dict is a dict
+        if not isinstance(content_dict, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content shape: expected object, got {type(content_dict).__name__}",
             )
+
+        # Validate top-level fields
+        if "title" in content_dict and content_dict["title"] is not None:
+            if not isinstance(content_dict["title"], str):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid content shape: 'title' must be a string, got {type(content_dict['title']).__name__}",
+                )
+
+        if "subtitle" in content_dict and content_dict["subtitle"] is not None:
+            if not isinstance(content_dict["subtitle"], str):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid content shape: 'subtitle' must be a string, got {type(content_dict['subtitle']).__name__}",
+                )
+
+        # Validate sections field
+        if "sections" in content_dict:
+            sections = content_dict["sections"]
+            if not isinstance(sections, list):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid content shape: 'sections' must be an array, got {type(sections).__name__}",
+                )
+
+            valid_section_types = {"heading", "paragraph", "bullets", "numbered", "table", "quote", "code"}
+            for idx, section in enumerate(sections):
+                if not isinstance(section, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid content shape: sections[{idx}] must be an object, got {type(section).__name__}",
+                    )
+                if "type" not in section:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid content shape: sections[{idx}] missing required 'type' field",
+                    )
+                if not isinstance(section["type"], str):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid content shape: sections[{idx}].type must be a string, got {type(section['type']).__name__}",
+                    )
+                if section["type"] not in valid_section_types:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Invalid content shape: sections[{idx}].type '{section['type']}' is not valid, must be one of: {', '.join(sorted(valid_section_types))}",
+                    )
 
         # Read optional template file
         template_bytes = None
         if template_file:
             try:
                 template_bytes = await template_file.read()
-            except Exception as e:
+            except OSError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Failed to read template file: {str(e)}",
-                )
+                    detail=f"Failed to read template file: {e!s}",
+                ) from e
 
         template_service = get_template_service()
 
@@ -163,11 +191,11 @@ async def generate_docx_from_template(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error generating DOCX: {e}")
+    except Exception:
+        logger.exception("Error generating DOCX from template")
         return GenerateDocxResponse(
             success=False,
-            error=f"Failed to generate DOCX: {str(e)}",
+            error="Failed to generate DOCX",
         )
 
 
@@ -204,10 +232,10 @@ async def parse_docx_file(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Error parsing DOCX file: {e}")
+    except Exception:
+        logger.exception("Error parsing DOCX file")
         return ParseFileResponse(
             success=False,
             filename=file.filename or "unknown",
-            error=f"Failed to parse DOCX file: {str(e)}",
+            error="Failed to parse DOCX file",
         )

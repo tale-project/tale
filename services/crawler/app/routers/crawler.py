@@ -2,8 +2,11 @@
 Crawler Router - URL discovery and content fetching endpoints.
 """
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
 from loguru import logger
+from pydantic import HttpUrl
 
 from app.models import (
     DiscoverRequest,
@@ -65,12 +68,12 @@ async def discover_urls(request: DiscoverRequest):
             urls=urls,
         )
 
-    except Exception as e:
-        logger.error(f"Error discovering URLs: {e}")
+    except Exception:
+        logger.exception("Error discovering URLs")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to discover URLs: {str(e)}",
-        )
+            detail="Failed to discover URLs",
+        ) from None
 
 
 @router.post("/fetch", response_model=FetchUrlsResponse)
@@ -121,37 +124,41 @@ async def fetch_urls(request: FetchUrlsRequest):
             pages=pages,
         )
 
-    except Exception as e:
-        logger.error(f"Error fetching URLs: {e}")
+    except Exception:
+        logger.exception("Error fetching URLs")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to fetch URLs: {str(e)}",
-        )
+            detail="Failed to fetch URLs",
+        ) from None
 
 
 @router.get("/check")
-async def check_url(url: str):
+async def check_url(
+    url: Annotated[HttpUrl, Query(description="The URL to check")],
+):
     """
     Check if a URL is a website or a single document.
 
     Args:
-        url: The URL to check
+        url: The URL to check (must be a valid HTTP/HTTPS URL)
 
     Returns:
         Dictionary with is_website boolean
     """
     try:
         crawler = get_crawler_service()
-        is_website = crawler.is_website_url(url)
+        # Convert HttpUrl to string for the crawler service
+        url_str = str(url)
+        is_website = crawler.is_website_url(url_str)
 
         return {
-            "url": url,
+            "url": url_str,
             "is_website": is_website,
         }
 
-    except Exception as e:
-        logger.error(f"Error checking URL: {e}")
+    except Exception:
+        logger.exception("Error checking URL")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to check URL: {str(e)}",
-        )
+            detail="Failed to check URL",
+        ) from None
