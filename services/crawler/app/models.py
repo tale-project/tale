@@ -96,7 +96,7 @@ class ImageOptions(BaseModel):
     image_type: str = Field("png", description="Image type (png or jpeg)")
     quality: int = Field(100, description="JPEG quality (1-100)", ge=1, le=100)
     full_page: bool = Field(True, description="Capture full page or viewport only")
-    width: int = Field(1200, description="Viewport width", ge=100, le=4096)
+    width: int = Field(1920, description="Viewport width (default: 1920 for desktop)", ge=100, le=4096)
     scale: float = Field(2.0, description="Device scale factor for high-quality images (2.0 = Retina)", ge=1.0, le=4.0)
 
 
@@ -139,16 +139,18 @@ class UrlToPdfRequest(BaseModel):
 
     url: HttpUrl = Field(..., description="URL to capture as PDF")
     options: PdfOptions = Field(default_factory=PdfOptions, description="PDF options")
-    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
+    wait_until: WaitUntilType = Field("load", description="Wait condition (load, domcontentloaded, networkidle, commit). Default is 'load' with 60s timeout for reliability")
+    timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
 class UrlToImageRequest(BaseModel):
     """Request to convert URL to image (screenshot)."""
 
     url: HttpUrl = Field(..., description="URL to capture as image")
-    options: ImageOptions = Field(default_factory=lambda: ImageOptions(width=1280), description="Image options")
-    wait_until: WaitUntilType = Field("networkidle", description="Wait condition (load, domcontentloaded, networkidle, commit)")
-    height: int = Field(800, description="Viewport height", ge=100, le=4096)
+    options: ImageOptions = Field(default_factory=ImageOptions, description="Image options")
+    wait_until: WaitUntilType = Field("load", description="Wait condition (load, domcontentloaded, networkidle, commit). Default is 'load' with 60s timeout for reliability")
+    height: int = Field(1080, description="Viewport height", ge=100, le=4096)
+    timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
 # ==================== PPTX Analysis Models ====================

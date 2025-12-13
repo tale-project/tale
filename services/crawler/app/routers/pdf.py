@@ -133,6 +133,7 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
         pdf_bytes = await pdf_service.url_to_pdf(
             url=str(request.url),
             wait_until=request.wait_until,
+            timeout=request.timeout,
             format=request.options.format,
             landscape=request.options.landscape,
             margin_top=request.options.margin_top,

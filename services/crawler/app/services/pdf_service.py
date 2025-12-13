@@ -69,13 +69,29 @@ class PdfService(BaseConverterService):
     async def url_to_pdf(
         self,
         url: str,
-        wait_until: WaitUntilType = "networkidle",
+        wait_until: WaitUntilType = "load",
+        timeout: int = 60000,
         **pdf_options,
     ) -> bytes:
-        """Capture a URL as PDF."""
+        """Capture a URL as PDF.
+
+        Uses a fallback strategy: tries 'load' event first, falls back to 'domcontentloaded'
+        if 'load' times out. This handles sites with slow/failing external resources.
+        """
+        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+
         page = await self._get_page()
         try:
-            await page.goto(url, wait_until=wait_until)
+            # Navigate with domcontentloaded first (fast, reliable), then optionally wait for load
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+
+            # If 'load' was requested, try to wait for it but don't fail if it times out
+            if wait_until == "load":
+                try:
+                    await page.wait_for_load_state("load", timeout=timeout)
+                except PlaywrightTimeoutError:
+                    # 'load' event didn't fire within timeout, continue with domcontentloaded state
+                    pass
 
             # Remove wrap_in_template if passed (not applicable for URL)
             pdf_options.pop("wrap_in_template", None)

@@ -128,6 +128,7 @@ async def convert_url_to_image(request: UrlToImageRequest):
             width=request.options.width,
             height=request.height,
             scale=request.options.scale,
+            timeout=request.timeout,
         )
 
         media_type = "image/png" if request.options.image_type == "png" else "image/jpeg"
