@@ -9,17 +9,6 @@ from pydantic import BaseModel, Field, HttpUrl
 WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
 
 
-class CrawlRequest(BaseModel):
-    """Request to crawl a website."""
-
-    url: HttpUrl = Field(..., description="The website URL to crawl")
-    max_pages: int = Field(100, description="Maximum number of pages to crawl", ge=1, le=1000)
-    pattern: Optional[str] = Field(None, description="Optional URL pattern filter (e.g., '*/docs/*')")
-    query: Optional[str] = Field(None, description="Optional search query for filtering")
-    word_count_threshold: int = Field(100, description="Minimum word count for content", ge=0)
-    timeout: Optional[float] = Field(1800.0, description="Timeout in seconds for URL discovery (default: 1800 seconds / 30 minutes)", ge=1)
-
-
 class PageContent(BaseModel):
     """Content from a crawled page."""
 
@@ -29,17 +18,6 @@ class PageContent(BaseModel):
     word_count: int = Field(..., description="Number of words in content")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
     structured_data: Optional[Dict[str, Any]] = Field(None, description="Structured data (price, images, etc.)")
-
-
-class CrawlResponse(BaseModel):
-    """Response from a crawl operation."""
-
-    success: bool = Field(..., description="Whether the crawl was successful")
-    domain: Optional[str] = Field(None, description="The domain that was crawled")
-    pages_discovered: int = Field(..., description="Number of pages discovered")
-    pages_crawled: int = Field(..., description="Number of pages successfully crawled")
-    pages: List[PageContent] = Field(default_factory=list, description="Crawled page contents")
-    error: Optional[str] = Field(None, description="Error message if crawl failed")
 
 
 class DiscoverRequest(BaseModel):
@@ -93,7 +71,8 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     version: str = Field(..., description="Service version")
     crawler_initialized: bool = Field(..., description="Whether the crawler is initialized")
-    converter_initialized: bool = Field(False, description="Whether the converter is initialized")
+    pdf_service_initialized: bool = Field(False, description="Whether the PDF service is initialized")
+    image_service_initialized: bool = Field(False, description="Whether the image service is initialized")
 
 
 # ==================== Document Conversion Models ====================

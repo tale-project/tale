@@ -81,7 +81,7 @@ export async function analyzePptx(
   args: AnalyzePptxArgs,
 ): Promise<AnalyzePptxResult> {
   const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/template/analyze-pptx-upload`;
+  const apiUrl = `${crawlerUrl}/api/v1/pptx/analyze`;
 
   const templateStorageId = args.templateStorageId;
 

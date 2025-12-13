@@ -40,7 +40,7 @@ export async function generateDocxFromTemplate(
   args: GenerateDocxFromTemplateArgs,
 ): Promise<GenerateDocxFromTemplateResult> {
   const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/template/generate-docx`;
+  const apiUrl = `${crawlerUrl}/api/v1/docx/from-template`;
 
   // Prepare content as JSON string
   const contentJson = JSON.stringify(args.content);

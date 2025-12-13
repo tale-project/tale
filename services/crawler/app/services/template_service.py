@@ -14,8 +14,8 @@ For new code, prefer importing the specialized services directly:
 import logging
 from typing import Optional, List, Dict, Any
 
-from app.pptx_service import PptxService, get_pptx_service
-from app.docx_service import DocxService, get_docx_service
+from app.services.pptx_service import PptxService, get_pptx_service
+from app.services.docx_service import DocxService, get_docx_service
 
 logger = logging.getLogger(__name__)
 
