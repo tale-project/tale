@@ -226,9 +226,6 @@ class PptxService:
 
     def _extract_branding(self, prs: Presentation) -> Dict[str, Any]:
         """Extract branding information from a presentation."""
-        from pptx.dml.color import RGBColor
-        from pptx.enum.dml import MSO_THEME_COLOR
-
         branding = {
             "slideWidth": prs.slide_width,
             "slideHeight": prs.slide_height,

@@ -576,14 +576,6 @@ export const ACTION_REFERENCE: ActionReference[] = [
     category: 'web',
     operations: [
       {
-        operation: 'crawl_website',
-        description: 'Crawl a website starting from a URL',
-        requiredParams: ['operation', 'url'],
-        optionalParams: ['maxPages', 'maxDepth'],
-        example:
-          '{ action: "crawler", parameters: { operation: "crawl_website", url: "https://example.com", maxPages: 10 } }',
-      },
-      {
         operation: 'discover_urls',
         description: 'Discover URLs from a starting URL',
         requiredParams: ['operation', 'url'],

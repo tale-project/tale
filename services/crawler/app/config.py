@@ -2,8 +2,6 @@
 Configuration for the Tale Crawler service.
 """
 
-import os
-from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

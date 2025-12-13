@@ -57,7 +57,7 @@ export async function generateDocx(
   args: GenerateDocxArgs,
 ): Promise<GenerateDocxResult> {
   const crawlerUrl = getCrawlerUrl();
-  const apiUrl = `${crawlerUrl}/api/v1/document/generate-docx`;
+  const apiUrl = `${crawlerUrl}/api/v1/docx`;
 
   const requestBody = {
     content: args.content,
