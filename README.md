@@ -55,7 +55,6 @@ Ready to go live? Add your domain:
 ```bash
 # Update .env
 DOMAIN=https://yourdomain.com
-ACME_EMAIL=you@example.com
 
 # Start with production profile
 docker compose --profile production up --build

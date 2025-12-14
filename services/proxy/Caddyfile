@@ -1,11 +1,6 @@
 # Caddy Configuration for Tale Platform
 # Automatically handles both localhost (HTTP) and production domains (HTTPS)
 
-{
-debug
-email {$ACME_EMAIL}
-}
-
 # Main site configuration
 # Caddy's automatic HTTPS behavior:
 # - localhost: Uses HTTPS with self-signed certificates (requires trusting Caddy's root CA)
@@ -26,7 +21,7 @@ disable_tlsalpn_challenge
 log {
 output stdout
 format console
-level DEBUG
+level INFO
 }
 
 reverse_proxy platform:3000 {
