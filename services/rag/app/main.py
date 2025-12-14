@@ -36,8 +36,8 @@ async def lifespan(app: FastAPI):
         # Initialize cognee
         await cognee_service.initialize()
         logger.info("Cognee initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize cognee: {e}")
+    except Exception:
+        logger.exception("Failed to initialize cognee")
         # Continue anyway - some endpoints may still work
 
     yield
@@ -77,9 +77,11 @@ async def memory_cleanup_middleware(request: Request, call_next):
     Python objects over time. It does not guarantee RSS will shrink for every
     request, but it reduces long-term growth.
     """
-    response = await call_next(request)
-    cleanup_memory(context=f"after request {request.url.path}")
-    return response
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        cleanup_memory(context=f"after request {request.url.path}")
 
 
 # Exception handlers
@@ -98,13 +100,13 @@ async def http_exception_handler(_request, exc):
 @app.exception_handler(Exception)
 async def general_exception_handler(_request, exc):
     """Handle general exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.opt(exception=exc).error("Unhandled exception")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
             error=exc.__class__.__name__,
             message="Internal server error",
-            details={"error": str(exc)} if settings.log_level == "debug" else None,
+            details={"error": str(exc)} if settings.log_level.lower() == "debug" else None,
         ).model_dump(),
     )
 

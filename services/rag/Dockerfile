@@ -64,9 +64,9 @@ ENV PYTHONUNBUFFERED=1 \
 # Expose port
 EXPOSE 8001
 
-# Health check
+# Health check (uses RAG_PORT env var with fallback to 8001)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:${RAG_PORT:-8001}/health || exit 1
 
 # Run FastAPI application with worker recycling (--limit-max-requests)
 CMD ["sh", "-c", "python -m uvicorn app.main:app --host ${RAG_HOST} --port ${RAG_PORT} --workers ${RAG_WORKERS} --limit-max-requests ${RAG_MAX_REQUESTS_PER_WORKER}"]

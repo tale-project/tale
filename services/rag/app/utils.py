@@ -26,7 +26,7 @@ def _log_memory_snapshot(context: str) -> None:
         pages = int(parts[1])
         rss_mb = pages * (os.sysconf("SC_PAGE_SIZE") / (1024 * 1024))
         logger.info(f"[RAG][MEM] {context}: RSS={rss_mb:.1f} MiB")
-    except Exception as exc:  # pragma: no cover - best-effort logging
+    except (OSError, ValueError, IndexError) as exc:  # pragma: no cover - best-effort logging
         logger.debug(f"[RAG][MEM] Failed to read RSS: {exc}")
 
 

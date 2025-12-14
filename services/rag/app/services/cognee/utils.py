@@ -9,6 +9,26 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 
+def _safe_int(value: Any) -> int:
+    """Safely convert a value to int, handling floats like 10.0.
+
+    Args:
+        value: The value to convert (int, float, or str)
+
+    Returns:
+        Integer value, or 0 if conversion fails
+    """
+    try:
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            # Handle both "10" and "10.0"
+            return int(float(value))
+    except (ValueError, TypeError):
+        pass
+    return 0
+
+
 def normalize_add_result(
     result: Any,
     document_id: Optional[str] = None,
@@ -29,11 +49,7 @@ def normalize_add_result(
         if isinstance(result, dict):
             doc_id = document_id or result.get("id") or result.get("document_id") or "unknown"
             raw_chunks = result.get("chunks", 0)
-            chunks_created = (
-                int(raw_chunks)
-                if isinstance(raw_chunks, (int, float, str)) and str(raw_chunks).isdigit()
-                else 0
-            )
+            chunks_created = _safe_int(raw_chunks)
         else:
             # Try attribute-style access
             doc_id = (
@@ -43,10 +59,7 @@ def normalize_add_result(
                 or "unknown"
             )
             maybe_chunks = getattr(result, "chunks", 0)
-            try:
-                chunks_created = int(maybe_chunks)
-            except Exception:
-                chunks_created = 0
+            chunks_created = _safe_int(maybe_chunks)
     except Exception as norm_err:
         logger.debug(f"Could not normalize cognee.add() result ({type(result)}): {norm_err}")
 
@@ -71,8 +84,13 @@ def normalize_search_result(result: Any) -> Dict[str, Any]:
             "metadata": {},
         }
     elif isinstance(result, dict):
-        # If result is already a dict, use it as-is
-        return result
+        # Normalize dict to expected schema with defaults for missing keys
+        return {
+            "content": result.get("content", result.get("text", str(result))),
+            "score": result.get("score", result.get("similarity", 1.0)),
+            "document_id": result.get("document_id", result.get("id")),
+            "metadata": result.get("metadata", {}),
+        }
     else:
         # Try to convert to dict if it has attributes
         try:

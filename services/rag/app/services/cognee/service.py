@@ -5,7 +5,7 @@ cognee RAG operations.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import cognee
 from loguru import logger
@@ -57,14 +57,14 @@ class CogneeService:
     async def add_document(
         self,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        _metadata: Optional[dict[str, Any]] = None,
         document_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Add a document to the knowledge base.
 
         Args:
             content: Document content
-            metadata: Optional metadata
+            _metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID
 
         Returns:
@@ -110,15 +110,15 @@ class CogneeService:
         query: str,
         top_k: Optional[int] = None,
         similarity_threshold: Optional[float] = None,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        _filters: Optional[dict[str, Any]] = None,
+    ) -> list[dict[str, Any]]:
         """Search the knowledge base.
 
         Args:
             query: Search query
             top_k: Number of results to return
             similarity_threshold: Minimum similarity score
-            filters: Optional metadata filters
+            _filters: Optional metadata filters (reserved for future use)
 
         Returns:
             List of search results
@@ -173,7 +173,7 @@ class CogneeService:
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate a response using RAG.
 
         Args:
@@ -221,14 +221,15 @@ class CogneeService:
             # Get LLM configuration
             llm_config = settings.get_llm_config()
 
-            # Create OpenAI client
+            # Create OpenAI client with timeout
             client = AsyncOpenAI(
                 api_key=llm_config.get("api_key"),
                 base_url=llm_config.get("base_url"),
+                timeout=60.0,  # 60 second timeout to prevent hanging requests
             )
 
             # Build completion kwargs
-            completion_kwargs: Dict[str, Any] = {
+            completion_kwargs: dict[str, Any] = {
                 "model": llm_config.get("model", "gpt-4o"),
                 "messages": [
                     {"role": "system", "content": final_system_prompt},
@@ -249,6 +250,8 @@ class CogneeService:
 
             # Generate response using OpenAI client
             completion = await client.chat.completions.create(**completion_kwargs)
+            if not completion.choices:
+                raise ValueError("LLM returned empty choices array")
             response = completion.choices[0].message.content or ""
 
             processing_time = (time.time() - start_time) * 1000
@@ -280,7 +283,7 @@ class CogneeService:
             logger.error(f"Generation failed: {e}")
             raise
 
-    async def delete_document(self, document_id: str) -> Dict[str, Any]:
+    async def delete_document(self, document_id: str) -> dict[str, Any]:
         """Delete a document from the knowledge base.
 
         Args:
@@ -288,23 +291,22 @@ class CogneeService:
 
         Returns:
             Dictionary with operation results
+
+        Note:
+            Document deletion is not yet implemented in cognee.
+            This method returns success=False to indicate the operation was not performed.
         """
         if not self.initialized:
             await self.initialize()
 
-        try:
-            # Note: cognee may not have direct delete by ID
-            # This is a placeholder implementation
-            logger.warning(f"Delete operation for {document_id} - implementation pending")
+        # Note: cognee does not currently support direct delete by document ID.
+        # Return success=False to indicate the operation was not performed.
+        logger.warning(f"Delete operation for {document_id} - not implemented in cognee")
 
-            return {
-                "success": True,
-                "message": f"Document {document_id} deletion requested",
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to delete document: {e}")
-            raise
+        return {
+            "success": False,
+            "message": f"Document deletion is not yet supported. Document {document_id} was not deleted.",
+        }
 
     async def reset(self) -> None:
         """Reset the knowledge base (delete all data)."""

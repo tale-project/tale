@@ -1,6 +1,6 @@
 """Health and configuration endpoints for Tale RAG service."""
 
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter
 
@@ -12,7 +12,7 @@ from ..services.cognee import cognee_service
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/", response_model=Dict[str, Any])
+@router.get("/", response_model=dict[str, Any])
 async def root():
     """Root endpoint with API information."""
     return {
@@ -28,11 +28,16 @@ async def root():
 
 @router.get("/health", response_model=HealthResponse)
 async def health():
-    """Health check endpoint."""
+    """Health check endpoint.
+
+    Returns status="healthy" when cognee is initialized,
+    status="degraded" when cognee is not yet initialized.
+    """
+    is_initialized = cognee_service.initialized
     return HealthResponse(
-        status="healthy",
+        status="healthy" if is_initialized else "degraded",
         version=__version__,
-        cognee_initialized=cognee_service.initialized,
+        cognee_initialized=is_initialized,
     )
 
 

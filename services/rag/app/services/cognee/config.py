@@ -19,10 +19,16 @@ def patch_tiktoken() -> None:
     Cognee / LiteLLM may call tiktoken.encoding_for_model with custom model
     names like "qwen3-embedding-8b" which tiktoken doesn't recognize. This
     patch falls back to the widely compatible "cl100k_base" encoding.
+
+    The patch is idempotent - calling this function multiple times is safe.
     """
     try:
         import tiktoken  # type: ignore[import-untyped]
     except ImportError:
+        return
+
+    # Idempotency check: avoid wrapping multiple times
+    if getattr(tiktoken, "_tale_encoding_patch_applied", False):
         return
 
     _original_encoding_for_model = tiktoken.encoding_for_model
@@ -30,14 +36,15 @@ def patch_tiktoken() -> None:
     def _safe_encoding_for_model(model_name: str, *args: Any, **kwargs: Any) -> Any:
         try:
             return _original_encoding_for_model(model_name, *args, **kwargs)
-        except Exception:
+        except KeyError:
             logger.warning(
-                "tiktoken could not map %r to a tokenizer, falling back to 'cl100k_base'",
+                "tiktoken could not map {!r} to a tokenizer, falling back to 'cl100k_base'",
                 model_name,
             )
             return tiktoken.get_encoding("cl100k_base")
 
     tiktoken.encoding_for_model = _safe_encoding_for_model
+    tiktoken._tale_encoding_patch_applied = True
 
 
 def setup_cognee_environment() -> None:
@@ -81,11 +88,12 @@ def setup_cognee_environment() -> None:
             cognee_embedding_model = f"openai/{embedding_model}"
 
     # Set LLM environment variables for Cognee
+    # Use setdefault for non-critical settings to allow operator overrides
     provider = "openai"
-    os.environ["LLM_PROVIDER"] = provider
-    os.environ["LLM_API_KEY"] = openai_api_key
-    os.environ["LLM_ENDPOINT"] = base_url
-    os.environ["LLM_MODEL"] = cognee_llm_model
+    os.environ.setdefault("LLM_PROVIDER", provider)
+    os.environ.setdefault("LLM_API_KEY", openai_api_key)
+    os.environ.setdefault("LLM_ENDPOINT", base_url)
+    os.environ.setdefault("LLM_MODEL", cognee_llm_model)
 
     # Configure embedding provider
     os.environ["EMBEDDING_PROVIDER"] = provider
@@ -102,8 +110,8 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("BAML_LLM_TEMPERATURE", "1.0")
 
     # Export OPENAI_* for libraries that look at these env vars
-    os.environ["OPENAI_API_KEY"] = openai_api_key
-    os.environ["OPENAI_BASE_URL"] = base_url
+    os.environ.setdefault("OPENAI_API_KEY", openai_api_key)
+    os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
         "LLM configured - Provider: %s, Model: %s, Embedding: %s",
@@ -160,9 +168,12 @@ def _setup_database_config() -> None:
     os.environ["DB_USERNAME"] = parsed.username
     os.environ["DB_PASSWORD"] = parsed.password
 
-    logger.info(
-        f"Configured Cognee to use PostgreSQL: "
-        f"{parsed.username}@{parsed.hostname}:{parsed.port or 5432}/{parsed.path.lstrip('/')}"
+    logger.debug(
+        "Configured Cognee to use PostgreSQL: {}@{}:{}/{}",
+        parsed.username,
+        parsed.hostname,
+        parsed.port or 5432,
+        parsed.path.lstrip("/"),
     )
 
 

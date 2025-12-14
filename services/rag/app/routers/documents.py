@@ -2,9 +2,10 @@
 
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from uuid import uuid4
 
+import aiofiles
 from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
 from fastapi.background import BackgroundTasks
 from loguru import logger
@@ -31,35 +32,49 @@ async def _persist_text_content(content: str) -> str:
     os.makedirs(ingest_dir, exist_ok=True)
 
     file_path = os.path.join(ingest_dir, f"text_{uuid4().hex}.txt")
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+        await f.write(content)
 
-    logger.info(f"Text content persisted: {file_path} ({os.path.getsize(file_path)} bytes)")
+    file_size = os.path.getsize(file_path)
+    logger.info(f"Text content persisted: {file_path} ({file_size} bytes)")
     return file_path
 
 
 async def _ingest_single_document(
     content: str,
-    metadata: Optional[Dict[str, Any]],
+    metadata: Optional[dict[str, Any]],
     document_id: Optional[str],
 ) -> DocumentAddResponse:
     """Ingest a single text document."""
     # Persist text content to file so cognee can operate on a path
     file_path = await _persist_text_content(content)
 
-    # Add to cognee
-    result = await cognee_service.add_document(
-        content=file_path,
-        metadata=metadata,
-        document_id=document_id,
-    )
+    try:
+        # Add to cognee
+        result = await cognee_service.add_document(
+            content=file_path,
+            metadata=metadata,
+            document_id=document_id,
+        )
 
-    return DocumentAddResponse(
-        success=result.get("success", True),
-        document_id=result.get("document_id", document_id or "unknown"),
-        chunks_created=result.get("chunks_created", 0),
-        message="Document added successfully",
-    )
+        success = result.get("success", False)
+        return DocumentAddResponse(
+            success=success,
+            document_id=result.get("document_id", document_id or "unknown"),
+            chunks_created=result.get("chunks_created", 0),
+            message="Document added successfully" if success else "Document ingestion failed",
+        )
+    finally:
+        # Clean up the temporary file after ingestion
+        try:
+            if os.path.exists(file_path):
+                os.unlink(file_path)
+                logger.debug(f"Cleaned up ingest file: {file_path}")
+        except OSError as cleanup_exc:  # pragma: no cover - best-effort cleanup
+            logger.warning(
+                "Failed to clean up ingest file",
+                extra={"path": file_path, "error": str(cleanup_exc)},
+            )
 
 
 @router.post("/documents", response_model=DocumentAddResponse)
@@ -78,7 +93,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
 
     async def _background_ingest_text(
         content: str,
-        metadata: Optional[Dict[str, Any]],
+        metadata: Optional[dict[str, Any]],
         document_id: str,
     ) -> None:
         try:
@@ -135,10 +150,8 @@ async def upload_document(
     but heavy ingestion work is delegated to a background task so callers
     (including Convex workflows) don't block on cognee processing.
     """
+    tmp_path: Optional[str] = None
     try:
-        # Read file content
-        content = await file.read()
-
         # Validate file size (50MB default limit from config)
         max_size_mb = (
             settings.max_document_size_mb
@@ -147,25 +160,35 @@ async def upload_document(
         )
         max_size_bytes = max_size_mb * 1024 * 1024
 
-        if len(content) > max_size_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
-            )
-
         # Create file on disk with original extension in the ingest directory
         ingest_dir = os.path.join(settings.cognee_data_dir, "ingest")
         os.makedirs(ingest_dir, exist_ok=True)
         file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
         tmp_path = os.path.join(ingest_dir, f"upload_{uuid4().hex}{file_ext}")
-        with open(tmp_path, "wb") as tmp:
-            tmp.write(content)
+
+        # Stream file to disk in chunks to avoid loading entire file into memory
+        total_size = 0
+        async with aiofiles.open(tmp_path, "wb") as tmp:
+            while chunk := await file.read(64 * 1024):  # 64KB chunks
+                total_size += len(chunk)
+                if total_size > max_size_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
+                    )
+                await tmp.write(chunk)
 
         # Parse metadata
-        parsed_metadata: Dict[str, Any] = {}
+        parsed_metadata: dict[str, Any] = {}
         if metadata:
             try:
-                parsed_metadata = json.loads(metadata)
+                parsed_value = json.loads(metadata)
+                if not isinstance(parsed_value, dict):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid metadata format. Must be a JSON object.",
+                    )
+                parsed_metadata = parsed_value
             except json.JSONDecodeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -175,7 +198,7 @@ async def upload_document(
         # Add file metadata
         parsed_metadata["filename"] = file.filename
         parsed_metadata["content_type"] = file.content_type
-        parsed_metadata["file_size"] = len(content)
+        parsed_metadata["file_size"] = total_size
 
         # Determine document/job id
         doc_id = document_id or f"file-{uuid4().hex}"
@@ -186,7 +209,7 @@ async def upload_document(
         # Enqueue background ingestion of the file path
         async def _background_ingest_file(
             path: str,
-            metadata_dict: Dict[str, Any],
+            metadata_dict: dict[str, Any],
             doc_id_inner: str,
         ) -> None:
             try:
@@ -253,12 +276,24 @@ async def upload_document(
         )
 
     except HTTPException:
+        # Clean up temp file on validation errors
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
         raise
     except Exception as e:
+        # Clean up temp file on unexpected errors
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
         logger.error(f"Failed to upload file: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload file: {str(e)}",
+            detail="Failed to upload file. Please try again.",
         )
 
 
@@ -274,44 +309,45 @@ async def delete_document(document_id: str):
         )
 
     except Exception as e:
-        logger.error(f"Failed to delete document: {e}")
+        logger.error(f"Failed to delete document {document_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete document: {str(e)}",
+            detail="Failed to delete document. Please try again.",
         )
 
 
 @router.post("/documents/batch", response_model=BatchAddResponse)
 async def add_documents_batch(request: BatchAddRequest):
-    """Add multiple documents to the knowledge base."""
+    """Add multiple documents to the knowledge base.
+
+    Each document is persisted to disk using the same code path as single
+    document ingestion to ensure consistent behavior.
+    """
     results = []
     successful = 0
     failed = 0
 
     for doc_request in request.documents:
         try:
-            result = await cognee_service.add_document(
+            # Use _ingest_single_document for consistency with the single document endpoint
+            response = await _ingest_single_document(
                 content=doc_request.content,
                 metadata=doc_request.metadata,
                 document_id=doc_request.document_id,
             )
-            results.append(
-                DocumentAddResponse(
-                    success=True,
-                    document_id=result["document_id"],
-                    chunks_created=result.get("chunks_created", 0),
-                    message="Document added successfully",
-                )
-            )
-            successful += 1
+            results.append(response)
+            if response.success:
+                successful += 1
+            else:
+                failed += 1
         except Exception as e:
-            logger.error(f"Failed to add document in batch: {e}")
+            logger.exception("Failed to add document in batch")
             results.append(
                 DocumentAddResponse(
                     success=False,
                     document_id=doc_request.document_id or "unknown",
                     chunks_created=0,
-                    message=f"Failed: {str(e)}",
+                    message="Document ingestion failed",
                 )
             )
             failed += 1

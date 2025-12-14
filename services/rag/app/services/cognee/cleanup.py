@@ -48,12 +48,12 @@ async def cleanup_legacy_site_packages_data() -> None:
 
             await session.commit()
             logger.warning(
-                "Removed %d legacy Cognee data rows with raw_data_location containing %s",
+                "Removed {} legacy Cognee data rows with raw_data_location containing {}",
                 count,
                 legacy_substring,
             )
     except Exception as cleanup_err:
-        logger.error("Failed to cleanup legacy Cognee data rows: %s", cleanup_err)
+        logger.error("Failed to cleanup legacy Cognee data rows: {}", cleanup_err)
 
 
 async def cleanup_missing_local_files_data() -> None:
@@ -101,10 +101,19 @@ async def cleanup_missing_local_files_data() -> None:
 
                 # Restrict cleanup to the current data_root_prefix to avoid
                 # accidentally deleting rows managed by other storage backends.
-                if not fs_path.startswith(data_root_prefix):
+                # Use realpath to resolve symlinks and prevent path traversal attacks.
+                try:
+                    real_path = os.path.realpath(fs_path)
+                    real_prefix = os.path.realpath(data_root_prefix)
+                    # Ensure the resolved path is actually within our data directory
+                    if os.path.commonpath([real_path, real_prefix]) != real_prefix:
+                        continue
+                except (ValueError, OSError):
+                    # commonpath raises ValueError if paths are on different drives (Windows)
+                    # or OSError for invalid paths
                     continue
 
-                if not os.path.exists(fs_path):
+                if not os.path.exists(real_path):
                     missing_rows.append(row)
 
             if not missing_rows:
@@ -121,13 +130,13 @@ async def cleanup_missing_local_files_data() -> None:
 
             await session.commit()
             logger.warning(
-                "Removed %d Cognee data rows whose local files no longer exist under %s",
+                "Removed {} Cognee data rows whose local files no longer exist under {}",
                 count,
                 data_root_prefix,
             )
     except Exception as cleanup_err:
         logger.error(
-            "Failed to cleanup Cognee data rows with missing local files: %s",
+            "Failed to cleanup Cognee data rows with missing local files: {}",
             cleanup_err,
         )
 

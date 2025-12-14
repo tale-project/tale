@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     # ========================================================================
     # Cognee Configuration
     # ========================================================================
-    cognee_data_dir: str = "/tmp/tale-rag-data"
+    cognee_data_dir: str = "/app/data"
     chunk_size: int = 512
     chunk_overlap: int = 50
     top_k: int = 5
@@ -130,6 +130,7 @@ class Settings(BaseSettings):
             "model": model,
             "embedding_model": embedding_model,
             "max_tokens": max_tokens,
+            "base_url": base_url,  # Always include base_url for OpenAI-compatible APIs
         }
 
         if temperature is not None:
@@ -137,7 +138,6 @@ class Settings(BaseSettings):
 
         if api_key:
             config["api_key"] = api_key
-            config["base_url"] = base_url
 
         return config
 
@@ -145,7 +145,7 @@ class Settings(BaseSettings):
         """Parse allowed origins from comma-separated string."""
         if self.allowed_origins == "*":
             return ["*"]
-        return [origin.strip() for origin in self.allowed_origins.split(",")]
+        return [o for o in (origin.strip() for origin in self.allowed_origins.split(",")) if o]
 
 
 # Global settings instance

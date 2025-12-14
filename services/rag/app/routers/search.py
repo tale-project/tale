@@ -51,11 +51,11 @@ async def search(request: QueryRequest):
         )
 
     except Exception as e:
-        logger.error(f"Search failed: {e}")
+        logger.exception("Search failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Search failed: {str(e)}",
-        )
+            detail="Search failed. Please try again.",
+        ) from e
 
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -81,17 +81,17 @@ async def generate(request: GenerateRequest):
         ]
 
         return GenerateResponse(
-            success=result["success"],
+            success=result.get("success", False),
             query=request.query,
-            response=result["response"],
+            response=result.get("response", ""),
             sources=sources,
-            processing_time_ms=result["processing_time_ms"],
+            processing_time_ms=result.get("processing_time_ms", 0),
         )
 
     except Exception as e:
-        logger.error(f"Generation failed: {e}")
+        logger.exception("Generation failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Generation failed: {str(e)}",
-        )
+            detail="Failed to generate response. Please try again.",
+        ) from e
 
