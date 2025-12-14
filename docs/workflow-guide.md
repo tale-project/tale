@@ -24,7 +24,7 @@ You don't need to write code! There are two main ways to create and manage workf
 
 Simply describe what you want in natural language:
 
-```
+```text
 "Create a workflow that sends a welcome email to new customers"
 
 "Build a workflow that finds inactive customers and sends them a re-engagement offer"
@@ -61,35 +61,45 @@ The visual editor shows:
 Workflows let you automate complex business processes by connecting simple building blocks. Here are real examples:
 
 ### 🤖 AI-Powered Customer Support
-**Auto-reply to customer conversations**
+
+Auto-reply to customer conversations:
+
 - Detect when a conversation needs a reply
 - Generate personalized responses using AI
 - Match your brand's tone of voice
 - Create approval records for review
 
 ### 📊 Smart Product Recommendations
-**Suggest products to customers**
+
+Suggest products to customers:
+
 - Analyze customer purchase history
 - Use AI to find relevant products
 - Generate personalized recommendations
 - Send via email or save to database
 
 ### 🔍 Customer Health Monitoring
-**Identify at-risk customers**
+
+Identify at-risk customers:
+
 - Assess customer status (active/churned/at-risk)
 - Analyze engagement patterns
 - Trigger retention campaigns
 - Update customer records automatically
 
 ### 📄 Content Processing
-**Scan and index website content**
+
+Scan and index website content:
+
 - Fetch website pages
 - Extract metadata and content
 - Upload to knowledge base (RAG)
 - Keep content synchronized
 
 ### 🔄 Data Synchronization
-**Keep systems in sync**
+
+Keep systems in sync:
+
 - Import customers from external systems
 - Sync products and inventory
 - Upload documents to search
@@ -99,11 +109,11 @@ Workflows let you automate complex business processes by connecting simple build
 
 ## Understanding Workflow Structure
 
-A workflow is a series of **steps** connected together. Each step does one thing, then passes control to the next step.
+A workflow is a series of **steps** connected in sequence. Each step does one thing, then passes control to the next step.
 
 ### Visual Flow
 
-```
+```text
 ┌─────────┐
 │ Trigger │  ← Workflow starts here
 └────┬────┘
@@ -156,7 +166,7 @@ Let's build your first workflow: **Send a welcome email to new customers**
 
 ### Tell the AI What You Want
 
-```
+```text
 "Create a workflow that sends a welcome email to new customers.
 It should get the customer data and send a personalized email."
 ```
@@ -165,17 +175,20 @@ It should get the customer data and send a personalized email."
 
 The AI will build a workflow with 3 steps:
 
-**Step 1: Trigger**
+#### Step 1: Trigger
+
 - Type: Manual trigger
 - Purpose: Start the workflow when you provide a customer ID
 
-**Step 2: Get Customer**
+#### Step 2: Get Customer
+
 - Type: Action (customer.get_by_id)
 - Purpose: Fetch customer details
 - Input: Customer ID from workflow input
 - Output: Customer name, email, and other details
 
-**Step 3: Send Email**
+#### Step 3: Send Email
+
 - Type: Action (email_send)
 - Purpose: Send personalized welcome email
 - Input: Customer email and name from Step 2
@@ -183,7 +196,7 @@ The AI will build a workflow with 3 steps:
 
 ### How It Works
 
-```
+```text
 You provide: customerId = "cust_456"
          ↓
 Step 1: Workflow starts
@@ -247,12 +260,14 @@ Workflows are built from 5 types of steps. Each step does one thing well.
 **What it does:** Uses AI to analyze data, generate content, or make decisions
 
 **When to use:**
+
 - Generate personalized content
 - Analyze customer data
 - Make intelligent decisions
 - Extract information from text
 
-**Example: Generate product recommendation**
+#### Example: Generate product recommendation
+
 ```json
 {
   "stepType": "llm",
@@ -291,11 +306,13 @@ Workflows are built from 5 types of steps. Each step does one thing well.
 **What it does:** Branch your workflow based on data
 
 **When to use:**
+
 - Check if a value meets criteria
 - Route based on customer status
 - Handle different scenarios
 
-**Example: Check if customer is VIP**
+#### Example: Check if customer is VIP
+
 ```json
 {
   "stepType": "condition",
@@ -1062,11 +1079,13 @@ config: {
 
 ### ✅ Do's
 
-**1. Keep steps focused**
+#### 1. Keep steps focused
+
 - Each step should do one thing well
 - Break complex logic into multiple steps
 
-**2. Use descriptive names**
+#### 2. Use descriptive names
+
 ```typescript
 // Good
 stepSlug: 'check_customer_vip_status'
@@ -1075,19 +1094,23 @@ stepSlug: 'check_customer_vip_status'
 stepSlug: 'step3'
 ```
 
-**3. Handle errors**
+#### 3. Handle errors
+
 - Always define `error` ports for actions and LLM steps
 - Log failures for debugging
 
-**4. Test with small data first**
+#### 4. Test with small data first
+
 - Start with 1-5 items in loops
 - Scale up after testing
 
-**5. Use variables wisely**
+#### 5. Use variables wisely
+
 - Store reusable values in variables
 - Keep secrets encrypted
 
-**6. Add descriptions**
+#### 6. Add descriptions
+
 ```typescript
 {
   name: 'Send Welcome Email',
@@ -1097,22 +1120,25 @@ stepSlug: 'step3'
 
 ### ❌ Don'ts
 
-**1. Don't create circular flows**
+#### 1. Don't create circular flows
+
 ```typescript
 // Bad: Infinite loop
 step1 → step2 → step1
 ```
 
-**2. Don't hardcode sensitive data**
+#### 2. Don't hardcode sensitive data
+
 ```typescript
 // Bad
-apiKey: 'sk_live_abc123'
+apiKey: 'your-api-key'
 
 // Good
 apiKey: '{{secrets.apiKey}}'
 ```
 
-**3. Don't process huge batches in one workflow**
+#### 3. Don't process huge batches in one workflow
+
 ```typescript
 // Bad: 10,000 items in one loop
 items: allCustomers  // 10,000 customers
@@ -1121,7 +1147,8 @@ items: allCustomers  // 10,000 customers
 items: '{{steps.get_batch.output.customers}}'  // 100 at a time
 ```
 
-**4. Don't skip error handling**
+#### 4. Don't skip error handling
+
 ```typescript
 // Bad: No error port
 nextSteps: { success: 'next_step' }
@@ -1133,7 +1160,8 @@ nextSteps: {
 }
 ```
 
-**5. Don't nest loops too deeply**
+#### 5. Don't nest loops too deeply
+
 ```typescript
 // Bad: 3+ levels of nesting
 loop → loop → loop → loop
@@ -1160,14 +1188,16 @@ console.log(execution.variables);     // Current variable state
 
 ### Common Issues
 
-**Issue: "Variable not found"**
+#### Issue: "Variable not found"
+
 ```typescript
 // Check variable path
 {{steps.get_customer.output.email}}  // ✅ Correct
 {{customer.email}}                    // ❌ Wrong - missing 'steps.'
 ```
 
-**Issue: "Loop not iterating"**
+#### Issue: "Loop not iterating"
+
 ```typescript
 // Make sure to return to loop
 nextSteps: {
@@ -1175,7 +1205,8 @@ nextSteps: {
 }
 ```
 
-**Issue: "AI not using tools"**
+#### Issue: "AI not using tools"
+
 ```typescript
 // Make sure tools are specified
 config: {
@@ -1184,7 +1215,8 @@ config: {
 }
 ```
 
-**Issue: "Workflow stuck"**
+#### Issue: "Workflow stuck"
+
 - Check for missing `nextSteps` definitions
 - Verify all ports are connected
 - Look for condition expressions that never evaluate to true
