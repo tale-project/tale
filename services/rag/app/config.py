@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     # Vector Database Configuration
     # ========================================================================
     # PGVector for vector storage (uses same PostgreSQL database)
+    vector_db_url: str = "pgvector://localhost:5432"
+    vector_db_collection_name: str = "tale_documents"
 
     # ========================================================================
     # Graph Database Configuration (Kuzu Remote)
