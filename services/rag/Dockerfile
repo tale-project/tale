@@ -58,16 +58,15 @@ ENV PYTHONUNBUFFERED=1 \
     # Cognee data directory
     RAG_COGNEE_DATA_DIR=/app/data \
     # Default database URL for local development (connects to tale-db container)
-    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale \
-    # Default vector database URL for local development (connects to tale-vector-db container)
-    RAG_VECTOR_DB_URL=http://vector-db:6333
+    # Note: PGVector uses this same PostgreSQL database for vector storage
+    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale
 
 # Expose port
 EXPOSE 8001
 
-# Health check
+# Health check (uses RAG_PORT env var with fallback to 8001)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:${RAG_PORT:-8001}/health || exit 1
 
 # Run FastAPI application with worker recycling (--limit-max-requests)
 CMD ["sh", "-c", "python -m uvicorn app.main:app --host ${RAG_HOST} --port ${RAG_PORT} --workers ${RAG_WORKERS} --limit-max-requests ${RAG_MAX_REQUESTS_PER_WORKER}"]

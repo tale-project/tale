@@ -23,6 +23,7 @@ python-multipart==0.0.20
 python-dotenv==1.2.1
 loguru==0.7.3
 httpx==0.28.1
+aiofiles>=23.0.0,<24.0.0
 
 # Web crawling (for automatic website discovery and crawling)
 # NOTE: crawl4ai is currently disabled due to dependency conflict with cognee

@@ -21,8 +21,6 @@ class ConfigResponse(BaseModel):
     host: str
     port: int
     log_level: str
-    vector_db_url: str
-    vector_db_collection_name: str
     openai_model: str
     openai_embedding_model: str
     chunk_size: int
