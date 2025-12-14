@@ -193,6 +193,10 @@ class ImageService(BaseConverterService):
                 await page.evaluate("""
                     async () => {
                         const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+                        // Guard against null document.body (some sites like Google Maps may not have a standard body)
+                        if (!document.body) {
+                            return;
+                        }
                         const scrollHeight = document.body.scrollHeight;
                         const viewportHeight = window.innerHeight;
 
