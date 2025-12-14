@@ -118,7 +118,7 @@ async def cleanup_missing_local_files_data() -> None:
 
             if not missing_rows:
                 logger.info(
-                    "No Cognee data rows with missing local files under %s",
+                    "No Cognee data rows with missing local files under {}",
                     data_root_prefix,
                 )
                 return

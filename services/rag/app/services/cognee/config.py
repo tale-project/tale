@@ -96,8 +96,8 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("LLM_MODEL", cognee_llm_model)
 
     # Configure embedding provider
-    os.environ["EMBEDDING_PROVIDER"] = provider
-    os.environ["EMBEDDING_MODEL"] = cognee_embedding_model
+    os.environ.setdefault("EMBEDDING_PROVIDER", provider)
+    os.environ.setdefault("EMBEDDING_MODEL", cognee_embedding_model)
     os.environ.setdefault("EMBEDDING_API_KEY", openai_api_key)
     os.environ.setdefault("EMBEDDING_ENDPOINT", base_url)
 
@@ -114,7 +114,7 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
-        "LLM configured - Provider: %s, Model: %s, Embedding: %s",
+        "LLM configured - Provider: {}, Model: {}, Embedding: {}",
         provider,
         cognee_llm_model,
         cognee_embedding_model,
@@ -122,7 +122,7 @@ def setup_cognee_environment() -> None:
 
     if "openai" not in base_url and embedding_model == "text-embedding-3-small":
         logger.warning(
-            "Using default OpenAI embedding model with non-OpenAI base URL %s",
+            "Using default OpenAI embedding model with non-OpenAI base URL {}",
             base_url,
         )
 
@@ -232,12 +232,12 @@ def configure_cognee_base_config() -> None:
 
         base_config = get_base_config()
         logger.info(
-            "Cognee base_config pre-import: data_root_directory=%r, system_root_directory=%r",
+            "Cognee base_config pre-import: data_root_directory={!r}, system_root_directory={!r}",
             base_config.data_root_directory,
             base_config.system_root_directory,
         )
     except Exception as cfg_err:
-        logger.error(f"Failed to preconfigure Cognee storage directories: {cfg_err}")
+        logger.error("Failed to preconfigure Cognee storage directories: {}", cfg_err)
 
 
 def initialize_cognee() -> bool:
