@@ -116,7 +116,6 @@ LLM (AI agent):
 - tools: array of tool names the agent can use (optional)
 - outputFormat: "text" or "json" (optional)
 - maxSteps: maximum tool calling iterations (optional)
-- conversational: whether to maintain conversation context across steps (optional)
 - Model selection: The model is configured globally via the OPENAI_MODEL environment variable (required; no default) and cannot be customized per step. Do NOT include a 'model' field in the step config.
 
 ACTION (registered action):
