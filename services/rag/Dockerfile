@@ -58,9 +58,8 @@ ENV PYTHONUNBUFFERED=1 \
     # Cognee data directory
     RAG_COGNEE_DATA_DIR=/app/data \
     # Default database URL for local development (connects to tale-db container)
-    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale \
-    # Default vector database URL for local development (connects to tale-vector-db container)
-    RAG_VECTOR_DB_URL=http://vector-db:6333
+    # Note: PGVector uses this same PostgreSQL database for vector storage
+    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale
 
 # Expose port
 EXPOSE 8001

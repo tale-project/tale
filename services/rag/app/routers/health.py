@@ -44,8 +44,6 @@ async def get_config():
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level,
-        vector_db_url=settings.vector_db_url,
-        vector_db_collection_name=settings.vector_db_collection_name,
         openai_model=llm_config.get("model", ""),
         openai_embedding_model=llm_config.get("embedding_model", ""),
         chunk_size=settings.chunk_size,

@@ -1,8 +1,8 @@
 """Configuration management for Tale RAG service.
 
-Most configuration is loaded from environment variables with the RAG_ prefix.
-LLM and embedding configuration prefer generic OPENAI_* env vars (OPENAI_API_KEY,
-OPENAI_BASE_URL, OPENAI_MODEL, OPENAI_EMBEDDING_MODEL, etc.) with RAG_* overrides.
+Configuration is loaded from environment variables with the RAG_ prefix.
+LLM settings prefer generic OPENAI_* env vars (OPENAI_API_KEY, OPENAI_BASE_URL,
+OPENAI_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
 """
 
 import os
@@ -26,88 +26,42 @@ class Settings(BaseSettings):
     # ========================================================================
     host: str = "0.0.0.0"
     port: int = 8001
-    workers: int = 1
     log_level: str = "info"
-    reload: bool = False
 
     # ========================================================================
     # Database Configuration
     # ========================================================================
-    # PostgreSQL connection for cognee storage
+    # PostgreSQL connection for cognee storage and PGVector
     database_url: Optional[str] = None
-    database_pool_size: int = 10
-    database_max_overflow: int = 20
-
-    # ========================================================================
-    # Vector Database Configuration
-    # ========================================================================
-    # PGVector for vector storage (uses same PostgreSQL database)
-    vector_db_url: str = "pgvector://localhost:5432"
-    vector_db_collection_name: str = "tale_documents"
 
     # ========================================================================
     # Graph Database Configuration (Kuzu Remote)
     # ========================================================================
-    # Kuzu remote connection for knowledge graph (used by Cognee)
     graph_db_provider: str = "kuzu-remote"
     graph_db_url: str = "http://graph-db:8000"
 
     # ========================================================================
-    # LLM Provider Configuration
+    # LLM Provider Configuration (OpenAI-compatible)
     # ========================================================================
-    # OpenAI (supports OpenAI-compatible APIs)
-    # Set openai_base_url to use alternative providers:
+    # Supports OpenAI-compatible APIs. Set openai_base_url for alternatives:
+    #   - OpenRouter: https://openrouter.ai/api/v1
     #   - DeepSeek: https://api.deepseek.com
     #   - Together AI: https://api.together.xyz/v1
-    #   - OpenRouter: https://openrouter.ai/api/v1
     #   - Ollama (local): http://localhost:11434/v1
     openai_api_key: Optional[str] = None
     openai_base_url: Optional[str] = None
     openai_max_tokens: Optional[int] = None
     openai_temperature: Optional[float] = None
 
-    # Anthropic
-    anthropic_api_key: Optional[str] = None
-    anthropic_model: str = "claude-3-5-sonnet-20241022"
-
-    # Azure OpenAI
-    azure_openai_api_key: Optional[str] = None
-    azure_openai_endpoint: Optional[str] = None
-    azure_openai_deployment: Optional[str] = None
-    azure_openai_api_version: str = "2024-02-15-preview"
-
     # ========================================================================
     # Cognee Configuration
     # ========================================================================
     cognee_data_dir: str = "/tmp/tale-rag-data"
-    cognee_log_level: str = "INFO"
-
-    # Chunking configuration
     chunk_size: int = 512
     chunk_overlap: int = 50
-
-    # Retrieval configuration
     top_k: int = 5
     similarity_threshold: float = 0.7
-
-    # File upload configuration
-    max_document_size_mb: int = 50  # Maximum document size in MB
-
-    def get_cognee_system_root_directory(self) -> str:
-        """Get cognee system root directory path.
-
-        Returns the system root directory for Cognee, which is a subdirectory
-        of the main data directory.
-        """
-        base_dir = os.path.abspath(self.cognee_data_dir)
-        return os.path.join(base_dir, ".cognee_system")
-
-    # ========================================================================
-    # Authentication & Security
-    # ========================================================================
-    api_key: Optional[str] = None
-    secret_key: Optional[str] = None
-    allowed_origins: str = "*"
+    max_document_size_mb: int = 50
 
     # ========================================================================
     # Feature Flags
@@ -118,19 +72,9 @@ class Settings(BaseSettings):
     enable_query_logging: bool = False
 
     # ========================================================================
-    # Performance & Limits
+    # CORS Configuration
     # ========================================================================
-    max_concurrent_requests: int = 10
-    request_timeout_seconds: int = 300
-    max_request_size_mb: int = 100
-    max_document_size_mb: int = 50
-
-    # ========================================================================
-    # Monitoring & Observability
-    # ========================================================================
-    sentry_dsn: Optional[str] = None
-    datadog_api_key: Optional[str] = None
-    prometheus_enabled: bool = False
+    allowed_origins: str = "*"
 
     def get_database_url(self) -> str:
         """Get database URL from RAG_DATABASE_URL only; no fallbacks."""
