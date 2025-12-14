@@ -89,7 +89,6 @@ const getConfigSchema = (stepType: string) => {
           })
           .optional()
           .default('text'),
-        conversational: z.boolean().optional().default(false),
         contextVariables: z
           .record(
             z.string(),

@@ -54,7 +54,6 @@ const getDefaultTemplates = (
         systemPrompt: 'You are a helpful assistant.',
         userPrompt: 'Analyze the following data: {{input_data}}',
         outputFormat: 'text',
-        conversational: false,
         tools: [],
         contextVariables: {},
       };

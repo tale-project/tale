@@ -136,6 +136,13 @@ The script will display the dashboard URL, deployment URL, and admin key. Follow
 
 The admin key is required every time you open the dashboard. Keep it secure—anyone with this key has full access to your backend.
 
+## Documentation
+
+### User Guides
+
+- **[Chat Agent Guide](docs/chat-agent-guide.md)** - Learn how to use the AI-powered chat assistant to manage customers, automate workflows, and access your business data through natural conversation
+- **[Workflow Guide](docs/workflow-guide.md)** - Build powerful automation workflows with AI, data processing, and customer engagement
+
 ## Need Help?
 
 - **Logs**: `docker compose logs -f` to see what's happening

@@ -31,7 +31,6 @@ export interface LLMNodeConfig {
 
   // Advanced settings
   outputFormat?: 'text' | 'json';
-  conversational?: boolean; // Whether to maintain conversation context
 
   // Custom variables and context
   contextVariables?: Record<string, unknown>;
@@ -116,7 +115,6 @@ export const llmNodeConfigValidator = v.object({
   tools: v.optional(v.array(v.string())),
   mcpServerIds: v.optional(v.array(v.string())),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
-  conversational: v.optional(v.boolean()),
   contextVariables: v.optional(
     v.record(
       v.string(),
