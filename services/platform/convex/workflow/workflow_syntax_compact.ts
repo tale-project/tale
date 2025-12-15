@@ -83,7 +83,7 @@ Params (query_latest_message_by_delivery_state): channel (required), direction (
 Params (update): conversationId (required), updates (required)
 Params (create_from_email): emails (required), status?, priority?, providerId?, type?
 Params (create_from_sent_email): emails (required), status?, priority?, providerId?, accountEmail?, type?
-Output (query_messages): \`{ data: [...messages], isDone: boolean, continueCursor: string | null }\`
+Output (query_messages): \`{ page: [...messages], isDone: boolean, continueCursor: string | null }\`
 Output (create/update): \`{ data: {...conversation} }\` - returns full conversation entity
 
 ### document

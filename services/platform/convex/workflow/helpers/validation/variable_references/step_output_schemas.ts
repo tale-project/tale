@@ -141,6 +141,12 @@ export function resolvePathInSchema(
     return resolvePathInSchema(fields[current], rest);
   }
 
+  // Allow any path access for 'any' type fields (dynamic output like loop items)
+  if ('type' in schema && schema.type === 'any') {
+    // Return a permissive schema for remaining path
+    return { resolved: { type: 'any' }, remainingPath: [] };
+  }
+
   // Field not found in schema
   return { resolved: null, remainingPath: pathSegments };
 }

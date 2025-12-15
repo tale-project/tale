@@ -235,6 +235,9 @@ function validateTriggerConfig(
         errors.push('Scheduled trigger "schedule" must be a string (cron expression)');
       } else {
         // Basic cron expression validation (5 or 6 parts)
+        // Note: This only validates part count, not individual field ranges.
+        // Expressions like "99 99 99 99 99" would pass this check.
+        // Consider using a cron parser library for stricter validation if needed.
         const parts = (config.schedule as string).trim().split(/\s+/);
         if (parts.length < 5 || parts.length > 6) {
           errors.push(

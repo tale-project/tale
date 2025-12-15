@@ -14,6 +14,8 @@ import { validateWorkflowSteps } from '../engine/validate_workflow_steps';
 import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowVariableReferences } from './variable_references';
 
+// Note: This constant mirrors validStepTypes in validate_step_config.ts and
+// update_workflow_step_tool.ts - keep all three in sync when adding step types
 const VALID_STEP_TYPES = ['trigger', 'llm', 'action', 'condition', 'loop'];
 
 export interface WorkflowValidationResult {

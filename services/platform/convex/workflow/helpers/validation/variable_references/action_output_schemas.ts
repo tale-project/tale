@@ -434,29 +434,30 @@ const imapSchemas: Record<string, OutputSchema> = {
 // EMAIL PROVIDER ACTION SCHEMAS (Constrained by Doc<'emailProviders'>)
 // =============================================================================
 
-/**
- * Email provider fields - type-checked against Doc<'emailProviders'> schema.
- */
-const emailProviderFields = createDocFields('emailProviders', {
-  _id: idField('emailProviders'),
-  _creationTime: { type: 'number' },
-  organizationId: { type: 'string' },
-  name: { type: 'string' },
-  vendor: { type: 'string', description: 'gmail | outlook | smtp | resend | other' },
-  authMethod: { type: 'string', description: 'password | oauth2' },
-  sendMethod: { type: 'string', optional: true, description: 'smtp | api' },
-  passwordAuth: { type: 'object', optional: true },
-  oauth2Auth: { type: 'object', optional: true },
-  smtpConfig: { type: 'object', optional: true },
-  imapConfig: { type: 'object', optional: true },
-  isDefault: { type: 'boolean' },
-  status: { type: 'string', description: 'active | inactive | error' },
-});
-
 const emailProviderSchemas: Record<string, OutputSchema> = {
   get_default: {
-    description: 'Default email provider configuration',
-    fields: emailProviderFields,
+    description: 'Default email provider configuration (flattened, no oauth2Auth)',
+    fields: {
+      // Note: get_default returns a narrower shape than the full emailProviderFields:
+      // - Excludes oauth2Auth entirely (sensitive data)
+      // - passwordAuth narrowed to { user, passEncrypted } only
+      _id: idField('emailProviders'),
+      name: { type: 'string' },
+      vendor: { type: 'string', description: 'gmail | outlook | smtp | resend | other' },
+      authMethod: { type: 'string', description: 'password | oauth2' },
+      imapConfig: { type: 'object', optional: true },
+      smtpConfig: { type: 'object', optional: true },
+      passwordAuth: {
+        type: 'object',
+        optional: true,
+        fields: {
+          user: { type: 'string' },
+          passEncrypted: { type: 'string' },
+        },
+      },
+      isDefault: { type: 'boolean' },
+      status: { type: 'string', description: 'active | inactive | error' },
+    },
   },
   get_imap_credentials: {
     description: 'IMAP credentials for the default email provider',

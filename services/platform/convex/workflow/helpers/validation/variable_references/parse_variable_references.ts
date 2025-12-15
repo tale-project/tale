@@ -12,8 +12,10 @@
 
 import type { ParsedVariableReference } from './types';
 
-// Regex to match mustache-style template expressions
-const TEMPLATE_REGEX = /\{\{([^}]+)\}\}/g;
+// Regex pattern to match mustache-style template expressions
+// Note: The 'g' flag is added when creating the RegExp instance inside functions
+// to avoid shared state issues with lastIndex
+const TEMPLATE_PATTERN = /\{\{([^}]+)\}\}/g;
 
 // Characters that indicate a complex expression (not a simple variable reference)
 const EXPRESSION_OPERATORS = /[?:!<>=&|+\-*\/\[\]()]/;
@@ -106,7 +108,9 @@ function parseExpression(
     };
   }
 
-  // System variables
+  // System variables available at runtime
+  // Note: Keep this list in sync with the actual system variables injected
+  // by the workflow engine (see workflow execution context)
   const systemVars = [
     'organizationId',
     'wfDefinitionId',
@@ -142,10 +146,10 @@ export function parseVariableReferencesFromString(
   const references: ParsedVariableReference[] = [];
   let match;
 
-  // Reset regex state
-  TEMPLATE_REGEX.lastIndex = 0;
+  // Create a new regex instance to avoid shared state issues with lastIndex
+  const templateRegex = new RegExp(TEMPLATE_PATTERN.source, 'g');
 
-  while ((match = TEMPLATE_REGEX.exec(template)) !== null) {
+  while ((match = templateRegex.exec(template)) !== null) {
     const expression = match[1];
     const originalTemplate = match[0];
     references.push(parseExpression(expression, originalTemplate));

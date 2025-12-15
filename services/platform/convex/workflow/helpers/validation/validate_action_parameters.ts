@@ -243,6 +243,8 @@ function parseUnionValidator(
       if (operation && operationRequiredFields[operation]) {
         return operationRequiredFields[operation];
       }
+      // Note: If operation is in validOperations but not in operationRequiredFields,
+      // this indicates a parsing issue. The caller already validates operation membership.
       return [];
     },
   };

@@ -29,8 +29,9 @@ describe('Predefined Workflows Validation', () => {
         const { stepsConfig } = workflowDefinition;
 
         // Validate entire workflow definition
+        // Use workflowConfig.name for more accurate validation, falling back to workflowKey
         const result = validateWorkflowDefinition(
-          { name: workflowKey },
+          { name: workflowDefinition.workflowConfig?.name ?? workflowKey },
           stepsConfig,
         );
 
