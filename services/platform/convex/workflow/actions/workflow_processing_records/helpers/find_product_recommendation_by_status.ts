@@ -27,8 +27,7 @@ export async function findProductRecommendationByStatus(
     },
   );
 
-  return {
-    documents: result.approvals,
-    count: result.count,
-  };
+  // Return first approval or null (queries always return at most one)
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return result.approvals[0] ?? null;
 }

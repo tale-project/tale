@@ -1,11 +1,13 @@
 /**
  * Workflow Action Parameters
+ * Note: organizationId is automatically read from workflow context variables
  */
-export interface WorkflowActionParams {
+
+// Discriminated union type for workflow operations
+export type WorkflowActionParams = {
   operation: 'upload_all_workflows';
-  organizationId: string;
   timeout?: number;
-}
+};
 
 /**
  * Upload All Workflows Result

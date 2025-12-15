@@ -33,9 +33,7 @@ export const generalCustomerStatusAssessmentWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -47,7 +45,7 @@ export const generalCustomerStatusAssessmentWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_customer.output.data.count > 0',
+        expression: 'steps.find_unprocessed_customer.output.data != null',
         description: 'Check if we found an unprocessed customer',
       },
       nextSteps: { true: 'extract_customer_data', false: 'noop' },
@@ -64,27 +62,27 @@ export const generalCustomerStatusAssessmentWorkflow = {
             {
               name: 'currentCustomer',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]}}',
+                '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+                '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].name}}',
+                '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].email}}',
+                '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].status}}',
+                '{{steps.find_unprocessed_customer.output.data.status}}',
             },
           ],
         },
@@ -201,9 +199,7 @@ Return ONLY JSON in the exact shape described in the system prompt.`,
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordId: '{{currentCustomerId}}',
           recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {

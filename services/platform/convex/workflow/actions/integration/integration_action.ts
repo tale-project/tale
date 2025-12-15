@@ -24,8 +24,6 @@ const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 export const integrationAction: ActionDefinition<{
   // The name/type of integration to use (e.g., 'shopify', 'circuly', 'my_erp')
   name: string;
-  // Organization ID to look up the integration
-  organizationId: string;
   // The operation to perform
   operation: string;
   // Parameters for the operation
@@ -34,16 +32,23 @@ export const integrationAction: ActionDefinition<{
   type: 'integration',
   title: 'Integration',
   description:
-    'Execute an integration operation (combines credential loading + connector execution)',
+    'Execute an integration operation (combines credential loading + connector execution). organizationId is automatically read from workflow context variables.',
   parametersValidator: v.object({
     name: v.string(),
-    organizationId: v.string(),
     operation: v.string(),
     params: v.optional(v.any()),
   }),
 
-  async execute(ctx, params) {
-    const { name, organizationId, operation, params: opParams = {} } = params;
+  async execute(ctx, params, variables) {
+    const { name, operation, params: opParams = {} } = params;
+
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'integration requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     // 1. Load the integration from database by name
     const integration = (await ctx.runQuery!(
@@ -112,14 +117,13 @@ export const integrationAction: ActionDefinition<{
       throw new Error(`Integration operation failed: ${result.error}`);
     }
 
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
-      success: true,
       name,
       operation,
       result: result.result,
       duration: result.duration,
       version: connectorConfig.version,
-      timestamp: Date.now(),
     };
   },
 };

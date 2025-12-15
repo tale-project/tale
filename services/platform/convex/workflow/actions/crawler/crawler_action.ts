@@ -2,7 +2,9 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
+  DiscoverUrlsData,
   DiscoverUrlsResult,
+  FetchUrlsData,
   FetchUrlsResult,
 } from './helpers/types';
 
@@ -16,44 +18,59 @@ export const crawlerAction: ActionDefinition<CrawlerActionParams> = {
   description:
     'Crawl websites and extract content using the crawler service. Supports discover_urls and fetch_urls operations.',
 
-  parametersValidator: v.object({
-    operation: v.union(v.literal('discover_urls'), v.literal('fetch_urls')),
-    url: v.optional(v.string()),
-    domain: v.optional(v.string()),
-    maxPages: v.optional(v.number()),
-    maxUrls: v.optional(v.number()),
-    pattern: v.optional(v.string()),
-    query: v.optional(v.string()),
-    urls: v.optional(v.array(v.string())),
-    wordCountThreshold: v.optional(v.number()),
-    timeout: v.optional(v.number()),
-  }),
+  parametersValidator: v.union(
+    // discover_urls: Discover URLs from a domain
+    v.object({
+      operation: v.literal('discover_urls'),
+      url: v.optional(v.string()),
+      domain: v.optional(v.string()),
+      maxPages: v.optional(v.number()),
+      maxUrls: v.optional(v.number()),
+      pattern: v.optional(v.string()),
+      query: v.optional(v.string()),
+      timeout: v.optional(v.number()),
+    }),
+    // fetch_urls: Fetch content from specific URLs
+    v.object({
+      operation: v.literal('fetch_urls'),
+      urls: v.array(v.string()),
+      wordCountThreshold: v.optional(v.number()),
+      timeout: v.optional(v.number()),
+    }),
+  ),
 
   async execute(_ctx, params) {
-    const processedParams = params as CrawlerActionParams;
-
     // Get crawler service URL from environment or default
     // Priority: CRAWLER_URL environment variable > default (http://localhost:8002)
     const serviceUrl = process.env.CRAWLER_URL || 'http://localhost:8002';
 
-    const timeout = processedParams.timeout || 1800000; // 1800 seconds (30 minutes) default
+    const timeout = params.timeout || 1800000; // 1800 seconds (30 minutes) default
 
     // Handle different operations
-    switch (processedParams.operation) {
+    switch (params.operation) {
       case 'discover_urls':
-        return await discoverUrls(processedParams, serviceUrl, timeout);
+        return await discoverUrls(params, serviceUrl, timeout);
       case 'fetch_urls':
-        return await fetchUrls(processedParams, serviceUrl, timeout);
+        return await fetchUrls(params, serviceUrl, timeout);
       default:
         throw new Error(
-          `Unknown crawler operation: ${processedParams.operation}`,
+          `Unknown crawler operation: ${(params as { operation: string }).operation}`,
         );
     }
   },
 };
 
+// Type for discover_urls operation
+type DiscoverUrlsParams = Extract<
+  CrawlerActionParams,
+  { operation: 'discover_urls' }
+>;
+
+// Type for fetch_urls operation
+type FetchUrlsParams = Extract<CrawlerActionParams, { operation: 'fetch_urls' }>;
+
 async function discoverUrls(
-  params: CrawlerActionParams,
+  params: DiscoverUrlsParams,
   serviceUrl: string,
   timeout: number,
 ): Promise<DiscoverUrlsResult> {
@@ -98,7 +115,7 @@ async function discoverUrls(
     throw new Error(`Crawler service error (${response.status}): ${errorText}`);
   }
 
-  const result: DiscoverUrlsResult = await response.json();
+  const result: DiscoverUrlsData = await response.json();
 
   if (!result.success) {
     const errorMessage =
@@ -108,18 +125,16 @@ async function discoverUrls(
 
   debugLog(`Discovered ${result.urls_discovered} URLs from ${domain}`);
 
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return result;
 }
 
 async function fetchUrls(
-  params: CrawlerActionParams,
+  params: FetchUrlsParams,
   serviceUrl: string,
   timeout: number,
 ): Promise<FetchUrlsResult> {
-  if (!params.urls || params.urls.length === 0) {
-    throw new Error('urls parameter is required for fetch_urls operation');
-  }
-
+  // urls is required by validator
   const payload = {
     urls: params.urls,
     word_count_threshold: params.wordCountThreshold || 100,
@@ -147,7 +162,7 @@ async function fetchUrls(
     throw new Error(`Crawler service error (${response.status}): ${errorText}`);
   }
 
-  const result: FetchUrlsResult = await response.json();
+  const result: FetchUrlsData = await response.json();
 
   if (!result.success) {
     const errorMessage =
@@ -159,5 +174,6 @@ async function fetchUrls(
     `Successfully fetched ${result.urls_fetched} of ${result.urls_requested} URLs`,
   );
 
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return result;
 }

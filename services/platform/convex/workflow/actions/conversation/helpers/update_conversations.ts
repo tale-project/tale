@@ -1,35 +1,34 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { UpdateConversationsResult, ConversationStatus } from './types';
 
 export async function updateConversations(
   ctx: ActionCtx,
   params: {
-    conversationId?: Id<'conversations'>;
-    organizationId?: string;
-    status?: ConversationStatus;
-    priority?: string;
+    organizationId: string; // For organization ownership validation
+    conversationId: Id<'conversations'>;
     updates: Record<string, unknown>;
   },
 ) {
-  const result = (await ctx.runMutation(
-    internal.conversations.updateConversations,
-    {
-      conversationId: params.conversationId,
-      organizationId: params.organizationId,
-      status: params.status,
-      priority: params.priority,
-      updates: params.updates,
-    },
-  )) as UpdateConversationsResult;
+  await ctx.runMutation(internal.conversations.updateConversations, {
+    organizationId: params.organizationId,
+    conversationId: params.conversationId,
+    updates: params.updates,
+  });
 
-  return {
-    operation: 'update',
-    updatedCount: result.updatedCount,
-    updatedIds: result.updatedIds,
-    success: result.success,
-    timestamp: Date.now(),
-  };
+  // Fetch and return the updated entity
+  const updatedConversation = await ctx.runQuery(
+    internal.conversations.getConversationById,
+    { conversationId: params.conversationId },
+  );
+
+  if (!updatedConversation) {
+    throw new Error(
+      `Failed to fetch updated conversation with ID "${params.conversationId}"`,
+    );
+  }
+
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return updatedConversation;
 }
 

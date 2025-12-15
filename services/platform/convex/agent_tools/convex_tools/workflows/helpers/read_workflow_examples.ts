@@ -72,7 +72,7 @@ export async function readWorkflowExamples(
       examples,
       suggestion:
         examples.length === 0
-          ? `No workflows found matching "${args.query}". Try broader search terms or use list_available_actions to see what actions are available.`
+          ? `No workflows found matching "${args.query}". Try broader search terms.`
           : `Found ${examples.length} example(s). Study the step structure to create similar workflows.`,
     };
   } catch (error) {

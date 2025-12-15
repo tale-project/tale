@@ -12,10 +12,9 @@ import { ragSearchTool } from './convex_tools/rag/rag_search_tool';
 import { ragWriteTool } from './convex_tools/rag/rag_write_tool';
 import { webReadTool } from './convex_tools/crawler/web_read_tool';
 import { workflowReadTool } from './convex_tools/workflows/workflow_read_tool';
+import { workflowExamplesTool } from './convex_tools/workflows/workflow_examples_tool';
 import { updateWorkflowStepTool } from './convex_tools/workflows/update_workflow_step_tool';
-import { generateWorkflowFromDescriptionTool } from './convex_tools/workflows/generate_workflow_from_description_tool';
 import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workflow_definition_tool';
-import { validateWorkflowDefinitionTool } from './convex_tools/workflows/validate_workflow_definition_tool';
 import { generateExcelTool } from './convex_tools/files/generate_excel_tool';
 import { pdfTool } from './convex_tools/files/pdf_tool';
 import { imageTool } from './convex_tools/files/image_tool';
@@ -42,10 +41,9 @@ export const TOOL_NAMES = [
   'docx',
   'resource_check',
   'workflow_read',
+  'workflow_examples',
   'update_workflow_step',
-  'generate_workflow_from_description',
   'save_workflow_definition',
-  'validate_workflow_definition',
   'generate_excel',
   'context_search',
 ] as const;
@@ -60,10 +58,9 @@ export const TOOL_REGISTRY = [
   ragWriteTool,
   webReadTool,
   workflowReadTool,
+  workflowExamplesTool,
   updateWorkflowStepTool,
-  generateWorkflowFromDescriptionTool,
   saveWorkflowDefinitionTool,
-  validateWorkflowDefinitionTool,
   generateExcelTool,
   pdfTool,
   imageTool,

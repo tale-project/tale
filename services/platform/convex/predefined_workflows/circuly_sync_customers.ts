@@ -58,7 +58,6 @@ export const circulySyncCustomersWorkflow = {
         type: 'integration',
         parameters: {
           name: 'circuly',
-          organizationId: '{{organizationId}}',
           operation: 'list_customers',
           params: {
             page: '{{currentPage}}',
@@ -100,7 +99,6 @@ export const circulySyncCustomersWorkflow = {
         type: 'customer',
         parameters: {
           operation: 'query',
-          organizationId: '{{organizationId}}',
           externalId: '{{loop.item.id}}',
           paginationOpts: {
             numItems: 1,
@@ -120,7 +118,7 @@ export const circulySyncCustomersWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.query_existing_customer.output.data.count > 0',
+        expression: 'steps.query_existing_customer.output.data|length > 0',
         description: 'Check if customer already exists in database',
       },
       nextSteps: {
@@ -175,7 +173,6 @@ export const circulySyncCustomersWorkflow = {
         type: 'customer',
         parameters: {
           operation: 'create',
-          organizationId: '{{organizationId}}',
           name: '{{loop.item.first_name}} {{loop.item.last_name}}',
           email: '{{loop.item.email}}',
           address: {

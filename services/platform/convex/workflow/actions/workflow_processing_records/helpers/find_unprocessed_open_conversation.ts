@@ -20,8 +20,7 @@ export async function findUnprocessedOpenConversation(
     },
   );
 
-  return {
-    documents: result.conversations,
-    count: result.count,
-  };
+  // Return first conversation or null (queries always return at most one)
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return result.conversations[0] ?? null;
 }

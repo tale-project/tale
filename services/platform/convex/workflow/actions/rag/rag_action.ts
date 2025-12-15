@@ -70,6 +70,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     }
 
     // Return result with execution metadata
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
       ...uploadResult,
       executionTimeMs: Date.now() - startTime,

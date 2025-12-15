@@ -32,11 +32,19 @@ export async function createConversation(
       metadata: params.metadata,
     });
 
-  return {
-    operation: 'create',
-    conversationId: result.conversationId,
-    success: result.success,
-    timestamp: Date.now(),
-  };
+  // Fetch and return the full created entity
+  const createdConversation = await ctx.runQuery(
+    internal.conversations.getConversationById,
+    { conversationId: result.conversationId as Id<'conversations'> },
+  );
+
+  if (!createdConversation) {
+    throw new Error(
+      `Failed to fetch created conversation with ID "${result.conversationId}" after creation`,
+    );
+  }
+
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return createdConversation;
 }
 

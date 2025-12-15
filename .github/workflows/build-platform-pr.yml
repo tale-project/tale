@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
 

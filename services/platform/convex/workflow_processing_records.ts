@@ -152,3 +152,19 @@ export const recordProcessed = internalMutation({
     return await WorkflowProcessingRecordsModel.recordProcessed(ctx, args);
   },
 });
+
+/**
+ * Get a processing record by ID.
+ */
+export const getProcessingRecordById = internalQuery({
+  args: {
+    processingRecordId: v.id('workflowProcessingRecords'),
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    return await WorkflowProcessingRecordsModel.getProcessingRecordById(
+      ctx,
+      args,
+    );
+  },
+});

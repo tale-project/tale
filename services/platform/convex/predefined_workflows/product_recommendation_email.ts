@@ -80,8 +80,6 @@ export const productRecommendationEmailWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_product_recommendation_by_status',
-          organizationId: '{{organizationId}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
           status: 'approved',
         },
@@ -98,7 +96,7 @@ export const productRecommendationEmailWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_approved_approval.output.data.count > 0',
+        expression: 'steps.find_approved_approval.output.data != null',
         description: 'Check if we found an approved approval',
       },
       nextSteps: {
@@ -120,32 +118,32 @@ export const productRecommendationEmailWorkflow = {
             {
               name: 'currentApproval',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0]}}',
+                '{{steps.find_approved_approval.output.data}}',
             },
             {
               name: 'currentApprovalId',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0]._id}}',
+                '{{steps.find_approved_approval.output.data._id}}',
             },
             {
               name: 'customerId',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0].metadata.customerId}}',
+                '{{steps.find_approved_approval.output.data.metadata.customerId}}',
             },
             {
               name: 'customerName',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0].metadata.customerName}}',
+                '{{steps.find_approved_approval.output.data.metadata.customerName}}',
             },
             {
               name: 'customerEmail',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0].metadata.customerEmail}}',
+                '{{steps.find_approved_approval.output.data.metadata.customerEmail}}',
             },
             {
               name: 'recommendedProducts',
               value:
-                '{{steps.find_approved_approval.output.data.documents[0].metadata.recommendedProducts}}',
+                '{{steps.find_approved_approval.output.data.metadata.recommendedProducts}}',
             },
           ],
         },
@@ -253,7 +251,6 @@ Return only the JSON object with "subject", "body", and "preview".`,
         type: 'conversation',
         parameters: {
           operation: 'create',
-          organizationId: '{{organizationId}}',
           customerId: '{{customerId}}',
           subject: '{{steps.generate_email.output.data.subject}}',
           status: 'open',
@@ -286,10 +283,9 @@ Return only the JSON object with "subject", "body", and "preview".`,
         type: 'approval',
         parameters: {
           operation: 'create_approval',
-          organizationId: '{{organizationId}}',
           resourceType: 'conversations',
           resourceId:
-            '{{steps.create_conversation.output.data.conversationId}}',
+            '{{steps.create_conversation.output.data._id}}',
           priority: 'medium',
           description:
             'Review and approve product recommendation email before sending',
@@ -318,17 +314,15 @@ Return only the JSON object with "subject", "body", and "preview".`,
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'approvals',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordId: '{{currentApprovalId}}',
           recordCreationTime: '{{currentApproval._creationTime}}',
           metadata: {
             emailGenerated: true,
             conversationId:
-              '{{steps.create_conversation.output.data.conversationId}}',
+              '{{steps.create_conversation.output.data._id}}',
             emailApprovalId:
-              '{{steps.create_email_approval.output.data.approvalId}}',
+              '{{steps.create_email_approval.output.data._id}}',
             processedAt: '{{now}}',
           },
         },
