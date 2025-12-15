@@ -51,9 +51,7 @@ export const productRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'products',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -69,7 +67,7 @@ export const productRagSyncWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_product.output.data.count > 0',
+        expression: 'steps.find_unprocessed_product.output.data != null',
         description: 'Check if any unprocessed product was found',
       },
       nextSteps: {
@@ -89,11 +87,11 @@ export const productRagSyncWorkflow = {
         parameters: {
           operation: 'upload_text',
           recordId:
-            '{{steps.find_unprocessed_product.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_product.output.data._id}}',
           content:
-            '{{steps.find_unprocessed_product.output.data.documents[0]|string}}',
+            '{{steps.find_unprocessed_product.output.data|string}}',
           metadata: {
-            _id: '{{steps.find_unprocessed_product.output.data.documents[0]._id}}',
+            _id: '{{steps.find_unprocessed_product.output.data._id}}',
           },
         },
       },
@@ -112,13 +110,11 @@ export const productRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'products',
           recordId:
-            '{{steps.find_unprocessed_product.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_product.output.data._id}}',
           recordCreationTime:
-            '{{steps.find_unprocessed_product.output.data.documents[0]._creationTime}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
+            '{{steps.find_unprocessed_product.output.data._creationTime}}',
         },
       },
       nextSteps: {

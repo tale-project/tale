@@ -1,11 +1,3 @@
-import type { Id } from '../../../../_generated/dataModel';
-
-export type UpdateConversationsResult = {
-  success: boolean;
-  updatedCount: number;
-  updatedIds: Id<'conversations'>[];
-};
-
 export type QueryResult<T = unknown> = {
   page: T[];
   isDone: boolean;

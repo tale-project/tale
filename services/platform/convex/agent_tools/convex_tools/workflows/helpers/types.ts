@@ -1,39 +1,5 @@
 import type { Doc } from '../../../../_generated/dataModel';
 
-export type ActionOperationInfo = {
-  operation: string;
-  description: string;
-  requiredParams: string[];
-  optionalParams: string[];
-  example?: string;
-};
-
-export type ActionInfo = {
-  type: string;
-  title: string;
-  description: string;
-  operations: ActionOperationInfo[];
-};
-
-export type CatalogEntry = {
-  usesOperationField: boolean;
-  operations: Record<
-    string,
-    {
-      required: string[];
-      optional: string[];
-    }
-  >;
-};
-
-export type WorkflowReadListActionsResult = {
-  operation: 'list_available_actions';
-  totalActions: number;
-  actions: ActionInfo[];
-  catalogByActionType: Record<string, CatalogEntry>;
-  usage: string;
-};
-
 export type WorkflowReadGetStructureResult = {
   operation: 'get_structure';
   workflow: Doc<'wfDefinitions'> | null;

@@ -14,40 +14,48 @@ import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
-export const emailProviderAction: ActionDefinition<{
-  operation: 'get_default' | 'get_imap_credentials';
-  organizationId: string;
-}> = {
-  type: 'email_provider',
-  title: 'Email Provider Operation',
-  description:
-    'Fetch email provider configuration (get_default, get_imap_credentials)',
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('get_default'),
-      v.literal('get_imap_credentials'),
-    ),
-    organizationId: v.string(),
-  }),
+// Type for email provider operation params (discriminated union)
+type EmailProviderActionParams =
+  | { operation: 'get_default' }
+  | { operation: 'get_imap_credentials' };
 
-  async execute(ctx, params) {
+export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
+  {
+    type: 'email_provider',
+    title: 'Email Provider Operation',
+    description:
+      'Fetch email provider configuration (get_default, get_imap_credentials). organizationId is automatically read from workflow context variables.',
+    parametersValidator: v.union(
+      // get_default: Get the default email provider
+      v.object({
+        operation: v.literal('get_default'),
+      }),
+      // get_imap_credentials: Get IMAP credentials for the default provider
+      v.object({
+        operation: v.literal('get_imap_credentials'),
+      }),
+    ),
+
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'email_provider requires a non-empty string organizationId in workflow context',
+      );
+    }
+
     switch (params.operation) {
       case 'get_default': {
-        if (!params.organizationId) {
-          throw new Error(
-            'get_default operation requires organizationId parameter',
-          );
-        }
-
         debugLog(
-          `email_provider Fetching default provider for organization: ${params.organizationId}`,
+          `email_provider Fetching default provider for organization: ${organizationId}`,
         );
 
         // Call internal query to get default provider (bypasses RLS)
         const provider = (await ctx.runQuery!(
           internal.email_providers.getDefaultInternal,
           {
-            organizationId: params.organizationId,
+            organizationId,
           },
         )) as Doc<'emailProviders'> | null;
 
@@ -57,59 +65,50 @@ export const emailProviderAction: ActionDefinition<{
 
         if (!provider) {
           console.error(
-            `[email_provider] No default email provider found for organization ${params.organizationId}`,
+            `[email_provider] No default email provider found for organization ${organizationId}`,
           );
           throw new Error(
-            `No default email provider found for organization ${params.organizationId}. Please create an email provider and set isDefault=true.`,
+            `No default email provider found for organization ${organizationId}. Please create an email provider and set isDefault=true.`,
           );
         }
 
         // Return provider with encrypted password
         // The set_variables action will handle decryption when secure: true is set
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'get_default',
-          provider: {
-            _id: provider._id,
-            name: provider.name,
-            vendor: provider.vendor,
-            authMethod: provider.authMethod,
-            imapConfig: provider.imapConfig,
-            smtpConfig: provider.smtpConfig,
-            passwordAuth: provider.passwordAuth
-              ? {
-                  user: provider.passwordAuth.user,
-                  passEncrypted: provider.passwordAuth.passEncrypted, // Keep encrypted
-                }
-              : undefined,
-            isDefault: provider.isDefault,
-            status: provider.status,
-          },
-          timestamp: Date.now(),
+          _id: provider._id,
+          name: provider.name,
+          vendor: provider.vendor,
+          authMethod: provider.authMethod,
+          imapConfig: provider.imapConfig,
+          smtpConfig: provider.smtpConfig,
+          passwordAuth: provider.passwordAuth
+            ? {
+                user: provider.passwordAuth.user,
+                passEncrypted: provider.passwordAuth.passEncrypted, // Keep encrypted
+              }
+            : undefined,
+          isDefault: provider.isDefault,
+          status: provider.status,
         };
       }
 
       case 'get_imap_credentials': {
-        if (!params.organizationId) {
-          throw new Error(
-            'get_imap_credentials operation requires organizationId parameter',
-          );
-        }
-
         debugLog(
-          `email_provider Getting IMAP credentials for organization: ${params.organizationId}`,
+          `email_provider Getting IMAP credentials for organization: ${organizationId}`,
         );
 
         // Get default provider
         const provider = (await ctx.runQuery!(
           internal.email_providers.getDefaultInternal,
           {
-            organizationId: params.organizationId,
+            organizationId,
           },
         )) as Doc<'emailProviders'> | null;
 
         if (!provider) {
           throw new Error(
-            `No default email provider found for organization ${params.organizationId}`,
+            `No default email provider found for organization ${organizationId}`,
           );
         }
 
@@ -128,8 +127,8 @@ export const emailProviderAction: ActionDefinition<{
           }
 
           // Do NOT decrypt here. Return encrypted password for just-in-time decryption by the workflow engine.
+          // Note: execute_action_node wraps this in output: { type: 'action', data: result }
           return {
-            operation: 'get_imap_credentials',
             providerId: provider._id,
             credentials: {
               host: provider.imapConfig.host,
@@ -139,7 +138,6 @@ export const emailProviderAction: ActionDefinition<{
               passwordEncrypted: provider.passwordAuth.passEncrypted,
             },
             authMethod: 'password',
-            timestamp: Date.now(),
           };
         } else if (provider.authMethod === 'oauth2') {
           if (!provider.oauth2Auth) {
@@ -185,8 +183,8 @@ export const emailProviderAction: ActionDefinition<{
             updatedProvider?.oauth2Auth?.accessTokenEncrypted ||
             provider.oauth2Auth.accessTokenEncrypted;
 
+          // Note: execute_action_node wraps this in output: { type: 'action', data: result }
           return {
-            operation: 'get_imap_credentials',
             providerId: provider._id,
             credentials: {
               host: provider.imapConfig.host,
@@ -196,7 +194,6 @@ export const emailProviderAction: ActionDefinition<{
               accessTokenEncrypted,
             },
             authMethod: 'oauth2',
-            timestamp: Date.now(),
           };
         } else {
           throw new Error(
@@ -206,7 +203,9 @@ export const emailProviderAction: ActionDefinition<{
       }
 
       default:
-        throw new Error(`Unknown operation: ${params.operation}`);
+        throw new Error(
+          `Unknown operation: ${(params as { operation: string }).operation}`,
+        );
     }
   },
 };

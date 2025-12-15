@@ -50,9 +50,7 @@ export const documentRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'documents',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -68,7 +66,7 @@ export const documentRagSyncWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_document.output.data.count > 0',
+        expression: 'steps.find_unprocessed_document.output.data != null',
         description: 'Check if any unprocessed document was found',
       },
       nextSteps: {
@@ -88,7 +86,7 @@ export const documentRagSyncWorkflow = {
         parameters: {
           operation: 'upload_document',
           recordId:
-            '{{steps.find_unprocessed_document.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_document.output.data._id}}',
         },
       },
       nextSteps: {
@@ -107,7 +105,7 @@ export const documentRagSyncWorkflow = {
         parameters: {
           operation: 'update',
           documentId:
-            '{{steps.find_unprocessed_document.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_document.output.data._id}}',
           metadata: {
             rag_job_id: '{{steps.upload_to_rag.output.data.jobId}}',
           },
@@ -128,13 +126,11 @@ export const documentRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'documents',
           recordId:
-            '{{steps.find_unprocessed_document.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_document.output.data._id}}',
           recordCreationTime:
-            '{{steps.find_unprocessed_document.output.data.documents[0]._creationTime}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
+            '{{steps.find_unprocessed_document.output.data._creationTime}}',
         },
       },
       nextSteps: {

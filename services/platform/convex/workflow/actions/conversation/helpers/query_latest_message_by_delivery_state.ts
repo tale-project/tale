@@ -23,10 +23,7 @@ export async function queryLatestMessageByDeliveryState(
     },
   );
 
-  return {
-    operation: 'query_latest_message_by_delivery_state',
-    message: result.message,
-    timestamp: Date.now(),
-  };
+  // Note: execute_action_node wraps the return value in: { type: 'action', data: <return value> }
+  return result.message;
 }
 

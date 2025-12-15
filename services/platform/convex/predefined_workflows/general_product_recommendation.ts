@@ -35,9 +35,7 @@ export const generalProductRecommendationWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -49,7 +47,7 @@ export const generalProductRecommendationWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_customer.output.data.count > 0',
+        expression: 'steps.find_unprocessed_customer.output.data != null',
         description: 'Check if we found an unprocessed customer',
       },
       nextSteps: { true: 'extract_customer_data', false: 'noop' },
@@ -66,27 +64,27 @@ export const generalProductRecommendationWorkflow = {
             {
               name: 'currentCustomer',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]}}',
+                '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+                '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].name}}',
+                '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].email}}',
+                '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].status}}',
+                '{{steps.find_unprocessed_customer.output.data.status}}',
             },
           ],
         },
@@ -241,7 +239,7 @@ export const generalProductRecommendationWorkflow = {
       order: 8,
       config: {
         expression:
-          'steps.hydrate_recommendations.output.data.recommendations|length > 0',
+          'steps.hydrate_recommendations.output.data|length > 0',
         description:
           'Check if AI generated any recommendations for this customer',
       },
@@ -256,7 +254,6 @@ export const generalProductRecommendationWorkflow = {
         type: 'approval',
         parameters: {
           operation: 'create_approval',
-          organizationId: '{{organizationId}}',
           resourceType: 'product_recommendation',
           resourceId: '{{currentCustomerId}}',
           priority: 'medium',
@@ -267,7 +264,7 @@ export const generalProductRecommendationWorkflow = {
             customerName: '{{currentCustomerName}}',
             customerEmail: '{{currentCustomerEmail}}',
             recommendedProducts:
-              '{{steps.hydrate_recommendations.output.data.recommendations}}',
+              '{{steps.hydrate_recommendations.output.data}}',
             summary: '{{steps.generate_recommendations.output.data.summary}}',
             generatedAt: '{{now}}',
             workflowId: '{{rootWfDefinitionId}}',
@@ -285,14 +282,12 @@ export const generalProductRecommendationWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordId: '{{currentCustomerId}}',
           recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             recommendationsGenerated:
-              '{{steps.hydrate_recommendations.output.data.recommendations|length}}',
+              '{{steps.hydrate_recommendations.output.data|length}}',
             processedAt: '{{now}}',
             customerStatus: '{{currentCustomerStatus}}',
           },

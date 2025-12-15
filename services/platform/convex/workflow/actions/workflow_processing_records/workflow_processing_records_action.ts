@@ -18,138 +18,131 @@ import { findProductRecommendationByStatus } from './helpers/find_product_recomm
 import { recordProcessed } from './helpers/record_processed';
 import type { TableName } from './helpers/types';
 
-export const workflowProcessingRecordsAction: ActionDefinition<{
-  operation:
-    | 'find_unprocessed'
-    | 'find_unprocessed_open_conversation'
-    | 'find_product_recommendation_by_status'
-    | 'record_processed';
-  organizationId: string;
-  tableName?: TableName;
-  wfDefinitionId: string;
-  backoffHours?: number;
-  status?: 'pending' | 'approved' | 'rejected';
-  recordId?: string;
-  recordCreationTime?: number;
-  metadata?: unknown;
-}> = {
-  type: 'workflow_processing_records',
-  title: 'Workflow Processing Records Operation',
-  description:
-    'Execute workflow processing records operations (find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed). Always fetches exactly one document.',
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('find_unprocessed'),
-      v.literal('find_unprocessed_open_conversation'),
-      v.literal('find_product_recommendation_by_status'),
-      v.literal('record_processed'),
-    ),
-    organizationId: v.string(),
-    tableName: v.optional(
-      v.union(
-        v.literal('customers'),
-        v.literal('products'),
-        v.literal('documents'),
-        v.literal('conversations'),
-        v.literal('approvals'),
-        v.literal('onedriveSyncConfigs'),
-        v.literal('websitePages'),
-        v.literal('exampleMessages'),
-      ),
-    ),
-    wfDefinitionId: v.string(),
-    backoffHours: v.optional(v.number()),
-    status: v.optional(
-      v.union(
-        v.literal('pending'),
-        v.literal('approved'),
-        v.literal('rejected'),
-      ),
-    ),
-    recordId: v.optional(v.string()),
-    recordCreationTime: v.optional(v.number()),
-    metadata: v.optional(v.any()),
-  }),
+// Common field validators
+// Note: tableNameValidator mirrors the TableName type from helpers/types.ts
+// Both must be kept in sync when adding new table names
+const tableNameValidator = v.union(
+  v.literal('customers'),
+  v.literal('products'),
+  v.literal('documents'),
+  v.literal('conversations'),
+  v.literal('approvals'),
+  v.literal('onedriveSyncConfigs'),
+  v.literal('websitePages'),
+  v.literal('exampleMessages'),
+);
 
-  async execute(ctx, params) {
+const statusValidator = v.union(
+  v.literal('pending'),
+  v.literal('approved'),
+  v.literal('rejected'),
+);
+
+// Type for workflow processing records operation params (discriminated union)
+type WorkflowProcessingRecordsActionParams =
+  | {
+      operation: 'find_unprocessed';
+      tableName: TableName;
+      backoffHours: number;
+    }
+  | {
+      operation: 'find_unprocessed_open_conversation';
+      backoffHours: number;
+    }
+  | {
+      operation: 'find_product_recommendation_by_status';
+      backoffHours: number;
+      status: 'pending' | 'approved' | 'rejected';
+    }
+  | {
+      operation: 'record_processed';
+      tableName: TableName;
+      recordId: string;
+      metadata?: unknown;
+    };
+
+export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessingRecordsActionParams> =
+  {
+    type: 'workflow_processing_records',
+    title: 'Workflow Processing Records Operation',
+    description:
+      'Execute workflow processing records operations (find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed). Returns at most one matching document or null if none found. organizationId and rootWfDefinitionId are automatically read from workflow context variables.',
+    parametersValidator: v.union(
+      // find_unprocessed: Find one unprocessed record from a table
+      v.object({
+        operation: v.literal('find_unprocessed'),
+        tableName: tableNameValidator,
+        backoffHours: v.number(),
+      }),
+      // find_unprocessed_open_conversation: Find one unprocessed open conversation
+      v.object({
+        operation: v.literal('find_unprocessed_open_conversation'),
+        backoffHours: v.number(),
+      }),
+      // find_product_recommendation_by_status: Find one product recommendation by status
+      v.object({
+        operation: v.literal('find_product_recommendation_by_status'),
+        backoffHours: v.number(),
+        status: statusValidator,
+      }),
+      // record_processed: Record that a document has been processed
+      v.object({
+        operation: v.literal('record_processed'),
+        tableName: tableNameValidator,
+        recordId: v.string(),
+        metadata: v.optional(v.any()),
+      }),
+    ),
+
+  async execute(ctx, params, variables) {
+    // Read and validate organizationId and wfDefinitionId from workflow context variables
+    const organizationId = variables?.organizationId;
+    const wfDefinitionId = variables?.rootWfDefinitionId;
+
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'workflow_processing_records requires a non-empty string organizationId in workflow context',
+      );
+    }
+    if (typeof wfDefinitionId !== 'string' || !wfDefinitionId) {
+      throw new Error(
+        'workflow_processing_records requires a non-empty string rootWfDefinitionId in workflow context',
+      );
+    }
+
     switch (params.operation) {
       case 'find_unprocessed': {
-        if (!params.tableName) {
-          throw new Error(
-            'find_unprocessed operation requires tableName parameter',
-          );
-        }
-        if (params.backoffHours === undefined) {
-          throw new Error(
-            'find_unprocessed operation requires backoffHours parameter',
-          );
-        }
-
         return await findUnprocessed(ctx, {
-          organizationId: params.organizationId,
-          tableName: params.tableName,
-          wfDefinitionId: params.wfDefinitionId,
-          backoffHours: params.backoffHours,
+          organizationId,
+          tableName: params.tableName, // Required by validator
+          wfDefinitionId,
+          backoffHours: params.backoffHours, // Required by validator
         });
       }
 
       case 'find_unprocessed_open_conversation': {
-        if (params.backoffHours === undefined) {
-          throw new Error(
-            'find_unprocessed_open_conversation operation requires backoffHours parameter',
-          );
-        }
-
         return await findUnprocessedOpenConversation(ctx, {
-          organizationId: params.organizationId,
-          wfDefinitionId: params.wfDefinitionId,
-          backoffHours: params.backoffHours,
+          organizationId,
+          wfDefinitionId,
+          backoffHours: params.backoffHours, // Required by validator
         });
       }
 
       case 'find_product_recommendation_by_status': {
-        if (params.backoffHours === undefined) {
-          throw new Error(
-            'find_product_recommendation_by_status operation requires backoffHours parameter',
-          );
-        }
-        if (!params.status) {
-          throw new Error(
-            'find_product_recommendation_by_status operation requires status parameter',
-          );
-        }
-
         return await findProductRecommendationByStatus(ctx, {
-          organizationId: params.organizationId,
-          wfDefinitionId: params.wfDefinitionId,
-          backoffHours: params.backoffHours,
-          status: params.status,
+          organizationId,
+          wfDefinitionId,
+          backoffHours: params.backoffHours, // Required by validator
+          status: params.status, // Required by validator
         });
       }
 
       case 'record_processed': {
-        if (!params.tableName) {
-          throw new Error(
-            'record_processed operation requires tableName parameter',
-          );
-        }
-        if (!params.recordId) {
-          throw new Error(
-            'record_processed operation requires recordId parameter',
-          );
-        }
-        if (params.recordCreationTime === undefined) {
-          throw new Error(
-            'record_processed operation requires recordCreationTime parameter',
-          );
-        }
-
         return await recordProcessed(ctx, {
-          organizationId: params.organizationId,
-          tableName: params.tableName,
-          recordId: params.recordId,
-          wfDefinitionId: params.wfDefinitionId,
-          recordCreationTime: params.recordCreationTime,
+          organizationId,
+          tableName: params.tableName, // Required by validator
+          recordId: params.recordId, // Required by validator
+          wfDefinitionId,
           metadata: params.metadata,
         });
       }

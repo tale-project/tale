@@ -4,60 +4,30 @@ import type { ApprovalResourceType } from '../../../../model/approvals/types';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';
 
-export type CreateApprovalResult = {
-  operation: 'create_approval';
-  approvalId: Id<'approvals'>;
-  success: boolean;
-  timestamp: number;
-};
-
-export type UpdateApprovalStatusResult = {
-  operation: 'update_approval_status';
-  approvalId: Id<'approvals'>;
+export type ApprovalData = {
+  _id: Id<'approvals'>;
+  _creationTime: number;
+  organizationId: string;
+  wfExecutionId?: Id<'wfExecutions'>;
+  stepSlug?: string;
   status: ApprovalStatus;
-  success: boolean;
-  timestamp: number;
+  approvedBy?: string;
+  reviewedAt?: number;
+  resourceType: ApprovalResourceType;
+  resourceId: string;
+  priority: ApprovalPriority;
+  requestedBy?: string;
+  description?: string;
+  dueDate?: number;
+  metadata?: unknown;
 };
 
-export type GetApprovalResult = {
-  operation: 'get_approval';
-  approval: {
-    _id: Id<'approvals'>;
-    _creationTime: number;
-    organizationId: string;
-    wfExecutionId?: Id<'wfExecutions'>;
-    stepSlug?: string;
-    status: ApprovalStatus;
-    approvedBy?: string;
-    reviewedAt?: number;
-    resourceType: ApprovalResourceType;
-    resourceId: string;
-    priority: ApprovalPriority;
-    dueDate?: number;
-    metadata?: unknown;
-  } | null;
-};
+// Actions should return data directly (not wrapped in { data: ... })
+// because execute_action_node wraps the result in output: { type: 'action', data: result }
+export type CreateApprovalResult = ApprovalData | null;
 
-export type ListApprovalsResult = {
-  operation:
-    | 'list_pending_approvals'
-    | 'list_approvals_for_execution'
-    | 'list_pending_approvals_for_execution'
-    | 'get_approval_history';
-  approvals: Array<{
-    _id: Id<'approvals'>;
-    _creationTime: number;
-    organizationId: string;
-    wfExecutionId?: Id<'wfExecutions'>;
-    stepSlug?: string;
-    status: ApprovalStatus;
-    approvedBy?: string;
-    reviewedAt?: number;
-    resourceType: ApprovalResourceType;
-    resourceId: string;
-    priority: ApprovalPriority;
-    dueDate?: number;
-    metadata?: unknown;
-  }>;
-  count: number;
-};
+export type UpdateApprovalStatusResult = ApprovalData | null;
+
+export type GetApprovalResult = ApprovalData | null;
+
+export type ListApprovalsResult = ApprovalData[];

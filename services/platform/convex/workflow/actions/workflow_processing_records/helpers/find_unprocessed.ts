@@ -22,8 +22,8 @@ export async function findUnprocessed(
     },
   );
 
-  return {
-    documents: result.documents,
-    count: result.count,
-  };
+  // Model layer returns { documents: T[], count } but we extract first document
+  // because workflows expect a single document or null for processing
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return result.documents[0] ?? null;
 }

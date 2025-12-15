@@ -27,13 +27,12 @@ export async function queryConversationMessages(
     },
   );
 
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  // For pagination queries, we return the full result object (page, isDone, continueCursor)
   return {
-    operation: 'query_messages',
     page: result.page,
     isDone: result.isDone,
     continueCursor: result.continueCursor,
-    count: result.count,
-    timestamp: Date.now(),
   };
 }
 

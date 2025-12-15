@@ -157,8 +157,8 @@ export async function createConversationFromSentEmail(
       debugLog('create_from_sent_email Added new message:', email.messageId);
     }
 
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
-      operation: 'create_from_sent_email',
       conversationId,
       created: false,
       reason: 'existing_conversation_updated',
@@ -201,8 +201,8 @@ export async function createConversationFromSentEmail(
   }
 
   if (!customerEmail) {
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
-      operation: 'create_from_sent_email',
       conversationId: null,
       created: false,
       reason: 'no_customer_identified',
@@ -225,8 +225,8 @@ export async function createConversationFromSentEmail(
   );
 
   if (!customerResult) {
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
-      operation: 'create_from_sent_email',
       conversationId: null,
       created: false,
       reason: 'no_recipient',
@@ -353,8 +353,8 @@ export async function createConversationFromSentEmail(
     }
   }
 
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return {
-    operation: 'create_from_sent_email',
     conversationId,
     created: conversationCreated,
     isThreaded: emailsArray.length > 1,

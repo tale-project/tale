@@ -14,8 +14,6 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { Id } from '../../../_generated/dataModel';
 import { createConversation } from './helpers/create_conversation';
-import { getConversationById } from './helpers/get_conversation_by_id';
-import { queryConversations } from './helpers/query_conversations';
 import { queryConversationMessages } from './helpers/query_conversation_messages';
 import { queryLatestMessageByDeliveryState } from './helpers/query_latest_message_by_delivery_state';
 import { updateConversations } from './helpers/update_conversations';
@@ -23,86 +21,157 @@ import { createConversationFromEmail } from './helpers/create_conversation_from_
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
 import type { ConversationStatus } from './helpers/types';
 
-export const conversationAction: ActionDefinition<{
-  operation:
-    | 'create'
-    | 'get_by_id'
-    | 'query'
-    | 'query_messages'
-    | 'query_latest_message_by_delivery_state'
-    | 'update'
-    | 'create_from_email'
-    | 'create_from_sent_email';
-  conversationId?: Id<'conversations'>;
-  organizationId?: string;
-  customerId?: Id<'customers'>;
-  subject?: string;
-  status?: ConversationStatus;
-  priority?: string;
-  type?: string;
-  channel?: string;
-  direction?: 'inbound' | 'outbound';
-  providerId?: Id<'emailProviders'>;
-  deliveryState?: 'queued' | 'sent' | 'delivered' | 'failed';
+// Common field validators
+const paginationOptsValidator = v.object({
+  numItems: v.number(),
+  cursor: v.union(v.string(), v.null()),
+});
 
-  metadata?: Record<string, unknown>;
+const directionValidator = v.union(v.literal('inbound'), v.literal('outbound'));
 
-  updates?: Record<string, unknown>;
-  email?: unknown; // Single email object
-  emails?: unknown; // Array of email objects for threaded conversations
-  accountEmail?: string; // Mailbox address of the account/mailbox being synced
-  paginationOpts?: {
-    numItems: number;
-    cursor: string | null;
-  };
-}> = {
+const deliveryStateValidator = v.union(
+  v.literal('queued'),
+  v.literal('sent'),
+  v.literal('delivered'),
+  v.literal('failed'),
+);
+
+// Status validator matching ConversationStatus type
+const statusValidator = v.union(
+  v.literal('open'),
+  v.literal('closed'),
+  v.literal('archived'),
+  v.literal('spam'),
+);
+
+// Type for conversation operation params (discriminated union)
+// Note: This type is maintained separately from the parametersValidator for clarity.
+// The TypeScript type provides IDE support, while the validator provides runtime validation.
+type ConversationActionParams =
+  | {
+      operation: 'create';
+      customerId?: Id<'customers'>;
+      subject?: string;
+      status?: ConversationStatus;
+      priority?: string;
+      type?: string;
+      channel?: string;
+      direction?: 'inbound' | 'outbound';
+      providerId?: Id<'emailProviders'>;
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      operation: 'query_messages';
+      paginationOpts: { numItems: number; cursor: string | null };
+      conversationId?: Id<'conversations'>;
+      channel?: string;
+      direction?: 'inbound' | 'outbound';
+    }
+  | {
+      operation: 'query_latest_message_by_delivery_state';
+      channel: string;
+      direction: 'inbound' | 'outbound';
+      deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
+      providerId?: Id<'emailProviders'>;
+    }
+  | {
+      operation: 'update';
+      conversationId: Id<'conversations'>;
+      updates: Record<string, unknown>;
+    }
+  | {
+      operation: 'create_from_email';
+      emails: unknown;
+      status?: ConversationStatus;
+      priority?: string;
+      providerId?: Id<'emailProviders'>;
+      type?: string;
+    }
+  | {
+      operation: 'create_from_sent_email';
+      emails: unknown;
+      accountEmail?: string;
+      status?: ConversationStatus;
+      priority?: string;
+      providerId?: Id<'emailProviders'>;
+      type?: string;
+    };
+
+export const conversationAction: ActionDefinition<ConversationActionParams> = {
   type: 'conversation',
   title: 'Conversation Operation',
   description:
-    'Execute conversation-specific operations (create, get_by_id, query, query_messages, update, create_from_email, create_from_sent_email)',
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('create'),
-      v.literal('get_by_id'),
-      v.literal('query'),
-      v.literal('query_messages'),
-      v.literal('query_latest_message_by_delivery_state'),
-      v.literal('update'),
-      v.literal('create_from_email'),
-      v.literal('create_from_sent_email'),
-    ),
-    conversationId: v.optional(v.id('conversations')),
-    organizationId: v.optional(v.string()),
-    customerId: v.optional(v.id('customers')),
-    subject: v.optional(v.string()),
-    status: v.optional(v.string()),
-    priority: v.optional(v.string()),
-    type: v.optional(v.string()),
-    channel: v.optional(v.string()),
-    direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    providerId: v.optional(v.id('emailProviders')),
+    'Execute conversation-specific operations (create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.',
+  parametersValidator: v.union(
+    // create: Create a new conversation
+    v.object({
+      operation: v.literal('create'),
+      customerId: v.optional(v.id('customers')),
+      subject: v.optional(v.string()),
+      status: v.optional(statusValidator),
+      priority: v.optional(v.string()),
+      type: v.optional(v.string()),
+      channel: v.optional(v.string()),
+      direction: v.optional(directionValidator),
+      providerId: v.optional(v.id('emailProviders')),
+      metadata: v.optional(v.any()),
+    }),
+    // query_messages: Query conversation messages with pagination
+    v.object({
+      operation: v.literal('query_messages'),
+      paginationOpts: paginationOptsValidator,
+      conversationId: v.optional(v.id('conversations')),
+      channel: v.optional(v.string()),
+      direction: v.optional(directionValidator),
+    }),
+    // query_latest_message_by_delivery_state: Query latest message by delivery state
+    v.object({
+      operation: v.literal('query_latest_message_by_delivery_state'),
+      channel: v.string(),
+      direction: directionValidator,
+      deliveryState: deliveryStateValidator,
+      providerId: v.optional(v.id('emailProviders')),
+    }),
+    // update: Update a conversation by ID
+    v.object({
+      operation: v.literal('update'),
+      conversationId: v.id('conversations'),
+      updates: v.any(),
+    }),
+    // create_from_email: Create conversation from inbound email
+    v.object({
+      operation: v.literal('create_from_email'),
+      emails: v.any(),
+      status: v.optional(statusValidator),
+      priority: v.optional(v.string()),
+      providerId: v.optional(v.id('emailProviders')),
+      type: v.optional(v.string()),
+    }),
+    // create_from_sent_email: Create conversation from sent email
+    v.object({
+      operation: v.literal('create_from_sent_email'),
+      emails: v.any(),
+      accountEmail: v.optional(v.string()),
+      status: v.optional(statusValidator),
+      priority: v.optional(v.string()),
+      providerId: v.optional(v.id('emailProviders')),
+      type: v.optional(v.string()),
+    }),
+  ),
+  async execute(ctx, params, variables) {
+    // Read and validate organizationId from workflow context variables
+    const organizationId = variables?.organizationId;
 
-    metadata: v.optional(v.any()),
-    updates: v.optional(v.any()),
-    email: v.optional(v.any()), // Single email object
-    emails: v.optional(v.any()), // Array of email objects for threaded conversations
-    accountEmail: v.optional(v.string()),
-    paginationOpts: v.optional(
-      v.object({
-        numItems: v.number(),
-        cursor: v.union(v.string(), v.null()),
-      }),
-    ),
-  }),
-  async execute(ctx, params) {
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'conversation action requires a non-empty string organizationId in workflow context',
+      );
+    }
+
     switch (params.operation) {
       case 'create': {
-        if (!params.organizationId) {
-          throw new Error('create operation requires organizationId parameter');
-        }
-
         return await createConversation(ctx, {
-          organizationId: params.organizationId,
+          organizationId,
           customerId: params.customerId,
           subject: params.subject,
           status: params.status,
@@ -115,128 +184,38 @@ export const conversationAction: ActionDefinition<{
         });
       }
 
-      case 'get_by_id': {
-        if (!params.conversationId) {
-          throw new Error(
-            'get_by_id operation requires conversationId parameter',
-          );
-        }
-
-        return await getConversationById(ctx, {
-          conversationId: params.conversationId,
-        });
-      }
-
-      case 'query': {
-        if (!params.organizationId) {
-          throw new Error('query operation requires organizationId parameter');
-        }
-
-        if (!params.paginationOpts) {
-          throw new Error('query operation requires paginationOpts parameter');
-        }
-
-        return await queryConversations(ctx, {
-          organizationId: params.organizationId,
-          customerId: params.customerId,
-          status: params.status,
-          priority: params.priority,
-          channel: params.channel,
-          direction: params.direction,
-          paginationOpts: params.paginationOpts,
-        });
-      }
-
       case 'query_messages': {
-        if (!params.organizationId) {
-          throw new Error(
-            'query_messages operation requires organizationId parameter',
-          );
-        }
-
-        if (!params.paginationOpts) {
-          throw new Error(
-            'query_messages operation requires paginationOpts parameter',
-          );
-        }
-
         return await queryConversationMessages(ctx, {
-          organizationId: params.organizationId,
+          organizationId,
           conversationId: params.conversationId,
           channel: params.channel,
           direction: params.direction,
-          paginationOpts: params.paginationOpts,
+          paginationOpts: params.paginationOpts, // Required by validator
         });
       }
 
       case 'query_latest_message_by_delivery_state': {
-        if (!params.organizationId) {
-          throw new Error(
-            'query_latest_message_by_delivery_state operation requires organizationId parameter',
-          );
-        }
-
-        if (!params.channel) {
-          throw new Error(
-            'query_latest_message_by_delivery_state operation requires channel parameter',
-          );
-        }
-
-        if (!params.direction) {
-          throw new Error(
-            'query_latest_message_by_delivery_state operation requires direction parameter',
-          );
-        }
-
-        if (!params.deliveryState) {
-          throw new Error(
-            'query_latest_message_by_delivery_state operation requires deliveryState parameter',
-          );
-        }
-
         return await queryLatestMessageByDeliveryState(ctx, {
-          organizationId: params.organizationId,
-          channel: params.channel,
-          direction: params.direction,
-          deliveryState: params.deliveryState,
+          organizationId,
+          channel: params.channel, // Required by validator
+          direction: params.direction, // Required by validator
+          deliveryState: params.deliveryState, // Required by validator
           providerId: params.providerId,
         });
       }
 
       case 'update': {
-        if (!params.conversationId && !params.organizationId) {
-          throw new Error(
-            'update operation requires either conversationId or organizationId parameter',
-          );
-        }
-        if (!params.updates) {
-          throw new Error('update operation requires updates parameter');
-        }
-
         return await updateConversations(ctx, {
-          conversationId: params.conversationId,
-          organizationId: params.organizationId,
-          status: params.status,
-          priority: params.priority,
-          updates: params.updates,
+          organizationId, // For organization ownership validation
+          conversationId: params.conversationId, // Required by validator
+          updates: params.updates, // Required by validator
         });
       }
 
       case 'create_from_email': {
-        if (!params.organizationId) {
-          throw new Error(
-            'create_from_email operation requires organizationId parameter',
-          );
-        }
-        if (!params.emails) {
-          throw new Error(
-            'create_from_email operation requires emails parameter',
-          );
-        }
-
         return await createConversationFromEmail(ctx, {
-          organizationId: params.organizationId,
-          emails: params.emails,
+          organizationId,
+          emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
           providerId: params.providerId,
@@ -245,20 +224,9 @@ export const conversationAction: ActionDefinition<{
       }
 
       case 'create_from_sent_email': {
-        if (!params.organizationId) {
-          throw new Error(
-            'create_from_sent_email operation requires organizationId parameter',
-          );
-        }
-        if (!params.emails) {
-          throw new Error(
-            'create_from_sent_email operation requires emails parameter',
-          );
-        }
-
         return await createConversationFromSentEmail(ctx, {
-          organizationId: params.organizationId,
-          emails: params.emails,
+          organizationId,
+          emails: params.emails, // Required by validator
           status: params.status,
           priority: params.priority,
           providerId: params.providerId,

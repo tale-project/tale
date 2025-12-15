@@ -51,9 +51,7 @@ export const customerRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -69,7 +67,7 @@ export const customerRagSyncWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_customer.output.data.count > 0',
+        expression: 'steps.find_unprocessed_customer.output.data != null',
         description: 'Check if any unprocessed customer was found',
       },
       nextSteps: {
@@ -89,11 +87,11 @@ export const customerRagSyncWorkflow = {
         parameters: {
           operation: 'upload_text',
           recordId:
-            '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_customer.output.data._id}}',
           content:
-            '{{steps.find_unprocessed_customer.output.data.documents[0]|string}}',
+            '{{steps.find_unprocessed_customer.output.data|string}}',
           metadata: {
-            _id: '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+            _id: '{{steps.find_unprocessed_customer.output.data._id}}',
           },
         },
       },
@@ -112,13 +110,11 @@ export const customerRagSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
           recordId:
-            '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+            '{{steps.find_unprocessed_customer.output.data._id}}',
           recordCreationTime:
-            '{{steps.find_unprocessed_customer.output.data.documents[0]._creationTime}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
+            '{{steps.find_unprocessed_customer.output.data._creationTime}}',
         },
       },
       nextSteps: {

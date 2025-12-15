@@ -3,10 +3,10 @@
  *
  * Unified read-only workflow operations for agents.
  * Supports:
- * - operation = 'list_available_actions': list all available action types for workflow steps
  * - operation = 'get_structure': fetch workflow structure with all steps
- * - operation = 'search_examples': search workflows by name/description
  * - operation = 'list_all': list all workflows for the organization
+ * - operation = 'get_active_version_steps': get active version steps by workflow name
+ * - operation = 'list_version_history': list all versions of a workflow
  */
 
 import { z } from 'zod';
@@ -15,16 +15,12 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 
 import type {
-  WorkflowReadListActionsResult,
   WorkflowReadGetStructureResult,
-  WorkflowReadSearchExamplesResult,
   WorkflowReadListAllResult,
   WorkflowReadGetActiveVersionStepsResult,
   WorkflowReadListVersionHistoryResult,
 } from './helpers/types';
-import { readAvailableActions } from './helpers/read_available_actions';
 import { readWorkflowStructure } from './helpers/read_workflow_structure';
-import { readWorkflowExamples } from './helpers/read_workflow_examples';
 import { readAllWorkflows } from './helpers/read_all_workflows';
 import { readActiveVersionSteps } from './helpers/read_active_version_steps';
 import { readVersionHistory } from './helpers/read_version_history';
@@ -34,22 +30,13 @@ import { readVersionHistory } from './helpers/read_version_history';
 const workflowReadArgs = z.object({
   operation: z
     .enum([
-      'list_available_actions',
       'get_structure',
-      'search_examples',
       'list_all',
       'get_active_version_steps',
       'list_version_history',
     ])
     .describe(
-      "Operation to perform: 'list_available_actions', 'get_structure', 'search_examples', 'list_all', 'get_active_version_steps', or 'list_version_history'",
-    ),
-  // For list_available_actions operation
-  action: z
-    .string()
-    .optional()
-    .describe(
-      "For 'list_available_actions': Optional action type filter. Must be one of: customer, product, conversation, document, send_email, approval, workflow_processing_records, email_provider, imap, shopify, circuly, integrations, rag, crawler, website, websitePages, onedrive, tone_of_voice, set_variables. If provided, only that action is returned.",
+      "Operation to perform: 'get_structure', 'list_all', 'get_active_version_steps', or 'list_version_history'",
     ),
   // For get_structure operation
   workflowId: z
@@ -57,25 +44,6 @@ const workflowReadArgs = z.object({
     .optional()
     .describe(
       'Required for \'get_structure\': The workflow ID (Convex Id<"wfDefinitions">)',
-    ),
-  // For search_examples operation
-  query: z
-    .string()
-    .optional()
-    .describe(
-      'Required for \'search_examples\': Search query - keywords to find in workflow name or description (e.g., "product recommendations", "email automation", "customer engagement")',
-    ),
-  limit: z
-    .number()
-    .optional()
-    .describe(
-      "For 'search_examples': Maximum number of examples to return (default: 5)",
-    ),
-  includeInactive: z
-    .boolean()
-    .optional()
-    .describe(
-      "For 'search_examples': Include inactive/draft workflows in results",
     ),
   // For list_all operation
   status: z
@@ -112,38 +80,27 @@ export const workflowReadTool: ToolDefinition = {
     description: `Workflow read tool for retrieving workflow information.
 
 OPERATIONS:
-• 'list_available_actions': List all available action types that can be used in workflow steps. Returns action types, their operations, parameters, and descriptions. Use this to discover what actions are available when building workflows.
 • 'get_structure': Get the complete structure of a workflow including workflow metadata and all steps. Use this to understand the current workflow before making modifications.
-• 'search_examples': Search for existing workflow examples by name, description, or purpose. Returns workflow definitions and their steps (including full configs) so you can learn from existing examples and reuse patterns. Use this before creating new workflows to find similar examples.
 • 'list_all': List all workflows for the organization. Returns workflow summaries (id, name, description, status, version). Use this to get an overview of all available workflows.
 • 'get_active_version_steps': Get the current active version of a workflow by name, including all its steps. Use this when you need to see what the currently deployed version looks like.
 • 'list_version_history': List all versions of a workflow (draft, active, archived) with optional step details. Use this to review the version history and understand how a workflow has evolved.
 
 BEST PRACTICES:
 • Use 'list_all' to get an overview of all workflows in the organization.
-• Use 'list_available_actions' to discover available action types before building workflows.
 • Use 'get_structure' when you have a specific workflow ID and need to inspect or modify it.
-• Use 'search_examples' to find similar workflows and learn from existing patterns.
 • Use 'get_active_version_steps' when you need the currently active/deployed version by workflow name.
 • Use 'list_version_history' to see all versions of a workflow and their changes over time.
-• Pass 'action' parameter with 'list_available_actions' to filter to a specific action type.
 • Pass 'status' parameter with 'list_all' to filter by workflow status.`,
     args: workflowReadArgs,
     handler: async (
       ctx: ToolCtx,
       args,
     ): Promise<
-      | WorkflowReadListActionsResult
       | WorkflowReadGetStructureResult
-      | WorkflowReadSearchExamplesResult
       | WorkflowReadListAllResult
       | WorkflowReadGetActiveVersionStepsResult
       | WorkflowReadListVersionHistoryResult
     > => {
-      if (args.operation === 'list_available_actions') {
-        return readAvailableActions({ action: args.action });
-      }
-
       if (args.operation === 'get_structure') {
         if (!args.workflowId) {
           throw new Error(
@@ -151,19 +108,6 @@ BEST PRACTICES:
           );
         }
         return readWorkflowStructure(ctx, { workflowId: args.workflowId });
-      }
-
-      if (args.operation === 'search_examples') {
-        if (!args.query) {
-          throw new Error(
-            "Missing required 'query' for search_examples operation",
-          );
-        }
-        return readWorkflowExamples(ctx, {
-          query: args.query,
-          limit: args.limit,
-          includeInactive: args.includeInactive,
-        });
       }
 
       if (args.operation === 'get_active_version_steps') {

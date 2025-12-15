@@ -4,6 +4,12 @@
  * Saves a complete workflow definition (metadata + all steps) in one atomic operation.
  * If a workflow with the same name already exists for the organization, it will be updated
  * and all existing steps will be replaced with the provided steps.
+ *
+ * Includes built-in validation that checks:
+ * - Valid stepTypes (trigger, llm, action, condition, loop)
+ * - Required fields for each step type
+ * - Valid nextSteps references
+ * - Config structure for each step type
  */
 
 import { z } from 'zod';
@@ -12,6 +18,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import { validateWorkflowDefinition } from '../../../workflow/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({
   name: z
@@ -90,6 +97,8 @@ export const saveWorkflowDefinitionTool = {
       workflowId?: string;
       stepCount?: number;
       message: string;
+      validationErrors?: string[];
+      validationWarnings?: string[];
     }> => {
       const { organizationId, workflowId: workflowIdFromContext } = ctx;
 
@@ -98,11 +107,6 @@ export const saveWorkflowDefinitionTool = {
           success: false,
           message:
             'organizationId is required in the tool context to save a workflow definition.',
-        } satisfies {
-          success: boolean;
-          workflowId?: string;
-          stepCount?: number;
-          message: string;
         };
       }
 
@@ -113,11 +117,22 @@ export const saveWorkflowDefinitionTool = {
           success: false,
           message:
             'workflowId is required to save a workflow definition. This tool only updates existing draft workflows. Ensure it is attached to an automation or provide workflowId explicitly.',
-        } satisfies {
-          success: boolean;
-          workflowId?: string;
-          stepCount?: number;
-          message: string;
+        };
+      }
+
+      // Validate workflow definition before saving
+      const validation = validateWorkflowDefinition(
+        args.workflowConfig,
+        args.stepsConfig as Array<Record<string, unknown>>,
+      );
+
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: `Workflow validation failed with ${validation.errors.length} error(s). Fix the errors and try again.`,
+          validationErrors: validation.errors,
+          validationWarnings:
+            validation.warnings.length > 0 ? validation.warnings : undefined,
         };
       }
 
@@ -155,6 +170,8 @@ export const saveWorkflowDefinitionTool = {
           workflowId: result.workflowId as string,
           stepCount: args.stepsConfig.length,
           message: `Updated workflow "${args.workflowConfig.name}" with ${args.stepsConfig.length} steps (replaced existing steps)`,
+          validationWarnings:
+            validation.warnings.length > 0 ? validation.warnings : undefined,
         };
       } catch (error) {
         return {

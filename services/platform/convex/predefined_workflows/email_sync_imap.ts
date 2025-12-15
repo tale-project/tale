@@ -75,7 +75,6 @@ export const emailSyncImapWorkflow = {
         type: 'email_provider',
         parameters: {
           operation: 'get_imap_credentials',
-          organizationId: '{{organizationId}}',
         },
       },
       nextSteps: {
@@ -147,7 +146,6 @@ export const emailSyncImapWorkflow = {
         type: 'conversation',
         parameters: {
           operation: 'query_latest_message_by_delivery_state',
-          organizationId: '{{organizationId}}',
           channel: 'email',
           direction: 'inbound',
           deliveryState: 'delivered',
@@ -219,7 +217,7 @@ export const emailSyncImapWorkflow = {
       stepType: 'condition',
       order: 7,
       config: {
-        expression: 'steps.fetch_emails.output.data.messages|length > 0',
+        expression: 'steps.fetch_emails.output.data|length > 0',
         description: 'Check if any emails were fetched',
       },
       nextSteps: {
@@ -238,8 +236,7 @@ export const emailSyncImapWorkflow = {
         type: 'conversation',
         parameters: {
           operation: 'create_from_email',
-          organizationId: '{{organizationId}}',
-          emails: '{{steps.fetch_emails.output.data.messages}}', // All fetched emails (including thread messages)
+          emails: '{{steps.fetch_emails.output.data}}', // All fetched emails (including thread messages)
           status: '{{conversationStatus}}', // Configurable status
           providerId: '{{providerId}}', // Email provider ID
         },

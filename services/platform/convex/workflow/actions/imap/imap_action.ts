@@ -8,7 +8,9 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
   type: 'imap',
   title: 'IMAP Email Retriever',
   description: 'Retrieve emails from an IMAP server (Gmail, Outlook, etc.)',
+  // Using v.object() directly since only the 'search' operation exists
   parametersValidator: v.object({
+    operation: v.literal('search'),
     // Credentials (optional if provided in variables)
     host: v.optional(v.string()),
     port: v.optional(v.number()),
@@ -16,14 +18,10 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
     username: v.optional(v.string()),
     password: v.optional(v.string()),
     accessToken: v.optional(v.string()),
-
     // Operation details
-    operation: v.union(v.literal('list'), v.literal('search')),
     mailbox: v.optional(v.string()),
-
     // Fetch parameters
     afterUid: v.optional(v.number()),
-
     // Options
     includeAttachments: v.optional(v.boolean()),
     parseHtml: v.optional(v.boolean()),
@@ -53,10 +51,7 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
       threadSearchFolders = JSON.parse(processedParams.threadSearchFolders);
     }
 
-    // Execute based on operation
-    const startTime = Date.now();
-
-    // Both 'search' and 'list' operations now do the same thing:
+    // Search operation:
     // - If afterUid is provided: fetch 1 email after that UID
     // - If afterUid is not provided: fetch latest email
     // - Always fetch all related thread messages
@@ -79,16 +74,7 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
       },
     );
 
-    const duration = Date.now() - startTime;
-
-    return {
-      success: true,
-      operation: processedParams.operation,
-      mailbox,
-      messages,
-      count: messages.length,
-      duration,
-      timestamp: Date.now(),
-    };
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+    return messages;
   },
 };

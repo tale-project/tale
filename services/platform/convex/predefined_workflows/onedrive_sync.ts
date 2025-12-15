@@ -60,9 +60,7 @@ export const onedriveSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'onedriveSyncConfigs',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -78,7 +76,7 @@ export const onedriveSyncWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_sync_config.output.data.count > 0',
+        expression: 'steps.find_sync_config.output.data != null',
         description: 'Check if any active sync configuration was found',
       },
       nextSteps: {
@@ -97,7 +95,7 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'get_user_token',
-          userId: '{{steps.find_sync_config.output.data.documents[0].userId}}',
+          userId: '{{steps.find_sync_config.output.data.userId}}',
         },
       },
       nextSteps: {
@@ -112,7 +110,7 @@ export const onedriveSyncWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.get_user_token.output.data.data.token != null',
+        expression: 'steps.get_user_token.output.data.token != null',
         description: 'Check if user has valid Microsoft Graph token',
       },
       nextSteps: {
@@ -129,7 +127,7 @@ export const onedriveSyncWorkflow = {
       order: 6,
       config: {
         expression:
-          'steps.get_user_token.output.data.data.needsRefresh == true',
+          'steps.get_user_token.output.data.needsRefresh == true',
         description: 'Check if token needs refresh',
       },
       nextSteps: {
@@ -148,9 +146,9 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'refresh_token',
-          accountId: '{{steps.get_user_token.output.data.data.accountId}}',
+          accountId: '{{steps.get_user_token.output.data.accountId}}',
           refreshToken:
-            '{{steps.get_user_token.output.data.data.refreshToken}}',
+            '{{steps.get_user_token.output.data.refreshToken}}',
         },
       },
       nextSteps: {
@@ -167,7 +165,7 @@ export const onedriveSyncWorkflow = {
       order: 8,
       config: {
         expression:
-          'steps.find_sync_config.output.data.documents[0].itemType == "file"',
+          'steps.find_sync_config.output.data.itemType == "file"',
         description: 'Check if item is a file or folder',
       },
       nextSteps: {
@@ -186,9 +184,9 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'read_file',
-          itemId: '{{steps.find_sync_config.output.data.documents[0].itemId}}',
+          itemId: '{{steps.find_sync_config.output.data.itemId}}',
           token:
-            '{{steps.refresh_token.output.data.data.token || steps.get_user_token.output.data.data.token}}',
+            '{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}',
         },
       },
       nextSteps: {
@@ -207,9 +205,9 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'list_folder_contents',
-          itemId: '{{steps.find_sync_config.output.data.documents[0].itemId}}',
+          itemId: '{{steps.find_sync_config.output.data.itemId}}',
           token:
-            '{{steps.refresh_token.output.data.data.token || steps.get_user_token.output.data.data.token}}',
+            '{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}',
         },
       },
       nextSteps: {
@@ -228,13 +226,12 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'sync_folder_files',
-          organizationId: '{{organizationId}}',
           token:
-            '{{steps.refresh_token.output.data.data.token || steps.get_user_token.output.data.data.token}}',
-          files: '{{steps.list_folder_contents.output.data.data.files}}',
+            '{{steps.refresh_token.output.data.token || steps.get_user_token.output.data.token}}',
+          files: '{{steps.list_folder_contents.output.data}}',
           folderItemPath:
-            '{{steps.find_sync_config.output.data.documents[0].itemPath}}',
-          configId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
+            '{{steps.find_sync_config.output.data.itemPath}}',
+          configId: '{{steps.find_sync_config.output.data._id}}',
         },
       },
       nextSteps: {
@@ -253,21 +250,20 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'upload_to_storage',
-          organizationId: '{{organizationId}}',
           fileName:
-            '{{steps.find_sync_config.output.data.documents[0].itemName}}',
-          fileContent: '{{steps.read_onedrive_file.output.data.data.content}}',
-          contentType: '{{steps.read_onedrive_file.output.data.data.mimeType}}',
+            '{{steps.find_sync_config.output.data.itemName}}',
+          fileContent: '{{steps.read_onedrive_file.output.data.content}}',
+          contentType: '{{steps.read_onedrive_file.output.data.mimeType}}',
           storagePath:
-            '{{steps.find_sync_config.output.data.documents[0].storagePrefix}}/{{steps.find_sync_config.output.data.documents[0].itemName}}',
+            '{{steps.find_sync_config.output.data.storagePrefix}}/{{steps.find_sync_config.output.data.itemName}}',
           targetBucket: '{{targetBucket}}',
           metadata: {
             oneDriveItemId:
-              '{{steps.find_sync_config.output.data.documents[0].itemId}}',
+              '{{steps.find_sync_config.output.data.itemId}}',
             itemPath:
-              '{{steps.find_sync_config.output.data.documents[0].itemPath}}',
+              '{{steps.find_sync_config.output.data.itemPath}}',
             syncConfigId:
-              '{{steps.find_sync_config.output.data.documents[0]._id}}',
+              '{{steps.find_sync_config.output.data._id}}',
             syncedAt: '{{now}}',
           },
         },
@@ -288,7 +284,7 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'update_sync_config',
-          configId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
+          configId: '{{steps.find_sync_config.output.data._id}}',
           status: 'active',
           lastSyncAt: '{{nowMs}}',
           lastSyncStatus: 'success',
@@ -309,7 +305,7 @@ export const onedriveSyncWorkflow = {
         type: 'onedrive',
         parameters: {
           operation: 'update_sync_config',
-          configId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
+          configId: '{{steps.find_sync_config.output.data._id}}',
           status: 'error',
           lastSyncAt: '{{nowMs}}',
           lastSyncStatus: 'failed',
@@ -332,12 +328,10 @@ export const onedriveSyncWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'onedriveSyncConfigs',
-          recordId: '{{steps.find_sync_config.output.data.documents[0]._id}}',
+          recordId: '{{steps.find_sync_config.output.data._id}}',
           recordCreationTime:
-            '{{steps.find_sync_config.output.data.documents[0]._creationTime}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
+            '{{steps.find_sync_config.output.data._creationTime}}',
         },
       },
       nextSteps: {
