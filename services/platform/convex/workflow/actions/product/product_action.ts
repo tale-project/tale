@@ -40,12 +40,6 @@ type CreateProductResult = {
   productId: Id<'products'>;
 };
 
-type UpdateProductsResult = {
-  success: boolean;
-  updatedCount: number;
-  updatedIds: Id<'products'>[];
-};
-
 type QueryResult<T = unknown> = {
   page: T[];
   isDone: boolean;
@@ -53,106 +47,140 @@ type QueryResult<T = unknown> = {
   count: number;
 };
 
-export const productAction: ActionDefinition<{
-  operation:
-    | 'create'
-    | 'get_by_id'
-    | 'query'
-    | 'update'
-    | 'filter'
-    | 'hydrate_fields';
-  productId?: string;
-  organizationId?: string;
-  name?: string;
-  description?: string;
-  imageUrl?: string;
-  stock?: number;
-  price?: number;
-  currency?: string;
-  category?: string;
-  tags?: string[];
-  status?: 'active' | 'inactive' | 'draft' | 'archived';
-  externalId?: string | number | (string | number)[];
-  metadata?: Record<string, unknown>;
+// Common field validators
+const statusValidator = v.optional(
+  v.union(
+    v.literal('active'),
+    v.literal('inactive'),
+    v.literal('draft'),
+    v.literal('archived'),
+  ),
+);
 
-  updates?: Record<string, unknown>;
-  paginationOpts?: {
-    numItems: number;
-    cursor: string | null;
-  };
-  expression?: string;
+const paginationOptsValidator = v.object({
+  numItems: v.number(),
+  cursor: v.union(v.string(), v.null()),
+});
 
-  // hydrate_fields
-  items?: unknown;
-  idField?: string;
-  mappings?: Record<string, string>;
-  preserveExisting?: boolean;
-}> = {
+const externalIdValidator = v.optional(
+  v.union(v.string(), v.number(), v.array(v.union(v.string(), v.number()))),
+);
+
+// Type for product operation params (discriminated union)
+type ProductActionParams =
+  | {
+      operation: 'create';
+      name: string;
+      description?: string;
+      imageUrl?: string;
+      stock?: number;
+      price?: number;
+      currency?: string;
+      category?: string;
+      tags?: string[];
+      status?: 'active' | 'inactive' | 'draft' | 'archived';
+      externalId?: string | number | (string | number)[];
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      operation: 'get_by_id';
+      productId: string;
+    }
+  | {
+      operation: 'query';
+      paginationOpts: { numItems: number; cursor: string | null };
+      externalId?: string | number | (string | number)[];
+      status?: 'active' | 'inactive' | 'draft' | 'archived';
+      category?: string;
+    }
+  | {
+      operation: 'update';
+      productId: string;
+      updates: Record<string, unknown>;
+    }
+  | {
+      operation: 'filter';
+      expression: string;
+    }
+  | {
+      operation: 'hydrate_fields';
+      items: unknown;
+      idField?: string;
+      mappings?: Record<string, string>;
+      preserveExisting?: boolean;
+    };
+
+export const productAction: ActionDefinition<ProductActionParams> = {
   type: 'product',
   title: 'Product Operation',
   description:
-    'Execute product-specific operations (create, get_by_id, query, update, filter, hydrate_fields)',
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('create'),
-      v.literal('get_by_id'),
-      v.literal('query'),
-      v.literal('update'),
-      v.literal('filter'),
-      v.literal('hydrate_fields'),
-    ),
-    productId: v.optional(v.id('products')),
-    organizationId: v.optional(v.string()),
-    name: v.optional(v.string()),
-    description: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-    stock: v.optional(v.number()),
-    price: v.optional(v.number()),
-    currency: v.optional(v.string()),
-    category: v.optional(v.string()),
-    tags: v.optional(v.array(v.string())),
-    status: v.optional(
-      v.union(
-        v.literal('active'),
-        v.literal('inactive'),
-        v.literal('draft'),
-        v.literal('archived'),
-      ),
-    ),
-    externalId: v.optional(
-      v.union(v.string(), v.number(), v.array(v.union(v.string(), v.number()))),
-    ),
-    metadata: v.optional(v.any()),
-    updates: v.optional(v.any()),
-    paginationOpts: v.optional(
-      v.object({
-        numItems: v.number(),
-        cursor: v.union(v.string(), v.null()),
-      }),
-    ),
-    expression: v.optional(v.string()),
+    'Execute product-specific operations (create, get_by_id, query, update, filter, hydrate_fields). organizationId is automatically read from workflow context variables.',
+  parametersValidator: v.union(
+    // create: Create a new product
+    v.object({
+      operation: v.literal('create'),
+      name: v.string(),
+      description: v.optional(v.string()),
+      imageUrl: v.optional(v.string()),
+      stock: v.optional(v.number()),
+      price: v.optional(v.number()),
+      currency: v.optional(v.string()),
+      category: v.optional(v.string()),
+      tags: v.optional(v.array(v.string())),
+      status: statusValidator,
+      externalId: externalIdValidator,
+      metadata: v.optional(v.any()),
+    }),
+    // get_by_id: Get a product by ID
+    v.object({
+      operation: v.literal('get_by_id'),
+      productId: v.id('products'),
+    }),
+    // query: Query products with pagination
+    v.object({
+      operation: v.literal('query'),
+      paginationOpts: paginationOptsValidator,
+      externalId: externalIdValidator,
+      status: statusValidator,
+      category: v.optional(v.string()),
+    }),
+    // update: Update a product by ID
+    v.object({
+      operation: v.literal('update'),
+      productId: v.id('products'),
+      updates: v.any(),
+    }),
+    // filter: Filter products using JEXL expressions
+    v.object({
+      operation: v.literal('filter'),
+      expression: v.string(),
+    }),
+    // hydrate_fields: Hydrate product fields from database
+    v.object({
+      operation: v.literal('hydrate_fields'),
+      items: v.any(),
+      idField: v.optional(v.string()),
+      mappings: v.optional(v.record(v.string(), v.string())),
+      preserveExisting: v.optional(v.boolean()),
+    }),
+  ),
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables
+    const organizationId = variables.organizationId as string;
 
-    // hydrate_fields parameters
-    items: v.optional(v.any()),
-    idField: v.optional(v.string()),
-    mappings: v.optional(v.record(v.string(), v.string())),
-    preserveExisting: v.optional(v.boolean()),
-  }),
-  async execute(ctx, params) {
     switch (params.operation) {
       case 'create': {
-        if (!params.organizationId) {
-          throw new Error('create operation requires organizationId parameter');
-        }
-        if (!params.name) {
-          throw new Error('create operation requires name parameter');
+        if (!organizationId) {
+          throw new Error(
+            'product create requires organizationId in workflow context',
+          );
         }
 
         const result = (await ctx.runMutation!(
           internal.products.createProduct,
           {
-            organizationId: params.organizationId,
-            name: params.name,
+            organizationId,
+            name: params.name, // Required by validator
             description: params.description,
             imageUrl: params.imageUrl,
             stock: params.stock,
@@ -168,118 +196,87 @@ export const productAction: ActionDefinition<{
           },
         )) as CreateProductResult;
 
-        return {
-          operation: 'create',
-          productId: result.productId,
-          success: result.success,
-          timestamp: Date.now(),
-        };
+        // Fetch and return the full created entity
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        const createdProduct = await ctx.runQuery!(
+          internal.products.getProductById,
+          { productId: result.productId },
+        );
+
+        return createdProduct;
       }
 
       case 'get_by_id': {
-        if (!params.productId) {
-          throw new Error('get_by_id operation requires productId parameter');
-        }
-
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const product = await ctx.runQuery!(internal.products.getProductById, {
-          productId: params.productId as Id<'products'>,
+          productId: params.productId as Id<'products'>, // Required by validator
         });
 
-        return {
-          operation: 'get_by_id',
-          result: product,
-          found: product !== null,
-          timestamp: Date.now(),
-        };
+        return product;
       }
 
       case 'query': {
-        if (!params.organizationId) {
-          throw new Error('query operation requires organizationId parameter');
+        if (!organizationId) {
+          throw new Error(
+            'product query requires organizationId in workflow context',
+          );
         }
 
-        if (!params.paginationOpts) {
-          throw new Error('query operation requires paginationOpts parameter');
-        }
-
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        // For pagination queries, we return the full result object (page, isDone, continueCursor)
         const result = (await ctx.runQuery!(internal.products.queryProducts, {
-          organizationId: params.organizationId,
+          organizationId,
           externalId: params.externalId,
           status: params.status,
           category: params.category,
-          paginationOpts: params.paginationOpts,
+          paginationOpts: params.paginationOpts, // Required by validator
         })) as QueryResult;
 
         return {
-          operation: 'query',
           page: result.page,
           isDone: result.isDone,
           continueCursor: result.continueCursor,
-          count: result.count,
-          timestamp: Date.now(),
         };
       }
 
       case 'update': {
-        if (!params.productId && !params.organizationId) {
-          throw new Error(
-            'update operation requires either productId or organizationId parameter',
-          );
-        }
-        if (!params.updates) {
-          throw new Error('update operation requires updates parameter');
-        }
+        await ctx.runMutation!(internal.products.updateProducts, {
+          productId: params.productId as Id<'products'>, // Required by validator
+          updates: params.updates, // Required by validator
+        });
 
-        const result = (await ctx.runMutation!(
-          internal.products.updateProducts,
-          {
-            productId: params.productId as Id<'products'> | undefined,
-            organizationId: params.organizationId as string | undefined,
-            externalId: params.externalId,
-            status: params.status,
-            category: params.category,
-            updates: params.updates,
-          },
-        )) as UpdateProductsResult;
+        // Fetch and return the updated entity
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        const updatedProduct = await ctx.runQuery!(
+          internal.products.getProductById,
+          { productId: params.productId as Id<'products'> },
+        );
 
-        return {
-          operation: 'update',
-          updatedCount: result.updatedCount,
-          updatedIds: result.updatedIds,
-          success: result.success,
-          timestamp: Date.now(),
-        };
+        return updatedProduct;
       }
 
       case 'filter': {
         // ⚠️ WARNING: This operation loops through ALL products in the organization.
         // Use with caution on large datasets. For simple queries, prefer the 'query' operation.
-        if (!params.organizationId) {
-          throw new Error('filter operation requires organizationId parameter');
-        }
-        if (!params.expression) {
-          throw new Error('filter operation requires expression parameter');
+        if (!organizationId) {
+          throw new Error(
+            'product filter requires organizationId in workflow context',
+          );
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = (await ctx.runQuery!(internal.products.filterProducts, {
-          organizationId: params.organizationId,
-          expression: params.expression,
+          organizationId,
+          expression: params.expression, // Required by validator
         })) as { products: unknown[]; count: number };
 
-        return {
-          operation: 'filter',
-          products: result.products,
-          count: result.count,
-          timestamp: Date.now(),
-        };
+        return result.products;
       }
 
       case 'hydrate_fields': {
         const input: any[] = Array.isArray(params.items)
           ? (params.items as any[])
-          : Array.isArray((params as any).recommendations)
-            ? ((params as any).recommendations as any[])
-            : [];
+          : [];
 
         const idField: string = params.idField ?? 'product_id';
         const mappings: Record<string, string> = params.mappings ?? {};
@@ -316,12 +313,8 @@ export const productAction: ActionDefinition<{
           }
         }
 
-        return {
-          operation: 'hydrate_fields',
-          items: hydrated,
-          recommendations: hydrated,
-          timestamp: Date.now(),
-        };
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        return hydrated;
       }
 
       default:

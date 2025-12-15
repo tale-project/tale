@@ -81,7 +81,6 @@ export const websiteScanWorkflow = {
         type: 'website',
         parameters: {
           operation: 'get_by_domain',
-          organizationId: '{{organizationId}}',
           domain: '{{websiteDomain}}',
         },
       },
@@ -98,7 +97,7 @@ export const websiteScanWorkflow = {
       order: 4,
       config: {
         expression:
-          'steps.check_existing_website_for_metadata.output.data.found == true',
+          'steps.check_existing_website_for_metadata.output.data != null',
       },
       nextSteps: {
         true: 'update_website_metadata',
@@ -116,7 +115,6 @@ export const websiteScanWorkflow = {
         type: 'website',
         parameters: {
           operation: 'create',
-          organizationId: '{{organizationId}}',
           domain: '{{websiteDomain}}',
           title:
             '{{steps.fetch_main_page.output.data.pages[0].metadata.title || steps.fetch_main_page.output.data.pages[0].title || websiteDomain}}',
@@ -147,7 +145,7 @@ export const websiteScanWorkflow = {
         parameters: {
           operation: 'update',
           websiteId:
-            '{{steps.check_existing_website_for_metadata.output.data.website._id}}',
+            '{{steps.check_existing_website_for_metadata.output.data._id}}',
           title:
             '{{steps.fetch_main_page.output.data.pages[0].metadata.title || steps.fetch_main_page.output.data.pages[0].title || websiteDomain}}',
           description:
@@ -197,7 +195,7 @@ export const websiteScanWorkflow = {
         parameters: {
           operation: 'update',
           websiteId:
-            '{{steps.create_website_with_metadata.output.data.websiteId || steps.check_existing_website_for_metadata.output.data.website._id}}',
+            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
           metadata: {
             urls_discovered:
               '{{steps.discover_urls.output.data.urls_discovered}}',
@@ -258,10 +256,9 @@ export const websiteScanWorkflow = {
         type: 'websitePages',
         parameters: {
           operation: 'bulk_upsert',
-          organizationId: '{{organizationId}}',
           websiteId:
-            '{{steps.create_website_with_metadata.output.data.websiteId || steps.check_existing_website_for_metadata.output.data.website._id}}',
-          pages: '{{steps.fetch_single_url.output.data.pages}}',
+            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
+          pages: '{{steps.fetch_single_url.output.datas}}',
         },
       },
       nextSteps: {
@@ -280,7 +277,7 @@ export const websiteScanWorkflow = {
         parameters: {
           operation: 'update',
           websiteId:
-            '{{steps.create_website_with_metadata.output.data.websiteId || steps.check_existing_website_for_metadata.output.data.website._id}}',
+            '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
           status: 'active',
           lastScannedAt: '{{nowMs}}',
           metadata: {

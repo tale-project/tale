@@ -10,7 +10,6 @@ export async function recordProcessed(
     tableName: TableName;
     recordId: string;
     wfDefinitionId: string;
-    recordCreationTime: number;
     metadata?: unknown;
   },
 ): Promise<RecordProcessedResult> {
@@ -22,15 +21,17 @@ export async function recordProcessed(
         tableName: params.tableName,
         recordId: params.recordId,
         wfDefinitionId: params.wfDefinitionId,
-        recordCreationTime: params.recordCreationTime,
+        recordCreationTime: Date.now(), // Auto-populated
         metadata: params.metadata,
       },
     );
 
-  return {
-    operation: 'record_processed',
-    recordId: processingRecordId,
-    success: true,
-    timestamp: Date.now(),
-  };
+  // Fetch and return the full created entity
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  const createdRecord = await ctx.runQuery(
+    internal.workflow_processing_records.getProcessingRecordById,
+    { processingRecordId },
+  );
+
+  return createdRecord;
 }

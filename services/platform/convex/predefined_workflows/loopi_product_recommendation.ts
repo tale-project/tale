@@ -73,9 +73,7 @@ export const loopiProductRecommendationWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -91,7 +89,7 @@ export const loopiProductRecommendationWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_customer.output.data.count > 0',
+        expression: 'steps.find_unprocessed_customer.output.data != null',
         description: 'Check if we found an unprocessed customer',
       },
       nextSteps: {
@@ -113,32 +111,32 @@ export const loopiProductRecommendationWorkflow = {
             {
               name: 'currentCustomer',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]}}',
+                '{{steps.find_unprocessed_customer.output.data}}',
             },
             {
               name: 'currentCustomerId',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0]._id}}',
+                '{{steps.find_unprocessed_customer.output.data._id}}',
             },
             {
               name: 'currentCustomerName',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].name}}',
+                '{{steps.find_unprocessed_customer.output.data.name}}',
             },
             {
               name: 'currentCustomerEmail',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].email}}',
+                '{{steps.find_unprocessed_customer.output.data.email}}',
             },
             {
               name: 'currentCustomerStatus',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].status}}',
+                '{{steps.find_unprocessed_customer.output.data.status}}',
             },
             {
               name: 'customerProductIds',
               value:
-                '{{steps.find_unprocessed_customer.output.data.documents[0].metadata.subscriptions.data|map("product_id")|unique}}',
+                '{{steps.find_unprocessed_customer.output.data.metadata.subscriptions.data|map("product_id")|unique}}',
             },
             {
               name: 'customerProductCount',
@@ -194,7 +192,6 @@ export const loopiProductRecommendationWorkflow = {
         type: 'product',
         parameters: {
           operation: 'filter',
-          organizationId: '{{organizationId}}',
           expression:
             'metadata.circuly.variants|map("shop_variant_id")|hasOverlap({{customerProductIds}})',
         },
@@ -257,7 +254,7 @@ Customer ID: {{currentCustomerId}}
 Customer Status: {{currentCustomerStatus}}
 
 Customer's Current Products (these are the products they already have subscriptions for):
-{{steps.filter_customer_products.output.data.products|formatList("Product ID: {_id}\nName: {name}\nCategory: {category}\nPrice: €{price}/month\nDescription: {description}\nImage URL: {imageUrl}\nStock: {stock}\nStatus: {status}\nRelationships: {metadata.relationships}", "\n\n---\n\n")}}
+{{steps.filter_customer_products.output.data|formatList("Product ID: {_id}\nName: {name}\nCategory: {category}\nPrice: €{price}/month\nDescription: {description}\nImage URL: {imageUrl}\nStock: {stock}\nStatus: {status}\nRelationships: {metadata.relationships}", "\n\n---\n\n")}}
 
 Task:
 Generate EXACTLY 5 product recommendations for this customer. This is MANDATORY - you must provide 5 recommendations.
@@ -439,7 +436,6 @@ DO NOT use the same confidence score for all recommendations.`,
         type: 'approval',
         parameters: {
           operation: 'create_approval',
-          organizationId: '{{organizationId}}',
           resourceType: 'product_recommendation',
           resourceId: '{{currentCustomerId}}',
           priority: 'medium',
@@ -472,9 +468,7 @@ DO NOT use the same confidence score for all recommendations.`,
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'customers',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordId: '{{currentCustomerId}}',
           recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {

@@ -3,9 +3,10 @@
  *
  * These actions provide OneDrive integration operations for workflows:
  * - get_user_token: Get Microsoft Graph token for a specific user
+ * - refresh_token: Refresh Microsoft Graph token
  * - read_file: Read file content from OneDrive
  * - list_folder_contents: List files in a OneDrive folder
- * - create_file_sync_configs: Create sync configs for files in a folder
+ * - sync_folder_files: Sync files from OneDrive folder to storage
  * - upload_to_storage: Upload file to Convex storage
  * - update_sync_config: Update OneDrive sync configuration status
  */
@@ -15,144 +16,143 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
-export const onedriveAction: ActionDefinition<{
-  operation:
-    | 'get_user_token'
-    | 'refresh_token'
-    | 'read_file'
-    | 'list_folder_contents'
-    | 'create_file_sync_configs'
-    | 'sync_folder_files'
-    | 'upload_to_storage'
-    | 'update_sync_config';
-  // get_user_token parameters
-  userId?: string;
-  // refresh_token parameters
-  accountId?: string;
-  refreshToken?: string;
-  // read_file parameters
-  itemId?: string;
-  token?: string;
-  // list_folder_contents parameters (uses itemId and token)
-  // create_file_sync_configs parameters
-  organizationId?: string;
-  targetBucket?: string;
-  folderStoragePrefix?: string;
-  folderItemPath?: string;
-  files?: Array<{
-    id: string;
-    name: string;
-    size: number;
-    mimeType?: string;
-  }>;
-  // upload_to_storage parameters
-  fileName?: string;
-  fileContent?: ArrayBuffer | string;
-  contentType?: string;
-  storagePath?: string;
-  metadata?: Record<string, unknown>;
-  // update_sync_config parameters
-  configId?: string;
-  status?: 'active' | 'inactive' | 'error';
-  lastSyncAt?: number;
-  lastSyncStatus?: string;
-  errorMessage?: string;
-}> = {
+// Common field validators
+const filesValidator = v.array(
+  v.object({
+    id: v.string(),
+    name: v.string(),
+    size: v.number(),
+    mimeType: v.optional(v.string()),
+    lastModified: v.optional(v.number()),
+  }),
+);
+
+const statusValidator = v.optional(
+  v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
+);
+
+// Type for OneDrive operation params (discriminated union)
+type OneDriveActionParams =
+  | { operation: 'get_user_token'; userId: string }
+  | { operation: 'refresh_token'; accountId: string; refreshToken: string }
+  | { operation: 'read_file'; itemId: string; token: string }
+  | { operation: 'list_folder_contents'; itemId: string; token: string }
+  | {
+      operation: 'sync_folder_files';
+      files: Array<{
+        id: string;
+        name: string;
+        size: number;
+        mimeType?: string;
+        lastModified?: number;
+      }>;
+      token: string;
+      folderItemPath?: string;
+      configId?: string;
+    }
+  | {
+      operation: 'upload_to_storage';
+      fileName: string;
+      fileContent: ArrayBuffer | string;
+      contentType?: string;
+      storagePath?: string;
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      operation: 'update_sync_config';
+      configId: string;
+      status?: 'active' | 'inactive' | 'error';
+      lastSyncAt?: number;
+      lastSyncStatus?: string;
+      errorMessage?: string;
+    };
+
+export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
   type: 'onedrive',
   title: 'OneDrive Operation',
   description:
-    'Execute OneDrive operations (get_user_token, refresh_token, read_file, list_folder_contents, create_file_sync_configs, sync_folder_files, upload_to_storage, update_sync_config)',
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('get_user_token'),
-      v.literal('refresh_token'),
-      v.literal('read_file'),
-      v.literal('list_folder_contents'),
-      v.literal('create_file_sync_configs'),
-      v.literal('sync_folder_files'),
-      v.literal('upload_to_storage'),
-      v.literal('update_sync_config'),
-    ),
-    userId: v.optional(v.string()),
-    accountId: v.optional(v.string()),
-    refreshToken: v.optional(v.string()),
-    itemId: v.optional(v.string()),
-    token: v.optional(v.string()),
-    organizationId: v.optional(v.string()),
-    targetBucket: v.optional(v.string()),
-    folderStoragePrefix: v.optional(v.string()),
-    folderItemPath: v.optional(v.string()),
-    files: v.optional(
-      v.array(
-        v.object({
-          id: v.string(),
-          name: v.string(),
-          size: v.number(),
-          mimeType: v.optional(v.string()),
-          lastModified: v.optional(v.number()),
-        }),
-      ),
-    ),
-    fileName: v.optional(v.string()),
-    fileContent: v.optional(v.any()),
-    contentType: v.optional(v.string()),
-    storagePath: v.optional(v.string()),
-    metadata: v.optional(v.any()),
-    configId: v.optional(v.id('onedriveSyncConfigs')),
-    status: v.optional(
-      v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
-    ),
-    lastSyncAt: v.optional(v.number()),
-    lastSyncStatus: v.optional(v.string()),
-    errorMessage: v.optional(v.string()),
-  }),
-  async execute(ctx, params) {
+    'Execute OneDrive operations (get_user_token, refresh_token, read_file, list_folder_contents, sync_folder_files, upload_to_storage, update_sync_config). organizationId is automatically read from workflow context variables.',
+  parametersValidator: v.union(
+    // get_user_token: Get Microsoft Graph token for a user
+    v.object({
+      operation: v.literal('get_user_token'),
+      userId: v.string(),
+    }),
+    // refresh_token: Refresh Microsoft Graph token
+    v.object({
+      operation: v.literal('refresh_token'),
+      accountId: v.string(),
+      refreshToken: v.string(),
+    }),
+    // read_file: Read file content from OneDrive
+    v.object({
+      operation: v.literal('read_file'),
+      itemId: v.string(),
+      token: v.string(),
+    }),
+    // list_folder_contents: List files in a OneDrive folder
+    v.object({
+      operation: v.literal('list_folder_contents'),
+      itemId: v.string(),
+      token: v.string(),
+    }),
+    // sync_folder_files: Sync files from OneDrive folder to storage
+    v.object({
+      operation: v.literal('sync_folder_files'),
+      files: filesValidator,
+      token: v.string(),
+      folderItemPath: v.optional(v.string()),
+      configId: v.optional(v.id('onedriveSyncConfigs')),
+    }),
+    // upload_to_storage: Upload file to Convex storage
+    v.object({
+      operation: v.literal('upload_to_storage'),
+      fileName: v.string(),
+      fileContent: v.any(),
+      contentType: v.optional(v.string()),
+      storagePath: v.optional(v.string()),
+      metadata: v.optional(v.any()),
+    }),
+    // update_sync_config: Update OneDrive sync configuration
+    v.object({
+      operation: v.literal('update_sync_config'),
+      configId: v.id('onedriveSyncConfigs'),
+      status: statusValidator,
+      lastSyncAt: v.optional(v.number()),
+      lastSyncStatus: v.optional(v.string()),
+      errorMessage: v.optional(v.string()),
+    }),
+  ),
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables
+    const organizationId = variables.organizationId as string;
     switch (params.operation) {
       case 'get_user_token': {
-        if (!params.userId) {
-          throw new Error('get_user_token operation requires userId parameter');
-        }
-
         // Get Microsoft Graph token for the specific user
         const result = await ctx.runQuery!(
           internal.onedrive.getUserMicrosoftGraphToken,
           {
-            userId: params.userId,
+            userId: params.userId, // Required by validator
           },
         );
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'get_user_token',
-          data: {
-            token: result.token,
-            needsRefresh: result.needsRefresh,
-            accountId: result.accountId,
-            refreshToken: result.refreshToken,
-            userId: params.userId,
-          },
-          success: result.token !== null,
-          timestamp: Date.now(),
+          token: result.token,
+          needsRefresh: result.needsRefresh,
+          accountId: result.accountId,
+          refreshToken: result.refreshToken,
+          userId: params.userId,
         };
       }
 
       case 'refresh_token': {
-        if (!params.accountId) {
-          throw new Error(
-            'refresh_token operation requires accountId parameter',
-          );
-        }
-        if (!params.refreshToken) {
-          throw new Error(
-            'refresh_token operation requires refreshToken parameter',
-          );
-        }
-
         // Refresh the Microsoft Graph token
         const result = await ctx.runAction!(
           internal.onedrive.refreshMicrosoftGraphToken,
           {
-            accountId: params.accountId,
-            refreshToken: params.refreshToken,
+            accountId: params.accountId, // Required by validator
+            refreshToken: params.refreshToken, // Required by validator
           },
         );
 
@@ -160,30 +160,19 @@ export const onedriveAction: ActionDefinition<{
           throw new Error(result.error || 'Failed to refresh token');
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'refresh_token',
-          data: {
-            token: result.accessToken,
-          },
-          success: true,
-          timestamp: Date.now(),
+          token: result.accessToken,
         };
       }
 
       case 'read_file': {
-        if (!params.itemId) {
-          throw new Error('read_file operation requires itemId parameter');
-        }
-        if (!params.token) {
-          throw new Error('read_file operation requires token parameter');
-        }
-
         // Read file from OneDrive using Microsoft Graph API
         const result = await ctx.runAction!(
           internal.onedrive.readFileFromOneDrive,
           {
-            itemId: params.itemId,
-            token: params.token,
+            itemId: params.itemId, // Required by validator
+            token: params.token, // Required by validator
           },
         );
 
@@ -191,43 +180,29 @@ export const onedriveAction: ActionDefinition<{
           throw new Error(result.error || 'Failed to read file from OneDrive');
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'read_file',
-          data: {
-            content: result.content,
-            mimeType: result.mimeType,
-            size: result.size,
-          },
-          success: true,
-          timestamp: Date.now(),
+          content: result.content,
+          mimeType: result.mimeType,
+          size: result.size,
         };
       }
 
       case 'upload_to_storage': {
-        if (!params.organizationId) {
+        if (!organizationId) {
           throw new Error(
-            'upload_to_storage operation requires organizationId parameter',
-          );
-        }
-        if (!params.fileName) {
-          throw new Error(
-            'upload_to_storage operation requires fileName parameter',
-          );
-        }
-        if (!params.fileContent) {
-          throw new Error(
-            'upload_to_storage operation requires fileContent parameter',
+            'upload_to_storage requires organizationId in workflow context',
           );
         }
 
         // Upload file to Convex storage
         const result = await ctx.runAction!(internal.onedrive.uploadToStorage, {
-          organizationId: params.organizationId,
-          fileName: params.fileName,
+          organizationId,
+          fileName: params.fileName, // Required by validator
           fileData:
             typeof params.fileContent === 'string'
               ? new TextEncoder().encode(params.fileContent).buffer
-              : params.fileContent,
+              : params.fileContent, // Required by validator
           contentType: params.contentType || 'application/octet-stream',
           metadata: params.metadata || {},
         });
@@ -236,36 +211,21 @@ export const onedriveAction: ActionDefinition<{
           throw new Error(result.error || 'Failed to upload file to storage');
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'upload_to_storage',
-          data: {
-            fileId: result.fileId,
-            documentId: result.documentId,
-            storagePath: params.storagePath,
-          },
-          success: true,
-          timestamp: Date.now(),
+          fileId: result.fileId,
+          documentId: result.documentId,
+          storagePath: params.storagePath,
         };
       }
 
       case 'list_folder_contents': {
-        if (!params.itemId) {
-          throw new Error(
-            'list_folder_contents operation requires itemId parameter',
-          );
-        }
-        if (!params.token) {
-          throw new Error(
-            'list_folder_contents operation requires token parameter',
-          );
-        }
-
         // List files in OneDrive folder using Microsoft Graph API
         const result = await ctx.runAction!(
           internal.onedrive.listFolderContents,
           {
-            itemId: params.itemId,
-            token: params.token,
+            itemId: params.itemId, // Required by validator
+            token: params.token, // Required by validator
           },
         );
 
@@ -275,91 +235,14 @@ export const onedriveAction: ActionDefinition<{
           );
         }
 
-        return {
-          operation: 'list_folder_contents',
-          data: {
-            files: result.files || [],
-            count: result.files?.length || 0,
-          },
-          success: true,
-          timestamp: Date.now(),
-        };
-      }
-
-      case 'create_file_sync_configs': {
-        if (!params.organizationId) {
-          throw new Error(
-            'create_file_sync_configs operation requires organizationId parameter',
-          );
-        }
-        if (!params.userId) {
-          throw new Error(
-            'create_file_sync_configs operation requires userId parameter',
-          );
-        }
-        if (!params.targetBucket) {
-          throw new Error(
-            'create_file_sync_configs operation requires targetBucket parameter',
-          );
-        }
-        if (!params.folderStoragePrefix) {
-          throw new Error(
-            'create_file_sync_configs operation requires folderStoragePrefix parameter',
-          );
-        }
-        if (!params.folderItemPath) {
-          throw new Error(
-            'create_file_sync_configs operation requires folderItemPath parameter',
-          );
-        }
-        if (!params.files) {
-          throw new Error(
-            'create_file_sync_configs operation requires files parameter',
-          );
-        }
-
-        // Create sync configs for each file in the folder
-        const result = await ctx.runMutation!(
-          internal.onedrive.createSyncConfigsForFiles,
-          {
-            organizationId: params.organizationId,
-            userId: params.userId,
-            targetBucket: params.targetBucket,
-            folderStoragePrefix: params.folderStoragePrefix,
-            folderItemPath: params.folderItemPath,
-            files: params.files.map((f) => ({
-              id: f.id,
-              name: f.name,
-              size: f.size,
-              mimeType: f.mimeType,
-            })),
-          },
-        );
-
-        return {
-          operation: 'create_file_sync_configs',
-          data: {
-            count: result.count,
-          },
-          success: true,
-          timestamp: Date.now(),
-        };
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        return result.files || [];
       }
 
       case 'sync_folder_files': {
-        if (!params.organizationId) {
+        if (!organizationId) {
           throw new Error(
-            'sync_folder_files operation requires organizationId parameter',
-          );
-        }
-        if (!params.files) {
-          throw new Error(
-            'sync_folder_files operation requires files parameter',
-          );
-        }
-        if (!params.token) {
-          throw new Error(
-            'sync_folder_files operation requires token parameter',
+            'sync_folder_files requires organizationId in workflow context',
           );
         }
 
@@ -370,7 +253,7 @@ export const onedriveAction: ActionDefinition<{
         // eslint-disable-next-line no-constant-condition
         while (true) {
           const res = (await ctx.runQuery!(internal.documents.queryDocuments, {
-            organizationId: params.organizationId,
+            organizationId,
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },
           })) as {
@@ -396,9 +279,10 @@ export const onedriveAction: ActionDefinition<{
         const errors: Array<{ itemId: string; error: string }> = [];
 
         for (const f of params.files) {
+          // Required by validator
           try {
             const existing = existingByItemId.get(f.id);
-            const lastModified = (f as any).lastModified as number | undefined;
+            const lastModified = f.lastModified;
             const prevModified = existing
               ? (((existing as any).metadata || {}).sourceModifiedAt as
                   | number
@@ -418,7 +302,7 @@ export const onedriveAction: ActionDefinition<{
             // Read file from OneDrive
             const readRes = await ctx.runAction!(
               internal.onedrive.readFileFromOneDrive,
-              { itemId: f.id, token: params.token },
+              { itemId: f.id, token: params.token }, // Required by validator
             );
             if (!readRes.success || !readRes.content) {
               throw new Error(readRes.error || 'Failed to read file');
@@ -442,7 +326,7 @@ export const onedriveAction: ActionDefinition<{
             const uploadRes = await ctx.runAction!(
               internal.onedrive.uploadToStorage,
               {
-                organizationId: params.organizationId,
+                organizationId,
                 fileName: f.name,
                 fileData:
                   typeof readRes.content === 'string'
@@ -473,43 +357,29 @@ export const onedriveAction: ActionDefinition<{
           }
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'sync_folder_files',
-          data: {
-            created,
-            updated,
-            skipped,
-            errorsCount: errors.length,
-          },
-          success: errors.length === 0,
-          timestamp: Date.now(),
+          created,
+          updated,
+          skipped,
+          errorsCount: errors.length,
         };
       }
 
       case 'update_sync_config': {
-        if (!params.configId) {
-          throw new Error(
-            'update_sync_config operation requires configId parameter',
-          );
-        }
-
         // Update OneDrive sync configuration
         await ctx.runMutation!(internal.onedrive.updateSyncConfig, {
-          configId: params.configId as Id<'onedriveSyncConfigs'>,
+          configId: params.configId as Id<'onedriveSyncConfigs'>, // Required by validator
           status: params.status,
           lastSyncAt: params.lastSyncAt,
           lastSyncStatus: params.lastSyncStatus,
           errorMessage: params.errorMessage,
         });
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return {
-          operation: 'update_sync_config',
-          data: {
-            configId: params.configId,
-            status: params.status,
-          },
-          success: true,
-          timestamp: Date.now(),
+          configId: params.configId,
+          status: params.status,
         };
       }
 

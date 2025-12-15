@@ -2,22 +2,27 @@
  * Website Pages action types
  */
 
-export interface WebsitePagesActionParams {
-  operation: 'bulk_upsert';
-  organizationId?: string;
-  websiteId?: string;
-  pages?: Array<{
-    url: string;
-    title?: string;
-    description?: string;
-    content?: string;
-    wordCount?: number;
-    word_count?: number;
-    metadata?: unknown;
-    structuredData?: unknown;
-    structured_data?: unknown;
-  }>;
+import type { Id } from '../../../../_generated/dataModel';
+
+// Page data structure
+export interface PageData {
+  url: string;
+  title?: string;
+  description?: string;
+  content?: string;
+  wordCount?: number;
+  word_count?: number;
+  metadata?: unknown;
+  structuredData?: unknown;
+  structured_data?: unknown;
 }
+
+// Discriminated union type for website pages operations
+export type WebsitePagesActionParams = {
+  operation: 'bulk_upsert';
+  websiteId: Id<'websites'>;
+  pages: PageData[];
+};
 
 export interface WebsitePagesActionResult {
   operation: 'bulk_upsert';

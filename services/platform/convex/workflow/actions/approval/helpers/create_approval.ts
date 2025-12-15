@@ -35,10 +35,12 @@ export async function createApproval(
     },
   );
 
-  return {
-    operation: 'create_approval',
-    approvalId,
-    success: true,
-    timestamp: Date.now(),
-  };
+  // Fetch and return the full created entity
+  const createdApproval = await ctx.runQuery(
+    internal.approvals.getApprovalById,
+    { approvalId },
+  );
+
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return createdApproval;
 }

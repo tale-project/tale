@@ -58,7 +58,7 @@ export const chatWithWorkflowAssistant = action({
         },
       );
 
-      if (workflow && steps.length > 0) {
+      if (workflow) {
         const wf = workflow as {
           _id: string;
           name: string;
@@ -66,25 +66,33 @@ export const chatWithWorkflowAssistant = action({
           status: string;
         };
 
-        // Use toonify to format the workflow data compactly
-        const toonifiedSteps = toonify({
-          steps: steps.map((step: unknown) => ({
-            ...(step as Record<string, unknown>),
-            organizationId: args.organizationId,
-            wfDefinitionId: args.workflowId!,
-          })),
-        });
-
+        // Build workflow context - always include basic info
         workflowContext = `\n\n**Current Workflow Context:**
 - **Workflow ID:** ${wf._id}
 - **Name:** ${wf.name}
 - **Description:** ${wf.description || 'No description'}
-- **Status:** ${wf.status}
+- **Status:** ${wf.status}`;
+
+        // Add step details if there are steps
+        if (steps.length > 0) {
+          const toonifiedSteps = toonify({
+            steps: steps.map((step: unknown) => ({
+              ...(step as Record<string, unknown>),
+              organizationId: args.organizationId,
+              wfDefinitionId: args.workflowId!,
+            })),
+          });
+          workflowContext += `
 
 **Step Details (Toon Format):**
 \`\`\`
 ${toonifiedSteps}
 \`\`\``;
+        } else {
+          workflowContext += `
+
+**Steps:** No steps yet. Create steps for this workflow.`;
+        }
       }
     }
 
@@ -123,18 +131,13 @@ ${toonifiedSteps}
     // Base tool list: edit/update existing workflows and fetch context data
     const convexToolNames: ToolName[] = [
       'workflow_read',
+      'workflow_examples', // Access predefined workflow templates
       'update_workflow_step',
       'save_workflow_definition',
       // Also include data tools for context
       'customer_read',
       'product_read',
-      'rag_search',
     ];
-
-    // Only allow creating brand new workflows when no workflowId is present
-    if (!args.workflowId) {
-      convexToolNames.push('generate_workflow_from_description');
-    }
 
     // Create specialized workflow agent with workflow tools
     const agent = await createWorkflowAgent({

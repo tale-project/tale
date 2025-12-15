@@ -4,40 +4,45 @@ import type { WebsitePagesActionParams } from './helpers/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
+// Page validator
+const pageValidator = v.object({
+  url: v.string(),
+  title: v.optional(v.string()),
+  description: v.optional(v.string()),
+  content: v.optional(v.string()),
+  wordCount: v.optional(v.number()),
+  word_count: v.optional(v.number()),
+  metadata: v.optional(v.any()),
+  structuredData: v.optional(v.any()),
+  structured_data: v.optional(v.any()),
+});
+
 export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
   type: 'websitePages',
   title: 'Website Pages',
-  description: 'Manage website pages (bulk upsert)',
+  description:
+    'Manage website pages (bulk upsert). organizationId is automatically read from workflow context variables.',
 
-  parametersValidator: v.object({
-    operation: v.literal('bulk_upsert'),
-    organizationId: v.optional(v.string()),
-    websiteId: v.optional(v.string()),
-    pages: v.optional(
-      v.array(
-        v.object({
-          url: v.string(),
-          title: v.optional(v.string()),
-          description: v.optional(v.string()),
-          content: v.optional(v.string()),
-          wordCount: v.optional(v.number()),
-          word_count: v.optional(v.number()),
-          metadata: v.optional(v.any()),
-          structuredData: v.optional(v.any()),
-          structured_data: v.optional(v.any()),
-        }),
-      ),
-    ),
-  }),
+  parametersValidator: v.union(
+    // bulk_upsert: Bulk upsert pages for a website
+    v.object({
+      operation: v.literal('bulk_upsert'),
+      websiteId: v.id('websites'),
+      pages: v.array(pageValidator),
+    }),
+  ),
 
-  async execute(ctx, params) {
-    if (!params.organizationId || !params.websiteId || !params.pages) {
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables
+    const organizationId = variables.organizationId as string;
+
+    if (!organizationId) {
       throw new Error(
-        'bulk_upsert operation requires organizationId, websiteId, and pages parameters',
+        'bulk_upsert operation requires organizationId in context',
       );
     }
 
-    const normalizedPages = params.pages.map((p: any) => ({
+    const normalizedPages = params.pages.map((p) => ({
       url: p.url,
       title: p.title ?? undefined,
       content: p.content ?? undefined,
@@ -49,19 +54,17 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
     const result = await ctx.runMutation(
       internal.websites.bulkUpsertPagesInternal,
       {
-        organizationId: params.organizationId,
-        websiteId: params.websiteId as Id<'websites'>,
+        organizationId,
+        websiteId: params.websiteId, // Required by validator
         pages: normalizedPages,
       },
     );
 
+    // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
-      operation: 'bulk_upsert',
       created: result.created,
       updated: result.updated,
       total: result.total,
-      success: true,
-      timestamp: Date.now(),
     };
   },
 };

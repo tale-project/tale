@@ -1,7 +1,8 @@
 /**
  * Convex Tool: Update Workflow Step
  *
- * Updates an existing workflow step
+ * Updates an existing workflow step with built-in validation.
+ * Validates step configuration before saving.
  */
 
 import { z } from 'zod';
@@ -9,10 +10,13 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import type { Doc, Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
+import { validateStepConfig } from '../../../workflow/helpers/validation/validate_step_config';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
+
+const validStepTypes = ['trigger', 'llm', 'action', 'condition', 'loop'];
 
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
@@ -150,11 +154,61 @@ LOOP (iteration):
       success: boolean;
       message: string;
       step: Doc<'wfStepDefs'> | null;
+      validationErrors?: string[];
+      validationWarnings?: string[];
     }> => {
       debugLog('update_workflow_step tool called', {
         stepRecordId: args.stepRecordId,
         updates: args.updates,
       });
+
+      // Validate step config if it's being updated
+      if (args.updates.config || args.updates.stepType) {
+        const stepValidation = validateStepConfig({
+          stepSlug: 'update', // Placeholder, actual slug comes from existing step
+          name: args.updates.name ?? 'Step',
+          stepType: args.updates.stepType,
+          config: args.updates.config,
+        });
+
+        const errors: string[] = [];
+        const warnings: string[] = [];
+
+        if (!stepValidation.valid) {
+          errors.push(...stepValidation.errors);
+        }
+        if (stepValidation.warnings) {
+          warnings.push(...stepValidation.warnings);
+        }
+
+        // Additional warning for action type matching stepType
+        const config = args.updates.config as
+          | Record<string, unknown>
+          | undefined;
+        if (
+          args.updates.stepType === 'action' &&
+          config &&
+          typeof config === 'object' &&
+          'type' in config
+        ) {
+          const actionType = config.type as string;
+          if (validStepTypes.includes(actionType)) {
+            warnings.push(
+              `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
+            );
+          }
+        }
+
+        if (errors.length > 0) {
+          return {
+            success: false,
+            message: `Step validation failed with ${errors.length} error(s). Fix the errors and try again.`,
+            step: null,
+            validationErrors: errors,
+            validationWarnings: warnings.length > 0 ? warnings : undefined,
+          };
+        }
+      }
 
       const updatedStep = (await ctx.runMutation(
         internal.wf_step_defs.updateStep,

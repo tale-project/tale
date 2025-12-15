@@ -65,8 +65,6 @@ export const conversationAutoReplyWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed_open_conversation',
-          organizationId: '{{organizationId}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -82,7 +80,7 @@ export const conversationAutoReplyWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_conversation.output.data.count > 0',
+        expression: 'steps.find_unprocessed_conversation.output.data != null',
         description: 'Check if an unprocessed open conversation was found',
       },
       nextSteps: {
@@ -104,27 +102,27 @@ export const conversationAutoReplyWorkflow = {
             {
               name: 'currentConversationId',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.documents[0]._id}}',
+                '{{steps.find_unprocessed_conversation.output.data._id}}',
             },
             {
               name: 'currentConversationSubject',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.documents[0].subject}}',
+                '{{steps.find_unprocessed_conversation.output.data.subject}}',
             },
             {
               name: 'currentConversationCustomerId',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.documents[0].customerId}}',
+                '{{steps.find_unprocessed_conversation.output.data.customerId}}',
             },
             {
               name: 'currentConversationCreationTime',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.documents[0]._creationTime}}',
+                '{{steps.find_unprocessed_conversation.output.data._creationTime}}',
             },
             {
               name: 'currentConversationType',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.documents[0].type}}',
+                '{{steps.find_unprocessed_conversation.output.data.type}}',
             },
           ],
         },
@@ -144,7 +142,6 @@ export const conversationAutoReplyWorkflow = {
         type: 'conversation',
         parameters: {
           operation: 'query_messages',
-          organizationId: '{{organizationId}}',
           conversationId: '{{currentConversationId}}',
           paginationOpts: {
             numItems: 50,
@@ -167,7 +164,6 @@ export const conversationAutoReplyWorkflow = {
         type: 'tone_of_voice',
         parameters: {
           operation: 'get_tone_of_voice',
-          organizationId: '{{organizationId}}',
         },
       },
       nextSteps: {
@@ -217,7 +213,7 @@ Return your analysis in JSON format.`,
 Current Conversation Type: {{currentConversationType}}
 
 Recent Messages:
-{{steps.query_conversation_messages.output.data.page|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
+{{steps.query_conversation_messages.output.data|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
 
 Task:
 1. Determine if this conversation needs a reply from the support team
@@ -387,7 +383,7 @@ Conversation Subject: {{currentConversationSubject}}
 Customer ID: {{currentConversationCustomerId}}
 
 Recent Messages:
-{{steps.query_conversation_messages.output.data.page|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
+{{steps.query_conversation_messages.output.data|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
 
 Reply Analysis:
 Reason: {{steps.check_needs_reply.output.data.reason}}
@@ -410,7 +406,6 @@ Task: As John, generate a warm and professional reply in markdown format that ad
         type: 'approval',
         parameters: {
           operation: 'create_approval',
-          organizationId: '{{organizationId}}',
           resourceType: 'conversations',
           resourceId: '{{currentConversationId}}',
           priority: '{{steps.check_needs_reply.output.data.urgency}}',
@@ -437,10 +432,8 @@ Task: As John, generate a warm and professional reply in markdown format that ad
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'conversations',
           recordId: '{{currentConversationId}}',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordCreationTime: '{{currentConversationCreationTime}}',
           metadata: {
             needsReply: '{{steps.check_needs_reply.output.data.needs_reply}}',

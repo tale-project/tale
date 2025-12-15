@@ -51,7 +51,6 @@ export const workflowRagSyncWorkflow = {
         type: 'workflow',
         parameters: {
           operation: 'upload_all_workflows',
-          organizationId: '{{organizationId}}',
           timeout: 120000, // 2 minutes per workflow
         },
       },

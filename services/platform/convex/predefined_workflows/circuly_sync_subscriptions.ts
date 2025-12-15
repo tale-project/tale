@@ -60,7 +60,6 @@ export const circulySyncSubscriptionsWorkflow = {
         type: 'customer',
         parameters: {
           operation: 'query',
-          organizationId: '{{organizationId}}',
           source: 'circuly',
           paginationOpts: {
             numItems: '{{pageSize}}',
@@ -80,7 +79,7 @@ export const circulySyncSubscriptionsWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.fetch_circuly_customers.output.data.count > 0',
+        expression: 'steps.fetch_circuly_customers.output.data|length > 0',
         description: 'Check if any Circuly customers exist in current page',
       },
       nextSteps: {
@@ -96,7 +95,7 @@ export const circulySyncSubscriptionsWorkflow = {
       stepType: 'loop',
       order: 6,
       config: {
-        items: '{{steps.fetch_circuly_customers.output.data.page}}',
+        items: '{{steps.fetch_circuly_customers.output.data}}',
         itemVariable: 'customer',
       },
       nextSteps: {
@@ -132,7 +131,6 @@ export const circulySyncSubscriptionsWorkflow = {
         type: 'integration',
         parameters: {
           name: 'circuly',
-          organizationId: '{{organizationId}}',
           operation: 'list_subscriptions',
           params: {
             customer_id: '{{loop.item.externalId}}',
@@ -204,7 +202,7 @@ export const circulySyncSubscriptionsWorkflow = {
             {
               name: 'totalProcessed',
               value:
-                '{{totalProcessed + steps.fetch_circuly_customers.output.data.count}}',
+                '{{totalProcessed + steps.fetch_circuly_customers.output.data|length}}',
             },
           ],
         },

@@ -13,36 +13,42 @@ import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
-export const toneOfVoiceAction: ActionDefinition<{
-  operation: 'get_tone_of_voice';
-  organizationId: string;
-}> = {
+// Type for tone of voice operation params (discriminated union)
+type ToneOfVoiceActionParams = { operation: 'get_tone_of_voice' };
+
+export const toneOfVoiceAction: ActionDefinition<ToneOfVoiceActionParams> = {
   type: 'tone_of_voice',
   title: 'Tone of Voice Operation',
-  description: 'Fetch tone of voice configuration (get_tone_of_voice)',
-  parametersValidator: v.object({
-    operation: v.literal('get_tone_of_voice'),
-    organizationId: v.string(),
-  }),
+  description:
+    'Fetch tone of voice configuration (get_tone_of_voice). organizationId is automatically read from workflow context variables.',
+  parametersValidator: v.union(
+    // get_tone_of_voice: Get the tone of voice configuration
+    v.object({
+      operation: v.literal('get_tone_of_voice'),
+    }),
+  ),
 
-  async execute(ctx, params) {
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables
+    const organizationId = variables.organizationId as string;
+
+    if (!organizationId) {
+      throw new Error(
+        'tone_of_voice requires organizationId in workflow context',
+      );
+    }
+
     switch (params.operation) {
       case 'get_tone_of_voice': {
-        if (!params.organizationId) {
-          throw new Error(
-            'get_tone_of_voice operation requires organizationId parameter',
-          );
-        }
-
         debugLog(
-          `tone_of_voice Fetching tone of voice for organization: ${params.organizationId}`,
+          `tone_of_voice Fetching tone of voice for organization: ${organizationId}`,
         );
 
         // Call internal query to get tone of voice (bypasses RLS)
         const toneOfVoice = (await ctx.runQuery!(
           internal.tone_of_voice.getToneOfVoiceInternal,
           {
-            organizationId: params.organizationId,
+            organizationId,
           },
         )) as Doc<'toneOfVoice'> | null;
 
@@ -51,11 +57,8 @@ export const toneOfVoiceAction: ActionDefinition<{
         );
 
         // Return tone of voice (can be null if not configured)
-        return {
-          operation: 'get_tone_of_voice',
-          ...(toneOfVoice || {}),
-          timestamp: Date.now(),
-        };
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        return toneOfVoice;
       }
 
       default:

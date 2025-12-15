@@ -66,9 +66,7 @@ export const productRelationshipAnalysisWorkflow = {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          organizationId: '{{organizationId}}',
           tableName: 'products',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           backoffHours: '{{backoffHours}}',
         },
       },
@@ -84,7 +82,7 @@ export const productRelationshipAnalysisWorkflow = {
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_product.output.data.count > 0',
+        expression: 'steps.find_unprocessed_product.output.data != null',
         description: 'Check if we found an unprocessed product',
       },
       nextSteps: {
@@ -106,21 +104,21 @@ export const productRelationshipAnalysisWorkflow = {
             {
               name: 'sourceProduct',
               value:
-                '{{steps.find_unprocessed_product.output.data.documents[0]}}',
+                '{{steps.find_unprocessed_product.output.data}}',
             },
             {
               name: 'sourceProductId',
               value:
-                '{{steps.find_unprocessed_product.output.data.documents[0]._id}}',
+                '{{steps.find_unprocessed_product.output.data._id}}',
             },
             {
               name: 'sourceProductName',
               value:
-                '{{steps.find_unprocessed_product.output.data.documents[0].name}}',
+                '{{steps.find_unprocessed_product.output.data.name}}',
             },
             {
               name: 'shopVariantIds',
-              value: `{{steps.find_unprocessed_product.output.data.documents[0].metadata.circuly.variants|map('shop_variant_id')|unique}}`,
+              value: `{{steps.find_unprocessed_product.output.data.metadata.circuly.variants|map('shop_variant_id')|unique}}`,
             },
             {
               name: 'analysisTimestamp',
@@ -144,7 +142,6 @@ export const productRelationshipAnalysisWorkflow = {
         type: 'customer',
         parameters: {
           operation: 'filter',
-          organizationId: '{{organizationId}}',
           // The {{shopVariantIds}} will be replaced with the actual array value by replaceVariables
           // Use ternary to ensure boolean return: if conditions met, check overlap; otherwise false
           expression: `(metadata && metadata.subscriptions && metadata.subscriptions.data) ? metadata.subscriptions.data|map('product_id')|hasOverlap({{shopVariantIds}}) : false`,
@@ -163,7 +160,7 @@ export const productRelationshipAnalysisWorkflow = {
       order: 6,
       config: {
         expression:
-          'steps.filter_customers_by_subscriptions.output.data.count > 0',
+          'steps.filter_customers_by_subscriptions.output.data|length > 0',
         description:
           'Check if we found any customers with matching subscriptions',
       },
@@ -185,7 +182,7 @@ export const productRelationshipAnalysisWorkflow = {
           variables: [
             {
               name: 'customerProductIds',
-              value: `{{steps.filter_customers_by_subscriptions.output.data.customers|map('metadata.subscriptions.data')|flatten|map('product_id')|unique}}`,
+              value: `{{steps.filter_customers_by_subscriptions.output.data|map('metadata.subscriptions.data')|flatten|map('product_id')|unique}}`,
             },
           ],
         },
@@ -205,7 +202,6 @@ export const productRelationshipAnalysisWorkflow = {
         type: 'product',
         parameters: {
           operation: 'filter',
-          organizationId: '{{organizationId}}',
           // The {{customerProductIds}} will be replaced with the actual array value by replaceVariables
           // Use ternary to ensure boolean return: if conditions met, check overlap; otherwise false
           expression: `(metadata && metadata.circuly && metadata.circuly.variants) ? metadata.circuly.variants|map('shop_variant_id')|hasOverlap({{customerProductIds}}) : false`,
@@ -228,7 +224,7 @@ export const productRelationshipAnalysisWorkflow = {
           variables: [
             {
               name: 'allProducts',
-              value: `{{[sourceProduct]|concat(steps.filter_related_products.output.data.products)}}`,
+              value: `{{[sourceProduct]|concat(steps.filter_related_products.output.data)}}`,
             },
             {
               name: 'productList',
@@ -391,7 +387,7 @@ BIDIRECTIONAL RELATIONSHIPS:
       stepType: 'condition',
       order: 14,
       config: {
-        expression: `(steps.query_product_for_update.output.data.result && steps.query_product_for_update.output.data.result.metadata && steps.query_product_for_update.output.data.result.metadata.relationships) ? (steps.query_product_for_update.output.data.result.metadata.relationships|find('productId', loop.item.target_product_id) != null) : false`,
+        expression: `(steps.query_product_for_update.output.data && steps.query_product_for_update.output.data.metadata && steps.query_product_for_update.output.data.metadata.relationships) ? (steps.query_product_for_update.output.data.metadata.relationships|find('productId', loop.item.target_product_id) != null) : false`,
         description:
           'Check if relationship with target product already exists in metadata',
       },
@@ -413,7 +409,7 @@ BIDIRECTIONAL RELATIONSHIPS:
           variables: [
             {
               name: 'existingRelationships',
-              value: `{{(steps.query_product_for_update.output.data.result && steps.query_product_for_update.output.data.result.metadata && steps.query_product_for_update.output.data.result.metadata.relationships) ? steps.query_product_for_update.output.data.result.metadata.relationships : []}}`,
+              value: `{{(steps.query_product_for_update.output.data && steps.query_product_for_update.output.data.metadata && steps.query_product_for_update.output.data.metadata.relationships) ? steps.query_product_for_update.output.data.metadata.relationships : []}}`,
             },
             {
               name: 'newRelationship',
@@ -448,7 +444,6 @@ BIDIRECTIONAL RELATIONSHIPS:
         type: 'product',
         parameters: {
           operation: 'update',
-          organizationId: '{{organizationId}}',
           productId: '{{loop.item.source_product_id}}',
           updates: {
             metadata: {
@@ -472,9 +467,7 @@ BIDIRECTIONAL RELATIONSHIPS:
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          organizationId: '{{organizationId}}',
           tableName: 'products',
-          wfDefinitionId: '{{rootWfDefinitionId}}',
           recordId: '{{sourceProductId}}',
           recordCreationTime: '{{sourceProduct._creationTime}}',
           metadata: {

@@ -22,8 +22,7 @@ export async function findUnprocessed(
     },
   );
 
-  return {
-    documents: result.documents,
-    count: result.count,
-  };
+  // Return first document or null (queries always return at most one)
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+  return result.documents[0] ?? null;
 }

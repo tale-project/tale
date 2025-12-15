@@ -114,7 +114,6 @@ function formatToolDetail(
     resource_check: 'Checking resources',
     workflow_read: 'Reading workflow',
     update_workflow_step: 'Updating workflow step',
-    generate_workflow_from_description: 'Generating workflow',
     save_workflow_definition: 'Saving workflow',
     validate_workflow_definition: 'Validating workflow',
     generate_excel: 'Generating Excel file',

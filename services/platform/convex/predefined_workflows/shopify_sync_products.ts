@@ -59,7 +59,6 @@ export const shopifySyncProductsWorkflow = {
         type: 'integration',
         parameters: {
           name: 'shopify',
-          organizationId: '{{organizationId}}',
           operation: 'list_products',
           params: {
             limit: '{{pageSize}}', // Use configurable page size
@@ -101,7 +100,6 @@ export const shopifySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'query',
-          organizationId: '{{organizationId}}',
           externalId: '{{loop.item.id}}',
           paginationOpts: {
             numItems: 1,
@@ -121,7 +119,7 @@ export const shopifySyncProductsWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.query_existing_product.output.data.count > 0',
+        expression: 'steps.query_existing_product.output.data|length > 0',
         description: 'Check if product already exists in database',
       },
       nextSteps: {
@@ -140,7 +138,6 @@ export const shopifySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          organizationId: '{{organizationId}}',
           externalId: '{{loop.item.id}}',
           updates: {
             name: '{{loop.item.title}}',
@@ -167,7 +164,6 @@ export const shopifySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'create',
-          organizationId: '{{organizationId}}',
           name: '{{loop.item.title}}',
           status: '{{loop.item.status}}',
           externalId: '{{loop.item.id}}',

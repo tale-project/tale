@@ -7,7 +7,9 @@ export interface ImapCredentials {
   accessToken?: string; // For OAuth2 auth
 }
 
-export interface ImapActionParams {
+// Discriminated union type for IMAP operations
+export type ImapActionParams = {
+  operation: 'search';
   // Credentials (optional if provided in variables)
   host?: string;
   port?: number;
@@ -15,19 +17,15 @@ export interface ImapActionParams {
   username?: string;
   password?: string;
   accessToken?: string;
-
   // Operation details
-  operation: 'list' | 'search'; // Both operations now do the same thing
   mailbox?: string; // Default: 'INBOX'
-
   // Fetch parameters
   afterUid?: number; // Fetch 1 email after this UID (omit to fetch latest)
-
   // Options
   includeAttachments?: boolean; // Include attachment metadata
   parseHtml?: boolean; // Parse HTML content
   threadSearchFolders?: string[] | string; // Folders to search for thread messages - can be array or JSON string (default: ['INBOX', '[Gmail]/Sent Mail'])
-}
+};
 
 export interface EmailMessage {
   uid: number;
@@ -49,13 +47,7 @@ export interface EmailMessage {
   headers?: Record<string, string>;
 }
 
-export interface ImapActionResult {
-  success: boolean;
-  operation: string;
-  mailbox: string;
-  messages: EmailMessage[];
-  count: number;
-  duration: number;
-  timestamp: number;
-}
+// Actions should return data directly (not wrapped in { data: ... })
+// because execute_action_node wraps the result in output: { type: 'action', data: result }
+export type ImapActionResult = EmailMessage[];
 

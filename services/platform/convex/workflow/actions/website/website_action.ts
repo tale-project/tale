@@ -4,45 +4,65 @@ import type { WebsiteActionParams } from './helpers/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
+// Common field validators
+const statusValidator = v.optional(
+  v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
+);
+
 export const websiteAction: ActionDefinition<WebsiteActionParams> = {
   type: 'website',
   title: 'Website Operation',
   description:
-    'Execute website-specific operations (create, update, get_by_domain)',
+    'Execute website-specific operations (create, update, get_by_domain). organizationId is automatically read from workflow context variables.',
 
-  parametersValidator: v.object({
-    operation: v.union(
-      v.literal('create'),
-      v.literal('update'),
-      v.literal('get_by_domain'),
-    ),
-    websiteId: v.optional(v.id('websites')),
-    organizationId: v.optional(v.string()),
-    domain: v.optional(v.string()),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    scanInterval: v.optional(v.string()),
-    lastScannedAt: v.optional(v.number()),
-    status: v.optional(
-      v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
-    ),
-    metadata: v.optional(v.any()),
-  }),
+  parametersValidator: v.union(
+    // create: Create a new website
+    v.object({
+      operation: v.literal('create'),
+      domain: v.string(),
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      scanInterval: v.optional(v.string()),
+      lastScannedAt: v.optional(v.number()),
+      status: statusValidator,
+      metadata: v.optional(v.any()),
+    }),
+    // update: Update an existing website
+    v.object({
+      operation: v.literal('update'),
+      websiteId: v.id('websites'),
+      domain: v.optional(v.string()),
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      scanInterval: v.optional(v.string()),
+      lastScannedAt: v.optional(v.number()),
+      status: statusValidator,
+      metadata: v.optional(v.any()),
+    }),
+    // get_by_domain: Get a website by domain
+    v.object({
+      operation: v.literal('get_by_domain'),
+      domain: v.string(),
+    }),
+  ),
 
-  async execute(ctx, params) {
+  async execute(ctx, params, variables) {
+    // Read organizationId from workflow context variables
+    const organizationId = variables.organizationId as string;
+
     switch (params.operation) {
       case 'create': {
-        if (!params.organizationId || !params.domain) {
+        if (!organizationId) {
           throw new Error(
-            'create operation requires organizationId and domain parameters',
+            'create operation requires organizationId in context',
           );
         }
 
-        const result = await ctx.runMutation(
+        const websiteId = await ctx.runMutation(
           internal.websites.createWebsiteInternal,
           {
-            organizationId: params.organizationId,
-            domain: params.domain,
+            organizationId,
+            domain: params.domain, // Required by validator
             title: params.title,
             description: params.description,
             scanInterval: params.scanInterval || '6h',
@@ -52,23 +72,22 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
           },
         );
 
-        return {
-          operation: 'create',
-          websiteId: result,
-          success: true,
-          timestamp: Date.now(),
-        };
+        // Fetch and return the full created entity
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
+        const createdWebsite = await ctx.runQuery(
+          internal.websites.getWebsiteByDomainInternal,
+          { organizationId, domain: params.domain },
+        );
+
+        return createdWebsite;
       }
 
       case 'update': {
-        if (!params.websiteId) {
-          throw new Error('update operation requires websiteId parameter');
-        }
-
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = await ctx.runMutation(
           internal.websites.updateWebsiteInternal,
           {
-            websiteId: params.websiteId as Id<'websites'>,
+            websiteId: params.websiteId, // Required by validator
             domain: params.domain,
             title: params.title,
             description: params.description,
@@ -79,39 +98,32 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
           },
         );
 
-        return {
-          operation: 'update',
-          website: result,
-          success: true,
-          timestamp: Date.now(),
-        };
+        return result;
       }
 
       case 'get_by_domain': {
-        if (!params.organizationId || !params.domain) {
+        if (!organizationId) {
           throw new Error(
-            'get_by_domain operation requires organizationId and domain parameters',
+            'get_by_domain requires organizationId in context',
           );
         }
 
+        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = await ctx.runQuery(
           internal.websites.getWebsiteByDomainInternal,
           {
-            organizationId: params.organizationId,
-            domain: params.domain,
+            organizationId,
+            domain: params.domain, // Required by validator
           },
         );
 
-        return {
-          operation: 'get_by_domain',
-          website: result,
-          found: !!result,
-          timestamp: Date.now(),
-        };
+        return result;
       }
 
       default:
-        throw new Error(`Unknown operation: ${params.operation}`);
+        throw new Error(
+          `Unknown operation: ${(params as { operation: string }).operation}`,
+        );
     }
   },
 };

@@ -135,8 +135,8 @@ export async function createConversationFromEmail(
             );
           }
 
+          // Note: execute_action_node wraps this in output: { type: 'action', data: result }
           return {
-            operation: 'create_from_email',
             conversationId: existingConvForRoot._id,
             created: false,
             isThreaded: emailsArray.length > 1,
@@ -194,8 +194,8 @@ export async function createConversationFromEmail(
     );
 
     if (!customerResult) {
+      // Note: execute_action_node wraps this in output: { type: 'action', data: result }
       return {
-        operation: 'create_from_email',
         conversationId: null,
         created: false,
         reason: 'no_sender',
@@ -280,8 +280,8 @@ export async function createConversationFromEmail(
     }
   }
 
+  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return {
-    operation: 'create_from_email',
     conversationId,
     created: conversationCreated,
     isThreaded: emailsArray.length > 1,

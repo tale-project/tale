@@ -72,7 +72,6 @@ export const emailSyncSentImapWorkflow = {
         type: 'email_provider',
         parameters: {
           operation: 'get_default',
-          organizationId: '{{organizationId}}',
         },
       },
       nextSteps: {
@@ -90,7 +89,6 @@ export const emailSyncSentImapWorkflow = {
         type: 'email_provider',
         parameters: {
           operation: 'get_imap_credentials',
-          organizationId: '{{organizationId}}',
         },
       },
       nextSteps: {
@@ -145,7 +143,7 @@ export const emailSyncSentImapWorkflow = {
             {
               name: 'mailbox',
               value:
-                '{{steps.get_default_email_provider.output.data.provider.vendor == "gmail" ? "[Gmail]/Sent Mail" : (steps.get_default_email_provider.output.data.provider.vendor == "outlook" ? "Sent Items" : "Sent")}}',
+                '{{steps.get_default_email_provider.output.data.vendor == "gmail" ? "[Gmail]/Sent Mail" : (steps.get_default_email_provider.output.data.vendor == "outlook" ? "Sent Items" : "Sent")}}',
             },
           ],
         },
@@ -165,7 +163,6 @@ export const emailSyncSentImapWorkflow = {
         type: 'conversation',
         parameters: {
           operation: 'query_latest_message_by_delivery_state',
-          organizationId: '{{organizationId}}',
           channel: 'email',
           direction: 'outbound',
           deliveryState: 'delivered',
@@ -236,7 +233,7 @@ export const emailSyncSentImapWorkflow = {
       stepType: 'condition',
       order: 8,
       config: {
-        expression: 'steps.fetch_emails.output.data.messages|length > 0',
+        expression: 'steps.fetch_emails.output.data|length > 0',
         description: 'Check if any emails were fetched',
       },
       nextSteps: {
@@ -255,8 +252,7 @@ export const emailSyncSentImapWorkflow = {
         type: 'conversation',
         parameters: {
           operation: 'create_from_sent_email',
-          organizationId: '{{organizationId}}',
-          emails: '{{steps.fetch_emails.output.data.messages}}', // All fetched emails
+          emails: '{{steps.fetch_emails.output.data}}', // All fetched emails
           status: '{{conversationStatus}}', // Configurable status
           accountEmail: '{{imapUsername}}',
           providerId: '{{providerId}}', // Email provider ID

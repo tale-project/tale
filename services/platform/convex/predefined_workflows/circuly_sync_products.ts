@@ -58,7 +58,6 @@ export const circulySyncProductsWorkflow = {
         type: 'integration',
         parameters: {
           name: 'circuly',
-          organizationId: '{{organizationId}}',
           operation: 'list_products',
           params: {
             page: '{{currentPage}}',
@@ -100,7 +99,6 @@ export const circulySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'query',
-          organizationId: '{{organizationId}}',
           externalId: '{{loop.item.id}}',
           paginationOpts: {
             numItems: 1,
@@ -120,7 +118,7 @@ export const circulySyncProductsWorkflow = {
       stepType: 'condition',
       order: 7,
       config: {
-        expression: 'steps.query_existing_product.output.data.count > 0',
+        expression: 'steps.query_existing_product.output.data|length > 0',
         description: 'Check if product already exists in database',
       },
       nextSteps: {
@@ -139,7 +137,7 @@ export const circulySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          productId: '{{steps.query_existing_product.output.data.page[0]._id}}',
+          productId: '{{steps.query_existing_product.output.data._id}}',
           updates: {
             name: '{{loop.item.title}}',
             description: '{{loop.item.title}}',
@@ -176,7 +174,6 @@ export const circulySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'create',
-          organizationId: '{{organizationId}}',
           name: '{{loop.item.title}}',
           description: '{{loop.item.title}}',
           imageUrl: '{{loop.item.picture_url}}',
