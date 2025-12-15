@@ -248,12 +248,12 @@ const processingRecordFields = createDocFields('workflowProcessingRecords', {
 
 const workflowProcessingRecordsSchemas: Record<string, OutputSchema> = {
   find_unprocessed: {
-    description: 'Unprocessed record or null',
+    // Dynamic output - returns full document from the specified table
+    // Can be customers, products, documents, websitePages, etc.
+    // We can't statically validate fields since it depends on tableName parameter
+    description: 'Full unprocessed record from the specified table, or null',
     nullable: true,
-    fields: {
-      _id: { type: 'any', description: 'Record ID (type depends on table)' },
-      _creationTime: { type: 'number' },
-    },
+    // No fields = dynamic output, allow any field access
   },
   record_processed: {
     description: 'Processing record or null',
@@ -261,12 +261,16 @@ const workflowProcessingRecordsSchemas: Record<string, OutputSchema> = {
     fields: processingRecordFields,
   },
   find_unprocessed_open_conversation: {
+    // Returns full conversation document
     description: 'Unprocessed open conversation or null',
     nullable: true,
+    // No fields = dynamic output
   },
   find_product_recommendation_by_status: {
+    // Returns full product recommendation document
     description: 'Product recommendation by status or null',
     nullable: true,
+    // No fields = dynamic output
   },
 };
 
@@ -754,4 +758,3 @@ export function getActionOutputSchema(
 
   return null;
 }
-

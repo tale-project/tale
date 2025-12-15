@@ -59,15 +59,17 @@ export const triggerOutputSchema: OutputSchema = {
 // LLM STEP OUTPUT SCHEMA
 // =============================================================================
 
+/**
+ * LLM output schema - intentionally permissive because:
+ * 1. When outputFormat: 'text', data = { text: string }
+ * 2. When outputFormat: 'json', data = the parsed JSON object (any shape)
+ *
+ * Since we can't statically know the JSON schema, we mark this as 'dynamic'
+ * to skip deep field validation for LLM outputs.
+ */
 export const llmOutputSchema: OutputSchema = {
-  description: 'LLM execution result',
-  fields: {
-    text: { type: 'string', description: 'Generated text response' },
-    // When outputFormat is 'json', this contains parsed JSON
-    // Otherwise it's the same as text
-  },
-  // Note: LLM output can be dynamic based on outputFormat config
-  // When outputFormat: 'json', the data might be a parsed object
+  description: 'LLM execution result - dynamic structure based on outputFormat',
+  // No fields defined = allow any field access (dynamic output)
 };
 
 // =============================================================================
@@ -142,4 +144,3 @@ export function resolvePathInSchema(
   // Field not found in schema
   return { resolved: null, remainingPath: pathSegments };
 }
-

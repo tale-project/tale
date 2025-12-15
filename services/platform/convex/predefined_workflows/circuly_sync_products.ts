@@ -137,7 +137,7 @@ export const circulySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          productId: '{{steps.query_existing_product.output.data._id}}',
+          productId: '{{steps.query_existing_product.output.data.page[0]._id}}',
           updates: {
             name: '{{loop.item.title}}',
             description: '{{loop.item.title}}',

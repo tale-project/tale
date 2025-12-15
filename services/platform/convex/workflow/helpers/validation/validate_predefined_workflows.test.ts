@@ -1,16 +1,18 @@
 /**
  * Test: Validate Predefined Workflows
  *
- * This test validates all predefined workflows against the variable reference
- * validation logic to ensure that:
- * 1. All step references exist
- * 2. Steps only reference earlier steps (execution order)
- * 3. Output path access patterns are valid
+ * This test validates all predefined workflows against the complete validation
+ * logic to ensure that:
+ * 1. Workflow structure is valid (name, steps)
+ * 2. All step configs are valid (stepSlug, name, stepType, config)
+ * 3. All nextSteps references exist
+ * 4. All variable references are valid (step existence, execution order, path structure)
+ * 5. Action parameters are valid against their registered validators
  */
 
 import { describe, it, expect } from 'vitest';
-import { workflows } from '../../../../predefined_workflows';
-import { validateWorkflowVariableReferences } from './validate_variable_references';
+import { workflows } from '../../../predefined_workflows';
+import { validateWorkflowDefinition } from './validate_workflow_definition';
 
 // Convert the workflows object to an array of entries for testing
 const workflowEntries = Object.entries(workflows);
@@ -18,16 +20,19 @@ const workflowEntries = Object.entries(workflows);
 // Special step slugs that are valid terminations (not actual steps)
 const SPECIAL_TERMINATION_STEPS = new Set(['noop', 'end', 'terminate', 'complete']);
 
-describe('Predefined Workflows Variable Reference Validation', () => {
+describe('Predefined Workflows Validation', () => {
   // Test each workflow individually
   describe.each(workflowEntries)(
     'workflow: %s',
     (workflowKey, workflowDefinition) => {
-      it('should have valid variable references', () => {
+      it('should have valid workflow definition', () => {
         const { stepsConfig } = workflowDefinition;
 
-        // Validate variable references
-        const result = validateWorkflowVariableReferences(stepsConfig);
+        // Validate entire workflow definition
+        const result = validateWorkflowDefinition(
+          { name: workflowKey },
+          stepsConfig,
+        );
 
         // Log any errors or warnings for debugging
         if (result.errors.length > 0) {
@@ -37,7 +42,7 @@ describe('Predefined Workflows Variable Reference Validation', () => {
           console.warn(`[${workflowKey}] Warnings:`, result.warnings);
         }
 
-        // Assert no errors (result.valid is the correct property)
+        // Assert no errors
         expect(result.errors).toEqual([]);
         expect(result.valid).toBe(true);
       });
@@ -76,7 +81,7 @@ describe('Predefined Workflows Variable Reference Validation', () => {
     }> = [];
 
     for (const [key, workflow] of workflowEntries) {
-      const result = validateWorkflowVariableReferences(workflow.stepsConfig);
+      const result = validateWorkflowDefinition({ name: key }, workflow.stepsConfig);
       allResults.push({
         key,
         valid: result.valid,

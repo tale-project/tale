@@ -138,7 +138,7 @@ export const circulySyncCustomersWorkflow = {
         parameters: {
           operation: 'update',
           customerId:
-            '{{steps.query_existing_customer.output.data._id}}',
+            '{{steps.query_existing_customer.output.data.page[0]._id}}',
           updates: {
             name: '{{loop.item.first_name}} {{loop.item.last_name}}',
             email: '{{loop.item.email}}',

@@ -15,6 +15,17 @@ import type { ParsedVariableReference } from './types';
 // Regex to match mustache-style template expressions
 const TEMPLATE_REGEX = /\{\{([^}]+)\}\}/g;
 
+// Characters that indicate a complex expression (not a simple variable reference)
+const EXPRESSION_OPERATORS = /[?:!<>=&|+\-*\/\[\]()]/;
+
+/**
+ * Check if an expression is a complex expression (contains operators)
+ * rather than a simple variable path
+ */
+function isComplexExpression(expression: string): boolean {
+  return EXPRESSION_OPERATORS.test(expression);
+}
+
 /**
  * Parse a single expression into a structured reference
  */
@@ -23,6 +34,32 @@ function parseExpression(
   originalTemplate: string,
 ): ParsedVariableReference {
   const trimmed = expression.trim();
+
+  // Check for complex expressions (ternary, comparison, etc.)
+  // These can't be validated for field access
+  if (isComplexExpression(trimmed)) {
+    // For complex expressions, try to extract the step reference if present
+    // e.g., "steps.foo.output.data.bar == 'baz'" -> extract "steps.foo"
+    const stepMatch = trimmed.match(/^steps\.([a-zA-Z_][a-zA-Z0-9_]*)\.?/);
+    if (stepMatch) {
+      return {
+        fullExpression: trimmed,
+        type: 'step',
+        stepSlug: stepMatch[1],
+        path: ['__complex_expression__'], // Special marker for complex expressions
+        originalTemplate,
+      };
+    }
+
+    // Return as a variable reference that won't be validated
+    return {
+      fullExpression: trimmed,
+      type: 'variable',
+      path: ['__complex_expression__'],
+      originalTemplate,
+    };
+  }
+
   const parts = trimmed.split('.');
 
   // Determine the reference type based on the first segment
@@ -145,4 +182,3 @@ export function parseVariableReferences(
 export function extractStepReferences(value: unknown): ParsedVariableReference[] {
   return parseVariableReferences(value).filter((ref) => ref.type === 'step');
 }
-

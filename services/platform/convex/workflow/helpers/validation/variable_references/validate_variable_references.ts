@@ -80,6 +80,21 @@ function getOutputSchemaForStep(step: StepInfo): OutputSchema | null {
 }
 
 /**
+ * Check if a path segment contains a Jinja2 filter (e.g., |length, |string)
+ */
+function containsJinjaFilter(pathSegment: string): boolean {
+  return pathSegment.includes('|');
+}
+
+/**
+ * Strip Jinja2 filters from a path segment to get the base field name
+ */
+function stripJinjaFilters(pathSegment: string): string {
+  const pipeIndex = pathSegment.indexOf('|');
+  return pipeIndex === -1 ? pathSegment : pathSegment.substring(0, pipeIndex);
+}
+
+/**
  * Validate the path structure of a step reference
  */
 function validateStepReferencePath(
@@ -88,6 +103,13 @@ function validateStepReferencePath(
 ): { valid: boolean; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  // Skip validation for complex expressions (ternary, comparisons, etc.)
+  if (ref.path.length > 0 && ref.path[0] === '__complex_expression__') {
+    // Complex expressions can't be statically validated for field access
+    // The step reference itself was already validated (step exists, order correct)
+    return { valid: true, errors, warnings };
+  }
 
   // Step references should start with 'output'
   if (ref.path.length === 0) {
@@ -119,33 +141,136 @@ function validateStepReferencePath(
   // If we have a schema, validate against it
   if (schema) {
     const [dataOrMeta, ...fieldPath] = restPath;
+    // Strip Jinja filters from the first segment if present
+    const cleanDataOrMeta = stripJinjaFilters(dataOrMeta);
 
-    if (dataOrMeta === 'data') {
+    if (cleanDataOrMeta === 'data') {
+      // Check if the path contains Jinja filters
+      const hasJinjaFilters = restPath.some(containsJinjaFilter);
+      if (hasJinjaFilters) {
+        // Valid Jinja filter usage - don't validate further but note it
+        // This handles patterns like {{steps.x.output.data|length}}
+        return { valid: true, errors, warnings };
+      }
+
       // Accessing .output.data is the standard pattern
-      if (fieldPath.length > 0 && schema.isArray) {
-        // Check if trying to access a property on an array result
-        const firstField = fieldPath[0];
-        const isArrayIndex = /^\[\d+\]$/.test(firstField) || /^\d+$/.test(firstField);
+      if (fieldPath.length > 0) {
+        if (schema.isArray) {
+          // Check if trying to access a property on an array result
+          const firstField = fieldPath[0];
+          const isArrayIndex = /^\[\d+\]$/.test(firstField) || /^\d+$/.test(firstField);
 
-        if (!isArrayIndex && firstField !== 'length') {
-          warnings.push(
-            `Reference "${ref.originalTemplate}" accesses ".${firstField}" on an array result. ` +
-              `The "${referencedStep.config?.type}.${getStepSchemaContext(referencedStep).operation}" ` +
-              `action returns an array. Use "[index]" to access specific items or ".length" for count.`,
-          );
+          if (!isArrayIndex && firstField !== 'length') {
+            warnings.push(
+              `Reference "${ref.originalTemplate}" accesses ".${firstField}" on an array result. ` +
+                `The "${referencedStep.config?.type}.${getStepSchemaContext(referencedStep).operation}" ` +
+                `action returns an array. Use "[index]" to access specific items or ".length" for count.`,
+            );
+          }
+        } else if (schema.fields) {
+          // Validate field path against schema
+          const validationResult = validateFieldPath(fieldPath, schema, ref, referencedStep);
+          errors.push(...validationResult.errors);
+          warnings.push(...validationResult.warnings);
+          if (!validationResult.valid) {
+            return { valid: false, errors, warnings };
+          }
         }
       }
-    } else if (dataOrMeta === 'meta') {
+    } else if (cleanDataOrMeta === 'meta') {
       // Accessing .output.meta is valid but less common
       warnings.push(
         `Reference "${ref.originalTemplate}" accesses step metadata. ` +
           `Consider using ".output.data" for the main result.`,
       );
+    } else if (cleanDataOrMeta === 'type') {
+      // Accessing .output.type is valid (returns 'action', 'llm', etc.)
+      return { valid: true, errors, warnings };
     } else {
-      warnings.push(
-        `Reference "${ref.originalTemplate}" uses unusual path ".output.${dataOrMeta}". ` +
-          `Standard paths are ".output.data" or ".output.meta".`,
+      // Invalid: trying to access fields directly on output without .data
+      // Valid output properties are: data, meta, type
+      errors.push(
+        `Reference "${ref.originalTemplate}" accesses ".output.${dataOrMeta}" but output only has ` +
+          `properties [data, meta, type]. Did you mean "{{steps.${ref.stepSlug}.output.data.${dataOrMeta}}}"?`,
       );
+      return { valid: false, errors, warnings };
+    }
+  }
+
+  return { valid: true, errors, warnings };
+}
+
+/**
+ * Validate a field path against a schema
+ */
+function validateFieldPath(
+  fieldPath: string[],
+  schema: OutputSchema,
+  ref: ParsedVariableReference,
+  _referencedStep: StepInfo,
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!schema.fields || fieldPath.length === 0) {
+    return { valid: true, errors, warnings };
+  }
+
+  let currentFields: Record<string, import('./types').FieldSchema> | undefined = schema.fields;
+  const validatedPath: string[] = [];
+
+  for (let i = 0; i < fieldPath.length; i++) {
+    const segment = fieldPath[i];
+
+    // Skip if we've lost track of the schema structure
+    if (!currentFields) {
+      break;
+    }
+
+    // Check if this field exists in the current schema level
+    if (!(segment in currentFields)) {
+      const availableFields = Object.keys(currentFields);
+      const pathSoFar = validatedPath.length > 0 ? `.${validatedPath.join('.')}` : '';
+
+      // Check for common mistake: duplicate 'data' in path
+      if (segment === 'data' && validatedPath.length === 0) {
+        errors.push(
+          `Reference "${ref.originalTemplate}" has duplicate "data" in path. ` +
+            `Use "{{steps.${ref.stepSlug}.output.data.${fieldPath.slice(i + 1).join('.')}}}" instead of ` +
+            `"{{steps.${ref.stepSlug}.output.data.data.${fieldPath.slice(i + 1).join('.')}}}"`,
+        );
+        return { valid: false, errors, warnings };
+      }
+
+      errors.push(
+        `Reference "${ref.originalTemplate}" accesses invalid field ".data${pathSoFar}.${segment}". ` +
+          `Available fields at this level: [${availableFields.join(', ')}]`,
+      );
+      return { valid: false, errors, warnings };
+    }
+
+    validatedPath.push(segment);
+    const fieldSchema: import('./types').FieldSchema = currentFields[segment];
+
+    // If this field has nested fields, update currentFields for next iteration
+    if (fieldSchema.type === 'object' && fieldSchema.fields) {
+      currentFields = fieldSchema.fields;
+    } else if (fieldSchema.type === 'array' && fieldSchema.items?.fields) {
+      // For arrays, we'd need index access to go deeper
+      if (i + 1 < fieldPath.length) {
+        const nextSegment = fieldPath[i + 1];
+        const isArrayIndex = /^\[\d+\]$/.test(nextSegment) || /^\d+$/.test(nextSegment);
+        if (!isArrayIndex) {
+          warnings.push(
+            `Reference "${ref.originalTemplate}" accesses ".${nextSegment}" directly on array field "${segment}". ` +
+              `Consider using an index like "${segment}[0].${nextSegment}".`,
+          );
+        }
+      }
+      currentFields = fieldSchema.items.fields;
+    } else {
+      // Not an object or array with nested fields, can't traverse further
+      currentFields = undefined;
     }
   }
 
@@ -270,4 +395,3 @@ export function validateWorkflowVariableReferences(
     references: allReferences,
   };
 }
-

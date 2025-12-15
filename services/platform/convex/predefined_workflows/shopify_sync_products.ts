@@ -138,7 +138,7 @@ export const shopifySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          externalId: '{{loop.item.id}}',
+          productId: '{{steps.query_existing_product.output.data.page[0]._id}}',
           updates: {
             name: '{{loop.item.title}}',
             status: '{{loop.item.status}}',

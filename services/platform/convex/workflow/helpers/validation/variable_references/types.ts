@@ -137,4 +137,3 @@ export interface StepSchemaContext {
 export interface ActionOutputSchemaRegistry {
   [actionType: string]: OperationOutputSchemas;
 }
-
