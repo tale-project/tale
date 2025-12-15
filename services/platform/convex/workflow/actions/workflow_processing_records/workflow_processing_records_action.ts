@@ -19,6 +19,8 @@ import { recordProcessed } from './helpers/record_processed';
 import type { TableName } from './helpers/types';
 
 // Common field validators
+// Note: tableNameValidator mirrors the TableName type from helpers/types.ts
+// Both must be kept in sync when adding new table names
 const tableNameValidator = v.union(
   v.literal('customers'),
   v.literal('products'),
@@ -64,7 +66,7 @@ export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessin
     type: 'workflow_processing_records',
     title: 'Workflow Processing Records Operation',
     description:
-      'Execute workflow processing records operations (find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed). Always fetches exactly one document. organizationId and rootWfDefinitionId are automatically read from workflow context variables.',
+      'Execute workflow processing records operations (find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed). Returns at most one matching document or null if none found. organizationId and rootWfDefinitionId are automatically read from workflow context variables.',
     parametersValidator: v.union(
       // find_unprocessed: Find one unprocessed record from a table
       v.object({
@@ -93,18 +95,18 @@ export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessin
     ),
 
   async execute(ctx, params, variables) {
-    // Read organizationId and wfDefinitionId from workflow context variables
-    const organizationId = variables.organizationId as string;
-    const wfDefinitionId = variables.rootWfDefinitionId as string;
+    // Read and validate organizationId and wfDefinitionId from workflow context variables
+    const organizationId = variables?.organizationId;
+    const wfDefinitionId = variables?.rootWfDefinitionId;
 
-    if (!organizationId) {
+    if (typeof organizationId !== 'string' || !organizationId) {
       throw new Error(
-        'workflow_processing_records requires organizationId in workflow context',
+        'workflow_processing_records requires a non-empty string organizationId in workflow context',
       );
     }
-    if (!wfDefinitionId) {
+    if (typeof wfDefinitionId !== 'string' || !wfDefinitionId) {
       throw new Error(
-        'workflow_processing_records requires rootWfDefinitionId in workflow context',
+        'workflow_processing_records requires a non-empty string rootWfDefinitionId in workflow context',
       );
     }
 

@@ -10,8 +10,9 @@ export type TableName =
   | 'websitePages'
   | 'exampleMessages';
 
-// Actions should return data directly (not wrapped in { data: ... })
+// The model layer returns { documents: T[], count } but actions extract just the first document
 // because execute_action_node wraps the result in output: { type: 'action', data: result }
+// This type represents the action layer's return type (first document or null)
 export type FindUnprocessedResult<T = unknown> = T | null;
 
 export type ProcessingRecord = {

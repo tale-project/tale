@@ -18,16 +18,17 @@ export const workflowAction: ActionDefinition<WorkflowActionParams> = {
   ),
 
   async execute(_ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    // Read and validate organizationId from workflow context variables
+    const organizationId = variables?.organizationId;
+
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'workflow requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'upload_all_workflows': {
-        if (!organizationId) {
-          throw new Error(
-            'upload_all_workflows requires organizationId in workflow context',
-          );
-        }
 
         const startTime = Date.now();
 

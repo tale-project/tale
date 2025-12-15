@@ -22,7 +22,7 @@ export interface PageData {
   structured_data?: unknown;
 }
 
-// Discriminated union type for website pages operations
+// Parameter type for website pages operations (single operation for now)
 export type WebsitePagesActionParams = {
   operation: 'bulk_upsert';
   websiteId: Id<'websites'>;

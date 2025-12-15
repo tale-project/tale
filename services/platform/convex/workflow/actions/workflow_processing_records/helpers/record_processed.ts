@@ -33,5 +33,11 @@ export async function recordProcessed(
     { processingRecordId },
   );
 
+  if (!createdRecord) {
+    throw new Error(
+      `Failed to retrieve processing record with ID "${processingRecordId}" after creation`,
+    );
+  }
+
   return createdRecord;
 }

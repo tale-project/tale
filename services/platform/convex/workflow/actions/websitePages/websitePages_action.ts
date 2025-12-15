@@ -1,6 +1,9 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
-import type { WebsitePagesActionParams } from './helpers/types';
+import type {
+  WebsitePagesActionParams,
+  WebsitePagesActionResult,
+} from './helpers/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 
@@ -23,14 +26,12 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
   description:
     'Manage website pages (bulk upsert). organizationId is automatically read from workflow context variables.',
 
-  parametersValidator: v.union(
-    // bulk_upsert: Bulk upsert pages for a website
-    v.object({
-      operation: v.literal('bulk_upsert'),
-      websiteId: v.id('websites'),
-      pages: v.array(pageValidator),
-    }),
-  ),
+  // Using v.object() directly since only the 'bulk_upsert' operation exists
+  parametersValidator: v.object({
+    operation: v.literal('bulk_upsert'),
+    websiteId: v.id('websites'),
+    pages: v.array(pageValidator),
+  }),
 
   async execute(ctx, params, variables) {
     // Read organizationId from workflow context variables
@@ -62,9 +63,12 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
 
     // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return {
+      operation: 'bulk_upsert' as const,
       created: result.created,
       updated: result.updated,
       total: result.total,
+      success: true,
+      timestamp: Date.now(),
     };
   },
 };
