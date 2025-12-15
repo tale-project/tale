@@ -47,16 +47,16 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
   ),
 
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'website action requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'create': {
-        if (!organizationId) {
-          throw new Error(
-            'create operation requires organizationId in context',
-          );
-        }
 
         const websiteId = await ctx.runMutation(
           internal.websites.createWebsiteInternal,
@@ -108,11 +108,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
       }
 
       case 'get_by_domain': {
-        if (!organizationId) {
-          throw new Error(
-            'get_by_domain requires organizationId in context',
-          );
-        }
+        // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = await ctx.runQuery(

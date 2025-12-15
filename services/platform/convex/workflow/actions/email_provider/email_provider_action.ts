@@ -37,12 +37,11 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
     ),
 
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
-
-    if (!organizationId) {
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
       throw new Error(
-        'email_provider requires organizationId in workflow context',
+        'email_provider requires a non-empty string organizationId in workflow context',
       );
     }
 

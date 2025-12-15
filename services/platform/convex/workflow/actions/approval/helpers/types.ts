@@ -16,6 +16,8 @@ export type ApprovalData = {
   resourceType: ApprovalResourceType;
   resourceId: string;
   priority: ApprovalPriority;
+  requestedBy?: string;
+  description?: string;
   dueDate?: number;
   metadata?: unknown;
 };

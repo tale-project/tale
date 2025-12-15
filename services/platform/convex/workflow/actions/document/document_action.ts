@@ -49,8 +49,11 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
   async execute(ctx, params, _variables) {
     switch (params.operation) {
       case 'update': {
+        // Extract documentId to avoid duplicate type assertion
+        const documentId = params.documentId as Id<'documents'>;
+
         await ctx.runMutation!(internal.documents.updateDocumentInternal, {
-          documentId: params.documentId as Id<'documents'>, // Required by validator
+          documentId, // Required by validator
           title: params.title,
           content: params.content,
           metadata: params.metadata,
@@ -63,8 +66,14 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
         // Fetch and return the updated entity
         const updatedDocument = await ctx.runQuery!(
           internal.documents.getDocumentById,
-          { documentId: params.documentId as Id<'documents'> },
+          { documentId },
         );
+
+        if (!updatedDocument) {
+          throw new Error(
+            `Failed to fetch updated document with ID "${documentId}"`,
+          );
+        }
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         return updatedDocument;

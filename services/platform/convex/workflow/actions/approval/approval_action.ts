@@ -54,16 +54,16 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
   ),
 
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'approval requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'create_approval': {
-        if (!organizationId) {
-          throw new Error(
-            'approval requires organizationId in workflow context',
-          );
-        }
 
         return await createApproval(ctx, {
           organizationId,

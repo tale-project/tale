@@ -41,6 +41,10 @@ export async function createApproval(
     { approvalId },
   );
 
+  if (!createdApproval) {
+    throw new Error(`Failed to fetch created approval with ID "${approvalId}"`);
+  }
+
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return createdApproval;
 }

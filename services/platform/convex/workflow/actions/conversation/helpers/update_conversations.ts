@@ -20,6 +20,12 @@ export async function updateConversations(
     { conversationId: params.conversationId },
   );
 
+  if (!updatedConversation) {
+    throw new Error(
+      `Failed to fetch updated conversation with ID "${params.conversationId}"`,
+    );
+  }
+
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return updatedConversation;
 }

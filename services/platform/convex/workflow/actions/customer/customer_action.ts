@@ -157,17 +157,19 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
           { customerId: result.customerId },
         );
 
+        if (!createdCustomer) {
+          throw new Error(
+            `Failed to fetch created customer with ID "${result.customerId}"`,
+          );
+        }
+
         return createdCustomer;
       }
 
       case 'filter': {
         // ⚠️ WARNING: This operation loops through ALL customers in the organization.
         // Use with caution on large datasets. For simple queries, prefer the 'query' operation.
-        if (!organizationId) {
-          throw new Error(
-            'filter operation requires organizationId in workflow context',
-          );
-        }
+        // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = (await ctx.runQuery!(
@@ -182,11 +184,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       }
 
       case 'query': {
-        if (!organizationId) {
-          throw new Error(
-            'query operation requires organizationId in workflow context',
-          );
-        }
+        // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         // For pagination queries, we return the full result object (page, isDone, continueCursor)
@@ -210,8 +208,11 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       }
 
       case 'update': {
+        // Extract customerId to avoid duplicate type assertion
+        const customerId = params.customerId as Id<'customers'>;
+
         await ctx.runMutation!(internal.customers.updateCustomers, {
-          customerId: params.customerId as Id<'customers'>, // Required by validator
+          customerId, // Required by validator
           updates: params.updates, // Required by validator
         });
 
@@ -219,8 +220,14 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const updatedCustomer = await ctx.runQuery!(
           internal.customers.getCustomerById,
-          { customerId: params.customerId as Id<'customers'> },
+          { customerId },
         );
+
+        if (!updatedCustomer) {
+          throw new Error(
+            `Failed to fetch updated customer with ID "${customerId}"`,
+          );
+        }
 
         return updatedCustomer;
       }
