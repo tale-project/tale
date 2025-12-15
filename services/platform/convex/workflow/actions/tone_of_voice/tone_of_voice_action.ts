@@ -29,12 +29,11 @@ export const toneOfVoiceAction: ActionDefinition<ToneOfVoiceActionParams> = {
   ),
 
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
-
-    if (!organizationId) {
+    // Read organizationId from workflow context variables with proper validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
       throw new Error(
-        'tone_of_voice requires organizationId in workflow context',
+        'tone_of_voice requires a non-empty string organizationId in workflow context',
       );
     }
 

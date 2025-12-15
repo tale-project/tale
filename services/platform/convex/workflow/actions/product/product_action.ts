@@ -142,7 +142,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
     v.object({
       operation: v.literal('update'),
       productId: v.id('products'),
-      updates: v.any(),
+      updates: v.record(v.string(), v.any()),
     }),
     // filter: Filter products using JEXL expressions
     v.object({

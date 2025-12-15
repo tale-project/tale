@@ -98,7 +98,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       status: statusValidator,
       source: v.optional(v.string()),
       locale: v.optional(v.string()),
-      metadata: v.optional(v.any()),
+      metadata: v.optional(v.record(v.string(), v.any())),
     }),
     // filter: Filter customers using JEXL expressions
     v.object({
@@ -117,7 +117,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
     v.object({
       operation: v.literal('update'),
       customerId: v.id('customers'),
-      updates: v.any(),
+      updates: v.record(v.string(), v.any()),
     }),
   ),
   async execute(ctx, params, variables) {

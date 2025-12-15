@@ -60,7 +60,7 @@ type OneDriveActionParams =
     }
   | {
       operation: 'update_sync_config';
-      configId: string;
+      configId: Id<'onedriveSyncConfigs'>;
       status?: 'active' | 'inactive' | 'error';
       lastSyncAt?: number;
       lastSyncStatus?: string;

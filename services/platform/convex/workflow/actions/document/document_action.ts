@@ -17,10 +17,10 @@ import type { Id } from '../../../_generated/dataModel';
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {
   operation: 'update';
-  documentId: string;
+  documentId: Id<'documents'>;
   title?: string;
   content?: string;
-  fileId?: string;
+  fileId?: Id<'_storage'>;
   mimeType?: string;
   extension?: string;
   metadata?: Record<string, unknown>;

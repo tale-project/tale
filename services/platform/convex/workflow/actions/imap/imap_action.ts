@@ -8,27 +8,25 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
   type: 'imap',
   title: 'IMAP Email Retriever',
   description: 'Retrieve emails from an IMAP server (Gmail, Outlook, etc.)',
-  parametersValidator: v.union(
-    // search: Search for emails in a mailbox
-    v.object({
-      operation: v.literal('search'),
-      // Credentials (optional if provided in variables)
-      host: v.optional(v.string()),
-      port: v.optional(v.number()),
-      secure: v.optional(v.boolean()),
-      username: v.optional(v.string()),
-      password: v.optional(v.string()),
-      accessToken: v.optional(v.string()),
-      // Operation details
-      mailbox: v.optional(v.string()),
-      // Fetch parameters
-      afterUid: v.optional(v.number()),
-      // Options
-      includeAttachments: v.optional(v.boolean()),
-      parseHtml: v.optional(v.boolean()),
-      threadSearchFolders: v.optional(v.union(v.array(v.string()), v.string())), // Folders to search - array or JSON string
-    }),
-  ),
+  // Using v.object() directly since only the 'search' operation exists
+  parametersValidator: v.object({
+    operation: v.literal('search'),
+    // Credentials (optional if provided in variables)
+    host: v.optional(v.string()),
+    port: v.optional(v.number()),
+    secure: v.optional(v.boolean()),
+    username: v.optional(v.string()),
+    password: v.optional(v.string()),
+    accessToken: v.optional(v.string()),
+    // Operation details
+    mailbox: v.optional(v.string()),
+    // Fetch parameters
+    afterUid: v.optional(v.number()),
+    // Options
+    includeAttachments: v.optional(v.boolean()),
+    parseHtml: v.optional(v.boolean()),
+    threadSearchFolders: v.optional(v.union(v.array(v.string()), v.string())), // Folders to search - array or JSON string
+  }),
 
   async execute(_ctx, params, variables): Promise<ImapActionResult> {
     const processedParams = params as ImapActionParams;
