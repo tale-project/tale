@@ -38,6 +38,12 @@ export async function createConversation(
     { conversationId: result.conversationId as Id<'conversations'> },
   );
 
+  if (!createdConversation) {
+    throw new Error(
+      `Failed to fetch created conversation with ID "${result.conversationId}" after creation`,
+    );
+  }
+
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   return createdConversation;
 }

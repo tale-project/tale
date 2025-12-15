@@ -213,7 +213,7 @@ Return your analysis in JSON format.`,
 Current Conversation Type: {{currentConversationType}}
 
 Recent Messages:
-{{steps.query_conversation_messages.output.data|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
+{{steps.query_conversation_messages.output.data.page|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
 
 Task:
 1. Determine if this conversation needs a reply from the support team
@@ -383,7 +383,7 @@ Conversation Subject: {{currentConversationSubject}}
 Customer ID: {{currentConversationCustomerId}}
 
 Recent Messages:
-{{steps.query_conversation_messages.output.data|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
+{{steps.query_conversation_messages.output.data.page|formatList("Direction: {direction}\nContent: {content}\nSent At: {sentAt}", "\n\n---\n\n")}}
 
 Reply Analysis:
 Reason: {{steps.check_needs_reply.output.data.reason}}

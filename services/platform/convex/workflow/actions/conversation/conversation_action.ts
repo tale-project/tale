@@ -36,7 +36,17 @@ const deliveryStateValidator = v.union(
   v.literal('failed'),
 );
 
+// Status validator matching ConversationStatus type
+const statusValidator = v.union(
+  v.literal('open'),
+  v.literal('closed'),
+  v.literal('archived'),
+  v.literal('spam'),
+);
+
 // Type for conversation operation params (discriminated union)
+// Note: This type is maintained separately from the parametersValidator for clarity.
+// The TypeScript type provides IDE support, while the validator provides runtime validation.
 type ConversationActionParams =
   | {
       operation: 'create';
@@ -98,7 +108,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       operation: v.literal('create'),
       customerId: v.optional(v.id('customers')),
       subject: v.optional(v.string()),
-      status: v.optional(v.string()),
+      status: v.optional(statusValidator),
       priority: v.optional(v.string()),
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
@@ -132,7 +142,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
     v.object({
       operation: v.literal('create_from_email'),
       emails: v.any(),
-      status: v.optional(v.string()),
+      status: v.optional(statusValidator),
       priority: v.optional(v.string()),
       providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
@@ -142,24 +152,24 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       operation: v.literal('create_from_sent_email'),
       emails: v.any(),
       accountEmail: v.optional(v.string()),
-      status: v.optional(v.string()),
+      status: v.optional(statusValidator),
       priority: v.optional(v.string()),
       providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
     }),
   ),
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    // Read and validate organizationId from workflow context variables
+    const organizationId = variables?.organizationId;
+
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'conversation action requires a non-empty string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'create': {
-        if (!organizationId) {
-          throw new Error(
-            'create operation requires organizationId in workflow context',
-          );
-        }
-
         return await createConversation(ctx, {
           organizationId,
           customerId: params.customerId,
@@ -175,12 +185,6 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       }
 
       case 'query_messages': {
-        if (!organizationId) {
-          throw new Error(
-            'query_messages operation requires organizationId in workflow context',
-          );
-        }
-
         return await queryConversationMessages(ctx, {
           organizationId,
           conversationId: params.conversationId,
@@ -191,12 +195,6 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       }
 
       case 'query_latest_message_by_delivery_state': {
-        if (!organizationId) {
-          throw new Error(
-            'query_latest_message_by_delivery_state operation requires organizationId in workflow context',
-          );
-        }
-
         return await queryLatestMessageByDeliveryState(ctx, {
           organizationId,
           channel: params.channel, // Required by validator
@@ -208,18 +206,13 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
 
       case 'update': {
         return await updateConversations(ctx, {
+          organizationId, // For organization ownership validation
           conversationId: params.conversationId, // Required by validator
           updates: params.updates, // Required by validator
         });
       }
 
       case 'create_from_email': {
-        if (!organizationId) {
-          throw new Error(
-            'create_from_email operation requires organizationId in workflow context',
-          );
-        }
-
         return await createConversationFromEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator
@@ -231,12 +224,6 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       }
 
       case 'create_from_sent_email': {
-        if (!organizationId) {
-          throw new Error(
-            'create_from_sent_email operation requires organizationId in workflow context',
-          );
-        }
-
         return await createConversationFromSentEmail(ctx, {
           organizationId,
           emails: params.emails, // Required by validator

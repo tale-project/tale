@@ -5,11 +5,13 @@ import type { Id } from '../../../../_generated/dataModel';
 export async function updateConversations(
   ctx: ActionCtx,
   params: {
+    organizationId: string; // For organization ownership validation
     conversationId: Id<'conversations'>;
     updates: Record<string, unknown>;
   },
 ) {
   await ctx.runMutation(internal.conversations.updateConversations, {
+    organizationId: params.organizationId,
     conversationId: params.conversationId,
     updates: params.updates,
   });

@@ -16,6 +16,7 @@ import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
+// Note: This constant mirrors validStepTypes in validate_step_config.ts - keep in sync
 const validStepTypes = ['trigger', 'llm', 'action', 'condition', 'loop'];
 
 export const updateWorkflowStepTool = {
@@ -163,11 +164,14 @@ LOOP (iteration):
       });
 
       // Validate step config if it's being updated
+      // Note: When only config is updated without stepType, validation may be incomplete
+      // since we don't fetch the existing step's stepType. The mutation itself will
+      // handle the full validation with the merged step data.
       if (args.updates.config || args.updates.stepType) {
         const stepValidation = validateStepConfig({
           stepSlug: 'update', // Placeholder, actual slug comes from existing step
           name: args.updates.name ?? 'Step',
-          stepType: args.updates.stepType,
+          stepType: args.updates.stepType, // May be undefined if only config is being updated
           config: args.updates.config,
         });
 

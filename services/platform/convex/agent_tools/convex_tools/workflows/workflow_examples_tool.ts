@@ -65,9 +65,12 @@ BEST PRACTICES:
 
       // operation === 'get_predefined'
       if (!args.workflowKey) {
-        throw new Error(
-          "Missing required 'workflowKey' for get_predefined operation. Use list_predefined to see available keys.",
-        );
+        return {
+          operation: 'get_predefined',
+          found: false,
+          message:
+            "Missing required 'workflowKey' for get_predefined operation. Use list_predefined to see available keys.",
+        } as WorkflowReadGetPredefinedResult;
       }
       return getPredefinedWorkflow({ workflowKey: args.workflowKey });
     },

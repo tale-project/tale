@@ -68,6 +68,7 @@ export function validateStepConfig(
     return { valid: false, errors, warnings };
   }
 
+  // Note: This constant is duplicated in update_workflow_step_tool.ts - keep in sync
   const validStepTypes: StepType[] = [
     'trigger',
     'llm',

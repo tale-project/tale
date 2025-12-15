@@ -83,11 +83,21 @@ export function getPredefinedWorkflow(args: {
     );
   }
   
-  // Try partial match (contains)
+  // Try partial match (contains) - but only if there's exactly one match
   if (!found) {
-    found = workflowEntries.find(
-      ([key]) => key.toLowerCase().includes(workflowKey.toLowerCase())
+    const partialMatches = workflowEntries.filter(([key]) =>
+      key.toLowerCase().includes(workflowKey.toLowerCase()),
     );
+    if (partialMatches.length === 1) {
+      found = partialMatches[0];
+    } else if (partialMatches.length > 1) {
+      const matchedKeys = partialMatches.map(([key]) => key).join(', ');
+      return {
+        operation: 'get_predefined',
+        found: false,
+        message: `Multiple workflows match "${workflowKey}": ${matchedKeys}. Please be more specific.`,
+      };
+    }
   }
 
   if (!found) {
