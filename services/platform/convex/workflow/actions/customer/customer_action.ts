@@ -32,18 +32,12 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import type { QueryResult } from '../conversation/helpers/types';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
   success: boolean;
   customerId: Id<'customers'>;
-};
-
-type QueryResult<T = unknown> = {
-  page: T[];
-  isDone: boolean;
-  continueCursor: string | null;
-  count: number;
 };
 
 // Common field validators
@@ -127,16 +121,16 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
     }),
   ),
   async execute(ctx, params, variables) {
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string') {
+      throw new Error(
+        'customer action requires a string organizationId in workflow context',
+      );
+    }
 
     switch (params.operation) {
       case 'create': {
-        if (!organizationId) {
-          throw new Error(
-            'create operation requires organizationId in workflow context',
-          );
-        }
 
         const result = (await ctx.runMutation!(
           internal.customers.createCustomer,

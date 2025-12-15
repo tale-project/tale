@@ -42,10 +42,12 @@ export const integrationAction: ActionDefinition<{
   async execute(ctx, params, variables) {
     const { name, operation, params: opParams = {} } = params;
 
-    // Read organizationId from workflow context variables
-    const organizationId = variables.organizationId as string;
-    if (!organizationId) {
-      throw new Error('integration requires organizationId in workflow context');
+    // Read organizationId from workflow context variables with proper type validation
+    const organizationId = variables.organizationId;
+    if (typeof organizationId !== 'string' || !organizationId) {
+      throw new Error(
+        'integration requires a non-empty string organizationId in workflow context',
+      );
     }
 
     // 1. Load the integration from database by name

@@ -79,6 +79,12 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
           { organizationId, domain: params.domain },
         );
 
+        if (!createdWebsite) {
+          throw new Error(
+            `Failed to fetch created website with domain "${params.domain}"`,
+          );
+        }
+
         return createdWebsite;
       }
 

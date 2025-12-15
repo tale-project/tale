@@ -53,9 +53,6 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
       threadSearchFolders = JSON.parse(processedParams.threadSearchFolders);
     }
 
-    // Execute search operation
-    const startTime = Date.now();
-
     // Search operation:
     // - If afterUid is provided: fetch 1 email after that UID
     // - If afterUid is not provided: fetch latest email
@@ -78,8 +75,6 @@ export const imapAction: ActionDefinition<ImapActionParams> = {
           : {}),
       },
     );
-
-    const duration = Date.now() - startTime;
 
     // Note: execute_action_node wraps this in output: { type: 'action', data: result }
     return messages;

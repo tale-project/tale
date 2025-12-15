@@ -385,6 +385,7 @@ import type * as model_wf_step_defs_update_step from "../model/wf_step_defs/upda
 import type * as model_workflow_processing_records_find_product_recommendation_by_status from "../model/workflow_processing_records/find_product_recommendation_by_status.js";
 import type * as model_workflow_processing_records_find_unprocessed from "../model/workflow_processing_records/find_unprocessed.js";
 import type * as model_workflow_processing_records_find_unprocessed_open_conversation from "../model/workflow_processing_records/find_unprocessed_open_conversation.js";
+import type * as model_workflow_processing_records_get_processing_record_by_id from "../model/workflow_processing_records/get_processing_record_by_id.js";
 import type * as model_workflow_processing_records_helpers_find_unprocessed_with_custom_query from "../model/workflow_processing_records/helpers/find_unprocessed_with_custom_query.js";
 import type * as model_workflow_processing_records_helpers_get_latest_conversation_message from "../model/workflow_processing_records/helpers/get_latest_conversation_message.js";
 import type * as model_workflow_processing_records_helpers_get_latest_processed_creation_time from "../model/workflow_processing_records/helpers/get_latest_processed_creation_time.js";
@@ -985,6 +986,7 @@ declare const fullApi: ApiFromModules<{
   "model/workflow_processing_records/find_product_recommendation_by_status": typeof model_workflow_processing_records_find_product_recommendation_by_status;
   "model/workflow_processing_records/find_unprocessed": typeof model_workflow_processing_records_find_unprocessed;
   "model/workflow_processing_records/find_unprocessed_open_conversation": typeof model_workflow_processing_records_find_unprocessed_open_conversation;
+  "model/workflow_processing_records/get_processing_record_by_id": typeof model_workflow_processing_records_get_processing_record_by_id;
   "model/workflow_processing_records/helpers/find_unprocessed_with_custom_query": typeof model_workflow_processing_records_helpers_find_unprocessed_with_custom_query;
   "model/workflow_processing_records/helpers/get_latest_conversation_message": typeof model_workflow_processing_records_helpers_get_latest_conversation_message;
   "model/workflow_processing_records/helpers/get_latest_processed_creation_time": typeof model_workflow_processing_records_helpers_get_latest_processed_creation_time;

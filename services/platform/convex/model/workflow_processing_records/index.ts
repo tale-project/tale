@@ -42,3 +42,6 @@ export { getLatestProcessedCreationTime } from './helpers/get_latest_processed_c
 export type { GetLatestProcessedCreationTimeArgs } from './helpers/get_latest_processed_creation_time';
 
 export { getLatestConversationMessage } from './helpers/get_latest_conversation_message';
+
+export { getProcessingRecordById } from './get_processing_record_by_id';
+export type { GetProcessingRecordByIdArgs } from './get_processing_record_by_id';

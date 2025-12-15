@@ -1,7 +1,6 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { ConversationStatus } from './types';
 
 export async function updateConversations(
   ctx: ActionCtx,

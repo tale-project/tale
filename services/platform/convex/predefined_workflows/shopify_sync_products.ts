@@ -119,7 +119,7 @@ export const shopifySyncProductsWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.query_existing_product.output.data|length > 0',
+        expression: 'steps.query_existing_product.output.data.page|length > 0',
         description: 'Check if product already exists in database',
       },
       nextSteps: {

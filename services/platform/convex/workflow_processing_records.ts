@@ -162,6 +162,9 @@ export const getProcessingRecordById = internalQuery({
   },
   returns: v.union(v.any(), v.null()),
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.processingRecordId);
+    return await WorkflowProcessingRecordsModel.getProcessingRecordById(
+      ctx,
+      args,
+    );
   },
 });

@@ -32,22 +32,20 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
   title: 'Document Operation',
   description:
     'Execute document-specific operations (update). organizationId is automatically read from workflow context variables.',
-  parametersValidator: v.union(
-    // update: Update a document by ID
-    v.object({
-      operation: v.literal('update'),
-      documentId: v.id('documents'),
-      title: v.optional(v.string()),
-      content: v.optional(v.string()),
-      fileId: v.optional(v.id('_storage')),
-      mimeType: v.optional(v.string()),
-      extension: v.optional(v.string()),
-      metadata: v.optional(v.any()),
-      sourceProvider: v.optional(
-        v.union(v.literal('onedrive'), v.literal('upload')),
-      ),
-    }),
-  ),
+  // update: Update a document by ID
+  parametersValidator: v.object({
+    operation: v.literal('update'),
+    documentId: v.id('documents'),
+    title: v.optional(v.string()),
+    content: v.optional(v.string()),
+    fileId: v.optional(v.id('_storage')),
+    mimeType: v.optional(v.string()),
+    extension: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    sourceProvider: v.optional(
+      v.union(v.literal('onedrive'), v.literal('upload')),
+    ),
+  }),
   async execute(ctx, params, _variables) {
     switch (params.operation) {
       case 'update': {
