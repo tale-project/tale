@@ -239,7 +239,7 @@ export const generalProductRecommendationWorkflow = {
       order: 8,
       config: {
         expression:
-          'steps.hydrate_recommendations.output.data.recommendations|length > 0',
+          'steps.hydrate_recommendations.output.data|length > 0',
         description:
           'Check if AI generated any recommendations for this customer',
       },
@@ -264,7 +264,7 @@ export const generalProductRecommendationWorkflow = {
             customerName: '{{currentCustomerName}}',
             customerEmail: '{{currentCustomerEmail}}',
             recommendedProducts:
-              '{{steps.hydrate_recommendations.output.data.recommendations}}',
+              '{{steps.hydrate_recommendations.output.data}}',
             summary: '{{steps.generate_recommendations.output.data.summary}}',
             generatedAt: '{{now}}',
             workflowId: '{{rootWfDefinitionId}}',
@@ -287,7 +287,7 @@ export const generalProductRecommendationWorkflow = {
           recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             recommendationsGenerated:
-              '{{steps.hydrate_recommendations.output.data.recommendations|length}}',
+              '{{steps.hydrate_recommendations.output.data|length}}',
             processedAt: '{{now}}',
             customerStatus: '{{currentCustomerStatus}}',
           },

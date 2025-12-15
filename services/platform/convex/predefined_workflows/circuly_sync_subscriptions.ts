@@ -79,7 +79,7 @@ export const circulySyncSubscriptionsWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.fetch_circuly_customers.output.data|length > 0',
+        expression: 'steps.fetch_circuly_customers.output.data.page|length > 0',
         description: 'Check if any Circuly customers exist in current page',
       },
       nextSteps: {
@@ -95,7 +95,7 @@ export const circulySyncSubscriptionsWorkflow = {
       stepType: 'loop',
       order: 6,
       config: {
-        items: '{{steps.fetch_circuly_customers.output.data}}',
+        items: '{{steps.fetch_circuly_customers.output.data.page}}',
         itemVariable: 'customer',
       },
       nextSteps: {
@@ -202,7 +202,7 @@ export const circulySyncSubscriptionsWorkflow = {
             {
               name: 'totalProcessed',
               value:
-                '{{totalProcessed + steps.fetch_circuly_customers.output.data|length}}',
+                '{{totalProcessed + steps.fetch_circuly_customers.output.data.page|length}}',
             },
           ],
         },

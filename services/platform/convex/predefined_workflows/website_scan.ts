@@ -258,7 +258,7 @@ export const websiteScanWorkflow = {
           operation: 'bulk_upsert',
           websiteId:
             '{{steps.create_website_with_metadata.output.data._id || steps.check_existing_website_for_metadata.output.data._id}}',
-          pages: '{{steps.fetch_single_url.output.datas}}',
+          pages: '{{steps.fetch_single_url.output.data.pages}}',
         },
       },
       nextSteps: {

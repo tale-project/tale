@@ -7,10 +7,12 @@
  * - Required fields for each step type
  * - Valid nextSteps references
  * - Config structure for each step type
+ * - Variable references (step existence, execution order, path structure)
  */
 
 import { validateWorkflowSteps } from '../engine/validate_workflow_steps';
 import { validateStepConfig } from './validate_step_config';
+import { validateWorkflowVariableReferences } from './variable_references';
 
 const VALID_STEP_TYPES = ['trigger', 'llm', 'action', 'condition', 'loop'];
 
@@ -137,6 +139,11 @@ export function validateWorkflowDefinition(
       'No trigger step found. Workflows should start with a trigger step.',
     );
   }
+
+  // Validate variable references (step existence, execution order, path structure)
+  const variableRefValidation = validateWorkflowVariableReferences(stepsConfig);
+  errors.push(...variableRefValidation.errors);
+  warnings.push(...variableRefValidation.warnings);
 
   return { valid: errors.length === 0, errors, warnings };
 }

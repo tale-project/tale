@@ -583,6 +583,12 @@ import type * as workflow_helpers_step_execution_types from "../workflow/helpers
 import type * as workflow_helpers_validation_validate_action_parameters from "../workflow/helpers/validation/validate_action_parameters.js";
 import type * as workflow_helpers_validation_validate_step_config from "../workflow/helpers/validation/validate_step_config.js";
 import type * as workflow_helpers_validation_validate_workflow_definition from "../workflow/helpers/validation/validate_workflow_definition.js";
+import type * as workflow_helpers_validation_variable_references_action_output_schemas from "../workflow/helpers/validation/variable_references/action_output_schemas.js";
+import type * as workflow_helpers_validation_variable_references_index from "../workflow/helpers/validation/variable_references/index.js";
+import type * as workflow_helpers_validation_variable_references_parse_variable_references from "../workflow/helpers/validation/variable_references/parse_variable_references.js";
+import type * as workflow_helpers_validation_variable_references_step_output_schemas from "../workflow/helpers/validation/variable_references/step_output_schemas.js";
+import type * as workflow_helpers_validation_variable_references_types from "../workflow/helpers/validation/variable_references/types.js";
+import type * as workflow_helpers_validation_variable_references_validate_variable_references from "../workflow/helpers/validation/variable_references/validate_variable_references.js";
 import type * as workflow_helpers_variables_decrypt_inline_secrets from "../workflow/helpers/variables/decrypt_inline_secrets.js";
 import type * as workflow_nodes from "../workflow/nodes.js";
 import type * as workflow_scheduler from "../workflow/scheduler.js";
@@ -1177,6 +1183,12 @@ declare const fullApi: ApiFromModules<{
   "workflow/helpers/validation/validate_action_parameters": typeof workflow_helpers_validation_validate_action_parameters;
   "workflow/helpers/validation/validate_step_config": typeof workflow_helpers_validation_validate_step_config;
   "workflow/helpers/validation/validate_workflow_definition": typeof workflow_helpers_validation_validate_workflow_definition;
+  "workflow/helpers/validation/variable_references/action_output_schemas": typeof workflow_helpers_validation_variable_references_action_output_schemas;
+  "workflow/helpers/validation/variable_references/index": typeof workflow_helpers_validation_variable_references_index;
+  "workflow/helpers/validation/variable_references/parse_variable_references": typeof workflow_helpers_validation_variable_references_parse_variable_references;
+  "workflow/helpers/validation/variable_references/step_output_schemas": typeof workflow_helpers_validation_variable_references_step_output_schemas;
+  "workflow/helpers/validation/variable_references/types": typeof workflow_helpers_validation_variable_references_types;
+  "workflow/helpers/validation/variable_references/validate_variable_references": typeof workflow_helpers_validation_variable_references_validate_variable_references;
   "workflow/helpers/variables/decrypt_inline_secrets": typeof workflow_helpers_variables_decrypt_inline_secrets;
   "workflow/nodes": typeof workflow_nodes;
   "workflow/scheduler": typeof workflow_scheduler;
