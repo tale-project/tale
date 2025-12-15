@@ -137,3 +137,8 @@ export interface StepSchemaContext {
 export interface ActionOutputSchemaRegistry {
   [actionType: string]: OperationOutputSchemas;
 }
+
+// NOTE: Consider extracting a shared StepType alias (e.g., 'trigger' | 'llm' | 'action' | 'condition' | 'loop')
+// and reusing it across StepOutputStructure.stepType, StepSchemaContext.stepType, and other interfaces
+// to prevent drift as workflow engine capabilities evolve.
+// Also ensure FieldType stays aligned with Convex validator surface.

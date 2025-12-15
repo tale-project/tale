@@ -12,6 +12,7 @@ import type {
   VariableReferenceValidationResult,
   StepSchemaContext,
   OutputSchema,
+  FieldSchema,
 } from './types';
 import { extractStepReferences } from './parse_variable_references';
 import { getStepTypeOutputSchema } from './step_output_schemas';
@@ -216,7 +217,7 @@ function validateFieldPath(
     return { valid: true, errors, warnings };
   }
 
-  let currentFields: Record<string, import('./types').FieldSchema> | undefined = schema.fields;
+  let currentFields: Record<string, FieldSchema> | undefined = schema.fields;
   const validatedPath: string[] = [];
 
   for (let i = 0; i < fieldPath.length; i++) {
@@ -305,9 +306,10 @@ function validateStepVariableReferences(
     };
 
     // Check if the referenced step exists
-    const referencedStep = ref.stepSlug ? allSteps.get(ref.stepSlug) : undefined;
+    const refStepSlug = ref.stepSlug;
+    const referencedStep = refStepSlug ? allSteps.get(refStepSlug) : undefined;
 
-    if (!referencedStep) {
+    if (!referencedStep || !refStepSlug) {
       refResult.valid = false;
       refResult.errors.push(
         `Step "${step.stepSlug}" references non-existent step "${ref.stepSlug}" ` +
@@ -319,8 +321,9 @@ function validateStepVariableReferences(
     }
 
     // Check execution order - can only reference earlier steps
+    // refStepSlug is guaranteed to be defined after the check above
     const currentOrder = stepOrder.get(step.stepSlug) ?? Infinity;
-    const referencedOrder = stepOrder.get(ref.stepSlug!) ?? -1;
+    const referencedOrder = stepOrder.get(refStepSlug) ?? -1;
 
     if (referencedOrder >= currentOrder) {
       refResult.valid = false;
@@ -367,7 +370,8 @@ export function validateWorkflowVariableReferences(
   const allSteps = new Map<string, StepInfo>();
   const stepOrder = new Map<string, number>();
 
-  for (const stepConfig of stepsConfig) {
+  for (let i = 0; i < stepsConfig.length; i++) {
+    const stepConfig = stepsConfig[i];
     const stepSlug = stepConfig.stepSlug as string;
     const stepType = stepConfig.stepType as StepInfo['stepType'];
     const order = stepConfig.order as number;
@@ -377,6 +381,11 @@ export function validateWorkflowVariableReferences(
       const stepInfo: StepInfo = { stepSlug, stepType, order, config };
       allSteps.set(stepSlug, stepInfo);
       stepOrder.set(stepSlug, order);
+    } else {
+      // Warn about malformed step configurations
+      warnings.push(
+        `Step at index ${i} is missing required fields (stepSlug: ${!!stepSlug}, stepType: ${!!stepType})`,
+      );
     }
   }
 

@@ -30,7 +30,8 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
 
 ### loop (stepType: 'loop')
 Config: { items, itemVariable?: 'item', indexVariable?: 'index', maxIterations?: 1000, continueOnError? }
-NextSteps: { body: 'loop_body', success: 'after_loop', error?: 'error_handler' }
+NextSteps: { loop: 'loop_body_step', done: 'after_loop_step', error?: 'error_handler' }
+Note: 'loop' port goes to the step executed for each item; 'done' port goes to the step after loop completes
 
 ## Action Types & Output Structures
 All actions return unified structure: \`{ data: T | T[] | null, isDone?: boolean, continueCursor?: string | null }\`
