@@ -98,7 +98,7 @@ const queryCustomersArgs = {
 };
 
 const queryCustomersReturns = v.object({
-  page: v.array(v.any()),
+  items: v.array(v.any()),
   isDone: v.boolean(),
   continueCursor: v.union(v.string(), v.null()),
   count: v.number(),

@@ -20,7 +20,7 @@ export interface QueryProductsArgs {
 }
 
 export interface QueryProductsResult {
-  page: Array<Doc<'products'>>;
+  items: Array<Doc<'products'>>;
   isDone: boolean;
   continueCursor: string | null;
   count: number;
@@ -135,7 +135,7 @@ export async function queryProducts(
   const paginatedProducts = products.slice(startIndex, endIndex);
 
   return {
-    page: paginatedProducts,
+    items: paginatedProducts,
     isDone: endIndex >= products.length,
     continueCursor:
       paginatedProducts.length > 0

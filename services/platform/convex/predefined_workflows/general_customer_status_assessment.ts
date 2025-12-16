@@ -201,7 +201,6 @@ Return ONLY JSON in the exact shape described in the system prompt.`,
           operation: 'record_processed',
           tableName: 'customers',
           recordId: '{{currentCustomerId}}',
-          recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             processedAt: '{{now}}',
             statusUpdated: true,

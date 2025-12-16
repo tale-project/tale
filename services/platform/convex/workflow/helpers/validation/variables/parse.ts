@@ -38,17 +38,25 @@ function parseExpression(
   const trimmed = expression.trim();
 
   // Check for complex expressions (ternary, comparison, etc.)
-  // These can't be validated for field access
+  // We still want to validate field paths in these expressions
   if (isComplexExpression(trimmed)) {
-    // For complex expressions, try to extract the step reference if present
-    // e.g., "steps.foo.output.data.bar == 'baz'" -> extract "steps.foo"
-    const stepMatch = trimmed.match(/^steps\.([a-zA-Z_][a-zA-Z0-9_]*)\.?/);
-    if (stepMatch) {
+    // For complex expressions, extract the full step reference path before the operator
+    // e.g., "steps.foo.output.data.bar == 'baz'" -> extract full path "steps.foo.output.data.bar"
+    // Match: steps.<slug>.<path segments> until we hit an operator or space
+    const stepPathMatch = trimmed.match(
+      /^steps\.([a-zA-Z_][a-zA-Z0-9_]*)((?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)/,
+    );
+    if (stepPathMatch) {
+      const stepSlug = stepPathMatch[1];
+      // Extract path segments after the step slug (e.g., ".output.data.length" -> ["output", "data", "length"])
+      const pathString = stepPathMatch[2]; // e.g., ".output.data.length"
+      const path = pathString ? pathString.slice(1).split('.') : [];
+
       return {
         fullExpression: trimmed,
         type: 'step',
-        stepSlug: stepMatch[1],
-        path: ['__complex_expression__'], // Special marker for complex expressions
+        stepSlug,
+        path,
         originalTemplate,
       };
     }
@@ -185,4 +193,62 @@ export function parseVariableReferences(
  */
 export function extractStepReferences(value: unknown): ParsedVariableReference[] {
   return parseVariableReferences(value).filter((ref) => ref.type === 'step');
+}
+
+/**
+ * Parse a raw JEXL expression (without mustache brackets) for step references.
+ * This is used for condition expressions which use direct JEXL syntax.
+ *
+ * Example: "steps.query_existing_customer.output.data.page|length > 0"
+ * -> extracts step reference with path ["output", "data", "page|length"]
+ *
+ * Example: "steps.query_existing_customer.output.data|length > 0"
+ * -> extracts step reference with path ["output", "data|length"]
+ */
+export function parseJexlExpression(expression: string): ParsedVariableReference[] {
+  const references: ParsedVariableReference[] = [];
+  const trimmed = expression.trim();
+
+  // Find all step references in the expression
+  // Pattern matches: steps.<slug>.<path> where path is dot-separated identifiers
+  // and optionally includes a JEXL filter like |length on the last segment
+  const stepRefPattern =
+    /steps\.([a-zA-Z_][a-zA-Z0-9_]*)((?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)(\|[a-zA-Z_][a-zA-Z0-9_]*)?/g;
+
+  let match;
+  while ((match = stepRefPattern.exec(trimmed)) !== null) {
+    const stepSlug = match[1];
+    const pathString = match[2]; // e.g., ".output.data" or ".output.data.page"
+    const filter = match[3]; // e.g., "|length" or undefined
+    let path = pathString ? pathString.slice(1).split('.') : [];
+
+    // If there's a filter, append it to the last path segment
+    if (filter && path.length > 0) {
+      path[path.length - 1] = path[path.length - 1] + filter;
+    } else if (filter && path.length === 0) {
+      // Filter applied directly to step (unusual but handle it)
+      path = [filter.slice(1)]; // Remove the leading |
+    }
+
+    // match[0] is the full match including the filter (if present)
+    references.push({
+      fullExpression: trimmed,
+      type: 'step',
+      stepSlug,
+      path,
+      originalTemplate: match[0],
+    });
+  }
+
+  return references;
+}
+
+/**
+ * Extract step references from a condition expression (raw JEXL syntax)
+ */
+export function extractStepReferencesFromCondition(
+  expression: string,
+): ParsedVariableReference[] {
+  // parseJexlExpression only returns references with type 'step', so filter is redundant
+  return parseJexlExpression(expression);
 }

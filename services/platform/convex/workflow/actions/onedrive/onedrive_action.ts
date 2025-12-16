@@ -257,11 +257,11 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },
           })) as {
-            page: any[];
+            items: any[];
             isDone: boolean;
             continueCursor: string | null;
           };
-          for (const doc of res.page) {
+          for (const doc of res.items) {
             const meta = (doc as any).metadata ?? {};
             const key =
               ((doc as any).externalItemId as string | undefined) ??

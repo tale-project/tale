@@ -19,7 +19,7 @@ export async function readProductList(
   const fields = args.fields ?? defaultListFields;
 
   const result: {
-    page: Array<Record<string, unknown>>;
+    items: Array<Record<string, unknown>>;
     isDone: boolean;
     continueCursor: string | null;
   } = await ctx.runQuery(internal.products.listByOrganization, {
@@ -33,10 +33,10 @@ export async function readProductList(
 
   return {
     operation: 'list',
-    products: result.page,
+    products: result.items,
     pagination: {
       hasMore: !result.isDone,
-      totalFetched: result.page.length,
+      totalFetched: result.items.length,
       cursor: result.continueCursor,
     },
   };

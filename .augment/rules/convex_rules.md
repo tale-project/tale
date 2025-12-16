@@ -1,6 +1,6 @@
 ---
-type: 'always_apply'
-description: 'Guidelines and best practices for building Convex projects, including database schema design, queries, mutations, and real-world examples'
+type: "always_apply"
+description: "Guidelines and best practices for building Convex projects, including database schema design, queries, mutations, and real-world examples"
 ---
 
 # Convex guidelines

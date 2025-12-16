@@ -470,7 +470,6 @@ DO NOT use the same confidence score for all recommendations.`,
           operation: 'record_processed',
           tableName: 'customers',
           recordId: '{{currentCustomerId}}',
-          recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             recommendationsGenerated:
               '{{steps.hydrate_recommendations.output.data|length}}',

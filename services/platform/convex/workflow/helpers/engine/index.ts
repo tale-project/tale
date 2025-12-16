@@ -5,7 +5,6 @@
  */
 
 export { buildStepsConfigMap } from './build_steps_config_map';
-export { validateWorkflowSteps } from './validate_workflow_steps';
 export { loadDatabaseWorkflow } from './load_database_workflow';
 export type { WorkflowData } from './workflow_data';
 export { executeWorkflowStart } from './execute_workflow_start';

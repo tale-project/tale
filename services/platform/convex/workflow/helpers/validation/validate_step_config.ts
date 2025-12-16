@@ -3,33 +3,46 @@
  *
  * This module validates step configurations to ensure they meet
  * the requirements for each step type.
+ *
+ * Step-type specific validation is delegated to validators in steps/.
  */
 
-import { validateActionParameters } from './validate_action_parameters';
+import { VALID_STEP_TYPES, isValidStepType, type StepType } from './constants';
+import { type StepDefinitionInput, type StepConfigValidationResult, isConfigObject } from './types';
+import { validateStepByType } from './steps';
 
-export type StepType = 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+// Re-export types and utilities for backward compatibility
+export type { StepType } from './constants';
+export { VALID_STEP_TYPES, VALID_TRIGGER_TYPES, isValidStepType, type TriggerType } from './constants';
+export type { StepDefinitionInput, StepConfigValidationResult } from './types';
 
-// Valid trigger types
-export const VALID_TRIGGER_TYPES = [
-  'manual',
-  'scheduled',
-  'webhook',
-  'event',
-] as const;
-export type TriggerType = (typeof VALID_TRIGGER_TYPES)[number];
+// =============================================================================
+// STEP SLUG VALIDATION
+// =============================================================================
 
-export interface StepDefinitionInput {
-  stepSlug?: string;
-  name?: string;
-  stepType?: StepType | string;
-  config?: unknown;
+/** Regex pattern for valid step slugs (snake_case with lowercase letters only) */
+const STEP_SLUG_PATTERN = /^[a-z]+(?:_[a-z]+)*$/;
+
+/**
+ * Validate a step slug format
+ */
+function validateStepSlug(stepSlug: string | undefined): string[] {
+  const errors: string[] = [];
+
+  if (!stepSlug) {
+    errors.push('Step slug is required');
+  } else if (!STEP_SLUG_PATTERN.test(stepSlug)) {
+    errors.push(
+      'Step slug must be snake_case and contain only lowercase letters and underscores (e.g., "first_step")'
+    );
+  }
+
+  return errors;
 }
 
-export interface StepConfigValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
+// =============================================================================
+// MAIN VALIDATION FUNCTION
+// =============================================================================
 
 /**
  * Validate a single workflow step definition's basic fields and config.
@@ -37,236 +50,47 @@ export interface StepConfigValidationResult {
  * This helper is used both at authoring time (agent tool) and at runtime
  * to ensure that step definitions meet the same requirements everywhere.
  */
-export function validateStepConfig(
-  stepDef: StepDefinitionInput,
-): StepConfigValidationResult {
+export function validateStepConfig(stepDef: StepDefinitionInput): StepConfigValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Step slug (machine-readable, must be snake_case)
-  if (!stepDef.stepSlug) {
-    errors.push('Step slug is required');
-  } else {
-    // Step slug must be snake_case and contain only lowercase letters and underscores
-    // Example: "first_step", "process_customer", "a"
-    const snakeCaseSlugRegex = /^[a-z]+(?:_[a-z]+)*$/;
-    if (!snakeCaseSlugRegex.test(stepDef.stepSlug)) {
-      errors.push(
-        'Step slug must be snake_case and contain only lowercase letters and underscores (e.g., "first_step")',
-      );
-    }
-  }
+  // 1. Validate step slug
+  errors.push(...validateStepSlug(stepDef.stepSlug));
 
-  // Step name (human-readable label)
+  // 2. Validate step name
   if (!stepDef.name) {
     errors.push('Step name is required');
   }
 
-  // Step type
+  // 3. Validate step type
   if (!stepDef.stepType) {
     errors.push('Step type is required');
     return { valid: false, errors, warnings };
   }
 
-  // Note: This constant is duplicated in update_workflow_step_tool.ts - keep in sync
-  const validStepTypes: StepType[] = [
-    'trigger',
-    'llm',
-    'condition',
-    'action',
-    'loop',
-  ];
-
-  if (!validStepTypes.includes(stepDef.stepType as StepType)) {
+  if (!isValidStepType(stepDef.stepType)) {
     errors.push(
-      `Invalid step type "${stepDef.stepType}". Must be one of: ${validStepTypes.join(
-        ', ',
-      )}`,
+      `Invalid step type "${stepDef.stepType}". Must be one of: ${VALID_STEP_TYPES.join(', ')}`
     );
     return { valid: false, errors, warnings };
   }
 
-  // Type guard for config object
-  const isConfigObject = (config: unknown): config is Record<string, unknown> =>
-    typeof config === 'object' && config !== null;
-
+  // 4. Validate config object
   const config = stepDef.config;
-
   if (!isConfigObject(config)) {
     errors.push('Step config is required and must be an object');
     return { valid: false, errors, warnings };
   }
 
-  // Type-specific validation
-  switch (stepDef.stepType) {
-    case 'trigger': {
-      if (!('type' in config)) {
-        errors.push('Trigger step requires "type" field in config');
-        break;
-      }
-
-      // Validate trigger type
-      const triggerType = config.type as string;
-      if (!VALID_TRIGGER_TYPES.includes(triggerType as TriggerType)) {
-        errors.push(
-          `Invalid trigger type "${triggerType}". Must be one of: ${VALID_TRIGGER_TYPES.join(', ')}`,
-        );
-        break;
-      }
-
-      // Validate type-specific trigger config
-      const triggerErrors = validateTriggerConfig(
-        triggerType as TriggerType,
-        config,
-      );
-      errors.push(...triggerErrors);
-      break;
-    }
-
-    case 'llm': {
-      // Support both direct config and { llmNode: config }
-      const llmConfig =
-        'llmNode' in config && typeof config.llmNode === 'object'
-          ? (config.llmNode as Record<string, unknown>)
-          : config;
-
-      if (!llmConfig || typeof llmConfig !== 'object') {
-        errors.push('LLM step requires valid config or llmNode');
-        break;
-      }
-
-      if (!llmConfig.name) {
-        errors.push('LLM step requires "name" field');
-      }
-      if (!llmConfig.systemPrompt) {
-        errors.push('LLM step requires "systemPrompt" field');
-      }
-      // Model is now resolved from environment (OPENAI_MODEL) and cannot be
-      // customized per step, so we intentionally do not validate a model field
-      // here. Any provided model value will be ignored at execution time.
-      break;
-    }
-
-    case 'condition':
-      if (!('expression' in config)) {
-        errors.push('Expression is required for condition steps');
-      } else if (typeof config.expression !== 'string') {
-        errors.push('Condition expression must be a string');
-      } else if (config.expression.trim() === '') {
-        errors.push('Condition expression cannot be empty');
-      }
-      break;
-
-    case 'action': {
-      if (!('type' in config)) {
-        errors.push('Action type is required for action steps');
-        break;
-      }
-
-      const actionType = config.type as string;
-      // Get parameters - they can be in config.parameters or directly in config
-      const parameters =
-        'parameters' in config ? config.parameters : { ...config };
-      // Remove 'type' from parameters if it was copied from config
-      if (
-        typeof parameters === 'object' &&
-        parameters !== null &&
-        'type' in parameters
-      ) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { type: _type, ...rest } = parameters as Record<string, unknown>;
-        const actionValidation = validateActionParameters(actionType, rest);
-        errors.push(...actionValidation.errors);
-        warnings.push(...actionValidation.warnings);
-      } else {
-        const actionValidation = validateActionParameters(
-          actionType,
-          parameters,
-        );
-        errors.push(...actionValidation.errors);
-        warnings.push(...actionValidation.warnings);
-      }
-      break;
-    }
-
-    case 'loop': {
-      const { maxIterations, items } = config as {
-        maxIterations?: unknown;
-        items?: unknown;
-      };
-      if (
-        maxIterations !== undefined &&
-        (typeof maxIterations !== 'number' || maxIterations <= 0)
-      ) {
-        errors.push('Max iterations must be a positive number for loop steps');
-      }
-
-      // Warn if no items source is defined
-      if (items === undefined) {
-        warnings.push(
-          'Loop step has no "items" defined - loop may not iterate over anything',
-        );
-      }
-      break;
-    }
-  }
+  // 5. Delegate to step-type specific validator
+  const stepType = stepDef.stepType as StepType;
+  const typeValidation = validateStepByType(stepType, config);
+  errors.push(...typeValidation.errors);
+  warnings.push(...typeValidation.warnings);
 
   return {
     valid: errors.length === 0,
     errors,
     warnings,
   };
-}
-
-/**
- * Validate trigger-type specific configuration
- */
-function validateTriggerConfig(
-  triggerType: TriggerType,
-  config: Record<string, unknown>,
-): string[] {
-  const errors: string[] = [];
-
-  switch (triggerType) {
-    case 'scheduled':
-      if (!config.schedule) {
-        errors.push('Scheduled trigger requires "schedule" field (cron expression)');
-      } else if (typeof config.schedule !== 'string') {
-        errors.push('Scheduled trigger "schedule" must be a string (cron expression)');
-      } else {
-        // Basic cron expression validation (5 or 6 parts)
-        // Note: This only validates part count, not individual field ranges.
-        // Expressions like "99 99 99 99 99" would pass this check.
-        // Consider using a cron parser library for stricter validation if needed.
-        const parts = (config.schedule as string).trim().split(/\s+/);
-        if (parts.length < 5 || parts.length > 6) {
-          errors.push(
-            `Invalid cron expression "${config.schedule}". Expected 5 or 6 space-separated parts (e.g., "0 * * * *" for every hour)`,
-          );
-        }
-      }
-      break;
-
-    case 'event':
-      if (!config.eventType) {
-        errors.push('Event trigger requires "eventType" field');
-      } else if (typeof config.eventType !== 'string') {
-        errors.push('Event trigger "eventType" must be a string');
-      }
-      break;
-
-    case 'manual':
-      // Manual triggers have minimal requirements - just the type
-      // Optionally can have inputs and data fields
-      if (config.inputs !== undefined && !Array.isArray(config.inputs)) {
-        errors.push('Manual trigger "inputs" must be an array if provided');
-      }
-      break;
-
-    case 'webhook':
-      // Webhook triggers are flexible - minimal validation
-      break;
-  }
-
-  return errors;
 }

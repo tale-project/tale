@@ -284,7 +284,6 @@ export const generalProductRecommendationWorkflow = {
           operation: 'record_processed',
           tableName: 'customers',
           recordId: '{{currentCustomerId}}',
-          recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             recommendationsGenerated:
               '{{steps.hydrate_recommendations.output.data|length}}',

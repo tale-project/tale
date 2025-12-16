@@ -275,7 +275,7 @@ export const queryDocuments = internalQuery({
     paginationOpts: paginationOptsValidator,
   },
   returns: v.object({
-    page: v.array(DocumentRecord),
+    items: v.array(DocumentRecord),
     isDone: v.boolean(),
     continueCursor: v.union(v.string(), v.null()),
     count: v.number(),

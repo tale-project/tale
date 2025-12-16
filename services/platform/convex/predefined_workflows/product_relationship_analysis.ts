@@ -469,7 +469,6 @@ BIDIRECTIONAL RELATIONSHIPS:
           operation: 'record_processed',
           tableName: 'products',
           recordId: '{{sourceProductId}}',
-          recordCreationTime: '{{sourceProduct._creationTime}}',
           metadata: {
             relationshipsFound:
               '{{steps.analyze_product_relationships.output.data.relationships|length}}',

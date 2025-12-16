@@ -434,7 +434,6 @@ Task: As John, generate a warm and professional reply in markdown format that ad
           operation: 'record_processed',
           tableName: 'conversations',
           recordId: '{{currentConversationId}}',
-          recordCreationTime: '{{currentConversationCreationTime}}',
           metadata: {
             needsReply: '{{steps.check_needs_reply.output.data.needs_reply}}',
             urgency: '{{steps.check_needs_reply.output.data.urgency}}',

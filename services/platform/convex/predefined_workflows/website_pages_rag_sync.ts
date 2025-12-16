@@ -103,8 +103,6 @@ export const websitePagesRagSyncWorkflow = {
           tableName: 'websitePages',
           recordId:
             '{{steps.find_unprocessed_page.output.data._id}}',
-          recordCreationTime:
-            '{{steps.find_unprocessed_page.output.data._creationTime}}',
         },
       },
       nextSteps: {

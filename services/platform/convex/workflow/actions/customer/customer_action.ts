@@ -33,6 +33,10 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { QueryResult } from '../conversation/helpers/types';
+import {
+  customerStatusValidator,
+  customerAddressValidator,
+} from '../../../model/customers/types';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
@@ -41,18 +45,32 @@ type CreateCustomerResult = {
 };
 
 // Common field validators
-const statusValidator = v.optional(
-  v.union(
-    v.literal('active'),
-    v.literal('churned'),
-    v.literal('potential'),
-  ),
-);
+const statusValidator = v.optional(customerStatusValidator);
+
+// Customer update validator - must match internal.customers.updateCustomers
+const customerUpdateValidator = v.object({
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  status: v.optional(customerStatusValidator),
+  source: v.optional(v.string()),
+  locale: v.optional(v.string()),
+  address: v.optional(customerAddressValidator),
+  metadata: v.optional(v.record(v.string(), v.any())),
+});
 
 const paginationOptsValidator = v.object({
   numItems: v.number(),
   cursor: v.union(v.string(), v.null()),
 });
+
+// Type for customer address
+type CustomerAddress = {
+  street?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+};
 
 // Type for all customer operation params (discriminated union)
 type CustomerActionParams =
@@ -64,6 +82,7 @@ type CustomerActionParams =
       status?: 'active' | 'churned' | 'potential';
       source?: string;
       locale?: string;
+      address?: CustomerAddress;
       metadata?: Record<string, unknown>;
     }
   | {
@@ -98,6 +117,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       status: statusValidator,
       source: v.optional(v.string()),
       locale: v.optional(v.string()),
+      address: v.optional(customerAddressValidator),
       metadata: v.optional(v.record(v.string(), v.any())),
     }),
     // filter: Filter customers using JEXL expressions
@@ -117,7 +137,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
     v.object({
       operation: v.literal('update'),
       customerId: v.id('customers'),
-      updates: v.record(v.string(), v.any()),
+      updates: customerUpdateValidator,
     }),
   ),
   async execute(ctx, params, variables) {
@@ -145,6 +165,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
               | 'circuly'
               | undefined,
             locale: params.locale,
+            address: params.address,
             externalId: params.externalId,
             metadata: params.metadata,
           },
@@ -187,7 +208,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         // Note: organizationId is already validated at the start of execute()
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        // For pagination queries, we return the full result object (page, isDone, continueCursor)
+        // For pagination queries, we return the full result object (items, isDone, continueCursor)
         const result = (await ctx.runQuery!(internal.customers.queryCustomers, {
           organizationId,
           externalId: params.externalId,
@@ -201,7 +222,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
         })) as QueryResult;
 
         return {
-          page: result.page,
+          items: result.items,
           isDone: result.isDone,
           continueCursor: result.continueCursor,
         };

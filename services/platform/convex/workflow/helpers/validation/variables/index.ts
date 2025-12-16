@@ -6,6 +6,7 @@
 
 // Types
 export type {
+  StepType,
   ParsedVariableReference,
   VariableReferenceValidationResult,
   FieldType,
@@ -22,7 +23,9 @@ export {
   parseVariableReferences,
   parseVariableReferencesFromString,
   extractStepReferences,
-} from './parse_variable_references';
+  parseJexlExpression,
+  extractStepReferencesFromCondition,
+} from './parse';
 
 // Output schemas
 export {
@@ -32,17 +35,17 @@ export {
   llmOutputSchema,
   getStepTypeOutputSchema,
   resolvePathInSchema,
-} from './step_output_schemas';
+} from './step_schemas';
 
 export {
   actionOutputSchemaRegistry,
   getActionOutputSchema,
-} from './action_output_schemas';
+} from './action_schemas';
 
 // Validation
 export {
   validateWorkflowVariableReferences,
   type StepInfo,
   type ValidateVariableReferencesResult,
-} from './validate_variable_references';
+} from './validate';
 

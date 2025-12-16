@@ -48,17 +48,16 @@ export default function ChatInput({
 
   const handleSendMessage = () => {
     if ((!value.trim() && attachments.length === 0) || isLoading) return;
-    onSendMessage(
-      value.trim(),
-      attachments.length > 0 ? attachments : undefined,
-    );
-    // Clean up preview URLs
-    attachments.forEach((att) => {
-      if (att.previewUrl) {
-        URL.revokeObjectURL(att.previewUrl);
-      }
-    });
+
+    // Store a copy of attachments before clearing (for passing to parent)
+    // DON'T revoke preview URLs - they're needed for optimistic message display
+    const attachmentsToSend = attachments.length > 0 ? [...attachments] : undefined;
+
+    // Clear attachments state IMMEDIATELY (before async operations start)
     setAttachments([]);
+
+    // Now send the message with the copied attachments
+    onSendMessage(value.trim(), attachmentsToSend);
   };
 
   // File upload functions

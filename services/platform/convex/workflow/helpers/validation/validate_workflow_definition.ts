@@ -10,19 +10,14 @@
  * - Variable references (step existence, execution order, path structure)
  */
 
-import { validateWorkflowSteps } from '../engine/validate_workflow_steps';
+import { isValidStepType } from './constants';
+import type { WorkflowValidationResult } from './types';
 import { validateStepConfig } from './validate_step_config';
-import { validateWorkflowVariableReferences } from './variable_references';
+import { validateWorkflowSteps } from './validate_workflow_steps';
+import { validateWorkflowVariableReferences } from './variables';
 
-// Note: This constant mirrors validStepTypes in validate_step_config.ts and
-// update_workflow_step_tool.ts - keep all three in sync when adding step types
-const VALID_STEP_TYPES = ['trigger', 'llm', 'action', 'condition', 'loop'];
-
-export interface WorkflowValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
+// Re-export types for backward compatibility
+export type { WorkflowValidationResult } from './types';
 
 /**
  * Validate a complete workflow definition.
@@ -111,9 +106,9 @@ export function validateWorkflowDefinition(
       'type' in config
     ) {
       const actionType = config.type as string;
-      if (VALID_STEP_TYPES.includes(actionType)) {
+      if (isValidStepType(actionType)) {
         warnings.push(
-          `${stepPrefix} Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
+          `${stepPrefix} Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`
         );
       }
     }

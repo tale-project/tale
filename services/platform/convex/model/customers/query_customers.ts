@@ -40,7 +40,7 @@ export interface QueryCustomersArgs {
 }
 
 export interface QueryCustomersResult {
-  page: Array<Doc<'customers'>> | Array<Record<string, unknown>>;
+  items: Array<Doc<'customers'>> | Array<Record<string, unknown>>;
   isDone: boolean;
   continueCursor: string | null;
   count: number;
@@ -147,7 +147,7 @@ export async function queryCustomers(
     });
 
     return {
-      page: projectedPage,
+      items: projectedPage,
       isDone: !hasMore,
       continueCursor:
         customers.length > 0 ? customers[customers.length - 1]._id : null,
@@ -156,7 +156,7 @@ export async function queryCustomers(
   }
 
   return {
-    page: customers,
+    items: customers,
     isDone: !hasMore,
     continueCursor:
       customers.length > 0 ? customers[customers.length - 1]._id : null,

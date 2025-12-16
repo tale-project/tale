@@ -16,7 +16,7 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
-import { useChatLayout } from '../layout';
+import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 
 interface ChatInterfaceProps {
@@ -24,11 +24,12 @@ interface ChatInterfaceProps {
   threadId?: string;
 }
 
-interface FileAttachment {
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
+// File part from UIMessage.parts
+interface FilePart {
+  type: 'file';
+  mediaType: string;
+  filename?: string;
+  url: string;
 }
 
 interface ChatMessage {
@@ -37,6 +38,7 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: number;
   attachments?: FileAttachment[];
+  fileParts?: FilePart[]; // File parts from server messages
 }
 
 /**
@@ -269,12 +271,25 @@ export default function ChatInterface({
   // Convert UIMessage to ChatMessage format for compatibility
   const threadMessages: ChatMessage[] = (uiMessages || [])
     .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({
-      id: m.key,
-      content: m.text,
-      role: m.role as 'user' | 'assistant',
-      timestamp: m._creationTime,
-    }));
+    .map((m) => {
+      // Extract file parts (images) from UIMessage.parts
+      const fileParts = (m.parts || [])
+        .filter((p): p is FilePart => p.type === 'file')
+        .map((p) => ({
+          type: 'file' as const,
+          mediaType: p.mediaType,
+          filename: p.filename,
+          url: p.url,
+        }));
+
+      return {
+        id: m.key,
+        content: m.text,
+        role: m.role as 'user' | 'assistant',
+        timestamp: m._creationTime,
+        fileParts: fileParts.length > 0 ? fileParts : undefined,
+      };
+    });
 
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
@@ -404,7 +419,7 @@ export default function ChatInterface({
       attachments,
     };
 
-    setOptimisticMessage({ content: sanitizedContent, threadId });
+    setOptimisticMessage({ content: sanitizedContent, threadId, attachments });
     setInputValue('');
 
     try {
@@ -422,7 +437,7 @@ export default function ChatInterface({
         currentThreadId = newThreadId;
         isFirstMessage = true;
 
-        setOptimisticMessage({ content: sanitizedContent, threadId: newThreadId });
+        setOptimisticMessage({ content: sanitizedContent, threadId: newThreadId, attachments });
         router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, { scroll: false });
       } else {
         isFirstMessage = threadMessages?.length === 0;
@@ -516,6 +531,7 @@ export default function ChatInterface({
                     role: 'user',
                     timestamp: new Date(),
                     threadId: threadId,
+                    attachments: optimisticMessage?.attachments,
                   }}
                 />
               )}
@@ -530,6 +546,7 @@ export default function ChatInterface({
         </div>
 
         <ChatInput
+          key={threadId || 'new-chat'}
           className="max-w-[var(--chat-max-width)] mx-auto w-full sticky bottom-0 z-50"
           value={inputValue}
           onChange={setInputValue}

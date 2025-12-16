@@ -35,7 +35,7 @@ export interface QueryDocumentsArgs {
 }
 
 export interface QueryDocumentsResult {
-  page: Array<{
+  items: Array<{
     _id: Id<'documents'>;
     _creationTime: number;
     organizationId: string;

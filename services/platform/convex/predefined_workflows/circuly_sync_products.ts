@@ -118,7 +118,7 @@ export const circulySyncProductsWorkflow = {
       stepType: 'condition',
       order: 7,
       config: {
-        expression: 'steps.query_existing_product.output.data|length > 0',
+        expression: 'steps.query_existing_product.output.data.items|length > 0',
         description: 'Check if product already exists in database',
       },
       nextSteps: {
@@ -137,7 +137,7 @@ export const circulySyncProductsWorkflow = {
         type: 'product',
         parameters: {
           operation: 'update',
-          productId: '{{steps.query_existing_product.output.data.page[0]._id}}',
+          productId: '{{steps.query_existing_product.output.data.items[0]._id}}',
           updates: {
             name: '{{loop.item.title}}',
             description: '{{loop.item.title}}',

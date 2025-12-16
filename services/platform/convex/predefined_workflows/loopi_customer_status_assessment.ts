@@ -217,7 +217,6 @@ Analyze the subscription data and provide your determination strictly as JSON wi
           operation: 'record_processed',
           tableName: 'customers',
           recordId: '{{currentCustomerId}}',
-          recordCreationTime: '{{currentCustomer._creationTime}}',
           metadata: {
             processedAt: '{{now}}',
             statusUpdated: true,
