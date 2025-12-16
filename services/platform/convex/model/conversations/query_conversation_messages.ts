@@ -17,7 +17,7 @@ export interface QueryConversationMessagesArgs {
 }
 
 export interface QueryConversationMessagesResult {
-  page: Array<{
+  items: Array<{
     _id: Id<'conversationMessages'>;
     _creationTime: number;
     organizationId: string;
@@ -111,7 +111,7 @@ export async function queryConversationMessages(
   const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
 
   return {
-    page: paginatedMessages,
+    items: paginatedMessages,
     isDone: endIndex >= filteredMessages.length,
     continueCursor:
       paginatedMessages.length > 0

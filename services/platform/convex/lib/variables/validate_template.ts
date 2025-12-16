@@ -31,3 +31,29 @@ export function validateTemplate(template: string): {
   return { valid: true };
 }
 
+/**
+ * Validate a raw JEXL expression (without mustache brackets).
+ * This is used for condition expressions which use direct JEXL syntax.
+ *
+ * @param expression - The JEXL expression to validate
+ * @returns Validation result with error message if invalid
+ */
+export function validateJexlExpression(expression: string): {
+  valid: boolean;
+  error?: string;
+} {
+  try {
+    // Try to compile the expression to validate syntax
+    // JEXL will throw an error if the syntax is invalid
+    jexlInstance.compile(expression.trim());
+    return { valid: true };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown JEXL syntax error';
+    return {
+      valid: false,
+      error: `Invalid JEXL expression: ${errorMessage}`,
+    };
+  }
+}
+

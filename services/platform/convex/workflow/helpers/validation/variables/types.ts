@@ -5,8 +5,13 @@
  * like {{steps.hydrate_recommendations.output.data}} against step output schemas.
  */
 
+import type { StepType } from '../constants';
+
 // Note: We use a generic type for validator since we only store schema info for documentation.
 // Runtime validation is done separately by Convex functions.
+
+// Re-export StepType for convenience
+export type { StepType } from '../constants';
 
 // =============================================================================
 // VARIABLE REFERENCE TYPES
@@ -111,8 +116,8 @@ export type OperationOutputSchemas = Record<string, OutputSchema>;
  * All step outputs are wrapped in { type: string, data: <result> }
  */
 export interface StepOutputStructure {
-  /** The step type */
-  stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
+  /** The step type (uses shared StepType from constants) */
+  stepType: StepType;
   /** Schema for the 'data' field */
   dataSchema: OutputSchema;
   /** Additional fields available on the output (beyond type and data) */
@@ -124,7 +129,8 @@ export interface StepOutputStructure {
  */
 export interface StepSchemaContext {
   stepSlug: string;
-  stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
+  /** The step type (uses shared StepType from constants) */
+  stepType: StepType;
   /** For action steps, the action type (e.g., 'product', 'approval') */
   actionType?: string;
   /** For action steps, the operation (e.g., 'hydrate_fields', 'create_approval') */
@@ -137,8 +143,3 @@ export interface StepSchemaContext {
 export interface ActionOutputSchemaRegistry {
   [actionType: string]: OperationOutputSchemas;
 }
-
-// NOTE: Consider extracting a shared StepType alias (e.g., 'trigger' | 'llm' | 'action' | 'condition' | 'loop')
-// and reusing it across StepOutputStructure.stepType, StepSchemaContext.stepType, and other interfaces
-// to prevent drift as workflow engine capabilities evolve.
-// Also ensure FieldType stays aligned with Convex validator surface.

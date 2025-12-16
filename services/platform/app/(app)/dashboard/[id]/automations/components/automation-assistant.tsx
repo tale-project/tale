@@ -9,6 +9,9 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Paperclip,
+  X,
+  LoaderCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
@@ -21,6 +24,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
+import { toast } from '@/hooks/use-toast';
+import DocumentIcon from '@/components/ui/document-icon';
+
+interface FileAttachment {
+  fileId: Id<'_storage'>;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  previewUrl?: string;
+}
 
 export interface Message {
   id: string;
@@ -142,9 +155,15 @@ export function AutomationAssistant({
   const [threadId, setThreadId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
+
+  const generateUploadUrl = useMutation(api.file.generateUploadUrl);
 
   // Connect to workflow assistant agent
   const chatWithWorkflowAssistant = useAction(
@@ -203,8 +222,164 @@ export function AutomationAssistant({
     return cleanup;
   }, [cleanup]);
 
+  // File upload functions
+  const uploadFiles = async (files: FileList) => {
+    const fileArray = Array.from(files);
+    const maxFileSize = 10 * 1024 * 1024; // 10MB limit
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+
+    // Validate files
+    const invalidFiles = fileArray.filter(
+      (file) => file.size > maxFileSize || !allowedTypes.includes(file.type),
+    );
+
+    if (invalidFiles.length > 0) {
+      toast({
+        title: 'Invalid files',
+        description: `Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Upload each file
+    const uploadPromises = fileArray.map(async (file) => {
+      const fileId = `${file.name}-${Date.now()}`;
+      setUploadingFiles((prev) => [...prev, fileId]);
+
+      try {
+        // Get upload URL from Convex
+        const uploadUrl = await generateUploadUrl();
+
+        // Upload file to Convex storage
+        const result = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+
+        if (!result.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const { storageId } = await result.json();
+
+        // Create attachment object
+        const attachment: FileAttachment = {
+          fileId: storageId,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          previewUrl: file.type.startsWith('image/')
+            ? URL.createObjectURL(file)
+            : undefined,
+        };
+
+        setAttachments((prev) => [...prev, attachment]);
+
+        toast({
+          title: 'File uploaded',
+          description: `${file.name} uploaded successfully`,
+        });
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast({
+          title: 'Upload failed',
+          description: `Failed to upload ${file.name}`,
+          variant: 'destructive',
+        });
+      } finally {
+        setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
+      }
+    });
+
+    await Promise.all(uploadPromises);
+  };
+
+  const removeAttachment = (fileId: Id<'_storage'>) => {
+    setAttachments((prev) => {
+      const attachment = prev.find((att) => att.fileId === fileId);
+      if (attachment?.previewUrl) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+      return prev.filter((att) => att.fileId !== fileId);
+    });
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      uploadFiles(files);
+    }
+    // Reset input to allow selecting the same file again
+    e.target.value = '';
+  };
+
+  // Handle paste event for images
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          const extension = item.type.split('/')[1] || 'png';
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const renamedFile = new File(
+            [file],
+            `pasted-image-${timestamp}.${extension}`,
+            { type: file.type },
+          );
+          imageFiles.push(renamedFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      const dataTransfer = new DataTransfer();
+      imageFiles.forEach((file) => dataTransfer.items.add(file));
+      uploadFiles(dataTransfer.files);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      uploadFiles(files);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading || !organizationId) return;
+    if ((!inputValue.trim() && attachments.length === 0) || isLoading || !organizationId) return;
 
     const messageContent = inputValue.trim();
     setInputValue('');
@@ -227,14 +402,34 @@ export function AutomationAssistant({
         setThreadId(currentThreadId);
       }
 
+      // Prepare attachments for the agent
+      const mutationAttachments =
+        attachments.length > 0
+          ? attachments.map((a) => ({
+              fileId: a.fileId,
+              fileName: a.fileName,
+              fileType: a.fileType,
+              fileSize: a.fileSize,
+            }))
+          : undefined;
+
       // Call the workflow assistant agent with a real Agent thread id
       // Messages will be automatically synced from threadMessages query
       await chatWithWorkflowAssistant({
         threadId: currentThreadId!,
         organizationId,
         workflowId: automationId,
-        message: messageContent,
+        message: messageContent || 'Please analyze the attached files.',
+        attachments: mutationAttachments,
       });
+
+      // Clean up preview URLs and clear attachments
+      attachments.forEach((att) => {
+        if (att.previewUrl) {
+          URL.revokeObjectURL(att.previewUrl);
+        }
+      });
+      setAttachments([]);
     } catch (error) {
       console.error('Error calling workflow assistant:', error);
       const errorMessage: Message = {
@@ -378,23 +573,117 @@ export function AutomationAssistant({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.txt"
+        onChange={handleFileInputChange}
+        style={{ display: 'none' }}
+      />
+
       {/* Chat input */}
-      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50">
+      <div
+        className={cn(
+          'border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50',
+          isDragOver && 'ring-2 ring-primary ring-offset-2',
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
+          {/* Attachment previews */}
+          {(attachments.length > 0 || uploadingFiles.length > 0) && (
+            <div className="flex flex-wrap gap-2 p-2 border-b border-border">
+              {/* Uploading files indicator */}
+              {uploadingFiles.map((fileId) => (
+                <div
+                  key={fileId}
+                  className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1"
+                >
+                  <LoaderCircle className="size-3 animate-spin" />
+                  <span className="text-xs text-muted-foreground">
+                    Uploading...
+                  </span>
+                </div>
+              ))}
+
+              {/* Image previews */}
+              {attachments
+                .filter((att) => att.fileType.startsWith('image/'))
+                .map((attachment) => (
+                  <div key={attachment.fileId} className="relative group">
+                    <img
+                      src={attachment.previewUrl}
+                      alt={attachment.fileName}
+                      className="w-12 h-12 object-cover rounded-lg border border-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+
+              {/* File attachments */}
+              {attachments
+                .filter((att) => !att.fileType.startsWith('image/'))
+                .map((attachment) => (
+                  <div
+                    key={attachment.fileId}
+                    className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[150px]"
+                  >
+                    <DocumentIcon fileName={attachment.fileName} />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="text-xs font-medium text-foreground truncate">
+                        {attachment.fileName}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(attachment.fileId)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+
           <div className="transition-all duration-300 ease-in-out overflow-y-auto h-[3rem]">
             <Textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder="Type your message..."
               className="resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[2.5rem]"
               disabled={isLoading}
             />
           </div>
-          <div className="flex items-center justify-end py-2">
+          <div className="flex items-center justify-between py-2 px-1">
+            {/* Attachment button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Attach files"
+            >
+              <Paperclip className="size-4" />
+            </button>
+
             <Button
               onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
+              disabled={
+                (!inputValue.trim() && attachments.length === 0) || isLoading
+              }
               size="icon"
               className="rounded-full"
             >

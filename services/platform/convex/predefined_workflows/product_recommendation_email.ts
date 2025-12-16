@@ -316,7 +316,6 @@ Return only the JSON object with "subject", "body", and "preview".`,
           operation: 'record_processed',
           tableName: 'approvals',
           recordId: '{{currentApprovalId}}',
-          recordCreationTime: '{{currentApproval._creationTime}}',
           metadata: {
             emailGenerated: true,
             conversationId:

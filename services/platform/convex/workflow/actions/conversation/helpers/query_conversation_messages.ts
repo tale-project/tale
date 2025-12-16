@@ -28,9 +28,9 @@ export async function queryConversationMessages(
   );
 
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  // For pagination queries, we return the full result object (page, isDone, continueCursor)
+  // For pagination queries, we return the full result object (items, isDone, continueCursor)
   return {
-    page: result.page,
+    items: result.items,
     isDone: result.isDone,
     continueCursor: result.continueCursor,
   };

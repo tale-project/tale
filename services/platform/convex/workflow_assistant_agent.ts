@@ -10,6 +10,12 @@ import { createWorkflowAgent } from './lib/create_workflow_agent';
 import { internal } from './_generated/api';
 import { toonify } from '../lib/utils/toonify';
 import type { ToolName } from './agent_tools/tool_registry';
+import {
+  type FileAttachment,
+  registerFilesWithAgent,
+  buildMultiModalContent,
+  type MessageContentPart,
+} from './lib/attachments/index';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -22,6 +28,16 @@ export const chatWithWorkflowAssistant = action({
     workflowId: v.optional(v.id('wfDefinitions')),
     message: v.string(),
     maxSteps: v.optional(v.number()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
   },
   returns: v.object({
     response: v.string(),
@@ -158,6 +174,37 @@ ${toonifiedSteps}
       ? `${args.message}${workflowContext}`
       : args.message;
 
+    // Process attachments if provided
+    const attachments = args.attachments as FileAttachment[] | undefined;
+    let promptContent:
+      | Array<{ role: 'user'; content: MessageContentPart[] }>
+      | undefined;
+
+    if (attachments && attachments.length > 0) {
+      debugLog('Processing file attachments', {
+        count: attachments.length,
+        files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
+      });
+
+      // Register files with the agent component for proper tracking
+      const registeredFiles = await registerFilesWithAgent(ctx, attachments);
+
+      if (registeredFiles.length > 0) {
+        // Build multi-modal content with the enhanced message
+        const { contentParts } = buildMultiModalContent(
+          registeredFiles,
+          enhancedMessage,
+        );
+
+        promptContent = [
+          {
+            role: 'user',
+            content: contentParts,
+          },
+        ];
+      }
+    }
+
     // Generate response with automatic tool handling
     // Use a real Agent thread id so context and search work correctly
     debugLog('invoking agent.generateText', {
@@ -165,14 +212,17 @@ ${toonifiedSteps}
       organizationId: args.organizationId,
       workflowId: args.workflowId,
       hasWorkflowContext: Boolean(workflowContext),
+      hasAttachments: Boolean(promptContent),
     });
 
     const result = await agent.generateText(
       contextWithOrg,
       { threadId },
-      {
-        prompt: enhancedMessage,
-      },
+      // If we have attachments, use prompt array for multi-modal content
+      // Otherwise, use the simple string prompt
+      promptContent
+        ? { prompt: promptContent }
+        : { prompt: enhancedMessage },
     );
 
     debugLog('agent result', {

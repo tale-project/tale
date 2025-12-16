@@ -10,14 +10,14 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../../types';
 import type { Doc, Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
-import { validateStepConfig } from '../../../workflow/helpers/validation/validate_step_config';
+import {
+  validateStepConfig,
+  isValidStepType,
+} from '../../../workflow/helpers/validation/validate_step_config';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
-
-// Note: This constant mirrors validStepTypes in validate_step_config.ts - keep in sync
-const validStepTypes = ['trigger', 'llm', 'action', 'condition', 'loop'];
 
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
@@ -196,9 +196,9 @@ LOOP (iteration):
           'type' in config
         ) {
           const actionType = config.type as string;
-          if (validStepTypes.includes(actionType)) {
+          if (isValidStepType(actionType)) {
             warnings.push(
-              `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
+              `Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`
             );
           }
         }

@@ -9,11 +9,13 @@
 
 import type { ActionCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
-import type { Id } from '../../_generated/dataModel';
 import { createChatAgent } from '../../lib/create_chat_agent';
-import type { FileAttachment } from './chat_with_agent';
-import { getFile } from '@convex-dev/agent';
-import type { ImagePart as AIImagePart, FilePart as AIFilePart } from 'ai';
+import {
+  type FileAttachment,
+  registerFilesWithAgent,
+  buildMultiModalContent,
+  type MessageContentPart,
+} from '../../lib/attachments/index';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -26,104 +28,6 @@ type Usage = {
   reasoningTokens?: number;
   cachedInputTokens?: number;
 };
-
-/**
- * Result of registering files with the agent component
- */
-interface RegisteredFile {
-  agentFileId: string;
-  storageId: Id<'_storage'>;
-  imagePart?: AIImagePart;
-  filePart: AIFilePart;
-  fileUrl: string;
-  attachment: FileAttachment;
-  isImage: boolean;
-}
-
-/**
- * Computes SHA-256 hash of a blob
- */
-async function computeSha256(blob: Blob): Promise<string> {
-  const arrayBuffer = await blob.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-/**
- * Registers files with the agent component and gets proper AI SDK content parts.
- * This allows:
- * 1. Files to be properly tracked for cleanup (vacuuming)
- * 2. Multi-modal messages to be saved correctly
- * 3. The AI to properly process images via URL
- * 4. Non-image files (PDF, etc.) to be processed via tools
- */
-async function registerFilesWithAgent(
-  ctx: ActionCtx,
-  attachments: FileAttachment[],
-): Promise<RegisteredFile[]> {
-  const registeredFiles: RegisteredFile[] = [];
-
-  for (const attachment of attachments) {
-    try {
-      // Get file from storage
-      const blob = await ctx.storage.get(attachment.fileId);
-      if (!blob) {
-        debugLog(`File not found in storage: ${attachment.fileId}`);
-        continue;
-      }
-
-      // Get file URL for non-image files
-      const fileUrl = await ctx.storage.getUrl(attachment.fileId);
-      if (!fileUrl) {
-        debugLog(`Could not get URL for file: ${attachment.fileId}`);
-        continue;
-      }
-
-      // Compute hash for the file
-      const hash = await computeSha256(blob);
-
-      // Register the file with the agent component
-      const { fileId: agentFileId } = await ctx.runMutation(
-        components.agent.files.addFile,
-        {
-          storageId: attachment.fileId as string,
-          hash,
-          mimeType: attachment.fileType,
-          filename: attachment.fileName,
-        },
-      );
-
-      // Get the proper image/file parts from the agent
-      const { imagePart, filePart } = await getFile(
-        ctx,
-        components.agent,
-        agentFileId,
-      );
-
-      // Determine if this is an image file
-      const isImage = attachment.fileType.startsWith('image/');
-
-      registeredFiles.push({
-        agentFileId,
-        storageId: attachment.fileId,
-        imagePart,
-        filePart,
-        fileUrl,
-        attachment,
-        isImage,
-      });
-    } catch (error) {
-      console.error(
-        `[chat_agent] Failed to register file ${attachment.fileName}:`,
-        error,
-      );
-    }
-  }
-
-  return registeredFiles;
-}
 
 export interface GenerateAgentResponseArgs {
   threadId: string;
@@ -217,7 +121,7 @@ export async function generateAgentResponse(
     };
 
     // Build context messages - lightweight text-only context
-    type MessageContent = string | Array<AIImagePart | { type: 'text'; text: string }>;
+    type MessageContent = string | MessageContentPart[];
     const contextMessages: Array<{ role: 'user'; content: string }> = [];
 
     // Always inject threadId so the AI knows which thread to use for context_search
@@ -246,53 +150,16 @@ export async function generateAgentResponse(
       const registeredFiles = await registerFilesWithAgent(ctx, attachments);
 
       if (registeredFiles.length > 0) {
-        // Separate images from other files
-        const imageFiles = registeredFiles.filter((f) => f.isImage);
-        const nonImageFiles = registeredFiles.filter((f) => !f.isImage);
-
-        // Build content parts
-        const contentParts: Array<AIImagePart | { type: 'text'; text: string }> = [];
+        // Build multi-modal content using the shared utility
         const userText = messageText || 'Please analyze the attached files.';
+        const { contentParts } = buildMultiModalContent(registeredFiles, userText);
 
-        contentParts.push({ type: 'text', text: userText });
-
-        // For non-image files (PDF, etc.), just provide the URL and let AI use tools
-        if (nonImageFiles.length > 0) {
-          const fileReferences = nonImageFiles.map((f) =>
-            `- **${f.attachment.fileName}** (${f.attachment.fileType}): ${f.fileUrl}`
-          ).join('\n');
-
-          contentParts.push({
-            type: 'text',
-            text: `\n\n[ATTACHMENTS] The user has attached the following files. Use the appropriate tool to read them:\n${fileReferences}`,
-          });
-        }
-
-        // For images, include them directly in the prompt for the AI to see
-        if (imageFiles.length > 0) {
-          if (nonImageFiles.length === 0) {
-            contentParts.push({
-              type: 'text',
-              text: '\n\n[IMAGES] The user has attached the following images:',
-            });
-          } else {
-            contentParts.push({
-              type: 'text',
-              text: '\n\n[IMAGES] The user has also attached the following images:',
-            });
-          }
-
-          for (const regFile of imageFiles) {
-            if (regFile.imagePart) {
-              contentParts.push(regFile.imagePart);
-            }
-          }
-        }
-
-        promptContent = [{
-          role: 'user',
-          content: contentParts as MessageContent,
-        }];
+        promptContent = [
+          {
+            role: 'user',
+            content: contentParts,
+          },
+        ];
       }
     }
 

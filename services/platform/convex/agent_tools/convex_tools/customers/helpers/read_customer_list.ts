@@ -19,7 +19,7 @@ export async function readCustomerList(
   const fields = args.fields ?? defaultListFields;
 
   const result: {
-    page: Array<Record<string, unknown>>;
+    items: Array<Record<string, unknown>>;
     isDone: boolean;
     continueCursor: string | null;
     count: number;
@@ -34,10 +34,10 @@ export async function readCustomerList(
 
   return {
     operation: 'list',
-    customers: result.page,
+    customers: result.items,
     pagination: {
       hasMore: !result.isDone,
-      totalFetched: result.page.length,
+      totalFetched: result.items.length,
       cursor: result.continueCursor,
     },
   };

@@ -113,8 +113,6 @@ export const productRagSyncWorkflow = {
           tableName: 'products',
           recordId:
             '{{steps.find_unprocessed_product.output.data._id}}',
-          recordCreationTime:
-            '{{steps.find_unprocessed_product.output.data._creationTime}}',
         },
       },
       nextSteps: {

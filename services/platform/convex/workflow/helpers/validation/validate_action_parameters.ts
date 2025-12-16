@@ -105,6 +105,35 @@ export function validateActionParameters(
     }
   }
 
+  // 4. Validate no extra fields at top level
+  const allowedFields = validatorInfo.getAllowedFieldsForOperation(operation);
+  if (allowedFields.length > 0) {
+    const opContext = operation ? ` for operation "${operation}"` : '';
+    for (const field of Object.keys(params)) {
+      if (!allowedFields.includes(field)) {
+        errors.push(
+          `Action "${actionType}"${opContext}: Unknown field "${field}". Allowed fields: ${allowedFields.join(', ')}`,
+        );
+      }
+    }
+  }
+
+  // 5. Validate no extra fields in nested objects (e.g., updates)
+  const nestedObjectFields = validatorInfo.getNestedObjectFields(operation);
+  for (const [fieldName, allowedNestedFields] of Object.entries(nestedObjectFields)) {
+    const nestedValue = params[fieldName];
+    if (nestedValue && typeof nestedValue === 'object' && !Array.isArray(nestedValue)) {
+      const opContext = operation ? ` for operation "${operation}"` : '';
+      for (const nestedField of Object.keys(nestedValue as Record<string, unknown>)) {
+        if (!allowedNestedFields.includes(nestedField)) {
+          errors.push(
+            `Action "${actionType}"${opContext}: Unknown field "${nestedField}" in "${fieldName}". Allowed fields: ${allowedNestedFields.join(', ')}`,
+          );
+        }
+      }
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -121,6 +150,10 @@ interface ValidatorInfo {
   validOperations: string[];
   /** Get required fields for a specific operation (or all required fields if no operation) */
   getRequiredFieldsForOperation: (operation?: string) => string[];
+  /** Get allowed fields for a specific operation (all fields including optional ones) */
+  getAllowedFieldsForOperation: (operation?: string) => string[];
+  /** Get nested object field info for a specific operation */
+  getNestedObjectFields: (operation?: string) => Record<string, string[]>;
 }
 
 /**
@@ -167,11 +200,16 @@ function parseObjectValidator(
 
   const validOperations: string[] = [];
   const requiredFields: string[] = [];
+  const allowedFields: string[] = [];
+  const nestedObjectFields: Record<string, string[]> = {};
 
   for (const [fieldName, fieldDef] of Object.entries(fields)) {
     const parsed = parseFieldDefinition(fieldDef);
 
     if (!parsed) continue;
+
+    // Track all allowed fields
+    allowedFields.push(fieldName);
 
     // Check if this is the operation field with literal values
     if (fieldName === 'operation' && parsed.literalValues.length > 0) {
@@ -182,11 +220,18 @@ function parseObjectValidator(
     if (!parsed.isOptional && fieldName !== 'operation') {
       requiredFields.push(fieldName);
     }
+
+    // Track nested object fields
+    if (parsed.allowedFields) {
+      nestedObjectFields[fieldName] = parsed.allowedFields;
+    }
   }
 
   return {
     validOperations,
     getRequiredFieldsForOperation: () => requiredFields,
+    getAllowedFieldsForOperation: () => allowedFields,
+    getNestedObjectFields: () => nestedObjectFields,
   };
 }
 
@@ -203,6 +248,8 @@ function parseUnionValidator(
 
   const validOperations: string[] = [];
   const operationRequiredFields: Record<string, string[]> = {};
+  const operationAllowedFields: Record<string, string[]> = {};
+  const operationNestedObjectFields: Record<string, Record<string, string[]>> = {};
 
   for (const variant of variants) {
     const variantJson = variant as { type?: string; value?: Record<string, unknown> };
@@ -214,11 +261,16 @@ function parseUnionValidator(
     const fields = variantJson.value;
     let variantOperation: string | undefined;
     const variantRequiredFields: string[] = [];
+    const variantAllowedFields: string[] = [];
+    const variantNestedObjectFields: Record<string, string[]> = {};
 
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
       const parsed = parseFieldDefinition(fieldDef);
 
       if (!parsed) continue;
+
+      // Track all allowed fields
+      variantAllowedFields.push(fieldName);
 
       // Check if this is the operation field with a literal value
       if (fieldName === 'operation' && parsed.literalValues.length === 1) {
@@ -230,10 +282,17 @@ function parseUnionValidator(
       if (!parsed.isOptional && fieldName !== 'operation') {
         variantRequiredFields.push(fieldName);
       }
+
+      // Track nested object fields
+      if (parsed.allowedFields) {
+        variantNestedObjectFields[fieldName] = parsed.allowedFields;
+      }
     }
 
     if (variantOperation) {
       operationRequiredFields[variantOperation] = variantRequiredFields;
+      operationAllowedFields[variantOperation] = variantAllowedFields;
+      operationNestedObjectFields[variantOperation] = variantNestedObjectFields;
     }
   }
 
@@ -243,19 +302,29 @@ function parseUnionValidator(
       if (operation && operationRequiredFields[operation]) {
         return operationRequiredFields[operation];
       }
-      // Note: If operation is in validOperations but not in operationRequiredFields,
-      // this indicates a parsing issue. The caller already validates operation membership.
       return [];
+    },
+    getAllowedFieldsForOperation: (operation?: string) => {
+      if (operation && operationAllowedFields[operation]) {
+        return operationAllowedFields[operation];
+      }
+      return [];
+    },
+    getNestedObjectFields: (operation?: string) => {
+      if (operation && operationNestedObjectFields[operation]) {
+        return operationNestedObjectFields[operation];
+      }
+      return {};
     },
   };
 }
 
 /**
- * Parse a field definition to extract optionality and literal values
+ * Parse a field definition to extract optionality, literal values, and nested object fields
  */
 function parseFieldDefinition(
   fieldDef: unknown,
-): { isOptional: boolean; literalValues: string[] } | null {
+): { isOptional: boolean; literalValues: string[]; allowedFields?: string[] } | null {
   const def = fieldDef as {
     fieldType?: {
       type?: string;
@@ -271,6 +340,7 @@ function parseFieldDefinition(
   // The 'optional' property is at the field level, not in fieldType
   const isOptional = def.optional === true;
   const literalValues: string[] = [];
+  let allowedFields: string[] | undefined;
 
   // Check for literal type
   if (
@@ -290,6 +360,12 @@ function parseFieldDefinition(
     }
   }
 
-  return { isOptional, literalValues };
+  // Check for object type and extract allowed field names
+  if (def.fieldType.type === 'object' && def.fieldType.value) {
+    const nestedFields = def.fieldType.value as Record<string, unknown>;
+    allowedFields = Object.keys(nestedFields);
+  }
+
+  return { isOptional, literalValues, allowedFields };
 }
 

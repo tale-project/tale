@@ -31,7 +31,7 @@ export async function queryDocuments(
   const result = await query.paginate(args.paginationOpts);
 
   return {
-    page: result.page,
+    items: result.page,
     isDone: result.isDone,
     continueCursor: result.continueCursor,
     count: result.page.length,

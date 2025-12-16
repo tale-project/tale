@@ -14,7 +14,7 @@ export interface ListByOrganizationArgs {
 }
 
 export interface ListByOrganizationResult {
-  page: Array<Record<string, unknown>>;
+  items: Array<Record<string, unknown>>;
   isDone: boolean;
   continueCursor: string | null;
 }
@@ -43,14 +43,14 @@ export async function listByOrganization(
     });
 
     return {
-      page: projectedPage,
+      items: projectedPage,
       isDone: result.isDone,
       continueCursor: result.continueCursor ?? null,
     };
   }
 
   return {
-    page: result.page,
+    items: result.page,
     isDone: result.isDone,
     continueCursor: result.continueCursor ?? null,
   };

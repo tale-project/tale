@@ -14,21 +14,14 @@ import { listMessages, saveMessage } from '@convex-dev/agent';
 import type { RunId } from '@convex-dev/action-retrier';
 import { chatAgentRetrier } from '../../lib/chat_agent_retrier';
 import { computeDeduplicationState } from './message_deduplication';
-import type { Id } from '../../_generated/dataModel';
 
 import { createDebugLog } from '../../lib/debug_log';
 
-const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+// Re-export FileAttachment from shared utilities for backward compatibility
+export type { FileAttachment } from '../../lib/attachments/index';
+import { type FileAttachment, formatAttachmentsAsMarkdown } from '../../lib/attachments/index';
 
-/**
- * File attachment from the client
- */
-export interface FileAttachment {
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-}
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
 export interface ChatWithAgentArgs {
   threadId: string;
@@ -77,37 +70,9 @@ export async function chatWithAgent(
   // Build message content with markdown references for all attachments
   let messageContent = trimmedMessage;
   if (hasAttachments) {
-    const imageMarkdowns: string[] = [];
-    const fileMarkdowns: string[] = [];
-
-    for (const attachment of attachments) {
-      const url = await ctx.storage.getUrl(attachment.fileId);
-      if (!url) continue;
-
-      if (attachment.fileType.startsWith('image/')) {
-        // Images: Use markdown image syntax for inline display
-        imageMarkdowns.push(`![${attachment.fileName}](${url})`);
-      } else {
-        // Other files: Use markdown link with file info
-        const sizeKB = Math.round(attachment.fileSize / 1024);
-        const sizeDisplay = sizeKB >= 1024
-          ? `${(sizeKB / 1024).toFixed(1)} MB`
-          : `${sizeKB} KB`;
-        fileMarkdowns.push(`📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`);
-      }
-    }
-
-    // Build the attachment section
-    const attachmentParts: string[] = [];
-    if (imageMarkdowns.length > 0) {
-      attachmentParts.push(imageMarkdowns.join('\n'));
-    }
-    if (fileMarkdowns.length > 0) {
-      attachmentParts.push(fileMarkdowns.join('\n'));
-    }
-
-    if (attachmentParts.length > 0) {
-      messageContent = `${trimmedMessage}\n\n${attachmentParts.join('\n\n')}`;
+    const attachmentMarkdown = await formatAttachmentsAsMarkdown(ctx, attachments);
+    if (attachmentMarkdown) {
+      messageContent = `${trimmedMessage}\n\n${attachmentMarkdown}`;
     }
   }
 

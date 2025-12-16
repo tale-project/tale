@@ -9,7 +9,7 @@ import type { Id, Doc } from '../../../_generated/dataModel';
 import type { WorkflowType } from '../../types/workflow';
 import { buildStepsConfigMap } from './build_steps_config_map';
 import type { WorkflowData } from './workflow_data';
-import { validateWorkflowSteps } from './validate_workflow_steps';
+import { validateWorkflowSteps } from '../validation/validate_workflow_steps';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
