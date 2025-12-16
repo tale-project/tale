@@ -7,7 +7,7 @@
 import { action } from './_generated/server';
 import { v } from 'convex/values';
 import { createWorkflowAgent } from './lib/create_workflow_agent';
-import { internal } from './_generated/api';
+import { components, internal } from './_generated/api';
 import { toonify } from '../lib/utils/toonify';
 import type { ToolName } from './agent_tools/tool_registry';
 import {
@@ -16,6 +16,11 @@ import {
   buildMultiModalContent,
   type MessageContentPart,
 } from './lib/attachments/index';
+import { saveMessage } from '@convex-dev/agent';
+import {
+  parseFile,
+  type ParseFileResult,
+} from './agent_tools/convex_tools/files/helpers/parse_file';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -179,6 +184,12 @@ ${toonifiedSteps}
     let promptContent:
       | Array<{ role: 'user'; content: MessageContentPart[] }>
       | undefined;
+    let promptMessageId: string | undefined;
+
+    // Build message content for saving and AI prompting
+    type ContentPart =
+      | { type: 'text'; text: string }
+      | { type: 'image'; image: string; mimeType: string };
 
     if (attachments && attachments.length > 0) {
       debugLog('Processing file attachments', {
@@ -186,20 +197,135 @@ ${toonifiedSteps}
         files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
       });
 
-      // Register files with the agent component for proper tracking
+      // Separate images from other files
+      const imageAttachments = attachments.filter((a) =>
+        a.fileType.startsWith('image/'),
+      );
+      const documentAttachments = attachments.filter(
+        (a) => !a.fileType.startsWith('image/'),
+      );
+
+      // Build content parts for saving the message (with image URLs for display)
+      // NOTE: We save the CLEAN user message (without workflow context) for display
+      // The workflow context is passed to the AI via the prompt, not stored in the message
+      const saveContentParts: ContentPart[] = [];
+      let displayTextContent = args.message; // Use original message, not enhancedMessage
+
+      // Parse document files and extract their text content
+      const parsedDocuments: Array<{
+        fileName: string;
+        content: string;
+        url: string;
+      }> = [];
+
+      // Add document references as markdown to the text (for display)
+      if (documentAttachments.length > 0) {
+        const docMarkdown: string[] = [];
+        for (const attachment of documentAttachments) {
+          const url = await ctx.storage.getUrl(attachment.fileId);
+          if (url) {
+            const sizeKB = Math.round(attachment.fileSize / 1024);
+            const sizeDisplay =
+              sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
+            docMarkdown.push(
+              `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
+            );
+
+            // Parse document to extract text content for AI
+            const parseResult = await parseFile(
+              url,
+              attachment.fileName,
+              'workflow_assistant',
+            );
+
+            if (parseResult.success && parseResult.full_text) {
+              parsedDocuments.push({
+                fileName: attachment.fileName,
+                content: parseResult.full_text,
+                url,
+              });
+              debugLog('Parsed document', {
+                fileName: attachment.fileName,
+                textLength: parseResult.full_text.length,
+              });
+            } else {
+              debugLog('Failed to parse document', {
+                fileName: attachment.fileName,
+                error: parseResult.error,
+              });
+            }
+          }
+        }
+        if (docMarkdown.length > 0) {
+          // For display: user message + document links (no workflow context)
+          displayTextContent = `${args.message}\n\n${docMarkdown.join('\n')}`;
+        }
+      }
+
+      saveContentParts.push({ type: 'text', text: displayTextContent });
+
+      // Add image parts for images (with URLs for display)
+      for (const attachment of imageAttachments) {
+        const url = await ctx.storage.getUrl(attachment.fileId);
+        if (url) {
+          saveContentParts.push({
+            type: 'image',
+            image: url,
+            mimeType: attachment.fileType,
+          });
+        }
+      }
+
+      // Save the user message with multi-modal content for display
+      if (imageAttachments.length > 0 || documentAttachments.length > 0) {
+        const { messageId } = await saveMessage(ctx, components.agent, {
+          threadId,
+          message: { role: 'user', content: saveContentParts },
+        });
+        promptMessageId = messageId;
+      }
+
+      // Build prompt content for AI
+      // For images: use multi-modal content
+      // For documents: include parsed text content
       const registeredFiles = await registerFilesWithAgent(ctx, attachments);
 
-      if (registeredFiles.length > 0) {
-        // Build multi-modal content with the enhanced message
-        const { contentParts } = buildMultiModalContent(
-          registeredFiles,
-          enhancedMessage,
-        );
+      if (registeredFiles.length > 0 || parsedDocuments.length > 0) {
+        // Start with the enhanced message
+        const aiContentParts: MessageContentPart[] = [
+          { type: 'text', text: enhancedMessage },
+        ];
+
+        // Add parsed document content for the AI to read
+        if (parsedDocuments.length > 0) {
+          for (const doc of parsedDocuments) {
+            // Truncate very long documents to avoid exceeding context limits
+            const maxLength = 50000;
+            const truncatedContent =
+              doc.content.length > maxLength
+                ? doc.content.substring(0, maxLength) +
+                  '\n\n[... Document truncated due to length ...]'
+                : doc.content;
+
+            aiContentParts.push({
+              type: 'text',
+              text: `\n\n---\n**Document: ${doc.fileName}**\n\n${truncatedContent}\n---\n`,
+            });
+          }
+        }
+
+        // Add images as multi-modal content
+        const imageFiles = registeredFiles.filter((f) => f.isImage);
+        for (const regFile of imageFiles) {
+          if (regFile.imagePart) {
+            aiContentParts.push(regFile.imagePart);
+          }
+        }
 
         promptContent = [
           {
             role: 'user',
-            content: contentParts,
+            content: aiContentParts,
           },
         ];
       }
@@ -213,6 +339,7 @@ ${toonifiedSteps}
       workflowId: args.workflowId,
       hasWorkflowContext: Boolean(workflowContext),
       hasAttachments: Boolean(promptContent),
+      promptMessageId,
     });
 
     const result = await agent.generateText(
@@ -221,7 +348,7 @@ ${toonifiedSteps}
       // If we have attachments, use prompt array for multi-modal content
       // Otherwise, use the simple string prompt
       promptContent
-        ? { prompt: promptContent }
+        ? { prompt: promptContent, promptMessageId }
         : { prompt: enhancedMessage },
     );
 

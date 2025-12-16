@@ -19,7 +19,7 @@ import { createDebugLog } from '../../lib/debug_log';
 
 // Re-export FileAttachment from shared utilities for backward compatibility
 export type { FileAttachment } from '../../lib/attachments/index';
-import { type FileAttachment, formatAttachmentsAsMarkdown } from '../../lib/attachments/index';
+import type { FileAttachment } from '../../lib/attachments/index';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
@@ -67,13 +67,59 @@ export async function chatWithAgent(
     attachmentCount: attachments?.length ?? 0,
   });
 
-  // Build message content with markdown references for all attachments
-  let messageContent = trimmedMessage;
+  // Build message content - use multi-modal content for images, markdown for documents
+  type ContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image'; image: string; mimeType: string };
+
+  let messageContent: string | ContentPart[] = trimmedMessage;
+
   if (hasAttachments) {
-    const attachmentMarkdown = await formatAttachmentsAsMarkdown(ctx, attachments);
-    if (attachmentMarkdown) {
-      messageContent = `${trimmedMessage}\n\n${attachmentMarkdown}`;
+    // Separate images from other files
+    const imageAttachments = attachments.filter((a) => a.fileType.startsWith('image/'));
+    const documentAttachments = attachments.filter((a) => !a.fileType.startsWith('image/'));
+
+    // Build content parts array
+    const contentParts: ContentPart[] = [];
+
+    // Start with user's text
+    let textContent = trimmedMessage;
+
+    // Add document references as markdown to the text
+    if (documentAttachments.length > 0) {
+      const docMarkdown: string[] = [];
+      for (const attachment of documentAttachments) {
+        const url = await ctx.storage.getUrl(attachment.fileId);
+        if (url) {
+          const sizeKB = Math.round(attachment.fileSize / 1024);
+          const sizeDisplay =
+            sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
+          docMarkdown.push(
+            `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
+          );
+        }
+      }
+      if (docMarkdown.length > 0) {
+        textContent = `${trimmedMessage}\n\n${docMarkdown.join('\n')}`;
+      }
     }
+
+    contentParts.push({ type: 'text', text: textContent });
+
+    // Add image parts for images
+    for (const attachment of imageAttachments) {
+      const url = await ctx.storage.getUrl(attachment.fileId);
+      if (url) {
+        contentParts.push({
+          type: 'image',
+          image: url,
+          mimeType: attachment.fileType,
+        });
+      }
+    }
+
+    // Use multi-modal content if we have images, otherwise just text
+    messageContent = imageAttachments.length > 0 ? contentParts : textContent;
   }
 
   // Only save if not a duplicate

@@ -16,6 +16,7 @@ import {
   buildMultiModalContent,
   type MessageContentPart,
 } from '../../lib/attachments/index';
+import { parseFile } from '../../agent_tools/convex_tools/files/helpers/parse_file';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -146,13 +147,82 @@ export async function generateAgentResponse(
         files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
       });
 
+      // Separate images from documents
+      const imageAttachments = attachments.filter((a) =>
+        a.fileType.startsWith('image/'),
+      );
+      const documentAttachments = attachments.filter(
+        (a) => !a.fileType.startsWith('image/'),
+      );
+
+      // Parse document files to extract their text content
+      const parsedDocuments: Array<{
+        fileName: string;
+        content: string;
+      }> = [];
+
+      for (const attachment of documentAttachments) {
+        const url = await ctx.storage.getUrl(attachment.fileId);
+        if (url) {
+          const parseResult = await parseFile(
+            url,
+            attachment.fileName,
+            'chat_agent',
+          );
+
+          if (parseResult.success && parseResult.full_text) {
+            parsedDocuments.push({
+              fileName: attachment.fileName,
+              content: parseResult.full_text,
+            });
+            debugLog('Parsed document', {
+              fileName: attachment.fileName,
+              textLength: parseResult.full_text.length,
+            });
+          } else {
+            debugLog('Failed to parse document', {
+              fileName: attachment.fileName,
+              error: parseResult.error,
+            });
+          }
+        }
+      }
+
       // Register files with the agent component for proper tracking
       const registeredFiles = await registerFilesWithAgent(ctx, attachments);
 
-      if (registeredFiles.length > 0) {
-        // Build multi-modal content using the shared utility
+      if (registeredFiles.length > 0 || parsedDocuments.length > 0) {
+        // Start with user text
         const userText = messageText || 'Please analyze the attached files.';
-        const { contentParts } = buildMultiModalContent(registeredFiles, userText);
+        const contentParts: MessageContentPart[] = [
+          { type: 'text', text: userText },
+        ];
+
+        // Add parsed document content for the AI to read
+        if (parsedDocuments.length > 0) {
+          for (const doc of parsedDocuments) {
+            // Truncate very long documents to avoid exceeding context limits
+            const maxLength = 50000;
+            const truncatedContent =
+              doc.content.length > maxLength
+                ? doc.content.substring(0, maxLength) +
+                  '\n\n[... Document truncated due to length ...]'
+                : doc.content;
+
+            contentParts.push({
+              type: 'text',
+              text: `\n\n---\n**Document: ${doc.fileName}**\n\n${truncatedContent}\n---\n`,
+            });
+          }
+        }
+
+        // Add images as multi-modal content
+        const imageFiles = registeredFiles.filter((f) => f.isImage);
+        for (const regFile of imageFiles) {
+          if (regFile.imagePart) {
+            contentParts.push(regFile.imagePart);
+          }
+        }
 
         promptContent = [
           {

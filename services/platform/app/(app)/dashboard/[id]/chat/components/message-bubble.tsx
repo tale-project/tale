@@ -37,6 +37,15 @@ interface FileAttachment {
   fileName: string;
   fileType: string;
   fileSize: number;
+  previewUrl?: string; // Local preview URL for optimistic display
+}
+
+// File part from server messages (via UIMessage.parts)
+interface FilePart {
+  type: 'file';
+  mediaType: string;
+  filename?: string;
+  url: string;
 }
 
 interface Message {
@@ -45,7 +54,8 @@ interface Message {
   role: 'user' | 'assistant';
   timestamp: Date;
   isStreaming?: boolean;
-  attachments?: FileAttachment[];
+  attachments?: FileAttachment[]; // For optimistic messages
+  fileParts?: FilePart[]; // For server messages
   threadId?: string;
 }
 
@@ -266,17 +276,22 @@ function FileTypeIcon({
 
 // File attachment component
 function FileAttachmentDisplay({ attachment }: { attachment: FileAttachment }) {
-  const fileUrl = useQuery(api.file.getFileUrl, { fileId: attachment.fileId });
+  // Use previewUrl for optimistic display, otherwise fetch from server
+  const serverFileUrl = useQuery(
+    api.file.getFileUrl,
+    attachment.previewUrl ? 'skip' : { fileId: attachment.fileId },
+  );
+  const displayUrl = attachment.previewUrl || serverFileUrl;
   const isImage = attachment.fileType.startsWith('image/');
 
-  if (!fileUrl) return null;
+  if (!displayUrl) return null;
 
   if (isImage) {
     // Image attachment - small square thumbnail
     return (
       <div className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden">
         <img
-          src={fileUrl}
+          src={displayUrl}
           alt={attachment.fileName}
           className="size-full object-cover"
         />
@@ -287,7 +302,7 @@ function FileAttachmentDisplay({ attachment }: { attachment: FileAttachment }) {
   // File attachment - horizontal card
   return (
     <a
-      href={fileUrl}
+      href={displayUrl}
       target="_blank"
       rel="noopener noreferrer"
       className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
@@ -306,6 +321,53 @@ function FileAttachmentDisplay({ attachment }: { attachment: FileAttachment }) {
             : attachment.fileType.includes('word')
               ? 'DOC'
               : attachment.fileType === 'text/plain'
+                ? 'TXT'
+                : 'FILE'}
+        </div>
+      </div>
+    </a>
+  );
+}
+
+// File part component (for server messages with UIMessage.parts)
+function FilePartDisplay({ filePart }: { filePart: FilePart }) {
+  const isImage = filePart.mediaType.startsWith('image/');
+
+  if (isImage) {
+    // Image - small square thumbnail
+    return (
+      <div className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden">
+        <img
+          src={filePart.url}
+          alt={filePart.filename || 'Image'}
+          className="size-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  // Non-image file - horizontal card
+  return (
+    <a
+      href={filePart.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
+    >
+      <FileTypeIcon
+        fileType={filePart.mediaType}
+        fileName={filePart.filename || 'file'}
+      />
+      <div className="flex flex-col min-w-0 flex-1">
+        <div className="text-sm font-medium text-gray-800 truncate">
+          {filePart.filename || 'File'}
+        </div>
+        <div className="text-xs text-gray-500">
+          {filePart.mediaType === 'application/pdf'
+            ? 'PDF'
+            : filePart.mediaType.includes('word')
+              ? 'DOC'
+              : filePart.mediaType === 'text/plain'
                 ? 'TXT'
                 : 'FILE'}
         </div>
@@ -423,11 +485,20 @@ export default function MessageBubble({
             : 'text-foreground bg-background'
         }`}
       >
-        {/* File attachments */}
+        {/* File attachments - optimistic (local preview) */}
         {message.attachments && message.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {message.attachments.map((attachment, index) => (
               <FileAttachmentDisplay key={index} attachment={attachment} />
+            ))}
+          </div>
+        )}
+
+        {/* File parts - from server (UIMessage.parts) */}
+        {message.fileParts && message.fileParts.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {message.fileParts.map((part, index) => (
+              <FilePartDisplay key={index} filePart={part} />
             ))}
           </div>
         )}
@@ -453,6 +524,13 @@ export default function MessageBubble({
                     tr: TableRow,
                     th: TableHead,
                     td: TableCell,
+                    img: ({ node: _node, ...props }) => (
+                      <img
+                        {...props}
+                        className="max-w-full h-auto rounded-lg my-2"
+                        loading="lazy"
+                      />
+                    ),
                   }}
                 >
                   {sanitizedContent}

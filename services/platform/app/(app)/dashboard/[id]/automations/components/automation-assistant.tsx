@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { toast } from '@/hooks/use-toast';
 import DocumentIcon from '@/components/ui/document-icon';
+import { useUIMessages } from '@convex-dev/agent/react';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -35,12 +36,21 @@ interface FileAttachment {
   previewUrl?: string;
 }
 
+// File part from UIMessage.parts
+interface FilePart {
+  type: 'file';
+  mediaType: string;
+  filename?: string;
+  url: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
   automationContext?: string; // Optional automation context for first user message
+  fileParts?: FilePart[]; // File parts from server messages
 }
 
 function AutomationDetailsCollapse({ context }: { context: string }) {
@@ -181,10 +191,11 @@ export function AutomationAssistant({
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 
-  // Load thread messages when threadId is available
-  const threadMessages = useQuery(
-    api.threads.getThreadMessages,
+  // Load thread messages when threadId is available using useUIMessages for file parts support
+  const { results: uiMessages } = useUIMessages(
+    api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
+    { initialNumItems: 50, stream: true },
   );
 
   // Load threadId from workflow metadata when workflow is loaded
@@ -196,17 +207,34 @@ export function AutomationAssistant({
 
   // Sync messages from thread - always use thread as source of truth when available
   useEffect(() => {
-    if (threadMessages?.messages && threadMessages.messages.length > 0) {
-      const threadMsgs: Message[] = threadMessages.messages.map((m) => ({
-        id: m._id,
-        role: m.role,
-        content:
-          m.role === 'user' ? stripWorkflowContext(m.content) : m.content,
-        timestamp: new Date(m._creationTime),
-      }));
+    if (uiMessages && uiMessages.length > 0) {
+      const threadMsgs: Message[] = uiMessages
+        .filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
+          m.role === 'user' || m.role === 'assistant',
+        )
+        .map((m) => {
+          // Extract file parts (images) from UIMessage.parts
+          const fileParts = ((m.parts || []) as Array<{ type: string; mediaType?: string; filename?: string; url?: string }>)
+            .filter((p): p is FilePart => p.type === 'file' && typeof p.url === 'string' && typeof p.mediaType === 'string')
+            .map((p) => ({
+              type: 'file' as const,
+              mediaType: p.mediaType,
+              filename: p.filename,
+              url: p.url,
+            }));
+
+          return {
+            id: m.key,
+            role: m.role,
+            content:
+              m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
+            timestamp: new Date(m._creationTime),
+            fileParts: fileParts.length > 0 ? fileParts : undefined,
+          };
+        });
       setMessages(threadMsgs);
     }
-  }, [threadMessages]);
+  }, [uiMessages]);
 
   // Scroll to bottom when new messages arrive using throttled scroll
   useEffect(() => {
@@ -382,7 +410,19 @@ export function AutomationAssistant({
     if ((!inputValue.trim() && attachments.length === 0) || isLoading || !organizationId) return;
 
     const messageContent = inputValue.trim();
+
+    // Capture attachments before clearing
+    const attachmentsToSend = attachments.length > 0 ? [...attachments] : undefined;
+
+    // Clear input and attachments immediately for better UX
     setInputValue('');
+    // Clean up preview URLs before clearing
+    attachments.forEach((att) => {
+      if (att.previewUrl) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    });
+    setAttachments([]);
     setIsLoading(true);
 
     try {
@@ -403,15 +443,14 @@ export function AutomationAssistant({
       }
 
       // Prepare attachments for the agent
-      const mutationAttachments =
-        attachments.length > 0
-          ? attachments.map((a) => ({
-              fileId: a.fileId,
-              fileName: a.fileName,
-              fileType: a.fileType,
-              fileSize: a.fileSize,
-            }))
-          : undefined;
+      const mutationAttachments = attachmentsToSend
+        ? attachmentsToSend.map((a) => ({
+            fileId: a.fileId,
+            fileName: a.fileName,
+            fileType: a.fileType,
+            fileSize: a.fileSize,
+          }))
+        : undefined;
 
       // Call the workflow assistant agent with a real Agent thread id
       // Messages will be automatically synced from threadMessages query
@@ -422,14 +461,6 @@ export function AutomationAssistant({
         message: messageContent || 'Please analyze the attached files.',
         attachments: mutationAttachments,
       });
-
-      // Clean up preview URLs and clear attachments
-      attachments.forEach((att) => {
-        if (att.previewUrl) {
-          URL.revokeObjectURL(att.previewUrl);
-        }
-      });
-      setAttachments([]);
     } catch (error) {
       console.error('Error calling workflow assistant:', error);
       const errorMessage: Message = {
@@ -540,6 +571,42 @@ export function AutomationAssistant({
                     <AutomationDetailsCollapse
                       context={message.automationContext}
                     />
+                  )}
+                  {/* Display file parts (images) */}
+                  {message.fileParts && message.fileParts.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {message.fileParts.map((part, index) =>
+                        part.mediaType.startsWith('image/') ? (
+                          <div
+                            key={index}
+                            className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden"
+                          >
+                            <img
+                              src={part.url}
+                              alt={part.filename || 'Image'}
+                              className="size-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <a
+                            key={index}
+                            href={part.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
+                          >
+                            <DocumentIcon
+                              fileName={part.filename || 'file'}
+                            />
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <div className="text-sm font-medium text-gray-800 truncate">
+                                {part.filename || 'File'}
+                              </div>
+                            </div>
+                          </a>
+                        ),
+                      )}
+                    </div>
                   )}
                   {message.content && (
                     <div
