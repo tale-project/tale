@@ -47,17 +47,22 @@ export default function OrganizationForm() {
         .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric characters with hyphens
         .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 
-      const result = await authClient.organization.create({
-        name: data.name.trim(),
-        slug: slug,
+    const result = await authClient.organization.create({
+      name: data.name.trim(),
+      slug: slug,
+    });
+
+    // Initialize default workflows for the new organization
+    if (result?.data?.id) {
+      // Set the newly created organization as the active organization in the session
+      await authClient.organization.setActive({
+        organizationId: result.data.id,
       });
 
-      // Initialize default workflows for the new organization
-      if (result?.data?.id) {
-        await initializeDefaultWorkflows({
-          organizationId: result.data.id,
-        });
-      }
+      await initializeDefaultWorkflows({
+        organizationId: result.data.id,
+      });
+    }
 
       toast({
         title: 'Organization created successfully!',
