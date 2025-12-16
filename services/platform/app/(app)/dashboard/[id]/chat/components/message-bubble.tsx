@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { ComponentPropsWithoutRef, useState, useMemo } from 'react';
+import { ComponentPropsWithoutRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -10,15 +10,14 @@ import { motion } from 'framer-motion';
 import { useTypewriter } from '../hooks/use-typewriter';
 import { CopyIcon, CheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import PaginatedMarkdownTable from './paginated-markdown-table';
 import { Info } from 'lucide-react';
 import {
   Tooltip,
@@ -128,11 +127,12 @@ const MarkdownWrapper = styled.div`
     background-color: hsl(var(--muted));
     padding: 0.75rem;
     border-radius: 0.5rem;
+    border: 1px solid hsl(var(--border));
     overflow-x: auto;
     overflow-y: auto;
     margin: 1rem 0;
     max-height: 400px;
-    max-width: var(--chat-max-width);
+    max-width: calc(var(--chat-max-width) - 6rem));
     box-sizing: border-box;
     position: relative;
 
@@ -400,15 +400,19 @@ function TypewriterText({
         rehypePlugins={[rehypeRaw]}
         components={{
           table: ({ node: _node, ...props }) => (
-            <div className="max-w-[var(--chat-max-width)]">
-              <Table {...props} />
-            </div>
+            <PaginatedMarkdownTable {...props} />
           ),
           thead: TableHeader,
           tbody: TableBody,
           tr: TableRow,
           th: TableHead,
           td: TableCell,
+          pre: ({ node: _node, ...props }) => (
+            <pre
+              {...props}
+              className="max-w-[var(--chat-max-width)] overflow-x-auto"
+            />
+          ),
         }}
       >
         {displayText}
@@ -441,11 +445,9 @@ export default function MessageBubble({
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
 
-  // Sanitize message content
-  const sanitizedContent = useMemo(
-    () => sanitizeChatMessage(message.content),
-    [message.content],
-  );
+  // Note: We don't sanitize markdown content before passing to react-markdown
+  // react-markdown safely parses markdown without XSS risks
+  // DOMPurify would encode special chars like > as &gt; breaking code blocks
 
   // State for copy button
   const [isCopied, setIsCopied] = useState(false);
@@ -508,7 +510,7 @@ export default function MessageBubble({
         {message.content && (
           <div className="text-sm leading-5">
             {isAssistantStreaming ? (
-              <TypewriterText text={sanitizedContent} isStreaming={true} />
+              <TypewriterText text={message.content} isStreaming={true} />
             ) : (
               <MarkdownWrapper>
                 <Markdown
@@ -516,27 +518,33 @@ export default function MessageBubble({
                   rehypePlugins={[rehypeRaw]}
                   components={{
                     table: ({ node: _node, ...props }) => (
-                      <div className="overflow-x-auto rounded-xl my-4 max-w-[var(--chat-max-width)]">
-                        <Table {...props} />
-                      </div>
+                      <PaginatedMarkdownTable {...props} />
                     ),
                     thead: TableHeader,
                     tbody: TableBody,
                     tr: TableRow,
                     th: TableHead,
                     td: TableCell,
+                    pre: ({ node: _node, ...props }) => (
+                      <pre
+                        {...props}
+                        className="max-w-[var(--chat-max-width)] overflow-x-auto"
+                      />
+                    ),
                     img: ({ node: _node, ...props }) => (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         {...props}
                         className="max-w-full h-auto rounded-lg my-2"
                         loading="lazy"
-                        alt={typeof props.alt === 'string' ? props.alt : 'Image'}
+                        alt={
+                          typeof props.alt === 'string' ? props.alt : 'Image'
+                        }
                       />
                     ),
                   }}
                 >
-                  {sanitizedContent}
+                  {message.content}
                 </Markdown>
               </MarkdownWrapper>
             )}

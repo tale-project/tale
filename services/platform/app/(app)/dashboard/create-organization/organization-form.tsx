@@ -54,6 +54,11 @@ export default function OrganizationForm() {
 
       // Initialize default workflows for the new organization
       if (result?.data?.id) {
+        // Set the newly created organization as the active organization in the session
+        await authClient.organization.setActive({
+          organizationId: result.data.id,
+        });
+
         await initializeDefaultWorkflows({
           organizationId: result.data.id,
         });
