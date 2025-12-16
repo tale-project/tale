@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { ComponentPropsWithoutRef, useState, useMemo } from 'react';
+import { ComponentPropsWithoutRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -10,7 +10,6 @@ import { motion } from 'framer-motion';
 import { useTypewriter } from '../hooks/use-typewriter';
 import { CopyIcon, CheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 import {
   TableBody,
   TableCell,
@@ -446,11 +445,9 @@ export default function MessageBubble({
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
 
-  // Sanitize message content
-  const sanitizedContent = useMemo(
-    () => sanitizeChatMessage(message.content),
-    [message.content],
-  );
+  // Note: We don't sanitize markdown content before passing to react-markdown
+  // react-markdown safely parses markdown without XSS risks
+  // DOMPurify would encode special chars like > as &gt; breaking code blocks
 
   // State for copy button
   const [isCopied, setIsCopied] = useState(false);
@@ -513,7 +510,7 @@ export default function MessageBubble({
         {message.content && (
           <div className="text-sm leading-5">
             {isAssistantStreaming ? (
-              <TypewriterText text={sanitizedContent} isStreaming={true} />
+              <TypewriterText text={message.content} isStreaming={true} />
             ) : (
               <MarkdownWrapper>
                 <Markdown
@@ -547,7 +544,7 @@ export default function MessageBubble({
                     ),
                   }}
                 >
-                  {sanitizedContent}
+                  {message.content}
                 </Markdown>
               </MarkdownWrapper>
             )}
