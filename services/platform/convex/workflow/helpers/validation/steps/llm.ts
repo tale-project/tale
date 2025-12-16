@@ -24,12 +24,20 @@ export function validateLlmStep(config: Record<string, unknown>): ValidationResu
     return { valid: false, errors, warnings };
   }
 
-  // Required fields
-  if (!llmConfig.name) {
+  // Required fields - validate non-empty strings
+  if (
+    !llmConfig.name ||
+    typeof llmConfig.name !== 'string' ||
+    llmConfig.name.trim() === ''
+  ) {
     errors.push('LLM step requires "name" field');
   }
 
-  if (!llmConfig.systemPrompt) {
+  if (
+    !llmConfig.systemPrompt ||
+    typeof llmConfig.systemPrompt !== 'string' ||
+    llmConfig.systemPrompt.trim() === ''
+  ) {
     errors.push('LLM step requires "systemPrompt" field');
   }
 

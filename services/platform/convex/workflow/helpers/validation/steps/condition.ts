@@ -33,7 +33,7 @@ export function validateConditionStep(config: Record<string, unknown>): Validati
   // Validate JEXL syntax
   const jexlValidation = validateJexlExpression(config.expression);
   if (!jexlValidation.valid) {
-    errors.push(`Condition expression has invalid JEXL syntax: ${jexlValidation.error}`);
+    errors.push(jexlValidation.error ?? 'Condition expression has invalid JEXL syntax');
   }
 
   return { valid: errors.length === 0, errors, warnings };

@@ -249,5 +249,6 @@ export function parseJexlExpression(expression: string): ParsedVariableReference
 export function extractStepReferencesFromCondition(
   expression: string,
 ): ParsedVariableReference[] {
-  return parseJexlExpression(expression).filter((ref) => ref.type === 'step');
+  // parseJexlExpression only returns references with type 'step', so filter is redundant
+  return parseJexlExpression(expression);
 }

@@ -27,12 +27,10 @@ import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { toast } from '@/hooks/use-toast';
 import DocumentIcon from '@/components/ui/document-icon';
 import { useUIMessages } from '@convex-dev/agent/react';
+import Image from 'next/image';
+import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
 
-interface FileAttachment {
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
+interface FileAttachment extends BaseFileAttachment {
   previewUrl?: string;
 }
 
@@ -579,12 +577,15 @@ export function AutomationAssistant({
                         part.mediaType.startsWith('image/') ? (
                           <div
                             key={index}
-                            className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden"
+                            className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden"
                           >
-                            <img
+                            <Image
                               src={part.url}
                               alt={part.filename || 'Image'}
                               className="size-full object-cover"
+                              width={44}
+                              height={44}
+                              unoptimized
                             />
                           </div>
                         ) : (
@@ -593,13 +594,13 @@ export function AutomationAssistant({
                             href={part.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
+                            className="bg-muted rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-muted/80 transition-colors max-w-[13.5rem]"
                           >
                             <DocumentIcon
                               fileName={part.filename || 'file'}
                             />
                             <div className="flex flex-col min-w-0 flex-1">
-                              <div className="text-sm font-medium text-gray-800 truncate">
+                              <div className="text-sm font-medium text-foreground truncate">
                                 {part.filename || 'File'}
                               </div>
                             </div>
@@ -656,6 +657,8 @@ export function AutomationAssistant({
           'border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50',
           isDragOver && 'ring-2 ring-primary ring-offset-2',
         )}
+        role="region"
+        aria-label="Drop files here to attach"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -682,6 +685,7 @@ export function AutomationAssistant({
                 .filter((att) => att.fileType.startsWith('image/'))
                 .map((attachment) => (
                   <div key={attachment.fileId} className="relative group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={attachment.previewUrl}
                       alt={attachment.fileName}

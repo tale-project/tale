@@ -20,7 +20,13 @@ export function validateTriggerStep(config: Record<string, unknown>): Validation
     return { valid: false, errors, warnings };
   }
 
-  const triggerType = config.type as string;
+  const triggerType = config.type;
+
+  // Ensure type is a string before validation
+  if (typeof triggerType !== 'string') {
+    errors.push('Trigger step "type" field must be a string');
+    return { valid: false, errors, warnings };
+  }
 
   // Validate trigger type
   if (!isValidTriggerType(triggerType)) {

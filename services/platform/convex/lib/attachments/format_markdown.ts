@@ -33,7 +33,11 @@ export async function formatAttachmentsAsMarkdown(
       // Other files: Use markdown link with file info
       const sizeKB = Math.round(attachment.fileSize / 1024);
       const sizeDisplay =
-        sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
+        sizeKB === 0
+          ? `${attachment.fileSize} bytes`
+          : sizeKB >= 1024
+            ? `${(sizeKB / 1024).toFixed(1)} MB`
+            : `${sizeKB} KB`;
       fileMarkdowns.push(
         `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
       );

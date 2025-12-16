@@ -76,8 +76,28 @@ export async function chatWithAgent(
 
   if (hasAttachments) {
     // Separate images from other files
-    const imageAttachments = attachments.filter((a) => a.fileType.startsWith('image/'));
-    const documentAttachments = attachments.filter((a) => !a.fileType.startsWith('image/'));
+    const imageAttachments = attachments.filter((a) =>
+      a.fileType.startsWith('image/'),
+    );
+    const documentAttachments = attachments.filter(
+      (a) => !a.fileType.startsWith('image/'),
+    );
+
+    // Fetch all URLs in parallel for better performance
+    const [documentUrls, imageUrls] = await Promise.all([
+      Promise.all(
+        documentAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+      Promise.all(
+        imageAttachments.map(async (a) => ({
+          attachment: a,
+          url: await ctx.storage.getUrl(a.fileId),
+        })),
+      ),
+    ]);
 
     // Build content parts array
     const contentParts: ContentPart[] = [];
@@ -86,10 +106,9 @@ export async function chatWithAgent(
     let textContent = trimmedMessage;
 
     // Add document references as markdown to the text
-    if (documentAttachments.length > 0) {
+    if (documentUrls.length > 0) {
       const docMarkdown: string[] = [];
-      for (const attachment of documentAttachments) {
-        const url = await ctx.storage.getUrl(attachment.fileId);
+      for (const { attachment, url } of documentUrls) {
         if (url) {
           const sizeKB = Math.round(attachment.fileSize / 1024);
           const sizeDisplay =
@@ -107,8 +126,7 @@ export async function chatWithAgent(
     contentParts.push({ type: 'text', text: textContent });
 
     // Add image parts for images
-    for (const attachment of imageAttachments) {
-      const url = await ctx.storage.getUrl(attachment.fileId);
+    for (const { attachment, url } of imageUrls) {
       if (url) {
         contentParts.push({
           type: 'image',
@@ -119,7 +137,9 @@ export async function chatWithAgent(
     }
 
     // Use multi-modal content if we have images, otherwise just text
-    messageContent = imageAttachments.length > 0 ? contentParts : textContent;
+    messageContent = imageUrls.some(({ url }) => url)
+      ? contentParts
+      : textContent;
   }
 
   // Only save if not a duplicate

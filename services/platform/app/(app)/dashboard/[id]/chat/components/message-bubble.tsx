@@ -336,7 +336,8 @@ function FilePartDisplay({ filePart }: { filePart: FilePart }) {
   if (isImage) {
     // Image - small square thumbnail
     return (
-      <div className="size-11 rounded-lg bg-gray-200 bg-center bg-cover bg-no-repeat overflow-hidden">
+      <div className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={filePart.url}
           alt={filePart.filename || 'Image'}
@@ -352,17 +353,17 @@ function FilePartDisplay({ filePart }: { filePart: FilePart }) {
       href={filePart.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="bg-gray-100 rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-gray-200 transition-colors max-w-[216px]"
+      className="bg-muted rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-muted/80 transition-colors max-w-[13.5rem]"
     >
       <FileTypeIcon
         fileType={filePart.mediaType}
         fileName={filePart.filename || 'file'}
       />
       <div className="flex flex-col min-w-0 flex-1">
-        <div className="text-sm font-medium text-gray-800 truncate">
+        <div className="text-sm font-medium text-foreground truncate">
           {filePart.filename || 'File'}
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted-foreground">
           {filePart.mediaType === 'application/pdf'
             ? 'PDF'
             : filePart.mediaType.includes('word')
@@ -525,10 +526,12 @@ export default function MessageBubble({
                     th: TableHead,
                     td: TableCell,
                     img: ({ node: _node, ...props }) => (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         {...props}
                         className="max-w-full h-auto rounded-lg my-2"
                         loading="lazy"
+                        alt={typeof props.alt === 'string' ? props.alt : 'Image'}
                       />
                     ),
                   }}

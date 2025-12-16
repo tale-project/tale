@@ -23,20 +23,19 @@ export function validateActionStep(config: Record<string, unknown>): ValidationR
   const actionType = config.type as string;
 
   // Get parameters - they can be in config.parameters or directly in config
-  const parameters = 'parameters' in config ? config.parameters : { ...config };
-
-  // Remove 'type' from parameters if it was copied from config
-  if (typeof parameters === 'object' && parameters !== null && 'type' in parameters) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { type: _type, ...rest } = parameters as Record<string, unknown>;
-    const actionValidation = validateActionParameters(actionType, rest);
-    errors.push(...actionValidation.errors);
-    warnings.push(...actionValidation.warnings);
+  // Normalize to a single variable with 'type' removed for cleaner validation
+  let parameters: unknown;
+  if ('parameters' in config) {
+    parameters = config.parameters;
   } else {
-    const actionValidation = validateActionParameters(actionType, parameters);
-    errors.push(...actionValidation.errors);
-    warnings.push(...actionValidation.warnings);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { type: _type, ...rest } = config;
+    parameters = rest;
   }
+
+  const actionValidation = validateActionParameters(actionType, parameters);
+  errors.push(...actionValidation.errors);
+  warnings.push(...actionValidation.warnings);
 
   return { valid: errors.length === 0, errors, warnings };
 }

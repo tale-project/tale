@@ -161,10 +161,12 @@ ${toonifiedSteps}
     ];
 
     // Create specialized workflow agent with workflow tools
+    // Pass workflow context to be included in the system prompt
     const agent = await createWorkflowAgent({
       withTools: true,
       maxSteps,
       convexToolNames,
+      workflowContext: workflowContext || undefined,
     });
 
     // Add organizationId and workflowId to context for tools that need them
@@ -173,11 +175,6 @@ ${toonifiedSteps}
       organizationId: args.organizationId,
       workflowId: args.workflowId,
     };
-
-    // Enhance the message with workflow context
-    const enhancedMessage = workflowContext
-      ? `${args.message}${workflowContext}`
-      : args.message;
 
     // Process attachments if provided
     const attachments = args.attachments as FileAttachment[] | undefined;
@@ -219,43 +216,63 @@ ${toonifiedSteps}
       }> = [];
 
       // Add document references as markdown to the text (for display)
+      // Process documents in parallel for better performance
       if (documentAttachments.length > 0) {
-        const docMarkdown: string[] = [];
-        for (const attachment of documentAttachments) {
-          const url = await ctx.storage.getUrl(attachment.fileId);
-          if (url) {
-            const sizeKB = Math.round(attachment.fileSize / 1024);
-            const sizeDisplay =
-              sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
-            docMarkdown.push(
-              `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
-            );
+        const docResults = await Promise.all(
+          documentAttachments.map(async (attachment) => {
+            try {
+              const url = await ctx.storage.getUrl(attachment.fileId);
+              if (!url) return null;
 
-            // Parse document to extract text content for AI
-            const parseResult = await parseFile(
-              url,
-              attachment.fileName,
-              'workflow_assistant',
-            );
+              const sizeKB = Math.round(attachment.fileSize / 1024);
+              const sizeDisplay =
+                sizeKB >= 1024
+                  ? `${(sizeKB / 1024).toFixed(1)} MB`
+                  : `${sizeKB} KB`;
+              const markdown = `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`;
 
-            if (parseResult.success && parseResult.full_text) {
-              parsedDocuments.push({
-                fileName: attachment.fileName,
-                content: parseResult.full_text,
+              // Parse document to extract text content for AI
+              const parseResult = await parseFile(
                 url,
-              });
-              debugLog('Parsed document', {
+                attachment.fileName,
+                'workflow_assistant',
+              );
+
+              return { attachment, url, markdown, parseResult };
+            } catch (error) {
+              debugLog('Error processing document', {
                 fileName: attachment.fileName,
-                textLength: parseResult.full_text.length,
+                error: String(error),
               });
-            } else {
-              debugLog('Failed to parse document', {
-                fileName: attachment.fileName,
-                error: parseResult.error,
-              });
+              return null;
             }
+          }),
+        );
+
+        const docMarkdown: string[] = [];
+        for (const result of docResults) {
+          if (!result) continue;
+
+          docMarkdown.push(result.markdown);
+
+          if (result.parseResult.success && result.parseResult.full_text) {
+            parsedDocuments.push({
+              fileName: result.attachment.fileName,
+              content: result.parseResult.full_text,
+              url: result.url,
+            });
+            debugLog('Parsed document', {
+              fileName: result.attachment.fileName,
+              textLength: result.parseResult.full_text.length,
+            });
+          } else {
+            debugLog('Failed to parse document', {
+              fileName: result.attachment.fileName,
+              error: result.parseResult.error,
+            });
           }
         }
+
         if (docMarkdown.length > 0) {
           // For display: user message + document links (no workflow context)
           displayTextContent = `${args.message}\n\n${docMarkdown.join('\n')}`;
@@ -265,8 +282,15 @@ ${toonifiedSteps}
       saveContentParts.push({ type: 'text', text: displayTextContent });
 
       // Add image parts for images (with URLs for display)
-      for (const attachment of imageAttachments) {
-        const url = await ctx.storage.getUrl(attachment.fileId);
+      // Fetch all image URLs in parallel for better performance
+      const imageUrls = await Promise.all(
+        imageAttachments.map(async (attachment) => ({
+          attachment,
+          url: await ctx.storage.getUrl(attachment.fileId),
+        })),
+      );
+
+      for (const { attachment, url } of imageUrls) {
         if (url) {
           saveContentParts.push({
             type: 'image',
@@ -291,9 +315,9 @@ ${toonifiedSteps}
       const registeredFiles = await registerFilesWithAgent(ctx, attachments);
 
       if (registeredFiles.length > 0 || parsedDocuments.length > 0) {
-        // Start with the enhanced message
+        // Start with the user's original message (workflow context is passed via contextMessages)
         const aiContentParts: MessageContentPart[] = [
-          { type: 'text', text: enhancedMessage },
+          { type: 'text', text: args.message },
         ];
 
         // Add parsed document content for the AI to read
@@ -347,9 +371,10 @@ ${toonifiedSteps}
       { threadId },
       // If we have attachments, use prompt array for multi-modal content
       // Otherwise, use the simple string prompt
+      // Workflow context is included in the agent's system prompt
       promptContent
         ? { prompt: promptContent, promptMessageId }
-        : { prompt: enhancedMessage },
+        : { prompt: args.message },
     );
 
     debugLog('agent result', {

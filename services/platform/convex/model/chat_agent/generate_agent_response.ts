@@ -13,7 +13,6 @@ import { createChatAgent } from '../../lib/create_chat_agent';
 import {
   type FileAttachment,
   registerFilesWithAgent,
-  buildMultiModalContent,
   type MessageContentPart,
 } from '../../lib/attachments/index';
 import { parseFile } from '../../agent_tools/convex_tools/files/helpers/parse_file';
@@ -155,36 +154,49 @@ export async function generateAgentResponse(
         (a) => !a.fileType.startsWith('image/'),
       );
 
-      // Parse document files to extract their text content
+      // Parse document files to extract their text content (in parallel for performance)
+      const parseResults = await Promise.all(
+        documentAttachments.map(async (attachment) => {
+          try {
+            const url = await ctx.storage.getUrl(attachment.fileId);
+            if (!url) return null;
+
+            const parseResult = await parseFile(
+              url,
+              attachment.fileName,
+              'chat_agent',
+            );
+            return { attachment, parseResult };
+          } catch (error) {
+            debugLog('Error parsing document', {
+              fileName: attachment.fileName,
+              error: String(error),
+            });
+            return null;
+          }
+        }),
+      );
+
       const parsedDocuments: Array<{
         fileName: string;
         content: string;
       }> = [];
 
-      for (const attachment of documentAttachments) {
-        const url = await ctx.storage.getUrl(attachment.fileId);
-        if (url) {
-          const parseResult = await parseFile(
-            url,
-            attachment.fileName,
-            'chat_agent',
-          );
-
-          if (parseResult.success && parseResult.full_text) {
-            parsedDocuments.push({
-              fileName: attachment.fileName,
-              content: parseResult.full_text,
-            });
-            debugLog('Parsed document', {
-              fileName: attachment.fileName,
-              textLength: parseResult.full_text.length,
-            });
-          } else {
-            debugLog('Failed to parse document', {
-              fileName: attachment.fileName,
-              error: parseResult.error,
-            });
-          }
+      for (const result of parseResults) {
+        if (result?.parseResult.success && result.parseResult.full_text) {
+          parsedDocuments.push({
+            fileName: result.attachment.fileName,
+            content: result.parseResult.full_text,
+          });
+          debugLog('Parsed document', {
+            fileName: result.attachment.fileName,
+            textLength: result.parseResult.full_text.length,
+          });
+        } else if (result) {
+          debugLog('Failed to parse document', {
+            fileName: result.attachment.fileName,
+            error: result.parseResult.error,
+          });
         }
       }
 
