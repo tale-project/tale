@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-import { validateWorkflowSteps } from '../../workflow/helpers/engine/validate_workflow_steps';
+import { validateWorkflowSteps } from '../../workflow/helpers/validation/validate_workflow_steps';
 import type { WorkflowConfig } from './types';
 
 export interface SaveWorkflowWithStepsArgs {

@@ -118,7 +118,7 @@ export const circulySyncCustomersWorkflow = {
       stepType: 'condition',
       order: 5,
       config: {
-        expression: 'steps.query_existing_customer.output.data|length > 0',
+        expression: 'steps.query_existing_customer.output.data.items|length > 0',
         description: 'Check if customer already exists in database',
       },
       nextSteps: {
@@ -138,7 +138,7 @@ export const circulySyncCustomersWorkflow = {
         parameters: {
           operation: 'update',
           customerId:
-            '{{steps.query_existing_customer.output.data.page[0]._id}}',
+            '{{steps.query_existing_customer.output.data.items[0]._id}}',
           updates: {
             name: '{{loop.item.first_name}} {{loop.item.last_name}}',
             email: '{{loop.item.email}}',

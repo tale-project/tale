@@ -69,7 +69,7 @@ export const queryProducts = internalQuery({
     }),
   },
   returns: v.object({
-    page: v.array(v.any()),
+    items: v.array(v.any()),
     isDone: v.boolean(),
     continueCursor: v.union(v.string(), v.null()),
     count: v.number(),
@@ -129,7 +129,7 @@ export const listByOrganization = internalQuery({
     fields: v.optional(v.array(v.string())),
   },
   returns: v.object({
-    page: v.array(v.any()),
+    items: v.array(v.any()),
     isDone: v.boolean(),
     continueCursor: v.union(v.string(), v.null()),
   }),

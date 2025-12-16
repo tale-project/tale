@@ -93,7 +93,7 @@ function createDocSchema<T extends TableNames>(
 const paginatedResultSchema = (itemDescription: string): OutputSchema => ({
   description: `Paginated ${itemDescription} result`,
   fields: {
-    page: {
+    items: {
       type: 'array',
       description: `Array of ${itemDescription}`,
       items: { type: 'object' },

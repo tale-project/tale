@@ -13,10 +13,14 @@ import type {
   StepSchemaContext,
   OutputSchema,
   FieldSchema,
+  StepType,
 } from './types';
-import { extractStepReferences } from './parse_variable_references';
-import { getStepTypeOutputSchema } from './step_output_schemas';
-import { getActionOutputSchema } from './action_output_schemas';
+import {
+  extractStepReferences,
+  extractStepReferencesFromCondition,
+} from './parse';
+import { getStepTypeOutputSchema } from './step_schemas';
+import { getActionOutputSchema } from './action_schemas';
 
 // =============================================================================
 // TYPES
@@ -24,7 +28,7 @@ import { getActionOutputSchema } from './action_output_schemas';
 
 export interface StepInfo {
   stepSlug: string;
-  stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
+  stepType: StepType;
   order: number;
   config: Record<string, unknown>;
 }
@@ -88,11 +92,145 @@ function containsJinjaFilter(pathSegment: string): boolean {
 }
 
 /**
- * Strip Jinja2 filters from a path segment to get the base field name
+ * Strip JEXL filters from a path segment to get the base field name
  */
 function stripJinjaFilters(pathSegment: string): string {
   const pipeIndex = pathSegment.indexOf('|');
   return pipeIndex === -1 ? pathSegment : pathSegment.substring(0, pipeIndex);
+}
+
+/**
+ * Extract the filter name from a path segment (e.g., "data|length" -> "length")
+ */
+function extractFilter(pathSegment: string): string | null {
+  const pipeIndex = pathSegment.indexOf('|');
+  return pipeIndex === -1 ? null : pathSegment.substring(pipeIndex + 1);
+}
+
+/**
+ * Validate that JEXL filters are applied to appropriate field types.
+ * For example, |length should be applied to arrays, not objects.
+ */
+function validateJexlFilterUsage(
+  fieldPath: string[],
+  schema: OutputSchema,
+  ref: ParsedVariableReference,
+  _referencedStep: StepInfo,
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // If schema has no fields defined, we can't validate deeply
+  if (!schema.fields) {
+    return { valid: true, errors, warnings };
+  }
+
+  // Find the segment with the filter
+  const segmentWithFilter = fieldPath.find(containsJinjaFilter);
+  if (!segmentWithFilter) {
+    return { valid: true, errors, warnings };
+  }
+
+  const filter = extractFilter(segmentWithFilter);
+  const fieldName = stripJinjaFilters(segmentWithFilter);
+
+  // Handle |length filter on direct data access (e.g., data|length)
+  // fieldPath[0] is "data|length", fieldName is "data"
+  if (segmentWithFilter === fieldPath[0] && fieldName === 'data') {
+    // Filter applied to data directly (e.g., steps.x.output.data|length)
+    if (filter === 'length') {
+      // Check if data is an array or has array-like behavior
+      if (!schema.isArray) {
+        // data is an object, not an array - likely a paginated result or similar
+        const availableFields = Object.keys(schema.fields);
+        const arrayFields = Object.entries(schema.fields)
+          .filter(([, fieldSchema]) => fieldSchema.type === 'array')
+          .map(([name]) => name);
+
+        if (arrayFields.length > 0) {
+          errors.push(
+            `Reference "${ref.originalTemplate}" applies "|length" to an object, not an array. ` +
+              `The output has these fields: [${availableFields.join(', ')}]. ` +
+              `Did you mean "steps.${ref.stepSlug}.output.data.${arrayFields[0]}|length"?`,
+          );
+          return { valid: false, errors, warnings };
+        } else {
+          errors.push(
+            `Reference "${ref.originalTemplate}" applies "|length" to an object which has no array fields. ` +
+              `Available fields: [${availableFields.join(', ')}]`,
+          );
+          return { valid: false, errors, warnings };
+        }
+      }
+    }
+    return { valid: true, errors, warnings };
+  }
+
+  // Walk the path up to the filtered field to check its type
+  let currentFields: Record<string, FieldSchema> | undefined = schema.fields;
+  let lastFieldSchema: FieldSchema | undefined;
+
+  for (const segment of fieldPath) {
+    if (!currentFields) {
+      break;
+    }
+
+    const cleanSegment = stripJinjaFilters(segment);
+    const segmentFilter = extractFilter(segment);
+
+    if (cleanSegment in currentFields) {
+      lastFieldSchema = currentFields[cleanSegment];
+
+      // If this segment has a filter, validate it
+      if (segmentFilter === 'length') {
+        if (lastFieldSchema.type !== 'array') {
+          // Building the path for a helpful error message
+          const pathBeforeFilter = fieldPath
+            .slice(0, fieldPath.indexOf(segment))
+            .map(stripJinjaFilters)
+            .join('.');
+          const fullPathToField = pathBeforeFilter
+            ? `${pathBeforeFilter}.${cleanSegment}`
+            : cleanSegment;
+
+          // If the field is an object with array children, suggest the array field
+          if (lastFieldSchema.type === 'object' && lastFieldSchema.fields) {
+            const arrayFields = Object.entries(lastFieldSchema.fields)
+              .filter(([, fs]) => fs.type === 'array')
+              .map(([name]) => name);
+
+            if (arrayFields.length > 0) {
+              errors.push(
+                `Reference "${ref.originalTemplate}" applies "|length" to object field "${cleanSegment}" which is not an array. ` +
+                  `Did you mean "steps.${ref.stepSlug}.output.data.${fullPathToField}.${arrayFields[0]}|length"?`,
+              );
+              return { valid: false, errors, warnings };
+            }
+          }
+
+          errors.push(
+            `Reference "${ref.originalTemplate}" applies "|length" to field "${cleanSegment}" ` +
+              `which is of type "${lastFieldSchema.type}", not an array.`,
+          );
+          return { valid: false, errors, warnings };
+        }
+      }
+
+      // Navigate deeper if possible
+      if (lastFieldSchema.type === 'object' && lastFieldSchema.fields) {
+        currentFields = lastFieldSchema.fields;
+      } else if (lastFieldSchema.type === 'array' && lastFieldSchema.items?.fields) {
+        currentFields = lastFieldSchema.items.fields;
+      } else {
+        currentFields = undefined;
+      }
+    } else {
+      // Field not found in schema - stop validation
+      break;
+    }
+  }
+
+  return { valid: true, errors, warnings };
 }
 
 /**
@@ -105,12 +243,9 @@ function validateStepReferencePath(
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Skip validation for complex expressions (ternary, comparisons, etc.)
-  if (ref.path.length > 0 && ref.path[0] === '__complex_expression__') {
-    // Complex expressions can't be statically validated for field access
-    // The step reference itself was already validated (step exists, order correct)
-    return { valid: true, errors, warnings };
-  }
+  // Note: Complex expressions (ternary, comparisons, etc.) now have their full path extracted
+  // so we can validate field access. The '__complex_expression__' marker is only used for
+  // non-step references that can't be validated.
 
   // Step references should start with 'output'
   if (ref.path.length === 0) {
@@ -146,11 +281,22 @@ function validateStepReferencePath(
     const cleanDataOrMeta = stripJinjaFilters(dataOrMeta);
 
     if (cleanDataOrMeta === 'data') {
-      // Check if the path contains Jinja filters
-      const hasJinjaFilters = restPath.some(containsJinjaFilter);
-      if (hasJinjaFilters) {
-        // Valid Jinja filter usage - don't validate further but note it
-        // This handles patterns like {{steps.x.output.data|length}}
+      // Check if the path contains JEXL filters
+      const hasJexlFilters = restPath.some(containsJinjaFilter);
+      if (hasJexlFilters) {
+        // Validate that filters are applied to appropriate field types
+        // Pass restPath (not fieldPath) so we include "data|length" when filter is on data itself
+        const filterValidation = validateJexlFilterUsage(
+          restPath,
+          schema,
+          ref,
+          referencedStep,
+        );
+        errors.push(...filterValidation.errors);
+        warnings.push(...filterValidation.warnings);
+        if (!filterValidation.valid) {
+          return { valid: false, errors, warnings };
+        }
         return { valid: true, errors, warnings };
       }
 
@@ -243,6 +389,17 @@ function validateFieldPath(
         return { valid: false, errors, warnings };
       }
 
+      // Check for common mistake: using .length on arrays (should use |length transform)
+      if (segment === 'length') {
+        // Find the previous field to check if it's an array
+        const prevFieldPath = validatedPath.join('.');
+        errors.push(
+          `Reference "${ref.originalTemplate}" uses ".length" which is not valid in JEXL. ` +
+            `Use the "|length" transform instead: "${prevFieldPath}|length"`,
+        );
+        return { valid: false, errors, warnings };
+      }
+
       errors.push(
         `Reference "${ref.originalTemplate}" accesses invalid field ".data${pathSoFar}.${segment}". ` +
           `Available fields at this level: [${availableFields.join(', ')}]`,
@@ -256,19 +413,30 @@ function validateFieldPath(
     // If this field has nested fields, update currentFields for next iteration
     if (fieldSchema.type === 'object' && fieldSchema.fields) {
       currentFields = fieldSchema.fields;
-    } else if (fieldSchema.type === 'array' && fieldSchema.items?.fields) {
-      // For arrays, we'd need index access to go deeper
+    } else if (fieldSchema.type === 'array') {
+      // Check if next segment is trying to access .length (common mistake)
       if (i + 1 < fieldPath.length) {
         const nextSegment = fieldPath[i + 1];
+
+        // Check for .length mistake on arrays
+        if (nextSegment === 'length') {
+          const arrayPath = [...validatedPath].join('.');
+          errors.push(
+            `Reference "${ref.originalTemplate}" uses ".length" on array field "${segment}" which is not valid in JEXL. ` +
+              `Use the "|length" transform instead: "steps.${ref.stepSlug}.output.data.${arrayPath}|length"`,
+          );
+          return { valid: false, errors, warnings };
+        }
+
         const isArrayIndex = /^\[\d+\]$/.test(nextSegment) || /^\d+$/.test(nextSegment);
-        if (!isArrayIndex) {
+        if (!isArrayIndex && fieldSchema.items?.fields) {
           warnings.push(
             `Reference "${ref.originalTemplate}" accesses ".${nextSegment}" directly on array field "${segment}". ` +
               `Consider using an index like "${segment}[0].${nextSegment}".`,
           );
         }
       }
-      currentFields = fieldSchema.items.fields;
+      currentFields = fieldSchema.items?.fields;
     } else {
       // Not an object or array with nested fields, can't traverse further
       currentFields = undefined;
@@ -294,8 +462,16 @@ function validateStepVariableReferences(
   const warnings: string[] = [];
   const referenceResults: VariableReferenceValidationResult[] = [];
 
-  // Extract step references from the step config
-  const stepRefs = extractStepReferences(step.config);
+  // Extract step references from the step config (mustache templates)
+  let stepRefs = extractStepReferences(step.config);
+
+  // For condition steps, also extract references from the JEXL expression (no mustache brackets)
+  if (step.stepType === 'condition' && step.config?.expression) {
+    const conditionRefs = extractStepReferencesFromCondition(
+      step.config.expression as string,
+    );
+    stepRefs = [...stepRefs, ...conditionRefs];
+  }
 
   for (const ref of stepRefs) {
     const refResult: VariableReferenceValidationResult = {

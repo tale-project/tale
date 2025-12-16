@@ -63,7 +63,7 @@ export default function CustomersTable({
     return null;
   }
 
-  const customers = result.page as Doc<'customers'>[];
+  const customers = result.items as Doc<'customers'>[];
   const pagination = {
     total: customers.length, // This is a simplified approach
     page: currentPage,

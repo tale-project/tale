@@ -63,7 +63,7 @@ export interface QueryConversationsArgs {
 }
 
 export interface QueryConversationsResult {
-  page: Array<Doc<'conversations'>>;
+  items: Array<Doc<'conversations'>>;
   isDone: boolean;
   continueCursor: string | null;
   count: number;

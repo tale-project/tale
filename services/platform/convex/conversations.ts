@@ -207,7 +207,7 @@ export const queryConversations = internalQuery({
     }),
   },
   returns: v.object({
-    page: v.array(
+    items: v.array(
       v.object({
         _id: v.id('conversations'),
         _creationTime: v.number(),
@@ -248,7 +248,7 @@ export const queryConversationMessages = internalQuery({
     }),
   },
   returns: v.object({
-    page: v.array(
+    items: v.array(
       v.object({
         _id: v.id('conversationMessages'),
         _creationTime: v.number(),

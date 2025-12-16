@@ -29,7 +29,6 @@ export const onedriveSyncWorkflow = {
         organizationId: 'org_demo',
         backoffHours: 1, // Only process configs not synced in last 1 hour
         workflowId: 'onedrive_sync',
-        targetBucket: 'documents',
       },
     },
   },
@@ -256,7 +255,6 @@ export const onedriveSyncWorkflow = {
           contentType: '{{steps.read_onedrive_file.output.data.mimeType}}',
           storagePath:
             '{{steps.find_sync_config.output.data.storagePrefix}}/{{steps.find_sync_config.output.data.itemName}}',
-          targetBucket: '{{targetBucket}}',
           metadata: {
             oneDriveItemId:
               '{{steps.find_sync_config.output.data.itemId}}',
@@ -330,8 +328,6 @@ export const onedriveSyncWorkflow = {
           operation: 'record_processed',
           tableName: 'onedriveSyncConfigs',
           recordId: '{{steps.find_sync_config.output.data._id}}',
-          recordCreationTime:
-            '{{steps.find_sync_config.output.data._creationTime}}',
         },
       },
       nextSteps: {

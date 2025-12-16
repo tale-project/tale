@@ -138,7 +138,7 @@ export async function queryConversations(
   const paginatedConversations = conversations.slice(startIndex, endIndex);
 
   return {
-    page: paginatedConversations,
+    items: paginatedConversations,
     isDone: endIndex >= conversations.length,
     continueCursor:
       paginatedConversations.length > 0

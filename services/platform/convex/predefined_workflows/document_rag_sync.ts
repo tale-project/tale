@@ -129,8 +129,6 @@ export const documentRagSyncWorkflow = {
           tableName: 'documents',
           recordId:
             '{{steps.find_unprocessed_document.output.data._id}}',
-          recordCreationTime:
-            '{{steps.find_unprocessed_document.output.data._creationTime}}',
         },
       },
       nextSteps: {

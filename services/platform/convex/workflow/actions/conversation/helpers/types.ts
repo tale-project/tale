@@ -1,5 +1,5 @@
 export type QueryResult<T = unknown> = {
-  page: T[];
+  items: T[];
   isDone: boolean;
   continueCursor: string | null;
   count: number;

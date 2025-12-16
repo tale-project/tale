@@ -21,9 +21,12 @@ export async function createWorkflowAgent(options?: {
   convexToolNames?: ToolName[];
   mcpServerIds?: string[];
   variables?: Record<string, unknown>;
+  /** Dynamic workflow context to append to the system prompt */
+  workflowContext?: string;
 }) {
   const withTools = options?.withTools ?? true;
   const maxSteps = options?.maxSteps ?? 30;
+  const workflowContext = options?.workflowContext;
 
   // Build tool inputs (Convex tool names + loaded MCP tools)
   let convexToolNames: ToolName[] = [];
@@ -54,10 +57,8 @@ export async function createWorkflowAgent(options?: {
     });
   }
 
-  const agentConfig = createAgentConfig({
-    name: 'workflow-assistant',
-    model: process.env.OPENAI_CODING_MODEL || 'gpt-5.1',
-    instructions: `You are an expert workflow automation assistant. You help users create, modify, and understand their automation workflows.
+  // Base instructions for the workflow agent (workflow context will be appended if provided)
+  const baseInstructions = `You are an expert workflow automation assistant. You help users create, modify, and understand their automation workflows.
 
 **WORKFLOW SYNTAX REFERENCE:**
 ${WORKFLOW_SYNTAX_GUIDE}
@@ -495,7 +496,17 @@ This workflow helps re-engage inactive customers. Would you like me to modify an
 - Explain your actions clearly, emphasizing how LLM steps handle business logic
 - Confirm success after operations
 - Handle errors gracefully and explain what went wrong
-- **Remember**: For business logic workflows, LLM is the core. Action steps are just for simple data fetch/store. Don't try to make users understand table schemas - let AI handle the complexity.`,
+- **Remember**: For business logic workflows, LLM is the core. Action steps are just for simple data fetch/store. Don't try to make users understand table schemas - let AI handle the complexity.`;
+
+  // Append workflow context to system prompt if provided
+  const finalInstructions = workflowContext
+    ? `${baseInstructions}\n\n${workflowContext}`
+    : baseInstructions;
+
+  const agentConfig = createAgentConfig({
+    name: 'workflow-assistant',
+    model: process.env.OPENAI_CODING_MODEL || 'gpt-5.1',
+    instructions: finalInstructions,
     ...(withTools ? { convexToolNames, mcpTools } : {}),
     maxSteps,
   });

@@ -1,7 +1,8 @@
 /**
- * Validate workflow steps configuration
+ * Validate Workflow Steps References
  *
- * Validates that all nextSteps references point to valid steps in the workflow
+ * Validates that all nextSteps references point to valid steps in the workflow.
+ * This is a structural validation that ensures the workflow graph is valid.
  */
 
 /**
@@ -15,7 +16,7 @@ export function validateWorkflowSteps(
     stepSlug: string;
     name: string;
     nextSteps?: Record<string, string>;
-  }>,
+  }>
 ): void {
   // Build a set of valid step slugs for O(1) lookup
   const validStepSlugs = new Set(steps.map((step) => step.stepSlug));
@@ -38,7 +39,7 @@ export function validateWorkflowSteps(
       if (!validStepSlugs.has(nextStepSlug)) {
         const availableSteps = Array.from(validStepSlugs).join(', ');
         throw new Error(
-          `Invalid workflow configuration: Step '${step.stepSlug}' (${step.name}) references non-existent step '${nextStepSlug}' in nextSteps port '${port}'. Available steps: ${availableSteps}`,
+          `Invalid workflow configuration: Step '${step.stepSlug}' (${step.name}) references non-existent step '${nextStepSlug}' in nextSteps port '${port}'. Available steps: ${availableSteps}`
         );
       }
     }

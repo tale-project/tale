@@ -4,14 +4,24 @@ import { useParams } from 'next/navigation';
 import { createContext, useContext, useState, useCallback } from 'react';
 import ChatHeader from './components/chat-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import type { Id } from '@/convex/_generated/dataModel';
 
 interface ChatLayoutProps {
   children: React.ReactNode;
 }
 
+export interface FileAttachment {
+  fileId: Id<'_storage'>;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  previewUrl?: string;
+}
+
 interface OptimisticMessage {
   content: string;
   threadId?: string;
+  attachments?: FileAttachment[];
 }
 
 interface ChatLayoutContextType {
