@@ -33,6 +33,19 @@ jobs:
 
     steps:
       # ======================================================================
+      # Cleanup (free disk space on self-hosted runner)
+      # ======================================================================
+      - name: Free disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h
+          echo "=== Cleaning up Docker resources ==="
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          echo "=== Disk space after cleanup ==="
+          df -h
+
+      # ======================================================================
       # Checkout
       # ======================================================================
       - name: Checkout repository
