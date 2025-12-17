@@ -32,6 +32,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import Image from 'next/image';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -458,14 +460,51 @@ function CodeBlock({
 const MarkdownImage = memo(function MarkdownImage(
   props: React.ImgHTMLAttributes<HTMLImageElement>,
 ) {
+  const [isOpen, setIsOpen] = useState(false);
+  const altText = typeof props.alt === 'string' ? props.alt : 'Image';
+  const imageSrc = typeof props.src === 'string' ? props.src : '';
+
+  const handleOpen = () => setIsOpen(true);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleOpen();
+    }
+  };
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      {...props}
-      className="max-w-[24rem] max-h-[24rem] w-auto h-auto object-contain rounded-lg my-2"
-      loading="lazy"
-      alt={typeof props.alt === 'string' ? props.alt : 'Image'}
-    />
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={handleOpen}
+        onKeyDown={handleKeyDown}
+        className="inline-block cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg my-2"
+      >
+        <Image
+          src={imageSrc}
+          alt={altText}
+          width={384}
+          height={384}
+          className="max-w-[24rem] max-h-[24rem] w-auto object-contain rounded-lg"
+          unoptimized
+        />
+      </span>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-fit p-0 border-0 [&>button]:hidden bg-background/50 backdrop-blur-sm">
+          <DialogTitle className="sr-only">Image preview</DialogTitle>
+          <Image
+            src={imageSrc}
+            alt={altText}
+            width={1920}
+            height={1080}
+            className="max-h-[80dvh] w-auto object-contain rounded-lg"
+            unoptimized
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
