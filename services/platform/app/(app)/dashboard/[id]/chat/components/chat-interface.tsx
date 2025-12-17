@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ArrowDown } from 'lucide-react';
@@ -36,7 +36,7 @@ interface ChatMessage {
   id: string;
   content: string;
   role: 'user' | 'assistant';
-  timestamp: number;
+  timestamp: Date;
   attachments?: FileAttachment[];
   fileParts?: FilePart[]; // File parts from server messages
 }
@@ -170,17 +170,21 @@ function ThinkingAnimation({
     displayText = toolDetails[0].displayText;
   } else if (toolDetails.length > 1) {
     // Multiple tools - deduplicate by display text and join them
-    const uniqueDisplayTexts = [...new Set(toolDetails.map((d) => d.displayText))];
+    const uniqueDisplayTexts = [
+      ...new Set(toolDetails.map((d) => d.displayText)),
+    ];
 
     // Check if all display texts start with the same verb (e.g., "Searching", "Reading")
     // to create a more natural grouped message
     const searchPrefix = 'Searching "';
-    const allSearches = uniqueDisplayTexts.every((t) => t.startsWith(searchPrefix));
+    const allSearches = uniqueDisplayTexts.every((t) =>
+      t.startsWith(searchPrefix),
+    );
 
     if (allSearches && uniqueDisplayTexts.length > 1) {
       // Extract just the query parts (remove "Searching " prefix and closing quote)
       const queries = uniqueDisplayTexts.map((t) =>
-        t.slice(searchPrefix.length - 1, t.endsWith('"') ? t.length : t.length)
+        t.slice(searchPrefix.length - 1, t.endsWith('"') ? t.length : t.length),
       );
       if (queries.length <= 2) {
         displayText = `Searching ${queries.join(' and ')}`;
@@ -197,7 +201,9 @@ function ThinkingAnimation({
 
   // Use tool details as key for animation
   const animationKey =
-    toolDetails.length > 0 ? toolDetails.map((d) => d.displayText).join('-') : 'thinking';
+    toolDetails.length > 0
+      ? toolDetails.map((d) => d.displayText).join('-')
+      : 'thinking';
 
   return (
     <div className="flex justify-start">
@@ -269,27 +275,30 @@ export default function ChatInterface({
   );
 
   // Convert UIMessage to ChatMessage format for compatibility
-  const threadMessages: ChatMessage[] = (uiMessages || [])
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => {
-      // Extract file parts (images) from UIMessage.parts
-      const fileParts = (m.parts || [])
-        .filter((p): p is FilePart => p.type === 'file')
-        .map((p) => ({
-          type: 'file' as const,
-          mediaType: p.mediaType,
-          filename: p.filename,
-          url: p.url,
-        }));
+  // Memoize to prevent unnecessary re-renders when typing
+  const threadMessages: ChatMessage[] = useMemo(() => {
+    return (uiMessages || [])
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => {
+        // Extract file parts (images) from UIMessage.parts
+        const fileParts = (m.parts || [])
+          .filter((p): p is FilePart => p.type === 'file')
+          .map((p) => ({
+            type: 'file' as const,
+            mediaType: p.mediaType,
+            filename: p.filename,
+            url: p.url,
+          }));
 
-      return {
-        id: m.key,
-        content: m.text,
-        role: m.role as 'user' | 'assistant',
-        timestamp: m._creationTime,
-        fileParts: fileParts.length > 0 ? fileParts : undefined,
-      };
-    });
+        return {
+          id: m.key,
+          content: m.text,
+          role: m.role as 'user' | 'assistant',
+          timestamp: new Date(m._creationTime),
+          fileParts: fileParts.length > 0 ? fileParts : undefined,
+        };
+      });
+  }, [uiMessages]);
 
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
@@ -373,11 +382,18 @@ export default function ChatInterface({
     ) {
       setOptimisticMessage(null);
     }
-  }, [uiMessages, threadMessages, optimisticMessage?.content, setOptimisticMessage]);
+  }, [
+    uiMessages,
+    threadMessages,
+    optimisticMessage?.content,
+    setOptimisticMessage,
+  ]);
 
   // Scroll handling
   const containerRef = useRef<HTMLDivElement>(null);
-  const { throttledScrollToBottom, cleanup } = useThrottledScroll({ delay: 16 });
+  const { throttledScrollToBottom, cleanup } = useThrottledScroll({
+    delay: 16,
+  });
   const messageCount = threadMessages?.length ?? 0;
 
   useEffect(() => {
@@ -408,7 +424,10 @@ export default function ChatInterface({
     }
   };
 
-  const handleSendMessage = async (message: string, attachments?: FileAttachment[]) => {
+  const handleSendMessage = async (
+    message: string,
+    attachments?: FileAttachment[],
+  ) => {
     const sanitizedContent = sanitizeChatMessage(message);
 
     const userMessage = {
@@ -428,7 +447,8 @@ export default function ChatInterface({
 
       // Create thread if needed
       if (!currentThreadId) {
-        const title = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        const title =
+          message.length > 50 ? message.substring(0, 50) + '...' : message;
         const newThreadId = await createThread({
           organizationId,
           title,
@@ -437,15 +457,22 @@ export default function ChatInterface({
         currentThreadId = newThreadId;
         isFirstMessage = true;
 
-        setOptimisticMessage({ content: sanitizedContent, threadId: newThreadId, attachments });
-        router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, { scroll: false });
+        setOptimisticMessage({
+          content: sanitizedContent,
+          threadId: newThreadId,
+          attachments,
+        });
+        router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, {
+          scroll: false,
+        });
       } else {
         isFirstMessage = threadMessages?.length === 0;
       }
 
       // Update thread title for first message
       if (isFirstMessage && currentThreadId) {
-        const title = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        const title =
+          message.length > 50 ? message.substring(0, 50) + '...' : message;
         await updateThread({ threadId: currentThreadId, title });
       }
 
@@ -470,7 +497,8 @@ export default function ChatInterface({
       clearChatState();
       setInputValue('');
       toast({
-        title: error instanceof Error ? error.message : 'Failed to send message',
+        title:
+          error instanceof Error ? error.message : 'Failed to send message',
         variant: 'destructive',
       });
     }
@@ -487,9 +515,9 @@ export default function ChatInterface({
           className={cn(
             'flex-1 overflow-y-visible p-8',
             !threadId &&
-            threadMessages?.length === 0 &&
-            !userDraftMessage &&
-            'flex flex-col items-center justify-end',
+              threadMessages?.length === 0 &&
+              !userDraftMessage &&
+              'flex flex-col items-center justify-end',
           )}
         >
           {!isLoading &&
@@ -515,8 +543,6 @@ export default function ChatInterface({
                     key={message.id}
                     message={{
                       ...message,
-                      // thread messages are in ms epoch
-                      timestamp: new Date(message.timestamp),
                       threadId: threadId,
                     }}
                   />
