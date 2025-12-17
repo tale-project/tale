@@ -1,7 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { ComponentPropsWithoutRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ReactNode,
+  useRef,
+  useState,
+  useEffect,
+  memo,
+} from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -186,8 +193,11 @@ const MarkdownWrapper = styled.div`
 
   /* Images */
   img {
-    max-width: 100%;
+    max-width: 24rem;
+    max-height: 24rem;
+    width: auto;
     height: auto;
+    object-fit: contain;
     border-radius: 0.5rem;
     margin: 0.5rem 0;
   }
@@ -274,8 +284,12 @@ function FileTypeIcon({
   );
 }
 
-// File attachment component
-function FileAttachmentDisplay({ attachment }: { attachment: FileAttachment }) {
+// File attachment component - memoized to prevent re-renders during streaming
+const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
+  attachment,
+}: {
+  attachment: FileAttachment;
+}) {
   // Use previewUrl for optimistic display, otherwise fetch from server
   const serverFileUrl = useQuery(
     api.file.getFileUrl,
@@ -327,10 +341,14 @@ function FileAttachmentDisplay({ attachment }: { attachment: FileAttachment }) {
       </div>
     </a>
   );
-}
+});
 
-// File part component (for server messages with UIMessage.parts)
-function FilePartDisplay({ filePart }: { filePart: FilePart }) {
+// File part component (for server messages with UIMessage.parts) - memoized to prevent re-renders during streaming
+const FilePartDisplay = memo(function FilePartDisplay({
+  filePart,
+}: {
+  filePart: FilePart;
+}) {
   const isImage = filePart.mediaType.startsWith('image/');
 
   if (isImage) {
@@ -375,7 +393,108 @@ function FilePartDisplay({ filePart }: { filePart: FilePart }) {
       </div>
     </a>
   );
+});
+
+// Code block with copy button
+function CodeBlock({
+  children,
+  ...props
+}: ComponentPropsWithoutRef<'pre'> & { children?: ReactNode }) {
+  const [isCopied, setIsCopied] = useState(false);
+  const preRef = useRef<HTMLPreElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    const textContent = preRef.current?.textContent ?? '';
+
+    try {
+      await navigator.clipboard.writeText(textContent);
+      setIsCopied(true);
+      // Clear any existing timeout before setting a new one
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy code:', error);
+    }
+  };
+
+  return (
+    <div className="relative group">
+      <pre
+        ref={preRef}
+        {...props}
+        className="max-w-[var(--chat-max-width)] overflow-x-auto"
+      >
+        {children}
+      </pre>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-2 size-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 hover:bg-background"
+        onClick={handleCopy}
+      >
+        {isCopied ? (
+          <CheckIcon className="size-3.5 text-success" />
+        ) : (
+          <CopyIcon className="size-3.5" />
+        )}
+      </Button>
+    </div>
+  );
 }
+
+// Memoized image component for markdown - prevents flicker during streaming
+const MarkdownImage = memo(function MarkdownImage(
+  props: React.ImgHTMLAttributes<HTMLImageElement>,
+) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      {...props}
+      className="max-w-[24rem] max-h-[24rem] w-auto h-auto object-contain rounded-lg my-2"
+      loading="lazy"
+      alt={typeof props.alt === 'string' ? props.alt : 'Image'}
+    />
+  );
+});
+
+// Stable markdown components object - defined outside render to prevent recreation
+const markdownComponents = {
+  table: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLTableElement>) => (
+    <PaginatedMarkdownTable {...props} />
+  ),
+  thead: TableHeader,
+  tbody: TableBody,
+  tr: TableRow,
+  th: TableHead,
+  td: TableCell,
+  pre: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & ComponentPropsWithoutRef<'pre'>) => (
+    <CodeBlock {...props} />
+  ),
+  img: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <MarkdownImage {...props} />
+  ),
+};
 
 // Optimized typewriter component for streaming text
 function TypewriterText({
@@ -398,22 +517,7 @@ function TypewriterText({
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
-        components={{
-          table: ({ node: _node, ...props }) => (
-            <PaginatedMarkdownTable {...props} />
-          ),
-          thead: TableHeader,
-          tbody: TableBody,
-          tr: TableRow,
-          th: TableHead,
-          td: TableCell,
-          pre: ({ node: _node, ...props }) => (
-            <pre
-              {...props}
-              className="max-w-[var(--chat-max-width)] overflow-x-auto"
-            />
-          ),
-        }}
+        components={markdownComponents}
       >
         {displayText}
       </Markdown>
@@ -436,7 +540,7 @@ interface MessageBubbleProps extends ComponentPropsWithoutRef<'div'> {
   message: Message;
 }
 
-export default function MessageBubble({
+function MessageBubbleComponent({
   message,
   className,
   ...restProps
@@ -453,16 +557,31 @@ export default function MessageBubble({
   const [isCopied, setIsCopied] = useState(false);
   // State for info modal
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  // Ref for copy timeout cleanup
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch message metadata
   const { metadata } = useMessageMetadata(message.id);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Handle copy to clipboard
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(message.content);
       setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
+      // Clear any existing timeout before setting a new one
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+      copyTimeoutRef.current = setTimeout(() => setIsCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy:', error);
     }
@@ -516,33 +635,7 @@ export default function MessageBubble({
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
-                  components={{
-                    table: ({ node: _node, ...props }) => (
-                      <PaginatedMarkdownTable {...props} />
-                    ),
-                    thead: TableHeader,
-                    tbody: TableBody,
-                    tr: TableRow,
-                    th: TableHead,
-                    td: TableCell,
-                    pre: ({ node: _node, ...props }) => (
-                      <pre
-                        {...props}
-                        className="max-w-[var(--chat-max-width)] overflow-x-auto"
-                      />
-                    ),
-                    img: ({ node: _node, ...props }) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        {...props}
-                        className="max-w-full h-auto rounded-lg my-2"
-                        loading="lazy"
-                        alt={
-                          typeof props.alt === 'string' ? props.alt : 'Image'
-                        }
-                      />
-                    ),
-                  }}
+                  components={markdownComponents}
                 >
                   {message.content}
                 </Markdown>
@@ -601,3 +694,18 @@ export default function MessageBubble({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent state changes (e.g., typing in input)
+const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
+  // Only re-render if message content or relevant properties changed
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.isStreaming === nextProps.message.isStreaming &&
+    prevProps.message.attachments === nextProps.message.attachments &&
+    prevProps.message.fileParts === nextProps.message.fileParts &&
+    prevProps.className === nextProps.className
+  );
+});
+
+export default MessageBubble;
