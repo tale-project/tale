@@ -32,6 +32,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -458,14 +459,30 @@ function CodeBlock({
 const MarkdownImage = memo(function MarkdownImage(
   props: React.ImgHTMLAttributes<HTMLImageElement>,
 ) {
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      {...props}
-      className="max-w-[24rem] max-h-[24rem] w-auto h-auto object-contain rounded-lg my-2"
-      loading="lazy"
-      alt={typeof props.alt === 'string' ? props.alt : 'Image'}
-    />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        {...props}
+        className="max-w-[24rem] max-h-[24rem] w-auto h-auto object-contain rounded-lg my-2 cursor-pointer hover:opacity-90 transition-opacity"
+        loading="lazy"
+        alt={typeof props.alt === 'string' ? props.alt : 'Image'}
+        onClick={() => setIsOpen(true)}
+      />
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-fit p-0 border-0 [&>button]:hidden bg-background/50 backdrop-blur-sm">
+          <DialogTitle className="sr-only">Image preview</DialogTitle>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={props.src}
+            alt={typeof props.alt === 'string' ? props.alt : 'Image'}
+            className="max-h-[80dvh] w-auto object-contain rounded-lg"
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 });
 
