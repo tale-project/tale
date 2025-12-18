@@ -9,6 +9,12 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
+// Configuration constants
+const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
+const DEFAULT_TOP_K = 5;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
+const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
+
 interface SearchResult {
   content: string;
   score: number;
@@ -28,7 +34,7 @@ interface QueryResponse {
  * Get RAG service URL from environment variables
  */
 function getRagServiceUrl(): string {
-  return process.env.RAG_URL || 'http://localhost:8001';
+  return process.env.RAG_URL || DEFAULT_RAG_SERVICE_URL;
 }
 
 /**
@@ -38,12 +44,14 @@ function getRagServiceUrl(): string {
  * @param userMessage - The user's message to search for relevant context
  * @param topK - Number of results to return (default: 5)
  * @param similarityThreshold - Minimum similarity score (default: 0.3)
+ * @param signal - Optional AbortSignal for timeout control
  * @returns Formatted context string or undefined if no relevant results
  */
 export async function queryRagContext(
   userMessage: string,
-  topK: number = 5,
-  similarityThreshold: number = 0.3,
+  topK: number = DEFAULT_TOP_K,
+  similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
+  signal?: AbortSignal,
 ): Promise<string | undefined> {
   try {
     const ragServiceUrl = getRagServiceUrl();
@@ -55,53 +63,77 @@ export async function queryRagContext(
       ragServiceUrl,
     });
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: userMessage,
-        top_k: topK,
-        similarity_threshold: similarityThreshold,
-        include_metadata: true,
-      }),
-    });
+    // Create abort controller for timeout if no signal provided
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), RAG_REQUEST_TIMEOUT_MS);
+    const fetchSignal = signal || controller.signal;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[chat_agent] RAG service error', {
-        status: response.status,
-        error: errorText,
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: userMessage,
+          top_k: topK,
+          similarity_threshold: similarityThreshold,
+          include_metadata: true,
+        }),
+        signal: fetchSignal,
       });
-      return undefined; // Gracefully degrade if RAG is unavailable
-    }
 
-    const result = (await response.json()) as QueryResponse;
+      clearTimeout(timeoutId);
 
-    if (!result.success || result.total_results === 0) {
-      debugLog('No relevant RAG context found', {
-        success: result.success,
-        total_results: result.total_results,
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[chat_agent] RAG service error', {
+          status: response.status,
+          error: errorText,
+        });
+        return undefined; // Gracefully degrade if RAG is unavailable
+      }
+
+      const result = (await response.json()) as QueryResponse;
+
+      if (!result.success || result.total_results === 0) {
+        debugLog('No relevant RAG context found', {
+          success: result.success,
+          total_results: result.total_results,
+        });
+        return undefined;
+      }
+
+      // Format the RAG results into a context string
+      const contextParts = result.results.map((r, idx) => {
+        const score = (r.score * 100).toFixed(1);
+        return `[${idx + 1}] (Relevance: ${score}%)\n${r.content}`;
       });
-      return undefined;
+
+      const ragContext = contextParts.join('\n\n---\n\n');
+
+      debugLog('RAG context retrieved', {
+        resultCount: result.total_results,
+        contextLength: ragContext.length,
+        processingTimeMs: result.processing_time_ms,
+      });
+
+      return ragContext;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+
+      // Handle timeout specifically
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[chat_agent] RAG service request timeout', {
+          timeoutMs: RAG_REQUEST_TIMEOUT_MS,
+        });
+      } else {
+        console.error('[chat_agent] RAG service fetch error', {
+          error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        });
+      }
+      return undefined; // Gracefully degrade on fetch error
     }
-
-    // Format the RAG results into a context string
-    const contextParts = result.results.map((r, idx) => {
-      const score = (r.score * 100).toFixed(1);
-      return `[${idx + 1}] (Relevance: ${score}%)\n${r.content}`;
-    });
-
-    const ragContext = contextParts.join('\n\n---\n\n');
-
-    debugLog('RAG context retrieved', {
-      resultCount: result.total_results,
-      contextLength: ragContext.length,
-      processingTimeMs: result.processing_time_ms,
-    });
-
-    return ragContext;
   } catch (error) {
     console.error('[chat_agent] Failed to query RAG service', {
       error: error instanceof Error ? error.message : String(error),

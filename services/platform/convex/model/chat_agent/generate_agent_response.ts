@@ -22,6 +22,10 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
+// RAG configuration constants
+const RAG_TOP_K = 5;
+const RAG_SIMILARITY_THRESHOLD = 0.3;
+
 type Usage = {
   inputTokens?: number;
   outputTokens?: number;
@@ -108,7 +112,12 @@ export async function generateAgentResponse(
     const userQuery = messageText || '';
     let ragContext: string | undefined;
     if (userQuery.trim()) {
-      ragContext = await queryRagContext(userQuery, 5, 0.3);
+      ragContext = await queryRagContext(
+        userQuery,
+        RAG_TOP_K,
+        RAG_SIMILARITY_THRESHOLD,
+        abortController.signal,
+      );
     }
 
     debugLog('Context loaded', {
