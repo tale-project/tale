@@ -27,7 +27,7 @@ async def search(request: QueryRequest):
             query=request.query,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
-            filters=request.filters,
+            _filters=request.filters,
         )
 
         processing_time = (time.time() - start_time) * 1000
