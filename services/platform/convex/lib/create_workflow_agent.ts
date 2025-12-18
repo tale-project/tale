@@ -6,21 +6,18 @@
 
 import { Agent } from '@convex-dev/agent';
 import { components } from '../_generated/api';
-import { loadMCPTools } from '../agent_tools/load_mcp_tools';
 import { createAgentConfig } from './create_agent_config';
 import { type ToolName } from '../agent_tools/tool_registry';
-import { WORKFLOW_SYNTAX_GUIDE } from '../workflow/workflow_syntax_compact';
+import { WORKFLOW_SYNTAX_COMPACT } from '../workflow/workflow_syntax_compact';
 
 import { createDebugLog } from './debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
-export async function createWorkflowAgent(options?: {
+export function createWorkflowAgent(options?: {
   withTools?: boolean;
   maxSteps?: number;
   convexToolNames?: ToolName[];
-  mcpServerIds?: string[];
-  variables?: Record<string, unknown>;
   /** Dynamic workflow context to append to the system prompt */
   workflowContext?: string;
 }) {
@@ -28,9 +25,8 @@ export async function createWorkflowAgent(options?: {
   const maxSteps = options?.maxSteps ?? 30;
   const workflowContext = options?.workflowContext;
 
-  // Build tool inputs (Convex tool names + loaded MCP tools)
+  // Build tool inputs (Convex tool names)
   let convexToolNames: ToolName[] = [];
-  let mcpTools: Record<string, unknown> = {};
 
   if (withTools) {
     // Default workflow tools
@@ -47,13 +43,8 @@ export async function createWorkflowAgent(options?: {
     // Combine with any additional tools requested
     convexToolNames = options?.convexToolNames ?? defaultWorkflowTools;
 
-    const mcpServerIds = options?.mcpServerIds;
-    mcpTools = await loadMCPTools(mcpServerIds, options?.variables);
-
     debugLog('createWorkflowAgent Loaded tools', {
       convexCount: convexToolNames.length,
-      mcpCount: Object.keys(mcpTools).length,
-      totalCount: convexToolNames.length + Object.keys(mcpTools).length,
     });
   }
 
@@ -61,7 +52,7 @@ export async function createWorkflowAgent(options?: {
   const baseInstructions = `You are an expert workflow automation assistant. You help users create, modify, and understand their automation workflows.
 
 **WORKFLOW SYNTAX REFERENCE:**
-${WORKFLOW_SYNTAX_GUIDE}
+${WORKFLOW_SYNTAX_COMPACT}
 
 **AVAILABLE TOOLS:**
 
@@ -507,7 +498,7 @@ This workflow helps re-engage inactive customers. Would you like me to modify an
     name: 'workflow-assistant',
     model: process.env.OPENAI_CODING_MODEL || 'gpt-5.1',
     instructions: finalInstructions,
-    ...(withTools ? { convexToolNames, mcpTools } : {}),
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 

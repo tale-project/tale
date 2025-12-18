@@ -1,5 +1,5 @@
 /**
- * Load Convex tools as an object (for merging with MCP tools)
+ * Load Convex tools as an object for use with the Agent SDK
  */
 
 import { TOOL_REGISTRY_MAP, type ToolName } from './tool_registry';

@@ -108,7 +108,7 @@ export async function generateAgentResponse(
       attachmentCount: attachments?.length ?? 0,
     });
 
-    const agent = await createChatAgent({
+    const agent = createChatAgent({
       withTools: true,
       maxSteps,
     });

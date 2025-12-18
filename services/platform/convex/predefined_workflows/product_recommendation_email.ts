@@ -188,6 +188,26 @@ export const productRecommendationEmailWorkflow = {
         maxTokens: 2000,
         maxSteps: 20, // Allow multiple steps for tool calls + final response
         outputFormat: 'json',
+        // Output schema for structured output validation - ensures LLM returns valid email structure
+        outputSchema: {
+          type: 'object',
+          description: 'Product recommendation email content',
+          properties: {
+            subject: {
+              type: 'string',
+              description: 'Email subject line - compelling and personalized',
+            },
+            body: {
+              type: 'string',
+              description: 'Full email body in Markdown format with narrative style',
+            },
+            preview: {
+              type: 'string',
+              description: 'Email preview text shown in inbox (first line summary)',
+            },
+          },
+          required: ['subject', 'body', 'preview'],
+        },
         tools: ['customer_search', 'rag_search'],
         systemPrompt: `You are an expert email copywriter who crafts narrative, story-driven product recommendation emails.
 Your task is to write a short, human story that explains why these products are a great fit for the customer — not a robotic list.
@@ -206,14 +226,7 @@ Guidelines:
 - Emphasize benefits and outcomes, not specs
 - Include one clear call-to-action near the end
 - Format the email body in Markdown (paragraphs, bold/italic, links). Avoid tables.
-- Optional: include at most one inline image for the primary product using Markdown image syntax; do not present multiple images as a list or gallery
-
-Return JSON format:
-{
-  "subject": "Email subject line",
-  "body": "Full email body in Markdown format",
-  "preview": "Email preview text (first line)"
-}`,
+- Optional: include at most one inline image for the primary product using Markdown image syntax; do not present multiple images as a list or gallery`,
         userPrompt: `Generate a narrative, story-style product recommendation email for:
 
 Customer Name: {{customerName}}
@@ -232,9 +245,7 @@ Requirements:
 - Write a cohesive story that naturally introduces the most relevant product and, if useful, references the others
 - Do not include product IDs, field names, or raw JSON in the body
 - If you include an image, use a single inline image for the primary product (the first item), placed near its description
-- End with a friendly, single call-to-action
-
-Return only the JSON object with "subject", "body", and "preview".`,
+- End with a friendly, single call-to-action`,
       },
       nextSteps: {
         success: 'create_conversation',

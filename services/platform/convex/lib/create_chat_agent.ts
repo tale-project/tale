@@ -1,7 +1,6 @@
 import { Agent } from '@convex-dev/agent';
 import { components } from '../_generated/api';
 
-import { loadMCPTools } from '../agent_tools/load_mcp_tools';
 import { createAgentConfig } from './create_agent_config';
 import { type ToolName } from '../agent_tools/tool_registry';
 
@@ -11,21 +10,18 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
 /**
  * Create a chat agent instance with shared configuration
- * Supports both Convex and MCP tools
+ * Supports Convex tools
  */
-export async function createChatAgent(options?: {
+export function createChatAgent(options?: {
   withTools?: boolean;
   maxSteps?: number;
   convexToolNames?: ToolName[];
-  mcpServerIds?: string[];
-  variables?: Record<string, unknown>;
 }) {
   const withTools = options?.withTools ?? true;
   const maxSteps = options?.maxSteps ?? 20;
 
-  // Build tool inputs (Convex tool names + loaded MCP tools)
+  // Build tool inputs (Convex tool names)
   let convexToolNames: ToolName[] = [];
-  let mcpTools: Record<string, unknown> = {};
 
   if (withTools) {
     // If no specific Convex tools are requested, use a focused default tool set
@@ -44,13 +40,8 @@ export async function createChatAgent(options?: {
     ];
     convexToolNames = options?.convexToolNames ?? defaultToolNames;
 
-    const mcpServerIds = options?.mcpServerIds;
-    mcpTools = await loadMCPTools(mcpServerIds, options?.variables);
-
     debugLog('createChatAgent Loaded tools', {
       convexCount: convexToolNames.length,
-      mcpCount: Object.keys(mcpTools).length,
-      totalCount: convexToolNames.length + Object.keys(mcpTools).length,
     });
   }
 
@@ -266,7 +257,7 @@ Examples of when NOT to ask or suggest:
 - Be DIRECT: Answer the question asked, then STOP. Do not add unsolicited suggestions or follow-up questions.
 - Do NOT expose your internal chain‑of‑thought or tool‑calling decisions; only present the final reasoning and results to the user.
 `,
-    ...(withTools ? { convexToolNames, mcpTools } : {}),
+    ...(withTools ? { convexToolNames } : {}),
     maxSteps,
   });
 

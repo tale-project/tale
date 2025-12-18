@@ -103,36 +103,23 @@ export const generalProductRecommendationWorkflow = {
             {
               name: 'llmSystemPrompt',
               value: `You are a general product recommendation engine for this business.
-	            	    
-	            	    You receive the full customer record (all fields and metadata) and should propose products that are relevant, valuable, and timely for this customer.
-	            	    
-	            	    You can call tools to look up products and product details. Prefer using existing product relationship metadata when available, but you may also browse the catalog.
-	            	    
-	            	    CRITICAL BUSINESS RULE:
-	            	    - You must ONLY recommend products that are currently active and have available stock strictly greater than 0.
-	            	    - Never recommend products that are inactive, archived, or have stock less than or equal to 0.
-	            	    - Use tools as needed to verify that a product is active and in stock before including it in the recommendations.
-	            	    
-	            	    IMAGE URL VALIDATION RULES (CRITICAL):
-	            	    - Recommended products must have a valid, accessible image URL.
-	            	    - Use the "resource_check" tool to validate each candidate product's image URL before including it in the final recommendations.
-	            	    - Only include a product if resource_check returns success: true AND isImage: true for the chosen image URL.
-	            	    - If you cannot find a valid image URL for a product that passes resource_check, do NOT include that product in the recommendations.
-	            	    
-	            	    STRICT JSON RULES (CRITICAL):
-	            	    - You MUST return ONLY a single JSON object.
-	            	    - Do NOT include any natural language before or after the JSON.
-	            	    - Do NOT wrap the JSON in markdown (for example: no markdown code fences or code blocks).
-	            	    - Do NOT say things like "Here is the JSON".
-	            	    - The response MUST be directly parseable by JSON.parse.
-	            	    - All keys MUST be in double quotes.
-	            	    - Strings MUST use double quotes, never single quotes.
-	            	    - Do NOT include comments inside the JSON.
-	            	    
-	            	    If you are unsure, be conservative and still return a best-effort JSON object in the exact format requested.
-	            	    
-	            	    If tools are available, call them as needed to look up products, validate image URLs, or search the knowledge base before you produce the final JSON response.
-	            	    	`,
+
+You receive the full customer record (all fields and metadata) and should propose products that are relevant, valuable, and timely for this customer.
+
+You can call tools to look up products and product details. Prefer using existing product relationship metadata when available, but you may also browse the catalog.
+
+CRITICAL BUSINESS RULE:
+- You must ONLY recommend products that are currently active and have available stock strictly greater than 0.
+- Never recommend products that are inactive, archived, or have stock less than or equal to 0.
+- Use tools as needed to verify that a product is active and in stock before including it in the recommendations.
+
+IMAGE URL VALIDATION RULES (CRITICAL):
+- Recommended products must have a valid, accessible image URL.
+- Use the "resource_check" tool to validate each candidate product's image URL before including it in the final recommendations.
+- Only include a product if resource_check returns success: true AND isImage: true for the chosen image URL.
+- If you cannot find a valid image URL for a product that passes resource_check, do NOT include that product in the recommendations.
+
+If tools are available, call them as needed to look up products, validate image URLs, or search the knowledge base.`,
             },
             {
               name: 'llmUserPrompt',
@@ -149,45 +136,7 @@ export const generalProductRecommendationWorkflow = {
 	            	    - Only include the product in the final recommendations if resource_check indicates the URL is accessible and isImage is true.
 	            	    - If you cannot find a valid image URL that passes resource_check for a product, skip that product and choose another one.
 	            	    
-	            	    Use any available product relationship metadata (for example on products they are linked to) when relevant, and you may also browse the product catalog and RAG knowledge base.
-	            
-	            	    You MUST return strictly and ONLY a JSON object in this shape (no extra text):
-	            {
-	            	  "recommendations": [
-	            	    {
-	            	      "productId": "CONVEX_PRODUCT_ID",
-	            	      "productName": "Product Name",
-	            	    	      "imageUrl": "Valid, accessible image URL for the product that has been verified using the resource_check tool. If you cannot find such an image URL for a product, do not include that product in the recommendations.",
-	            	      "relationshipType": "Complementary|Upgrade|Bundle|Substitute|Other",
-	            	      "reasoning": "Why this product is recommended for this customer",
-	            	      "confidence": 0.82
-	            	    }
-	            	  ],
-	            	  "summary": "Short summary of your overall recommendation strategy"
-	            	}
-	            
-	            Example of a VALID response (do NOT explain it, just return JSON like this):
-	            {
-	            	  "recommendations": [
-	            	    {
-	            	      "productId": "p_123",
-	            	      "productName": "Premium Stroller",
-	            	      "imageUrl": "https://example.com/stroller.jpg",
-	            	      "relationshipType": "Upgrade",
-	            	      "reasoning": "Customer currently has a basic stroller and their child is growing; this is a higher-quality, more durable option.",
-	            	      "confidence": 0.9
-	            	    },
-	            	    {
-	            	      "productId": "p_456",
-	            	      "productName": "Rain Cover",
-	            	    	      "imageUrl": "https://example.com/rain-cover.jpg",
-	            	      "relationshipType": "Complementary",
-	            	      "reasoning": "Customer lives in a region with frequent rain based on profile metadata; this improves the usability of their existing stroller.",
-	            	      "confidence": 0.78
-	            	    }
-	            	  ],
-	            	  "summary": "Proposed an upgraded stroller and key accessories tailored to the customers current life stage and environment."
-	            	}`,
+	            	    Use any available product relationship metadata (for example on products they are linked to) when relevant, and you may also browse the product catalog and RAG knowledge base.`,
             },
           ],
         },
@@ -205,6 +154,67 @@ export const generalProductRecommendationWorkflow = {
         maxTokens: 4000,
         maxSteps: 20,
         outputFormat: 'json',
+        // Output schema for structured output validation
+        outputSchema: {
+          type: 'object',
+          description: 'AI-generated product recommendations for a customer',
+          properties: {
+            recommendations: {
+              type: 'array',
+              description: 'List of recommended products (up to 5)',
+              items: {
+                type: 'object',
+                properties: {
+                  productId: {
+                    type: 'string',
+                    description: 'Convex product ID',
+                  },
+                  productName: {
+                    type: 'string',
+                    description: 'Human-readable product name',
+                  },
+                  imageUrl: {
+                    type: 'string',
+                    description:
+                      'Valid, accessible image URL verified using resource_check tool',
+                  },
+                  relationshipType: {
+                    type: 'string',
+                    description: 'Type of product relationship',
+                    enum: [
+                      'Complementary',
+                      'Upgrade',
+                      'Bundle',
+                      'Substitute',
+                      'Other',
+                    ],
+                  },
+                  reasoning: {
+                    type: 'string',
+                    description: 'Why this product is recommended for this customer',
+                  },
+                  confidence: {
+                    type: 'number',
+                    description: 'Confidence score between 0 and 1',
+                  },
+                },
+                required: [
+                  'productId',
+                  'productName',
+                  'imageUrl',
+                  'relationshipType',
+                  'reasoning',
+                  'confidence',
+                ],
+              },
+            },
+            summary: {
+              type: 'string',
+              description: 'Short summary of the overall recommendation strategy',
+            },
+          },
+          required: ['recommendations', 'summary'],
+        },
         tools: ['product_read', 'rag_search', 'resource_check'],
         systemPrompt: '{{llmSystemPrompt}}',
         userPrompt: '{{llmUserPrompt}}',

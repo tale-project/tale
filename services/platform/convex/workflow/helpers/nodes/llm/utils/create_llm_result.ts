@@ -6,11 +6,7 @@
  */
 
 import type { StepExecutionResult } from '../../../../types';
-import type {
-  NormalizedConfig,
-  LoadedTools,
-  LLMExecutionResult,
-} from '../types';
+import type { NormalizedConfig, LLMExecutionResult } from '../types';
 import { isTerminationSignal } from '../types/workflow_termination';
 
 /**
@@ -20,7 +16,6 @@ import { isTerminationSignal } from '../types/workflow_termination';
 export function createLLMResult(
   llmResult: LLMExecutionResult,
   config: NormalizedConfig,
-  tools: LoadedTools,
   args: { threadId?: string },
 ): StepExecutionResult {
   // Check if LLM output contains a termination signal
@@ -35,9 +30,8 @@ export function createLLMResult(
       maxTokens: config.maxTokens,
       threadId: args.threadId ?? null,
       output: llmResult.finalOutput,
-      toolsAvailable: tools.totalCount,
+      toolsAvailable: config.tools?.length || 0,
       convexToolsCount: config.tools?.length || 0,
-      mcpServersCount: config.mcpServerIds?.length || 0,
       agentStep: llmResult.agentSteps,
       lastToolName: llmResult.toolDiagnostics.lastToolName,
       lastToolInputText: llmResult.toolDiagnostics.lastToolInputText,

@@ -8,6 +8,30 @@ import { v } from 'convex/values';
 // LLM NODE TYPES
 // =============================================================================
 
+/**
+ * JSON Schema property definition for output schema validation
+ */
+export interface JsonSchemaProperty {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
+  description?: string;
+  items?: JsonSchemaProperty; // For array types
+  properties?: Record<string, JsonSchemaProperty>; // For object types
+  required?: string[]; // For object types
+  enum?: (string | number | boolean)[]; // For enum values
+  nullable?: boolean; // Allow null values
+}
+
+/**
+ * JSON Schema definition for LLM output validation.
+ * Used to validate and ensure structured LLM outputs conform to expected shape.
+ */
+export interface JsonSchemaDefinition {
+  type: 'object';
+  properties: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  description?: string;
+}
+
 export interface LLMNodeConfig {
   // Basic node info
   name: string;
@@ -27,26 +51,20 @@ export interface LLMNodeConfig {
 
   // Tools the LLM can use
   tools?: string[]; // Array of Convex tool names
-  mcpServerIds?: string[]; // IDs of MCP servers to use (resolved from central catalog)
 
   // Advanced settings
   outputFormat?: 'text' | 'json';
 
+  /**
+   * Output schema for structured output validation.
+   * When provided with outputFormat: 'json', the LLM output will be validated
+   * against this schema using structured output generation.
+   * Uses JSON Schema format which is converted to Zod at runtime.
+   */
+  outputSchema?: JsonSchemaDefinition;
+
   // Custom variables and context
   contextVariables?: Record<string, unknown>;
-}
-
-// MCP Server Configuration
-export interface MCPServerConfig {
-  serverId: string;
-  name: string;
-  url: string;
-  sessionId?: string;
-  authConfig?: {
-    headers?: Record<string, string>;
-    credentials?: Record<string, string>;
-  };
-  enabled: boolean;
 }
 
 // =============================================================================
@@ -99,6 +117,18 @@ export interface LoopNodeConfig {
   description?: string;
 }
 
+// Recursive validator for JSON Schema properties
+// We use v.any() for nested structures since Convex validators don't support true recursion
+const jsonSchemaPropertyValidator: ReturnType<typeof v.any> = v.any();
+
+// JSON Schema definition validator for output schema
+const jsonSchemaDefinitionValidator = v.object({
+  type: v.literal('object'),
+  properties: v.record(v.string(), jsonSchemaPropertyValidator),
+  required: v.optional(v.array(v.string())),
+  description: v.optional(v.string()),
+});
+
 export const llmNodeConfigValidator = v.object({
   name: v.string(),
   description: v.optional(v.string()),
@@ -113,8 +143,9 @@ export const llmNodeConfigValidator = v.object({
   systemPrompt: v.string(),
   userPrompt: v.optional(v.string()),
   tools: v.optional(v.array(v.string())),
-  mcpServerIds: v.optional(v.array(v.string())),
   outputFormat: v.optional(v.union(v.literal('text'), v.literal('json'))),
+  // Output schema for structured output validation (JSON Schema format)
+  outputSchema: v.optional(jsonSchemaDefinitionValidator),
   contextVariables: v.optional(
     v.record(
       v.string(),

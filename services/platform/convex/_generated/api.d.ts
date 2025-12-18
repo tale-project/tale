@@ -47,6 +47,7 @@ import type * as agent_tools_convex_tools_workflows_save_workflow_definition_too
 import type * as agent_tools_convex_tools_workflows_update_workflow_step_tool from "../agent_tools/convex_tools/workflows/update_workflow_step_tool.js";
 import type * as agent_tools_convex_tools_workflows_workflow_examples_tool from "../agent_tools/convex_tools/workflows/workflow_examples_tool.js";
 import type * as agent_tools_convex_tools_workflows_workflow_read_tool from "../agent_tools/convex_tools/workflows/workflow_read_tool.js";
+import type * as agent_tools_create_json_output_tool from "../agent_tools/create_json_output_tool.js";
 import type * as agent_tools_load_all_tools from "../agent_tools/load_all_tools.js";
 import type * as agent_tools_load_convex_tools from "../agent_tools/load_convex_tools.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
@@ -665,6 +666,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/convex_tools/workflows/update_workflow_step_tool": typeof agent_tools_convex_tools_workflows_update_workflow_step_tool;
   "agent_tools/convex_tools/workflows/workflow_examples_tool": typeof agent_tools_convex_tools_workflows_workflow_examples_tool;
   "agent_tools/convex_tools/workflows/workflow_read_tool": typeof agent_tools_convex_tools_workflows_workflow_read_tool;
+  "agent_tools/create_json_output_tool": typeof agent_tools_create_json_output_tool;
   "agent_tools/load_all_tools": typeof agent_tools_load_all_tools;
   "agent_tools/load_convex_tools": typeof agent_tools_load_convex_tools;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;

@@ -1,16 +1,13 @@
 /**
  * LLM Node Executor - Helper Function
  *
- * Enhanced LLM node with support for both Convex context tools and MCP tools.
+ * Enhanced LLM node with support for Convex context tools.
  * Uses AI SDK with OpenAI provider and Agent SDK for tool integration.
  */
 
 import type { StepExecutionResult, LLMNodeConfig } from '../../../types';
 import type { ActionCtx } from '../../../../_generated/server';
 import type { Id } from '../../../../_generated/dataModel';
-
-// Tools integration
-import { loadAllTools } from '../../../../agent_tools/load_all_tools';
 
 // Validation
 import { validateAndNormalizeConfig } from './utils/validate_and_normalize_config';
@@ -21,7 +18,6 @@ import { executeAgentWithTools } from './execute_agent_with_tools';
 
 // Result creation
 import { createLLMResult } from './utils/create_llm_result';
-import { ToolName } from '../../../../agent_tools/tool_registry';
 
 // =============================================================================
 // HELPER FUNCTION
@@ -44,28 +40,15 @@ export async function executeLLMNode(
   // 2. Process prompts with variable substitution
   const prompts = processPrompts(normalizedConfig, variables);
 
-  // 3. Load tools (Convex + MCP)
-  const tools = await loadAllTools(
-    normalizedConfig.tools as ToolName[],
-    normalizedConfig.mcpServerIds,
-    variables,
-  );
+  // 3. Execute using Convex agent with tools
+  const llmResult = await executeAgentWithTools(ctx, normalizedConfig, prompts, {
+    executionId,
+    organizationId,
+    threadId, // Pass shared threadId when reusing conversation context across steps
+  });
 
-  // 4. Execute using Convex agent with tools
-  const llmResult = await executeAgentWithTools(
-    ctx,
-    normalizedConfig,
-    prompts,
-    tools,
-    {
-      executionId,
-      organizationId,
-      threadId, // Pass shared threadId when reusing conversation context across steps
-    },
-  );
-
-  // 5. Create and return result
-  return createLLMResult(llmResult, normalizedConfig, tools, {
+  // 4. Create and return result
+  return createLLMResult(llmResult, normalizedConfig, {
     threadId: llmResult.threadId, // Return the threadId used
   });
 }

@@ -6,7 +6,8 @@ import type { ToolName } from '../agent_tools/tool_registry';
 /**
  * Create a general Agent configuration object compatible with @convex-dev/agent.
  *
- * - Supports merging Convex tools (by name) with provided MCP tools (object)
+ * - Supports merging Convex tools (by name) with extra tools (object)
+ * - Supports extra tools (e.g., dynamic json_output tool) via extraTools option
  * - Appends instruction suffixes to ensure a final assistant message after tool use
  *   and stricter formatting when outputFormat === 'json'
  * - Optionally enables vector search for retrieving semantically relevant older messages
@@ -19,7 +20,8 @@ export function createAgentConfig(opts: {
   instructions: string;
   outputFormat?: 'text' | 'json';
   convexToolNames?: ToolName[];
-  mcpTools?: Record<string, unknown>;
+  /** Additional tools to merge (e.g., dynamic json_output tool) */
+  extraTools?: Record<string, unknown>;
   maxSteps?: number;
   /** Enable vector search for finding semantically relevant older messages (defaults to false) */
   enableVectorSearch?: boolean;
@@ -29,10 +31,10 @@ export function createAgentConfig(opts: {
     ? loadConvexToolsAsObject(opts.convexToolNames)
     : {};
 
-  // Merge Convex (object) + MCP (object) into a single tools object
+  // Merge Convex tools + extra tools into a single tools object
   const mergedTools: Record<string, unknown> = {
     ...(convexToolsObject || {}),
-    ...((opts.mcpTools as Record<string, unknown>) || {}),
+    ...((opts.extraTools as Record<string, unknown>) || {}),
   };
 
   const hasAnyTools = Object.keys(mergedTools).length > 0;

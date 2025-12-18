@@ -162,7 +162,7 @@ ${toonifiedSteps}
 
     // Create specialized workflow agent with workflow tools
     // Pass workflow context to be included in the system prompt
-    const agent = await createWorkflowAgent({
+    const agent = createWorkflowAgent({
       withTools: true,
       maxSteps,
       convexToolNames,

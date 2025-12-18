@@ -4,7 +4,7 @@
  * For detailed examples, use workflow_examples tool with list_predefined or get_predefined operations.
  */
 
-export const WORKFLOW_SYNTAX_GUIDE = `
+export const WORKFLOW_SYNTAX_COMPACT = `
 ## Workflow Structure
 \`\`\`
 { workflowConfig: { name, description?, version?, workflowType: 'predefined', config?: { timeout?, retryPolicy?: { maxRetries, backoffMs }, variables?, secrets? } }, stepsConfig: [{ stepSlug, name, stepType, order, config, nextSteps }] }
@@ -17,7 +17,10 @@ Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, cont
 NextSteps: { success: 'next_step' }
 
 ### llm (stepType: 'llm')
-Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, model?, temperature?, maxTokens?, maxSteps?, tools?: string[], mcpServerIds?, outputFormat?: 'text'|'json', contextVariables? }
+Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, temperature?, maxTokens?, maxSteps?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?: JsonSchemaDefinition, contextVariables? }
+- outputSchema: When outputFormat is 'json', provides structured output validation using JSON Schema format
+- Schema format: { type: 'object', properties: { fieldName: { type: 'string'|'number'|'boolean'|'array'|'object', description?, items?, properties?, required?, enum? } }, required?: string[] }
+- When outputSchema is provided, the LLM output is validated against the schema at runtime
 NextSteps: { success: 'next_step', error?: 'error_handler' }
 
 ### condition (stepType: 'condition')
