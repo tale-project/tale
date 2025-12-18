@@ -16,10 +16,15 @@ import {
   type MessageContentPart,
 } from '../../lib/attachments/index';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
 
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+
+// RAG configuration constants
+const RAG_TOP_K = 5;
+const RAG_SIMILARITY_THRESHOLD = 0.3;
 
 type Usage = {
   inputTokens?: number;
@@ -102,9 +107,24 @@ export async function generateAgentResponse(
     // context_overflow_retry flow.
     const contextSummary = await loadContextSummary(ctx, threadId);
 
-    debugLog('Using existing context summary (if any)', {
+    // Always query RAG service first to get relevant context for the user's message
+    // This ensures the agent has access to knowledge base information before responding
+    const userQuery = messageText || '';
+    let ragContext: string | undefined;
+    if (userQuery.trim()) {
+      ragContext = await queryRagContext(
+        userQuery,
+        RAG_TOP_K,
+        RAG_SIMILARITY_THRESHOLD,
+        abortController.signal,
+      );
+    }
+
+    debugLog('Context loaded', {
       threadId,
       hasSummary: !!contextSummary,
+      hasRagContext: !!ragContext,
+      ragContextLength: ragContext?.length ?? 0,
       attachmentCount: attachments?.length ?? 0,
     });
 
@@ -134,6 +154,14 @@ export async function generateAgentResponse(
       contextMessages.push({
         role: 'user',
         content: `[CONTEXT] Previous Conversation Summary:\n\n${contextSummary}`,
+      });
+    }
+
+    // Inject RAG context if available - this provides knowledge base context before the agent responds
+    if (ragContext) {
+      contextMessages.push({
+        role: 'user',
+        content: `[KNOWLEDGE BASE] Relevant information from your knowledge base:\n\n${ragContext}`,
       });
     }
 
