@@ -25,6 +25,7 @@
     "@convex-dev/better-auth": "0.9.7",
     "@convex-dev/workflow": "0.3.2",
     "@convex-dev/workpool": "0.3.0",
+    "@dmitryrechkin/json-schema-to-zod": "^1.0.1",
     "@hookform/resolvers": "5.2.2",
     "@microlink/react-json-view": "1.27.0",
     "@microsoft/mgt-react": "4.6.0",

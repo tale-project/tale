@@ -20,7 +20,7 @@ import { saveMessage } from '@convex-dev/agent';
 import {
   parseFile,
   type ParseFileResult,
-} from './agent_tools/convex_tools/files/helpers/parse_file';
+} from './agent_tools/files/helpers/parse_file';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -162,7 +162,7 @@ ${toonifiedSteps}
 
     // Create specialized workflow agent with workflow tools
     // Pass workflow context to be included in the system prompt
-    const agent = await createWorkflowAgent({
+    const agent = createWorkflowAgent({
       withTools: true,
       maxSteps,
       convexToolNames,

@@ -6,22 +6,22 @@
  */
 
 import type { ToolDefinition } from './types';
-import { customerReadTool } from './convex_tools/customers/customer_read_tool';
-import { productReadTool } from './convex_tools/products/product_read_tool';
-import { ragSearchTool } from './convex_tools/rag/rag_search_tool';
-import { ragWriteTool } from './convex_tools/rag/rag_write_tool';
-import { webReadTool } from './convex_tools/crawler/web_read_tool';
-import { workflowReadTool } from './convex_tools/workflows/workflow_read_tool';
-import { workflowExamplesTool } from './convex_tools/workflows/workflow_examples_tool';
-import { updateWorkflowStepTool } from './convex_tools/workflows/update_workflow_step_tool';
-import { saveWorkflowDefinitionTool } from './convex_tools/workflows/save_workflow_definition_tool';
-import { generateExcelTool } from './convex_tools/files/generate_excel_tool';
-import { pdfTool } from './convex_tools/files/pdf_tool';
-import { imageTool } from './convex_tools/files/image_tool';
-import { pptxTool } from './convex_tools/files/pptx_tool';
-import { docxTool } from './convex_tools/files/docx_tool';
-import { resourceCheckTool } from './convex_tools/files/resource_check_tool';
-import { contextSearchTool } from './convex_tools/threads/context_search_tool';
+import { customerReadTool } from './customers/customer_read_tool';
+import { productReadTool } from './products/product_read_tool';
+import { ragSearchTool } from './rag/rag_search_tool';
+import { ragWriteTool } from './rag/rag_write_tool';
+import { webReadTool } from './crawler/web_read_tool';
+import { workflowReadTool } from './workflows/workflow_read_tool';
+import { workflowExamplesTool } from './workflows/workflow_examples_tool';
+import { updateWorkflowStepTool } from './workflows/update_workflow_step_tool';
+import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
+import { generateExcelTool } from './files/generate_excel_tool';
+import { pdfTool } from './files/pdf_tool';
+import { imageTool } from './files/image_tool';
+import { pptxTool } from './files/pptx_tool';
+import { docxTool } from './files/docx_tool';
+import { resourceCheckTool } from './files/resource_check_tool';
+import { contextSearchTool } from './threads/context_search_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.

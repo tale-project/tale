@@ -2,6 +2,12 @@
  * Agent Execution with Tools
  *
  * Handles the core Agent execution logic with Agent SDK and tools support.
+ * Uses a single generateText call for all scenarios:
+ * - Plain text output: Returns the text response directly
+ * - Structured JSON output: Uses the json_output tool to capture schema-validated output
+ *
+ * The json_output tool approach is used for all structured output because generateObject
+ * doesn't support tools in @convex-dev/agent.
  */
 
 import { Agent } from '@convex-dev/agent';
@@ -10,10 +16,13 @@ import type { ActionCtx } from '../../../../_generated/server';
 import type {
   NormalizedConfig,
   ProcessedPrompts,
-  LoadedTools,
   LLMExecutionResult,
 } from './types';
 import { createAgentConfig } from '../../../../lib/create_agent_config';
+import {
+  createJsonOutputTool,
+  type JsonOutputToolResult,
+} from '../../../../agent_tools/create_json_output_tool';
 import type { ToolName } from '../../../../agent_tools/tool_registry';
 import { processAgentResult } from './utils/process_agent_result';
 
@@ -26,143 +35,129 @@ const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 // =============================================================================
 
 /**
- * Executes the Agent with tools and returns the result
+ * Executes the Agent with tools and returns the result.
+ *
+ * Uses a unified approach with a single generateText call:
+ * - When outputSchema is provided, adds the json_output tool to capture structured output
+ * - When no outputSchema, returns the plain text response
  */
 export async function executeAgentWithTools(
   ctx: ActionCtx,
   config: NormalizedConfig,
   prompts: ProcessedPrompts,
-  tools: LoadedTools,
   _args: {
     executionId: string | unknown;
     organizationId?: string;
     threadId?: string;
   },
 ): Promise<LLMExecutionResult> {
-  // Helper to extract JSON from markdown code blocks or plain text
-  const extractJsonText = (text: string): string => {
-    const m = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    return m ? m[1].trim() : text.trim();
-  };
-  const getSteps = (res: unknown): unknown[] => {
-    const steps = (res as { steps?: unknown[] })?.steps;
-    return Array.isArray(steps) ? steps : [];
-  };
+  // Validate: JSON output format requires an output schema
+  if (config.outputFormat === 'json' && !config.outputSchema) {
+    throw new Error(
+      'outputSchema is required when outputFormat is "json". ' +
+        'Provide a JSON schema to use structured output.',
+    );
+  }
 
-  // 1) Build agent and identifiers
+  // Create json_output tool if structured output is requested
+  const jsonOutputTool: JsonOutputToolResult | null = config.outputSchema
+    ? createJsonOutputTool(config.outputSchema)
+    : null;
+
+  // Build agent configuration
   const agentConfig = createAgentConfig({
     name: config.name,
     model: config.model,
     temperature: config.temperature,
     maxTokens: config.maxTokens,
-    maxSteps: config.maxSteps, // Pass maxSteps to agent config
+    maxSteps: config.maxSteps,
     instructions: prompts.systemPrompt,
     outputFormat: config.outputFormat,
     convexToolNames: (config.tools ?? []) as ToolName[],
-    mcpTools: tools.mcpTools,
+    extraTools: jsonOutputTool ? { json_output: jsonOutputTool.tool } : undefined,
   });
 
-  // Reuse existing threadId when provided, otherwise create a new one
+  // Get or create thread
   let threadId: string;
   if (_args.threadId) {
-    // Reuse shared thread when threadId is provided
     threadId = _args.threadId;
     debugLog('executeAgentWithTools Reusing shared thread', { threadId });
   } else {
-    // Workflows without a threadId (e.g., data sync or standalone LLM) create a new thread
-    const thread = await ctx.runMutation(
-      components.agent.threads.createThread,
-      {
-        title: `workflow:${config.name || 'LLM'}`,
-      },
-    );
+    const thread = await ctx.runMutation(components.agent.threads.createThread, {
+      title: `workflow:${config.name || 'LLM'}`,
+    });
     threadId = thread._id as string;
     debugLog('executeAgentWithTools Created new thread', { threadId });
   }
 
+  // Create agent and context
   const agent = new Agent(components.agent, agentConfig);
-
-  // Add organizationId to context for tools that need it
   const contextWithOrg = _args.organizationId
     ? { ...ctx, organizationId: _args.organizationId }
     : ctx;
 
-  // 2) First generation
-  let result = await agent.generateText(
+  debugLog('executeAgentWithTools Executing', {
+    hasOutputSchema: !!config.outputSchema,
+    toolCount: (config.tools?.length ?? 0) + (jsonOutputTool ? 1 : 0),
+  });
+
+  // Single generateText call for all scenarios
+  const result = await agent.generateText(
     contextWithOrg,
     { threadId },
     { prompt: prompts.userPrompt },
     { contextOptions: { excludeToolMessages: false } },
   );
 
-  // 3) Extract initial output text (don't parse JSON yet)
-  let outputText = (result as { text?: string }).text ?? '';
-
-  // 4) Decide if a concluding turn is required (simple rule)
-  const needFinal =
-    (!outputText || !outputText.trim()) && getSteps(result).length > 0;
-
-  if (needFinal) {
-    // 5) Build a clear concluding prompt with grounding from last tool result
-    const concludePrompt =
-      config.outputFormat === 'json'
-        ? 'Conclude now. Return ONLY the final JSON object matching the required schema. No extra text.'
-        : 'Conclude now with the final concise answer.';
-
-    // 6) Run the concluding turn with a no-tools agent to force an assistant message
-    const finalizeConfig = createAgentConfig({
-      name: config.name,
-      model: config.model,
-      temperature: config.temperature,
-      maxTokens: config.maxTokens,
-      instructions: prompts.systemPrompt,
-      outputFormat: config.outputFormat,
-    });
-    const finalizeAgent = new Agent(components.agent, finalizeConfig);
-    const finalize = await finalizeAgent.generateText(
-      contextWithOrg,
-      { threadId },
-      { prompt: concludePrompt },
-      { contextOptions: { excludeToolMessages: false } },
-    );
-
-    // 7) Use the finalize result as the final output basis
-    result = finalize;
-    outputText = (finalize as { text?: string }).text ?? '';
-  }
-
-  // 8) Process final steps + tool diagnostics
   const { agentSteps, toolDiagnostics } = processAgentResult(result);
 
-  // 9) Fallback: still empty -> use the last tool result text (best effort)
-  if (
-    (!outputText || !outputText.trim()) &&
-    toolDiagnostics.lastToolResultText
-  ) {
-    outputText = toolDiagnostics.lastToolResultText;
-  }
-
-  // 10) Parse JSON if requested (only after all output determination logic)
-  let finalOutput: unknown = outputText;
-  if (config.outputFormat === 'json') {
-    const jsonText = extractJsonText(outputText);
-    if (!jsonText || !jsonText.trim()) {
+  // Handle structured output (json_output tool was used)
+  if (jsonOutputTool) {
+    if (!jsonOutputTool.wasCalled()) {
       const stepsCount = Array.isArray(agentSteps) ? agentSteps.length : 0;
       throw new Error(
-        `Agent configured for JSON output but returned empty text. ` +
+        `Agent did not call json_output tool. ` +
           `Steps executed: ${stepsCount}, ` +
-          `Last tool result available: ${!!toolDiagnostics.lastToolResultText}`,
+          `Last tool: ${toolDiagnostics.lastToolName ?? 'none'}`,
       );
     }
-    finalOutput = JSON.parse(jsonText);
+
+    const finalOutput = jsonOutputTool.getCapturedOutput();
+
+    debugLog('executeAgentWithTools Structured output captured', {
+      outputKeys: Object.keys(finalOutput as Record<string, unknown>),
+    });
+
+    return {
+      outputText: JSON.stringify(finalOutput, null, 2),
+      finalOutput,
+      agentSteps,
+      toolDiagnostics,
+      threadId,
+    };
   }
 
-  // 11) Return consolidated result
+  // Handle plain text output
+  const outputText = (result as { text?: string }).text ?? '';
+
+  if (!outputText || !outputText.trim()) {
+    const stepsCount = Array.isArray(agentSteps) ? agentSteps.length : 0;
+    throw new Error(
+      `Agent returned empty text output. ` +
+        `Steps executed: ${stepsCount}, ` +
+        `Last tool: ${toolDiagnostics.lastToolName ?? 'none'}`,
+    );
+  }
+
+  debugLog('executeAgentWithTools Text output generated', {
+    outputLength: outputText.length,
+  });
+
   return {
     outputText,
-    finalOutput,
+    finalOutput: outputText,
     agentSteps,
     toolDiagnostics,
-    threadId, // Return the threadId used for this execution
+    threadId,
   };
 }

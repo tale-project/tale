@@ -28,6 +28,31 @@ export function validateAndNormalizeConfig(
     );
   }
 
+  // Validate outputSchema if provided
+  if (llmConfig.outputSchema) {
+    if (llmConfig.outputFormat !== 'json') {
+      throw new Error(
+        'Invalid LLM node configuration: outputSchema requires outputFormat to be "json"',
+      );
+    }
+    if (
+      !llmConfig.outputSchema.type ||
+      llmConfig.outputSchema.type !== 'object'
+    ) {
+      throw new Error(
+        'Invalid LLM node configuration: outputSchema must have type "object"',
+      );
+    }
+    if (
+      !llmConfig.outputSchema.properties ||
+      typeof llmConfig.outputSchema.properties !== 'object'
+    ) {
+      throw new Error(
+        'Invalid LLM node configuration: outputSchema must have properties defined',
+      );
+    }
+  }
+
   return {
     name: llmConfig.name || 'Workflow LLM',
     systemPrompt: llmConfig.systemPrompt,
@@ -40,8 +65,8 @@ export function validateAndNormalizeConfig(
     maxTokens: llmConfig.maxTokens ?? 512,
     maxSteps: llmConfig.maxSteps ?? 20, // Default to 20 steps for tool calling
     outputFormat: llmConfig.outputFormat,
+    outputSchema: llmConfig.outputSchema,
     tools: llmConfig.tools,
-    mcpServerIds: llmConfig.mcpServerIds,
     contextVariables: llmConfig.contextVariables,
   };
 }
