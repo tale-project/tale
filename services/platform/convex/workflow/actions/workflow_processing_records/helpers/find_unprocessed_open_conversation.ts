@@ -11,7 +11,7 @@ export async function findUnprocessedOpenConversation(
     backoffHours: number;
   },
 ): Promise<FindUnprocessedResult> {
-  const result = await ctx.runQuery(
+  const result = await ctx.runMutation(
     internal.workflow_processing_records.findUnprocessedOpenConversation,
     {
       organizationId: params.organizationId,
@@ -20,7 +20,7 @@ export async function findUnprocessedOpenConversation(
     },
   );
 
-  // Return first conversation or null (queries always return at most one)
+  // Return the conversation or null
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  return result.conversations[0] ?? null;
+  return result.conversation;
 }

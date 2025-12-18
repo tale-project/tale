@@ -1,108 +1,52 @@
 /**
- * Workflow Processing Records API - Thin wrappers around model functions
+ * Workflow Processing Records API - Thin wrappers around model functions.
  *
- * This module provides Convex functions for tracking which entities have been processed by workflows,
- * enabling efficient incremental processing.
- *
- * Convex Functions (use via ctx.runQuery/ctx.runMutation):
- * - findUnprocessed: Find unprocessed documents using basic by_organizationId index
- * - findUnprocessedOpenConversation: Find unprocessed open conversations with inbound messages
- * - recordProcessed: Mark a document as processed
- *
- * For custom queries and helper functions, import directly from the model layer:
- * @example
- * ```typescript
- * import {
- *   findUnprocessedWithCustomQuery,
- *   isDocumentProcessed,
- *   getLatestProcessedCreationTime,
- * } from './model/workflow_processing_records';
- * ```
+ * All find operations are mutations that atomically claim/lock records
+ * to prevent concurrent workflow executions from processing the same entity.
  */
 
 import { internalQuery, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
 import * as WorkflowProcessingRecordsModel from './model/workflow_processing_records';
 
-// =============================================================================
-// INTERNAL OPERATIONS
-// =============================================================================
+const tableNameValidator = v.union(
+  v.literal('customers'),
+  v.literal('products'),
+  v.literal('documents'),
+  v.literal('conversations'),
+  v.literal('approvals'),
+  v.literal('onedriveSyncConfigs'),
+  v.literal('websitePages'),
+  v.literal('exampleMessages'),
+);
 
-/**
- * Find unprocessed records in a table for a specific workflow.
- *
- * Algorithm:
- * 1. Get the latest processed record (by recordCreationTime)
- * 2. Get the latest record in the target table (by _creationTime)
- * 3. If latest processed == latest in table OR no processing history exists:
- *    - Start from the earliest unprocessed record
- * 4. Otherwise:
- *    - Continue from where we left off (records with _creationTime > last processed)
- *
- * This approach:
- * - Avoids scanning all records
- * - Uses indexes efficiently
- * - Tracks processing progress per workflow per table
- * - Can resume from where it left off
- * - Always returns exactly one record (limit defaults to 1)
- */
-export const findUnprocessed = internalQuery({
+/** Find and claim a single unprocessed record using by_organizationId index. */
+export const findUnprocessed = internalMutation({
   args: {
     organizationId: v.string(),
-    tableName: v.union(
-      v.literal('customers'),
-      v.literal('products'),
-      v.literal('documents'),
-      v.literal('conversations'),
-      v.literal('approvals'),
-      v.literal('onedriveSyncConfigs'),
-      v.literal('websitePages'),
-      v.literal('exampleMessages'),
-    ),
+    tableName: tableNameValidator,
     wfDefinitionId: v.string(),
     backoffHours: v.number(),
-    limit: v.optional(v.number()),
   },
-  returns: v.object({
-    documents: v.array(v.any()),
-    count: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    return await WorkflowProcessingRecordsModel.findUnprocessed(ctx, args);
-  },
+  returns: v.object({ document: v.union(v.any(), v.null()) }),
+  handler: async (ctx, args) =>
+    WorkflowProcessingRecordsModel.findUnprocessed(ctx, args),
 });
 
-/**
- * Find unprocessed open conversations where the latest message is inbound.
- *
- * This is a specific implementation using the hook mechanism.
- * Always returns exactly one conversation.
- */
-export const findUnprocessedOpenConversation = internalQuery({
+/** Find and claim a single unprocessed open conversation with inbound message. */
+export const findUnprocessedOpenConversation = internalMutation({
   args: {
     organizationId: v.string(),
     wfDefinitionId: v.string(),
     backoffHours: v.number(),
   },
-  returns: v.object({
-    conversations: v.array(v.any()),
-    count: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    return await WorkflowProcessingRecordsModel.findUnprocessedOpenConversation(
-      ctx,
-      args,
-    );
-  },
+  returns: v.object({ conversation: v.union(v.any(), v.null()) }),
+  handler: async (ctx, args) =>
+    WorkflowProcessingRecordsModel.findUnprocessedOpenConversation(ctx, args),
 });
 
-/**
- * Find product recommendation approvals by status.
- *
- * This is a general implementation that accepts status as a parameter.
- * Always returns exactly one approval.
- */
-export const findProductRecommendationByStatus = internalQuery({
+/** Find and claim a single product recommendation approval by status. */
+export const findProductRecommendationByStatus = internalMutation({
   args: {
     organizationId: v.string(),
     wfDefinitionId: v.string(),
@@ -113,58 +57,32 @@ export const findProductRecommendationByStatus = internalQuery({
       v.literal('rejected'),
     ),
   },
-  returns: v.object({
-    approvals: v.array(v.any()),
-    count: v.number(),
-  }),
-  handler: async (ctx, args) => {
-    return await WorkflowProcessingRecordsModel.findProductRecommendationByStatus(
-      ctx,
-      args,
-    );
-  },
+  returns: v.object({ approval: v.union(v.any(), v.null()) }),
+  handler: async (ctx, args) =>
+    WorkflowProcessingRecordsModel.findProductRecommendationByStatus(ctx, args),
 });
 
-/**
- * Record that a document has been processed by a workflow.
- * This should be called after successfully processing a document.
- */
+/** Record that a document has been processed by a workflow. */
 export const recordProcessed = internalMutation({
   args: {
     organizationId: v.string(),
-    tableName: v.union(
-      v.literal('customers'),
-      v.literal('products'),
-      v.literal('documents'),
-      v.literal('conversations'),
-      v.literal('approvals'),
-      v.literal('onedriveSyncConfigs'),
-      v.literal('websitePages'),
-      v.literal('exampleMessages'),
-    ),
+    tableName: tableNameValidator,
     recordId: v.string(),
     wfDefinitionId: v.string(),
     recordCreationTime: v.number(),
     metadata: v.optional(v.any()),
   },
   returns: v.id('workflowProcessingRecords'),
-  handler: async (ctx, args) => {
-    return await WorkflowProcessingRecordsModel.recordProcessed(ctx, args);
-  },
+  handler: async (ctx, args) =>
+    WorkflowProcessingRecordsModel.recordProcessed(ctx, args),
 });
 
-/**
- * Get a processing record by ID.
- */
+/** Get a processing record by ID. */
 export const getProcessingRecordById = internalQuery({
   args: {
     processingRecordId: v.id('workflowProcessingRecords'),
   },
   returns: v.union(v.any(), v.null()),
-  handler: async (ctx, args) => {
-    return await WorkflowProcessingRecordsModel.getProcessingRecordById(
-      ctx,
-      args,
-    );
-  },
+  handler: async (ctx, args) =>
+    WorkflowProcessingRecordsModel.getProcessingRecordById(ctx, args),
 });

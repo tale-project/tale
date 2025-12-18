@@ -1,5 +1,5 @@
-import { QueryCtx } from '../../../_generated/server';
-import { FindUnprocessedWithCustomQueryArgs } from '../types';
+import { QueryCtx } from '../../_generated/server';
+import { FindAndClaimUnprocessedArgs } from './types';
 import { isRecordProcessed } from './is_document_processed';
 
 /**
@@ -14,7 +14,7 @@ import { isRecordProcessed } from './is_document_processed';
  */
 export async function runQuery<T = unknown>(
   ctx: QueryCtx,
-  args: FindUnprocessedWithCustomQueryArgs<T>,
+  args: FindAndClaimUnprocessedArgs<T>,
   startFrom: number | null,
   limit: number,
 ): Promise<T[]> {
@@ -59,3 +59,4 @@ export async function runQuery<T = unknown>(
 
   return documents;
 }
+

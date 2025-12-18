@@ -16,14 +16,13 @@ export type TableName =
   | 'exampleMessages';
 
 /**
- * Arguments for finding unprocessed documents with custom query
+ * Arguments for finding and claiming a single unprocessed document with custom query
  */
-export interface FindUnprocessedWithCustomQueryArgs<T = unknown> {
+export interface FindAndClaimUnprocessedArgs<T = unknown> {
   organizationId: string;
   tableName: TableName;
   wfDefinitionId: string;
   cutoffTimestamp: string;
-  limit?: number;
 
   /**
    * Build the query with your custom index and filters.
@@ -54,9 +53,9 @@ export interface FindUnprocessedWithCustomQueryArgs<T = unknown> {
 }
 
 /**
- * Return type for finding unprocessed documents with custom query
+ * Return type for finding and claiming a single unprocessed document.
+ * Returns null if no unprocessed document was found or claiming failed.
  */
-export interface FindUnprocessedWithCustomQueryResult<T = unknown> {
-  documents: Array<T>;
-  count: number;
+export interface FindAndClaimUnprocessedResult<T = unknown> {
+  document: T | null;
 }

@@ -17,7 +17,7 @@ export async function findProductRecommendationByStatus(
   },
 ): Promise<FindUnprocessedResult> {
   debugLog({ params });
-  const result = await ctx.runQuery(
+  const result = await ctx.runMutation(
     internal.workflow_processing_records.findProductRecommendationByStatus,
     {
       organizationId: params.organizationId,
@@ -27,7 +27,7 @@ export async function findProductRecommendationByStatus(
     },
   );
 
-  // Return first approval or null (queries always return at most one)
+  // Return the approval or null
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  return result.approvals[0] ?? null;
+  return result.approval;
 }
