@@ -38,7 +38,7 @@ export function validateAndNormalizeConfig(
     model: envModel,
     temperature: llmConfig.temperature ?? 0.2,
     maxTokens: llmConfig.maxTokens ?? 512,
-    maxSteps: llmConfig.maxSteps ?? 10, // Default to 10 steps for tool calling
+    maxSteps: llmConfig.maxSteps ?? 20, // Default to 20 steps for tool calling
     outputFormat: llmConfig.outputFormat,
     tools: llmConfig.tools,
     mcpServerIds: llmConfig.mcpServerIds,
