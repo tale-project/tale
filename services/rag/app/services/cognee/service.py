@@ -57,14 +57,14 @@ class CogneeService:
     async def add_document(
         self,
         content: str,
-        _metadata: Optional[dict[str, Any]] = None,
+        metadata: Optional[dict[str, Any]] = None,
         document_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base.
 
         Args:
             content: Document content
-            _metadata: Optional metadata (reserved for future use)
+            metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID
 
         Returns:
