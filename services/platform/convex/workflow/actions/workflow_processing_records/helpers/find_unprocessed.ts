@@ -12,7 +12,7 @@ export async function findUnprocessed(
     backoffHours: number;
   },
 ): Promise<FindUnprocessedResult> {
-  const result = await ctx.runQuery(
+  const result = await ctx.runMutation(
     internal.workflow_processing_records.findUnprocessed,
     {
       organizationId: params.organizationId,
@@ -22,8 +22,9 @@ export async function findUnprocessed(
     },
   );
 
-  // Model layer returns { documents: T[], count } but we extract first document
-  // because workflows expect a single document or null for processing
+  // Return the document or null.
+  // The underlying Convex function is a mutation that atomically claims
+  // the returned record to avoid concurrent workflows processing the same entity.
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  return result.documents[0] ?? null;
+  return result.document;
 }

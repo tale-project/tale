@@ -1,13 +1,15 @@
 /**
- * Record that a document has been processed by a workflow.
- * This should be called after successfully processing a document.
+ * Atomically claim a record for processing by marking it as in_progress.
+ *
+ * This is used by find-and-lock style mutations to avoid multiple workflow
+ * executions working on the same underlying record concurrently.
  */
 
 import { MutationCtx } from '../../_generated/server';
 import { Id } from '../../_generated/dataModel';
 import { TableName } from './types';
 
-export interface RecordProcessedArgs {
+export interface RecordClaimedArgs {
   organizationId: string;
   tableName: TableName;
   recordId: string;
@@ -16,9 +18,9 @@ export interface RecordProcessedArgs {
   metadata?: unknown;
 }
 
-export async function recordProcessed(
+export async function recordClaimed(
   ctx: MutationCtx,
-  args: RecordProcessedArgs,
+  args: RecordClaimedArgs,
 ): Promise<Id<'workflowProcessingRecords'>> {
   const {
     organizationId,
@@ -29,7 +31,9 @@ export async function recordProcessed(
     metadata,
   } = args;
 
-	  // Check if this record has already been recorded for this workflow
+  const now = Date.now();
+
+  // Check if this record already has a processing entry for this workflow
   const existing = await ctx.db
     .query('workflowProcessingRecords')
     .withIndex('by_record', (q) =>
@@ -40,26 +44,27 @@ export async function recordProcessed(
     )
     .first();
 
-	  const now = Date.now();
 	  if (existing) {
-	    // Transition existing record to completed state
+	    // Refresh the processing record and mark it as in_progress to indicate
+	    // that this document is currently being worked on again.
 	    await ctx.db.patch(existing._id, {
 	      processedAt: now,
-	      status: 'completed',
+	      status: 'in_progress',
 	      metadata,
 	    });
 	    return existing._id;
 	  }
 
-	  // Create new record in completed state (backwards-compatible path when no claim exists)
-	  return await ctx.db.insert('workflowProcessingRecords', {
-	    organizationId,
-	    tableName,
-	    recordId,
-	    wfDefinitionId,
-	    recordCreationTime,
-	    processedAt: now,
-	    status: 'completed',
-	    metadata,
-	  });
+  // Create a new in_progress record for this workflow + record
+  return await ctx.db.insert('workflowProcessingRecords', {
+    organizationId,
+    tableName,
+    recordId,
+    wfDefinitionId,
+    recordCreationTime,
+    processedAt: now,
+    status: 'in_progress',
+    metadata,
+  });
 }
+

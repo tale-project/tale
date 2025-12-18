@@ -58,6 +58,12 @@ export async function isRecordProcessed(
     )
     .first();
 
-  // Record is processed if a record exists and was processed after cutoff
-  return processedRecord !== null && processedRecord.processedAt >= cutoffMs;
+  if (!processedRecord) {
+    return false;
+  }
+
+  // Record is "processed" if it was touched after cutoff.
+  // Status can be 'in_progress' (claimed by another execution) or 'completed'.
+  // Either way, this execution should skip the record.
+  return processedRecord.processedAt >= cutoffMs;
 }

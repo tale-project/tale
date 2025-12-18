@@ -12,10 +12,13 @@ export type {
   FindUnprocessedResult,
 } from './find_unprocessed';
 
-export { findUnprocessedWithCustomQuery } from './helpers/find_unprocessed_with_custom_query';
+export { recordClaimed } from './record_claimed';
+export type { RecordClaimedArgs } from './record_claimed';
+
+export { findAndClaimUnprocessed } from './helpers/find_and_claim_unprocessed';
 export type {
-  FindUnprocessedWithCustomQueryArgs,
-  FindUnprocessedWithCustomQueryResult,
+  FindAndClaimUnprocessedArgs,
+  FindAndClaimUnprocessedResult,
 } from './types';
 
 export { recordProcessed } from './record_processed';

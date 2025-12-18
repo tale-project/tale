@@ -242,7 +242,8 @@ const processingRecordFields = createDocFields('workflowProcessingRecords', {
   recordId: { type: 'string' },
   wfDefinitionId: { type: 'string' },
   recordCreationTime: { type: 'number' },
-  processedAt: { type: 'number' },
+	  processedAt: { type: 'number' },
+	  status: { type: 'string', optional: true },
   metadata: { type: 'any', optional: true },
 });
 
