@@ -20,7 +20,7 @@ export const improveMessage = action({
         : `Improve the following message by fixing grammar, improving clarity, and making it more professional while maintaining the original tone and intent.\n\nOriginal message:\n${args.originalMessage}\n\nIMPORTANT: Return ONLY the improved text directly. Return ONLY the improved text directly with its markdown formatting preserved. Do NOT wrap it in code blocks or add any additional formatting around it.`;
 
       // Create agent without tools for simple text improvement
-      const agent = await createChatAgent({
+      const agent = createChatAgent({
         withTools: false,
         maxSteps: 1,
       });

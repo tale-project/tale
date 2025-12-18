@@ -12,6 +12,7 @@ node_modules/
 
 # testing
 /coverage
+tests/screenshots/
 
 # next.js
 .next/
@@ -32,6 +33,7 @@ yarn-error.log*
 
 # env files - NEVER commit secrets!
 .env
+*.env
 .env.local
 .env*.local
 services/platform/.env

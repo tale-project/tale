@@ -4,6 +4,8 @@
  * Centralized type definitions for LLM node functionality.
  */
 
+import type { JsonSchemaDefinition } from '../../../types/nodes';
+
 // =============================================================================
 // CONFIGURATION TYPES
 // =============================================================================
@@ -21,8 +23,13 @@ export interface NormalizedConfig {
   maxTokens: number;
   maxSteps?: number;
   outputFormat?: 'text' | 'json';
+  /**
+   * Output schema for structured output validation.
+   * When provided, the agent uses a json_output tool to capture structured
+   * output that conforms to this schema.
+   */
+  outputSchema?: JsonSchemaDefinition;
   tools?: string[];
-  mcpServerIds?: string[];
   contextVariables?: Record<string, unknown>;
 }
 
@@ -34,19 +41,6 @@ export interface ProcessedPrompts {
   userPrompt: string;
   availableSteps: string[];
   missingVariables: string[];
-}
-
-// =============================================================================
-// TOOL TYPES
-// =============================================================================
-
-/**
- * Loaded tools from both Convex and MCP sources
- */
-export interface LoadedTools {
-  convexTools: unknown[];
-  mcpTools: Record<string, unknown>;
-  totalCount: number;
 }
 
 // =============================================================================
