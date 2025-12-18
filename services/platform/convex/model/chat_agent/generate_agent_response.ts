@@ -15,7 +15,7 @@ import {
   registerFilesWithAgent,
   type MessageContentPart,
 } from '../../lib/attachments/index';
-import { parseFile } from '../../agent_tools/convex_tools/files/helpers/parse_file';
+import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 
 import { createDebugLog } from '../../lib/debug_log';
 

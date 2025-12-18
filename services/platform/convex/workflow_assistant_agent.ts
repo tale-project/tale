@@ -20,7 +20,7 @@ import { saveMessage } from '@convex-dev/agent';
 import {
   parseFile,
   type ParseFileResult,
-} from './agent_tools/convex_tools/files/helpers/parse_file';
+} from './agent_tools/files/helpers/parse_file';
 
 import { createDebugLog } from './lib/debug_log';
 
