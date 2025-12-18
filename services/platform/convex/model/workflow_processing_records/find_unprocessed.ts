@@ -7,7 +7,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { TableName } from './types';
-import { findAndClaimUnprocessed } from './helpers/find_and_claim_unprocessed';
+import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 
 export interface FindUnprocessedArgs {
   organizationId: string;

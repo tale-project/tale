@@ -28,8 +28,8 @@
  * ```
  */
 
-import { QueryCtx } from '../../../_generated/server';
-import { TableName } from '../types';
+import { QueryCtx } from '../../_generated/server';
+import { TableName } from './types';
 
 export interface IsRecordProcessedArgs {
   tableName: TableName;
@@ -67,3 +67,4 @@ export async function isRecordProcessed(
   // Either way, this execution should skip the record.
   return processedRecord.processedAt >= cutoffMs;
 }
+

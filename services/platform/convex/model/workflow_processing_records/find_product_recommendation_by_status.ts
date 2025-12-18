@@ -4,7 +4,7 @@
 
 import { MutationCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-import { findAndClaimUnprocessed } from './helpers/find_and_claim_unprocessed';
+import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 
 export interface FindProductRecommendationByStatusArgs {
   organizationId: string;

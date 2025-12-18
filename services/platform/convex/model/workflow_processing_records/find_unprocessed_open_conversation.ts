@@ -4,8 +4,8 @@
 
 import { MutationCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-import { findAndClaimUnprocessed } from './helpers/find_and_claim_unprocessed';
-import { getLatestConversationMessage } from './helpers/get_latest_conversation_message';
+import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
+import { getLatestConversationMessage } from './get_latest_conversation_message';
 
 export interface FindUnprocessedOpenConversationArgs {
   organizationId: string;

@@ -28,9 +28,9 @@
  * ```
  */
 
-import { QueryCtx } from '../../../_generated/server';
+import { QueryCtx } from '../../_generated/server';
 
-import { TableName } from '../types';
+import { TableName } from './types';
 
 export interface GetLatestProcessedCreationTimeArgs {
   organizationId: string;
@@ -58,3 +58,4 @@ export async function getLatestProcessedCreationTime(
 
   return latestProcessed?.recordCreationTime ?? null;
 }
+

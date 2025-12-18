@@ -15,7 +15,7 @@ export type {
 export { recordClaimed } from './record_claimed';
 export type { RecordClaimedArgs } from './record_claimed';
 
-export { findAndClaimUnprocessed } from './helpers/find_and_claim_unprocessed';
+export { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 export type {
   FindAndClaimUnprocessedArgs,
   FindAndClaimUnprocessedResult,
@@ -38,13 +38,13 @@ export type {
 } from './find_product_recommendation_by_status';
 
 // Helper functions for custom queries
-export { isRecordProcessed } from './helpers/is_document_processed';
-export type { IsRecordProcessedArgs } from './helpers/is_document_processed';
+export { isRecordProcessed } from './is_document_processed';
+export type { IsRecordProcessedArgs } from './is_document_processed';
 
-export { getLatestProcessedCreationTime } from './helpers/get_latest_processed_creation_time';
-export type { GetLatestProcessedCreationTimeArgs } from './helpers/get_latest_processed_creation_time';
+export { getLatestProcessedCreationTime } from './get_latest_processed_creation_time';
+export type { GetLatestProcessedCreationTimeArgs } from './get_latest_processed_creation_time';
 
-export { getLatestConversationMessage } from './helpers/get_latest_conversation_message';
+export { getLatestConversationMessage } from './get_latest_conversation_message';
 
 export { getProcessingRecordById } from './get_processing_record_by_id';
 export type { GetProcessingRecordByIdArgs } from './get_processing_record_by_id';
