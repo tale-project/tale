@@ -186,7 +186,7 @@ export const productRecommendationEmailWorkflow = {
         name: 'Email Generator',
         temperature: 0.7,
         maxTokens: 2000,
-        maxSteps: 1,
+        maxSteps: 20, // Allow multiple steps for tool calls + final response
         outputFormat: 'json',
         tools: ['customer_search', 'rag_search'],
         systemPrompt: `You are an expert email copywriter who crafts narrative, story-driven product recommendation emails.

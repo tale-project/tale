@@ -2,8 +2,14 @@
  * Central export point for workflow_processing_records model
  */
 
-// Types and validators
+// Types
 export * from './types';
+
+// Constants
+export { BACKOFF_NEVER_REPROCESS } from './constants';
+
+// Helpers
+export { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 // Internal operations
 export { findUnprocessed } from './find_unprocessed';
@@ -12,10 +18,13 @@ export type {
   FindUnprocessedResult,
 } from './find_unprocessed';
 
-export { findUnprocessedWithCustomQuery } from './helpers/find_unprocessed_with_custom_query';
+export { recordClaimed } from './record_claimed';
+export type { RecordClaimedArgs } from './record_claimed';
+
+export { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 export type {
-  FindUnprocessedWithCustomQueryArgs,
-  FindUnprocessedWithCustomQueryResult,
+  FindAndClaimUnprocessedArgs,
+  FindAndClaimUnprocessedResult,
 } from './types';
 
 export { recordProcessed } from './record_processed';
@@ -35,13 +44,13 @@ export type {
 } from './find_product_recommendation_by_status';
 
 // Helper functions for custom queries
-export { isRecordProcessed } from './helpers/is_document_processed';
-export type { IsRecordProcessedArgs } from './helpers/is_document_processed';
+export { isRecordProcessed } from './is_document_processed';
+export type { IsRecordProcessedArgs } from './is_document_processed';
 
-export { getLatestProcessedCreationTime } from './helpers/get_latest_processed_creation_time';
-export type { GetLatestProcessedCreationTimeArgs } from './helpers/get_latest_processed_creation_time';
+export { getLatestProcessedCreationTime } from './get_latest_processed_creation_time';
+export type { GetLatestProcessedCreationTimeArgs } from './get_latest_processed_creation_time';
 
-export { getLatestConversationMessage } from './helpers/get_latest_conversation_message';
+export { getLatestConversationMessage } from './get_latest_conversation_message';
 
 export { getProcessingRecordById } from './get_processing_record_by_id';
 export type { GetProcessingRecordByIdArgs } from './get_processing_record_by_id';

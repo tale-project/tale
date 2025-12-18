@@ -25,8 +25,8 @@
  * ```
  */
 
-import { QueryCtx } from '../../../_generated/server';
-import { Id, Doc } from '../../../_generated/dataModel';
+import { QueryCtx } from '../../_generated/server';
+import { Id, Doc } from '../../_generated/dataModel';
 
 export async function getLatestConversationMessage(
   ctx: QueryCtx,
@@ -42,3 +42,4 @@ export async function getLatestConversationMessage(
 
   return latestMessage ?? null;
 }
+

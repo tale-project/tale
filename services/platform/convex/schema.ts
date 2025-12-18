@@ -793,7 +793,10 @@ export default defineSchema({
     recordCreationTime: v.number(), // _creationTime of the processed record
 
     // Processing metadata
-    processedAt: v.number(), // When this record was processed
+    processedAt: v.number(), // When this record was processed or claimed
+    status: v.optional(
+      v.union(v.literal('in_progress'), v.literal('completed')),
+    ), // Optional processing status for locking and auditing
 
     metadata: v.optional(v.any()),
   })

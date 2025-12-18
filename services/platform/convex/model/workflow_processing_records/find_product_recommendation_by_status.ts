@@ -1,58 +1,38 @@
 /**
- * Find product recommendation approvals by status.
- *
- * This is a general implementation that accepts status as a parameter.
+ * Find and claim a single product recommendation approval by status.
  */
 
-import { QueryCtx } from '../../_generated/server';
+import { MutationCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-import { findUnprocessedWithCustomQuery } from './helpers/find_unprocessed_with_custom_query';
+import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
+import { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 export interface FindProductRecommendationByStatusArgs {
   organizationId: string;
   wfDefinitionId: string;
-  backoffHours: number; // Number of hours to look back for processing records
+  backoffHours: number;
   status: 'pending' | 'approved' | 'rejected';
 }
 
 export interface FindProductRecommendationByStatusResult {
-  approvals: Array<Doc<'approvals'>>;
-  count: number;
+  approval: Doc<'approvals'> | null;
 }
 
-/**
- * Find product recommendation approvals by status.
- *
- * This is a general operation that accepts status as a parameter,
- * allowing workflows to specify which status they want to query.
- *
- * Benefits:
- * - Single operation for all statuses
- * - More flexible for workflow configuration
- * - Less code duplication
- */
 export async function findProductRecommendationByStatus(
-  ctx: QueryCtx,
+  ctx: MutationCtx,
   args: FindProductRecommendationByStatusArgs,
 ): Promise<FindProductRecommendationByStatusResult> {
   const { organizationId, wfDefinitionId, backoffHours, status } = args;
 
-  // Calculate cutoff timestamp from backoffHours
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - backoffHours);
-  const cutoffTimestamp = cutoffDate.toISOString();
+  const cutoffTimestamp = calculateCutoffTimestamp(backoffHours);
 
-  const result = await findUnprocessedWithCustomQuery<Doc<'approvals'>>(ctx, {
+  const result = await findAndClaimUnprocessed<Doc<'approvals'>>(ctx, {
     organizationId,
     tableName: 'approvals',
     wfDefinitionId,
     cutoffTimestamp,
-
-    // Build query with the specified status
-    buildQuery: (resumeFrom) => {
-      // Use the by_org_status_resourceType index for efficient querying
-      // _creationTime is automatically indexed in every Convex index
-      return resumeFrom
+    buildQuery: (resumeFrom) =>
+      resumeFrom
         ? ctx.db
             .query('approvals')
             .withIndex('by_org_status_resourceType', (q) =>
@@ -69,12 +49,8 @@ export async function findProductRecommendationByStatus(
                 .eq('organizationId', organizationId)
                 .eq('status', status)
                 .eq('resourceType', 'product_recommendation'),
-            );
-    },
+            ),
   });
 
-  return {
-    approvals: result.documents,
-    count: result.count,
-  };
+  return { approval: result.document };
 }

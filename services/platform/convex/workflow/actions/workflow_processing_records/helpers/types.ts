@@ -24,6 +24,7 @@ export type ProcessingRecord = {
   wfDefinitionId: string;
   recordCreationTime: number;
   processedAt: number;
+	  status?: 'in_progress' | 'completed';
   metadata?: unknown;
 };
 
