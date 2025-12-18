@@ -6,6 +6,7 @@ import { MutationCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
 import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 import { getLatestConversationMessage } from './get_latest_conversation_message';
+import { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 export interface FindUnprocessedOpenConversationArgs {
   organizationId: string;
@@ -23,9 +24,7 @@ export async function findUnprocessedOpenConversation(
 ): Promise<FindUnprocessedOpenConversationResult> {
   const { organizationId, wfDefinitionId, backoffHours } = args;
 
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - backoffHours);
-  const cutoffTimestamp = cutoffDate.toISOString();
+  const cutoffTimestamp = calculateCutoffTimestamp(backoffHours);
 
   const result = await findAndClaimUnprocessed<Doc<'conversations'>>(ctx, {
     organizationId,

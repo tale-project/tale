@@ -5,6 +5,7 @@
 import { MutationCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
 import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
+import { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 export interface FindProductRecommendationByStatusArgs {
   organizationId: string;
@@ -23,9 +24,7 @@ export async function findProductRecommendationByStatus(
 ): Promise<FindProductRecommendationByStatusResult> {
   const { organizationId, wfDefinitionId, backoffHours, status } = args;
 
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - backoffHours);
-  const cutoffTimestamp = cutoffDate.toISOString();
+  const cutoffTimestamp = calculateCutoffTimestamp(backoffHours);
 
   const result = await findAndClaimUnprocessed<Doc<'approvals'>>(ctx, {
     organizationId,

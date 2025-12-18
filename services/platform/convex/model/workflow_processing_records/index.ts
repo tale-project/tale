@@ -2,8 +2,14 @@
  * Central export point for workflow_processing_records model
  */
 
-// Types and validators
+// Types
 export * from './types';
+
+// Constants
+export { BACKOFF_NEVER_REPROCESS } from './constants';
+
+// Helpers
+export { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 // Internal operations
 export { findUnprocessed } from './find_unprocessed';

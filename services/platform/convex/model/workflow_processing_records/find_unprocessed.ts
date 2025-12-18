@@ -7,6 +7,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { TableName } from './types';
+import { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 import { findAndClaimUnprocessed } from './find_and_claim_unprocessed';
 
 export interface FindUnprocessedArgs {
@@ -26,9 +27,7 @@ export async function findUnprocessed(
 ): Promise<FindUnprocessedResult> {
   const { organizationId, tableName, wfDefinitionId, backoffHours } = args;
 
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - backoffHours);
-  const cutoffTimestamp = cutoffDate.toISOString();
+  const cutoffTimestamp = calculateCutoffTimestamp(backoffHours);
 
   return await findAndClaimUnprocessed(ctx, {
     organizationId,
