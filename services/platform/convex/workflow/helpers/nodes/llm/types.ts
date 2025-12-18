@@ -25,8 +25,8 @@ export interface NormalizedConfig {
   outputFormat?: 'text' | 'json';
   /**
    * Output schema for structured output validation.
-   * When provided, the agent will use generateObject instead of generateText
-   * to ensure the output conforms to this schema.
+   * When provided, the agent uses a json_output tool to capture structured
+   * output that conforms to this schema.
    */
   outputSchema?: JsonSchemaDefinition;
   tools?: string[];

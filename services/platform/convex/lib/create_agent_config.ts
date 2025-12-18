@@ -34,7 +34,7 @@ export function createAgentConfig(opts: {
   // Merge Convex tools + extra tools into a single tools object
   const mergedTools: Record<string, unknown> = {
     ...(convexToolsObject || {}),
-    ...((opts.extraTools as Record<string, unknown>) || {}),
+    ...(opts.extraTools || {}),
   };
 
   const hasAnyTools = Object.keys(mergedTools).length > 0;

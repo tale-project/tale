@@ -6,7 +6,7 @@
 
 **Before starting any tests, create a screenshot folder with the following naming convention:**
 
-```
+```text
 tests/screenshots/YYYY-MM-DD_HH_mm/
 ```
 
@@ -70,18 +70,19 @@ docker compose up --build -d
 4. 📸 **SCREENSHOT:** `03b_signup_page.png` - Capture the sign up form
 
 **Account Creation (Email & Password):**
-5. Generate test credentials using the following format:
-   - **Email:** `test-{timestamp}@example.com` (e.g., `test-1734567890@example.com`)
-   - **Password:** `TestPassword123!` (or any strong password with uppercase, lowercase, number, and special character)
-   - **Name:** `Test User` (if required)
-6. Fill in the sign up form:
-   - Enter the generated email address in the email field
-   - Enter the password in the password field
-   - Enter password confirmation if required
-   - Fill in any additional required fields (name, etc.)
-7. 📸 **SCREENSHOT:** `03c_signup_form_filled.png` - Capture the filled sign up form (before submission)
-8. Click the "Sign Up" / "Create Account" / "Register" button to submit the form
-9. 📸 **SCREENSHOT:** `03d_account_created.png` - Capture successful account creation confirmation
+
+1. Generate test credentials using the following format:
+  - **Email:** `test-{timestamp}@example.com` (e.g., `test-1734567890@example.com`)
+  - **Password:** `TestPassword123!` (or any strong password with uppercase, lowercase, number, and special character)
+  - **Name:** `Test User` (if required)
+2. Fill in the sign-up form:
+  - Enter the generated email address in the email field
+  - Enter the password in the password field
+  - Enter password confirmation if required
+  - Fill in any additional required fields (name, etc.)
+3. 📸 **SCREENSHOT:** `03c_signup_form_filled.png` - Capture the filled sign-up form (before submission)
+4. Click the "Sign Up" / "Create Account" / "Register" button to submit the form
+5. 📸 **SCREENSHOT:** `03d_account_created.png` - Capture successful account creation confirmation
 
 **Organization Setup:**
 10. After account creation, you may be prompted to create an organization

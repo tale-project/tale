@@ -196,6 +196,8 @@ If tools are available, call them as needed to look up products, validate image 
                   confidence: {
                     type: 'number',
                     description: 'Confidence score between 0 and 1',
+                    minimum: 0,
+                    maximum: 1,
                   },
                 },
                 required: [
