@@ -29,7 +29,7 @@ export async function recordProcessed(
     metadata,
   } = args;
 
-	  // Check if this record has already been recorded for this workflow
+  // Check if this record has already been recorded for this workflow
   const existing = await ctx.db
     .query('workflowProcessingRecords')
     .withIndex('by_record', (q) =>
@@ -40,26 +40,26 @@ export async function recordProcessed(
     )
     .first();
 
-	  const now = Date.now();
-	  if (existing) {
-	    // Transition existing record to completed state
-	    await ctx.db.patch(existing._id, {
-	      processedAt: now,
-	      status: 'completed',
-	      metadata,
-	    });
-	    return existing._id;
-	  }
+  const now = Date.now();
+  if (existing) {
+    // Transition existing record to completed state
+    await ctx.db.patch(existing._id, {
+      processedAt: now,
+      status: 'completed',
+      metadata,
+    });
+    return existing._id;
+  }
 
-	  // Create new record in completed state (backwards-compatible path when no claim exists)
-	  return await ctx.db.insert('workflowProcessingRecords', {
-	    organizationId,
-	    tableName,
-	    recordId,
-	    wfDefinitionId,
-	    recordCreationTime,
-	    processedAt: now,
-	    status: 'completed',
-	    metadata,
-	  });
+  // Create new record in completed state (backwards-compatible path when no claim exists)
+  return await ctx.db.insert('workflowProcessingRecords', {
+    organizationId,
+    tableName,
+    recordId,
+    wfDefinitionId,
+    recordCreationTime,
+    processedAt: now,
+    status: 'completed',
+    metadata,
+  });
 }

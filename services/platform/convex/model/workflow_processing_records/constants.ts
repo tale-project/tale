@@ -9,7 +9,7 @@
  * @example
  * ```typescript
  * // Process each customer only once, never reprocess
- * findUnprocessed(ctx, {
+ * findAndClaimUnprocessed(ctx, {
  *   organizationId,
  *   tableName: 'customers',
  *   wfDefinitionId,

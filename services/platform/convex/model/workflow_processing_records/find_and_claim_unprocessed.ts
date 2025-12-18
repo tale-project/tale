@@ -68,6 +68,10 @@ export async function findAndClaimUnprocessed<T = unknown>(
 
   const typed = foundDocument as T & { _id: unknown; _creationTime?: number };
   if (!typed._id) {
+    console.warn('Found document missing _id, skipping claim', {
+      tableName,
+      wfDefinitionId,
+    });
     return { document: null };
   }
 

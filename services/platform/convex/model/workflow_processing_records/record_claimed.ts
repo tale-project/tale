@@ -44,16 +44,16 @@ export async function recordClaimed(
     )
     .first();
 
-	  if (existing) {
-	    // Refresh the processing record and mark it as in_progress to indicate
-	    // that this document is currently being worked on again.
-	    await ctx.db.patch(existing._id, {
-	      processedAt: now,
-	      status: 'in_progress',
-	      metadata,
-	    });
-	    return existing._id;
-	  }
+  if (existing) {
+    // Refresh the processing record and mark it as in_progress to indicate
+    // that this document is currently being worked on again.
+    await ctx.db.patch(existing._id, {
+      processedAt: now,
+      status: 'in_progress',
+      metadata,
+    });
+    return existing._id;
+  }
 
   // Create a new in_progress record for this workflow + record
   return await ctx.db.insert('workflowProcessingRecords', {
