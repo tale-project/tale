@@ -1,3 +1,6 @@
+/** RAG ingestion status for a document */
+export type RagStatus = 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'not_indexed' | 'stale';
+
 export interface DocumentItem {
   id: string;
   name?: string;
@@ -9,6 +12,11 @@ export interface DocumentItem {
   lastModified?: number;
   syncConfigId?: string;
   isDirectlySelected?: boolean;
+  ragStatus?: RagStatus;
+  /** Timestamp when the document was indexed (for completed status) */
+  ragIndexedAt?: number;
+  /** Error message (for failed status) */
+  ragError?: string;
 }
 
 export interface DocumentListResponse {

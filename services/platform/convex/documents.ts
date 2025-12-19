@@ -26,6 +26,7 @@ import {
   DocumentListResponseValidator as DocumentListResponse,
   DocumentRecord,
 } from './model/documents/types';
+import { ragAction } from './workflow/actions/rag/rag_action';
 
 // =============================================================================
 // INTERNAL FUNCTIONS (no RLS)
@@ -286,6 +287,20 @@ export const queryDocuments = internalQuery({
 });
 
 /**
+ * Find a document by title within an organization (internal)
+ */
+export const findDocumentByTitle = internalQuery({
+  args: {
+    organizationId: v.string(),
+    title: v.string(),
+  },
+  returns: v.union(DocumentRecord, v.null()),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.findDocumentByTitle(ctx, args);
+  },
+});
+
+/**
  * Update a single document (internal)
  *
  * Thin wrapper around DocumentsModel.updateDocument with additional fields
@@ -530,12 +545,21 @@ export const uploadFile = action({
         };
       }
 
-      // 3. Store the file in Convex storage
+      // 3. Check if a document with the same name already exists
+      const existingDocument = await ctx.runQuery(
+        internal.documents.findDocumentByTitle,
+        {
+          organizationId: args.organizationId,
+          title: args.fileName,
+        },
+      );
+
+      // 4. Store the file in Convex storage
       const fileId = await ctx.storage.store(
         new Blob([args.fileData], { type: args.contentType }),
       );
 
-      // 4. Build document metadata
+      // 5. Build document metadata
       const providerFromMetadata =
         (args.metadata as any)?.sourceProvider === 'onedrive'
           ? 'onedrive'
@@ -554,7 +578,32 @@ export const uploadFile = action({
         ...args.metadata,
       };
 
-      // 5. Create document record
+      // 6. Update existing document or create new one
+      if (existingDocument) {
+        // Delete the old file from storage if it exists
+        if (existingDocument.fileId) {
+          await ctx.storage.delete(existingDocument.fileId);
+        }
+
+        // Update the existing document
+        await ctx.runMutation(internal.documents.updateDocumentInternal, {
+          documentId: existingDocument._id,
+          title: args.fileName,
+          fileId: fileId,
+          mimeType: args.contentType,
+          sourceProvider: providerFromMetadata,
+          externalItemId,
+          metadata: documentMetadata,
+        });
+
+        return {
+          success: true,
+          fileId,
+          documentId: existingDocument._id,
+        };
+      }
+
+      // Create new document record
       const result: { success: boolean; documentId: string } =
         await ctx.runMutation(internal.documents.createDocument, {
           organizationId: args.organizationId,
@@ -827,5 +876,60 @@ export const generateDocxFromTemplateInternal = internalAction({
       content: args.content,
       templateStorageId: args.templateStorageId,
     });
+  },
+});
+
+// =============================================================================
+// RAG RETRY
+// =============================================================================
+
+/**
+ * Retry RAG indexing for a failed document.
+ * Reuses the existing ragAction from the workflow system.
+ */
+export const retryRagIndexing = action({
+  args: { documentId: v.id('documents') },
+  returns: v.object({
+    success: v.boolean(),
+    jobId: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity) {
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const document = await ctx.runQuery(internal.documents.getDocumentById, {
+        documentId: args.documentId,
+      });
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
+
+      const member = await ctx.runQuery(internal.documents.checkMembership, {
+        organizationId: document.organizationId,
+        userId: identity.subject,
+      });
+      if (!member) {
+        return { success: false, error: 'Not authorized to access this document' };
+      }
+
+      type RagResult = { success: boolean; jobId?: string };
+      const result = (await ragAction.execute(
+        ctx,
+        { operation: 'upload_document', recordId: args.documentId },
+        {},
+      )) as RagResult;
+
+      return { success: result.success, jobId: result.jobId };
+    } catch (error) {
+      console.error('[retryRagIndexing] Error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to retry RAG indexing',
+      };
+    }
   },
 });

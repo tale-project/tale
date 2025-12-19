@@ -14,6 +14,6 @@ export interface ActionDefinition<Params = unknown> {
     ctx: ActionCtx,
     params: Params,
     variables: Record<string, unknown>,
-    extras: { executionId: string },
+    extras?: { executionId?: string },
   ) => Promise<unknown>;
 }
