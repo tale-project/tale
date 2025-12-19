@@ -85,7 +85,7 @@ class DocumentAddResponse(BaseModel):
 
 
 class DocumentDeleteRequest(BaseModel):
-    """Request to delete a document."""
+    """Request to delete a document by ID."""
 
     document_id: str = Field(..., description="ID of the document to delete")
 
@@ -95,6 +95,18 @@ class DocumentDeleteResponse(BaseModel):
 
     success: bool = Field(..., description="Whether the operation succeeded")
     message: str = Field(..., description="Status message")
+    deleted_count: int = Field(
+        default=0,
+        description="Number of documents deleted",
+    )
+    deleted_data_ids: List[str] = Field(
+        default_factory=list,
+        description="List of Cognee Data IDs that were deleted",
+    )
+    processing_time_ms: Optional[float] = Field(
+        default=None,
+        description="Processing time in milliseconds",
+    )
 
 
 # ============================================================================
@@ -223,27 +235,6 @@ class GenerateResponse(BaseModel):
     response: str = Field(..., description="Generated response")
     sources: List[SearchResult] = Field(..., description="Source documents used")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
-
-
-# ============================================================================
-# Batch Operations Models
-# ============================================================================
-
-class BatchAddRequest(BaseModel):
-    """Request to add multiple documents."""
-    documents: List[DocumentAddRequest] = Field(
-        ...,
-        description="List of documents to add"
-    )
-
-
-class BatchAddResponse(BaseModel):
-    """Response after adding multiple documents."""
-    success: bool = Field(..., description="Whether all operations succeeded")
-    total_documents: int = Field(..., description="Total documents processed")
-    successful: int = Field(..., description="Number of successful additions")
-    failed: int = Field(..., description="Number of failed additions")
-    results: List[DocumentAddResponse] = Field(..., description="Individual results")
 
 
 # ============================================================================

@@ -399,6 +399,58 @@ export const listDocumentsByExtension = internalQuery({
   },
 });
 
+/**
+ * Delete document knowledge from RAG service (internal action)
+ *
+ * This action is scheduled after a document is deleted to clean up
+ * the associated knowledge graph nodes and vector embeddings in RAG.
+ * It uses the document ID which was stored in Cognee's node_set when uploading.
+ */
+export const deleteDocumentFromRagInternal = internalAction({
+  args: {
+    documentId: v.string(),
+    mode: v.optional(v.union(v.literal('soft'), v.literal('hard'))),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    deletedCount: v.number(),
+    deletedDataIds: v.array(v.string()),
+    message: v.string(),
+    error: v.optional(v.string()),
+  }),
+  handler: async (_ctx, args) => {
+    const { getRagConfig } = await import(
+      './workflow/actions/rag/helpers/get_rag_config'
+    );
+    const { deleteDocumentById } = await import(
+      './workflow/actions/rag/helpers/delete_document'
+    );
+
+    const ragConfig = getRagConfig();
+
+    const result = await deleteDocumentById({
+      ragServiceUrl: ragConfig.serviceUrl,
+      documentId: args.documentId,
+      mode: args.mode || 'hard',
+    });
+
+    console.log('[documents] RAG deletion result:', {
+      success: result.success,
+      deletedCount: result.deletedCount,
+      message: result.message,
+      documentId: args.documentId,
+    });
+
+    return {
+      success: result.success,
+      deletedCount: result.deletedCount,
+      deletedDataIds: result.deletedDataIds,
+      message: result.message,
+      error: result.error,
+    };
+  },
+});
+
 // =============================================================================
 // PUBLIC FUNCTIONS (with RLS)
 // =============================================================================
@@ -439,6 +491,10 @@ export const updateDocument = mutationWithRLS({
 
 /**
  * Delete a document (public)
+ *
+ * This also schedules RAG cleanup to delete associated knowledge
+ * from the RAG service (graph nodes and vector embeddings).
+ * Documents are always file-based, so we use file upload deletion.
  */
 export const deleteDocument = mutationWithRLS({
   args: {
@@ -446,7 +502,36 @@ export const deleteDocument = mutationWithRLS({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Get document before deletion for RAG cleanup
+    const document = await ctx.db.get(args.documentId);
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    // Store document ID for RAG cleanup (it's stored in Cognee's node_set)
+    const documentIdStr = args.documentId as string;
+
+    // Delete from platform database
     await DocumentsModel.deleteDocument(ctx, args.documentId);
+
+    // Schedule RAG cleanup - use document ID which was stored in Cognee's node_set
+    try {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.deleteDocumentFromRagInternal,
+        {
+          documentId: documentIdStr,
+          mode: 'hard' as const,
+        },
+      );
+    } catch (error) {
+      // Log error but don't fail the deletion - RAG cleanup is best-effort
+      console.error('[documents] Failed to schedule RAG cleanup:', {
+        documentId: args.documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return null;
   },
 });

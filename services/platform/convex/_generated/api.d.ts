@@ -502,6 +502,7 @@ import type * as workflow_actions_integration_helpers_build_secrets_from_integra
 import type * as workflow_actions_integration_integration_action from "../workflow/actions/integration/integration_action.js";
 import type * as workflow_actions_onedrive_onedrive_action from "../workflow/actions/onedrive/onedrive_action.js";
 import type * as workflow_actions_product_product_action from "../workflow/actions/product/product_action.js";
+import type * as workflow_actions_rag_helpers_delete_document from "../workflow/actions/rag/helpers/delete_document.js";
 import type * as workflow_actions_rag_helpers_get_document_info from "../workflow/actions/rag/helpers/get_document_info.js";
 import type * as workflow_actions_rag_helpers_get_rag_config from "../workflow/actions/rag/helpers/get_rag_config.js";
 import type * as workflow_actions_rag_helpers_types from "../workflow/actions/rag/helpers/types.js";
@@ -1115,6 +1116,7 @@ declare const fullApi: ApiFromModules<{
   "workflow/actions/integration/integration_action": typeof workflow_actions_integration_integration_action;
   "workflow/actions/onedrive/onedrive_action": typeof workflow_actions_onedrive_onedrive_action;
   "workflow/actions/product/product_action": typeof workflow_actions_product_product_action;
+  "workflow/actions/rag/helpers/delete_document": typeof workflow_actions_rag_helpers_delete_document;
   "workflow/actions/rag/helpers/get_document_info": typeof workflow_actions_rag_helpers_get_document_info;
   "workflow/actions/rag/helpers/get_rag_config": typeof workflow_actions_rag_helpers_get_rag_config;
   "workflow/actions/rag/helpers/types": typeof workflow_actions_rag_helpers_types;

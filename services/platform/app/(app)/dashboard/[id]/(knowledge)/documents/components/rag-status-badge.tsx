@@ -105,7 +105,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       const result = await retryRagIndexing(documentId);
       if (result.success) {
         toast({
-          title: 'Reindexing started',
+          title: 'Indexing started',
           description: 'Document indexing has been queued.',
         });
         // Refresh the page data to show updated status
