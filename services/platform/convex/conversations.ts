@@ -387,6 +387,7 @@ export const updateConversationMessageInternal = internalMutation({
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),
     metadata: v.optional(v.any()),
+    retryCount: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {

@@ -1,6 +1,6 @@
 import { QueryCtx } from '../../_generated/server';
 import { FindAndClaimUnprocessedArgs } from './types';
-import { isRecordProcessed } from './is_document_processed';
+import { isRecordProcessed } from './is_record_processed';
 
 /**
  * Shared helper to run a workflow-processing query starting from a given

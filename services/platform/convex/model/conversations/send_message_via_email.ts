@@ -1,7 +1,9 @@
 /**
  * Send a message via email (business logic)
- * Creates a conversation message with 'queued' status and schedules email send
+ * Creates a conversation message with 'queued' status and schedules immediate email send
  * Supports both SMTP and API sending (Gmail API / Microsoft Graph)
+ * Retry logic with exponential backoff (30s, 60s, 120s) is handled by the consumer
+ * After 3 failed retries, messages are moved to 'failed' state
  * Automatically approves any pending approval for this conversation
  */
 
@@ -112,33 +114,20 @@ export async function sendMessageViaEmail(
     },
   });
 
-  // Count pending messages (queued state) to calculate smart delay
-  // This prevents rate limiting by spacing out email sends
-  const pendingMessages = await ctx.db
-    .query('conversationMessages')
-    .withIndex('by_org_deliveryState_deliveredAt', (q) =>
-      q.eq('organizationId', args.organizationId).eq('deliveryState', 'queued'),
-    )
-    .collect();
-
-  const pendingCount = pendingMessages.length;
-  // Calculate delay: 1 message = 0 delay, 2 messages = 1 minute, 3 messages = 2 minutes, etc.
-  const delayMs = Math.max(0, (pendingCount - 1) * 60000);
-
   // Determine send method: 'api' or 'smtp' (default to 'smtp' for backwards compatibility)
   const sendMethod = provider.sendMethod || 'smtp';
 
-  // Schedule email send with smart delay (via SMTP or API)
+  // Schedule email send immediately (retry logic with exponential backoff is handled by consumer)
   // Always use the provider we determined above (from conversation or fallback)
   if (sendMethod === 'api') {
     // Send via API (Gmail API / Microsoft Graph)
     await ctx.scheduler.runAfter(
-      delayMs,
+      0, // Send immediately - retry backoff is handled by consumer on failure
       internal.email_providers.sendMessageViaAPIInternal,
       {
         messageId,
         organizationId: args.organizationId,
-        providerId: provider._id, // Use the provider from conversation
+        providerId: provider._id,
         from: senderEmail,
         to: args.to,
         cc: args.cc,
@@ -150,17 +139,18 @@ export async function sendMessageViaEmail(
         inReplyTo: args.inReplyTo,
         references: args.references,
         headers: args.headers,
+        retryCount: 0, // Initial attempt
       },
     );
   } else {
     // Send via SMTP (default)
     await ctx.scheduler.runAfter(
-      delayMs,
+      0, // Send immediately - retry backoff is handled by consumer on failure
       internal.email_providers.sendMessageViaSMTPInternal,
       {
         messageId,
         organizationId: args.organizationId,
-        providerId: provider._id, // Use the provider from conversation
+        providerId: provider._id,
         from: senderEmail,
         to: args.to,
         cc: args.cc,
@@ -172,6 +162,7 @@ export async function sendMessageViaEmail(
         inReplyTo: args.inReplyTo,
         references: args.references,
         headers: args.headers,
+        retryCount: 0, // Initial attempt
       },
     );
   }
