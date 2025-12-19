@@ -19,12 +19,21 @@ router = APIRouter(prefix="/api/v1", tags=["Search"])
 
 @router.post("/search", response_model=QueryResponse)
 async def search(request: QueryRequest):
-    """Search the knowledge base."""
+    """Search the knowledge base.
+
+    Supports different search types:
+    - CHUNKS: Returns raw text chunks (best for detailed content retrieval)
+    - GRAPH_COMPLETION: Uses knowledge graph for reasoning
+    - RAG_COMPLETION: Shorter answers based on chunks
+    - SUMMARIES: Returns document summaries
+    - INSIGHTS: Highlights relationships
+    """
     try:
         start_time = time.time()
 
         results = await cognee_service.search(
             query=request.query,
+            search_type=request.search_type,
             top_k=request.top_k,
             similarity_threshold=request.similarity_threshold,
             _filters=request.filters,
