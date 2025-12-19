@@ -56,11 +56,12 @@ ENV PYTHONUNBUFFERED=1 \
     # Default Tale RAG configuration
     RAG_HOST=0.0.0.0 \
     RAG_PORT=8001 \
-    RAG_WORKERS=1 \
+    RAG_WORKERS=2 \
     RAG_LOG_LEVEL=info \
     # Worker recycling: restart worker after N requests to bound memory growth.
     # Cognee accumulates in-process state that CPython doesn't return to OS.
-    RAG_MAX_REQUESTS_PER_WORKER=1000 \
+    # Requires RAG_WORKERS >= 2 so the parent process can respawn workers.
+    RAG_MAX_REQUESTS_PER_WORKER=10000 \
     # Cognee data directory
     RAG_COGNEE_DATA_DIR=/app/data \
     # Default database URL for local development (connects to tale-db container)
