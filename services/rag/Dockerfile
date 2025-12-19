@@ -7,10 +7,16 @@ FROM python:3.11-slim AS base
 WORKDIR /app
 
 # Install system dependencies
+# - tesseract-ocr: OCR engine for scanned PDFs and images
+# - poppler-utils: PDF rendering for pdf2image (used by OCR)
+# - libmagic1: File type detection for unstructured
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     libpq-dev \
+    tesseract-ocr \
+    poppler-utils \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster package management

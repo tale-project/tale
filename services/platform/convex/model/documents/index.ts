@@ -52,6 +52,7 @@ export { generateDocx } from './generate_docx';
 export { generateDocxFromTemplate } from './generate_docx_from_template';
 export { extractExtension } from './extract_extension';
 export { listDocumentsByExtension } from './list_documents_by_extension';
+export { findDocumentByTitle } from './find_document_by_title';
 
 // Export types for PPTX/DOCX generation
 export type {

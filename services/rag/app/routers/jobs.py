@@ -2,8 +2,10 @@
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
 
 from ..models import JobStatus
 from ..services import job_store
@@ -12,6 +14,21 @@ router = APIRouter(prefix="/api/v1", tags=["Jobs"])
 
 # Thread pool for running blocking I/O operations without blocking the event loop
 _executor = ThreadPoolExecutor(max_workers=4)
+
+
+class BatchJobsRequest(BaseModel):
+    """Request to get multiple job statuses at once."""
+
+    job_ids: List[str] = Field(..., description="List of job IDs to query")
+
+
+class BatchJobsResponse(BaseModel):
+    """Response containing multiple job statuses."""
+
+    jobs: Dict[str, Optional[JobStatus]] = Field(
+        ...,
+        description="Map of job_id to JobStatus (null if job not found)",
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatus)
@@ -30,4 +47,22 @@ async def get_job_status(job_id: str) -> JobStatus:
             detail="Job not found",
         )
     return status_obj
+
+
+@router.post("/jobs/batch", response_model=BatchJobsResponse)
+async def get_jobs_batch(request: BatchJobsRequest) -> BatchJobsResponse:
+    """Get the status of multiple background ingestion jobs at once.
+
+    This endpoint is more efficient than calling /jobs/{job_id} multiple times
+    when you need to query many job statuses (e.g., for a document list page).
+
+    Returns a map of job_id to JobStatus. If a job is not found, its value
+    will be null in the response.
+    """
+    # Run the synchronous file I/O in a thread pool to avoid blocking the event loop
+    loop = asyncio.get_running_loop()
+    jobs = await loop.run_in_executor(
+        _executor, job_store.get_jobs_batch, request.job_ids
+    )
+    return BatchJobsResponse(jobs=jobs)
 

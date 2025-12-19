@@ -184,6 +184,7 @@ import type * as model_documents_create_document from "../model/documents/create
 import type * as model_documents_create_onedrive_sync_config from "../model/documents/create_onedrive_sync_config.js";
 import type * as model_documents_delete_document from "../model/documents/delete_document.js";
 import type * as model_documents_extract_extension from "../model/documents/extract_extension.js";
+import type * as model_documents_find_document_by_title from "../model/documents/find_document_by_title.js";
 import type * as model_documents_generate_document from "../model/documents/generate_document.js";
 import type * as model_documents_generate_document_helpers from "../model/documents/generate_document_helpers.js";
 import type * as model_documents_generate_docx from "../model/documents/generate_docx.js";
@@ -796,6 +797,7 @@ declare const fullApi: ApiFromModules<{
   "model/documents/create_onedrive_sync_config": typeof model_documents_create_onedrive_sync_config;
   "model/documents/delete_document": typeof model_documents_delete_document;
   "model/documents/extract_extension": typeof model_documents_extract_extension;
+  "model/documents/find_document_by_title": typeof model_documents_find_document_by_title;
   "model/documents/generate_document": typeof model_documents_generate_document;
   "model/documents/generate_document_helpers": typeof model_documents_generate_document_helpers;
   "model/documents/generate_docx": typeof model_documents_generate_docx;

@@ -22,6 +22,7 @@ import { DocumentItem } from '@/types/documents';
 import DocumentActions from './document-actions';
 import DocumentPreviewModal from './document-preview-modal';
 import DocumentIcon from '@/components/ui/document-icon';
+import RagStatusBadge from './rag-status-badge';
 export interface DocumentTableProps {
   items: DocumentItem[];
   total: number;
@@ -170,6 +171,7 @@ export default function DocumentTable({
             <TableHead>Document</TableHead>
             <TableHead>Size</TableHead>
             <TableHead>Source</TableHead>
+            <TableHead>RAG Status</TableHead>
             <TableHead className="text-right">Modified</TableHead>
             <TableHead></TableHead>
           </TableRow>
@@ -249,6 +251,18 @@ export default function DocumentTable({
                       <Monitor className="size-6" />
                     )}
                   </div>
+                </TableCell>
+                <TableCell className="max-w-[8rem]">
+                  {item.type === 'folder' ? (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  ) : (
+                    <RagStatusBadge
+                      status={item.ragStatus}
+                      indexedAt={item.ragIndexedAt}
+                      error={item.ragError}
+                      documentId={item.id}
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[12rem] text-right">
                   {item.lastModified
