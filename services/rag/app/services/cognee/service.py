@@ -4,16 +4,42 @@ This module provides the main CogneeService class that wraps
 cognee RAG operations.
 """
 
+import asyncio
 import time
 from typing import Any, Optional
 
 import cognee
+from cognee import SearchType
 from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
+from ...models import SearchType as ApiSearchType
 from .cleanup import cleanup_legacy_site_packages_data, cleanup_missing_local_files_data
 from .utils import normalize_add_result, normalize_search_results
+
+
+def _map_api_search_type_to_cognee(search_type: ApiSearchType | None) -> SearchType:
+    """Map API SearchType to Cognee SearchType.
+
+    Args:
+        search_type: API search type enum value
+
+    Returns:
+        Corresponding Cognee SearchType
+    """
+    if search_type is None:
+        return SearchType.CHUNKS  # Default to CHUNKS for raw text retrieval
+
+    mapping = {
+        ApiSearchType.CHUNKS: SearchType.CHUNKS,
+        ApiSearchType.GRAPH_COMPLETION: SearchType.GRAPH_COMPLETION,
+        ApiSearchType.RAG_COMPLETION: SearchType.RAG_COMPLETION,
+        ApiSearchType.SUMMARIES: SearchType.SUMMARIES,
+        ApiSearchType.GRAPH_SUMMARY_COMPLETION: SearchType.GRAPH_SUMMARY_COMPLETION,
+        ApiSearchType.TEMPORAL: SearchType.TEMPORAL,
+    }
+    return mapping.get(search_type, SearchType.CHUNKS)
 
 # Use a single logical dataset for Tale documents by default.
 # This avoids creating a separate Cognee dataset for every document_id,
@@ -75,6 +101,7 @@ class CogneeService:
 
         try:
             start_time = time.time()
+            timeout_seconds = settings.ingestion_timeout_seconds
 
             # Add document to cognee. We use a shared logical dataset instead of
             # creating one dataset per document_id to keep Cognee's in-memory
@@ -85,18 +112,59 @@ class CogneeService:
             # This allows us to find and delete documents by their external ID
             node_set = [document_id] if document_id else None
 
-            result = await cognee.add(
-                content,
-                dataset_name=dataset_name,
-                node_set=node_set,
+            logger.info(
+                f"Starting document ingestion for {document_id or 'unknown'} "
+                f"(timeout: {timeout_seconds}s)"
             )
+
+            # Wrap cognee.add() with timeout
+            try:
+                result = await asyncio.wait_for(
+                    cognee.add(
+                        content,
+                        dataset_name=dataset_name,
+                        node_set=node_set,
+                    ),
+                    timeout=timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                elapsed = time.time() - start_time
+                error_msg = (
+                    f"cognee.add() timed out after {elapsed:.1f}s "
+                    f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
+                )
+                logger.error(error_msg)
+                raise TimeoutError(error_msg)
+
+            logger.info(f"cognee.add() completed for {document_id or 'unknown'}")
 
             # Process the document with incremental loading to only process new/updated data.
             # This avoids reprocessing the entire dataset on each call.
-            await cognee.cognify(
-                datasets=[dataset_name],
-                incremental_loading=True,
+            # Wrap cognee.cognify() with timeout (remaining time from original timeout)
+            elapsed_so_far = time.time() - start_time
+            remaining_timeout = max(60, timeout_seconds - elapsed_so_far)  # At least 60s for cognify
+
+            logger.info(
+                f"Starting cognee.cognify() for {document_id or 'unknown'} "
+                f"(remaining timeout: {remaining_timeout:.0f}s)"
             )
+
+            try:
+                await asyncio.wait_for(
+                    cognee.cognify(
+                        datasets=[dataset_name],
+                        incremental_loading=True,
+                    ),
+                    timeout=remaining_timeout,
+                )
+            except asyncio.TimeoutError:
+                elapsed = time.time() - start_time
+                error_msg = (
+                    f"cognee.cognify() timed out after {elapsed:.1f}s "
+                    f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
+                )
+                logger.error(error_msg)
+                raise TimeoutError(error_msg)
 
             processing_time = (time.time() - start_time) * 1000
             logger.info(f"Document added in {processing_time:.2f}ms")
@@ -110,6 +178,9 @@ class CogneeService:
                 "processing_time_ms": processing_time,
             }
 
+        except TimeoutError:
+            # Re-raise timeout errors without wrapping
+            raise
         except Exception as e:
             logger.error(f"Failed to add document: {e}")
             raise
@@ -117,6 +188,7 @@ class CogneeService:
     async def search(
         self,
         query: str,
+        search_type: ApiSearchType | None = None,
         top_k: Optional[int] = None,
         similarity_threshold: Optional[float] = None,
         _filters: Optional[dict[str, Any]] = None,
@@ -125,6 +197,8 @@ class CogneeService:
 
         Args:
             query: Search query
+            search_type: Type of search to perform (CHUNKS, GRAPH_COMPLETION, etc.)
+                         Defaults to CHUNKS for raw text chunk retrieval.
             top_k: Number of results to return
             similarity_threshold: Minimum similarity score
             _filters: Optional metadata filters (reserved for future use)
@@ -138,9 +212,17 @@ class CogneeService:
         try:
             start_time = time.time()
 
-            # Use cognee search
+            # Map API search type to Cognee search type
+            cognee_search_type = _map_api_search_type_to_cognee(search_type)
+
+            logger.info(
+                f"Searching with type={cognee_search_type.value}, query='{query[:50]}...'"
+            )
+
+            # Use cognee search with specified search type
             raw_results = await cognee.search(
                 query,
+                query_type=cognee_search_type,
                 top_k=top_k or settings.top_k,
             )
 

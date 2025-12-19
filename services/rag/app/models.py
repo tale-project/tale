@@ -159,9 +159,35 @@ class JobStatus(BaseModel):
 # Query Models
 # ============================================================================
 
+class SearchType(str, Enum):
+    """Search type for knowledge base queries.
+
+    Available types (from Cognee 0.4.0):
+    - CHUNKS: Return raw text chunks (best for detailed content retrieval)
+    - GRAPH_COMPLETION: Use knowledge graph for reasoning
+    - RAG_COMPLETION: Shorter answers based on chunks
+    - SUMMARIES: Return document summaries only
+    - GRAPH_SUMMARY_COMPLETION: Graph summary with completion
+    - TEMPORAL: Time-aware search
+    """
+    CHUNKS = "CHUNKS"
+    GRAPH_COMPLETION = "GRAPH_COMPLETION"
+    RAG_COMPLETION = "RAG_COMPLETION"
+    SUMMARIES = "SUMMARIES"
+    GRAPH_SUMMARY_COMPLETION = "GRAPH_SUMMARY_COMPLETION"
+    TEMPORAL = "TEMPORAL"
+
+
 class QueryRequest(BaseModel):
     """Request to query the knowledge base."""
     query: str = Field(..., description="Query text")
+    search_type: Optional[SearchType] = Field(
+        default=SearchType.CHUNKS,
+        description="Type of search to perform. CHUNKS returns raw text passages (default), "
+                    "GRAPH_COMPLETION uses knowledge graph reasoning, "
+                    "RAG_COMPLETION provides shorter answers, "
+                    "SUMMARIES returns document summaries."
+    )
     top_k: Optional[int] = Field(
         default=None,
         description="Number of results to return (overrides default)"

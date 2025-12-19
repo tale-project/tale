@@ -214,6 +214,63 @@ def _setup_feature_flags() -> None:
     os.environ["COGNEE_DATA_DIR"] = settings.cognee_data_dir
 
 
+def _patch_remote_kuzu_adapter() -> None:
+    """Patch RemoteKuzuAdapter to prevent it from creating a local Kuzu database.
+
+    The Cognee RemoteKuzuAdapter inherits from KuzuAdapter and calls
+    super().__init__("/tmp/kuzu_remote"), which creates a local Kuzu database
+    even though we're using a remote REST API. With multiple uvicorn workers,
+    this causes file lock conflicts.
+
+    This patch overrides the RemoteKuzuAdapter.__init__ to skip the parent's
+    _initialize_connection() call, which is the method that creates the local
+    database. The remote adapter doesn't need a local database since it uses
+    HTTP to communicate with the remote Kuzu server.
+    """
+    try:
+        from cognee.infrastructure.databases.graph.kuzu.remote_kuzu_adapter import (
+            RemoteKuzuAdapter,
+        )
+
+        # Check if already patched
+        if getattr(RemoteKuzuAdapter, "_tale_patched", False):
+            return
+
+        def patched_init(self, api_url: str, username: str, password: str) -> None:
+            """Patched init that skips local Kuzu database creation."""
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            # Initialize only the minimal attributes needed for RemoteKuzuAdapter
+            # WITHOUT calling parent __init__ (which creates a local Kuzu DB)
+            self.open_connections = 0
+            self._is_closed = False
+            self.db_path = "/tmp/kuzu_remote"  # Not actually used
+            self.db = None
+            self.connection = None
+            self.executor = ThreadPoolExecutor()
+            self.KUZU_ASYNC_LOCK = asyncio.Lock()
+            self._connection_change_lock = asyncio.Lock()
+
+            # RemoteKuzuAdapter-specific attributes
+            self.api_url = api_url
+            self.username = username
+            self.password = password
+            self._session = None
+            self._schema_initialized = False
+
+        RemoteKuzuAdapter.__init__ = patched_init
+        RemoteKuzuAdapter._tale_patched = True
+        logger.info(
+            "Patched RemoteKuzuAdapter to skip local Kuzu database creation "
+            "(fixes multi-worker lock conflicts)"
+        )
+    except ImportError:
+        logger.debug("RemoteKuzuAdapter not available, skipping patch")
+    except Exception as e:
+        logger.warning(f"Failed to patch RemoteKuzuAdapter: {e}")
+
+
 def configure_cognee_base_config() -> None:
     """Configure Cognee base configuration (storage roots) BEFORE importing cognee."""
     try:
@@ -255,6 +312,10 @@ def initialize_cognee() -> bool:
     configure_cognee_base_config()
 
     try:
+        # Patch RemoteKuzuAdapter BEFORE importing cognee to prevent
+        # local Kuzu database creation that causes multi-worker lock conflicts
+        _patch_remote_kuzu_adapter()
+
         import cognee  # noqa: F401
         logger.info("Cognee imported successfully with preconfigured base_config")
         return True

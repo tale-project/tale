@@ -56,7 +56,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Default Tale RAG configuration
     RAG_HOST=0.0.0.0 \
     RAG_PORT=8001 \
-    RAG_WORKERS=1 \
+    RAG_WORKERS=2 \
     RAG_LOG_LEVEL=info \
     # Worker recycling: restart worker after N requests to bound memory growth.
     # Cognee accumulates in-process state that CPython doesn't return to OS.
