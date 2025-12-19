@@ -23,9 +23,7 @@ export interface DocumentInfo {
  */
 export async function getDocumentInfo(
   ctx: ActionCtx,
-  params:
-    | Extract<RagActionParams, { operation: 'upload_document' }>
-    | Extract<RagActionParams, { operation: 'delete_document' }>,
+  params: Extract<RagActionParams, { operation: 'upload_document' }>,
 ): Promise<DocumentInfo> {
   if (!params.recordId) {
     throw new Error('recordId is required');

@@ -85,7 +85,7 @@ class DocumentAddResponse(BaseModel):
 
 
 class DocumentDeleteRequest(BaseModel):
-    """Request to delete a document by ID (legacy, not fully supported)."""
+    """Request to delete a document by ID."""
 
     document_id: str = Field(..., description="ID of the document to delete")
 

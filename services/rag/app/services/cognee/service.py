@@ -319,9 +319,7 @@ class CogneeService:
             start_time = time.time()
 
             # Import Cognee internals for data lookup
-            import json
-            from uuid import UUID
-            from sqlalchemy import select
+            from sqlalchemy import select, cast, String
             from cognee.infrastructure.databases.relational import get_relational_engine
             from cognee.modules.data.models import Data, Dataset, DatasetData
             from cognee.api.v1.delete import delete as cognee_delete
@@ -331,24 +329,17 @@ class CogneeService:
             # Find Data records with matching node_set
             db_engine = get_relational_engine()
             async with db_engine.get_async_session() as session:
-                # Query all Data records and filter by node_set containing document_id
-                result = await session.execute(select(Data))
-                all_data = result.scalars().all()
-
-                matching_data = []
-                for data in all_data:
-                    if data.node_set:
-                        try:
-                            # node_set is stored as JSON string
-                            node_set = (
-                                json.loads(data.node_set)
-                                if isinstance(data.node_set, str)
-                                else data.node_set
-                            )
-                            if document_id in node_set:
-                                matching_data.append(data)
-                        except (json.JSONDecodeError, TypeError):
-                            continue
+                # Use database-level filtering to find documents with matching node_set
+                # node_set is stored as a JSON array string, so we use LIKE for text search
+                # This is more efficient than loading all records into memory
+                # Filter at database level - node_set contains the document_id in the JSON array
+                # The document_id appears as a quoted string in the JSON array: ["document_id"]
+                result = await session.execute(
+                    select(Data).where(
+                        cast(Data.node_set, String).contains(document_id)
+                    )
+                )
+                matching_data = result.scalars().all()
 
                 if not matching_data:
                     processing_time = (time.time() - start_time) * 1000

@@ -17,6 +17,8 @@ export type RagActionParams =
       operation: 'delete_document';
       /** Document record ID from the platform */
       recordId: string;
+      /** Deletion mode: 'soft' or 'hard' (default). Hard mode also deletes degree-one entity nodes. */
+      mode?: 'soft' | 'hard';
     };
 
 /**
