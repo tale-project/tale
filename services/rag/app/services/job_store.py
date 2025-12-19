@@ -163,10 +163,11 @@ def mark_failed(job_id: str, *, error: str) -> None:
 
 
 def get_jobs_batch(job_ids: list[str]) -> Dict[str, Optional[JobStatus]]:
-    """Load multiple job statuses from disk in a batch.
+    """Load multiple job statuses from disk.
 
     Returns a dictionary mapping job_id to JobStatus (or None if not found).
-    This is more efficient than calling get_job() for each job_id individually.
+    This is a convenience wrapper that iterates over job_ids and calls get_job()
+    for each one. It provides a simpler API for batch status retrieval.
     """
     result: Dict[str, Optional[JobStatus]] = {}
     for job_id in job_ids:

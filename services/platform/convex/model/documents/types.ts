@@ -54,8 +54,8 @@ export interface QueryDocumentsResult {
   count: number;
 }
 
-/** RAG ingestion status for a document */
-export type RagStatus = 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'not_indexed' | 'stale';
+/** RAG ingestion status for a document - imported from shared types */
+export type { RagStatus } from '../../../types/documents';
 
 export interface DocumentItemResponse {
   id: string;

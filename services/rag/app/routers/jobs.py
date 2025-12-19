@@ -1,8 +1,10 @@
 """Job status endpoints for Tale RAG service."""
 
+from __future__ import annotations
+
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -15,17 +17,24 @@ router = APIRouter(prefix="/api/v1", tags=["Jobs"])
 # Thread pool for running blocking I/O operations without blocking the event loop
 _executor = ThreadPoolExecutor(max_workers=4)
 
+# Maximum number of job IDs allowed in a single batch request
+MAX_BATCH_SIZE = 100
+
 
 class BatchJobsRequest(BaseModel):
     """Request to get multiple job statuses at once."""
 
-    job_ids: List[str] = Field(..., description="List of job IDs to query")
+    job_ids: list[str] = Field(
+        ...,
+        description="List of job IDs to query",
+        max_length=MAX_BATCH_SIZE,
+    )
 
 
 class BatchJobsResponse(BaseModel):
     """Response containing multiple job statuses."""
 
-    jobs: Dict[str, Optional[JobStatus]] = Field(
+    jobs: dict[str, Optional[JobStatus]] = Field(
         ...,
         description="Map of job_id to JobStatus (null if job not found)",
     )

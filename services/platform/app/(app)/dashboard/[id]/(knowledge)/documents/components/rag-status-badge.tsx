@@ -52,7 +52,7 @@ const statusConfig: Record<
   completed: {
     label: 'Indexed',
     icon: CircleCheck,
-    iconClassName: 'text-green-600',
+    iconClassName: 'text-success',
     textClassName: 'text-muted-foreground',
   },
   failed: {
@@ -69,7 +69,7 @@ const statusConfig: Record<
   stale: {
     label: 'Needs reindex',
     icon: AlertTriangle,
-    iconClassName: 'text-amber-500',
+    iconClassName: 'text-warning',
     textClassName: 'text-muted-foreground',
   },
 };
@@ -94,8 +94,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   const handleRetry = async () => {
     if (!documentId) {
       toast({
-        title: 'Error',
-        description: 'Document ID is required for retry',
+        title: 'Document ID is required for retry',
         variant: 'destructive',
       });
       return;
@@ -120,8 +119,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       }
     } catch (err) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred',
+        title: 'An unexpected error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -171,7 +169,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
         </DialogTrigger>
         <DialogContent>
           <DialogHeader className="pr-8">
-            <DialogTitle className="flex items-center gap-2 text-green-600">
+            <DialogTitle className="flex items-center gap-2 text-success">
               <CircleCheck className="size-5" />
               Document Indexed
             </DialogTitle>

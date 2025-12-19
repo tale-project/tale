@@ -17,7 +17,7 @@ export async function findDocumentByTitle(
     .withIndex('by_organizationId_and_title', (q) =>
       q.eq('organizationId', args.organizationId).eq('title', args.title),
     )
-    .first();
+    .unique();
 
   return document;
 }

@@ -93,8 +93,14 @@ export async function fetchRagStatuses(
           indexedAt,
         };
       } else {
+        // Validate job state is a known RagStatus before using it
+        const validStates = ['pending', 'queued', 'running', 'completed', 'failed', 'not_indexed', 'stale'] as const;
+        const status = validStates.includes(job.state as typeof validStates[number])
+          ? (job.state as RagStatus)
+          : 'not_indexed';
+
         result[docId] = {
-          status: job.state as RagStatus,
+          status,
           // Include error message for failed jobs
           error: job.state === 'failed' ? (job.error || job.message || 'Unknown error') : undefined,
         };
