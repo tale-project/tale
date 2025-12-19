@@ -65,7 +65,7 @@ class CogneeService:
         Args:
             content: Document content
             metadata: Optional metadata (reserved for future use)
-            document_id: Optional custom document ID
+            document_id: Optional custom document ID (used for tagging and later deletion)
 
         Returns:
             Dictionary with operation results
@@ -80,7 +80,16 @@ class CogneeService:
             # creating one dataset per document_id to keep Cognee's in-memory
             # structures bounded even when ingesting many small documents.
             dataset_name = DEFAULT_COGNEE_DATASET_NAME
-            result = await cognee.add(content, dataset_name=dataset_name)
+
+            # Use node_set to tag the document with our document_id for later deletion
+            # This allows us to find and delete documents by their external ID
+            node_set = [document_id] if document_id else None
+
+            result = await cognee.add(
+                content,
+                dataset_name=dataset_name,
+                node_set=node_set,
+            )
 
             # Process the document with incremental loading to only process new/updated data.
             # This avoids reprocessing the entire dataset on each call.
@@ -283,30 +292,134 @@ class CogneeService:
             logger.error(f"Generation failed: {e}")
             raise
 
-    async def delete_document(self, document_id: str) -> dict[str, Any]:
-        """Delete a document from the knowledge base.
+
+
+    async def delete_document(self, document_id: str, mode: str = "hard") -> dict[str, Any]:
+        """Delete a document from the knowledge base by document ID.
+
+        This method finds documents in Cognee that were tagged with the given
+        document_id in their node_set, then deletes them along with their
+        associated knowledge graph nodes and vector embeddings.
 
         Args:
-            document_id: ID of the document to delete
+            document_id: ID of the document to delete (must match the ID used when adding)
+            mode: "soft" or "hard" - "hard" (default) also deletes degree-one entity nodes
 
         Returns:
-            Dictionary with operation results
-
-        Note:
-            Document deletion is not yet implemented in cognee.
-            This method returns success=False to indicate the operation was not performed.
+            Dictionary with operation results including:
+            - success: Whether deletion was successful
+            - deleted_count: Number of documents deleted
+            - deleted_data_ids: List of Cognee Data IDs that were deleted
+            - message: Status message
         """
         if not self.initialized:
             await self.initialize()
 
-        # Note: cognee does not currently support direct delete by document ID.
-        # Return success=False to indicate the operation was not performed.
-        logger.warning(f"Delete operation for {document_id} - not implemented in cognee")
+        try:
+            start_time = time.time()
 
-        return {
-            "success": False,
-            "message": f"Document deletion is not yet supported. Document {document_id} was not deleted.",
-        }
+            # Import Cognee internals for data lookup
+            import json
+            from uuid import UUID
+            from sqlalchemy import select
+            from cognee.infrastructure.databases.relational import get_relational_engine
+            from cognee.modules.data.models import Data, Dataset, DatasetData
+            from cognee.api.v1.delete import delete as cognee_delete
+
+            logger.info(f"Looking for documents with node_set containing: {document_id}")
+
+            # Find Data records with matching node_set
+            db_engine = get_relational_engine()
+            async with db_engine.get_async_session() as session:
+                # Query all Data records and filter by node_set containing document_id
+                result = await session.execute(select(Data))
+                all_data = result.scalars().all()
+
+                matching_data = []
+                for data in all_data:
+                    if data.node_set:
+                        try:
+                            # node_set is stored as JSON string
+                            node_set = (
+                                json.loads(data.node_set)
+                                if isinstance(data.node_set, str)
+                                else data.node_set
+                            )
+                            if document_id in node_set:
+                                matching_data.append(data)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+
+                if not matching_data:
+                    processing_time = (time.time() - start_time) * 1000
+                    logger.info(
+                        f"No documents found with node_set containing '{document_id}'"
+                    )
+                    return {
+                        "success": True,
+                        "message": f"No documents found with ID '{document_id}'",
+                        "deleted_count": 0,
+                        "deleted_data_ids": [],
+                        "processing_time_ms": processing_time,
+                    }
+
+                logger.info(
+                    f"Found {len(matching_data)} document(s) with node_set containing '{document_id}'"
+                )
+
+                # Get the dataset for these documents
+                deleted_data_ids = []
+                for data in matching_data:
+                    # Find the dataset this data belongs to
+                    dataset_link = (
+                        await session.execute(
+                            select(DatasetData).where(DatasetData.data_id == data.id)
+                        )
+                    ).scalars().first()
+
+                    if dataset_link:
+                        dataset_id = dataset_link.dataset_id
+                        try:
+                            # Use Cognee's delete function
+                            await cognee_delete(
+                                data_id=data.id,
+                                dataset_id=dataset_id,
+                                mode=mode,
+                            )
+                            deleted_data_ids.append(str(data.id))
+                            logger.info(f"Deleted document: {data.id}")
+                        except Exception as e:
+                            logger.error(f"Failed to delete document {data.id}: {e}")
+                    else:
+                        logger.warning(
+                            f"Document {data.id} has no dataset link, skipping"
+                        )
+
+            processing_time = (time.time() - start_time) * 1000
+            logger.info(
+                f"Deleted {len(deleted_data_ids)} document(s) in {processing_time:.2f}ms"
+            )
+
+            return {
+                "success": True,
+                "message": f"Deleted {len(deleted_data_ids)} document(s) with ID '{document_id}'",
+                "deleted_count": len(deleted_data_ids),
+                "deleted_data_ids": deleted_data_ids,
+                "processing_time_ms": processing_time,
+            }
+
+        except ImportError as e:
+            logger.error(f"Cognee deletion modules not available: {e}")
+            return {
+                "success": False,
+                "message": f"Cognee deletion modules not available: {e}",
+                "deleted_count": 0,
+                "deleted_data_ids": [],
+                "processing_time_ms": None,
+            }
+        except Exception as e:
+            logger.error(f"Failed to delete document: {e}")
+            raise
 
     async def reset(self) -> None:
         """Reset the knowledge base (delete all data)."""

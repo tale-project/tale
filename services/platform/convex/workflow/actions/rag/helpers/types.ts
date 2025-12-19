@@ -12,6 +12,11 @@ export type RagActionParams =
       recordId?: string;
       content: string;
       metadata: Record<string, unknown>;
+    }
+  | {
+      operation: 'delete_document';
+      /** Document record ID from the platform */
+      recordId: string;
     };
 
 /**
@@ -53,3 +58,24 @@ export interface RagUploadResult {
   jobId?: string;
 }
 
+/**
+ * RAG Delete Result
+ */
+export interface RagDeleteResult {
+  /** Whether the deletion was successful. */
+  success: boolean;
+  /** Number of documents deleted. */
+  deletedCount: number;
+  /** List of Cognee Data IDs that were deleted. */
+  deletedDataIds: Array<string>;
+  /** Status message from the RAG service. */
+  message: string;
+  /** Time spent in the local HTTP call to the RAG service. */
+  processingTimeMs?: number;
+  /** Optional error message when the request fails. */
+  error?: string;
+  /** Client-side timestamp when the deletion finished. */
+  timestamp: number;
+  /** Total execution time of the Convex action step. */
+  executionTimeMs?: number;
+}

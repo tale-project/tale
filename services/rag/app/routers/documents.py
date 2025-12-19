@@ -16,8 +16,6 @@ from ..models import (
     DocumentAddResponse,
     DocumentDeleteRequest,
     DocumentDeleteResponse,
-    BatchAddRequest,
-    BatchAddResponse,
 )
 from ..services.cognee import cognee_service
 from ..services import job_store
@@ -298,14 +296,26 @@ async def upload_document(
 
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
-async def delete_document(document_id: str):
-    """Delete a document from the knowledge base."""
+async def delete_document(document_id: str, mode: str = "hard"):
+    """Delete a document from the knowledge base by ID.
+
+    This endpoint finds documents in Cognee that were tagged with the given
+    document_id (via node_set) and deletes them along with their associated
+    knowledge graph nodes and vector embeddings.
+
+    Args:
+        document_id: The document ID (should match the ID used when uploading)
+        mode: "soft" or "hard" - "hard" (default) also deletes degree-one entity nodes
+    """
     try:
-        result = await cognee_service.delete_document(document_id)
+        result = await cognee_service.delete_document(document_id, mode=mode)
 
         return DocumentDeleteResponse(
             success=result["success"],
             message=result.get("message", "Document deleted successfully"),
+            deleted_count=result.get("deleted_count", 0),
+            deleted_data_ids=result.get("deleted_data_ids", []),
+            processing_time_ms=result.get("processing_time_ms"),
         )
 
     except Exception as e:
@@ -314,52 +324,5 @@ async def delete_document(document_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete document. Please try again.",
         )
-
-
-@router.post("/documents/batch", response_model=BatchAddResponse)
-async def add_documents_batch(request: BatchAddRequest):
-    """Add multiple documents to the knowledge base.
-
-    Each document is persisted to disk using the same code path as single
-    document ingestion to ensure consistent behavior.
-    """
-    results = []
-    successful = 0
-    failed = 0
-
-    for doc_request in request.documents:
-        try:
-            # Use _ingest_single_document for consistency with the single document endpoint
-            response = await _ingest_single_document(
-                content=doc_request.content,
-                metadata=doc_request.metadata,
-                document_id=doc_request.document_id,
-            )
-            results.append(response)
-            if response.success:
-                successful += 1
-            else:
-                failed += 1
-        except Exception as e:
-            logger.exception("Failed to add document in batch")
-            results.append(
-                DocumentAddResponse(
-                    success=False,
-                    document_id=doc_request.document_id or "unknown",
-                    chunks_created=0,
-                    message="Document ingestion failed",
-                )
-            )
-            failed += 1
-
-    return BatchAddResponse(
-        success=failed == 0,
-        total_documents=len(request.documents),
-        successful=successful,
-        failed=failed,
-        results=results,
-    )
-
-
 
 
