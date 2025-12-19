@@ -393,7 +393,7 @@ import type * as model_workflow_processing_records_get_latest_conversation_messa
 import type * as model_workflow_processing_records_get_latest_processed_creation_time from "../model/workflow_processing_records/get_latest_processed_creation_time.js";
 import type * as model_workflow_processing_records_get_processing_record_by_id from "../model/workflow_processing_records/get_processing_record_by_id.js";
 import type * as model_workflow_processing_records_index from "../model/workflow_processing_records/index.js";
-import type * as model_workflow_processing_records_is_document_processed from "../model/workflow_processing_records/is_document_processed.js";
+import type * as model_workflow_processing_records_is_record_processed from "../model/workflow_processing_records/is_record_processed.js";
 import type * as model_workflow_processing_records_record_claimed from "../model/workflow_processing_records/record_claimed.js";
 import type * as model_workflow_processing_records_record_processed from "../model/workflow_processing_records/record_processed.js";
 import type * as model_workflow_processing_records_run_query from "../model/workflow_processing_records/run_query.js";
@@ -1006,7 +1006,7 @@ declare const fullApi: ApiFromModules<{
   "model/workflow_processing_records/get_latest_processed_creation_time": typeof model_workflow_processing_records_get_latest_processed_creation_time;
   "model/workflow_processing_records/get_processing_record_by_id": typeof model_workflow_processing_records_get_processing_record_by_id;
   "model/workflow_processing_records/index": typeof model_workflow_processing_records_index;
-  "model/workflow_processing_records/is_document_processed": typeof model_workflow_processing_records_is_document_processed;
+  "model/workflow_processing_records/is_record_processed": typeof model_workflow_processing_records_is_record_processed;
   "model/workflow_processing_records/record_claimed": typeof model_workflow_processing_records_record_claimed;
   "model/workflow_processing_records/record_processed": typeof model_workflow_processing_records_record_processed;
   "model/workflow_processing_records/run_query": typeof model_workflow_processing_records_run_query;
