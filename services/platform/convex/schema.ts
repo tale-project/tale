@@ -455,6 +455,7 @@ export default defineSchema({
       v.literal('delivered'),
       v.literal('failed'),
     ),
+    retryCount: v.optional(v.number()), // Tracks retry attempts for failed sends
     content: v.string(),
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),

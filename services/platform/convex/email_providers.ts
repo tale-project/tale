@@ -712,6 +712,8 @@ export const updateMetadataInternal = internalMutation({
 
 /**
  * Internal action to send a conversation message via SMTP
+ * Supports automatic retry with exponential backoff (30s, 60s, 120s)
+ * After 3 failed retries, message is moved to 'failed' state
  */
 export const sendMessageViaSMTPInternal = internalAction({
   args: {
@@ -729,6 +731,7 @@ export const sendMessageViaSMTPInternal = internalAction({
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
     headers: v.optional(v.record(v.string(), v.string())),
+    retryCount: v.optional(v.number()), // Current retry attempt (0 = first attempt)
   },
   returns: v.object({
     success: v.boolean(),
@@ -741,6 +744,8 @@ export const sendMessageViaSMTPInternal = internalAction({
 
 /**
  * Internal action to send a conversation message via API (Gmail API / Microsoft Graph)
+ * Supports automatic retry with exponential backoff (30s, 60s, 120s)
+ * After 3 failed retries, message is moved to 'failed' state
  */
 export const sendMessageViaAPIInternal = internalAction({
   args: {
@@ -758,6 +763,7 @@ export const sendMessageViaAPIInternal = internalAction({
     inReplyTo: v.optional(v.string()),
     references: v.optional(v.array(v.string())),
     headers: v.optional(v.record(v.string(), v.string())),
+    retryCount: v.optional(v.number()), // Current retry attempt (0 = first attempt)
   },
   returns: v.object({
     success: v.boolean(),

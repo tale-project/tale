@@ -14,6 +14,7 @@ export async function updateConversationMessage(
     sentAt?: number;
     deliveredAt?: number;
     metadata?: unknown;
+    retryCount?: number;
   },
 ): Promise<void> {
   const message = await ctx.db.get(args.messageId);
@@ -30,6 +31,7 @@ export async function updateConversationMessage(
   if (args.sentAt !== undefined) updateData.sentAt = args.sentAt;
   if (args.deliveredAt !== undefined)
     updateData.deliveredAt = args.deliveredAt;
+  if (args.retryCount !== undefined) updateData.retryCount = args.retryCount;
   if (args.metadata !== undefined) {
     // Merge metadata to preserve existing fields
     const existingMetadata =

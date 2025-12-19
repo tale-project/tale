@@ -67,4 +67,3 @@ export async function isRecordProcessed(
   // Either way, this execution should skip the record.
   return processedRecord.processedAt >= cutoffMs;
 }
-
