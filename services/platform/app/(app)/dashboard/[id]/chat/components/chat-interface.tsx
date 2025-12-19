@@ -561,7 +561,7 @@ export default function ChatInterface({
                   }}
                 />
               )}
-              {isLoading && !streamingMessage?.text && (
+              {isLoading && (
                 <ThinkingAnimation
                   threadId={threadId}
                   streamingMessage={streamingMessage}

@@ -40,7 +40,7 @@ export async function chatWithAgent(
   ctx: MutationCtx,
   args: ChatWithAgentArgs,
 ): Promise<ChatWithAgentResult> {
-  const { threadId, message, organizationId, maxSteps = 100, attachments } = args;
+  const { threadId, message, organizationId, maxSteps = 500, attachments } = args;
 
   // Load recent non-tool messages to deduplicate the last user message
   const existingMessages = await listMessages(ctx, components.agent, {
