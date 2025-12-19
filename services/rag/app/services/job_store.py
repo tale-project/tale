@@ -174,3 +174,19 @@ def get_jobs_batch(job_ids: list[str]) -> Dict[str, Optional[JobStatus]]:
         result[job_id] = get_job(job_id)
     return result
 
+
+def clear_all_jobs() -> int:
+    """Delete all job status files from disk.
+
+    Returns the number of job files deleted.
+    """
+    count = 0
+    with _LOCK:
+        for filename in os.listdir(_JOBS_DIR):
+            if filename.endswith(".json"):
+                try:
+                    os.remove(os.path.join(_JOBS_DIR, filename))
+                    count += 1
+                except OSError:
+                    pass
+    return count
