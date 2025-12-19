@@ -164,6 +164,8 @@ class CogneeService:
 
         except Exception as e:
             error_str = str(e)
+            error_type = type(e).__name__
+
             # Handle "DatabaseNotCreatedError" - this happens when no documents
             # have been added yet. Return an empty list instead of failing.
             if "DatabaseNotCreatedError" in error_str or "database has not been created" in error_str.lower():
@@ -172,6 +174,26 @@ class CogneeService:
                     "Search returning empty results. Add documents first using /api/v1/documents."
                 )
                 return []
+
+            # Handle BamlValidationError - this happens when the knowledge graph
+            # has no relevant nodes/connections for the query. The LLM returns
+            # an empty response which BAML fails to parse. Return empty results.
+            if error_type == "BamlValidationError" or "BamlValidationError" in error_str:
+                logger.info(
+                    f"No relevant context found in knowledge graph for query: '{query}'. "
+                    "Search returning empty results."
+                )
+                return []
+
+            # Handle empty LLM response - can happen when context is empty
+            if "Failed to parse LLM response" in error_str or "Failed to coerce value" in error_str:
+                logger.info(
+                    f"LLM returned empty/invalid response for query: '{query}'. "
+                    "This typically means no relevant data exists in the knowledge graph. "
+                    "Search returning empty results."
+                )
+                return []
+
             logger.error(f"Search failed: {e}")
             raise
 
