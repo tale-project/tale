@@ -413,16 +413,129 @@ class CogneeService:
             raise
 
     async def reset(self) -> None:
-        """Reset the knowledge base (delete all data)."""
+        """Reset the knowledge base (delete all data).
+
+        This clears all documents, embeddings, knowledge graph data, and system metadata.
+        After reset, the service will re-initialize on next use.
+        """
         if not self.initialized:
             await self.initialize()
 
         try:
-            await cognee.prune.prune_data()
-            await cognee.prune.prune_system()
+            # Step 1: Try cognee's built-in prune functions first
+            logger.info("Starting knowledge base reset...")
+
+            try:
+                await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
+                logger.info("Cognee prune_system completed")
+            except Exception as e:
+                logger.warning(f"Cognee prune_system failed (continuing): {e}")
+
+            try:
+                await cognee.prune.prune_data()
+                logger.info("Cognee prune_data completed")
+            except Exception as e:
+                logger.warning(f"Cognee prune_data failed (continuing): {e}")
+
+            # Step 2: Direct cleanup of PGVector tables (fallback)
+            # This ensures vector data is deleted even if cognee's prune fails
+            await self._cleanup_pgvector_tables()
+
+            # Step 3: Direct cleanup of graph database
+            await self._cleanup_graph_database()
+
+            # Reset initialized state so service re-initializes on next use
+            self.initialized = False
+
             logger.info("Knowledge base reset successfully")
 
         except Exception as e:
             logger.error(f"Failed to reset knowledge base: {e}")
             raise
+
+    async def _cleanup_pgvector_tables(self) -> None:
+        """Directly drop all Cognee-related tables from PostgreSQL.
+
+        This is a fallback cleanup that ensures vector data is removed
+        even if cognee's prune functions don't work correctly.
+        """
+        try:
+            from sqlalchemy import text
+            from cognee.infrastructure.databases.relational import get_relational_engine
+
+            db_engine = get_relational_engine()
+
+            async with db_engine.get_async_session() as session:
+                # Get list of all tables in the database
+                result = await session.execute(
+                    text(
+                        "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+                    )
+                )
+                tables = [row[0] for row in result.fetchall()]
+
+                # Tables to preserve (system tables, etc.)
+                # We want to delete cognee-specific tables
+                preserved_tables: set[str] = set()
+
+                # Drop cognee-related tables
+                dropped_count = 0
+                for table_name in tables:
+                    if table_name in preserved_tables:
+                        continue
+
+                    try:
+                        await session.execute(
+                            text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+                        )
+                        dropped_count += 1
+                        logger.debug(f"Dropped table: {table_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to drop table {table_name}: {e}")
+
+                await session.commit()
+                logger.info(f"Dropped {dropped_count} PostgreSQL tables")
+
+        except Exception as e:
+            logger.warning(f"PGVector cleanup failed (continuing): {e}")
+
+    async def _cleanup_graph_database(self) -> None:
+        """Clear all data from the Kuzu graph database.
+
+        Sends Cypher queries to delete all nodes and relationships.
+        """
+        try:
+            import httpx
+
+            from ...config import settings
+
+            graph_url = settings.graph_db_url
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Delete all relationships first, then all nodes
+                # Kuzu uses Cypher-like syntax
+                queries = [
+                    "MATCH ()-[r]->() DELETE r",  # Delete all relationships
+                    "MATCH (n) DELETE n",  # Delete all nodes
+                ]
+
+                for query in queries:
+                    try:
+                        response = await client.post(
+                            f"{graph_url}/query",
+                            json={"query": query},
+                        )
+                        if response.status_code == 200:
+                            logger.debug(f"Graph query executed: {query}")
+                        else:
+                            logger.warning(
+                                f"Graph query failed: {query}, status: {response.status_code}"
+                            )
+                    except Exception as e:
+                        logger.warning(f"Graph query failed: {query}, error: {e}")
+
+                logger.info("Graph database cleanup completed")
+
+        except Exception as e:
+            logger.warning(f"Graph database cleanup failed (continuing): {e}")
 

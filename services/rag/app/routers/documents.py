@@ -326,3 +326,24 @@ async def delete_document(document_id: str, mode: str = "hard"):
         )
 
 
+@router.post("/reset")
+async def reset_knowledge_base():
+    """Reset the entire knowledge base (delete all data).
+
+    WARNING: This will permanently delete all documents, embeddings,
+    knowledge graph data, and job history. Use with caution.
+    """
+    try:
+        await cognee_service.reset()
+        jobs_deleted = job_store.clear_all_jobs()
+        return {
+            "success": True,
+            "message": "Knowledge base reset successfully. All data has been deleted.",
+            "jobs_deleted": jobs_deleted,
+        }
+    except Exception as e:
+        logger.error(f"Failed to reset knowledge base: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset knowledge base. Please try again.",
+        )
