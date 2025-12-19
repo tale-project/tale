@@ -5,12 +5,13 @@ import { getRagConfig } from './helpers/get_rag_config';
 import { getDocumentInfo } from './helpers/get_document_info';
 import { uploadTextDocument } from './helpers/upload_text_document';
 import { uploadFileDirect } from './helpers/upload_file_direct';
+import { deleteDocumentById } from './helpers/delete_document';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
-  title: 'RAG Document Uploader',
+  title: 'RAG Document Manager',
   description:
-    'Upload documents to RAG service (cognee) for semantic search and retrieval',
+    'Upload or delete documents in RAG service (cognee) for semantic search and retrieval',
 
   parametersValidator: v.union(
     v.object({
@@ -23,6 +24,11 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       content: v.string(),
       metadata: v.any(),
     }),
+    v.object({
+      operation: v.literal('delete_document'),
+      recordId: v.string(),
+      mode: v.optional(v.union(v.literal('soft'), v.literal('hard'))),
+    }),
   ),
 
   async execute(ctx, params) {
@@ -32,7 +38,22 @@ export const ragAction: ActionDefinition<RagActionParams> = {
     // Get RAG service configuration
     const ragConfig = getRagConfig();
 
-    // Upload to RAG service
+    // Handle delete operation - use the recordId directly as the document ID
+    // The recordId (Convex document ID) is stored in Cognee's node_set when uploading
+    if (processedParams.operation === 'delete_document') {
+      const deleteResult = await deleteDocumentById({
+        ragServiceUrl: ragConfig.serviceUrl,
+        documentId: processedParams.recordId,
+        mode: processedParams.mode || 'hard',
+      });
+
+      return {
+        ...deleteResult,
+        executionTimeMs: Date.now() - startTime,
+      };
+    }
+
+    // Handle upload operations
     let uploadResult: RagUploadResult;
     let documentType: string;
 
