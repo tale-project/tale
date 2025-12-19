@@ -33,7 +33,7 @@ export default function Message({ message }: MessageProps) {
           message.isCustomer ? 'justify-start' : 'justify-end',
         )}
       >
-        <div>
+        <div className="relative">
           <div
             className={cn(
               'max-w-[40rem] relative overflow-x-auto',
@@ -85,10 +85,10 @@ export default function Message({ message }: MessageProps) {
           </div>
           <div
             className={cn(
-              'text-xs flex items-center gap-1.5 justify-end',
+              'text-xs flex items-center gap-1.5 justify-end text-nowrap',
               message.isCustomer
                 ? 'text-muted-foreground text-left'
-                : 'text-muted-foreground/70 text-right absolute -bottom-6 right-0',
+                : 'text-muted-foreground/70 text-right absolute -bottom-4 right-0',
             )}
           >
             {formatMessageTime(message.timestamp)}
