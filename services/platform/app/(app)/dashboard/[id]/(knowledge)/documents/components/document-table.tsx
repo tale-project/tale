@@ -22,6 +22,7 @@ import { DocumentItem } from '@/types/documents';
 import DocumentActions from './document-actions';
 import DocumentPreviewModal from './document-preview-modal';
 import DocumentIcon from '@/components/ui/document-icon';
+import RagStatusBadge from './rag-status-badge';
 export interface DocumentTableProps {
   items: DocumentItem[];
   total: number;
@@ -31,6 +32,7 @@ export interface DocumentTableProps {
   searchQuery?: string;
   organizationId: string;
   currentFolderPath?: string;
+  hasMicrosoftAccount?: boolean;
 }
 
 export default function DocumentTable({
@@ -42,6 +44,7 @@ export default function DocumentTable({
   searchQuery,
   organizationId,
   currentFolderPath,
+  hasMicrosoftAccount,
 }: DocumentTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -107,7 +110,10 @@ export default function DocumentTable({
             />
           </div>
           <div className="flex items-center gap-3">
-            <ImportDocumentsMenu organizationId={organizationId} />
+            <ImportDocumentsMenu
+              organizationId={organizationId}
+              hasMicrosoftAccount={hasMicrosoftAccount}
+            />
           </div>
         </div>
 
@@ -134,7 +140,10 @@ export default function DocumentTable({
           <p className="text-sm text-muted-foreground mb-5">
             Import documents to make your AI smarter
           </p>
-          <ImportDocumentsMenu organizationId={organizationId} />
+          <ImportDocumentsMenu
+            organizationId={organizationId}
+            hasMicrosoftAccount={hasMicrosoftAccount}
+          />
         </div>
       </div>
     );
@@ -159,7 +168,10 @@ export default function DocumentTable({
           />
         </div>
         <div className="flex items-center gap-3">
-          <ImportDocumentsMenu organizationId={organizationId} />
+          <ImportDocumentsMenu
+            organizationId={organizationId}
+            hasMicrosoftAccount={hasMicrosoftAccount}
+          />
         </div>
       </div>
 
@@ -170,6 +182,7 @@ export default function DocumentTable({
             <TableHead>Document</TableHead>
             <TableHead>Size</TableHead>
             <TableHead>Source</TableHead>
+            <TableHead>RAG Status</TableHead>
             <TableHead className="text-right">Modified</TableHead>
             <TableHead></TableHead>
           </TableRow>
@@ -249,6 +262,18 @@ export default function DocumentTable({
                       <Monitor className="size-6" />
                     )}
                   </div>
+                </TableCell>
+                <TableCell className="max-w-[8rem]">
+                  {item.type === 'folder' ? (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  ) : (
+                    <RagStatusBadge
+                      status={item.ragStatus}
+                      indexedAt={item.ragIndexedAt}
+                      error={item.ragError}
+                      documentId={item.id}
+                    />
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[12rem] text-right">
                   {item.lastModified

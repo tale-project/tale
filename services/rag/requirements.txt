@@ -10,8 +10,12 @@ cognee[baml]==0.4.0
 # Note: openai version is determined by cognee's dependencies (requires <2.0.1)
 # langchain versions are determined by cognee's dependencies
 
-# Enable XLSX document support in unstructured (required for partition_xlsx)
-unstructured[xlsx]==0.18.21
+# Enable document support in unstructured
+# - xlsx: Excel files (.xls, .xlsx)
+# - docx: Word documents (.doc, .docx)
+# - pptx: PowerPoint presentations (.ppt, .pptx)
+# - pdf: PDF with OCR support for scanned documents
+unstructured[xlsx,docx,pptx,pdf]==0.18.21
 
 # Database drivers (for cognee storage and PGVector)
 asyncpg==0.31.0

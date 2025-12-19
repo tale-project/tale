@@ -54,6 +54,9 @@ export interface QueryDocumentsResult {
   count: number;
 }
 
+/** RAG ingestion status for a document - imported from shared types */
+import type { RagStatus } from '../../../types/documents';
+
 export interface DocumentItemResponse {
   id: string;
   name?: string;
@@ -68,6 +71,11 @@ export interface DocumentItemResponse {
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   url?: string;
+  ragStatus?: RagStatus;
+  /** Timestamp (in seconds) when the document was indexed */
+  ragIndexedAt?: number;
+  /** Error message (for failed status) */
+  ragError?: string;
 }
 
 export interface DocumentListResponse {
@@ -174,6 +182,21 @@ export interface GenerateDocumentResult {
 // =============================================================================
 
 /**
+ * RAG status validator
+ */
+export const RagStatusValidator = v.optional(
+  v.union(
+    v.literal('pending'),
+    v.literal('queued'),
+    v.literal('running'),
+    v.literal('completed'),
+    v.literal('failed'),
+    v.literal('not_indexed'),
+    v.literal('stale'),
+  ),
+);
+
+/**
  * Document item validator (for public API responses)
  */
 export const DocumentItem = v.object({
@@ -192,6 +215,9 @@ export const DocumentItem = v.object({
   syncConfigId: v.optional(v.string()),
   isDirectlySelected: v.optional(v.boolean()),
   url: v.optional(v.string()),
+  ragStatus: RagStatusValidator,
+  ragIndexedAt: v.optional(v.number()),
+  ragError: v.optional(v.string()),
 });
 
 /**

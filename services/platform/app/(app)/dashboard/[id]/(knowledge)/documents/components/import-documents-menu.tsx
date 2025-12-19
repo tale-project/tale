@@ -23,10 +23,12 @@ const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog'), {
 
 interface ImportDocumentsMenuProps {
   organizationId: string;
+  hasMicrosoftAccount?: boolean;
 }
 
 export default function ImportDocumentsMenu({
   organizationId,
+  hasMicrosoftAccount,
 }: ImportDocumentsMenuProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,19 +96,21 @@ export default function ImportDocumentsMenu({
                     </Button>
                   </NavigationMenuLink>
                 </li>
-                <li>
-                  <NavigationMenuLink asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={connectOneDrive}
-                      className="w-full justify-start"
-                    >
-                      <OneDriveIcon className="size-4 mr-2" />
-                      <span>From OneDrive</span>
-                    </Button>
-                  </NavigationMenuLink>
-                </li>
+                {hasMicrosoftAccount && (
+                  <li>
+                    <NavigationMenuLink asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={connectOneDrive}
+                        className="w-full justify-start"
+                      >
+                        <OneDriveIcon className="size-4 mr-2" />
+                        <span>From OneDrive</span>
+                      </Button>
+                    </NavigationMenuLink>
+                  </li>
+                )}
               </ul>
             </NavigationMenuContent>
           </NavigationMenuItem>

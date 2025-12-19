@@ -5,6 +5,8 @@ import DocumentTable from './components/document-table';
 import { Logger } from '@/lib/logger';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
+import { fetchRagStatuses } from './actions/fetch-rag-statuses';
+import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
 
 const logger = new Logger('documents');
 interface DocumentsPageProps {
@@ -51,13 +53,37 @@ async function DocumentsPageContent({
     });
   }
 
+  // Fetch RAG statuses for all file documents (not folders)
+  const fileDocuments = (documentInfo.items || [])
+    .filter((item) => item.type === 'file')
+    .map((item) => ({
+      id: item.id,
+      lastModified: item.lastModified,
+    }));
+
+  const ragStatuses = await fetchRagStatuses(fileDocuments);
+
+  // Merge RAG statuses into document items
+  const itemsWithRagStatus = (documentInfo.items || []).map((item) => {
+    const ragInfo = item.type === 'file' ? ragStatuses[item.id] : undefined;
+    return {
+      ...item,
+      ragStatus: ragInfo?.status,
+      ragIndexedAt: ragInfo?.indexedAt,
+      ragError: ragInfo?.error,
+    };
+  });
+
   // Extract pagination metadata from response
   const totalItems = documentInfo.totalItems || 0;
   const hasNextPage = documentInfo.pagination?.hasNextPage || false;
 
+  // Check if user has Microsoft account connected for OneDrive import
+  const hasMsAccount = await hasMicrosoftAccount();
+
   return (
     <DocumentTable
-      items={documentInfo.items || []}
+      items={itemsWithRagStatus}
       total={totalItems}
       currentPage={currentPage}
       hasNextPage={hasNextPage}
@@ -65,6 +91,7 @@ async function DocumentsPageContent({
       searchQuery={searchQuery}
       organizationId={organizationId}
       currentFolderPath={folderPath}
+      hasMicrosoftAccount={hasMsAccount}
     />
   );
 }
