@@ -32,6 +32,7 @@ export interface DocumentTableProps {
   searchQuery?: string;
   organizationId: string;
   currentFolderPath?: string;
+  hasMicrosoftAccount?: boolean;
 }
 
 export default function DocumentTable({
@@ -43,6 +44,7 @@ export default function DocumentTable({
   searchQuery,
   organizationId,
   currentFolderPath,
+  hasMicrosoftAccount,
 }: DocumentTableProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -108,7 +110,10 @@ export default function DocumentTable({
             />
           </div>
           <div className="flex items-center gap-3">
-            <ImportDocumentsMenu organizationId={organizationId} />
+            <ImportDocumentsMenu
+              organizationId={organizationId}
+              hasMicrosoftAccount={hasMicrosoftAccount}
+            />
           </div>
         </div>
 
@@ -135,7 +140,10 @@ export default function DocumentTable({
           <p className="text-sm text-muted-foreground mb-5">
             Import documents to make your AI smarter
           </p>
-          <ImportDocumentsMenu organizationId={organizationId} />
+          <ImportDocumentsMenu
+            organizationId={organizationId}
+            hasMicrosoftAccount={hasMicrosoftAccount}
+          />
         </div>
       </div>
     );
@@ -160,7 +168,10 @@ export default function DocumentTable({
           />
         </div>
         <div className="flex items-center gap-3">
-          <ImportDocumentsMenu organizationId={organizationId} />
+          <ImportDocumentsMenu
+            organizationId={organizationId}
+            hasMicrosoftAccount={hasMicrosoftAccount}
+          />
         </div>
       </div>
 

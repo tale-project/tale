@@ -6,6 +6,7 @@ import { Logger } from '@/lib/logger';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
+import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
 
 const logger = new Logger('documents');
 interface DocumentsPageProps {
@@ -77,6 +78,9 @@ async function DocumentsPageContent({
   const totalItems = documentInfo.totalItems || 0;
   const hasNextPage = documentInfo.pagination?.hasNextPage || false;
 
+  // Check if user has Microsoft account connected for OneDrive import
+  const hasMsAccount = await hasMicrosoftAccount();
+
   return (
     <DocumentTable
       items={itemsWithRagStatus}
@@ -87,6 +91,7 @@ async function DocumentsPageContent({
       searchQuery={searchQuery}
       organizationId={organizationId}
       currentFolderPath={folderPath}
+      hasMicrosoftAccount={hasMsAccount}
     />
   );
 }
