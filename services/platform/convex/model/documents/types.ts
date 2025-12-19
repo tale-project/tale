@@ -55,7 +55,7 @@ export interface QueryDocumentsResult {
 }
 
 /** RAG ingestion status for a document - imported from shared types */
-export type { RagStatus } from '../../../types/documents';
+import type { RagStatus } from '../../../types/documents';
 
 export interface DocumentItemResponse {
   id: string;
