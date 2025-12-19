@@ -11,8 +11,20 @@ import { BACKOFF_NEVER_REPROCESS } from './constants';
  */
 export function calculateCutoffTimestamp(backoffHours: number): string {
   // Validate input - must be a finite number or the special BACKOFF_NEVER_REPROCESS value
-  if (!Number.isFinite(backoffHours) && backoffHours !== BACKOFF_NEVER_REPROCESS) {
-    throw new Error('backoffHours must be a finite number or BACKOFF_NEVER_REPROCESS');
+  if (
+    !Number.isFinite(backoffHours) &&
+    backoffHours !== BACKOFF_NEVER_REPROCESS
+  ) {
+    throw new Error(
+      'backoffHours must be a finite number or BACKOFF_NEVER_REPROCESS',
+    );
+  }
+
+  // Reject negative values other than BACKOFF_NEVER_REPROCESS
+  if (backoffHours < 0 && backoffHours !== BACKOFF_NEVER_REPROCESS) {
+    throw new Error(
+      'backoffHours must be non-negative or BACKOFF_NEVER_REPROCESS',
+    );
   }
 
   if (backoffHours === BACKOFF_NEVER_REPROCESS) {
@@ -20,8 +32,6 @@ export function calculateCutoffTimestamp(backoffHours: number): string {
     return new Date(0).toISOString();
   }
 
-  const cutoffDate = new Date();
-  cutoffDate.setHours(cutoffDate.getHours() - backoffHours);
-  return cutoffDate.toISOString();
+  // Use millisecond arithmetic for DST-safe calculation
+  return new Date(Date.now() - backoffHours * 60 * 60 * 1000).toISOString();
 }
-

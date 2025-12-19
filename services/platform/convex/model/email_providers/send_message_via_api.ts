@@ -1,6 +1,12 @@
 /**
  * Business logic for sending a conversation message via API (Gmail API / Microsoft Graph)
  * and updating the message with the external message ID
+ *
+ * Includes automatic retry with exponential backoff:
+ * - Retry 1: 30 seconds delay
+ * - Retry 2: 60 seconds delay
+ * - Retry 3: 120 seconds delay
+ * After 3 failed retries, message is moved to 'failed' state
  */
 
 import type { ActionCtx } from '../../_generated/server';
@@ -11,6 +17,10 @@ import { decryptAndRefreshOAuth2Token } from './decrypt_and_refresh_oauth2';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const BACKOFF_DELAYS_MS = [30000, 60000, 120000]; // 30s, 60s, 120s
 
 export async function sendMessageViaAPI(
   ctx: ActionCtx,
@@ -29,8 +39,10 @@ export async function sendMessageViaAPI(
     inReplyTo?: string;
     references?: string[];
     headers?: Record<string, string>;
+    retryCount?: number; // Current retry attempt (0 = first attempt)
   },
 ): Promise<{ success: boolean; messageId: string }> {
+  const retryCount = args.retryCount ?? 0;
   try {
     // Get email provider (use default if not specified)
     let provider: unknown;
@@ -243,14 +255,82 @@ export async function sendMessageViaAPI(
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+
+    // Check if we should retry
+    if (retryCount < MAX_RETRIES) {
+      const nextRetryCount = retryCount + 1;
+      const delayMs =
+        BACKOFF_DELAYS_MS[retryCount] ??
+        BACKOFF_DELAYS_MS[BACKOFF_DELAYS_MS.length - 1];
+
+      debugLog(
+        `⚠ Message send failed, scheduling retry ${nextRetryCount}/${MAX_RETRIES} in ${delayMs / 1000}s`,
+        {
+          messageId: args.messageId,
+          error: errorMessage,
+          retryCount: nextRetryCount,
+        },
+      );
+
+      // Update message with retry info (stays in 'queued' state)
+      await ctx.runMutation(
+        internal.conversations.updateConversationMessageInternal,
+        {
+          messageId: args.messageId,
+          retryCount: nextRetryCount,
+          metadata: {
+            lastError: errorMessage,
+            nextRetryAt: Date.now() + delayMs,
+          },
+        },
+      );
+
+      // Schedule retry with exponential backoff
+      await ctx.scheduler.runAfter(
+        delayMs,
+        internal.email_providers.sendMessageViaAPIInternal,
+        {
+          messageId: args.messageId,
+          organizationId: args.organizationId,
+          providerId: args.providerId,
+          from: args.from,
+          to: args.to,
+          cc: args.cc,
+          bcc: args.bcc,
+          subject: args.subject,
+          html: args.html,
+          text: args.text,
+          replyTo: args.replyTo,
+          inReplyTo: args.inReplyTo,
+          references: args.references,
+          headers: args.headers,
+          retryCount: nextRetryCount,
+        },
+      );
+
+      return { success: false, messageId: '' };
+    }
+
+    // Max retries exceeded - move to dead letter queue
+    debugLog('✗ Message send failed permanently', {
+      messageId: args.messageId,
+      error: errorMessage,
+      totalAttempts: retryCount + 1,
+    });
+
     await ctx.runMutation(
       internal.conversations.updateConversationMessageInternal,
       {
         messageId: args.messageId,
         deliveryState: 'failed',
-        metadata: { errorMessage },
+        retryCount: retryCount,
+        metadata: {
+          lastError: errorMessage,
+          failedAt: Date.now(),
+        },
       },
     );
+
     // Do not throw; return a failure response so scheduler doesn't error out
     return { success: false, messageId: '' };
   }
