@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     top_k: int = 5
     similarity_threshold: float = 0.7
     max_document_size_mb: int = 50
+    # Maximum time (in seconds) for document ingestion before timeout
+    # Default: 3 hours (10800 seconds)
+    ingestion_timeout_seconds: int = 10800
 
     # ========================================================================
     # Feature Flags
