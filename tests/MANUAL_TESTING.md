@@ -2,6 +2,22 @@
 
 > **🤖 AI AGENT INSTRUCTIONS**: This document is designed for AI agents to execute automated manual testing. Follow each step sequentially, take screenshots at designated points, and store all evidence in the specified folder structure.
 
+## ⏳ Important: Wait Time Guidelines
+
+**Some operations take significant time to complete. AI agents MUST wait for these operations to finish before proceeding:**
+
+| Operation | Expected Duration | How to Verify Completion |
+|-----------|------------------|-------------------------|
+| Docker build (`docker compose up --build`) | 2-5 minutes | All services show "healthy" in `docker compose ps` |
+| Service startup | 30-60 seconds | Application loads at `http://localhost:3000` |
+| Customer sync | 1-3 minutes | Execution status shows "Success" or "Completed" |
+| Product sync | 2-5 minutes | Execution status shows "Success" or "Completed" |
+| Subscription sync | 1-3 minutes | Execution status shows "Success" or "Completed" |
+| Product recommendation | 1-2 minutes | Execution status shows "Success" or "Completed" |
+| Email automation | 30-60 seconds | Execution status shows "Success" or "Completed" |
+
+**⚠️ CRITICAL**: Never skip wait times. Proceeding before an operation completes will cause subsequent steps to fail.
+
 ## Screenshot Storage Requirements
 
 **Before starting any tests, create a screenshot folder with the following naming convention:**
@@ -19,11 +35,9 @@ tests/screenshots/YYYY-MM-DD_HH_mm/
 - Example: `01_homepage.png`, `03_account_created.png`, `06a_customer_sync_started.png`
 
 **⚠️ IMPORTANT - Screenshot Storage Instructions for AI Agents:**
-- **DO NOT** save screenshots to temporary directories (e.g., `/tmp/playwright-mcp-output/`)
-- **ALWAYS** save screenshots directly to the target directory: `tests/screenshots/YYYY-MM-DD_HH/`
+- **ALWAYS** try to save screenshots directly to the target directory: `tests/screenshots/YYYY-MM-DD_HH_mm/`
 - Use the full relative path from the workspace root when specifying the filename parameter
-- After taking all screenshots, verify they exist in the target directory using `ls -lh tests/screenshots/YYYY-MM-DD_HH/`
-- If screenshots are saved to temporary locations, copy them to the target directory immediately using `cp` command
+- **If screenshots are saved to temporary locations** (e.g., `/tmp/playwright-mcp-output/`), **DO NOT copy them one by one** - wait until all tests are complete, then copy all screenshots at once using a single batch command (see "Screenshot Verification Checklist" section)
 
 ---
 
@@ -57,7 +71,16 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-**Verification:** Wait for services to be healthy. Check with `docker compose ps`.
+**⏳ WAIT TIME: 2-5 minutes** - This step builds Docker images and starts all services.
+
+**Verification Steps:**
+1. Wait at least 60 seconds after the command completes
+2. Run `docker compose ps` to check service status
+3. All services should show "healthy" or "running" status
+4. If any service shows "starting" or "unhealthy", wait an additional 30 seconds and check again
+5. Verify the application is accessible at `http://localhost:3000` before proceeding
+
+**⚠️ Do NOT proceed to the next step until all services are healthy and the application loads.**
 
 ---
 
@@ -138,10 +161,13 @@ docker compose up --build -d
 1. Find and trigger the **Sync Customers** automation
 2. 📸 **SCREENSHOT:** `06a_customer_sync_started.png` - Capture automation trigger
 3. Go to the Executions tab
-4. Wait for execution to complete (poll status every 10 seconds)
-5. 📸 **SCREENSHOT:** `06a_customer_sync_success.png` - Capture successful completion
+4. **⏳ WAIT TIME: 1-3 minutes** - Poll execution status every 10-15 seconds
+5. Wait until execution status changes to "Success" or "Completed"
+6. 📸 **SCREENSHOT:** `06a_customer_sync_success.png` - Capture successful completion
 
-**Verification:** Execution status shows "Success". **Do NOT proceed until this succeeds.**
+**Verification:** Execution status shows "Success".
+
+**⚠️ BLOCKING STEP: Do NOT proceed until this automation completes successfully. If it fails, capture error screenshot and troubleshoot before continuing.**
 
 #### 6b. Sync Products
 
@@ -149,21 +175,29 @@ docker compose up --build -d
 1. Trigger the **Sync Products** automation
 2. 📸 **SCREENSHOT:** `06b_product_sync_started.png` - Capture automation trigger
 3. Monitor execution progress in the Executions tab
-4. Wait for completion
-5. 📸 **SCREENSHOT:** `06b_product_sync_success.png` - Capture successful completion
+4. **⏳ WAIT TIME: 2-5 minutes** - This is typically the longest sync operation. Poll status every 15-20 seconds
+5. Wait until execution status changes to "Success" or "Completed"
+6. 📸 **SCREENSHOT:** `06b_product_sync_success.png` - Capture successful completion
+7. Navigate to the **Knowledge > Products** page
+8. 📸 **SCREENSHOT:** `06b_products_list.png` - Capture the products list page showing synced products
 
-**Verification:** Execution status shows "Success". **Do NOT proceed until this succeeds.**
+**Verification:** Execution status shows "Success" and products are visible in the products list.
+
+**⚠️ BLOCKING STEP: Do NOT proceed until this automation completes successfully. Product sync can take up to 5 minutes depending on the number of products. The Product Recommendation workflow depends on synced products being available.**
 
 #### 6c. Sync Subscriptions
 
 **Actions:**
 1. Trigger the **Sync Subscriptions** automation
 2. 📸 **SCREENSHOT:** `06c_subscription_sync_started.png` - Capture automation trigger
-3. Monitor execution progress
-4. Wait for completion
-5. 📸 **SCREENSHOT:** `06c_subscription_sync_success.png` - Capture successful completion
+3. Monitor execution progress in the Executions tab
+4. **⏳ WAIT TIME: 1-3 minutes** - Poll status every 10-15 seconds
+5. Wait until execution status changes to "Success" or "Completed"
+6. 📸 **SCREENSHOT:** `06c_subscription_sync_success.png` - Capture successful completion
 
 **Verification:** Execution status shows "Success".
+
+**⚠️ BLOCKING STEP: Do NOT proceed until this automation completes successfully.**
 
 ---
 
@@ -182,15 +216,20 @@ docker compose up --build -d
 
 ### 8. Product Recommendation Automation
 
+**⚠️ PREREQUISITE: This step MUST only be executed AFTER the Product Sync workflow (Step 6b) has completed successfully. The Product Recommendation workflow requires synced products to generate recommendations.**
+
 **Actions:**
 1. Navigate to the **Automations** page
 2. Find the **General Product Recommendation** automation
 3. Trigger the automation
 4. 📸 **SCREENSHOT:** `08a_recommendation_started.png` - Capture automation trigger
-5. Monitor execution and wait for completion
-6. 📸 **SCREENSHOT:** `08b_recommendation_success.png` - Capture successful completion
+5. **⏳ WAIT TIME: 1-2 minutes** - This involves AI processing. Poll status every 10-15 seconds
+6. Wait until execution status changes to "Success" or "Completed"
+7. 📸 **SCREENSHOT:** `08b_recommendation_success.png` - Capture successful completion
 
 **Verification:** Execution status shows "Success".
+
+**⚠️ BLOCKING STEP: Do NOT proceed until this automation completes successfully. The recommendation must be generated before it can be approved in the next step.**
 
 ---
 
@@ -216,10 +255,13 @@ docker compose up --build -d
 2. Find the product recommendation email automation
 3. Trigger the email process
 4. 📸 **SCREENSHOT:** `10a_email_triggered.png` - Capture email automation trigger
-5. Wait for execution to complete
-6. 📸 **SCREENSHOT:** `10b_email_success.png` - Capture successful completion
+5. **⏳ WAIT TIME: 30-60 seconds** - Poll status every 10 seconds
+6. Wait until execution status changes to "Success" or "Completed"
+7. 📸 **SCREENSHOT:** `10b_email_success.png` - Capture successful completion
 
 **Verification:** Email automation executes successfully.
+
+**⚠️ BLOCKING STEP: Do NOT proceed until email automation completes. The conversation won't appear until the email is generated.**
 
 ---
 
@@ -244,8 +286,81 @@ docker compose up --build -d
 
 📸 **FINAL SCREENSHOT:** `99_test_summary.png` - Capture final state of the application
 
+### Screenshot Verification Checklist
+
+**⚠️ MANDATORY: Before reporting test completion, verify ALL expected screenshots exist in the target directory.**
+
+Run the following command to list all screenshots:
+```bash
+ls -lh tests/screenshots/YYYY-MM-DD_HH_mm/
+```
+
+**Expected screenshots (22 total):**
+
+| Step | Filename | Description |
+|------|----------|-------------|
+| 3a | `03a_homepage.png` | Landing/login page |
+| 3b | `03b_signup_page.png` | Sign up form |
+| 3c | `03c_signup_form_filled.png` | Filled sign-up form |
+| 3d | `03d_account_created.png` | Account creation confirmation |
+| 3e | `03e_organization_created.png` | Organization dashboard |
+| 4a | `04a_chat_page.png` | Empty chat interface |
+| 4b | `04b_chatbot_response.png` | Conversation with response |
+| 5a | `05a_integrations_page.png` | Integrations page |
+| 5b | `05b_circuly_connected.png` | Successful connection status |
+| 6a-1 | `06a_customer_sync_started.png` | Customer sync trigger |
+| 6a-2 | `06a_customer_sync_success.png` | Customer sync completion |
+| 6b-1 | `06b_product_sync_started.png` | Product sync trigger |
+| 6b-2 | `06b_product_sync_success.png` | Product sync completion |
+| 6b-3 | `06b_products_list.png` | Products list after sync |
+| 6c-1 | `06c_subscription_sync_started.png` | Subscription sync trigger |
+| 6c-2 | `06c_subscription_sync_success.png` | Subscription sync completion |
+| 7a | `07a_customers_list.png` | Customers list with synced data |
+| 7b | `07b_products_list.png` | Products list with synced data |
+| 8a | `08a_recommendation_started.png` | Recommendation trigger |
+| 8b | `08b_recommendation_success.png` | Recommendation completion |
+| 9a | `09a_approvals_list.png` | Approvals page with pending items |
+| 9b | `09b_approval_detail.png` | Approval details |
+| 9c | `09c_approval_confirmed.png` | Approval confirmation |
+| 10a | `10a_email_triggered.png` | Email automation trigger |
+| 10b | `10b_email_success.png` | Email automation completion |
+| 11a | `11a_conversations_list.png` | Conversations list |
+| 11b | `11b_conversation_detail.png` | Conversation detail |
+| 99 | `99_test_summary.png` | Final application state |
+
+**Verification Command:**
+```bash
+# Count total screenshots (should be 28 including any ERROR screenshots)
+ls tests/screenshots/YYYY-MM-DD_HH_mm/*.png | wc -l
+
+# List all screenshots with sizes to confirm they're valid (not 0 bytes)
+ls -lh tests/screenshots/YYYY-MM-DD_HH_mm/*.png
+```
+
+**⚠️ If screenshots are in a temporary directory:**
+
+**Copy ALL screenshots at once using a single batch command:**
+```bash
+# Copy all screenshots from temp directory to target directory in one command
+cp /tmp/playwright-mcp-output/*.png tests/screenshots/YYYY-MM-DD_HH_mm/
+
+# Or if you need to be selective, use a single cp command with multiple files
+cp /tmp/playwright-mcp-output/03a_homepage.png \
+   /tmp/playwright-mcp-output/03b_signup_page.png \
+   /tmp/playwright-mcp-output/03c_signup_form_filled.png \
+   # ... (list all files) \
+   tests/screenshots/YYYY-MM-DD_HH_mm/
+```
+
+**⚠️ DO NOT copy files one by one** - this is inefficient. Always use batch copy operations.
+
+After copying, re-run the verification command to confirm all screenshots are present.
+
+### Test Report
+
 **Report the following:**
-- Total screenshots captured
+- Total screenshots captured (expected: 28, actual: ___)
+- Missing screenshots (list any that are missing)
 - Any failed steps (with screenshot evidence)
 - Overall test status: PASS / FAIL
 
