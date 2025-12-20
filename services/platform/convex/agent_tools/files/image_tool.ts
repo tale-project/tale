@@ -163,8 +163,6 @@ CRITICAL RULES FOR RESPONSE:
         });
 
         try {
-          const visionModelId = getVisionModel();
-
           // Prefer using the fileId directly with the helper
           if (args.fileId) {
             debugLog('tool:image analyze using helper with fileId', {
@@ -187,31 +185,21 @@ CRITICAL RULES FOR RESPONSE:
 
           // Fall back to URL - pass it directly to the AI
           // NOTE: This works for publicly accessible URLs but may fail for internal/localhost URLs
-          if (args.imageUrl) {
-            debugLog('tool:image analyze using URL directly', {
-              imageUrl: args.imageUrl.substring(0, 100),
-            });
+          debugLog('tool:image analyze using URL directly', {
+            imageUrl: args.imageUrl!.substring(0, 100),
+          });
 
-            const result = await analyzeImageByUrl(ctx, {
-              imageUrl: args.imageUrl,
-              question,
-            });
-
-            return {
-              operation: 'analyze',
-              success: result.success,
-              analysis: result.analysis,
-              model: result.model,
-              error: result.error,
-            };
-          }
+          const result = await analyzeImageByUrl(ctx, {
+            imageUrl: args.imageUrl!,
+            question,
+          });
 
           return {
             operation: 'analyze',
-            success: false,
-            analysis: '',
-            model: visionModelId,
-            error: 'Either fileId or imageUrl is required for image analysis.',
+            success: result.success,
+            analysis: result.analysis,
+            model: result.model,
+            error: result.error,
           };
         } catch (error) {
           const errorMessage =

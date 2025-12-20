@@ -76,6 +76,16 @@ export async function analyzeImageByUrl(
       analysisLength: analysis.length,
     });
 
+    // Clean up the temporary thread by archiving it
+    try {
+      await ctx.runMutation(components.agent.threads.updateThread, {
+        threadId,
+        patch: { status: 'archived' },
+      });
+    } catch {
+      // Non-fatal: thread cleanup failure shouldn't affect the result
+    }
+
     return {
       success: true,
       analysis,
