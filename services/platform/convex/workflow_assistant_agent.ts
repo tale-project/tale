@@ -224,7 +224,8 @@ ${toonifiedSteps}
                 sizeKB >= 1024
                   ? `${(sizeKB / 1024).toFixed(1)} MB`
                   : `${sizeKB} KB`;
-              const markdown = `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`;
+              // Use plain text - the UI doesn't render markdown
+              const displayText = `📎 ${attachment.fileName} (${attachment.fileType}, ${sizeDisplay})\n${url}\nfileId: ${attachment.fileId}`;
 
               // Parse document to extract text content for AI
               const parseResult = await parseFile(
@@ -233,7 +234,7 @@ ${toonifiedSteps}
                 'workflow_assistant',
               );
 
-              return { attachment, url, markdown, parseResult };
+              return { attachment, url, displayText, parseResult };
             } catch (error) {
               debugLog('Error processing document', {
                 fileName: attachment.fileName,
@@ -244,11 +245,11 @@ ${toonifiedSteps}
           }),
         );
 
-        const docMarkdown: string[] = [];
+        const docDisplayTexts: string[] = [];
         for (const result of docResults) {
           if (!result) continue;
 
-          docMarkdown.push(result.markdown);
+          docDisplayTexts.push(result.displayText);
 
           if (result.parseResult.success && result.parseResult.full_text) {
             parsedDocuments.push({
@@ -268,9 +269,9 @@ ${toonifiedSteps}
           }
         }
 
-        if (docMarkdown.length > 0) {
-          // For display: user message + document links (no workflow context)
-          displayTextContent = `${args.message}\n\n${docMarkdown.join('\n')}`;
+        if (docDisplayTexts.length > 0) {
+          // For display: user message + document info (no workflow context)
+          displayTextContent = `${args.message}\n\n${docDisplayTexts.join('\n')}`;
         }
       }
 
@@ -288,9 +289,8 @@ ${toonifiedSteps}
           })),
         );
 
-        // Use the same format as documents - regular links, not markdown image syntax
-        // The UI doesn't render markdown well, so we avoid ![...](...)
-        const imageLinks: string[] = [];
+        // Use plain text - the UI doesn't render markdown
+        const imageDisplayTexts: string[] = [];
         for (const { attachment, url } of imageUrls) {
           if (url) {
             const sizeKB = Math.round(attachment.fileSize / 1024);
@@ -298,16 +298,16 @@ ${toonifiedSteps}
               sizeKB >= 1024
                 ? `${(sizeKB / 1024).toFixed(1)} MB`
                 : `${sizeKB} KB`;
-            imageLinks.push(
-              `🖼️ [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
+            imageDisplayTexts.push(
+              `🖼️ ${attachment.fileName} (${attachment.fileType}, ${sizeDisplay})\n${url}\nfileId: ${attachment.fileId}`,
             );
           }
         }
 
-        if (imageLinks.length > 0) {
+        if (imageDisplayTexts.length > 0) {
           displayTextContent = displayTextContent
-            ? `${displayTextContent}\n\n${imageLinks.join('\n')}`
-            : imageLinks.join('\n');
+            ? `${displayTextContent}\n\n${imageDisplayTexts.join('\n')}`
+            : imageDisplayTexts.join('\n');
         }
       }
 
