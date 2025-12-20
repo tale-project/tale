@@ -67,12 +67,15 @@ export async function chatWithAgent(
     attachmentCount: attachments?.length ?? 0,
   });
 
-  // Build message content - use multi-modal content for images, markdown for documents
-  type ContentPart =
-    | { type: 'text'; text: string }
-    | { type: 'image'; image: string; mimeType: string };
-
-  let messageContent: string | ContentPart[] = trimmedMessage;
+  // Build message content - save as TEXT ONLY to avoid breaking non-vision models
+  // when thread history is loaded later. Images are handled via the image tool.
+  //
+  // IMPORTANT: We do NOT save image parts inline because:
+  // 1. The main chat model (Kimi K2) doesn't support images
+  // 2. When loading thread history for follow-up messages, old image parts would
+  //    be sent to the model, causing "No endpoints found that support image input"
+  // 3. Images are processed via the dedicated vision model in generate_agent_response.ts
+  let messageContent: string = trimmedMessage;
 
   if (hasAttachments) {
     // Separate images from other files
@@ -99,9 +102,6 @@ export async function chatWithAgent(
       ),
     ]);
 
-    // Build content parts array
-    const contentParts: ContentPart[] = [];
-
     // Start with user's text
     let textContent = trimmedMessage;
 
@@ -123,23 +123,28 @@ export async function chatWithAgent(
       }
     }
 
-    contentParts.push({ type: 'text', text: textContent });
-
-    // Add image parts for images
-    for (const { attachment, url } of imageUrls) {
-      if (url) {
-        contentParts.push({
-          type: 'image',
-          image: url,
-          mimeType: attachment.fileType,
-        });
+    // Add image references as markdown images (NOT multi-modal image parts)
+    // Use ![alt](url) syntax to display images inline in the chat UI
+    // Include fileId so the image can be referenced later for re-analysis
+    // The actual image analysis happens in generate_agent_response.ts via the image tool
+    if (imageUrls.length > 0) {
+      const imageMarkdown: string[] = [];
+      for (const { attachment, url } of imageUrls) {
+        if (url) {
+          // Use markdown image syntax with fileId preserved for future reference
+          imageMarkdown.push(
+            `![${attachment.fileName}](${url})\n*(fileId: ${attachment.fileId})*`,
+          );
+        }
+      }
+      if (imageMarkdown.length > 0) {
+        textContent = textContent
+          ? `${textContent}\n\n${imageMarkdown.join('\n\n')}`
+          : imageMarkdown.join('\n\n');
       }
     }
 
-    // Use multi-modal content if we have images, otherwise just text
-    messageContent = imageUrls.some(({ url }) => url)
-      ? contentParts
-      : textContent;
+    messageContent = textContent;
   }
 
   // Only save if not a duplicate
