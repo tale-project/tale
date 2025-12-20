@@ -1,5 +1,8 @@
 /**
  * Search websites by domain, title, or description
+ *
+ * Optimized to use async iteration for memory efficiency.
+ * Note: For better scalability, consider adding a search index.
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -11,34 +14,33 @@ export interface SearchWebsitesArgs {
   limit?: number;
 }
 
-/**
- * Search websites by domain, title, or description
- *
- * ⚠️ TODO: SCALABILITY - Uses .collect() + in-memory filter (not scalable)
- * Before production:
- * - Integrate Algolia, Typesense, or Convex vector search
- * - OR limit to small datasets (< 1000 websites per org)
- */
 export async function searchWebsites(
   ctx: QueryCtx,
   args: SearchWebsitesArgs,
 ): Promise<Array<Doc<'websites'>>> {
-  const websites = await ctx.db
+  const searchLower = args.searchTerm.toLowerCase();
+  const limit = args.limit || 50;
+
+  // Use async iteration for memory efficiency
+  const query = ctx.db
     .query('websites')
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
-    )
-    .collect();
+    );
 
-  const searchLower = args.searchTerm.toLowerCase();
-  const filtered = websites.filter((website) => {
+  const filtered: Array<Doc<'websites'>> = [];
+
+  for await (const website of query) {
     const domainMatch = website.domain?.toLowerCase().includes(searchLower);
     const titleMatch = website.title?.toLowerCase().includes(searchLower);
     const descriptionMatch = website.description
       ?.toLowerCase()
       .includes(searchLower);
-    return domainMatch || titleMatch || descriptionMatch;
-  });
+
+    if (domainMatch || titleMatch || descriptionMatch) {
+      filtered.push(website);
+    }
+  }
 
   // Sort by relevance (exact matches first, then partial matches)
   filtered.sort((a, b) => {
@@ -51,7 +53,5 @@ export async function searchWebsites(
     return b._creationTime - a._creationTime;
   });
 
-  const limit = args.limit || 50;
   return filtered.slice(0, limit);
 }
-

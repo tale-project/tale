@@ -9,7 +9,7 @@
  * This function evaluates a JEXL expression against each product.
  * Products that match the expression (expression evaluates to true) are returned.
  *
- * Uses cursor-based iteration for efficient processing of large datasets.
+ * Uses async iteration for efficient streaming of large datasets.
  *
  * @param ctx - Query context
  * @param args.organizationId - Organization ID to filter products
@@ -30,33 +30,22 @@ export async function filterProducts(
   const { organizationId, expression } = args;
 
   const matchedProducts: unknown[] = [];
-  let lastCreationTime = 0;
 
-  // Loop through all products using cursor-based iteration
-  while (true) {
-    // Fetch the next document after the last processed one
-    // Use .gt() in the index query for better performance since _creationTime is part of the index
-    const product = await ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .gt('_creationTime', lastCreationTime),
-      )
-      .order('asc')
-      .first();
+  // Use async iteration for efficient streaming (better than fetching one at a time)
+  const query = ctx.db
+    .query('products')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .order('asc');
 
-    if (!product) break; // No more documents
-
+  for await (const product of query) {
     // Evaluate the expression with the product as context (must return boolean)
     const passed = evaluateExpression(expression, product);
 
     if (passed) {
       matchedProducts.push(product);
     }
-
-    // Update the cursor
-    lastCreationTime = product._creationTime;
   }
 
   return {

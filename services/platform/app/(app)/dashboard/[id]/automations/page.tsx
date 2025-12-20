@@ -5,27 +5,52 @@ import AutomationsTable from './components/automations-table';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
+import { TableSkeleton } from '@/components/skeletons';
 
 interface AutomationsPageProps {
   params: Promise<{ id: string }>;
 }
 
-async function AutomationsPageContent({ params }: AutomationsPageProps) {
-  const { id: organizationId } = await params;
+/**
+ * Skeleton for the automations table.
+ */
+function AutomationsSkeleton() {
+  return (
+    <div className="px-4 py-6">
+      <TableSkeleton
+        rows={6}
+        headers={['Name', 'Status', 'Trigger', 'Last Run', 'Actions']}
+      />
+    </div>
+  );
+}
 
+interface AutomationsContentProps {
+  params: Promise<{ id: string }>;
+}
+
+async function AutomationsPageContent({ params }: AutomationsContentProps) {
+  // All dynamic data access inside Suspense boundary for proper streaming
   const token = await getAuthToken();
+  const { id: organizationId } = await params;
   if (!token) {
     redirect('/log-in');
   }
 
-  // Check user's role in the organization
-  const memberContext = await fetchQuery(
-    api.member.getCurrentMemberContext,
-    {
-      organizationId: organizationId,
-    },
-    { token },
-  );
+  // Parallelize both fetches for better performance
+  // We fetch automations eagerly but only render if user has access
+  const [memberContext, automations] = await Promise.all([
+    fetchQuery(
+      api.member.getCurrentMemberContext,
+      { organizationId },
+      { token },
+    ),
+    fetchQuery(
+      api.wf_definitions.listWorkflowsWithBestVersionPublic,
+      { organizationId },
+      { token },
+    ),
+  ]);
 
   // Only Admin and Developer can access automations (case-insensitive comparison)
   const userRole = (memberContext.role ?? '').toLowerCase();
@@ -42,14 +67,6 @@ async function AutomationsPageContent({ params }: AutomationsPageProps) {
     );
   }
 
-  const automations = await fetchQuery(
-    api.wf_definitions.listWorkflowsWithBestVersionPublic,
-    {
-      organizationId,
-    },
-    { token },
-  );
-
   return (
     <AutomationsTable
       automations={automations}
@@ -58,10 +75,10 @@ async function AutomationsPageContent({ params }: AutomationsPageProps) {
   );
 }
 
-export default function AutomationsPage(props: AutomationsPageProps) {
+export default function AutomationsPage({ params }: AutomationsPageProps) {
   return (
-    <SuspenseLoader>
-      <AutomationsPageContent {...props} />
+    <SuspenseLoader fallback={<AutomationsSkeleton />}>
+      <AutomationsPageContent params={params} />
     </SuspenseLoader>
   );
 }

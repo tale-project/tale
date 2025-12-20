@@ -12,7 +12,7 @@ import VendorRowActions from './vendor-row-actions';
 import Pagination from '@/components/ui/pagination';
 import { startCase } from 'lodash';
 import { formatDate } from '@/lib/utils/date/format';
-import { useQuery } from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import VendorFilter from './vendor-filter';
 import VendorSearch from './vendor-search';
@@ -21,12 +21,13 @@ import { Store } from 'lucide-react';
 import ImportVendorsMenu from './import-vendors-menu';
 import { useSearchParams } from 'next/navigation';
 
-interface VendorsTableProps {
+export interface VendorsTableProps {
   organizationId: string;
   currentPage?: number;
   pageSize?: number;
   searchTerm?: string;
   queryParams?: string;
+  preloadedVendors: Preloaded<typeof api.vendors.getVendors>;
 }
 
 export default function VendorsTable({
@@ -35,26 +36,14 @@ export default function VendorsTable({
   pageSize = 10,
   searchTerm,
   queryParams = '',
+  preloadedVendors,
 }: VendorsTableProps) {
   const searchParams = useSearchParams();
   const sourceFilters = searchParams.get('source')?.split(',').filter(Boolean);
   const localeFilters = searchParams.get('locale')?.split(',').filter(Boolean);
 
-  // Fetch vendor data using Convex (vendors are vendors with specific filtering)
-  const result = useQuery(api.vendors.getVendors, {
-    organizationId,
-    paginationOpts: {
-      numItems: pageSize,
-      cursor: null, // For now, we'll implement simple pagination
-    },
-    source: sourceFilters,
-    locale: localeFilters,
-    searchTerm,
-  });
-
-  if (result === undefined) {
-    return null;
-  }
+  // Use preloaded query for SSR + real-time reactivity
+  const result = usePreloadedQuery(preloadedVendors);
 
   const vendors = result.page;
   const pagination = {

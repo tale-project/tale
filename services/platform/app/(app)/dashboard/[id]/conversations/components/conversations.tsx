@@ -15,15 +15,18 @@ import FilterStatusIndicator from './filter-status-indicator';
 import ActivateConversationsEmptyState from './activate-conversations-empty-state';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/hooks/use-toast';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
+import { useParams, useRouter } from 'next/navigation';
+import { useMutation, usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import type { Conversation } from '../types';
 
 export interface ConversationsProps {
-  initialConversations?: Conversation[];
   status?: Conversation['status'];
+  preloadedConversations: Preloaded<
+    typeof api.conversations.getConversationsPage
+  >;
+  preloadedEmailProviders: Preloaded<typeof api.email_providers.list>;
 }
 
 type SelectionState =
@@ -40,48 +43,23 @@ function isAllSelection(state: SelectionState): state is { type: 'all' } {
 }
 
 export default function Conversations({
-  initialConversations,
   status,
+  preloadedConversations,
+  preloadedEmailProviders,
 }: ConversationsProps) {
   const { id: businessId } = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
 
-  // Get current page from URL
-  const page = parseInt(searchParams.get('page') || '1');
-  const search = searchParams.get('search') || undefined;
-  const category = searchParams.get('category') || undefined;
-  const priority = searchParams.get('priority') || undefined;
+  // Use preloaded data with real-time reactivity
+  // This provides SSR benefits AND automatic updates when data changes
+  const conversationsResult = usePreloadedQuery(preloadedConversations);
+  const emailProviders = usePreloadedQuery(preloadedEmailProviders);
 
-  // Use real-time Convex query for automatic updates
-  const conversationsResult = useQuery(
-    api.conversations.getConversationsPage,
-    businessId
-      ? {
-          organizationId: businessId as string,
-          status: status || 'open',
-          page,
-          limit: 20,
-          search,
-          category,
-          priority,
-        }
-      : 'skip',
-  );
-
-  // Query email providers to check if any are configured
-  const emailProviders = useQuery(
-    api.email_providers.list,
-    businessId ? { organizationId: businessId as string } : 'skip',
-  );
-
-  // Use real-time data if available, fallback to initial data
-  const conversations =
-    conversationsResult?.conversations || initialConversations || [];
-  const isLoadingConversations = conversationsResult === undefined;
+  // Extract conversations from result
+  const conversations = conversationsResult?.conversations || [];
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Convex mutations
@@ -468,15 +446,11 @@ export default function Conversations({
             onConversationCheck={handleConversationCheck}
             isConversationSelected={isConversationSelected}
           />
-          {(isLoading || isLoadingFilters || isLoadingConversations) && (
+          {(isLoading || isLoadingFilters) && (
             <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="flex items-center text-muted-foreground">
                 <Loader2Icon className="size-4 mr-2 animate-spin" />
-                <span className="text-sm">
-                  {isLoadingConversations
-                    ? 'Loading conversations...'
-                    : 'Updating conversations...'}
-                </span>
+                <span className="text-sm">Updating conversations...</span>
               </div>
             </div>
           )}

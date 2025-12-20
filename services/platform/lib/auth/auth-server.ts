@@ -51,8 +51,14 @@ export async function getCurrentSession() {
 /**
  * Get a Convex auth token (JWT) for authenticating with Convex.
  * This uses the Better Auth Convex integration which generates JWTs from sessions.
+ *
+ * Note: This function signals dynamic rendering via connection() to ensure
+ * Next.js knows this route requires request context (cookies).
  */
 export async function getAuthToken(): Promise<string | undefined> {
+  // Signal dynamic rendering since this function accesses cookies
+  await connection();
+
   try {
     // First, try the standard Next.js token getter
     const token = await getTokenNextjs(createAuth);

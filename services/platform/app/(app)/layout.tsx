@@ -9,7 +9,6 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppProviders } from '@/components/app-providers';
 
-
 const inter = Inter({
   variable: '--font-inter',
   subsets: ['latin'],
@@ -41,7 +40,9 @@ const metroSans = localFont({
 // Derive app URL from SITE_URL (server-side) or fallback for Vercel/local dev
 const appUrl =
   process.env.SITE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000');
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
@@ -62,7 +63,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (

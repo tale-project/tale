@@ -2,6 +2,8 @@
  * List workflows for an organization, returning the best version per name.
  *
  * Priority: active > draft > archived, then highest versionNumber.
+ *
+ * Optimized to use async iteration with inline filtering and aggregation.
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -12,25 +14,30 @@ export interface ListWorkflowsWithBestVersionArgs {
   status?: string;
 }
 
+const statusPriority: Record<string, number> = {
+  active: 3,
+  draft: 2,
+  archived: 1,
+};
+
 export async function listWorkflowsWithBestVersion(
   ctx: QueryCtx,
   args: ListWorkflowsWithBestVersionArgs,
 ): Promise<WorkflowDefinition[]> {
-  const allWorkflows = await ctx.db
+  const query = ctx.db
     .query('wfDefinitions')
-    .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
-    .collect();
+    .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
   const workflowMap = new Map<string, WorkflowDefinition>();
 
-  const statusPriority: Record<string, number> = {
-    active: 3,
-    draft: 2,
-    archived: 1,
-  };
+  // Use async iteration with inline filtering and aggregation
+  for await (const wf of query) {
+    const workflow = wf as WorkflowDefinition;
 
-  for (const workflow of allWorkflows as WorkflowDefinition[]) {
-    if (args.status && workflow.status !== args.status) continue;
+    // Filter by status if provided
+    if (args.status && workflow.status !== args.status) {
+      continue;
+    }
 
     const key = workflow.name;
     const existing = workflowMap.get(key);
@@ -57,4 +64,3 @@ export async function listWorkflowsWithBestVersion(
   result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
 }
-

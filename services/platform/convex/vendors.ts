@@ -1,9 +1,13 @@
 import { v } from 'convex/values';
 import { mutationWithRLS, queryWithRLS } from './lib/rls';
 import { paginationOptsValidator } from 'convex/server';
+import type { Doc } from './_generated/dataModel';
 
 /**
  * Get a paginated list of vendors for an organization
+ *
+ * Optimized to use async iteration with early termination instead of .collect()
+ * for better memory efficiency and performance with large datasets.
  */
 export const getVendors = queryWithRLS({
   args: {
@@ -14,58 +18,73 @@ export const getVendors = queryWithRLS({
     locale: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    // Start with all vendors in the organization
-    let vendors = await ctx.db
+    const numItems = args.paginationOpts.numItems;
+    const cursor = args.paginationOpts.cursor;
+
+    // Precompute filter sets for O(1) lookups
+    const sourceSet =
+      args.source && args.source.length > 0 ? new Set(args.source) : null;
+    const localeSet =
+      args.locale && args.locale.length > 0 ? new Set(args.locale) : null;
+    const searchLower = args.searchTerm?.toLowerCase();
+
+    // Use async iteration with early termination
+    const query = ctx.db
       .query('vendors')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )
-      .collect();
+      .order('desc'); // Order by _creationTime descending (newest first)
 
-    // Apply source filter if provided
-    if (args.source && args.source.length > 0) {
-      vendors = vendors.filter(
-        (v) => v.source && args.source!.includes(v.source),
-      );
-    }
+    const vendors: Array<Doc<'vendors'>> = [];
+    let foundCursor = cursor === null;
+    let hasMore = false;
 
-    // Apply locale filter if provided
-    if (args.locale && args.locale.length > 0) {
-      vendors = vendors.filter(
-        (v) => v.locale && args.locale!.includes(v.locale),
-      );
-    }
+    for await (const vendor of query) {
+      // Skip until we find the cursor
+      if (!foundCursor) {
+        if (vendor._id === cursor) {
+          foundCursor = true;
+        }
+        continue;
+      }
 
-    // Apply search filter if provided
-    if (args.searchTerm) {
-      const searchLower = args.searchTerm.toLowerCase();
-      vendors = vendors.filter((vendor) => {
+      // Apply source filter
+      if (sourceSet && (!vendor.source || !sourceSet.has(vendor.source))) {
+        continue;
+      }
+
+      // Apply locale filter
+      if (localeSet && (!vendor.locale || !localeSet.has(vendor.locale))) {
+        continue;
+      }
+
+      // Apply search filter
+      if (searchLower) {
         const nameMatch = vendor.name?.toLowerCase().includes(searchLower);
         const emailMatch = vendor.email?.toLowerCase().includes(searchLower);
         const externalIdMatch = vendor.externalId
           ? String(vendor.externalId).toLowerCase().includes(searchLower)
           : false;
-        return nameMatch || emailMatch || externalIdMatch;
-      });
+        if (!nameMatch && !emailMatch && !externalIdMatch) {
+          continue;
+        }
+      }
+
+      vendors.push(vendor);
+
+      // Check if we have enough items
+      if (vendors.length >= numItems) {
+        hasMore = true;
+        break;
+      }
     }
 
-    // Sort by creation time (newest first)
-    vendors.sort((a, b) => b._creationTime - a._creationTime);
-
-    // Apply pagination
-    const startIndex = args.paginationOpts.cursor
-      ? vendors.findIndex((v) => v._id === args.paginationOpts.cursor) + 1
-      : 0;
-    const endIndex = startIndex + args.paginationOpts.numItems;
-    const paginatedVendors = vendors.slice(startIndex, endIndex);
-
     return {
-      page: paginatedVendors,
-      isDone: endIndex >= vendors.length,
+      page: vendors,
+      isDone: !hasMore,
       continueCursor:
-        paginatedVendors.length > 0
-          ? paginatedVendors[paginatedVendors.length - 1]._id
-          : undefined,
+        vendors.length > 0 ? vendors[vendors.length - 1]._id : undefined,
     };
   },
 });

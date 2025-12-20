@@ -1,9 +1,17 @@
 /**
  * Get a paged list of conversations for an organization with filtering by
  * status, priority, category, and search (business logic)
+ *
+ * Optimization notes:
+ * - Pre-filters conversations BEFORE calling transformConversation (which is expensive)
+ * - Priority and type filters are applied on raw conversation data
+ * - Search filter requires transformed data (title/description are computed)
+ * - Sorting by last_message_at requires all matching conversations to be transformed
+ *   (this is a limitation since last_message_at is computed from messages)
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
 import type { ConversationListResponse } from './types';
 import { transformConversation } from './transform_conversation';
 
@@ -23,21 +31,7 @@ export async function getConversationsPage(
   const limit = args.limit || 20;
   const offset = (page - 1) * limit;
 
-  // Use index query with organizationId and status (default: 'open').
-  // Collect (and filter) conversations first to enable proper ordering
-  const allConversations: Array<
-    Awaited<ReturnType<typeof transformConversation>>
-  > = [];
-
-  const baseQuery = ctx.db
-    .query('conversations')
-    .withIndex('by_organizationId_and_status', (q) =>
-      q
-        .eq('organizationId', args.organizationId)
-        .eq('status', args.status ?? 'open'),
-    );
-
-  // Precompute filter helpers so they can be applied inside the async iterator
+  // Precompute filter helpers for O(1) lookups
   const allowedPriorities = args.priority
     ? new Set(
         args.priority
@@ -58,26 +52,47 @@ export async function getConversationsPage(
 
   const searchLower = args.search?.toLowerCase();
 
+  // Use index query with organizationId and status (default: 'open')
+  const baseQuery = ctx.db
+    .query('conversations')
+    .withIndex('by_organizationId_and_status', (q) =>
+      q
+        .eq('organizationId', args.organizationId)
+        .eq('status', args.status ?? 'open'),
+    );
+
+  // Phase 1: Pre-filter conversations BEFORE expensive transformation
+  // Priority and type are stored on the conversation, so we can filter early
+  const preFilteredConversations: Array<Doc<'conversations'>> = [];
+
   for await (const row of baseQuery) {
+    // Priority filter: apply on raw data (priority is stored on conversation)
+    if (allowedPriorities && allowedPriorities.size > 0) {
+      if (!row.priority || !allowedPriorities.has(row.priority)) {
+        continue;
+      }
+    }
+
+    // Category/Type filter: apply on raw data (type is stored on conversation)
+    if (allowedTypes && allowedTypes.size > 0) {
+      if (!row.type || !allowedTypes.has(row.type)) {
+        continue;
+      }
+    }
+
+    preFilteredConversations.push(row);
+  }
+
+  // Phase 2: Transform conversations (expensive - fetches messages, customer, etc.)
+  // Only transform conversations that passed the pre-filter
+  const allConversations: Array<
+    Awaited<ReturnType<typeof transformConversation>>
+  > = [];
+
+  for (const row of preFilteredConversations) {
     const conversation = await transformConversation(ctx, row);
 
-    // Priority filter: support comma-separated priorities (e.g. "low,medium")
-    if (allowedPriorities && allowedPriorities.size > 0) {
-      const priority = conversation.priority as string | undefined;
-      if (!priority || !allowedPriorities.has(priority)) {
-        continue;
-      }
-    }
-
-    // Category filter: maps to the conversation "type" field
-    if (allowedTypes && allowedTypes.size > 0) {
-      const type = conversation.type as string | undefined;
-      if (!type || !allowedTypes.has(type)) {
-        continue;
-      }
-    }
-
-    // Search filter: match against title and description
+    // Search filter: requires transformed data (title/description are computed)
     if (searchLower) {
       const title =
         (conversation.title as string | undefined)?.toLowerCase() ?? '';
@@ -91,6 +106,7 @@ export async function getConversationsPage(
 
     allConversations.push(conversation);
   }
+
   // Sort by last_message_at in descending order (latest first)
   allConversations.sort((a, b) => {
     const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;

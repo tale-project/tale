@@ -48,14 +48,56 @@ export default {
   },
   // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
-	  // Keep Cache Components disabled for now.
-	  // Enabling this turns on Partial Prerendering / Cache Components, which
-	  // requires dynamic data access (cookies(), headers(), DB queries, etc.)
-	  // to live behind <Suspense> or 'use cache'. Our app has many
-	  // authentication-protected, per-tenant routes that currently read
-	  // cookies() directly in layouts/pages, so migrating would be non-trivial
-	  // for limited benefit compared to straightforward SSR today.
+
+  // Cache Components (PPR) is currently disabled due to incompatibility with
+  // the betterAuth library which uses Math.random() internally during auth
+  // token generation. This causes prerender failures because Math.random()
+  // is non-deterministic and can't be used during static prerendering.
+  //
+  // TODO: Re-enable once betterAuth is updated to be PPR-compatible, or
+  // when we migrate to a different auth solution that doesn't use Math.random().
+  //
+  // When enabled, Cache Components provides:
+  // - Static shell prerendered at build time (navigation, layout chrome)
+  // - Dynamic content streams in at request time via Suspense boundaries
+  // - Use 'use cache' directive on components/functions for cached dynamic data
+  // - All cookie/header access must be wrapped in Suspense or use 'use cache'
   cacheComponents: false,
+
+  // Define cache profiles for different data freshness needs
+  cacheLife: {
+    // Short-lived data that should refresh frequently (1 minute)
+    seconds: {
+      stale: 60,
+      revalidate: 30,
+      expire: 120,
+    },
+    // Data that can be cached for a few minutes (5 minutes)
+    minutes: {
+      stale: 300,
+      revalidate: 60,
+      expire: 600,
+    },
+    // Data that can be cached for hours (1 hour)
+    hours: {
+      stale: 3600,
+      revalidate: 900,
+      expire: 7200,
+    },
+    // Nearly static data (1 day)
+    days: {
+      stale: 86400,
+      revalidate: 3600,
+      expire: 172800,
+    },
+    // Maximum caching for truly static data
+    max: {
+      stale: Infinity,
+      revalidate: 86400,
+      expire: Infinity,
+    },
+  },
+
   experimental: {
     // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions#bodysizelimit
     serverActions: {

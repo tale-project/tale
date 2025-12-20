@@ -3,14 +3,39 @@ import { Id } from '@/convex/_generated/dataModel';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable, type Execution } from './components/executions-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
+import { TableSkeleton } from '@/components/skeletons';
+
+/**
+ * Skeleton for the executions table.
+ */
+function ExecutionsSkeleton() {
+  return (
+    <div className="py-6 px-4">
+      <TableSkeleton
+        rows={10}
+        headers={[
+          'Execution ID',
+          'Status',
+          'Triggered By',
+          'Started',
+          'Duration',
+          '',
+        ]}
+      />
+    </div>
+  );
+}
+
+interface ExecutionsContentProps {
+  params: Promise<{ id: string; amId: Id<'wfDefinitions'> }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
 
 async function ExecutionsContent({
   params,
   searchParams,
-}: {
-  params: Promise<{ id: string; amId: Id<'wfDefinitions'> }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+}: ExecutionsContentProps) {
+  // All dynamic data access inside Suspense boundary for proper streaming
   const { amId } = await params;
   const search = await searchParams;
 
@@ -38,13 +63,16 @@ async function ExecutionsContent({
   );
 }
 
-export default function ExecutionsPage(props: {
+export default function ExecutionsPage({
+  params,
+  searchParams,
+}: {
   params: Promise<{ id: string; amId: Id<'wfDefinitions'> }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   return (
-    <SuspenseLoader>
-      <ExecutionsContent {...props} />
+    <SuspenseLoader fallback={<ExecutionsSkeleton />}>
+      <ExecutionsContent params={params} searchParams={searchParams} />
     </SuspenseLoader>
   );
 }

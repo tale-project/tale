@@ -1,31 +1,51 @@
+'use client';
+
 import { Suspense } from 'react';
 import type { Conversation } from '../types';
 import Conversations from './conversations';
-import { Loader2Icon } from 'lucide-react';
+import { ListSkeleton } from '@/components/skeletons';
+import type { Preloaded } from 'convex/react';
+import type { api } from '@/convex/_generated/api';
 
 interface ConversationsWrapperProps {
-  conversations?: Conversation[];
   status?: Conversation['status'];
+  preloadedConversations: Preloaded<
+    typeof api.conversations.getConversationsPage
+  >;
+  preloadedEmailProviders: Preloaded<typeof api.email_providers.list>;
 }
 
-function ConversationsLoader() {
+/**
+ * Skeleton for the conversations list that matches the actual layout.
+ * Shows a list of conversation items with avatar, title, and preview.
+ */
+function ConversationsSkeleton() {
   return (
-    <div className="flex items-center justify-center h-64">
-      <div className="text-muted-foreground flex items-center">
-        <Loader2Icon className="size-4 mr-2 animate-spin" />
-        Loading conversations
-      </div>
+    <div className="px-4 py-6">
+      <ListSkeleton
+        items={10}
+        itemProps={{
+          showAvatar: true,
+          showSecondary: true,
+          showAction: true,
+        }}
+      />
     </div>
   );
 }
 
 export default function ConversationsWrapper({
-  conversations,
   status,
+  preloadedConversations,
+  preloadedEmailProviders,
 }: ConversationsWrapperProps) {
   return (
-    <Suspense fallback={<ConversationsLoader />}>
-      <Conversations initialConversations={conversations} status={status} />
+    <Suspense fallback={<ConversationsSkeleton />}>
+      <Conversations
+        status={status}
+        preloadedConversations={preloadedConversations}
+        preloadedEmailProviders={preloadedEmailProviders}
+      />
     </Suspense>
   );
 }

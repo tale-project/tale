@@ -13,8 +13,7 @@ import Pagination from '@/components/ui/pagination';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
 import { startCase } from 'lodash';
 import { formatDate } from '@/lib/utils/date/format';
-import { CustomerStatus } from '@/constants/convex-enums';
-import { useQuery } from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import CustomerFilter from './customer-filter';
 import CustomerSearch from './customer-search';
@@ -24,44 +23,30 @@ import ImportCustomersMenu from './import-customers-menu';
 import { useSearchParams } from 'next/navigation';
 import type { Doc } from '@/convex/_generated/dataModel';
 
-interface CustomersTableProps {
+export interface CustomersTableProps {
   organizationId: string;
   currentPage?: number;
   pageSize?: number;
-  status?: CustomerStatus;
   searchTerm?: string;
   queryParams?: string;
+  preloadedCustomers: Preloaded<typeof api.customers.getCustomers>;
 }
 
 export default function CustomersTable({
   organizationId,
   currentPage = 1,
   pageSize = 10,
-  status: _status,
   searchTerm,
   queryParams = '',
+  preloadedCustomers,
 }: CustomersTableProps) {
   const searchParams = useSearchParams();
   const statusFilters = searchParams.get('status')?.split(',').filter(Boolean);
   const sourceFilters = searchParams.get('source')?.split(',').filter(Boolean);
   const localeFilters = searchParams.get('locale')?.split(',').filter(Boolean);
 
-  // Fetch customer data using Convex
-  const result = useQuery(api.customers.getCustomers, {
-    organizationId,
-    paginationOpts: {
-      numItems: pageSize,
-      cursor: null, // For now, we'll implement simple pagination
-    },
-    status: statusFilters as CustomerStatus[] | undefined,
-    source: sourceFilters,
-    locale: localeFilters,
-    searchTerm,
-  });
-
-  if (result === undefined) {
-    return null;
-  }
+  // Use preloaded query for SSR + real-time reactivity
+  const result = usePreloadedQuery(preloadedCustomers);
 
   const customers = result.items as Doc<'customers'>[];
   const pagination = {

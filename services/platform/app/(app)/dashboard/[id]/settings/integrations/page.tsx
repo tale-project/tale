@@ -2,17 +2,29 @@ import { SuspenseLoader } from '@/components/suspense-loader';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import Integrations from './integrations';
 import { redirect } from 'next/navigation';
-import { fetchQuery } from '@/lib/convex-next-server';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
+import { CardGridSkeleton } from '@/components/skeletons';
 
 interface IntegrationsPageProps {
   params: Promise<{ id: string }>;
 }
 
-async function IntegrationsPageContent({ params }: IntegrationsPageProps) {
-  const { id: organizationId } = await params;
+/**
+ * Skeleton for the integrations page that matches the actual layout.
+ */
+function IntegrationsSkeleton() {
+  return <CardGridSkeleton count={6} columns={3} />;
+}
 
+interface IntegrationsContentProps {
+  params: Promise<{ id: string }>;
+}
+
+async function IntegrationsPageContent({ params }: IntegrationsContentProps) {
+  // All dynamic data access inside Suspense boundary for proper streaming
   const token = await getAuthToken();
+  const { id: organizationId } = await params;
   if (!token) {
     redirect('/log-in');
   }
@@ -44,13 +56,36 @@ async function IntegrationsPageContent({ params }: IntegrationsPageProps) {
     );
   }
 
-  return <Integrations organizationId={organizationId} />;
+  // Preload integrations data for SSR + real-time reactivity on client
+  const [preloadedShopify, preloadedCirculy, preloadedEmailProviders] =
+    await Promise.all([
+      preloadQuery(
+        api.integrations.getByName,
+        { organizationId, name: 'shopify' },
+        { token },
+      ),
+      preloadQuery(
+        api.integrations.getByName,
+        { organizationId, name: 'circuly' },
+        { token },
+      ),
+      preloadQuery(api.email_providers.list, { organizationId }, { token }),
+    ]);
+
+  return (
+    <Integrations
+      organizationId={organizationId}
+      preloadedShopify={preloadedShopify}
+      preloadedCirculy={preloadedCirculy}
+      preloadedEmailProviders={preloadedEmailProviders}
+    />
+  );
 }
 
-export default function IntegrationsPage(props: IntegrationsPageProps) {
+export default function IntegrationsPage({ params }: IntegrationsPageProps) {
   return (
-    <SuspenseLoader>
-      <IntegrationsPageContent {...props} />
+    <SuspenseLoader fallback={<IntegrationsSkeleton />}>
+      <IntegrationsPageContent params={params} />
     </SuspenseLoader>
   );
 }

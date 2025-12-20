@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useQuery, useMutation, useAction } from 'convex/react';
+import {
+  useMutation,
+  useAction,
+  usePreloadedQuery,
+  type Preloaded,
+} from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
@@ -16,6 +21,9 @@ import type { ExampleMessageUI } from '@/types/tone-of-voice';
 
 interface ToneOfVoiceFormProps {
   organizationId: string;
+  preloadedToneOfVoice: Preloaded<
+    typeof api.tone_of_voice.getToneOfVoiceWithExamples
+  >;
 }
 
 interface ToneFormData {
@@ -24,16 +32,12 @@ interface ToneFormData {
 
 export default function ToneOfVoiceForm({
   organizationId,
+  preloadedToneOfVoice,
 }: ToneOfVoiceFormProps) {
   const orgId = organizationId as string;
 
-  // Queries
-  const toneOfVoiceData = useQuery(
-    api.tone_of_voice.getToneOfVoiceWithExamples,
-    {
-      organizationId: orgId,
-    },
-  );
+  // Use preloaded query for SSR + real-time reactivity
+  const toneOfVoiceData = usePreloadedQuery(preloadedToneOfVoice);
 
   // Mutations
   const addExample = useMutation(api.tone_of_voice.addExampleMessage);
