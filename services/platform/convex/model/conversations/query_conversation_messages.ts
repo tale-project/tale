@@ -1,9 +1,12 @@
 /**
  * Query conversation messages with flexible filtering and pagination support (business logic)
+ *
+ * Optimized to use async iteration with early termination for pagination.
+ * The indexes include deliveredAt so ordering is handled by the database.
  */
 
 import type { QueryCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
+import type { Id, Doc } from '../../_generated/dataModel';
 
 export interface QueryConversationMessagesArgs {
   organizationId: string;
@@ -42,21 +45,25 @@ export async function queryConversationMessages(
   args: QueryConversationMessagesArgs,
 ): Promise<QueryConversationMessagesResult> {
   const numItems = args.paginationOpts.numItems;
+  const cursor = args.paginationOpts.cursor;
 
   // Choose the best index based on provided filters
   // Priority: conversationId > (organizationId + channel + direction) > organizationId
+  // All indexes include deliveredAt for ordering
   let query;
+  let indexUsed: 'conversationId' | 'org_channel_direction' | 'organizationId';
 
   if (args.conversationId !== undefined) {
-    // Use conversationId + deliveredAt index for best performance when filtering by specific conversation
+    // Use conversationId + deliveredAt index for specific conversation
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_conversationId_and_deliveredAt', (q) =>
         q.eq('conversationId', args.conversationId!),
       )
       .order('asc');
+    indexUsed = 'conversationId';
   } else if (args.channel !== undefined && args.direction !== undefined) {
-    // Use the combined index with deliveredAt for efficient filtering by org + channel + direction
+    // Use the combined index for org + channel + direction
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_org_channel_direction_deliveredAt', (q) =>
@@ -64,59 +71,58 @@ export async function queryConversationMessages(
           .eq('organizationId', args.organizationId)
           .eq('channel', args.channel!)
           .eq('direction', args.direction!),
-      );
+      )
+      .order('asc');
+    indexUsed = 'org_channel_direction';
   } else {
     // Default to organizationId + deliveredAt index
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_organizationId_and_deliveredAt', (q) =>
         q.eq('organizationId', args.organizationId),
-      );
+      )
+      .order('asc');
+    indexUsed = 'organizationId';
   }
 
-  // Collect all matching messages
-  const allMessages = await query.collect();
+  // Use async iteration with early termination
+  const messages: Array<Doc<'conversationMessages'>> = [];
+  let foundCursor = cursor === null;
+  let hasMore = false;
 
-  // Apply additional filters that can't be handled by indexes
-  let filteredMessages = allMessages;
+  for await (const msg of query) {
+    // Skip until we find the cursor
+    if (!foundCursor) {
+      if (msg._id === cursor) {
+        foundCursor = true;
+      }
+      continue;
+    }
 
-  // Filter by channel if not already handled by index
-  if (args.channel !== undefined && args.conversationId !== undefined) {
-    filteredMessages = filteredMessages.filter(
-      (msg) => msg.channel === args.channel,
-    );
+    // Apply additional filters not covered by index (only when conversationId index is used)
+    if (indexUsed === 'conversationId') {
+      if (args.channel !== undefined && msg.channel !== args.channel) {
+        continue;
+      }
+      if (args.direction !== undefined && msg.direction !== args.direction) {
+        continue;
+      }
+    }
+
+    messages.push(msg);
+
+    // Check if we have enough items
+    if (messages.length >= numItems) {
+      hasMore = true;
+      break;
+    }
   }
-
-  // Filter by direction if not already handled by index
-  if (args.direction !== undefined && args.conversationId !== undefined) {
-    filteredMessages = filteredMessages.filter(
-      (msg) => msg.direction === args.direction,
-    );
-  }
-
-  // Sort by deliveredAt (oldest first) for consistent pagination
-  // Fall back to _creationTime if deliveredAt is not set
-  filteredMessages.sort((a, b) => {
-    const aTime = a.deliveredAt ?? a._creationTime;
-    const bTime = b.deliveredAt ?? b._creationTime;
-    return aTime - bTime;
-  });
-
-  // Apply cursor-based pagination
-  const paginationOpts = args.paginationOpts;
-  const startIndex = paginationOpts.cursor
-    ? filteredMessages.findIndex((m) => m._id === paginationOpts.cursor) + 1
-    : 0;
-  const endIndex = startIndex + numItems;
-  const paginatedMessages = filteredMessages.slice(startIndex, endIndex);
 
   return {
-    items: paginatedMessages,
-    isDone: endIndex >= filteredMessages.length,
+    items: messages,
+    isDone: !hasMore,
     continueCursor:
-      paginatedMessages.length > 0
-        ? paginatedMessages[paginatedMessages.length - 1]._id
-        : null,
-    count: paginatedMessages.length,
+      messages.length > 0 ? messages[messages.length - 1]._id : null,
+    count: messages.length,
   };
 }

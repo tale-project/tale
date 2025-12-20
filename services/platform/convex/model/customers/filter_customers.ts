@@ -9,7 +9,7 @@
  * This function evaluates a JEXL expression against each customer.
  * Customers that match the expression (expression evaluates to true) are returned.
  *
- * Uses cursor-based iteration for efficient processing of large datasets.
+ * Uses async iteration for efficient streaming of large datasets.
  *
  * @param ctx - Query context
  * @param args.organizationId - Organization ID to filter customers
@@ -30,33 +30,22 @@ export async function filterCustomers(
   const { organizationId, expression } = args;
 
   const matchedCustomers: unknown[] = [];
-  let lastCreationTime = 0;
 
-  // Loop through all customers using cursor-based iteration
-  while (true) {
-    // Fetch the next document after the last processed one
-    // Use .gt() in the index query for better performance since _creationTime is part of the index
-    const customer = await ctx.db
-      .query('customers')
-      .withIndex('by_organizationId', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .gt('_creationTime', lastCreationTime),
-      )
-      .order('asc')
-      .first();
+  // Use async iteration for efficient streaming (better than fetching one at a time)
+  const query = ctx.db
+    .query('customers')
+    .withIndex('by_organizationId', (q) =>
+      q.eq('organizationId', organizationId),
+    )
+    .order('asc');
 
-    if (!customer) break; // No more documents
-
+  for await (const customer of query) {
     // Evaluate the expression with the customer as context (must return boolean)
     const passed = evaluateExpression(expression, customer);
 
     if (passed) {
       matchedCustomers.push(customer);
     }
-
-    // Update the cursor
-    lastCreationTime = customer._creationTime;
   }
 
   return {

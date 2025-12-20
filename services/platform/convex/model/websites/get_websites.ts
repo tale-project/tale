@@ -1,9 +1,13 @@
 /**
  * Get websites with pagination and filtering
+ *
+ * Optimized to use async iteration with early termination.
+ * Uses Set for O(1) status filter lookups.
  */
 
 import type { QueryCtx } from '../../_generated/server';
 import type { PaginationOptions } from 'convex/server';
+import type { Doc } from '../../_generated/dataModel';
 import type { GetWebsitesResult } from './types';
 
 export interface GetWebsitesArgs {
@@ -13,63 +17,70 @@ export interface GetWebsitesArgs {
   searchTerm?: string;
 }
 
-/**
- * Get a paginated list of websites for an organization
- *
- * ⚠️ TODO: SCALABILITY - Currently uses .collect() which loads ALL websites
- * When integrating crawler service, replace with:
- * - Proper Convex .paginate() without in-memory filtering
- * - Consider Convex vector search or external search service for text filtering
- */
 export async function getWebsites(
   ctx: QueryCtx,
   args: GetWebsitesArgs,
 ): Promise<GetWebsitesResult> {
-  // Start with all websites in the organization
-  let websites = await ctx.db
+  const numItems = args.paginationOpts.numItems;
+  const cursor = args.paginationOpts.cursor;
+
+  // Pre-compute filter helpers for O(1) lookups
+  const statusSet =
+    args.status && args.status.length > 0 ? new Set(args.status) : null;
+  const searchLower = args.searchTerm?.toLowerCase();
+
+  // Use async iteration with descending order for newest first
+  const query = ctx.db
     .query('websites')
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
     )
-    .collect();
+    .order('desc');
 
-  // Apply status filter if provided
-  if (args.status && args.status.length > 0) {
-    websites = websites.filter(
-      (w) => w.status && args.status!.includes(w.status),
-    );
-  }
+  const websites: Array<Doc<'websites'>> = [];
+  let foundCursor = cursor === null;
+  let hasMore = false;
 
-  // Apply search filter if provided
-  if (args.searchTerm) {
-    const searchLower = args.searchTerm.toLowerCase();
-    websites = websites.filter((website) => {
+  for await (const website of query) {
+    // Skip until we find the cursor
+    if (!foundCursor) {
+      if (website._id === cursor) {
+        foundCursor = true;
+      }
+      continue;
+    }
+
+    // Apply status filter with O(1) Set lookup
+    if (statusSet && (!website.status || !statusSet.has(website.status))) {
+      continue;
+    }
+
+    // Apply search filter
+    if (searchLower) {
       const domainMatch = website.domain?.toLowerCase().includes(searchLower);
       const titleMatch = website.title?.toLowerCase().includes(searchLower);
       const descriptionMatch = website.description
         ?.toLowerCase()
         .includes(searchLower);
-      return domainMatch || titleMatch || descriptionMatch;
-    });
+
+      if (!domainMatch && !titleMatch && !descriptionMatch) {
+        continue;
+      }
+    }
+
+    websites.push(website);
+
+    // Check if we have enough items - early termination
+    if (websites.length >= numItems) {
+      hasMore = true;
+      break;
+    }
   }
 
-  // Sort by creation time (newest first)
-  websites.sort((a, b) => b._creationTime - a._creationTime);
-
-  // Apply pagination
-  const startIndex = args.paginationOpts.cursor
-    ? websites.findIndex((w) => w._id === args.paginationOpts.cursor) + 1
-    : 0;
-  const endIndex = startIndex + args.paginationOpts.numItems;
-  const paginatedWebsites = websites.slice(startIndex, endIndex);
-
   return {
-    page: paginatedWebsites,
-    isDone: endIndex >= websites.length,
+    page: websites,
+    isDone: !hasMore,
     continueCursor:
-      paginatedWebsites.length > 0
-        ? paginatedWebsites[paginatedWebsites.length - 1]._id
-        : undefined,
+      websites.length > 0 ? websites[websites.length - 1]._id : undefined,
   };
 }
-

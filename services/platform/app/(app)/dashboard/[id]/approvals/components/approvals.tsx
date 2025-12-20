@@ -17,22 +17,23 @@ import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@/lib/utils/date/format';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, usePreloadedQuery, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 interface ApprovalsProps {
-  initialApprovals: Doc<'approvals'>[];
   status?: 'pending' | 'resolved';
   organizationId: string;
   search?: string;
+  preloadedApprovals: PreloadedApprovals;
 }
 
 export default function Approvals({
-  initialApprovals,
   status,
   organizationId,
   search,
+  preloadedApprovals,
 }: ApprovalsProps) {
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -45,26 +46,9 @@ export default function Approvals({
   const [approvalDetailModalOpen, setApprovalDetailModalOpen] = useState(false);
   const router = useRouter();
 
-  // Use real-time Convex query for automatic updates
-  // Exclude 'conversations' resourceType from approvals page
-  const resourceType: Doc<'approvals'>['resourceType'][] = [
-    'product_recommendation',
-  ]; // Add other types as needed, but exclude 'conversations'
-
-  const approvalsQuery = useQuery(
-    api.approvals.getApprovalsByOrganization,
-    organizationId
-      ? {
-        organizationId,
-        status: status === 'pending' ? 'pending' : 'resolved',
-        resourceType,
-        limit: 500, // Reasonable limit for UI display
-      }
-      : 'skip',
-  );
-
-  // Use real-time data if available, fallback to initial data
-  const allApprovals = approvalsQuery || initialApprovals || [];
+  // Use preloaded data with real-time reactivity
+  // This provides SSR benefits AND automatic updates when data changes
+  const allApprovals = usePreloadedQuery(preloadedApprovals);
 
   // Filter for resolved status (approved or rejected) if needed
   const filteredByStatus = useMemo(() => {
@@ -82,26 +66,31 @@ export default function Approvals({
 
     const searchLower = search.toLowerCase();
     return filteredByStatus.filter((approval) => {
-      const metadata = approval.metadata || {};
+      // Cast metadata to Record for dynamic property access
+      const metadata = (approval.metadata || {}) as Record<string, unknown>;
 
       // Search in customer name
       if (
-        typeof metadata.customerName === 'string' &&
-        metadata.customerName.toLowerCase().includes(searchLower)
+        typeof metadata['customerName'] === 'string' &&
+        (metadata['customerName'] as string).toLowerCase().includes(searchLower)
       )
         return true;
 
       // Search in customer email
       if (
-        typeof metadata.customerEmail === 'string' &&
-        metadata.customerEmail.toLowerCase().includes(searchLower)
+        typeof metadata['customerEmail'] === 'string' &&
+        (metadata['customerEmail'] as string)
+          .toLowerCase()
+          .includes(searchLower)
       )
         return true;
 
       // Search in recommended products (canonical: productName)
       if (
-        Array.isArray(metadata.recommendedProducts) &&
-        metadata.recommendedProducts.some((p: Record<string, unknown>) => {
+        Array.isArray(metadata['recommendedProducts']) &&
+        (
+          metadata['recommendedProducts'] as Array<Record<string, unknown>>
+        ).some((p) => {
           const name =
             (typeof p['productName'] === 'string' &&
               (p['productName'] as string)) ||
@@ -238,12 +227,13 @@ export default function Approvals({
     const approval = approvals.find((a) => a._id === approvalId);
     if (!approval) return null;
 
-    const metadata = approval.metadata || {};
+    // Cast metadata to Record for dynamic property access
+    const metadata = (approval.metadata || {}) as Record<string, unknown>;
 
     // Map recommended products using the canonical shape: productId, productName, relationshipType (camelCase)
     const recommendedProducts = (
-      Array.isArray(metadata.recommendedProducts)
-        ? (metadata.recommendedProducts as Array<Record<string, unknown>>)
+      Array.isArray(metadata['recommendedProducts'])
+        ? (metadata['recommendedProducts'] as Array<Record<string, unknown>>)
         : []
     ).map((product, index: number) => {
       const id =
@@ -275,8 +265,8 @@ export default function Approvals({
 
     // Map event products (previous purchases) with direct fallbacks
     const previousPurchases = (
-      Array.isArray(metadata.eventProducts)
-        ? (metadata.eventProducts as Array<Record<string, unknown>>)
+      Array.isArray(metadata['eventProducts'])
+        ? (metadata['eventProducts'] as Array<Record<string, unknown>>)
         : []
     ).map((product, index: number) => {
       const id =
@@ -322,14 +312,14 @@ export default function Approvals({
       _id: approval._id,
       organizationId: approval.organizationId,
       customer: {
-        id: metadata.customerId,
+        id: metadata['customerId'] as Id<'customers'> | undefined,
         name:
-          typeof metadata.customerName === 'string'
-            ? metadata.customerName.trim()
+          typeof metadata['customerName'] === 'string'
+            ? (metadata['customerName'] as string).trim()
             : '',
         email:
-          typeof metadata.customerEmail === 'string'
-            ? metadata.customerEmail
+          typeof metadata['customerEmail'] === 'string'
+            ? (metadata['customerEmail'] as string)
             : '',
       },
       resourceType: approval.resourceType,
@@ -337,10 +327,10 @@ export default function Approvals({
       priority: approval.priority as 'low' | 'medium' | 'high' | 'urgent',
       confidence: metaConfidence,
       createdAt: approval._creationTime,
-      reviewer: metadata.approverName,
+      reviewer: metadata['approverName'] as string | undefined,
       reviewedAt: approval.reviewedAt,
       decidedAt: approval.reviewedAt, // Use reviewedAt as decidedAt
-      comments: metadata.comments, // Get comments from metadata
+      comments: metadata['comments'] as string | undefined, // Get comments from metadata
       recommendedProducts,
       previousPurchases,
     };
@@ -530,12 +520,16 @@ export default function Approvals({
             </TableHeader>
             <TableBody>
               {approvals.map((approval) => {
-                const metadata = approval.metadata || {};
+                // Cast metadata to Record for dynamic property access
+                const metadata = (approval.metadata || {}) as Record<
+                  string,
+                  unknown
+                >;
                 const customerLabel =
-                  (typeof metadata.customerName === 'string' &&
-                    metadata.customerName.trim()) ||
-                  (typeof metadata.customerEmail === 'string' &&
-                    metadata.customerEmail.trim()) ||
+                  (typeof metadata['customerName'] === 'string' &&
+                    (metadata['customerName'] as string).trim()) ||
+                  (typeof metadata['customerEmail'] === 'string' &&
+                    (metadata['customerEmail'] as string).trim()) ||
                   'Unknown Customer';
                 return (
                   <TableRow
@@ -565,7 +559,9 @@ export default function Approvals({
                         <div className="text-xs font-medium text-foreground">
                           Purchase
                         </div>
-                        {renderProductList(metadata.eventProducts || [])}
+                        {renderProductList(
+                          (metadata['eventProducts'] as Array<unknown>) || [],
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="w-64 align-top">
@@ -574,7 +570,8 @@ export default function Approvals({
                           Recommendation
                         </div>
                         {renderProductList(
-                          metadata.recommendedProducts || [],
+                          (metadata['recommendedProducts'] as Array<unknown>) ||
+                            [],
                           true,
                         )}
                       </div>
@@ -584,24 +581,20 @@ export default function Approvals({
                         <span className="text-xs font-medium text-muted-foreground">
                           {(() => {
                             const recs = Array.isArray(
-                              metadata.recommendedProducts,
+                              metadata['recommendedProducts'],
                             )
-                              ? (metadata.recommendedProducts as Array<
-                                Record<string, unknown>
-                              >)
+                              ? (metadata['recommendedProducts'] as Array<
+                                  Record<string, unknown>
+                                >)
                               : [];
                             const firstConf =
                               recs.length > 0 &&
-                                typeof recs[0]['confidence'] === 'number'
+                              typeof recs[0]['confidence'] === 'number'
                                 ? (recs[0]['confidence'] as number)
                                 : 0;
                             const raw =
-                              typeof (metadata as Record<string, unknown>)[
-                                'confidence'
-                              ] === 'number'
-                                ? ((metadata as Record<string, unknown>)[
-                                  'confidence'
-                                ] as number)
+                              typeof metadata['confidence'] === 'number'
+                                ? (metadata['confidence'] as number)
                                 : firstConf;
                             const n = Number(raw);
                             const pct = !Number.isFinite(n)
@@ -688,12 +681,16 @@ export default function Approvals({
             </TableHeader>
             <TableBody>
               {approvals.map((approval) => {
-                const metadata = approval.metadata || {};
+                // Cast metadata to Record for dynamic property access
+                const metadata = (approval.metadata || {}) as Record<
+                  string,
+                  unknown
+                >;
                 const customerLabel =
-                  (typeof metadata.customerName === 'string' &&
-                    metadata.customerName.trim()) ||
-                  (typeof metadata.customerEmail === 'string' &&
-                    metadata.customerEmail.trim()) ||
+                  (typeof metadata['customerName'] === 'string' &&
+                    (metadata['customerName'] as string).trim()) ||
+                  (typeof metadata['customerEmail'] === 'string' &&
+                    (metadata['customerEmail'] as string).trim()) ||
                   'Unknown Customer';
                 return (
                   <TableRow
@@ -719,7 +716,9 @@ export default function Approvals({
                         <div className="text-xs font-medium text-foreground">
                           Purchase
                         </div>
-                        {renderProductList(metadata.eventProducts || [])}
+                        {renderProductList(
+                          (metadata['eventProducts'] as Array<unknown>) || [],
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="w-64 align-top">
@@ -728,25 +727,26 @@ export default function Approvals({
                           Recommendation
                         </div>
                         {renderProductList(
-                          metadata.recommendedProducts || [],
+                          (metadata['recommendedProducts'] as Array<unknown>) ||
+                            [],
                           true,
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {metadata.approverName || 'Unknown'}
+                        {(metadata['approverName'] as string) || 'Unknown'}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="text-sm">
                         {approval.reviewedAt
                           ? formatDate(
-                            new Date(approval.reviewedAt).toISOString(),
-                            {
-                              preset: 'short',
-                            },
-                          )
+                              new Date(approval.reviewedAt).toISOString(),
+                              {
+                                preset: 'short',
+                              },
+                            )
                           : ''}
                       </span>
                     </TableCell>

@@ -1,4 +1,4 @@
-import { fetchQuery } from '@/lib/convex-next-server';
+import { preloadQuery, type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -10,10 +10,9 @@ interface GetApprovalsDataParams {
   page?: number;
 }
 
-export interface ApprovalsData {
-  approvals: Doc<'approvals'>[];
-  total: number;
-}
+export type PreloadedApprovals = Preloaded<
+  typeof api.approvals.getApprovalsByOrganization
+>;
 
 /**
  * Apply search filter to approvals based on customer name, email, and product names.
@@ -68,78 +67,36 @@ function filterApprovals(
 }
 
 /**
- * Fetch approvals data from Convex using approvals table.
+ * Preload approvals data from Convex for SSR + real-time reactivity.
+ * Uses preloadQuery to enable usePreloadedQuery on the client.
  *
  * @param params - Parameters for fetching approvals
- * @returns Promise<ApprovalsData> - Approval data
+ * @returns Promise<PreloadedApprovals> - Preloaded approval data
  */
-export async function getApprovalsData({
+export async function preloadApprovalsData({
   organizationId,
   status,
-  search,
-}: GetApprovalsDataParams): Promise<ApprovalsData> {
-  try {
-    const token = await getAuthToken();
-    let approvals: Doc<'approvals'>[];
+}: Omit<
+  GetApprovalsDataParams,
+  'search' | 'page'
+>): Promise<PreloadedApprovals> {
+  const token = await getAuthToken();
 
-    // Exclude 'conversations' resourceType from approvals page
-    const resourceType: Doc<'approvals'>['resourceType'][] = [
-      'product_recommendation',
-    ]; // Add other types as needed, but exclude 'conversations'
+  // Exclude 'conversations' resourceType from approvals page
+  const resourceType: Doc<'approvals'>['resourceType'][] = [
+    'product_recommendation',
+  ]; // Add other types as needed, but exclude 'conversations'
 
-    if (status === 'pending') {
-      // Fetch only pending approvals with limit
-      const result = await fetchQuery(
-        api.approvals.getApprovalsByOrganization,
-        {
-          organizationId: organizationId as string,
-          status: 'pending',
-          resourceType,
-          limit: 500, // Reasonable limit for UI display
-        },
-        token ? { token } : undefined,
-      );
-      approvals = result as unknown as Doc<'approvals'>[];
-    } else if (status === 'resolved') {
-      // Fetch resolved approvals (approved/rejected) with limit
-      const result = await fetchQuery(
-        api.approvals.getApprovalsByOrganization,
-        {
-          organizationId: organizationId as string,
-          status: 'resolved',
-          resourceType,
-          limit: 500, // Reasonable limit for UI display
-        },
-        token ? { token } : undefined,
-      );
-      approvals = result as unknown as Doc<'approvals'>[];
-    } else {
-      // Fetch all approvals with limit (default to resolved view)
-      const result = await fetchQuery(
-        api.approvals.getApprovalsByOrganization,
-        {
-          organizationId: organizationId as string,
-          status: 'resolved',
-          resourceType,
-          limit: 500, // Reasonable limit for UI display
-        },
-        token ? { token } : undefined,
-      );
-      approvals = result as unknown as Doc<'approvals'>[];
-    }
+  const queryStatus = status === 'pending' ? 'pending' : 'resolved';
 
-    // Apply search filter
-    const filteredApprovals = filterApprovals(approvals, search);
-
-    return {
-      approvals: filteredApprovals,
-      total: filteredApprovals.length,
-    };
-  } catch (error) {
-    console.error('Error fetching approvals:', error);
-    return {
-      approvals: [],
-      total: 0,
-    };
-  }
+  return preloadQuery(
+    api.approvals.getApprovalsByOrganization,
+    {
+      organizationId,
+      status: queryStatus,
+      resourceType,
+      limit: 500, // Reasonable limit for UI display
+    },
+    token ? { token } : undefined,
+  );
 }

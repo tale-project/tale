@@ -3,19 +3,34 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationSettings from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
-
+import { FormSkeleton } from '@/components/skeletons';
 import { getAuthToken } from '@/lib/auth/auth-server';
 
 interface OrganizationSettingsPageProps {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * Skeleton for the organization settings page.
+ */
+function OrganizationSettingsSkeleton() {
+  return (
+    <div className="max-w-2xl">
+      <FormSkeleton fields={4} />
+    </div>
+  );
+}
+
+interface OrganizationSettingsContentProps {
+  params: Promise<{ id: string }>;
+}
+
 async function OrganizationSettingsPageContent({
   params,
-}: OrganizationSettingsPageProps) {
-  const { id } = await params;
-
+}: OrganizationSettingsContentProps) {
+  // All dynamic data access inside Suspense boundary for proper streaming
   const token = await getAuthToken();
+  const { id: organizationId } = await params;
   if (!token) {
     redirect('/log-in');
   }
@@ -24,7 +39,7 @@ async function OrganizationSettingsPageContent({
   const memberContext = await fetchQuery(
     api.member.getCurrentMemberContext,
     {
-      organizationId: id as string,
+      organizationId,
     },
     { token },
   );
@@ -46,7 +61,7 @@ async function OrganizationSettingsPageContent({
   const organization = await fetchQuery(
     api.organizations.getOrganization,
     {
-      id: id as string,
+      id: organizationId,
     },
     { token },
   );
@@ -58,12 +73,12 @@ async function OrganizationSettingsPageContent({
   return <OrganizationSettings organization={organization} />;
 }
 
-export default function OrganizationSettingsPage(
-  props: OrganizationSettingsPageProps,
-) {
+export default function OrganizationSettingsPage({
+  params,
+}: OrganizationSettingsPageProps) {
   return (
-    <SuspenseLoader>
-      <OrganizationSettingsPageContent {...props} />
+    <SuspenseLoader fallback={<OrganizationSettingsSkeleton />}>
+      <OrganizationSettingsPageContent params={params} />
     </SuspenseLoader>
   );
 }

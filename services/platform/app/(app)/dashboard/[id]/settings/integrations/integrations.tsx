@@ -8,9 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Settings, Mail, Loader2 } from 'lucide-react';
 import {
-  useQuery as useConvexQuery,
   useMutation,
   useAction,
+  usePreloadedQuery,
+  type Preloaded,
 } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -76,24 +77,25 @@ const integrations = [
   },
 ];
 
+interface IntegrationsProps {
+  organizationId: string;
+  preloadedShopify: Preloaded<typeof api.integrations.getByName>;
+  preloadedCirculy: Preloaded<typeof api.integrations.getByName>;
+  preloadedEmailProviders: Preloaded<typeof api.email_providers.list>;
+}
+
 export default function Integrations({
   organizationId,
-}: {
-  organizationId: string;
-}) {
+  preloadedShopify,
+  preloadedCirculy,
+  preloadedEmailProviders,
+}: IntegrationsProps) {
   const searchParams = useSearchParams();
-  const shopifyIntegration = useConvexQuery(api.integrations.getByName, {
-    organizationId,
-    name: 'shopify',
-  });
-  const circulyIntegration = useConvexQuery(api.integrations.getByName, {
-    organizationId,
-    name: 'circuly',
-  });
 
-  const emailProviders = useConvexQuery(api.email_providers.list, {
-    organizationId,
-  });
+  // Use preloaded queries for SSR + real-time reactivity
+  const shopifyIntegration = usePreloadedQuery(preloadedShopify);
+  const circulyIntegration = usePreloadedQuery(preloadedCirculy);
+  const emailProviders = usePreloadedQuery(preloadedEmailProviders);
   const emailProviderCount = emailProviders?.length || 0;
 
   // Mutations and Actions
@@ -383,8 +385,8 @@ export default function Integrations({
         credentials={
           shopifyIntegration
             ? {
-              domain: shopifyIntegration.connectionConfig?.domain,
-            }
+                domain: shopifyIntegration.connectionConfig?.domain,
+              }
             : null
         }
       />
@@ -395,8 +397,8 @@ export default function Integrations({
         credentials={
           circulyIntegration
             ? {
-              username: circulyIntegration.basicAuth?.username,
-            }
+                username: circulyIntegration.basicAuth?.username,
+              }
             : null
         }
         onConnect={handleCirculyConnect}

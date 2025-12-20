@@ -1,58 +1,54 @@
+'use client';
+
 import { Suspense } from 'react';
 import Approvals from './approvals';
-import { getApprovalsData } from '../utils/get-approvals-data';
+import { TableSkeleton } from '@/components/skeletons';
+import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 interface ApprovalsWrapperProps {
-  organizationId: string;
   status?: 'pending' | 'resolved';
   search?: string;
-  page: number;
+  organizationId: string;
+  preloadedApprovals: PreloadedApprovals;
 }
 
-function ApprovalsLoader() {
+/**
+ * Skeleton for the approvals table that matches the actual layout.
+ * Shows different columns based on pending vs resolved status.
+ */
+function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
+  const headers =
+    status === 'resolved'
+      ? [
+          'Approval / Recipient',
+          'Event',
+          'Action',
+          'Reviewer',
+          'Reviewed at',
+          'Approved',
+        ]
+      : ['Approval / Recipient', 'Event', 'Action', 'Confidence', 'Approved'];
+
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-4">
-      <div className="animate-spin rounded-full size-8 border-b-2 border-foreground"></div>
-      <p className="text-sm text-muted-foreground">Loading approvals...</p>
+    <div className="px-4 py-6">
+      <TableSkeleton rows={8} headers={headers} />
     </div>
   );
 }
 
-async function ApprovalsContent({
-  organizationId,
-  status,
-  search,
-  page,
-}: ApprovalsWrapperProps) {
-  const approvalsData = await getApprovalsData({
-    organizationId,
-    status,
-    search,
-    page,
-  });
-  return (
-    <Approvals
-      initialApprovals={approvalsData.approvals}
-      status={status}
-      organizationId={organizationId}
-      search={search}
-    />
-  );
-}
-
 export default function ApprovalsWrapper({
-  organizationId,
   status,
   search,
-  page,
+  organizationId,
+  preloadedApprovals,
 }: ApprovalsWrapperProps) {
   return (
-    <Suspense fallback={<ApprovalsLoader />}>
-      <ApprovalsContent
-        organizationId={organizationId}
+    <Suspense fallback={<ApprovalsSkeleton status={status} />}>
+      <Approvals
         status={status}
+        organizationId={organizationId}
         search={search}
-        page={page}
+        preloadedApprovals={preloadedApprovals}
       />
     </Suspense>
   );

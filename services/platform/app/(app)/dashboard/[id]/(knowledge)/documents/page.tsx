@@ -7,9 +7,46 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
+import { TableSkeleton } from '@/components/skeletons';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const logger = new Logger('documents');
+
+/**
+ * Skeleton for the documents page that matches the actual layout.
+ */
+function DocumentsPageSkeleton() {
+  return (
+    <>
+      {/* Search and actions bar skeleton */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <Skeleton className="h-10 w-64 rounded-md" />
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-32 rounded-md" />
+          <Skeleton className="h-10 w-32 rounded-md" />
+        </div>
+      </div>
+
+      {/* Table skeleton */}
+      <TableSkeleton
+        rows={10}
+        headers={['Name', 'Type', 'Size', 'Status', 'Modified', '']}
+      />
+    </>
+  );
+}
+
 interface DocumentsPageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    page?: string;
+    size?: string;
+    query?: string;
+    folderPath?: string;
+  }>;
+}
+
+interface DocumentsContentProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
     page?: string;
@@ -22,7 +59,13 @@ interface DocumentsPageProps {
 async function DocumentsPageContent({
   params,
   searchParams,
-}: DocumentsPageProps) {
+}: DocumentsContentProps) {
+  // All dynamic data access inside Suspense boundary for proper streaming
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
   const { id: organizationId } = await params;
   const { page, size, query, folderPath } = await searchParams;
 
@@ -30,21 +73,22 @@ async function DocumentsPageContent({
   const pageSize = size ? Number.parseInt(size, 10) : 10;
   const searchQuery = query?.trim();
 
-  const token = await getAuthToken();
-  if (!token) {
-    redirect('/log-in');
-  }
-  const documentInfo = await fetchQuery(
-    api.documents.getDocuments,
-    {
-      organizationId: organizationId as string,
-      page: currentPage,
-      size: pageSize,
-      query: searchQuery || '',
-      folderPath: folderPath || '',
-    },
-    { token },
-  );
+  // Parallelize independent fetches for better performance
+  const [documentInfo, hasMsAccount] = await Promise.all([
+    fetchQuery(
+      api.documents.getDocuments,
+      {
+        organizationId: organizationId as string,
+        page: currentPage,
+        size: pageSize,
+        query: searchQuery || '',
+        folderPath: folderPath || '',
+      },
+      { token },
+    ),
+    // Check if user has Microsoft account connected for OneDrive import
+    hasMicrosoftAccount(),
+  ]);
 
   if (!documentInfo.success) {
     logger.error('Failed to get documents info:', {
@@ -54,6 +98,7 @@ async function DocumentsPageContent({
   }
 
   // Fetch RAG statuses for all file documents (not folders)
+  // This must be sequential since it depends on documentInfo
   const fileDocuments = (documentInfo.items || [])
     .filter((item) => item.type === 'file')
     .map((item) => ({
@@ -78,9 +123,6 @@ async function DocumentsPageContent({
   const totalItems = documentInfo.totalItems || 0;
   const hasNextPage = documentInfo.pagination?.hasNextPage || false;
 
-  // Check if user has Microsoft account connected for OneDrive import
-  const hasMsAccount = await hasMicrosoftAccount();
-
   return (
     <DocumentTable
       items={itemsWithRagStatus}
@@ -96,10 +138,13 @@ async function DocumentsPageContent({
   );
 }
 
-export default function DocumentsPage(props: DocumentsPageProps) {
+export default function DocumentsPage({
+  params,
+  searchParams,
+}: DocumentsPageProps) {
   return (
-    <SuspenseLoader>
-      <DocumentsPageContent {...props} />
+    <SuspenseLoader fallback={<DocumentsPageSkeleton />}>
+      <DocumentsPageContent params={params} searchParams={searchParams} />
     </SuspenseLoader>
   );
 }

@@ -1,5 +1,7 @@
 /**
  * List workflows for organization
+ *
+ * Optimized to use async iteration with early filtering.
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -18,11 +20,16 @@ export async function listWorkflows(
     .query('wfDefinitions')
     .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
-  const workflows = await query.collect();
+  // Use async iteration with inline filtering
+  const workflows: WorkflowDefinition[] = [];
 
-  // Filter by status if provided
-  return workflows.filter((workflow) => {
-    if (args.status && workflow.status !== args.status) return false;
-    return true;
-  });
+  for await (const workflow of query) {
+    // Filter by status if provided
+    if (args.status && workflow.status !== args.status) {
+      continue;
+    }
+    workflows.push(workflow);
+  }
+
+  return workflows;
 }

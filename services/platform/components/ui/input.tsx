@@ -1,15 +1,32 @@
 'use client';
 
 import { InputHTMLAttributes, forwardRef, useState } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
 
-type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
-  passwordToggle?: boolean;
-  errorMessage?: string;
-  size?: 'default' | 'sm' | 'lg';
-};
+const inputVariants = cva(
+  'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+  {
+    variants: {
+      size: {
+        default: 'h-9',
+        sm: 'h-8',
+        lg: 'h-10',
+      },
+    },
+    defaultVariants: {
+      size: 'default',
+    },
+  }
+);
+
+type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
+  VariantProps<typeof inputVariants> & {
+    passwordToggle?: boolean;
+    errorMessage?: string;
+  };
 
 const Input = forwardRef<HTMLInputElement, BaseProps>(
   (
@@ -18,11 +35,11 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
       type,
       passwordToggle = true,
       autoComplete,
-      size = 'default',
+      size,
       errorMessage,
       ...props
     },
-    ref,
+    ref
   ) => {
     const isPassword = type === 'password';
     const [show, setShow] = useState(false);
@@ -31,12 +48,9 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
       autoComplete ?? (isPassword ? 'current-password' : undefined);
     const hasError = !!errorMessage;
 
-    const inputClassName = cn(
-      hasError
-        ? 'border-destructive focus-visible:ring-destructive'
-        : 'border-border',
-      className,
-    );
+    const errorClassName = hasError
+      ? 'border-destructive focus-visible:ring-destructive'
+      : 'border-border';
 
     if (isPassword && passwordToggle) {
       return (
@@ -46,11 +60,10 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
               type={inputType}
               autoComplete={resolvedAutoComplete}
               className={cn(
-                'flex w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-                size === 'default' && 'h-9',
-                size === 'sm' && 'h-8',
-                size === 'lg' && 'h-10',
-                inputClassName,
+                inputVariants({ size }),
+                'pr-10',
+                errorClassName,
+                className
               )}
               ref={ref}
               {...props}
@@ -85,12 +98,10 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
           type={type}
           autoComplete={resolvedAutoComplete}
           className={cn(
-            'flex w-full rounded-md ring-1 ring-border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-            'focus-visible:ring-primary',
-            size === 'default' && 'h-9',
-            size === 'sm' && 'h-8',
-            size === 'lg' && 'h-10',
-            inputClassName,
+            inputVariants({ size }),
+            'ring-1 ring-border focus-visible:ring-primary',
+            errorClassName,
+            className
           )}
           ref={ref}
           {...props}
@@ -103,8 +114,8 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
         )}
       </>
     );
-  },
+  }
 );
 Input.displayName = 'Input';
 
-export { Input };
+export { Input, inputVariants };

@@ -1,8 +1,12 @@
 /**
  * Get conversations for an organization with filtering and pagination (business logic)
+ *
+ * Optimized to use async iteration with pre-filtering before expensive transformation.
+ * Priority filter is applied on raw data before transformConversation is called.
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
 import type { ConversationListResponse } from './types';
 import { transformConversation } from './transform_conversation';
 
@@ -34,40 +38,44 @@ export async function getConversations(
           q.eq('organizationId', args.organizationId),
         );
 
-  // Get all conversations from the index
-  const allConversations = await query.collect();
+  const searchLower = args.search?.toLowerCase();
 
-  // Apply filters
-  let filteredConversations = allConversations;
+  // Phase 1: Pre-filter using async iteration (priority and search on raw data)
+  // Note: search is applied on raw subject/metadata which doesn't require transformation
+  const preFilteredConversations: Array<Doc<'conversations'>> = [];
 
-  // Apply priority filter if provided
-  if (args.priority) {
-    filteredConversations = filteredConversations.filter(
-      (conv) => conv.priority === args.priority,
-    );
+  for await (const conv of query) {
+    // Apply priority filter on raw data
+    if (args.priority && conv.priority !== args.priority) {
+      continue;
+    }
+
+    // Apply search filter on raw data (subject and metadata.description)
+    if (searchLower) {
+      const subjectMatch = conv.subject?.toLowerCase().includes(searchLower);
+      const descriptionMatch = (
+        conv.metadata as { description?: string }
+      )?.description
+        ?.toLowerCase()
+        .includes(searchLower);
+
+      if (!subjectMatch && !descriptionMatch) {
+        continue;
+      }
+    }
+
+    preFilteredConversations.push(conv);
   }
 
-  // Apply search filter if provided
-  if (args.search) {
-    const searchLower = args.search.toLowerCase();
-    filteredConversations = filteredConversations.filter(
-      (conv) =>
-        conv.subject?.toLowerCase().includes(searchLower) ||
-        (conv.metadata as { description?: string })?.description
-          ?.toLowerCase()
-          .includes(searchLower),
-    );
-  }
-
-  // Calculate pagination
-  const total = filteredConversations.length;
+  // Calculate pagination on pre-filtered results
+  const total = preFilteredConversations.length;
   const totalPages = Math.ceil(total / limit);
-  const paginatedConversations = filteredConversations.slice(
+  const paginatedConversations = preFilteredConversations.slice(
     offset,
     offset + limit,
   );
 
-  // Transform conversations to match expected frontend format
+  // Phase 2: Transform only paginated conversations (expensive operation)
   const transformedConversations = await Promise.all(
     paginatedConversations.map((conv) => transformConversation(ctx, conv)),
   );
