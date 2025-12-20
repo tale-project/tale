@@ -52,6 +52,6 @@ For conversation/chat screenshots:
 
 Answer the user's question thoroughly with the specific content from the image.`,
     // Set maxOutputTokens to ensure the model has room to respond
-    providerOptions: { openai: { maxOutputTokens: 4096 } },
+    providerOptions: { openai: { maxOutputTokens: 8192 } },
   });
 }
