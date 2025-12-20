@@ -8,6 +8,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
 import { components, internal } from '../../_generated/api';
 import { createChatAgent } from '../../lib/create_chat_agent';
 import {
@@ -228,10 +229,42 @@ export async function generateAgentResponse(
         }
       }
 
-      // Register files with the agent component for proper tracking
-      const registeredFiles = await registerFilesWithAgent(ctx, attachments);
+      // Get image info for the image tool's analyze operation (no inline multi-modal)
+      // Instead of sending images directly to the model, we provide fileId and URL
+      // so the AI can use the image tool with a dedicated vision model
+      // The tool will try storage.get(fileId) first, falling back to URL fetch
+      const imageInfoResults = await Promise.all(
+        imageAttachments.map(async (attachment) => {
+          const url = await ctx.storage.getUrl(attachment.fileId);
+          return {
+            fileName: attachment.fileName,
+            fileId: attachment.fileId,
+            url: url || undefined,
+          };
+        }),
+      );
+      const imageInfoList = imageInfoResults.filter(
+        (
+          r,
+        ): r is {
+          fileName: string;
+          fileId: Id<'_storage'>;
+          url: string | undefined;
+        } => r.fileId !== undefined,
+      );
 
-      if (registeredFiles.length > 0 || parsedDocuments.length > 0) {
+      // Register files with the agent component for proper tracking (documents only)
+      // Images are now handled via the image_analyze tool, not inline
+      const registeredFiles = await registerFilesWithAgent(
+        ctx,
+        documentAttachments,
+      );
+
+      if (
+        registeredFiles.length > 0 ||
+        parsedDocuments.length > 0 ||
+        imageInfoList.length > 0
+      ) {
         // Start with user text
         const userText = messageText || 'Please analyze the attached files.';
         const contentParts: MessageContentPart[] = [
@@ -256,12 +289,20 @@ export async function generateAgentResponse(
           }
         }
 
-        // Add images as multi-modal content
-        const imageFiles = registeredFiles.filter((f) => f.isImage);
-        for (const regFile of imageFiles) {
-          if (regFile.imagePart) {
-            contentParts.push(regFile.imagePart);
-          }
+        // Add image information as text so the AI knows to use image tool with analyze operation
+        // Images are NOT sent inline - the AI must use the image tool with operation: "analyze"
+        // Provide both fileId (for storage.get) and imageUrl (as fallback)
+        if (imageInfoList.length > 0) {
+          const imageInfo = imageInfoList
+            .map((img) => {
+              const urlPart = img.url ? `, imageUrl="${img.url}"` : '';
+              return `- **${img.fileName}**: Use the \`image\` tool with operation="analyze", fileId="${img.fileId}"${urlPart} to analyze this image.`;
+            })
+            .join('\n');
+          contentParts.push({
+            type: 'text',
+            text: `\n\n---\n**Attached Images** (use \`image\` tool with operation="analyze" to view/analyze):\n${imageInfo}\n---\n`,
+          });
         }
 
         promptContent = [

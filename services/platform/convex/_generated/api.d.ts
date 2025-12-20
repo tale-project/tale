@@ -24,8 +24,11 @@ import type * as agent_tools_customers_helpers_read_customer_list from "../agent
 import type * as agent_tools_customers_helpers_types from "../agent_tools/customers/helpers/types.js";
 import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_tool.js";
 import type * as agent_tools_files_generate_excel_tool from "../agent_tools/files/generate_excel_tool.js";
+import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
+import type * as agent_tools_files_helpers_analyze_image_by_url from "../agent_tools/files/helpers/analyze_image_by_url.js";
 import type * as agent_tools_files_helpers_check_resource_accessible from "../agent_tools/files/helpers/check_resource_accessible.js";
 import type * as agent_tools_files_helpers_parse_file from "../agent_tools/files/helpers/parse_file.js";
+import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/files/helpers/vision_agent.js";
 import type * as agent_tools_files_image_tool from "../agent_tools/files/image_tool.js";
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
@@ -638,8 +641,11 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/customers/helpers/types": typeof agent_tools_customers_helpers_types;
   "agent_tools/files/docx_tool": typeof agent_tools_files_docx_tool;
   "agent_tools/files/generate_excel_tool": typeof agent_tools_files_generate_excel_tool;
+  "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
+  "agent_tools/files/helpers/analyze_image_by_url": typeof agent_tools_files_helpers_analyze_image_by_url;
   "agent_tools/files/helpers/check_resource_accessible": typeof agent_tools_files_helpers_check_resource_accessible;
   "agent_tools/files/helpers/parse_file": typeof agent_tools_files_helpers_parse_file;
+  "agent_tools/files/helpers/vision_agent": typeof agent_tools_files_helpers_vision_agent;
   "agent_tools/files/image_tool": typeof agent_tools_files_image_tool;
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
