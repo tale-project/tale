@@ -66,31 +66,73 @@ export async function onChatComplete(
       });
     }
 
-    // Save metadata for the last assistant message, mirroring the original
-    // implementation in the monolithic chat_agent.ts.
+    // Save metadata for the FIRST assistant message in the current response.
+    // The UIMessage component uses the first message's _id as its `id` property
+    // (see @convex-dev/agent's createAssistantUIMessage function), so we need
+    // to save metadata for that same message for the UI to find it.
+    //
+    // For multi-step responses with tool calls, there are multiple message docs:
+    // - First assistant message (initial text + tool call)
+    // - Tool result messages
+    // - Final assistant message (text after tool calls)
+    // The UI groups these and uses the FIRST message's _id as the group's id.
     const messages = await listMessages(ctx, components.agent, {
       threadId,
-      paginationOpts: { cursor: null, numItems: 10 },
-      excludeToolMessages: true,
+      paginationOpts: { cursor: null, numItems: 20 },
+      excludeToolMessages: false, // Include tool messages to properly identify the response group
     });
 
-    const lastAssistantMessage = messages.page
-      .filter((msg) => msg.message?.role === 'assistant')
-      .sort((a, b) => b._creationTime - a._creationTime)[0];
+    // Find all messages from the current response (same order value as the latest)
+    // Messages are grouped by their `order` field in the agent component
+    const sortedMessages = messages.page.sort(
+      (a, b) => b._creationTime - a._creationTime,
+    );
 
-    if (lastAssistantMessage && chatResult.usage) {
-      await ctx.runMutation(api.message_metadata.saveMessageMetadata, {
-        messageId: lastAssistantMessage._id,
-        threadId: chatResult.threadId,
-        model: chatResult.model,
-        provider: chatResult.provider,
-        inputTokens: chatResult.usage.inputTokens,
-        outputTokens: chatResult.usage.outputTokens,
-        totalTokens: chatResult.usage.totalTokens,
-        reasoningTokens: chatResult.usage.reasoningTokens,
-        cachedInputTokens: chatResult.usage.cachedInputTokens,
-        reasoning: chatResult.reasoning,
-      });
+    // Get the order of the latest assistant message
+    const latestAssistantMessage = sortedMessages.find(
+      (msg) => msg.message?.role === 'assistant',
+    );
+
+    // Save metadata if we have an assistant message
+    if (latestAssistantMessage) {
+      const currentOrder = latestAssistantMessage.order;
+
+      // Find the FIRST ASSISTANT message in this response group.
+      // The UI's createAssistantUIMessage groups assistant+tool messages together
+      // and uses the first ASSISTANT message's _id as the group's id.
+      // Note: order groups ALL messages (including user), but we only want assistant/tool.
+      const assistantMessagesInCurrentResponse = sortedMessages
+        .filter(
+          (msg) =>
+            msg.order === currentOrder &&
+            (msg.message?.role === 'assistant' || msg.message?.role === 'tool'),
+        )
+        .sort((a, b) => a._creationTime - b._creationTime);
+
+      // The first message should be an assistant message (not tool) since assistant
+      // generates text/tool-call first, then tool results come back
+      const firstAssistantMessage = assistantMessagesInCurrentResponse.find(
+        (msg) => msg.message?.role === 'assistant',
+      );
+
+      if (firstAssistantMessage && chatResult.usage) {
+        await ctx.runMutation(api.message_metadata.saveMessageMetadata, {
+          messageId: firstAssistantMessage._id,
+          threadId: chatResult.threadId,
+          model: chatResult.model,
+          provider: chatResult.provider,
+          inputTokens: chatResult.usage.inputTokens,
+          outputTokens: chatResult.usage.outputTokens,
+          totalTokens: chatResult.usage.totalTokens,
+          reasoningTokens: chatResult.usage.reasoningTokens,
+          cachedInputTokens: chatResult.usage.cachedInputTokens,
+          reasoning: chatResult.reasoning,
+        });
+        debugLog('onChatComplete metadata saved', {
+          messageId: firstAssistantMessage._id,
+          model: chatResult.model,
+        });
+      }
     }
 
     // After a successful run, kick off incremental summarization in the
