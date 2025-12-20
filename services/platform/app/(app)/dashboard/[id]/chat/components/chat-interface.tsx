@@ -33,7 +33,8 @@ interface FilePart {
 }
 
 interface ChatMessage {
-  id: string;
+  id: string; // Document ID for metadata lookup
+  key: string; // React key for rendering (unique per UI element)
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
@@ -291,7 +292,10 @@ export default function ChatInterface({
           }));
 
         return {
-          id: m.key,
+          // id: document ID for metadata lookup
+          // key: React key with step/part suffix for unique rendering
+          id: m.id,
+          key: m.key,
           content: m.text,
           role: m.role as 'user' | 'assistant',
           timestamp: new Date(m._creationTime),
@@ -540,7 +544,7 @@ export default function ChatInterface({
 
                 return shouldShow ? (
                   <MessageBubble
-                    key={message.id}
+                    key={message.key}
                     message={{
                       ...message,
                       threadId: threadId,

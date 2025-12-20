@@ -102,24 +102,26 @@ export async function generateAgentResponse(
   }, TIMEOUT_MS);
 
   try {
-    // Load any existing incremental summary for this thread without blocking
-    // on a fresh summarization run. Summarization itself is handled
-    // asynchronously in onChatComplete and on-demand in the
-    // context_overflow_retry flow.
-    const contextSummary = await loadContextSummary(ctx, threadId);
-
-    // Always query RAG service first to get relevant context for the user's message
-    // This ensures the agent has access to knowledge base information before responding
+    // Load context summary and RAG context in parallel for faster startup
+    // Both operations are independent and can run concurrently
     const userQuery = messageText || '';
-    let ragContext: string | undefined;
-    if (userQuery.trim()) {
-      ragContext = await queryRagContext(
-        userQuery,
-        RAG_TOP_K,
-        RAG_SIMILARITY_THRESHOLD,
-        abortController.signal,
-      );
-    }
+    const [contextSummary, ragContext] = await Promise.all([
+      // Load any existing incremental summary for this thread without blocking
+      // on a fresh summarization run. Summarization itself is handled
+      // asynchronously in onChatComplete and on-demand in the
+      // context_overflow_retry flow.
+      loadContextSummary(ctx, threadId),
+      // Always query RAG service first to get relevant context for the user's message
+      // This ensures the agent has access to knowledge base information before responding
+      userQuery.trim()
+        ? queryRagContext(
+            userQuery,
+            RAG_TOP_K,
+            RAG_SIMILARITY_THRESHOLD,
+            abortController.signal,
+          )
+        : Promise.resolve(undefined),
+    ]);
 
     debugLog('Context loaded', {
       threadId,
@@ -340,12 +342,10 @@ export async function generateAgentResponse(
       },
     );
 
-    // Consume the stream to completion and get the final result
-    // We need to iterate through the stream for it to complete
-    let finalText = '';
-    for await (const textPart of streamResult.textStream) {
-      finalText += textPart;
-    }
+    // Consume the stream to completion and ensure all deltas are written to the database.
+    // This is critical for multi-step responses (text -> tool call -> text) to ensure
+    // the final text after tool calls is properly persisted before the action completes.
+    await streamResult.consumeStream();
 
     // Get the final result after stream completes
     const result: {
@@ -355,7 +355,7 @@ export async function generateAgentResponse(
       finishReason?: string;
       warnings?: unknown[];
     } = {
-      text: finalText,
+      text: await streamResult.text,
       steps: await streamResult.steps,
       usage: await streamResult.usage,
       finishReason: await streamResult.finishReason,
