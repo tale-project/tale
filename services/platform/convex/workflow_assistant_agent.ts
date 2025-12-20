@@ -288,20 +288,26 @@ ${toonifiedSteps}
           })),
         );
 
-        const imageMarkdown: string[] = [];
+        // Use the same format as documents - regular links, not markdown image syntax
+        // The UI doesn't render markdown well, so we avoid ![...](...)
+        const imageLinks: string[] = [];
         for (const { attachment, url } of imageUrls) {
           if (url) {
-            // Use markdown image syntax with fileId preserved for future reference
-            imageMarkdown.push(
-              `![${attachment.fileName}](${url})\n*(fileId: ${attachment.fileId})*`,
+            const sizeKB = Math.round(attachment.fileSize / 1024);
+            const sizeDisplay =
+              sizeKB >= 1024
+                ? `${(sizeKB / 1024).toFixed(1)} MB`
+                : `${sizeKB} KB`;
+            imageLinks.push(
+              `🖼️ [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
             );
           }
         }
 
-        if (imageMarkdown.length > 0) {
+        if (imageLinks.length > 0) {
           displayTextContent = displayTextContent
-            ? `${displayTextContent}\n\n${imageMarkdown.join('\n\n')}`
-            : imageMarkdown.join('\n\n');
+            ? `${displayTextContent}\n\n${imageLinks.join('\n')}`
+            : imageLinks.join('\n');
         }
       }
 
