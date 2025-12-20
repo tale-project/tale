@@ -12,15 +12,11 @@ import { toonify } from '../lib/utils/toonify';
 import type { ToolName } from './agent_tools/tool_registry';
 import {
   type FileAttachment,
-  registerFilesWithAgent,
-  buildMultiModalContent,
   type MessageContentPart,
 } from './lib/attachments/index';
 import { saveMessage } from '@convex-dev/agent';
-import {
-  parseFile,
-  type ParseFileResult,
-} from './agent_tools/files/helpers/parse_file';
+import { parseFile } from './agent_tools/files/helpers/parse_file';
+import { analyzeImage } from './agent_tools/files/helpers/analyze_image';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -184,9 +180,8 @@ ${toonifiedSteps}
     let promptMessageId: string | undefined;
 
     // Build message content for saving and AI prompting
-    type ContentPart =
-      | { type: 'text'; text: string }
-      | { type: 'image'; image: string; mimeType: string };
+    // Note: We only save text parts, not image parts, to avoid breaking non-vision models
+    type ContentPart = { type: 'text'; text: string };
 
     if (attachments && attachments.length > 0) {
       debugLog('Processing file attachments', {
@@ -279,28 +274,41 @@ ${toonifiedSteps}
         }
       }
 
-      saveContentParts.push({ type: 'text', text: displayTextContent });
+      // Add image references as text (NOT multi-modal image parts)
+      // We do NOT save image parts inline because:
+      // 1. The main agent model may not support images
+      // 2. When loading thread history for follow-up messages, old image parts would
+      //    be sent to the model, causing "No endpoints found that support image input"
+      // 3. Images are analyzed separately using the vision model below
+      if (imageAttachments.length > 0) {
+        const imageUrls = await Promise.all(
+          imageAttachments.map(async (attachment) => ({
+            attachment,
+            url: await ctx.storage.getUrl(attachment.fileId),
+          })),
+        );
 
-      // Add image parts for images (with URLs for display)
-      // Fetch all image URLs in parallel for better performance
-      const imageUrls = await Promise.all(
-        imageAttachments.map(async (attachment) => ({
-          attachment,
-          url: await ctx.storage.getUrl(attachment.fileId),
-        })),
-      );
+        const imageMarkdown: string[] = [];
+        for (const { attachment, url } of imageUrls) {
+          if (url) {
+            // Use markdown image syntax with fileId preserved for future reference
+            imageMarkdown.push(
+              `![${attachment.fileName}](${url})\n*(fileId: ${attachment.fileId})*`,
+            );
+          }
+        }
 
-      for (const { attachment, url } of imageUrls) {
-        if (url) {
-          saveContentParts.push({
-            type: 'image',
-            image: url,
-            mimeType: attachment.fileType,
-          });
+        if (imageMarkdown.length > 0) {
+          displayTextContent = displayTextContent
+            ? `${displayTextContent}\n\n${imageMarkdown.join('\n\n')}`
+            : imageMarkdown.join('\n\n');
         }
       }
 
-      // Save the user message with multi-modal content for display
+      saveContentParts.push({ type: 'text', text: displayTextContent });
+
+      // Save the user message with text-only content for display
+      // Images are analyzed separately and their analysis is included in the AI prompt
       if (imageAttachments.length > 0 || documentAttachments.length > 0) {
         const { messageId } = await saveMessage(ctx, components.agent, {
           threadId,
@@ -309,12 +317,60 @@ ${toonifiedSteps}
         promptMessageId = messageId;
       }
 
-      // Build prompt content for AI
-      // For images: use multi-modal content
-      // For documents: include parsed text content
-      const registeredFiles = await registerFilesWithAgent(ctx, attachments);
+      // Analyze images using the vision model and extract content as text
+      // This ensures the workflow agent (which may not be a vision model) can understand images
+      const analyzedImages: Array<{
+        fileName: string;
+        analysis: string;
+      }> = [];
 
-      if (registeredFiles.length > 0 || parsedDocuments.length > 0) {
+      if (imageAttachments.length > 0) {
+        debugLog('Analyzing images with vision model', {
+          count: imageAttachments.length,
+        });
+
+        const imageAnalysisResults = await Promise.all(
+          imageAttachments.map(async (attachment) => {
+            try {
+              const result = await analyzeImage(ctx, {
+                fileId: attachment.fileId,
+                question:
+                  'Extract and describe all content from this image in detail. Include all visible text, data, and information.',
+                fileName: attachment.fileName,
+              });
+
+              if (result.success && result.analysis) {
+                return {
+                  fileName: attachment.fileName,
+                  analysis: result.analysis,
+                };
+              }
+              debugLog('Image analysis failed', {
+                fileName: attachment.fileName,
+                error: result.error,
+              });
+              return null;
+            } catch (error) {
+              debugLog('Error analyzing image', {
+                fileName: attachment.fileName,
+                error: String(error),
+              });
+              return null;
+            }
+          }),
+        );
+
+        for (const result of imageAnalysisResults) {
+          if (result) {
+            analyzedImages.push(result);
+          }
+        }
+      }
+
+      // Build prompt content for AI
+      // For images: include analyzed text content (extracted by vision model)
+      // For documents: include parsed text content
+      if (analyzedImages.length > 0 || parsedDocuments.length > 0) {
         // Start with the user's original message (workflow context is passed via contextMessages)
         const aiContentParts: MessageContentPart[] = [
           { type: 'text', text: args.message },
@@ -338,11 +394,13 @@ ${toonifiedSteps}
           }
         }
 
-        // Add images as multi-modal content
-        const imageFiles = registeredFiles.filter((f) => f.isImage);
-        for (const regFile of imageFiles) {
-          if (regFile.imagePart) {
-            aiContentParts.push(regFile.imagePart);
+        // Add analyzed image content as text (extracted by vision model)
+        if (analyzedImages.length > 0) {
+          for (const img of analyzedImages) {
+            aiContentParts.push({
+              type: 'text',
+              text: `\n\n---\n**Image: ${img.fileName}**\n\n${img.analysis}\n---\n`,
+            });
           }
         }
 
