@@ -1,7 +1,6 @@
 import VendorsTable from './vendors-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
-import { TableSkeleton } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -23,22 +22,19 @@ interface PageProps {
  */
 function VendorsPageSkeleton() {
   return (
-    <>
-      {/* Search and filter bar skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-64 rounded-md" />
-          <Skeleton className="h-10 w-24 rounded-md" />
-        </div>
-        <Skeleton className="h-10 w-32 rounded-md" />
-      </div>
-
-      {/* Table skeleton */}
-      <TableSkeleton
-        rows={10}
-        headers={['Name', 'Email', 'Source', 'Locale', 'Created', '']}
-      />
-    </>
+    <DataTableSkeleton
+      rows={10}
+      columns={[
+        { header: 'Name', width: 'w-32' },
+        { header: 'Email', width: 'w-32' },
+        { header: 'Source', width: 'w-24' },
+        { header: 'Locale', width: 'w-20' },
+        { header: 'Created', width: 'w-24' },
+        { isAction: true },
+      ]}
+      showHeader
+      showFilters
+    />
   );
 }
 
@@ -79,22 +75,6 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   const sourceFilters = resolvedSearchParams.source?.split(',').filter(Boolean);
   const localeFilters = resolvedSearchParams.locale?.split(',').filter(Boolean);
 
-  // Prepare query params for pagination that preserves filters
-  const baseQueryParams = new URLSearchParams();
-  if (searchTerm) {
-    baseQueryParams.set('query', searchTerm);
-  }
-  if (resolvedSearchParams.source) {
-    baseQueryParams.set('source', resolvedSearchParams.source);
-  }
-  if (resolvedSearchParams.locale) {
-    baseQueryParams.set('locale', resolvedSearchParams.locale);
-  }
-  if (pageSize !== 10) {
-    baseQueryParams.set('size', pageSize.toString());
-  }
-  const queryString = baseQueryParams.toString();
-
   // Preload vendors for SSR + real-time reactivity on client
   const preloadedVendors = await preloadQuery(
     api.vendors.getVendors,
@@ -117,7 +97,6 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
       currentPage={currentPage}
       pageSize={pageSize}
       searchTerm={searchTerm}
-      queryParams={queryString}
       preloadedVendors={preloadedVendors}
     />
   );

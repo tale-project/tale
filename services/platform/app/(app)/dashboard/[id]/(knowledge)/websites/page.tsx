@@ -1,7 +1,6 @@
 import WebsitesTable from './websites-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
-import { TableSkeleton } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -17,18 +16,18 @@ interface PageProps {
  */
 function WebsitesPageSkeleton() {
   return (
-    <>
-      {/* Actions bar skeleton */}
-      <div className="flex items-center justify-end gap-4 mb-4">
-        <Skeleton className="h-10 w-32 rounded-md" />
-      </div>
-
-      {/* Table skeleton */}
-      <TableSkeleton
-        rows={10}
-        headers={['URL', 'Status', 'Pages', 'Last Crawled', '']}
-      />
-    </>
+    <DataTableSkeleton
+      rows={10}
+      columns={[
+        { header: 'URL', width: 'w-48' },
+        { header: 'Status', width: 'w-24' },
+        { header: 'Pages', width: 'w-16' },
+        { header: 'Last Crawled', width: 'w-28' },
+        { isAction: true },
+      ]}
+      showHeader
+      showFilters
+    />
   );
 }
 
@@ -55,22 +54,11 @@ async function WebsitesContent({ params, searchParams }: WebsitesContentProps) {
     ? Number.parseInt(resolvedSearchParams.size)
     : 10;
 
-  // Prepare query params for pagination that preserves filters
-  const baseQueryParams = new URLSearchParams();
-  if (resolvedSearchParams.status) {
-    baseQueryParams.set('status', resolvedSearchParams.status);
-  }
-  if (pageSize !== 10) {
-    baseQueryParams.set('size', pageSize.toString());
-  }
-  const queryString = baseQueryParams.toString();
-
   return (
     <WebsitesTable
       organizationId={organizationId}
       currentPage={currentPage}
       pageSize={pageSize}
-      queryParams={queryString}
     />
   );
 }

@@ -4,8 +4,7 @@ import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { SuspenseLoader } from '@/components/suspense-loader';
 import { redirect } from 'next/navigation';
-import { TableSkeleton } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 interface ProductsPageProps {
   params: Promise<{ id: string }>;
@@ -17,19 +16,19 @@ interface ProductsPageProps {
  */
 function ProductsPageSkeleton() {
   return (
-    <>
-      {/* Search bar skeleton */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <Skeleton className="h-10 w-64 rounded-md" />
-        <Skeleton className="h-10 w-32 rounded-md" />
-      </div>
-
-      {/* Table skeleton */}
-      <TableSkeleton
-        rows={10}
-        headers={['Product', 'SKU', 'Price', 'Status', 'Created', '']}
-      />
-    </>
+    <DataTableSkeleton
+      rows={10}
+      columns={[
+        { header: 'Product', width: 'w-40' },
+        { header: 'SKU', width: 'w-24' },
+        { header: 'Price', width: 'w-20' },
+        { header: 'Status', width: 'w-20' },
+        { header: 'Created', width: 'w-24' },
+        { isAction: true },
+      ]}
+      showHeader
+      showFilters
+    />
   );
 }
 

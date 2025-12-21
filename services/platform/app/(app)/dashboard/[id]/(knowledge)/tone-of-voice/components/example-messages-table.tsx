@@ -1,15 +1,10 @@
 'use client';
 
+import { useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { type ColumnDef } from '@tanstack/react-table';
+import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,10 +49,13 @@ export default function ExampleMessagesTable({
   // Get current page from URL query params, default to 1
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
 
-  const truncateMessage = (message: string, maxLength: number = 100) => {
-    if (message.length <= maxLength) return message;
-    return `"${message.substring(0, maxLength)}..."`;
-  };
+  const truncateMessage = useCallback(
+    (message: string, maxLength: number = 100) => {
+      if (message.length <= maxLength) return message;
+      return `"${message.substring(0, maxLength)}..."`;
+    },
+    [],
+  );
 
   // Calculate pagination
   const totalPages = Math.ceil(examples.length / itemsPerPage);
@@ -66,123 +64,124 @@ export default function ExampleMessagesTable({
   const paginatedExamples = examples.slice(startIndex, endIndex);
   const hasNextPage = currentPage < totalPages;
 
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
-            Example messages
-          </h3>
-          <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-            Samples to guide the AI to match your tone and style.
-          </p>
-        </div>
-        {examples.length > 0 && (
-          <Button onClick={onAddExample}>
-            <Plus className="size-4 mr-2" />
-            Add example
-          </Button>
-        )}
-      </div>
+  // Column definitions
+  const columns = useMemo<ColumnDef<ExampleMessage>[]>(
+    () => [
+      {
+        accessorKey: 'content',
+        header: 'Message',
+        cell: ({ row }) => (
+          <span className="text-sm font-medium text-foreground">
+            {truncateMessage(row.original.content)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'updatedAt',
+        header: 'Updated',
+        size: 140,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground tracking-[-0.072px]">
+            {format(row.original.updatedAt, 'yyyy-MM-dd')}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        size: 60,
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-8">
+                  <MoreVertical className="size-4 text-muted-foreground" />
+                  <span className="sr-only">Open menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onViewExample(row.original)}>
+                  <Eye className="size-4 mr-2" />
+                  View
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onEditExample(row.original)}>
+                  <Pencil className="size-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onDeleteExample(row.original.id)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      },
+    ],
+    [truncateMessage, onViewExample, onEditExample, onDeleteExample],
+  );
 
-      {/* Table */}
-      {examples.length === 0 ? (
-        /* Empty State */
-        <div className="flex items-center justify-center py-16 px-4 text-center bg-background border border-border rounded-lg">
-          <div className="max-w-[24rem]">
-            <div className="flex flex-col items-center">
-              <Sparkles className="size-6 text-muted-foreground mb-5" />
-              <h4 className="font-semibold text-foreground leading-tight mb-2">
-                No examples yet
-              </h4>
-              <p className="text-sm text-muted-foreground mb-5">
-                Add example messages to train the AI on your tone
-              </p>
-            </div>
+  // Header component
+  const header = (
+    <div className="flex items-center justify-between">
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
+          Example messages
+        </h3>
+        <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+          Samples to guide the AI to match your tone and style.
+        </p>
+      </div>
+      {examples.length > 0 && (
+        <Button onClick={onAddExample}>
+          <Plus className="size-4 mr-2" />
+          Add example
+        </Button>
+      )}
+    </div>
+  );
+
+  // Empty state
+  if (examples.length === 0) {
+    return (
+      <div className="space-y-5">
+        {header}
+        <DataTableEmptyState
+          icon={Sparkles}
+          title="No examples yet"
+          description="Add example messages to train the AI on your tone"
+          action={
             <Button onClick={onAddExample}>
               <Plus className="size-4 mr-2" />
               Add example
             </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="ring-1 ring-border rounded-xl">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="font-medium">Message</TableHead>
-                <TableHead className="font-medium w-[140px]">Updated</TableHead>
-                <TableHead className="w-[60px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedExamples.map((example) => (
-                <TableRow key={example.id}>
-                  <TableCell className="px-4">
-                    <span className="text-sm font-medium text-foreground">
-                      {truncateMessage(example.content)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs text-muted-foreground tracking-[-0.072px]">
-                      {format(example.updatedAt, 'yyyy-MM-dd')}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                          >
-                            <MoreVertical className="size-4 text-muted-foreground" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => onViewExample(example)}
-                          >
-                            <Eye className="size-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onEditExample(example)}
-                          >
-                            <Pencil className="size-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => onDeleteExample(example.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="size-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {examples.length > itemsPerPage && (
-        <Pagination
-          currentPage={currentPage}
-          total={examples.length}
-          pageSize={itemsPerPage}
-          totalPages={totalPages}
-          hasNextPage={hasNextPage}
+          }
         />
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {header}
+      <DataTable
+        columns={columns}
+        data={paginatedExamples}
+        getRowId={(row) => row.id}
+        footer={
+          examples.length > itemsPerPage ? (
+            <Pagination
+              currentPage={currentPage}
+              total={examples.length}
+              pageSize={itemsPerPage}
+              totalPages={totalPages}
+              hasNextPage={hasNextPage}
+            />
+          ) : undefined
+        }
+      />
     </div>
   );
 }

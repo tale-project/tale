@@ -3,7 +3,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable } from './components/executions-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
-import { TableSkeleton } from '@/components/skeletons';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 /**
  * Skeleton for the executions table.
@@ -11,16 +11,18 @@ import { TableSkeleton } from '@/components/skeletons';
 function ExecutionsSkeleton() {
   return (
     <div className="py-6 px-4">
-      <TableSkeleton
+      <DataTableSkeleton
         rows={10}
-        headers={[
-          'Execution ID',
-          'Status',
-          'Triggered By',
-          'Started',
-          'Duration',
-          '',
+        columns={[
+          { header: 'Execution ID', width: 'w-32' },
+          { header: 'Status', width: 'w-24' },
+          { header: 'Triggered By', width: 'w-28' },
+          { header: 'Started', width: 'w-28' },
+          { header: 'Duration', width: 'w-20' },
+          { isAction: true },
         ]}
+        showHeader
+        showFilters
       />
     </div>
   );

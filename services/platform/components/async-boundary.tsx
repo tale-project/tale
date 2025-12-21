@@ -23,7 +23,7 @@ function DefaultErrorFallback({
     <div
       className={cn(
         'flex flex-col items-center justify-center gap-4 p-8 text-center',
-        className
+        className,
       )}
     >
       <div className="rounded-full bg-destructive/10 p-3">
@@ -71,10 +71,10 @@ interface AsyncBoundaryProps {
  *
  * ```tsx
  * import { AsyncBoundary } from '@/components/async-boundary';
- * import { TableSkeleton } from '@/components/skeletons';
+ * import { DataTableSkeleton } from '@/components/ui/data-table';
  *
  * // In your page or component:
- * <AsyncBoundary fallback={<TableSkeleton rows={10} />}>
+ * <AsyncBoundary fallback={<DataTableSkeleton rows={10} />}>
  *   <CustomersTable />
  * </AsyncBoundary>
  * ```
@@ -87,7 +87,7 @@ interface AsyncBoundaryProps {
  * // components/customers/customers-table-async.tsx
  * export function CustomersTableAsync(props: Props) {
  *   return (
- *     <AsyncBoundary fallback={<TableSkeleton rows={10} />}>
+ *     <AsyncBoundary fallback={<DataTableSkeleton rows={10} />}>
  *       <CustomersTableContent {...props} />
  *     </AsyncBoundary>
  *   );
@@ -138,4 +138,3 @@ export function AsyncBoundary({
  * Prefer AsyncBoundary for production code as it handles errors gracefully.
  */
 export { Suspense };
-

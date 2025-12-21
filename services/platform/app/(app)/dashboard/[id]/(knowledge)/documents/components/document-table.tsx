@@ -1,19 +1,12 @@
 'use client';
 
-import { useMemo, useState, ChangeEvent } from 'react';
+import { useMemo, useState, useCallback, ChangeEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Search, Monitor, ClipboardList, RefreshCw } from 'lucide-react';
+import { type ColumnDef } from '@tanstack/react-table';
+import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import Pagination from '@/components/ui/pagination';
-import { Search, Monitor, ClipboardList } from 'lucide-react';
-import { RefreshCw } from 'lucide-react';
 import ImportDocumentsMenu from './import-documents-menu';
 import BreadcrumbNavigation from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
@@ -77,75 +70,173 @@ export default function DocumentTable({
     router.push(url);
   };
 
-  const handleFolderClick = (item: DocumentItem) => {
-    const params = new URLSearchParams(baseParams.toString());
+  const handleFolderClick = useCallback(
+    (item: DocumentItem) => {
+      const params = new URLSearchParams(baseParams.toString());
+      params.set(
+        'folderPath',
+        item.storagePath?.replace(organizationId, '') ?? '',
+      );
+      const url = `${pathname}?${params}`;
+      router.push(url);
+    },
+    [baseParams, organizationId, pathname, router],
+  );
 
-    params.set(
-      'folderPath',
-      item.storagePath?.replace(organizationId, '') ?? '',
-    );
+  const handleRowClick = useCallback(
+    (item: DocumentItem) => {
+      if (item.type === 'folder') {
+        handleFolderClick(item);
+      }
+    },
+    [handleFolderClick],
+  );
 
-    const url = `${pathname}?${params}`;
-    router.push(url);
-  };
+  const handleDocumentClick = useCallback(
+    (item: DocumentItem, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (item.type === 'file') {
+        if (item.storagePath) {
+          setPreviewPath(item.storagePath);
+          setPreviewDocumentId(null);
+          setPreviewFileName(item.name ?? null);
+        } else {
+          setPreviewDocumentId(item.id);
+          setPreviewPath(null);
+          setPreviewFileName(item.name ?? null);
+        }
+        setPreviewOpen(true);
+      }
+      if (item.type === 'folder' && item.storagePath) {
+        handleFolderClick(item);
+      }
+    },
+    [handleFolderClick],
+  );
 
-  const emptyQuery = items.length === 0 && query;
-
-  if (emptyQuery) {
-    return (
-      <div className="space-y-4">
-        {/* Breadcrumb Navigation */}
-        {currentFolderPath && (
-          <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
-        )}
-        {/* Search and Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-[300px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={handleSearchChange}
-              placeholder="Search documents..."
-              className="pl-8"
-            />
-          </div>
+  // Define columns using TanStack Table
+  const columns = useMemo<ColumnDef<DocumentItem>[]>(
+    () => [
+      {
+        accessorKey: 'name',
+        header: 'Document',
+        cell: ({ row }) => (
           <div className="flex items-center gap-3">
-            <ImportDocumentsMenu
-              organizationId={organizationId}
-              hasMicrosoftAccount={hasMicrosoftAccount}
+            <DocumentIcon
+              fileName={
+                row.original.type === 'folder'
+                  ? 'folder'
+                  : (row.original.name ?? '')
+              }
             />
+            <button
+              type="button"
+              title={row.original.name ?? ''}
+              className="text-left"
+              onClick={(e) => handleDocumentClick(row.original, e)}
+            >
+              <div className="text-sm font-medium text-primary hover:underline truncate max-w-[30rem]">
+                {row.original.name ?? ''}
+              </div>
+            </button>
           </div>
-        </div>
-
-        {/* Empty folder message */}
-        <div className="grid place-items-center h-[40vh]">
-          <div className="text-center max-w-[24rem] flex flex-col items-center">
-            <div className="text-lg font-semibold mb-2">No results found</div>
+        ),
+      },
+      {
+        accessorKey: 'size',
+        header: 'Size',
+        size: 128,
+        cell: ({ row }) =>
+          row.original.type === 'folder'
+            ? '—'
+            : formatFileSize(row.original.size ?? 0),
+      },
+      {
+        id: 'source',
+        header: 'Source',
+        size: 96,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            {row.original.sourceProvider === 'onedrive' &&
+              row.original.sourceMode === 'auto' && (
+                <div className="relative">
+                  <OneDriveIcon className="size-6" />
+                  <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
+                </div>
+              )}
+            {row.original.sourceProvider === 'onedrive' &&
+              row.original.sourceMode === 'manual' && (
+                <OneDriveIcon className="size-6" />
+              )}
+            {row.original.sourceProvider === 'upload' && (
+              <Monitor className="size-6" />
+            )}
           </div>
-        </div>
-      </div>
-    );
-  }
+        ),
+      },
+      {
+        id: 'ragStatus',
+        header: 'RAG Status',
+        size: 128,
+        cell: ({ row }) =>
+          row.original.type === 'folder' ? (
+            <span className="text-muted-foreground text-sm">—</span>
+          ) : (
+            <RagStatusBadge
+              status={row.original.ragStatus}
+              indexedAt={row.original.ragIndexedAt}
+              error={row.original.ragError}
+              documentId={row.original.id}
+            />
+          ),
+      },
+      {
+        accessorKey: 'lastModified',
+        header: () => <span className="text-right w-full block">Modified</span>,
+        size: 192,
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground text-right block">
+            {row.original.lastModified
+              ? new Date(row.original.lastModified).toLocaleDateString()
+              : '—'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        size: 160,
+        cell: ({ row }) => (
+          <DocumentActions
+            organizationId={organizationId}
+            documentId={row.original.id}
+            storagePath={row.original.storagePath ?? ''}
+            itemType={row.original.type}
+            name={row.original.name ?? null}
+            syncConfigId={row.original.syncConfigId}
+            isDirectlySelected={row.original.isDirectlySelected}
+            sourceMode={row.original.sourceMode}
+          />
+        ),
+      },
+    ],
+    [organizationId, handleDocumentClick],
+  );
 
   const emptyDocuments = items.length === 0 && !query;
 
   if (emptyDocuments) {
     return (
-      <div className="grid place-items-center flex-[1_1_0] ring-1 ring-border rounded-xl p-4">
-        <div className="text-center max-w-[24rem] flex flex-col items-center">
-          <ClipboardList className="size-6 text-secondary mb-5" />
-          <div className="text-lg font-semibold leading-tight mb-2">
-            No documents yet
-          </div>
-          <p className="text-sm text-muted-foreground mb-5">
-            Import documents to make your AI smarter
-          </p>
+      <DataTableEmptyState
+        icon={ClipboardList}
+        title="No documents yet"
+        description="Import documents to make your AI smarter"
+        action={
           <ImportDocumentsMenu
             organizationId={organizationId}
             hasMicrosoftAccount={hasMicrosoftAccount}
           />
-        </div>
-      </div>
+        }
+      />
     );
   }
 
@@ -156,154 +247,46 @@ export default function DocumentTable({
         <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
       )}
 
-      {/* Search and Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative w-full sm:w-[300px]">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={handleSearchChange}
-            placeholder="Search documents..."
-            className="pl-8"
+      <DataTable
+        columns={columns}
+        data={items}
+        getRowId={(row) => row.id}
+        onRowClick={handleRowClick}
+        rowClassName={(row) =>
+          row.original.type === 'folder' ? 'cursor-pointer' : ''
+        }
+        header={
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="relative w-full sm:w-[300px]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={handleSearchChange}
+                placeholder="Search documents..."
+                className="pl-8"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <ImportDocumentsMenu
+                organizationId={organizationId}
+                hasMicrosoftAccount={hasMicrosoftAccount}
+              />
+            </div>
+          </div>
+        }
+        emptyState={{
+          title: 'No results found',
+          description: 'Try adjusting your search criteria',
+          isFiltered: true,
+        }}
+        footer={
+          <Pagination
+            currentPage={currentPage}
+            total={total}
+            pageSize={pageSize}
+            hasNextPage={hasNextPage}
           />
-        </div>
-        <div className="flex items-center gap-3">
-          <ImportDocumentsMenu
-            organizationId={organizationId}
-            hasMicrosoftAccount={hasMicrosoftAccount}
-          />
-        </div>
-      </div>
-
-      {/* Table */}
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Document</TableHead>
-            <TableHead>Size</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>RAG Status</TableHead>
-            <TableHead className="text-right">Modified</TableHead>
-            <TableHead></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody className="min-h-[40vh]">
-          {items?.map((item) => {
-            return (
-              <TableRow
-                key={item.id}
-                className={
-                  item.type === 'folder'
-                    ? 'cursor-pointer hover:bg-secondary/20'
-                    : ''
-                }
-                onClick={
-                  item.type === 'folder'
-                    ? () => handleFolderClick(item)
-                    : undefined
-                }
-              >
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <DocumentIcon
-                      fileName={
-                        item.type === 'folder' ? 'folder' : (item.name ?? '')
-                      }
-                    />
-                    <button
-                      type="button"
-                      title={item.name ?? ''}
-                      className="text-left"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (item.type === 'file') {
-                          // For uploaded files without storagePath, use documentId
-                          if (item.storagePath) {
-                            setPreviewPath(item.storagePath);
-                            setPreviewDocumentId(null);
-                            setPreviewFileName(item.name ?? null);
-                          } else {
-                            setPreviewDocumentId(item.id);
-                            setPreviewPath(null);
-                            setPreviewFileName(item.name ?? null);
-                          }
-                          setPreviewOpen(true);
-                        }
-                        if (item.type === 'folder' && item.storagePath) {
-                          handleFolderClick(item);
-                        }
-                      }}
-                    >
-                      <div className="text-sm font-medium text-primary hover:underline truncate max-w-[30rem]">
-                        {item.name ?? ''}
-                      </div>
-                    </button>
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[8rem]">
-                  {item.type === 'folder'
-                    ? '—'
-                    : formatFileSize(item.size ?? 0)}
-                </TableCell>
-                <TableCell className="max-w-[6rem]">
-                  <div className="flex items-center gap-2">
-                    {item.sourceProvider === 'onedrive' &&
-                      item.sourceMode === 'auto' && (
-                        <div className="relative">
-                          <OneDriveIcon className="size-6" />
-                          <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
-                        </div>
-                      )}
-                    {item.sourceProvider === 'onedrive' &&
-                      item.sourceMode === 'manual' && (
-                        <OneDriveIcon className="size-6" />
-                      )}
-                    {item.sourceProvider === 'upload' && (
-                      <Monitor className="size-6" />
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[8rem]">
-                  {item.type === 'folder' ? (
-                    <span className="text-muted-foreground text-sm">—</span>
-                  ) : (
-                    <RagStatusBadge
-                      status={item.ragStatus}
-                      indexedAt={item.ragIndexedAt}
-                      error={item.ragError}
-                      documentId={item.id}
-                    />
-                  )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground max-w-[12rem] text-right">
-                  {item.lastModified
-                    ? new Date(item.lastModified).toLocaleDateString()
-                    : '—'}
-                </TableCell>
-                <TableCell className="max-w-[10rem]">
-                  <DocumentActions
-                    organizationId={organizationId}
-                    documentId={item.id}
-                    storagePath={item.storagePath ?? ''}
-                    itemType={item.type}
-                    name={item.name ?? null}
-                    syncConfigId={item.syncConfigId}
-                    isDirectlySelected={item.isDirectlySelected}
-                    sourceMode={item.sourceMode}
-                  />
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-
-      {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        total={total}
-        pageSize={pageSize}
-        hasNextPage={hasNextPage}
+        }
       />
 
       {/* Document Preview Modal */}

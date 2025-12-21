@@ -1,8 +1,7 @@
 import CustomersTable from './customers-table';
 import { CustomerStatus } from '@/constants/convex-enums';
 import { SuspenseLoader } from '@/components/suspense-loader';
-import { TableSkeleton } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -27,22 +26,19 @@ interface PageProps {
  */
 function CustomersPageSkeleton() {
   return (
-    <>
-      {/* Search and filter bar skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-64 rounded-md" />
-          <Skeleton className="h-10 w-24 rounded-md" />
-        </div>
-        <Skeleton className="h-10 w-32 rounded-md" />
-      </div>
-
-      {/* Table skeleton */}
-      <TableSkeleton
-        rows={10}
-        headers={['Name', 'Status', 'Source', 'Locale', 'Created', '']}
-      />
-    </>
+    <DataTableSkeleton
+      rows={10}
+      columns={[
+        { header: 'Name', width: 'w-32' },
+        { header: 'Status', width: 'w-20' },
+        { header: 'Source', width: 'w-24' },
+        { header: 'Locale', width: 'w-20' },
+        { header: 'Created', width: 'w-24' },
+        { isAction: true },
+      ]}
+      showHeader
+      showFilters
+    />
   );
 }
 
@@ -93,19 +89,6 @@ async function CustomersContent({
   // Get search term from search params
   const searchTerm = resolvedSearchParams.query;
 
-  // Prepare query params for pagination that preserves filters
-  const baseQueryParams = new URLSearchParams();
-  if (resolvedSearchParams.status) {
-    baseQueryParams.set('status', resolvedSearchParams.status);
-  }
-  if (searchTerm) {
-    baseQueryParams.set('query', searchTerm);
-  }
-  if (pageSize !== 10) {
-    baseQueryParams.set('size', pageSize.toString());
-  }
-  const queryString = baseQueryParams.toString();
-
   // Preload customers for SSR + real-time reactivity on client
   const preloadedCustomers = await preloadQuery(
     api.customers.getCustomers,
@@ -129,7 +112,6 @@ async function CustomersContent({
       currentPage={currentPage}
       pageSize={pageSize}
       searchTerm={searchTerm}
-      queryParams={queryString}
       preloadedCustomers={preloadedCustomers}
     />
   );

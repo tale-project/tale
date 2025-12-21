@@ -1,16 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
+import { type ColumnDef } from '@tanstack/react-table';
+import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { toast } from '@/hooks/use-toast';
 import ApprovalDetailModal from './approval-detail-modal';
 import { ApprovalDetail } from '../types/approval-detail';
@@ -18,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
 import { useMutation, usePreloadedQuery, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { Id, Doc } from '@/convex/_generated/dataModel';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
+
+type ApprovalDoc = Doc<'approvals'>;
 
 interface ApprovalsProps {
   status?: 'pending' | 'resolved';
@@ -450,21 +446,295 @@ export default function Approvals({
     );
   };
 
+  // Helper to get customer label
+  const getCustomerLabel = useCallback((approval: ApprovalDoc) => {
+    const metadata = (approval.metadata || {}) as Record<string, unknown>;
+    return (
+      (typeof metadata['customerName'] === 'string' &&
+        (metadata['customerName'] as string).trim()) ||
+      (typeof metadata['customerEmail'] === 'string' &&
+        (metadata['customerEmail'] as string).trim()) ||
+      'Unknown Customer'
+    );
+  }, []);
+
+  // Helper to get confidence percentage
+  const getConfidencePercent = useCallback((approval: ApprovalDoc) => {
+    const metadata = (approval.metadata || {}) as Record<string, unknown>;
+    const recs = Array.isArray(metadata['recommendedProducts'])
+      ? (metadata['recommendedProducts'] as Array<Record<string, unknown>>)
+      : [];
+    const firstConf =
+      recs.length > 0 && typeof recs[0]['confidence'] === 'number'
+        ? (recs[0]['confidence'] as number)
+        : 0;
+    const raw =
+      typeof metadata['confidence'] === 'number'
+        ? (metadata['confidence'] as number)
+        : firstConf;
+    const n = Number(raw);
+    return !Number.isFinite(n)
+      ? 0
+      : n <= 1
+        ? Math.round(n * 100)
+        : Math.round(n);
+  }, []);
+
+  // Pending approvals columns
+  const pendingColumns = useMemo<ColumnDef<ApprovalDoc>[]>(
+    () => [
+      {
+        id: 'approval',
+        header: 'Approval / Recipient',
+        size: 256,
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1.5 min-h-[41px]">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-foreground tracking-tight">
+                {getApprovalTypeLabel(row.original.resourceType)}
+              </span>
+              <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
+            </div>
+            <div className="text-sm text-muted-foreground font-normal tracking-tight">
+              {getCustomerLabel(row.original)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'event',
+        header: 'Event',
+        size: 256,
+        cell: ({ row }) => {
+          const metadata = (row.original.metadata || {}) as Record<
+            string,
+            unknown
+          >;
+          return (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-xs font-medium text-foreground">
+                Purchase
+              </div>
+              {renderProductList(
+                (metadata['eventProducts'] as Array<unknown>) || [],
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'action',
+        header: 'Action',
+        size: 256,
+        cell: ({ row }) => {
+          const metadata = (row.original.metadata || {}) as Record<
+            string,
+            unknown
+          >;
+          return (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-xs font-medium text-foreground">
+                Recommendation
+              </div>
+              {renderProductList(
+                (metadata['recommendedProducts'] as Array<unknown>) || [],
+                true,
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'confidence',
+        header: () => (
+          <span className="text-right w-full block">Confidence</span>
+        ),
+        size: 100,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <span className="text-xs font-medium text-muted-foreground">
+              {getConfidencePercent(row.original)}%
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: 'actions',
+        header: () => <span className="text-right w-full block">Approved</span>,
+        size: 100,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleApprove(row.original._id);
+              }}
+              disabled={
+                approving === row.original._id || rejecting === row.original._id
+              }
+            >
+              {approving === row.original._id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <CheckIcon className="size-4" />
+              )}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReject(row.original._id);
+              }}
+              disabled={
+                approving === row.original._id || rejecting === row.original._id
+              }
+            >
+              {rejecting === row.original._id ? (
+                <div className="animate-spin rounded-full size-3 border-b border-foreground" />
+              ) : (
+                <X className="size-4 text-foreground" />
+              )}
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [
+      approving,
+      rejecting,
+      getCustomerLabel,
+      getConfidencePercent,
+      handleApprove,
+      handleReject,
+    ],
+  );
+
+  // Resolved approvals columns
+  const resolvedColumns = useMemo<ColumnDef<ApprovalDoc>[]>(
+    () => [
+      {
+        id: 'approval',
+        header: 'Approval / Recipient',
+        size: 256,
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1.5 min-h-[41px]">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-foreground tracking-tight">
+                Recommend product
+              </span>
+              <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
+            </div>
+            <div className="text-sm text-muted-foreground font-normal tracking-tight">
+              {getCustomerLabel(row.original)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: 'event',
+        header: 'Event',
+        size: 256,
+        cell: ({ row }) => {
+          const metadata = (row.original.metadata || {}) as Record<
+            string,
+            unknown
+          >;
+          return (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-xs font-medium text-foreground">
+                Purchase
+              </div>
+              {renderProductList(
+                (metadata['eventProducts'] as Array<unknown>) || [],
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'action',
+        header: 'Action',
+        size: 256,
+        cell: ({ row }) => {
+          const metadata = (row.original.metadata || {}) as Record<
+            string,
+            unknown
+          >;
+          return (
+            <div className="flex flex-col gap-1.5">
+              <div className="text-xs font-medium text-foreground">
+                Recommendation
+              </div>
+              {renderProductList(
+                (metadata['recommendedProducts'] as Array<unknown>) || [],
+                true,
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'reviewer',
+        header: 'Reviewer',
+        cell: ({ row }) => {
+          const metadata = (row.original.metadata || {}) as Record<
+            string,
+            unknown
+          >;
+          return (
+            <div className="text-sm">
+              {(metadata['approverName'] as string) || 'Unknown'}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'reviewedAt',
+        header: () => (
+          <span className="text-right w-full block">Reviewed at</span>
+        ),
+        cell: ({ row }) => (
+          <span className="text-sm text-right block">
+            {row.original.reviewedAt
+              ? formatDate(new Date(row.original.reviewedAt).toISOString(), {
+                  preset: 'short',
+                })
+              : ''}
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        header: () => <span className="text-right w-full block">Approved</span>,
+        size: 100,
+        cell: ({ row }) => (
+          <div className="text-right">
+            {row.original.status === 'approved' ? (
+              <CheckIcon className="size-4 text-green-600 inline-block" />
+            ) : (
+              <X className="size-4 text-red-600 inline-block" />
+            )}
+          </div>
+        ),
+      },
+    ],
+    [getCustomerLabel],
+  );
+
   if (approvals.length === 0) {
     return (
       <div className="px-4 py-6">
-        <div className="grid place-items-center h-[40vh] ring-1 ring-border rounded-xl">
-          <div className="text-center max-w-[24rem] flex flex-col items-center">
-            <GitCompare className="size-6 text-secondary mb-5" />
-            <div className="text-lg font-semibold leading-tight mb-2">
-              No {status || ''} approvals
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {status === 'pending' &&
-                'When human input is needed, your AI will request it here'}
-            </p>
-          </div>
-        </div>
+        <DataTableEmptyState
+          icon={GitCompare}
+          title={`No ${status || ''} approvals`}
+          description={
+            status === 'pending'
+              ? 'When human input is needed, your AI will request it here'
+              : undefined
+          }
+        />
       </div>
     );
   }
@@ -473,144 +743,13 @@ export default function Approvals({
     return (
       <>
         <div className="space-y-4 px-4 py-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Approval / Recipient</TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead className="text-right">Confidence</TableHead>
-                <TableHead className="text-right">Approved</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {approvals.map((approval) => {
-                // Cast metadata to Record for dynamic property access
-                const metadata = (approval.metadata || {}) as Record<
-                  string,
-                  unknown
-                >;
-                const customerLabel =
-                  (typeof metadata['customerName'] === 'string' &&
-                    (metadata['customerName'] as string).trim()) ||
-                  (typeof metadata['customerEmail'] === 'string' &&
-                    (metadata['customerEmail'] as string).trim()) ||
-                  'Unknown Customer';
-                return (
-                  <TableRow
-                    key={approval._id}
-                    className="cursor-pointer hover:bg-secondary/20"
-                    onClick={(e) => {
-                      // Prevent modal from opening when clicking action buttons
-                      if ((e.target as HTMLElement).closest('button')) return;
-                      handleApprovalRowClick(approval._id);
-                    }}
-                  >
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5 min-h-[41px]">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-foreground tracking-tight">
-                            {getApprovalTypeLabel(approval.resourceType)}
-                          </span>
-                          <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
-                        </div>
-                        <div className="text-sm text-muted-foreground font-normal tracking-tight">
-                          {customerLabel}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-xs font-medium text-foreground">
-                          Purchase
-                        </div>
-                        {renderProductList(
-                          (metadata['eventProducts'] as Array<unknown>) || [],
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-xs font-medium text-foreground">
-                          Recommendation
-                        </div>
-                        {renderProductList(
-                          (metadata['recommendedProducts'] as Array<unknown>) ||
-                            [],
-                          true,
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-[100px] text-right">
-                      <div className="flex justify-end">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {(() => {
-                            const recs = Array.isArray(
-                              metadata['recommendedProducts'],
-                            )
-                              ? (metadata['recommendedProducts'] as Array<
-                                  Record<string, unknown>
-                                >)
-                              : [];
-                            const firstConf =
-                              recs.length > 0 &&
-                              typeof recs[0]['confidence'] === 'number'
-                                ? (recs[0]['confidence'] as number)
-                                : 0;
-                            const raw =
-                              typeof metadata['confidence'] === 'number'
-                                ? (metadata['confidence'] as number)
-                                : firstConf;
-                            const n = Number(raw);
-                            const pct = !Number.isFinite(n)
-                              ? 0
-                              : n <= 1
-                                ? Math.round(n * 100)
-                                : Math.round(n);
-                            return pct;
-                          })()}
-                          %
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-[100px] text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="icon"
-                          onClick={() => handleApprove(approval._id)}
-                          disabled={
-                            approving === approval._id ||
-                            rejecting === approval._id
-                          }
-                        >
-                          {approving === approval._id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <CheckIcon className="size-4" />
-                          )}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          onClick={() => handleReject(approval._id)}
-                          disabled={
-                            approving === approval._id ||
-                            rejecting === approval._id
-                          }
-                        >
-                          {rejecting === approval._id ? (
-                            <div className="animate-spin rounded-full size-3 border-b border-foreground" />
-                          ) : (
-                            <X className="size-4 text-foreground" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={pendingColumns}
+            data={approvals}
+            getRowId={(row) => row._id}
+            onRowClick={(row) => handleApprovalRowClick(row.original._id)}
+            rowClassName="cursor-pointer"
+          />
         </div>
         <ApprovalDetailModal
           open={approvalDetailModalOpen}
@@ -633,100 +772,13 @@ export default function Approvals({
     return (
       <>
         <div className="space-y-4 px-4 py-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="">Approval / Recipient</TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Reviewer</TableHead>
-                <TableHead className="text-right">Reviewed at</TableHead>
-                <TableHead className="text-right">Approved</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {approvals.map((approval) => {
-                // Cast metadata to Record for dynamic property access
-                const metadata = (approval.metadata || {}) as Record<
-                  string,
-                  unknown
-                >;
-                const customerLabel =
-                  (typeof metadata['customerName'] === 'string' &&
-                    (metadata['customerName'] as string).trim()) ||
-                  (typeof metadata['customerEmail'] === 'string' &&
-                    (metadata['customerEmail'] as string).trim()) ||
-                  'Unknown Customer';
-                return (
-                  <TableRow
-                    key={approval._id}
-                    className="cursor-pointer hover:bg-secondary/20"
-                    onClick={() => handleApprovalRowClick(approval._id)}
-                  >
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5 min-h-[41px]">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-foreground tracking-tight">
-                            Recommend product
-                          </span>
-                          <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
-                        </div>
-                        <div className="text-sm text-muted-foreground font-normal tracking-tight">
-                          {customerLabel}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-xs font-medium text-foreground">
-                          Purchase
-                        </div>
-                        {renderProductList(
-                          (metadata['eventProducts'] as Array<unknown>) || [],
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-64 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="text-xs font-medium text-foreground">
-                          Recommendation
-                        </div>
-                        {renderProductList(
-                          (metadata['recommendedProducts'] as Array<unknown>) ||
-                            [],
-                          true,
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {(metadata['approverName'] as string) || 'Unknown'}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className="text-sm">
-                        {approval.reviewedAt
-                          ? formatDate(
-                              new Date(approval.reviewedAt).toISOString(),
-                              {
-                                preset: 'short',
-                              },
-                            )
-                          : ''}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {approval.status === 'approved' ? (
-                        <CheckIcon className="size-4 text-green-600 inline-block" />
-                      ) : (
-                        <X className="size-4 text-red-600 inline-block" />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={resolvedColumns}
+            data={approvals}
+            getRowId={(row) => row._id}
+            onRowClick={(row) => handleApprovalRowClick(row.original._id)}
+            rowClassName="cursor-pointer"
+          />
         </div>
         <ApprovalDetailModal
           open={approvalDetailModalOpen}
@@ -748,14 +800,7 @@ export default function Approvals({
   // Default return with modal for other cases
   return (
     <div className="px-4 py-6">
-      <div className="grid place-items-center h-[40vh] ring-1 ring-border rounded-xl">
-        <div className="text-center max-w-[24rem] flex flex-col items-center">
-          <GitCompare className="size-6 text-secondary mb-5" />
-          <div className="text-lg font-semibold leading-tight mb-2">
-            No approvals found
-          </div>
-        </div>
-      </div>
+      <DataTableEmptyState icon={GitCompare} title="No approvals found" />
       <ApprovalDetailModal
         open={approvalDetailModalOpen}
         onOpenChange={handleApprovalDetailOpenChange}

@@ -10,9 +10,9 @@ interface SuspenseLoaderProps {
    * For better UX, prefer using domain-specific skeletons:
    * @example
    * ```tsx
-   * import { TableSkeleton } from '@/components/skeletons';
+   * import { DataTableSkeleton } from '@/components/ui/data-table';
    *
-   * <SuspenseLoader fallback={<TableSkeleton rows={10} />}>
+   * <SuspenseLoader fallback={<DataTableSkeleton rows={10} />}>
    *   <CustomersTable />
    * </SuspenseLoader>
    * ```
@@ -46,9 +46,9 @@ function DefaultFallback() {
  *
  * With custom skeleton for better UX:
  * ```tsx
- * import { TableSkeleton } from '@/components/skeletons';
+ * import { DataTableSkeleton } from '@/components/ui/data-table';
  *
- * <SuspenseLoader fallback={<TableSkeleton rows={10} />}>
+ * <SuspenseLoader fallback={<DataTableSkeleton rows={10} />}>
  *   <CustomersTable />
  * </SuspenseLoader>
  * ```

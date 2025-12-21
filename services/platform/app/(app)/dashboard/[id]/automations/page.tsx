@@ -5,7 +5,7 @@ import AutomationsTable from './components/automations-table';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { TableSkeleton } from '@/components/skeletons';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 interface AutomationsPageProps {
   params: Promise<{ id: string }>;
@@ -17,9 +17,17 @@ interface AutomationsPageProps {
 function AutomationsSkeleton() {
   return (
     <div className="px-4 py-6">
-      <TableSkeleton
+      <DataTableSkeleton
         rows={6}
-        headers={['Name', 'Status', 'Trigger', 'Last Run', 'Actions']}
+        columns={[
+          { header: 'Name', width: 'w-40' },
+          { header: 'Status', width: 'w-24' },
+          { header: 'Trigger', width: 'w-28' },
+          { header: 'Last Run', width: 'w-28' },
+          { isAction: true },
+        ]}
+        showHeader
+        showFilters
       />
     </div>
   );
