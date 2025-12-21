@@ -5,103 +5,232 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 interface UseTypewriterOptions {
   text: string;
   isStreaming?: boolean;
-  baseSpeed?: number; // Base milliseconds per character
-  minSpeed?: number; // Minimum speed (fastest)
-  maxSpeed?: number; // Maximum speed (slowest)
+  /**
+   * Target characters per second for display.
+   * The animation will auto-adjust around this value based on buffer state.
+   */
+  targetCPS?: number;
+  /**
+   * Minimum buffer size (in characters) to maintain before displaying.
+   * Helps prevent stuttering when text arrives slowly.
+   */
+  minBufferSize?: number;
+  /**
+   * How aggressively to catch up when buffer grows too large.
+   * Higher values = faster catch-up (1.0 = normal, 2.0 = 2x speed).
+   */
+  catchUpMultiplier?: number;
 }
 
+interface BufferMetrics {
+  lastUpdateTime: number;
+  textLengthHistory: Array<{ time: number; length: number }>;
+  incomingRate: number; // characters per second
+}
+
+/**
+ * Improved typewriter hook with buffering and self-adjusting speed.
+ *
+ * Features:
+ * - Uses requestAnimationFrame for smooth 60fps animation
+ * - Tracks incoming text rate to auto-adjust display speed
+ * - Maintains a buffer to prevent stuttering
+ * - Catches up smoothly when buffer grows too large
+ * - Consistent animation regardless of network conditions
+ */
 export function useTypewriter({
   text,
   isStreaming = false,
-  baseSpeed = 20,
-  minSpeed = 10,
-  maxSpeed = 50,
+  targetCPS = 80, // Characters per second
+  minBufferSize = 5,
+  catchUpMultiplier = 1.5,
 }: UseTypewriterOptions) {
-  const [displayText, setDisplayText] = useState('');
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [displayedLength, setDisplayedLength] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTextRef = useRef('');
-  const lastIndexRef = useRef(0);
+  // Refs for animation state (avoid re-renders during animation)
+  const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const displayedLengthRef = useRef(0);
+  const targetTextRef = useRef('');
+  const isStreamingRef = useRef(false);
 
-  const clearTypewriter = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  // Buffer metrics for adaptive speed
+  const metricsRef = useRef<BufferMetrics>({
+    lastUpdateTime: 0,
+    textLengthHistory: [],
+    incomingRate: 0,
+  });
+
+  // Accumulated fractional characters (for sub-character-per-frame precision)
+  const accumulatedCharsRef = useRef(0);
+
+  // Calculate adaptive speed based on buffer state
+  const calculateCharsPerFrame = useCallback(
+    (bufferSize: number, incomingRate: number): number => {
+      // Base rate: targetCPS / 60 (for 60fps)
+      const baseCharsPerFrame = targetCPS / 60;
+
+      // If buffer is getting too large, speed up to catch up
+      // If buffer is too small, slow down to build buffer
+      const bufferRatio = bufferSize / Math.max(minBufferSize * 2, 20);
+
+      let speedMultiplier: number;
+      if (bufferRatio > 2) {
+        // Large buffer - catch up aggressively
+        speedMultiplier = Math.min(catchUpMultiplier * 2, bufferRatio);
+      } else if (bufferRatio > 1) {
+        // Moderate buffer - catch up gradually
+        speedMultiplier = 1 + (bufferRatio - 1) * (catchUpMultiplier - 1);
+      } else if (bufferRatio < 0.5 && incomingRate > 0) {
+        // Small buffer and still receiving - slow down slightly
+        speedMultiplier = Math.max(0.5, bufferRatio + 0.5);
+      } else {
+        speedMultiplier = 1;
+      }
+
+      return baseCharsPerFrame * speedMultiplier;
+    },
+    [targetCPS, minBufferSize, catchUpMultiplier],
+  );
+
+  // Update metrics when text changes
+  const updateMetrics = useCallback((newTextLength: number) => {
+    const now = performance.now();
+    const metrics = metricsRef.current;
+
+    // Add to history
+    metrics.textLengthHistory.push({ time: now, length: newTextLength });
+
+    // Keep only last 500ms of history
+    const cutoff = now - 500;
+    metrics.textLengthHistory = metrics.textLengthHistory.filter(
+      (h) => h.time > cutoff,
+    );
+
+    // Calculate incoming rate (chars per second)
+    if (metrics.textLengthHistory.length >= 2) {
+      const oldest = metrics.textLengthHistory[0];
+      const newest =
+        metrics.textLengthHistory[metrics.textLengthHistory.length - 1];
+      const timeDelta = (newest.time - oldest.time) / 1000; // Convert to seconds
+      const charsDelta = newest.length - oldest.length;
+      metrics.incomingRate = timeDelta > 0 ? charsDelta / timeDelta : 0;
     }
-    setIsTyping(false);
+
+    metrics.lastUpdateTime = now;
   }, []);
 
-  const startTypewriter = useCallback(
-    (startIndex: number = 0) => {
-      clearTypewriter();
-
-      if (!isStreaming || text.length === 0) {
-        setDisplayText(text);
-        setCurrentIndex(text.length);
+  // Animation loop
+  const animate = useCallback(
+    (currentTime: number) => {
+      if (!isStreamingRef.current) {
+        // Not streaming - show all text immediately
+        if (displayedLengthRef.current !== targetTextRef.current.length) {
+          displayedLengthRef.current = targetTextRef.current.length;
+          setDisplayedLength(displayedLengthRef.current);
+          setIsTyping(false);
+        }
+        animationFrameRef.current = null;
         return;
       }
 
-      setIsTyping(true);
-      setCurrentIndex(startIndex);
+      const textLength = targetTextRef.current.length;
+      const currentDisplayed = displayedLengthRef.current;
+      const bufferSize = textLength - currentDisplayed;
 
-      // Adaptive typing speed based on content length and streaming rate
-      const contentLength = text.length;
-      const speedMultiplier = Math.max(0.3, Math.min(1, 100 / contentLength));
-      const adaptiveSpeed = Math.max(
-        minSpeed,
-        Math.min(maxSpeed, baseSpeed * speedMultiplier),
+      // If we've caught up and streaming stopped, we're done
+      if (bufferSize <= 0) {
+        setIsTyping(false);
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      // Calculate time delta
+      const deltaTime = lastFrameTimeRef.current
+        ? currentTime - lastFrameTimeRef.current
+        : 16.67; // Default to ~60fps
+      lastFrameTimeRef.current = currentTime;
+
+      // Normalize delta time (cap at 100ms to handle tab switching)
+      const normalizedDelta = Math.min(deltaTime, 100);
+      const frameRatio = normalizedDelta / 16.67; // Ratio compared to 60fps
+
+      // Calculate how many characters to show this frame
+      const charsPerFrame = calculateCharsPerFrame(
+        bufferSize,
+        metricsRef.current.incomingRate,
       );
 
-      intervalRef.current = setInterval(() => {
-        setCurrentIndex((prevIndex) => {
-          if (prevIndex >= text.length) {
-            clearTypewriter();
-            return prevIndex;
-          }
-          return prevIndex + 1;
-        });
-      }, adaptiveSpeed);
+      // Accumulate fractional characters for smooth sub-character precision
+      accumulatedCharsRef.current += charsPerFrame * frameRatio;
+
+      // Extract whole characters to display
+      const charsToAdd = Math.floor(accumulatedCharsRef.current);
+      if (charsToAdd > 0) {
+        accumulatedCharsRef.current -= charsToAdd;
+        const newDisplayed = Math.min(
+          currentDisplayed + charsToAdd,
+          textLength,
+        );
+
+        if (newDisplayed !== displayedLengthRef.current) {
+          displayedLengthRef.current = newDisplayed;
+          setDisplayedLength(newDisplayed);
+          setIsTyping(true);
+        }
+      }
+
+      // Continue animation
+      animationFrameRef.current = requestAnimationFrame(animate);
     },
-    [text, isStreaming, baseSpeed, minSpeed, maxSpeed, clearTypewriter],
+    [calculateCharsPerFrame],
   );
 
-  // Handle text changes during streaming
+  // Start/restart animation when text changes
   useEffect(() => {
-    if (text !== lastTextRef.current) {
-      lastTextRef.current = text;
+    targetTextRef.current = text;
+    isStreamingRef.current = isStreaming;
 
-      if (isStreaming) {
-        // If text was extended, continue from current position
-        const startIndex = Math.min(lastIndexRef.current, text.length);
-        startTypewriter(startIndex);
-      } else {
-        // If not streaming, show full text immediately
-        clearTypewriter();
-        setDisplayText(text);
-        setCurrentIndex(text.length);
+    if (isStreaming) {
+      updateMetrics(text.length);
+
+      // Start animation if not already running
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = requestAnimationFrame(animate);
       }
-    }
-  }, [text, isStreaming, startTypewriter, clearTypewriter]);
+    } else {
+      // Not streaming - show all text immediately
+      displayedLengthRef.current = text.length;
+      accumulatedCharsRef.current = 0;
+      setDisplayedLength(text.length);
+      setIsTyping(false);
 
-  // Update display text based on current index
-  useEffect(() => {
-    const newDisplayText = text.slice(0, currentIndex);
-    setDisplayText(newDisplayText);
-    lastIndexRef.current = currentIndex;
-  }, [currentIndex, text]);
+      // Reset metrics
+      metricsRef.current = {
+        lastUpdateTime: 0,
+        textLengthHistory: [],
+        incomingRate: 0,
+      };
+    }
+  }, [text, isStreaming, animate, updateMetrics]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      clearTypewriter();
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
     };
-  }, [clearTypewriter]);
+  }, []);
+
+  const displayText = text.slice(0, displayedLength);
+  const progress = text.length > 0 ? displayedLength / text.length : 1;
 
   return {
     displayText,
     isTyping,
-    progress: text.length > 0 ? currentIndex / text.length : 1,
+    progress,
   };
 }

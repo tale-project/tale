@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ArrowDown } from 'lucide-react';
@@ -258,6 +258,8 @@ export default function ChatInterface({
     setOptimisticMessage,
     currentRunId,
     setCurrentRunId,
+    isPending,
+    setIsPending,
     isLoading,
     clearChatState,
   } = useChatLayout();
@@ -395,17 +397,47 @@ export default function ChatInterface({
 
   // Scroll handling
   const containerRef = useRef<HTMLDivElement>(null);
+  const aiResponseAreaRef = useRef<HTMLDivElement>(null);
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
   const messageCount = threadMessages?.length ?? 0;
 
-  useEffect(() => {
-    // Auto-scroll on new messages
-    if (threadId && containerRef.current) {
-      throttledScrollToBottom(containerRef.current, 'auto');
-    }
+  // Track when we should scroll to position AI response at top
+  const shouldScrollToAIRef = useRef(false);
 
+  // Scroll AI response area to top of viewport (with some padding)
+  const scrollToAIResponse = useCallback(() => {
+    if (aiResponseAreaRef.current && containerRef.current) {
+      const container = containerRef.current;
+      const aiArea = aiResponseAreaRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const aiAreaRect = aiArea.getBoundingClientRect();
+
+      // Calculate where to scroll so the AI response starts near the top
+      // with some padding (e.g., 80px from top for context)
+      const targetScrollTop =
+        container.scrollTop + (aiAreaRect.top - containerRect.top) - 80; // 80px padding from top
+
+      container.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth',
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    // When loading starts (AI response begins), scroll to position it at top
+    if (isLoading && shouldScrollToAIRef.current) {
+      // Small delay to ensure the thinking animation is rendered
+      requestAnimationFrame(() => {
+        scrollToAIResponse();
+        shouldScrollToAIRef.current = false;
+      });
+    }
+  }, [isLoading, scrollToAIResponse]);
+
+  useEffect(() => {
     // Setup scroll listener for "scroll to bottom" button
     const container = containerRef.current;
     if (container) {
@@ -420,7 +452,7 @@ export default function ChatInterface({
       };
     }
     return cleanup;
-  }, [threadId, messageCount, throttledScrollToBottom, cleanup]);
+  }, [cleanup]);
 
   const scrollToBottom = () => {
     if (containerRef.current) {
@@ -444,6 +476,12 @@ export default function ChatInterface({
 
     setOptimisticMessage({ content: sanitizedContent, threadId, attachments });
     setInputValue('');
+
+    // Set pending immediately to show thinking animation right away
+    setIsPending(true);
+
+    // Flag to scroll AI response area to top when loading starts
+    shouldScrollToAIRef.current = true;
 
     try {
       let currentThreadId = threadId;
@@ -496,6 +534,8 @@ export default function ChatInterface({
         attachments: mutationAttachments,
       });
 
+      // Clear pending now that we have a run ID
+      setIsPending(false);
       setCurrentRunId(result.runId);
     } catch (error) {
       clearChatState();
@@ -565,12 +605,15 @@ export default function ChatInterface({
                   }}
                 />
               )}
-              {isLoading && (
-                <ThinkingAnimation
-                  threadId={threadId}
-                  streamingMessage={streamingMessage}
-                />
-              )}
+              {/* AI Response area - ref used for scroll positioning */}
+              <div ref={aiResponseAreaRef}>
+                {isLoading && (
+                  <ThinkingAnimation
+                    threadId={threadId}
+                    streamingMessage={streamingMessage}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>
