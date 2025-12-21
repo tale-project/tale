@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, ChangeEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import Pagination from '@/components/ui/pagination';
@@ -84,7 +84,8 @@ export default function DocumentTable({
   );
 
   const handleRowClick = useCallback(
-    (item: DocumentItem) => {
+    (row: Row<DocumentItem>) => {
+      const item = row.original;
       if (item.type === 'folder') {
         handleFolderClick(item);
       }
