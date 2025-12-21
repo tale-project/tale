@@ -13,7 +13,7 @@ import {
   Trash2,
   Workflow,
 } from 'lucide-react';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
@@ -171,8 +171,8 @@ export default function AutomationsTable({
     }
   };
 
-  const handleRowClick = (workflow: Doc<'wfDefinitions'>) => {
-    router.push(`/dashboard/${organizationId}/automations/${workflow._id}`);
+  const handleRowClick = (row: Row<Doc<'wfDefinitions'>>) => {
+    router.push(`/dashboard/${organizationId}/automations/${row.original._id}`);
   };
 
   // Helper function to get status badge color
