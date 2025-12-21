@@ -31,7 +31,7 @@ export default function ChatHistorySidebar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Load chat threads for current user
-  const threadsData = useQuery(api.threads.listThreads);
+  const threadsData = useQuery(api.threads.listThreads, {});
   const updateThread = useMutation(api.threads.updateChatThread);
 
   const chats = threadsData?.map((thread) => ({
@@ -162,8 +162,8 @@ export default function ChatHistorySidebar({
                     ? 'px-0 py-0'
                     : 'hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
-                    !isEditing &&
-                    'bg-accent text-accent-foreground',
+                  !isEditing &&
+                  'bg-accent text-accent-foreground',
                 )}
               >
                 {isEditing ? (
