@@ -57,7 +57,7 @@ Ready to go live? Add your domain:
 DOMAIN=https://yourdomain.com
 
 # Start with production profile
-docker compose --profile production up --build
+docker compose --profile production up --build -d
 ```
 
 SSL certificates are handled automatically.
