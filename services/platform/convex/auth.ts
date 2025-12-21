@@ -252,7 +252,7 @@ export const createAuth = (
         clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET as string,
         tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID as string,
         authority: 'https://login.microsoftonline.com',
-        prompt: 'consent',
+        prompt: 'select_account',
         scope: [
           'offline_access',
           'email',
