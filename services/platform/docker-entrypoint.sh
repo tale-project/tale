@@ -57,10 +57,13 @@ export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 export OPENAI_API_KEY="${OPENAI_API_KEY}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
 
-# Internal Convex URL for server-side requests
-# This allows Next.js server components to reach Convex backend directly
-# without going through the external domain (which may not be reachable from inside Docker)
+# Internal URLs for server-side requests
+# These allow Next.js server components to reach services directly
+# without going through the external domain (which may not be reachable from inside Docker
+# due to hairpin NAT issues)
 export CONVEX_INTERNAL_URL="http://127.0.0.1:${CONVEX_BACKEND_PORT:-3210}"
+export CONVEX_HTTP_INTERNAL_URL="http://127.0.0.1:${CONVEX_SITE_PROXY_PORT:-3211}"
+export NEXT_INTERNAL_URL="http://127.0.0.1:${PORT:-3000}"
 
 # ============================================================================
 # Helper Functions

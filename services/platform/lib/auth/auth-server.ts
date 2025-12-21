@@ -76,6 +76,12 @@ export async function getAuthToken(): Promise<string | undefined> {
     const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
     const isHttps = siteUrl.startsWith('https://');
 
+    // For server-side requests inside Docker, use an internal URL that can be
+    // reached from within the container. The external SITE_URL may not be
+    // reachable due to hairpin NAT issues.
+    const internalApiUrl =
+      process.env.NEXT_INTERNAL_URL || 'http://127.0.0.1:3000';
+
     // Use the correct cookie name based on whether we're running over HTTPS
     const cookieName = isHttps
       ? '__Secure-better-auth.session_token'
@@ -92,8 +98,8 @@ export async function getAuthToken(): Promise<string | undefined> {
 
     console.log('Attempting HTTP fallback to /api/auth/convex/token');
 
-    // Call the Better Auth Convex token endpoint
-    const response = await fetch(`${siteUrl}/api/auth/convex/token`, {
+    // Call the Better Auth Convex token endpoint using internal URL
+    const response = await fetch(`${internalApiUrl}/api/auth/convex/token`, {
       method: 'GET',
       headers: {
         Cookie: `${cookieName}=${sessionToken}`,
