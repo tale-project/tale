@@ -1,30 +1,17 @@
 'use client';
 
-import { useState, useMemo, Fragment, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, usePreloadedQuery } from 'convex/react';
+import { Search, X, Copy, Check } from 'lucide-react';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Search,
-  X,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Check,
-} from 'lucide-react';
 import ExecutionsFilterDropdown, {
   ExecutionsFilterState,
 } from './executions-filter-dropdown';
@@ -152,7 +139,6 @@ export function ExecutionsTable({
 }: ExecutionsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Read from searchParams hook
@@ -284,25 +270,13 @@ export function ExecutionsTable({
     });
   };
 
-  const toggleRowExpansion = (executionId: string) => {
-    setExpandedRows((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(executionId)) {
-        newSet.delete(executionId);
-      } else {
-        newSet.add(executionId);
-      }
-      return newSet;
-    });
-  };
-
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(text);
     setTimeout(() => setCopiedId(null), 1500);
-  };
+  }, []);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = useCallback((status: string) => {
     const variants: Record<
       string,
       'green' | 'destructive' | 'blue' | 'outline'
@@ -322,9 +296,9 @@ export function ExecutionsTable({
         {status}
       </Badge>
     );
-  };
+  }, []);
 
-  const formatTimestampWithMillis = (timestamp: number) => {
+  const formatTimestampWithMillis = useCallback((timestamp: number) => {
     const date = new Date(timestamp);
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -334,9 +308,9 @@ export function ExecutionsTable({
     const seconds = String(date.getSeconds()).padStart(2, '0');
     const millis = String(date.getMilliseconds()).padStart(3, '0');
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${millis}`;
-  };
+  }, []);
 
-  const calculateDuration = (execution: Execution) => {
+  const calculateDuration = useCallback((execution: Execution) => {
     if (execution.status === 'running') {
       return 'Running...';
     }
@@ -345,138 +319,135 @@ export function ExecutionsTable({
       return `${duration.toLocaleString()}ms`;
     }
     return '-';
-  };
+  }, []);
+
+  // Define columns using TanStack Table
+  const columns = useMemo<ColumnDef<Execution>[]>(
+    () => [
+      {
+        accessorKey: '_id',
+        header: 'Execution ID',
+        size: 160,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span
+              className="font-mono text-xs truncate"
+              title={row.original._id}
+            >
+              {row.original._id}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="p-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                copyToClipboard(row.original._id);
+              }}
+            >
+              {copiedId === row.original._id ? (
+                <Check className="size-4 text-success p-0.5" />
+              ) : (
+                <Copy className="size-4 p-0.5" />
+              )}
+            </Button>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        size: 128,
+        cell: ({ row }) => getStatusBadge(row.original.status),
+      },
+      {
+        accessorKey: 'startedAt',
+        header: 'Started at',
+        size: 192,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {formatTimestampWithMillis(row.original.startedAt)}
+          </span>
+        ),
+      },
+      {
+        id: 'duration',
+        header: 'Duration',
+        size: 128,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {calculateDuration(row.original)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'triggeredBy',
+        header: 'Triggered by',
+        size: 128,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.triggeredBy || '-'}
+          </span>
+        ),
+      },
+    ],
+    [
+      copiedId,
+      copyToClipboard,
+      getStatusBadge,
+      formatTimestampWithMillis,
+      calculateDuration,
+    ],
+  );
+
+  // Render expanded row content
+  const renderExpandedRow = useCallback(
+    (row: Row<Execution>) => <ExecutionDetails execution={row.original} />,
+    [],
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Search and Filters */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="relative w-[18.75rem]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-            <Input
-              placeholder="Search executions..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="pl-10"
+    <DataTable
+      columns={columns}
+      data={executions}
+      getRowId={(row) => row._id}
+      enableExpanding
+      renderExpandedRow={renderExpandedRow}
+      header={
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="relative w-[18.75rem]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
+              <Input
+                placeholder="Search executions..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <ExecutionsFilterDropdown
+              filters={localFilters}
+              onFiltersChange={handleFiltersChange}
+              triggeredByOptions={triggeredByOptions}
             />
           </div>
 
-          <ExecutionsFilterDropdown
-            filters={localFilters}
-            onFiltersChange={handleFiltersChange}
-            triggeredByOptions={triggeredByOptions}
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          {(searchInput || activeFiltersCount > 0) && (
-            <Button variant="ghost" onClick={clearFilters} className="gap-2">
-              <X className="size-4" />
-              Clear all
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
-      {executions.length === 0 ? (
-        <div className="flex items-center justify-center py-16 px-4 text-center">
-          <div className="space-y-2">
-            <h4 className="text-base font-semibold text-foreground">
-              No executions found
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Try adjusting your search or filters
-            </p>
+          <div className="flex items-center gap-3">
+            {(searchInput || activeFiltersCount > 0) && (
+              <Button variant="ghost" onClick={clearFilters} className="gap-2">
+                <X className="size-4" />
+                Clear all
+              </Button>
+            )}
           </div>
         </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[3rem]"></TableHead>
-              <TableHead className="w-[10rem]">Execution ID</TableHead>
-              <TableHead className="w-[8rem]">Status</TableHead>
-              <TableHead className="w-[12rem]">Started at</TableHead>
-              <TableHead className="w-[8rem]">Duration</TableHead>
-              <TableHead className="w-[8rem]">Triggered by</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {executions.map((execution) => {
-              const isExpanded = expandedRows.has(execution._id);
-              return (
-                <Fragment key={execution._id}>
-                  <TableRow
-                    className="cursor-pointer"
-                    onClick={() => toggleRowExpansion(execution._id)}
-                  >
-                    <TableCell>
-                      {isExpanded ? (
-                        <ChevronDown className="size-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="size-4 text-muted-foreground" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="font-mono text-xs truncate"
-                          title={execution._id}
-                        >
-                          {execution._id}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="p-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(execution._id);
-                          }}
-                        >
-                          {copiedId === execution._id ? (
-                            <Check className="size-4 text-success p-0.5" />
-                          ) : (
-                            <Copy className="size-4 p-0.5" />
-                          )}
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(execution.status)}</TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimestampWithMillis(execution.startedAt)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {calculateDuration(execution)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {execution.triggeredBy || '-'}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="bg-muted/20 max-w-full pt-0 px-4"
-                      >
-                        <ExecutionDetails execution={execution} />
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
-    </div>
+      }
+      emptyState={{
+        title: 'No executions found',
+        description: 'Try adjusting your search or filters',
+        isFiltered: true,
+      }}
+    />
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,14 +13,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Search, Home, Loader2, Database, X } from 'lucide-react';
@@ -36,6 +29,7 @@ import { useSyncStatus, type FileProcessingStatus } from './sync-status';
 import { listOneDriveFiles } from '@/actions/onedrive/list-files';
 import { MicrosoftReauthButton } from '@/components/auth/microsoft-reauth-button';
 import DocumentIcon from '@/components/ui/document-icon';
+import type { ColumnDef } from '@tanstack/react-table';
 
 interface OneDriveImportDialogProps extends DialogProps {
   organizationId: string;
@@ -52,6 +46,148 @@ type OneDriveItem = {
   type: 'file' | 'folder';
   size?: number;
 };
+
+interface OneDriveFileTableProps {
+  items: DriveItem[];
+  isLoading: boolean;
+  isMicrosoftAccountError: boolean;
+  searchQuery: string;
+  selectedItems: Map<string, OneDriveItem>;
+  getSelectAllState: () => boolean | 'indeterminate';
+  handleSelectAllChange: (checked: boolean | 'indeterminate') => void;
+  getCheckedState: (item: OneDriveItem) => boolean;
+  handleCheckChange: (itemId: string, isSelected: boolean) => void;
+  handleFolderClick: (folder: DriveItem) => void;
+  buildItemPath: (item: DriveItem) => string;
+}
+
+function OneDriveFileTable({
+  items,
+  isLoading,
+  isMicrosoftAccountError,
+  searchQuery,
+  getSelectAllState,
+  handleSelectAllChange,
+  getCheckedState,
+  handleCheckChange,
+  handleFolderClick,
+  buildItemPath,
+}: OneDriveFileTableProps) {
+  const columns = useMemo<ColumnDef<DriveItem>[]>(
+    () => [
+      {
+        id: 'select',
+        header: () => (
+          <Checkbox
+            checked={getSelectAllState()}
+            onCheckedChange={handleSelectAllChange}
+            disabled={items.length === 0}
+          />
+        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <Checkbox
+              checked={getCheckedState({
+                id: item.id,
+                name: item.name,
+                path: buildItemPath(item),
+                type: isFolder(item) ? 'folder' : 'file',
+              })}
+              onCheckedChange={(checked) =>
+                handleCheckChange(item.id, Boolean(checked))
+              }
+              onClick={(e) => e.stopPropagation()}
+            />
+          );
+        },
+        size: 48,
+      },
+      {
+        id: 'name',
+        header: 'Name',
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center gap-2">
+              <DocumentIcon fileName={item.name} />
+              <div
+                title={item.name}
+                className={`font-medium text-base text-foreground truncate max-w-[25rem] ${
+                  isFolder(item) ? 'cursor-pointer hover:text-blue-600' : ''
+                }`}
+                onClick={
+                  isFolder(item)
+                    ? (e) => {
+                        e.stopPropagation();
+                        handleFolderClick(item);
+                      }
+                    : undefined
+                }
+              >
+                {item.name}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'modified',
+        header: () => <div className="text-right">Modified</div>,
+        cell: ({ row }) => (
+          <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
+            {formatDate(row.original.lastModifiedDateTime)}
+          </div>
+        ),
+      },
+      {
+        id: 'size',
+        header: () => <div className="text-right">Size</div>,
+        cell: ({ row }) => (
+          <div className="text-sm text-muted-foreground text-right whitespace-nowrap">
+            {row.original.size ? formatFileSize(row.original.size) : ''}
+          </div>
+        ),
+      },
+    ],
+    [
+      getSelectAllState,
+      handleSelectAllChange,
+      items.length,
+      getCheckedState,
+      buildItemPath,
+      handleCheckChange,
+      handleFolderClick,
+    ],
+  );
+
+  const emptyState = isMicrosoftAccountError
+    ? {
+        title: 'Microsoft Account Not Connected',
+        description:
+          'To access your OneDrive files, you need to link your Microsoft account with OneDrive permissions.',
+        action: <MicrosoftReauthButton className="mx-auto" />,
+      }
+    : searchQuery
+      ? {
+          title: 'No items found',
+          description: 'No items found matching your search.',
+        }
+      : {
+          title: 'No items available',
+          description: 'This folder is empty.',
+        };
+
+  return (
+    <DataTable
+      columns={columns}
+      data={items}
+      isLoading={isLoading}
+      getRowId={(row) => row.id}
+      emptyState={emptyState}
+    />
+  );
+}
 
 export default function OneDriveImportDialog({
   organizationId,
@@ -668,107 +804,19 @@ export default function OneDriveImportDialog({
 
             {/* Items List */}
             <div className="h-[500px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={getSelectAllState()}
-                        onCheckedChange={handleSelectAllChange}
-                        disabled={filteredItems.length === 0}
-                      />
-                    </TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="text-right">Modified</TableHead>
-                    <TableHead className="text-right">Size</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full size-6 border-b-2 border-foreground"></div>
-                          <span className="ml-2 text-sm text-muted-foreground">
-                            Loading items...
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredItems.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center py-12 text-muted-foreground"
-                      >
-                        {isMicrosoftAccountError ? (
-                          <div className="space-y-4">
-                            <div className="text-base font-medium text-foreground">
-                              Microsoft Account Not Connected
-                            </div>
-                            <div className="text-sm max-w-md mx-auto">
-                              To access your OneDrive files, you need to link
-                              your Microsoft account with OneDrive permissions.
-                            </div>
-                            <div className="pt-2">
-                              <MicrosoftReauthButton className="mx-auto" />
-                            </div>
-                          </div>
-                        ) : searchQuery ? (
-                          'No items found matching your search.'
-                        ) : (
-                          'No items available.'
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={getCheckedState({
-                              id: item.id,
-                              name: item.name,
-                              path: buildItemPath(item),
-                              type: isFolder(item) ? 'folder' : 'file',
-                            })}
-                            onCheckedChange={(checked) =>
-                              handleCheckChange(item.id, Boolean(checked))
-                            }
-                          />
-                        </TableCell>
-
-                        <TableCell className="flex items-center gap-2">
-                          <DocumentIcon fileName={item.name} />
-                          <div
-                            title={item.name}
-                            className={`font-medium text-base text-foreground truncate max-w-[25rem] ${
-                              isFolder(item)
-                                ? 'cursor-pointer hover:text-blue-600'
-                                : ''
-                            }`}
-                            onClick={
-                              isFolder(item)
-                                ? () => handleFolderClick(item)
-                                : undefined
-                            }
-                          >
-                            {item.name}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="text-sm text-muted-foreground whitespace-nowrap text-right">
-                          {formatDate(item.lastModifiedDateTime)}
-                        </TableCell>
-
-                        <TableCell className="text-sm text-muted-foreground text-right whitespace-nowrap">
-                          {item.size ? formatFileSize(item.size) : ''}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              <OneDriveFileTable
+                items={filteredItems}
+                isLoading={loading}
+                isMicrosoftAccountError={isMicrosoftAccountError}
+                searchQuery={searchQuery}
+                selectedItems={selectedItems}
+                getSelectAllState={getSelectAllState}
+                handleSelectAllChange={handleSelectAllChange}
+                getCheckedState={getCheckedState}
+                handleCheckChange={handleCheckChange}
+                handleFolderClick={handleFolderClick}
+                buildItemPath={buildItemPath}
+              />
             </div>
           </div>
         </DialogContent>

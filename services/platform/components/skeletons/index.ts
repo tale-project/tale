@@ -6,14 +6,14 @@
  *
  * ## Usage:
  *
- * Use with the AsyncBoundary pattern for self-contained loading:
+ * For tables, prefer using DataTableSkeleton from the data-table component:
  *
  * ```tsx
  * import { AsyncBoundary } from '@/components/async-boundary';
- * import { TableSkeleton } from '@/components/skeletons';
+ * import { DataTableSkeleton } from '@/components/ui/data-table';
  *
  * // Self-contained loading - the skeleton is built into the boundary
- * <AsyncBoundary fallback={<TableSkeleton rows={10} />}>
+ * <AsyncBoundary fallback={<DataTableSkeleton rows={10} />}>
  *   <CustomersTable />
  * </AsyncBoundary>
  * ```
@@ -26,10 +26,12 @@
  * @module
  */
 
+/**
+ * @deprecated Use DataTableSkeleton from '@/components/ui/data-table' instead
+ */
 export { TableSkeleton, TableRowSkeleton } from './table-skeleton';
 export { CardSkeleton, CardGridSkeleton } from './card-skeleton';
 export { NavigationSkeleton } from './navigation-skeleton';
 export { PageHeaderSkeleton } from './page-header-skeleton';
 export { FormSkeleton } from './form-skeleton';
 export { ListSkeleton, ListItemSkeleton } from './list-skeleton';
-

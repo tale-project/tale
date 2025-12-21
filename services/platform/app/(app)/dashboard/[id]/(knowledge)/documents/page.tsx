@@ -7,8 +7,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
-import { TableSkeleton } from '@/components/skeletons';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 const logger = new Logger('documents');
 
@@ -17,22 +16,19 @@ const logger = new Logger('documents');
  */
 function DocumentsPageSkeleton() {
   return (
-    <>
-      {/* Search and actions bar skeleton */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <Skeleton className="h-10 w-64 rounded-md" />
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-32 rounded-md" />
-          <Skeleton className="h-10 w-32 rounded-md" />
-        </div>
-      </div>
-
-      {/* Table skeleton */}
-      <TableSkeleton
-        rows={10}
-        headers={['Name', 'Type', 'Size', 'Status', 'Modified', '']}
-      />
-    </>
+    <DataTableSkeleton
+      rows={10}
+      columns={[
+        { header: 'Name', width: 'w-40' },
+        { header: 'Type', width: 'w-20' },
+        { header: 'Size', width: 'w-20' },
+        { header: 'Status', width: 'w-24' },
+        { header: 'Modified', width: 'w-24' },
+        { isAction: true },
+      ]}
+      showHeader
+      showFilters
+    />
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import Approvals from './approvals';
-import { TableSkeleton } from '@/components/skeletons';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 interface ApprovalsWrapperProps {
@@ -16,21 +16,27 @@ interface ApprovalsWrapperProps {
  * Shows different columns based on pending vs resolved status.
  */
 function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
-  const headers =
+  const columns =
     status === 'resolved'
       ? [
-          'Approval / Recipient',
-          'Event',
-          'Action',
-          'Reviewer',
-          'Reviewed at',
-          'Approved',
+          { header: 'Approval / Recipient', width: 'w-40' },
+          { header: 'Event', width: 'w-24' },
+          { header: 'Action', width: 'w-24' },
+          { header: 'Reviewer', width: 'w-28' },
+          { header: 'Reviewed at', width: 'w-28' },
+          { header: 'Approved', width: 'w-20' },
         ]
-      : ['Approval / Recipient', 'Event', 'Action', 'Confidence', 'Approved'];
+      : [
+          { header: 'Approval / Recipient', width: 'w-40' },
+          { header: 'Event', width: 'w-24' },
+          { header: 'Action', width: 'w-24' },
+          { header: 'Confidence', width: 'w-24' },
+          { header: 'Approved', width: 'w-20' },
+        ];
 
   return (
     <div className="px-4 py-6">
-      <TableSkeleton rows={8} headers={headers} />
+      <DataTableSkeleton rows={8} columns={columns} showHeader />
     </div>
   );
 }
