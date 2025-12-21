@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -25,7 +24,6 @@ export default function DeleteCustomerButton({
 }: DeleteCustomerButtonProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const router = useRouter();
   const deleteCustomer = useMutation(api.customers.deleteCustomer);
 
   // Use controlled state if provided, otherwise use internal state
@@ -42,9 +40,6 @@ export default function DeleteCustomerButton({
       });
 
       setIsDialogOpen(false);
-
-      // Refresh the page to show updated data
-      router.refresh();
     } catch (err) {
       console.error('Deletion error:', err);
       toast({

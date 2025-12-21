@@ -435,11 +435,13 @@ export const getWorkflowPublic = query({
 
 /**
  * PUBLIC API: List workflows with best version per name
+ * Supports optional search filtering by name and description.
  */
 export const listWorkflowsWithBestVersionPublic = query({
   args: {
     organizationId: v.string(),
     status: v.optional(v.string()),
+    search: v.optional(v.string()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {

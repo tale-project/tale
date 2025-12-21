@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import DeleteVendorDialog from './delete-vendor-dialog';
@@ -25,7 +24,6 @@ export default function DeleteVendorButton({
 }: DeleteVendorButtonProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const router = useRouter();
   const deleteVendor = useMutation(api.vendors.deleteVendor);
 
   // Use controlled state if provided, otherwise use internal state
@@ -41,9 +39,6 @@ export default function DeleteVendorButton({
         vendorId: vendor._id,
       });
       setIsDialogOpen(false);
-
-      // Refresh the page to show updated data
-      router.refresh();
     } catch (err) {
       console.error('Deletion error:', err);
       toast({

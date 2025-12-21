@@ -142,7 +142,7 @@ export const getApproval = queryWithRLS({
 });
 
 /**
- * List approvals for organization with status and resourceType filters (public)
+ * List approvals for organization with status, resourceType, and search filters (public)
  */
 export const getApprovalsByOrganization = queryWithRLS({
   args: {
@@ -155,6 +155,8 @@ export const getApprovalsByOrganization = queryWithRLS({
         v.array(ApprovalsModel.approvalResourceTypeValidator),
       ),
     ),
+    // Optional search term to filter by customer name, email, or product names
+    search: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   returns: v.array(ApprovalsModel.approvalItemValidator),

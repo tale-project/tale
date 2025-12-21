@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
+import { useDebounce } from 'ahooks';
+
 interface ChatSearchDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -26,7 +28,13 @@ export default function ChatSearchDialog({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const threadsData = useQuery(api.threads.listThreads);
+  // Debounce search query to avoid excessive API calls
+  const debouncedQuery = useDebounce(query, { wait: 300 });
+
+  // Pass search to Convex query - filtering happens server-side
+  const threadsData = useQuery(api.threads.listThreads, {
+    search: debouncedQuery || undefined,
+  });
   const chats =
     threadsData?.map((thread) => ({
       _id: thread._id,
@@ -59,15 +67,6 @@ export default function ChatSearchDialog({
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [isOpen, onOpenChange]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return chats;
-    return chats.filter((c) => {
-      if (c.title.toLowerCase().includes(q)) return true;
-      return false;
-    });
-  }, [query, chats]);
-
   useEffect(() => {
     if (isOpen) setSelectedIndex(-1);
   }, [isOpen, query]);
@@ -77,13 +76,13 @@ export default function ChatSearchDialog({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setSelectedIndex((i) => Math.min(i + 1, chats.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter' && filtered[selectedIndex]) {
+    } else if (e.key === 'Enter' && chats[selectedIndex]) {
       router.push(
-        `/dashboard/${organizationId}/chat/${filtered[selectedIndex]._id}`,
+        `/dashboard/${organizationId}/chat/${chats[selectedIndex]._id}`,
       );
       onOpenChange(false);
     } else if (e.key === 'Escape') {
@@ -109,13 +108,13 @@ export default function ChatSearchDialog({
           />
         </div>
         <div className="h-[13.75rem] overflow-y-auto p-3">
-          {filtered.length === 0 ? (
+          {chats.length === 0 ? (
             <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
               No results
             </div>
           ) : (
             <ul className="py-1">
-              {filtered.map((chat, idx) => (
+              {chats.map((chat, idx) => (
                 <li key={chat._id}>
                   <button
                     type="button"

@@ -15,7 +15,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useRouter } from 'next/navigation';
 
 interface AutomationConfig {
   timeout?: number;
@@ -59,7 +58,6 @@ export default function EditAutomationDialog({
     variables: '{\n  "environment": "test"\n}',
   });
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
 
   // Update form data when automation changes
   useEffect(() => {
@@ -124,7 +122,6 @@ export default function EditAutomationDialog({
       });
 
       onOpenChange(false);
-      router.refresh();
     } catch (error) {
       console.error('Failed to update automation:', error);
     } finally {

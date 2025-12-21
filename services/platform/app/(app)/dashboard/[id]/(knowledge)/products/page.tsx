@@ -1,6 +1,6 @@
 import { getAuthToken } from '@/lib/auth/auth-server';
 import ProductTable from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
-import { fetchQuery } from '@/lib/convex-next-server';
+import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { SuspenseLoader } from '@/components/suspense-loader';
 import { redirect } from 'next/navigation';
@@ -52,8 +52,8 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
   const pageSize = size ? Number.parseInt(size, 10) : 10;
   const searchQuery = query?.trim();
 
-  // Use server action to fetch products
-  const { products, total, hasNextPage } = await fetchQuery(
+  // Preload products for SSR + real-time reactivity on client
+  const preloadedProducts = await preloadQuery(
     api.products.getProducts,
     {
       organizationId,
@@ -66,12 +66,11 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
 
   return (
     <ProductTable
-      products={products}
-      total={total}
+      organizationId={organizationId}
       currentPage={currentPage}
-      hasNextPage={hasNextPage}
       searchQuery={searchQuery}
       pageSize={pageSize}
+      preloadedProducts={preloadedProducts}
     />
   );
 }

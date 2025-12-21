@@ -13,6 +13,7 @@ import { Search, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import AddMemberDialog from './add-member-dialog';
 import MemberTable from './member-table';
+import { useDebounce } from 'ahooks';
 
 export interface OrganizationSettingsProps {
   organization: { _id: string; name: string } | null;
@@ -30,6 +31,9 @@ export default function OrganizationSettings({
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  // Debounce search query for server-side filtering
+  const debouncedSearch = useDebounce(searchQuery, { wait: 300 });
+
   const form = useForm<OrganizationFormData>({
     defaultValues: {
       name: organization?.name || '',
@@ -41,23 +45,15 @@ export default function OrganizationSettings({
 
   // Updates are handled through Better Auth client-side API
 
+  // Search filtering is now done server-side in the Convex query
   const members = useQuery(api.member.listByOrganization, {
     organizationId: organization?._id as string,
     sortOrder,
+    search: debouncedSearch || undefined,
   });
 
   const memberContext = useQuery(api.member.getCurrentMemberContext, {
     organizationId: organization?._id as string,
-  });
-
-  // Filter members based on search query
-  const filteredMembers = members?.filter((member) => {
-    const searchLower = searchQuery.toLowerCase();
-    return (
-      member.email?.toLowerCase().includes(searchLower) ||
-      member.displayName?.toLowerCase().includes(searchLower) ||
-      member.role?.toLowerCase().includes(searchLower)
-    );
   });
 
   const onSubmit = async (data: OrganizationFormData) => {
@@ -151,7 +147,7 @@ export default function OrganizationSettings({
 
         {/* Members Table */}
         <MemberTable
-          members={filteredMembers || []}
+          members={members || []}
           sortOrder={sortOrder}
           memberContext={memberContext}
           onSortChange={(newSortOrder) => {

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -39,7 +38,6 @@ export default function ProductActions({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const router = useRouter();
   const deleteProduct = useMutation(api.products.deleteProduct);
 
   const handleDeleteProduct = async () => {
@@ -51,9 +49,6 @@ export default function ProductActions({
       });
 
       setIsDeleteDialogOpen(false);
-
-      // Refresh the page to show updated data
-      router.refresh();
 
       if (onActionComplete) {
         onActionComplete();

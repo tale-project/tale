@@ -7,7 +7,6 @@ import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 interface ApprovalsWrapperProps {
   status?: 'pending' | 'resolved';
-  search?: string;
   organizationId: string;
   preloadedApprovals: PreloadedApprovals;
 }
@@ -38,7 +37,6 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
 
 export default function ApprovalsWrapper({
   status,
-  search,
   organizationId,
   preloadedApprovals,
 }: ApprovalsWrapperProps) {
@@ -47,7 +45,6 @@ export default function ApprovalsWrapper({
       <Approvals
         status={status}
         organizationId={organizationId}
-        search={search}
         preloadedApprovals={preloadedApprovals}
       />
     </Suspense>

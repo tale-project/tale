@@ -108,7 +108,6 @@ export default function ChatHistorySidebar({
       });
 
       setEditingChatId(null);
-      router.refresh();
     } catch (error) {
       console.error('Failed to rename chat:', error);
       toast({
@@ -163,8 +162,8 @@ export default function ChatHistorySidebar({
                     ? 'px-0 py-0'
                     : 'hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
-                  !isEditing &&
-                  'bg-accent text-accent-foreground',
+                    !isEditing &&
+                    'bg-accent text-accent-foreground',
                 )}
               >
                 {isEditing ? (

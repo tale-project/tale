@@ -1,6 +1,6 @@
 ---
-type: "always_apply"
-description: "Guidelines and best practices for building Convex projects, including database schema design, queries, mutations, and real-world examples"
+type: 'always_apply'
+description: 'Guidelines and best practices for building Convex projects, including database schema design, queries, mutations, and real-world examples'
 ---
 
 # Convex guidelines
@@ -734,3 +734,9 @@ export default function App() {
   return <div>Hello World</div>;
 }
 ```
+
+## Optimizations
+
+- Ensure that you optimize the Convex queries so that you use for await ... of instead of collect() to iterate through a table.
+- Use preloadedQuery whenever it makes sense
+- Use optimistic updates whenever it makes sense

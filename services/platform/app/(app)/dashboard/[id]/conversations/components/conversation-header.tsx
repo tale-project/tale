@@ -17,7 +17,7 @@ import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialo
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+
 import { useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -37,7 +37,6 @@ export default function ConversationHeader({
   onReopen,
 }: ConversationHeaderProps) {
   const { customer } = conversation;
-  const router = useRouter();
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
   const [isResolvingLoading, setIsResolvingLoading] = useState(false);
   const [isReopeningLoading, setIsReopeningLoading] = useState(false);
@@ -76,7 +75,6 @@ export default function ConversationHeader({
         variant: 'success',
       });
       onResolve?.();
-      router.refresh();
     } catch (error) {
       console.error('Error closing conversation:', error);
       toast({
@@ -100,7 +98,6 @@ export default function ConversationHeader({
         variant: 'success',
       });
       onReopen?.();
-      router.refresh();
     } catch (error) {
       console.error('Error reopening conversation:', error);
       toast({
@@ -124,7 +121,6 @@ export default function ConversationHeader({
         variant: 'success',
       });
       onResolve?.();
-      router.refresh();
     } catch (error) {
       console.error('Error marking conversation as spam:', error);
       toast({

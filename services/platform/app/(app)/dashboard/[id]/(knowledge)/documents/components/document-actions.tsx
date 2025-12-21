@@ -9,7 +9,6 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import DeleteConfirmationModal from './delete-confirmation-modal';
 import DeleteSyncFolderConfirmationModal from './delete-folder-confirmation-modal';
-import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
 
 type StorageSourceMode = 'auto' | 'manual';
@@ -39,7 +38,6 @@ export default function DocumentActions({
   const [isDeletePending, startDeleteTransition] = useTransition();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
-  const router = useRouter();
 
   const deleteDocumentMutation = useMutation(api.documents.deleteDocument);
 
@@ -69,7 +67,6 @@ export default function DocumentActions({
         await deleteDocumentMutation({
           documentId: documentId as Id<'documents'>,
         });
-        router.refresh();
       } catch (error) {
         toast({
           title: 'An unexpected error occurred while deleting',

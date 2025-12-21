@@ -89,9 +89,12 @@ export const getThreadMessages = query({
 
 /**
  * List all active threads for the authenticated user.
+ * Optionally filter by search term (matches thread title).
  */
 export const listThreads = query({
-  args: {},
+  args: {
+    search: v.optional(v.string()),
+  },
   returns: v.array(
     v.object({
       _id: v.string(),
@@ -101,11 +104,14 @@ export const listThreads = query({
       userId: v.optional(v.string()),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
     if (!user) return [];
 
-    return await ThreadsModel.listThreads(ctx, user.userId);
+    return await ThreadsModel.listThreads(ctx, {
+      userId: user.userId,
+      search: args.search,
+    });
   },
 });
 
