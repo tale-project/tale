@@ -90,9 +90,10 @@ function AutomationStepsInner({
   const [selectedStep, setSelectedStep] = useState<Doc<'wfStepDefs'> | null>(
     null,
   );
+  // Auto-open AI assistant panel when editing a draft automation
   const [sidePanelMode, setSidePanelMode] = useState<
     'step' | 'ai-chat' | 'test' | null
-  >(null);
+  >(isDraft ? 'ai-chat' : null);
   const [parentStepForNewStep, setParentStepForNewStep] = useState<
     string | null
   >(null);
@@ -183,19 +184,16 @@ function AutomationStepsInner({
   );
 
   // Handle deleting edge
-  const handleDeleteEdge = useCallback(
-    async (edgeId: string) => {
-      // NOTE: Editing connections is currently disabled until public Convex
-      // mutations are available. This UI is temporarily read-only.
-      toast({
-        title: 'Editing connections not yet available',
-        description:
-          'Public APIs for editing workflow steps are not wired up yet.',
-      });
-      return;
-    },
-    [],
-  );
+  const handleDeleteEdge = useCallback(async (edgeId: string) => {
+    // NOTE: Editing connections is currently disabled until public Convex
+    // mutations are available. This UI is temporarily read-only.
+    toast({
+      title: 'Editing connections not yet available',
+      description:
+        'Public APIs for editing workflow steps are not wired up yet.',
+    });
+    return;
+  }, []);
 
   // Convert steps to nodes and edges using Dagre layout
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -457,9 +455,9 @@ function AutomationStepsInner({
           isLoopBodyNode: !!parentLoopId, // Flag to identify loop body nodes
           onAddStep: leafStepSlugs.has(step.stepSlug)
             ? () => {
-              setParentStepForNewStep(step.stepSlug);
-              setIsCreateStepDialogOpen(true);
-            }
+                setParentStepForNewStep(step.stepSlug);
+                setIsCreateStepDialogOpen(true);
+              }
             : undefined,
         },
       };
@@ -535,7 +533,10 @@ function AutomationStepsInner({
             // Check if target is a child of the source (parent-child relationship)
             let targetIsChildOfSource = false;
             for (const [loopStepSlug, bodyNodes] of loopBodyMap.entries()) {
-              if (loopStepSlug === step.stepSlug && bodyNodes.has(targetStepSlug)) {
+              if (
+                loopStepSlug === step.stepSlug &&
+                bodyNodes.has(targetStepSlug)
+              ) {
                 targetIsChildOfSource = true;
                 break;
               }
@@ -674,7 +675,10 @@ function AutomationStepsInner({
             // Check if both source and target are child nodes (inside loop containers)
             let bothAreChildNodes = false;
             for (const [_loopId2, bodyNodes] of loopBodyMap.entries()) {
-              if (bodyNodes.has(step.stepSlug) && bodyNodes.has(targetStepSlug)) {
+              if (
+                bodyNodes.has(step.stepSlug) &&
+                bodyNodes.has(targetStepSlug)
+              ) {
                 bothAreChildNodes = true;
                 break;
               }
@@ -683,8 +687,8 @@ function AutomationStepsInner({
             // Check if edge involves a loop node (source or target is a loop)
             const sourceIsLoop = step.stepType === 'loop';
             const targetIsLoop =
-              sortedSteps.find((s) => s.stepSlug === targetStepSlug)?.stepType ===
-              'loop';
+              sortedSteps.find((s) => s.stepSlug === targetStepSlug)
+                ?.stepType === 'loop';
             const involvesLoopNode = sourceIsLoop || targetIsLoop;
 
             // Skip backward connections and failure edges to loop nodes (they should not be visible)
@@ -724,10 +728,10 @@ function AutomationStepsInner({
                 // Add extra styling for backward connections
                 ...(isBackwardConnection
                   ? {
-                    strokeDasharray: '5,5', // Dashed line for backward connections
-                    opacity: 0.7, // Slightly transparent to indicate secondary flow
-                    strokeWidth: 2, // Thinner to de-emphasize
-                  }
+                      strokeDasharray: '5,5', // Dashed line for backward connections
+                      opacity: 0.7, // Slightly transparent to indicate secondary flow
+                      strokeWidth: 2, // Thinner to de-emphasize
+                    }
                   : {}),
               },
               animated: !isBackwardConnection, // Animate forward edges to show direction
@@ -738,17 +742,17 @@ function AutomationStepsInner({
                 label: edgeLabel,
                 labelStyle: edgeLabel
                   ? {
-                    fill: edgeColor,
-                    fontSize: '11px',
-                    fontWeight: 600,
-                  }
+                      fill: edgeColor,
+                      fontSize: '11px',
+                      fontWeight: 600,
+                    }
                   : undefined,
                 labelBgStyle: edgeLabel
                   ? {
-                    fill: 'hsl(var(--background))',
-                    stroke: edgeColor,
-                    strokeWidth: 1.5,
-                  }
+                      fill: 'hsl(var(--background))',
+                      stroke: edgeColor,
+                      strokeWidth: 1.5,
+                    }
                   : undefined,
                 isBackwardConnection: isBackwardConnection,
               },
@@ -819,7 +823,7 @@ function AutomationStepsInner({
       hasBidirectionalBottom.set(
         node.id,
         bottomHandles.has('bottom-target') &&
-        bottomHandles.has('bottom-source'),
+          bottomHandles.has('bottom-source'),
       );
     });
 
@@ -861,13 +865,15 @@ function AutomationStepsInner({
     // are available. This UI is temporarily read-only.
     toast({
       title: 'Editing connections not yet available',
-      description: 'Public APIs for editing workflow steps are not wired up yet.',
+      description:
+        'Public APIs for editing workflow steps are not wired up yet.',
     });
 
     // Remove the edge if it was optimistically added elsewhere
     setEdges((eds) =>
       eds.filter(
-        (edge) => !(edge.source === params.source && edge.target === params.target),
+        (edge) =>
+          !(edge.source === params.source && edge.target === params.target),
       ),
     );
 
@@ -880,7 +886,8 @@ function AutomationStepsInner({
     // are available. This UI is temporarily read-only.
     toast({
       title: 'Editing connections not yet available',
-      description: 'Public APIs for editing workflow steps are not wired up yet.',
+      description:
+        'Public APIs for editing workflow steps are not wired up yet.',
     });
 
     return;
@@ -914,7 +921,8 @@ function AutomationStepsInner({
       // are available. This UI is temporarily read-only.
       toast({
         title: 'Step creation not yet available',
-        description: 'Public APIs for editing workflow steps are not wired up yet.',
+        description:
+          'Public APIs for editing workflow steps are not wired up yet.',
       });
       return;
     } catch (error) {
