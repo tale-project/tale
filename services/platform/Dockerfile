@@ -124,7 +124,6 @@ RUN chmod +x /app/generate_admin_key.sh
 # Copy shared env normalization script
 COPY --from=builder --chown=nextjs:nodejs /app/env.sh /app/env.sh
 
-
 # Switch to non-root user
 USER nextjs
 
