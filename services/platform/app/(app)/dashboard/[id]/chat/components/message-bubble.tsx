@@ -546,9 +546,9 @@ function TypewriterText({
   const { displayText, isTyping } = useTypewriter({
     text,
     isStreaming,
-    baseSpeed: 15, // Faster base speed for better responsiveness
-    minSpeed: 8, // Very fast minimum speed
-    maxSpeed: 30, // Reasonable maximum speed
+    targetCPS: 120, // Characters per second (smooth, fast display)
+    minBufferSize: 8, // Maintain small buffer to prevent stuttering
+    catchUpMultiplier: 2.0, // Catch up faster when buffer grows
   });
 
   return (

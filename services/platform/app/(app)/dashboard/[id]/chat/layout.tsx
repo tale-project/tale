@@ -31,7 +31,10 @@ interface ChatLayoutContextType {
   // Current run ID for status polling - persists across navigation
   currentRunId: string | null;
   setCurrentRunId: (runId: string | null) => void;
-  // Derived loading state - true when we have an active run
+  // Pending state - set immediately when user clicks send, before mutation completes
+  isPending: boolean;
+  setIsPending: (pending: boolean) => void;
+  // Derived loading state - true when pending or have an active run
   isLoading: boolean;
   // Clear all chat state (called on completion/error)
   clearChatState: () => void;
@@ -52,13 +55,17 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
   const [optimisticMessage, setOptimisticMessage] =
     useState<OptimisticMessage | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
 
-  // Derive loading state from currentRunId - single source of truth
-  const isLoading = currentRunId !== null;
+  // Derive loading state from pending or currentRunId
+  // isPending = immediately after user clicks send
+  // currentRunId = after mutation completes and we have a run ID
+  const isLoading = isPending || currentRunId !== null;
 
   const clearChatState = useCallback(() => {
     setCurrentRunId(null);
     setOptimisticMessage(null);
+    setIsPending(false);
   }, []);
 
   // Validate organizationId is a string
@@ -73,6 +80,8 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
         setOptimisticMessage,
         currentRunId,
         setCurrentRunId,
+        isPending,
+        setIsPending,
         isLoading,
         clearChatState,
       }}
