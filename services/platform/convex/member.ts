@@ -48,6 +48,7 @@ export const listByOrganization = queryWithRLS({
   args: {
     organizationId: v.string(),
     sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+    search: v.optional(v.string()),
   },
   returns: v.array(
     v.object({
@@ -72,6 +73,7 @@ export const listByOrganization = queryWithRLS({
     });
 
     const members = result?.page ?? [];
+    const searchLower = args.search?.trim().toLowerCase();
 
     // Enrich with user info for email/displayName
     const enriched = await Promise.all(
@@ -98,8 +100,19 @@ export const listByOrganization = queryWithRLS({
       }),
     );
 
+    // Apply search filter if provided
+    const filtered = searchLower
+      ? enriched.filter((member) => {
+          return (
+            member.email?.toLowerCase().includes(searchLower) ||
+            member.displayName?.toLowerCase().includes(searchLower) ||
+            member.role?.toLowerCase().includes(searchLower)
+          );
+        })
+      : enriched;
+
     // Sort members by name (displayName or email)
-    const sorted = enriched.sort((a, b) => {
+    const sorted = filtered.sort((a, b) => {
       const aName = a.displayName || a.email || '';
       const bName = b.displayName || b.email || '';
       const comparison = aName.localeCompare(bName);

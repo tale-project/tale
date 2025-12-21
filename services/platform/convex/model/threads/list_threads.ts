@@ -13,6 +13,11 @@ export interface Thread {
   userId?: string;
 }
 
+export interface ListThreadsArgs {
+  userId: string;
+  search?: string;
+}
+
 /**
  * Determine whether a thread should be treated as a general chat thread.
  *
@@ -43,8 +48,11 @@ function isGeneralThread(summary?: string): boolean {
 
 export async function listThreads(
   ctx: QueryCtx,
-  userId: string,
+  args: ListThreadsArgs,
 ): Promise<Thread[]> {
+  const { userId, search } = args;
+  const searchLower = search?.trim().toLowerCase();
+
   const result = await ctx.runQuery(
     components.agent.threads.listThreadsByUserId,
     {
@@ -55,9 +63,23 @@ export async function listThreads(
   );
 
   // Filter out archived threads and non-general chat types
-  const filtered = result.page.filter(
-    (thread) => thread.status === 'active' && isGeneralThread(thread.summary),
-  );
+  // Also apply search filter if provided
+  const filtered = result.page.filter((thread) => {
+    // Must be active and general chat type
+    if (thread.status !== 'active' || !isGeneralThread(thread.summary)) {
+      return false;
+    }
+
+    // Apply search filter if provided
+    if (searchLower) {
+      const title = thread.title?.toLowerCase() ?? '';
+      if (!title.includes(searchLower)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   // Map to the public Thread shape so we don't expose internal fields like `summary`
   return filtered.map((thread) => ({

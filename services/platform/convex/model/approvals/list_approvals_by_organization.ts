@@ -3,6 +3,7 @@
  *
  * - `status` is a high-level view: `pending` or `resolved` (approved or rejected).
  * - `resourceType` can be a string or an array of strings; filtering is done in code.
+ * - `search` is an optional search term to filter by customer name, email, or product names.
  * - We iterate the query one-by-one and stop when we reach `limit` matches.
  */
 
@@ -13,7 +14,52 @@ export interface ListApprovalsByOrganizationArgs {
   organizationId: string;
   status: 'pending' | 'resolved';
   resourceType?: string | string[];
+  search?: string;
   limit?: number;
+}
+
+/**
+ * Check if an approval matches the search term.
+ * Searches in customer name, email, and product names from metadata.
+ */
+function matchesSearch(approval: ApprovalItem, searchLower: string): boolean {
+  const metadata = (approval.metadata || {}) as Record<string, unknown>;
+
+  // Search in customer name
+  if (
+    typeof metadata['customerName'] === 'string' &&
+    (metadata['customerName'] as string).toLowerCase().includes(searchLower)
+  ) {
+    return true;
+  }
+
+  // Search in customer email
+  if (
+    typeof metadata['customerEmail'] === 'string' &&
+    (metadata['customerEmail'] as string).toLowerCase().includes(searchLower)
+  ) {
+    return true;
+  }
+
+  // Search in recommended products (canonical: productName)
+  if (Array.isArray(metadata['recommendedProducts'])) {
+    const products = metadata['recommendedProducts'] as Array<
+      Record<string, unknown>
+    >;
+    if (
+      products.some((p) => {
+        const name =
+          typeof p['productName'] === 'string'
+            ? (p['productName'] as string)
+            : '';
+        return name.toLowerCase().includes(searchLower);
+      })
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function listApprovalsByOrganization(
@@ -21,6 +67,7 @@ export async function listApprovalsByOrganization(
   args: ListApprovalsByOrganizationArgs,
 ): Promise<Array<ApprovalItem>> {
   const limit = args.limit ?? 1000; // Default limit to prevent unbounded queries
+  const searchLower = args.search?.trim().toLowerCase();
 
   // Normalize resourceType into an array for easier handling
   const resourceTypes: string[] =
@@ -48,6 +95,11 @@ export async function listApprovalsByOrganization(
         continue;
       }
 
+      // Apply search filter if provided
+      if (searchLower && !matchesSearch(approval, searchLower)) {
+        continue;
+      }
+
       result.push(approval);
       if (result.length >= limit) break;
     }
@@ -70,6 +122,11 @@ export async function listApprovalsByOrganization(
       continue;
     }
 
+    // Apply search filter if provided
+    if (searchLower && !matchesSearch(approval, searchLower)) {
+      continue;
+    }
+
     result.push(approval);
     if (result.length >= limit) {
       result.sort((a, b) => b._creationTime - a._creationTime);
@@ -86,6 +143,11 @@ export async function listApprovalsByOrganization(
 
   for await (const approval of rejectedQuery) {
     if (resourceTypeSet && !resourceTypeSet.has(approval.resourceType)) {
+      continue;
+    }
+
+    // Apply search filter if provided
+    if (searchLower && !matchesSearch(approval, searchLower)) {
       continue;
     }
 

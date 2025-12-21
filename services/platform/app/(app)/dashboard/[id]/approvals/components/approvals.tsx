@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import {
   Table,
@@ -15,24 +15,21 @@ import { toast } from '@/hooks/use-toast';
 import ApprovalDetailModal from './approval-detail-modal';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
 import { formatDate } from '@/lib/utils/date/format';
 import { useMutation, usePreloadedQuery, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 interface ApprovalsProps {
   status?: 'pending' | 'resolved';
   organizationId: string;
-  search?: string;
   preloadedApprovals: PreloadedApprovals;
 }
 
 export default function Approvals({
   status,
   organizationId,
-  search,
   preloadedApprovals,
 }: ApprovalsProps) {
   const [approving, setApproving] = useState<string | null>(null);
@@ -44,75 +41,50 @@ export default function Approvals({
     null,
   );
   const [approvalDetailModalOpen, setApprovalDetailModalOpen] = useState(false);
-  const router = useRouter();
 
   // Use preloaded data with real-time reactivity
   // This provides SSR benefits AND automatic updates when data changes
-  const allApprovals = usePreloadedQuery(preloadedApprovals);
-
-  // Filter for resolved status (approved or rejected) if needed
-  const filteredByStatus = useMemo(() => {
-    if (status === 'resolved') {
-      return allApprovals.filter(
-        (a) => a.status === 'approved' || a.status === 'rejected',
-      );
-    }
-    return allApprovals;
-  }, [allApprovals, status]);
-
-  // Apply search filter
-  const approvals = useMemo(() => {
-    if (!search) return filteredByStatus;
-
-    const searchLower = search.toLowerCase();
-    return filteredByStatus.filter((approval) => {
-      // Cast metadata to Record for dynamic property access
-      const metadata = (approval.metadata || {}) as Record<string, unknown>;
-
-      // Search in customer name
-      if (
-        typeof metadata['customerName'] === 'string' &&
-        (metadata['customerName'] as string).toLowerCase().includes(searchLower)
-      )
-        return true;
-
-      // Search in customer email
-      if (
-        typeof metadata['customerEmail'] === 'string' &&
-        (metadata['customerEmail'] as string)
-          .toLowerCase()
-          .includes(searchLower)
-      )
-        return true;
-
-      // Search in recommended products (canonical: productName)
-      if (
-        Array.isArray(metadata['recommendedProducts']) &&
-        (
-          metadata['recommendedProducts'] as Array<Record<string, unknown>>
-        ).some((p) => {
-          const name =
-            (typeof p['productName'] === 'string' &&
-              (p['productName'] as string)) ||
-            '';
-          return name.toLowerCase().includes(searchLower);
-        })
-      )
-        return true;
-
-      return false;
-    });
-  }, [filteredByStatus, search]);
+  // Filtering (status and search) is now done server-side in the Convex query
+  const approvals = usePreloadedQuery(preloadedApprovals);
 
   // Get current member
   const memberContext = useQuery(api.member.getCurrentMemberContext, {
     organizationId: organizationId as string,
   });
 
-  // Mutation: update approval status
+  // Mutation: update approval status with optimistic update
+  // When status changes, the approval is removed from the current list immediately
   const updateApprovalStatus = useMutation(
     api.approvals.updateApprovalStatusPublic,
-  );
+  ).withOptimisticUpdate((localStore, args) => {
+    // Get the current query result
+    const currentApprovals = localStore.getQuery(
+      api.approvals.getApprovalsByOrganization,
+      {
+        organizationId,
+        status: status === 'pending' ? 'pending' : 'resolved',
+        resourceType: ['product_recommendation'],
+        limit: 500,
+      },
+    );
+
+    if (currentApprovals !== undefined) {
+      // Remove the approval from the list (it will move to the other status)
+      const updatedApprovals = currentApprovals.filter(
+        (approval) => approval._id !== args.approvalId,
+      );
+      localStore.setQuery(
+        api.approvals.getApprovalsByOrganization,
+        {
+          organizationId,
+          status: status === 'pending' ? 'pending' : 'resolved',
+          resourceType: ['product_recommendation'],
+          limit: 500,
+        },
+        updatedApprovals,
+      );
+    }
+  });
 
   const removeRecommendedProduct = useMutation(
     api.approvals.removeRecommendedProduct,
@@ -135,9 +107,6 @@ export default function Approvals({
         approvedBy: memberContext.member._id,
         comments: 'Approved via UI',
       });
-
-      // Refresh the page to show updated data
-      router.refresh();
     } catch (error) {
       console.error('Failed to approve:', error);
       toast({
@@ -162,14 +131,10 @@ export default function Approvals({
     try {
       await updateApprovalStatus({
         approvalId: approvalId as Id<'approvals'>,
-
         status: 'rejected',
         approvedBy: memberContext.member._id,
         comments: 'Rejected via UI',
       });
-
-      // Refresh the page to show updated data
-      router.refresh();
     } catch (error) {
       console.error('Failed to reject:', error);
       toast({

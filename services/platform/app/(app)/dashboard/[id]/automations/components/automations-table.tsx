@@ -30,19 +30,18 @@ import {
 import { useRouter } from 'next/navigation';
 import CreateAutomationDialog from './create-automation-dialog';
 import DeleteAutomationDialog from './delete-automation-dialog';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useDateFormat } from '@/hooks/use-date-format';
+import { useDebounce } from 'ahooks';
 
 interface AutomationsTableProps {
-  automations: Doc<'wfDefinitions'>[];
   organizationId: string;
 }
 
 export default function AutomationsTable({
-  automations,
   organizationId,
 }: AutomationsTableProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -54,6 +53,20 @@ export default function AutomationsTable({
   const router = useRouter();
   const { formatDate } = useDateFormat();
 
+  // Debounce search query for server-side filtering
+  const debouncedSearch = useDebounce(searchQuery, { wait: 300 });
+
+  // Fetch automations with server-side search filtering
+  const automationsData = useQuery(
+    api.wf_definitions.listWorkflowsWithBestVersionPublic,
+    {
+      organizationId,
+      search: debouncedSearch || undefined,
+    },
+  );
+
+  const automations = automationsData ?? [];
+
   const createAutomation = useMutation(
     api.wf_definitions.createWorkflowWithStepsPublic,
   );
@@ -61,7 +74,35 @@ export default function AutomationsTable({
   const duplicateAutomation = useMutation(
     api.wf_definitions.duplicateWorkflowPublic,
   );
-  const deleteAutomation = useMutation(api.wf_definitions.deleteWorkflowPublic);
+
+  // Delete automation with optimistic update for immediate UI feedback
+  const deleteAutomation = useMutation(
+    api.wf_definitions.deleteWorkflowPublic,
+  ).withOptimisticUpdate((localStore, args) => {
+    // Get the current query result
+    const currentAutomations = localStore.getQuery(
+      api.wf_definitions.listWorkflowsWithBestVersionPublic,
+      {
+        organizationId,
+        search: debouncedSearch || undefined,
+      },
+    );
+
+    if (currentAutomations !== undefined) {
+      // Remove the deleted automation from the list immediately
+      const updatedAutomations = currentAutomations.filter(
+        (automation) => automation._id !== args.wfDefinitionId,
+      );
+      localStore.setQuery(
+        api.wf_definitions.listWorkflowsWithBestVersionPublic,
+        {
+          organizationId,
+          search: debouncedSearch || undefined,
+        },
+        updatedAutomations,
+      );
+    }
+  });
 
   const handleCreateAutomation = () => {
     setCreateDialogOpen(true);
@@ -86,7 +127,6 @@ export default function AutomationsTable({
         title: 'Automation created successfully',
         variant: 'success',
       });
-      router.refresh();
     } catch (error) {
       console.error('Failed to create automation:', error);
       toast({
@@ -105,7 +145,6 @@ export default function AutomationsTable({
         title: 'Automation duplicated successfully',
         variant: 'success',
       });
-      router.refresh();
     } catch (error) {
       console.error('Failed to duplicate automation:', error);
       toast({
@@ -129,7 +168,6 @@ export default function AutomationsTable({
       });
       setDeleteDialogOpen(false);
       setAutomationToDelete(null);
-      router.refresh();
     } catch (error) {
       console.error('Failed to delete automation:', error);
       toast({
@@ -152,13 +190,7 @@ export default function AutomationsTable({
     );
   };
 
-  // Filter automations based on search query
-  const filteredAutomations = automations.filter(
-    (workflow) =>
-      workflow.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (workflow.description &&
-        workflow.description.toLowerCase().includes(searchQuery.toLowerCase())),
-  );
+  // Search filtering is now done server-side in the Convex query
 
   return (
     <div className="flex flex-col flex-1 px-4 py-6">
@@ -182,8 +214,8 @@ export default function AutomationsTable({
         </div>
       )}
 
-      {filteredAutomations.length === 0 && automations.length === 0 ? (
-        /* Empty State */
+      {automations.length === 0 && !debouncedSearch ? (
+        /* Empty State - no automations at all */
         <div className="flex items-center justify-center flex-[1_1_0] ring-1 ring-border rounded-xl p-4">
           <div className="flex flex-col items-center space-y-4 text-center max-w-md">
             <Workflow className="size-6 text-muted-foreground" />
@@ -201,7 +233,7 @@ export default function AutomationsTable({
             </Button>
           </div>
         </div>
-      ) : filteredAutomations.length === 0 ? (
+      ) : automations.length === 0 ? (
         /* No Search Results */
         <div className="flex items-center justify-center py-16 px-4 text-center">
           <div className="space-y-2">
@@ -226,7 +258,7 @@ export default function AutomationsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAutomations.map((workflow) => (
+            {automations.map((workflow) => (
               <TableRow
                 key={workflow._id}
                 onClick={() => handleRowClick(workflow)}

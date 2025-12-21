@@ -38,16 +38,17 @@ async function ApprovalsPageContent({
   }
 
   // Preload approvals for SSR + real-time reactivity on client
+  // Search filtering is now done server-side in the Convex query
   const preloadedApprovals = await preloadApprovalsData({
     organizationId,
     status,
+    search,
   });
 
   return (
     <ApprovalsWrapper
       key={`${status}-${search}`}
       status={status}
-      search={search}
       organizationId={organizationId}
       preloadedApprovals={preloadedApprovals}
     />

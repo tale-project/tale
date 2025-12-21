@@ -11,7 +11,6 @@ import {
 import ProductImage from './product-image';
 import Pagination from '@/components/ui/pagination';
 import { Package } from 'lucide-react';
-import { useParams } from 'next/navigation';
 import ProductSearch from './product-search';
 import { formatDate } from '@/lib/utils/date/format';
 import { Button } from '../../../../../../components/ui/button';
@@ -24,34 +23,27 @@ import {
 import { MoreVertical, ExternalLink } from 'lucide-react';
 import ImportProductsMenu from './import-products-menu';
 import ProductActions from './product-actions';
+import { usePreloadedQuery } from 'convex/react';
+import { type Preloaded } from '@/lib/convex-next-server';
+import { api } from '@/convex/_generated/api';
 
 export interface ProductTableProps {
-  products: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    imageUrl?: string;
-    stock?: number;
-    lastUpdated: number;
-    metadata?: Record<string, unknown>;
-  }>;
-  total: number;
+  organizationId: string;
   currentPage: number;
-  hasNextPage: boolean;
   searchQuery?: string;
   pageSize?: number;
+  preloadedProducts: Preloaded<typeof api.products.getProducts>;
 }
 
 export default function ProductTable({
-  products,
-  total,
+  organizationId,
   currentPage,
-  hasNextPage,
   searchQuery,
   pageSize = 10,
+  preloadedProducts,
 }: ProductTableProps) {
-  const params = useParams();
-  const organizationId = params.id as string;
+  // Use preloaded data with real-time reactivity
+  const { products, total, hasNextPage } = usePreloadedQuery(preloadedProducts);
 
   const emptyProducts = products.length === 0 && !searchQuery;
 

@@ -15,7 +15,7 @@ import FilterStatusIndicator from './filter-status-indicator';
 import ActivateConversationsEmptyState from './activate-conversations-empty-state';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/hooks/use-toast';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useMutation, usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -48,7 +48,6 @@ export default function Conversations({
   preloadedEmailProviders,
 }: ConversationsProps) {
   const { id: businessId } = useParams();
-  const router = useRouter();
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
@@ -230,10 +229,9 @@ export default function Conversations({
         isSending: false,
       });
 
-      // Clear selection and refresh
+      // Clear selection - Convex real-time reactivity handles data updates
       setSelectionState({ type: 'individual', selectedIds: new Set() });
       setSelectedConversationId(null);
-      router.refresh();
     } catch (error) {
       console.error('Error sending messages:', error);
       toast({
@@ -273,10 +271,9 @@ export default function Conversations({
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
-      // Clear selection and refresh
+      // Clear selection - Convex real-time reactivity handles data updates
       setSelectionState({ type: 'individual', selectedIds: new Set() });
       setSelectedConversationId(null);
-      router.refresh();
     } catch (error) {
       console.error('Error resolving conversations:', error);
       toast({
@@ -313,10 +310,9 @@ export default function Conversations({
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
-      // Clear selection and refresh
+      // Clear selection - Convex real-time reactivity handles data updates
       setSelectionState({ type: 'individual', selectedIds: new Set() });
       setSelectedConversationId(null);
-      router.refresh();
     } catch (error) {
       console.error('Error reopening conversations:', error);
       toast({

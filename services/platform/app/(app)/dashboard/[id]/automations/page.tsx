@@ -37,20 +37,12 @@ async function AutomationsPageContent({ params }: AutomationsContentProps) {
     redirect('/log-in');
   }
 
-  // Parallelize both fetches for better performance
-  // We fetch automations eagerly but only render if user has access
-  const [memberContext, automations] = await Promise.all([
-    fetchQuery(
-      api.member.getCurrentMemberContext,
-      { organizationId },
-      { token },
-    ),
-    fetchQuery(
-      api.wf_definitions.listWorkflowsWithBestVersionPublic,
-      { organizationId },
-      { token },
-    ),
-  ]);
+  // Fetch member context to check permissions
+  const memberContext = await fetchQuery(
+    api.member.getCurrentMemberContext,
+    { organizationId },
+    { token },
+  );
 
   // Only Admin and Developer can access automations (case-insensitive comparison)
   const userRole = (memberContext.role ?? '').toLowerCase();
@@ -67,12 +59,9 @@ async function AutomationsPageContent({ params }: AutomationsContentProps) {
     );
   }
 
-  return (
-    <AutomationsTable
-      automations={automations}
-      organizationId={organizationId}
-    />
-  );
+  // Automations are now fetched in the client component with useQuery
+  // This enables real-time updates and server-side search filtering
+  return <AutomationsTable organizationId={organizationId} />;
 }
 
 export default function AutomationsPage({ params }: AutomationsPageProps) {

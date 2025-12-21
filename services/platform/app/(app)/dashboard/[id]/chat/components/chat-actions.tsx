@@ -57,8 +57,6 @@ export default function ChatActions({
       // If deleting current chat, redirect to chat home
       if (currentChatId === chat.id) {
         router.push(`/dashboard/${organizationId}/chat`);
-      } else {
-        router.refresh();
       }
     } catch (error) {
       console.error('Failed to delete chat:', error);

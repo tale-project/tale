@@ -2,9 +2,10 @@
 
 import { useState, useMemo, Fragment, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery } from 'convex/react';
+import { useQuery, usePreloadedQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { type Preloaded } from '@/lib/convex-next-server';
 import {
   Table,
   TableBody,
@@ -30,7 +31,7 @@ import ExecutionsFilterDropdown, {
 import { JsonViewer } from '@/components/ui/json-viewer';
 
 interface ExecutionsTableProps {
-  executions: Execution[];
+  preloadedExecutions: Preloaded<typeof api.wf_executions.listExecutions>;
   amId: Id<'wfDefinitions'>;
 }
 
@@ -58,71 +59,72 @@ function ExecutionDetails({ execution }: { execution: Execution }) {
 
   const metadata = execution.metadata
     ? (() => {
-      try {
-        return JSON.parse(execution.metadata);
-      } catch {
-        return {};
-      }
-    })()
+        try {
+          return JSON.parse(execution.metadata);
+        } catch {
+          return {};
+        }
+      })()
     : undefined;
 
   // Parse variables JSON and transform to exclude steps (since they are shown separately)
-  const parsedVariables: Record<string, unknown> | undefined = execution.variables
-    ? (() => {
-      try {
-        return JSON.parse(execution.variables) as Record<string, unknown>;
-      } catch {
-        return undefined;
-      }
-    })()
-    : undefined;
+  const parsedVariables: Record<string, unknown> | undefined =
+    execution.variables
+      ? (() => {
+          try {
+            return JSON.parse(execution.variables) as Record<string, unknown>;
+          } catch {
+            return undefined;
+          }
+        })()
+      : undefined;
 
   const variables = parsedVariables
     ? (() => {
-      const { steps, ...rest } = parsedVariables as Record<string, unknown>;
-      return Object.keys(rest).length > 0 ? rest : undefined;
-    })()
+        const { steps, ...rest } = parsedVariables as Record<string, unknown>;
+        return Object.keys(rest).length > 0 ? rest : undefined;
+      })()
     : undefined;
 
   // Transform journal array to object keyed by stepSlug and flatten structure
   const steps = journal
     ? (() => {
-      const logs: Record<string, any> = {};
-      journal.forEach((log: any) => {
-        const stepSlug = log.step?.args?.stepSlug;
-        let key = log._id;
+        const logs: Record<string, any> = {};
+        journal.forEach((log: any) => {
+          const stepSlug = log.step?.args?.stepSlug;
+          let key = log._id;
 
-        if (stepSlug) {
-          key = stepSlug;
-        } else {
-          // Try to derive a readable key from the step name for system steps
-          // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
-          if (log.step?.name && typeof log.step.name === 'string') {
-            const parts = log.step.name.split(':');
-            if (parts.length > 1) {
-              key = parts[parts.length - 1];
+          if (stepSlug) {
+            key = stepSlug;
+          } else {
+            // Try to derive a readable key from the step name for system steps
+            // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
+            if (log.step?.name && typeof log.step.name === 'string') {
+              const parts = log.step.name.split(':');
+              if (parts.length > 1) {
+                key = parts[parts.length - 1];
+              }
             }
           }
-        }
 
-        // Flatten: merge log and log.step, remove log.step
-        const { step, ...restLog } = log;
-        const entry = { ...restLog, ...step };
+          // Flatten: merge log and log.step, remove log.step
+          const { step, ...restLog } = log;
+          const entry = { ...restLog, ...step };
 
-        // Enrich with output from variables if available
-        if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
-          const stepVar = ((parsedVariables as any).steps as Record<string, any>)[
-            stepSlug
-          ];
-          if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
-            entry.output = stepVar.output;
+          // Enrich with output from variables if available
+          if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
+            const stepVar = (
+              (parsedVariables as any).steps as Record<string, any>
+            )[stepSlug];
+            if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
+              entry.output = stepVar.output;
+            }
           }
-        }
 
-        logs[key] = entry;
-      });
-      return logs;
-    })()
+          logs[key] = entry;
+        });
+        return logs;
+      })()
     : undefined;
 
   const data = {
@@ -145,7 +147,7 @@ function ExecutionDetails({ execution }: { execution: Execution }) {
 }
 
 export function ExecutionsTable({
-  executions: initialExecutions,
+  preloadedExecutions,
   amId,
 }: ExecutionsTableProps) {
   const router = useRouter();
@@ -160,17 +162,22 @@ export function ExecutionsTable({
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
 
-  // Fetch executions reactively
-  const executions =
-    (useQuery(api.wf_executions.listExecutions, {
-      wfDefinitionId: amId,
-      limit: 100,
-      search: searchQuery || undefined,
-      status: statusFilter === 'All' ? undefined : statusFilter,
-      triggeredBy: triggeredByFilter === 'All' ? undefined : triggeredByFilter,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-    }) as Execution[] | undefined) || initialExecutions;
+  // Use preloaded data with real-time reactivity
+  const preloadedData = usePreloadedQuery(preloadedExecutions) as Execution[];
+
+  // Fetch executions reactively when filters change from initial state
+  const liveExecutions = useQuery(api.wf_executions.listExecutions, {
+    wfDefinitionId: amId,
+    limit: 100,
+    search: searchQuery || undefined,
+    status: statusFilter === 'All' ? undefined : statusFilter,
+    triggeredBy: triggeredByFilter === 'All' ? undefined : triggeredByFilter,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+  }) as Execution[] | undefined;
+
+  // Use live data if available, otherwise fall back to preloaded data
+  const executions = liveExecutions ?? preloadedData;
 
   // Local state for filters (before applying)
   const [localFilters, setLocalFilters] = useState<ExecutionsFilterState>({
@@ -186,7 +193,9 @@ export function ExecutionsTable({
   // Get unique triggeredBy values for filter options
   const triggeredByOptions = useMemo<string[]>(() => {
     const unique = new Set<string>(
-      executions.map((e: Execution) => e.triggeredBy || 'unknown').filter(Boolean),
+      executions
+        .map((e: Execution) => e.triggeredBy || 'unknown')
+        .filter(Boolean),
     );
     return Array.from(unique).sort();
   }, [executions]);
@@ -337,7 +346,6 @@ export function ExecutionsTable({
     }
     return '-';
   };
-
 
   return (
     <div className="space-y-4">

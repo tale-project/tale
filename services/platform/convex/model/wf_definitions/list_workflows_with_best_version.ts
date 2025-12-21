@@ -4,6 +4,7 @@
  * Priority: active > draft > archived, then highest versionNumber.
  *
  * Optimized to use async iteration with inline filtering and aggregation.
+ * Supports optional search filtering by name and description.
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -12,6 +13,7 @@ import type { WorkflowDefinition } from './types';
 export interface ListWorkflowsWithBestVersionArgs {
   organizationId: string;
   status?: string;
+  search?: string;
 }
 
 const statusPriority: Record<string, number> = {
@@ -29,6 +31,7 @@ export async function listWorkflowsWithBestVersion(
     .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
   const workflowMap = new Map<string, WorkflowDefinition>();
+  const searchLower = args.search?.trim().toLowerCase();
 
   // Use async iteration with inline filtering and aggregation
   for await (const wf of query) {
@@ -37,6 +40,16 @@ export async function listWorkflowsWithBestVersion(
     // Filter by status if provided
     if (args.status && workflow.status !== args.status) {
       continue;
+    }
+
+    // Filter by search term if provided (matches name or description)
+    if (searchLower) {
+      const nameMatches = workflow.name.toLowerCase().includes(searchLower);
+      const descMatches =
+        workflow.description?.toLowerCase().includes(searchLower) ?? false;
+      if (!nameMatches && !descMatches) {
+        continue;
+      }
     }
 
     const key = workflow.name;

@@ -1,7 +1,7 @@
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { fetchQuery } from '@/lib/convex-next-server';
-import { ExecutionsTable, type Execution } from './components/executions-table';
+import { preloadQuery } from '@/lib/convex-next-server';
+import { ExecutionsTable } from './components/executions-table';
 import { SuspenseLoader } from '@/components/suspense-loader';
 import { TableSkeleton } from '@/components/skeletons';
 
@@ -46,19 +46,23 @@ async function ExecutionsContent({
   const dateFrom = (search.dateFrom as string) || undefined;
   const dateTo = (search.dateTo as string) || undefined;
 
-  const executions = (await fetchQuery(api.wf_executions.listExecutions, {
-    wfDefinitionId: amId,
-    limit: 100,
-    search: searchQuery,
-    status: statusFilter,
-    triggeredBy: triggeredByFilter,
-    dateFrom,
-    dateTo,
-  })) as Execution[];
+  // Preload executions for SSR + real-time reactivity on client
+  const preloadedExecutions = await preloadQuery(
+    api.wf_executions.listExecutions,
+    {
+      wfDefinitionId: amId,
+      limit: 100,
+      search: searchQuery,
+      status: statusFilter,
+      triggeredBy: triggeredByFilter,
+      dateFrom,
+      dateTo,
+    },
+  );
 
   return (
     <div className="py-6 px-4">
-      <ExecutionsTable executions={executions} amId={amId} />
+      <ExecutionsTable preloadedExecutions={preloadedExecutions} amId={amId} />
     </div>
   );
 }
