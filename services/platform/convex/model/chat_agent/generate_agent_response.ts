@@ -102,10 +102,10 @@ export async function generateAgentResponse(
   }, TIMEOUT_MS);
 
   try {
-    // Load context summary and RAG context in parallel for faster startup
-    // Both operations are independent and can run concurrently
+    // Load context summary, RAG context, and integrations in parallel for faster startup
+    // All operations are independent and can run concurrently
     const userQuery = messageText || '';
-    const [contextSummary, ragContext] = await Promise.all([
+    const [contextSummary, ragContext, integrationsList] = await Promise.all([
       // Load any existing incremental summary for this thread without blocking
       // on a fresh summarization run. Summarization itself is handled
       // asynchronously in onChatComplete and on-demand in the
@@ -121,6 +121,8 @@ export async function generateAgentResponse(
             abortController.signal,
           )
         : Promise.resolve(undefined),
+      // Load available integrations for this organization
+      ctx.runQuery(internal.integrations.listInternal, { organizationId }),
     ]);
 
     debugLog('Context loaded', {
@@ -129,6 +131,7 @@ export async function generateAgentResponse(
       hasRagContext: !!ragContext,
       ragContextLength: ragContext?.length ?? 0,
       attachmentCount: attachments?.length ?? 0,
+      integrationsCount: integrationsList?.length ?? 0,
     });
 
     const agent = createChatAgent({
@@ -165,6 +168,24 @@ export async function generateAgentResponse(
       contextMessages.push({
         role: 'user',
         content: `[KNOWLEDGE BASE] Relevant information from your knowledge base:\n\n${ragContext}`,
+      });
+    }
+
+    // Inject available integrations so the agent knows what external systems are available
+    if (integrationsList && integrationsList.length > 0) {
+      const integrationsInfo = integrationsList
+        .map((integration: any) => {
+          const type = integration.type || 'rest_api';
+          const status = integration.status || 'active';
+          const title = integration.title || integration.name;
+          const desc = integration.description ? ` - ${integration.description}` : '';
+          return `• ${integration.name} (${type}, ${status}): ${title}${desc}`;
+        })
+        .join('\n');
+
+      contextMessages.push({
+        role: 'user',
+        content: `[INTEGRATIONS] Available external integrations:\n\n${integrationsInfo}\n\nUse integration_introspect tool with the integration name to see available operations, then use the integration tool to execute operations.`,
       });
     }
 

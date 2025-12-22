@@ -22,6 +22,8 @@ import { pptxTool } from './files/pptx_tool';
 import { docxTool } from './files/docx_tool';
 import { resourceCheckTool } from './files/resource_check_tool';
 import { contextSearchTool } from './threads/context_search_tool';
+import { integrationTool } from './integrations/integration_tool';
+import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -46,6 +48,8 @@ export const TOOL_NAMES = [
   'save_workflow_definition',
   'generate_excel',
   'context_search',
+  'integration',
+  'integration_introspect',
 ] as const;
 
 /**
@@ -68,6 +72,8 @@ export const TOOL_REGISTRY = [
   docxTool,
   resourceCheckTool,
   contextSearchTool,
+  integrationTool,
+  integrationIntrospectTool,
 ] as const;
 
 /**

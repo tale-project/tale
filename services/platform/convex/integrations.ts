@@ -64,6 +64,19 @@ export const getByNameInternal = internalQuery({
   },
 });
 
+/**
+ * Internal: List all integrations for an organization (no RLS)
+ */
+export const listInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await IntegrationsModel.listIntegrations(ctx, args);
+  },
+});
+
 // ============================================================================
 // Public Actions (with Encryption)
 // ============================================================================

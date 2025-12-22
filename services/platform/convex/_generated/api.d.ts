@@ -33,6 +33,10 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
+import type * as agent_tools_integrations_execute_integration_internal from "../agent_tools/integrations/execute_integration_internal.js";
+import type * as agent_tools_integrations_integration_introspect_tool from "../agent_tools/integrations/integration_introspect_tool.js";
+import type * as agent_tools_integrations_integration_tool from "../agent_tools/integrations/integration_tool.js";
+import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -664,6 +668,10 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
+  "agent_tools/integrations/execute_integration_internal": typeof agent_tools_integrations_execute_integration_internal;
+  "agent_tools/integrations/integration_introspect_tool": typeof agent_tools_integrations_integration_introspect_tool;
+  "agent_tools/integrations/integration_tool": typeof agent_tools_integrations_integration_tool;
+  "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
