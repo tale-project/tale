@@ -368,7 +368,9 @@ wait_for_http "http://localhost:${PORT}/api/health" 30 "Next.js server" true
 echo "📊 Starting Convex Dashboard on port ${CONVEX_DASHBOARD_PORT}..."
 cd /dashboard
 # Derive deployment URL from SITE_URL for dashboard
-NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}/ws_api" \
+# Note: We use SITE_URL without /ws_api suffix because the dashboard's API paths
+# are rewritten to /convex-dashboard-api/ and handled by Next.js rewrites.
+NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \
   node server.js &

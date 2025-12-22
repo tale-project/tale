@@ -44,6 +44,19 @@ export default {
         source: '/http_api/:path*',
         destination: 'http://127.0.0.1:3211/:path*',
       },
+      // Proxy Convex Dashboard API calls to the Convex backend
+      // The dashboard JavaScript is rewritten to use /convex-dashboard-api/
+      // instead of /api/ to avoid conflicts with platform API routes
+      {
+        source: '/convex-dashboard-api/:path*',
+        destination: 'http://127.0.0.1:3210/api/:path*',
+      },
+      // Also handle WebSocket and API calls that go through the dashboard proxy path
+      // The dashboard constructs WebSocket URLs by appending /api/... to the iframe's origin path
+      {
+        source: '/api/convex-dashboard-proxy/api/:path*',
+        destination: 'http://127.0.0.1:3210/api/:path*',
+      },
     ];
   },
   // This is required to support PostHog trailing slash API requests
