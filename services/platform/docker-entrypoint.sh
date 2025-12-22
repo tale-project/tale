@@ -57,20 +57,6 @@ export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 export OPENAI_API_KEY="${OPENAI_API_KEY}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
 
-# Internal URLs for server-side requests
-# These allow Next.js server components to reach services directly
-# without going through the external domain (which may not be reachable from inside Docker
-# due to hairpin NAT issues)
-export CONVEX_INTERNAL_URL="http://127.0.0.1:${CONVEX_BACKEND_PORT:-3210}"
-export CONVEX_HTTP_INTERNAL_URL="http://127.0.0.1:${CONVEX_SITE_PROXY_PORT:-3211}"
-export NEXT_INTERNAL_URL="http://127.0.0.1:${PORT:-3000}"
-
-# Internal Convex site URL for auth provider discovery
-# This is used by auth.config.ts inside the Convex backend to reach the auth endpoints
-# The Convex backend calls this URL to discover auth providers, so it must be reachable
-# from the Convex process (which runs in the same container, hence 127.0.0.1)
-export CONVEX_SITE_URL_INTERNAL="http://127.0.0.1:${CONVEX_SITE_PROXY_PORT:-3211}"
-
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -316,7 +302,6 @@ deploy_convex_functions() {
   # These are the variables that Convex functions need access to
   ENV_VARS_TO_SYNC=(
     "SITE_URL"
-    "CONVEX_SITE_URL_INTERNAL"
     "ENCRYPTION_SECRET_HEX"
     "OPENAI_API_KEY"
     "OPENAI_BASE_URL"

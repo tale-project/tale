@@ -350,14 +350,14 @@ services:
     healthcheck:
       test:
         [
-	          'CMD',
-	          'wget',
-	          '--no-verbose',
-	          '--tries=1',
-	          '--spider',
-	          '--header=X-Real-IP: 127.0.0.1',
-	          'http://localhost:8080/healthz',
-	        ]
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          '--header=X-Real-IP: 127.0.0.1',
+          'http://localhost:8080/healthz',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -456,7 +456,12 @@ services:
 
     # Networks
     networks:
-      - internal
+      internal:
+        # Hairpin NAT resolution via network alias
+        # This allows containers to resolve DOMAIN_HOST to the proxy container
+        # via Docker's internal DNS, solving the hairpin NAT issue.
+        aliases:
+          - ${DOMAIN_HOST:-localhost}
 
 # ============================================================================
 # Volumes
@@ -502,7 +507,3 @@ networks:
   # Internal network for Tale services
   internal:
     driver: bridge
-    # Optional: Configure network settings
-    # ipam:
-    #   config:
-    #     - subnet: 172.28.0.0/16

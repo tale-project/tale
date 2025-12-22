@@ -24,26 +24,17 @@ let cachedConvexHttpUrl: string | null = null;
 function getConvexHttpUrl(): string {
   if (cachedConvexHttpUrl) return cachedConvexHttpUrl;
 
-  // For server-side requests, we need to use an internal URL that can be
-  // reached from within the Docker container. The external SITE_URL (e.g.,
-  // https://demo.tale.dev) often cannot be reached from inside the container
-  // due to network/DNS issues (the container can't route back to itself).
+  // SITE_URL is the single source of truth. We derive the Convex deployment
+  // URL from it and avoid any additional Convex-specific env vars.
   //
-  // CONVEX_INTERNAL_URL allows specifying the internal Convex backend address
-  // (e.g., http://127.0.0.1:3210) for server-side requests.
-  //
-  // If not set, we fall back to ${SITE_URL}/ws_api which works for local
-  // development but may fail in production Docker deployments.
-  const internalUrl = process.env.CONVEX_INTERNAL_URL;
-  if (internalUrl) {
-    cachedConvexHttpUrl = internalUrl.replace(/\/+$/, '');
-  } else {
-    // Fallback to SITE_URL-based URL (works for local dev)
-    const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
-    const trimmed = rawSiteUrl.replace(/\/+$/, '');
-    cachedConvexHttpUrl = `${trimmed}/ws_api`;
-  }
+  // Convex clients (both browser and server) talk to the "Convex origin",
+  // which in this app is always exposed at `${SITE_URL}/ws_api` and
+  // proxied to the Convex backend port by Next.js rewrites.
+  const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
+  const trimmed = rawSiteUrl.replace(/\/+$/, '');
+  const url = `${trimmed}/ws_api`;
 
+  cachedConvexHttpUrl = url;
   if (process.env.NODE_ENV !== 'production') {
     // Helpful for debugging misconfiguration in local/dev environments.
     // eslint-disable-next-line no-console
