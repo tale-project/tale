@@ -63,28 +63,17 @@ export { revalidateTag, revalidatePath } from 'next/cache';
 
 /**
  * Convex URL configuration
- *
- * For server-side requests inside Docker, we need to use an internal URL that can
- * be reached from within the container. The external SITE_URL (e.g., https://demo.tale.dev)
- * often cannot be reached from inside the container due to hairpin NAT issues.
  */
 let cachedConvexHttpUrl: string | null = null;
 
 function getConvexHttpUrl(): string {
   if (cachedConvexHttpUrl) return cachedConvexHttpUrl;
 
-  // CONVEX_INTERNAL_URL allows specifying the internal Convex backend address
-  // (e.g., http://127.0.0.1:3210) for server-side requests.
-  const internalUrl = process.env.CONVEX_INTERNAL_URL;
-  if (internalUrl) {
-    cachedConvexHttpUrl = internalUrl.replace(/\/+$/, '');
-  } else {
-    // Fallback to SITE_URL-based URL (works for local dev)
-    const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
-    const trimmed = rawSiteUrl.replace(/\/+$/, '');
-    cachedConvexHttpUrl = `${trimmed}/ws_api`;
-  }
+  const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
+  const trimmed = rawSiteUrl.replace(/\/+$/, '');
+  const url = `${trimmed}/ws_api`;
 
+  cachedConvexHttpUrl = url;
   return cachedConvexHttpUrl;
 }
 
@@ -123,14 +112,10 @@ function withDefaultUrl(options?: NextjsOptions): NextjsOptions {
  * }
  * ```
  */
-export async function cachedConvexQuery<
-  Query extends FunctionReference<'query'>,
->(
+export async function cachedConvexQuery<Query extends FunctionReference<'query'>>(
   query: Query,
-  args: Query extends FunctionReference<'query', 'public', infer Args>
-    ? Args
-    : never,
-  token?: string,
+  args: Query extends FunctionReference<'query', 'public', infer Args> ? Args : never,
+  token?: string
 ): Promise<FunctionReturnType<Query>> {
   const options = token ? { ...withDefaultUrl(), token } : withDefaultUrl();
 
@@ -172,3 +157,4 @@ export const CACHE_TAGS = {
   forUser: (userId: string) => `user-${userId}`,
   forEntity: (type: string, id: string) => `${type}-${id}`,
 } as const;
+
