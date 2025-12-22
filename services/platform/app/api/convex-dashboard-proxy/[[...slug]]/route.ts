@@ -115,6 +115,16 @@ async function proxyRequest(
         '"/convex-dashboard-api/instance_name"',
       );
 
+      // Strip /ws_api from URLs that have it before /api/ or /convex-dashboard-api/
+      // This handles the case where the backend's --convex-origin includes /ws_api
+      // and the dashboard builds full URLs like "https://example.com/ws_api/api/..."
+      // We need to remove /ws_api so the URL becomes "https://example.com/convex-dashboard-api/..."
+      js = js.replace(
+        /\/ws_api\/convex-dashboard-api\//g,
+        '/convex-dashboard-api/',
+      );
+      js = js.replace(/\/ws_api\/api\//g, '/convex-dashboard-api/');
+
       return new NextResponse(js, {
         status: response.status,
         headers: {
