@@ -36,7 +36,9 @@ BASE_URL="${SITE_URL:-http://localhost:${PORT:-3000}}"
 
 # Dashboard and API are accessed via proxy paths
 DASHBOARD_URL="${BASE_URL}/convex-dashboard"
-DEPLOYMENT_URL="${BASE_URL}/ws_api"
+# Deployment URL is the base URL without /ws_api suffix
+# The dashboard proxy rewrites /api/ paths to /convex-dashboard-api/
+DEPLOYMENT_URL="${BASE_URL}"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🌐 DASHBOARD ACCESS"

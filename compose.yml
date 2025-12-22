@@ -264,8 +264,10 @@ services:
     ports:
       # Uncomment for direct access during development/debugging:
       - '3000:3000'
-      # Convex dashboard UI (direct access)
-      - '6791:6791'
+      # - '3210:3210'
+      # - '3211:3211'
+      # # Convex dashboard UI (direct access)
+      # - '6791:6791'
 
     # Volume mounts
     # Persist Convex local data
