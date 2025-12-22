@@ -183,6 +183,11 @@ export default defineSchema({
     title: v.string(), // Display name (e.g., 'Shopify', 'My Shopify Store')
     description: v.optional(v.string()),
 
+    // Integration type (rest_api or sql)
+    type: v.optional(
+      v.union(v.literal('rest_api'), v.literal('sql')),
+    ), // Default: rest_api for backward compatibility
+
     // Connection status
     status: v.union(
       v.literal('active'),
@@ -268,6 +273,7 @@ export default defineSchema({
 
     // Connector configuration (for executing operations)
     // Contains the JavaScript code and operation definitions
+    // Used when type = 'rest_api'
     connector: v.optional(
       v.object({
         // The connector code (JavaScript for QuickJS sandbox)
@@ -296,6 +302,49 @@ export default defineSchema({
         // Execution limits
         timeoutMs: v.optional(v.number()), // Default: 30000
       }),
+    ),
+
+    // SQL-specific configuration (used when type = 'sql')
+    sqlConnectionConfig: v.optional(
+      v.object({
+        engine: v.union(
+          v.literal('mssql'),
+          v.literal('postgres'),
+          v.literal('mysql'),
+        ),
+        server: v.string(),
+        port: v.optional(v.number()),
+        database: v.string(),
+        readOnly: v.optional(v.boolean()), // Default: true
+        options: v.optional(
+          v.object({
+            encrypt: v.optional(v.boolean()),
+            trustServerCertificate: v.optional(v.boolean()),
+            connectionTimeout: v.optional(v.number()),
+            requestTimeout: v.optional(v.number()),
+          }),
+        ),
+        security: v.optional(
+          v.object({
+            maxResultRows: v.optional(v.number()), // Default: 10000
+            queryTimeoutMs: v.optional(v.number()), // Default: 30000
+            maxConnectionPoolSize: v.optional(v.number()), // Default: 5
+          }),
+        ),
+      }),
+    ),
+
+    // SQL operations (used when type = 'sql')
+    sqlOperations: v.optional(
+      v.array(
+        v.object({
+          name: v.string(), // e.g., 'get_reservations', 'get_guest_profile'
+          title: v.optional(v.string()),
+          description: v.optional(v.string()),
+          query: v.string(), // SQL query with native placeholders
+          parametersSchema: v.optional(v.any()), // JSON Schema for parameters
+        }),
+      ),
     ),
 
     // Only truly unstructured data here

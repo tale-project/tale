@@ -9,6 +9,14 @@ import { v } from 'convex/values';
 // =============================================================================
 
 /**
+ * Integration type validator
+ */
+export const integrationTypeValidator = v.union(
+  v.literal('rest_api'),
+  v.literal('sql'),
+);
+
+/**
  * Auth method validator
  */
 export const authMethodValidator = v.union(
@@ -124,6 +132,52 @@ export const connectorConfigValidator = v.object({
 });
 
 /**
+ * SQL engine validator
+ */
+export const sqlEngineValidator = v.union(
+  v.literal('mssql'),
+  v.literal('postgres'),
+  v.literal('mysql'),
+);
+
+/**
+ * SQL connection config validator
+ */
+export const sqlConnectionConfigValidator = v.object({
+  engine: sqlEngineValidator,
+  server: v.string(),
+  port: v.optional(v.number()),
+  database: v.string(),
+  readOnly: v.optional(v.boolean()),
+  options: v.optional(
+    v.object({
+      encrypt: v.optional(v.boolean()),
+      trustServerCertificate: v.optional(v.boolean()),
+      connectionTimeout: v.optional(v.number()),
+      requestTimeout: v.optional(v.number()),
+    }),
+  ),
+  security: v.optional(
+    v.object({
+      maxResultRows: v.optional(v.number()),
+      queryTimeoutMs: v.optional(v.number()),
+      maxConnectionPoolSize: v.optional(v.number()),
+    }),
+  ),
+});
+
+/**
+ * SQL operation validator
+ */
+export const sqlOperationValidator = v.object({
+  name: v.string(),
+  title: v.optional(v.string()),
+  description: v.optional(v.string()),
+  query: v.string(),
+  parametersSchema: v.optional(v.any()),
+});
+
+/**
  * Test connection result validator
  */
 export const testConnectionResultValidator = v.object({
@@ -135,6 +189,8 @@ export const testConnectionResultValidator = v.object({
 // TYPESCRIPT TYPES
 // =============================================================================
 
+export type IntegrationType = 'rest_api' | 'sql';
+export type SqlEngine = 'mssql' | 'postgres' | 'mysql';
 export type AuthMethod = 'api_key' | 'bearer_token' | 'basic_auth' | 'oauth2';
 export type Status = 'active' | 'inactive' | 'error' | 'testing';
 
@@ -201,6 +257,33 @@ export interface ConnectorConfig {
   secretBindings: string[];
   allowedHosts?: string[];
   timeoutMs?: number;
+}
+
+export interface SqlConnectionConfig {
+  engine: SqlEngine;
+  server: string;
+  port?: number;
+  database: string;
+  readOnly?: boolean;
+  options?: {
+    encrypt?: boolean;
+    trustServerCertificate?: boolean;
+    connectionTimeout?: number;
+    requestTimeout?: number;
+  };
+  security?: {
+    maxResultRows?: number;
+    queryTimeoutMs?: number;
+    maxConnectionPoolSize?: number;
+  };
+}
+
+export interface SqlOperation {
+  name: string;
+  title?: string;
+  description?: string;
+  query: string;
+  parametersSchema?: unknown;
 }
 
 export interface TestConnectionResult {

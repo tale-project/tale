@@ -16,6 +16,7 @@ import type { Doc } from '../../../_generated/dataModel';
 import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
+import { executeSqlIntegration } from './helpers/execute_sql_integration';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -62,7 +63,16 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 2. Get connector config (from integration record or predefined fallback)
+    // 2. Check integration type and route accordingly
+    const integrationType = (integration as any).type || 'rest_api'; // Default to rest_api for backward compatibility
+
+    // Handle SQL integrations
+    if (integrationType === 'sql') {
+      return await executeSqlIntegration(ctx, integration, operation, opParams);
+    }
+
+    // Handle REST API integrations (existing logic)
+    // 3. Get connector config (from integration record or predefined fallback)
     let connectorConfig = integration.connector;
 
     if (!connectorConfig) {
@@ -80,7 +90,7 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 3. Validate the operation is supported
+    // 4. Validate the operation is supported
     const supportedOps = connectorConfig.operations.map((op) => op.name);
     if (!supportedOps.includes(operation)) {
       throw new Error(
@@ -89,10 +99,10 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 4. Build secrets from integration credentials
+    // 5. Build secrets from integration credentials
     const secrets = await buildSecretsFromIntegration(ctx, integration);
 
-    // 5. Execute the connector in sandbox (via Node.js action)
+    // 6. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
     const result = (await ctx.runAction!(
