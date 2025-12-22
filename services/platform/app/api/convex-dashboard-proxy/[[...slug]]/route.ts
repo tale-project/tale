@@ -105,7 +105,11 @@ async function proxyRequest(
       // The dashboard uses new URL("/api/...", deploymentUrl) which resolves to
       // http://localhost:3000/api/... These are rewritten to /convex-dashboard-api/...
       // and handled by Next.js rewrites in next.config.ts.
-      js = js.replace(/["']\/api\//g, '"/convex-dashboard-api/');
+      // Use negative lookahead to avoid rewriting /api/convex-dashboard-proxy/ paths
+      js = js.replace(
+        /["']\/api\/(?!convex-dashboard-proxy)/g,
+        '"/convex-dashboard-api/',
+      );
       js = js.replace(
         /"\/instance_name"/g,
         '"/convex-dashboard-api/instance_name"',
