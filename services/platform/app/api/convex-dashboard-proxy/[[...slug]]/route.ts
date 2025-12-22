@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const DASHBOARD_URL = 'http://127.0.0.1:6791';
 const PROXY_PREFIX = '/api/convex-dashboard-proxy';
+const MAX_LOADING_RETRIES = 10; // Max retry attempts before showing error (~20 seconds)
 
 /**
  * Reverse proxy for Convex Dashboard.
@@ -57,14 +58,54 @@ async function proxyRequest(
     // exposing sensitive deployment data (including admin keys) in the JSON response.
     if (
       targetPath === '/' &&
-      responseContentType.includes('application/json')
+      responseContentType.toLowerCase().includes('application/json')
     ) {
+      console.warn(
+        'Dashboard proxy: Blocking JSON response at root path to prevent credential exposure',
+      );
+
+      // Track retry attempts to prevent infinite refresh loops
+      const retryCount = parseInt(
+        request.nextUrl.searchParams.get('_retry') || '0',
+        10,
+      );
+
+      if (retryCount >= MAX_LOADING_RETRIES) {
+        // Show error page after max retries
+        return new NextResponse(
+          `<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Unavailable</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+    .container { text-align: center; max-width: 500px; padding: 20px; }
+    .error { font-size: 48px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="error">⚠️</div>
+    <h2>Dashboard Unavailable</h2>
+    <p>The dashboard is currently unavailable. Please try again later or contact support if the problem persists.</p>
+  </div>
+</body>
+</html>`,
+          {
+            status: 503,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          },
+        );
+      }
+
+      // Return loading page with incremented retry counter
+      const nextRetry = retryCount + 1;
       return new NextResponse(
         `<!DOCTYPE html>
 <html>
 <head>
   <title>Dashboard Loading</title>
-  <meta http-equiv="refresh" content="2">
+  <meta http-equiv="refresh" content="2;url=${PROXY_PREFIX}?_retry=${nextRetry}">
   <style>
     body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
     .container { text-align: center; }
