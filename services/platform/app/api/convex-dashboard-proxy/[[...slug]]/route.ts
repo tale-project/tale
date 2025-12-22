@@ -52,6 +52,40 @@ async function proxyRequest(
     const response = await fetch(targetUrl, fetchOptions);
     const responseContentType = response.headers.get('content-type') || '';
 
+    // Security guard: If the root path returns JSON instead of HTML, the dashboard
+    // is likely still initializing or in an error state. Block this to prevent
+    // exposing sensitive deployment data (including admin keys) in the JSON response.
+    if (
+      targetPath === '/' &&
+      responseContentType.includes('application/json')
+    ) {
+      return new NextResponse(
+        `<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Loading</title>
+  <meta http-equiv="refresh" content="2">
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+    .container { text-align: center; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #e0e0e0; border-top-color: #666; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <p>Dashboard is loading, please wait...</p>
+  </div>
+</body>
+</html>`,
+        {
+          status: 503,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        },
+      );
+    }
+
     // For HTML responses, rewrite asset and API paths
     if (responseContentType.includes('text/html')) {
       let html = await response.text();
