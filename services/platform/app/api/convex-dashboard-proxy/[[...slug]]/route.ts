@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const DASHBOARD_URL = 'http://127.0.0.1:6791';
 const PROXY_PREFIX = '/api/convex-dashboard-proxy';
+const MAX_LOADING_RETRIES = 10; // Max retry attempts before showing error (~20 seconds)
 
 /**
  * Reverse proxy for Convex Dashboard.
@@ -51,6 +52,80 @@ async function proxyRequest(
 
     const response = await fetch(targetUrl, fetchOptions);
     const responseContentType = response.headers.get('content-type') || '';
+
+    // Security guard: If the root path returns JSON instead of HTML, the dashboard
+    // is likely still initializing or in an error state. Block this to prevent
+    // exposing sensitive deployment data (including admin keys) in the JSON response.
+    if (
+      targetPath === '/' &&
+      responseContentType.toLowerCase().includes('application/json')
+    ) {
+      console.warn(
+        'Dashboard proxy: Blocking JSON response at root path to prevent credential exposure',
+      );
+
+      // Track retry attempts to prevent infinite refresh loops
+      const retryCount = parseInt(
+        request.nextUrl.searchParams.get('_retry') || '0',
+        10,
+      );
+
+      if (retryCount >= MAX_LOADING_RETRIES) {
+        // Show error page after max retries
+        return new NextResponse(
+          `<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Unavailable</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+    .container { text-align: center; max-width: 500px; padding: 20px; }
+    .error { font-size: 48px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="error">⚠️</div>
+    <h2>Dashboard Unavailable</h2>
+    <p>The dashboard is currently unavailable. Please try again later or contact support if the problem persists.</p>
+  </div>
+</body>
+</html>`,
+          {
+            status: 503,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          },
+        );
+      }
+
+      // Return loading page with incremented retry counter
+      const nextRetry = retryCount + 1;
+      return new NextResponse(
+        `<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard Loading</title>
+  <meta http-equiv="refresh" content="2;url=${PROXY_PREFIX}?_retry=${nextRetry}">
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+    .container { text-align: center; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #e0e0e0; border-top-color: #666; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <p>Dashboard is loading, please wait...</p>
+  </div>
+</body>
+</html>`,
+        {
+          status: 503,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        },
+      );
+    }
 
     // For HTML responses, rewrite asset and API paths
     if (responseContentType.includes('text/html')) {
