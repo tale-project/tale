@@ -35,6 +35,8 @@ async function proxyRequest(
     if (contentType) headers.set('Content-Type', contentType);
     const authorization = request.headers.get('Authorization');
     if (authorization) headers.set('Authorization', authorization);
+    const cookie = request.headers.get('Cookie');
+    if (cookie) headers.set('Cookie', cookie);
 
     // Build fetch options
     const fetchOptions: RequestInit = {
@@ -106,9 +108,14 @@ async function proxyRequest(
       // http://localhost:3000/api/... These are rewritten to /convex-dashboard-api/...
       // and handled by Next.js rewrites in next.config.ts.
       // Use negative lookahead to avoid rewriting /api/convex-dashboard-proxy/ paths
+      // Use separate replacements to preserve quote types
       js = js.replace(
-        /["']\/api\/(?!convex-dashboard-proxy)/g,
+        /"\/api\/(?!convex-dashboard-proxy)/g,
         '"/convex-dashboard-api/',
+      );
+      js = js.replace(
+        /'\/api\/(?!convex-dashboard-proxy)/g,
+        "'/convex-dashboard-api/",
       );
       js = js.replace(
         /"\/instance_name"/g,
@@ -202,6 +209,13 @@ export async function PUT(
 }
 
 export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ slug?: string[] }> },
+) {
+  return proxyRequest(request, context);
+}
+
+export async function HEAD(
   request: NextRequest,
   context: { params: Promise<{ slug?: string[] }> },
 ) {
