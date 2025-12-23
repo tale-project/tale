@@ -202,10 +202,10 @@ services:
 
     # Environment variables
     environment:
-      # Chunk size optimized for structured documents (e.g., employee handbooks)
-      # 1024 provides good balance between context and retrieval precision
-      - RAG_CHUNK_SIZE=1024
-      - RAG_CHUNK_OVERLAP=100
+      # Chunk size for document processing
+      # Smaller chunks (512) reduce LLM output size for knowledge graph extraction
+      - RAG_CHUNK_SIZE=512
+      - RAG_CHUNK_OVERLAP=50
 
     # Restart policy
     # Automatically restart the container if it crashes
