@@ -1,6 +1,6 @@
 import CustomersTable from './customers-table';
 import { CustomerStatus } from '@/constants/convex-enums';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -20,19 +20,16 @@ interface PageProps {
   }>;
 }
 
-/**
- * Skeleton for the customers page that matches the actual layout.
- * Shows search/filter bar skeleton + table skeleton.
- */
-function CustomersPageSkeleton() {
+/** Skeleton for the customers table with header and rows */
+function CustomersSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name', width: 'w-32' },
+        { header: 'Name', width: 'w-48' },
         { header: 'Status', width: 'w-20' },
         { header: 'Source', width: 'w-24' },
-        { header: 'Locale', width: 'w-20' },
+        { header: '', width: 'w-12' },
         { header: 'Created', width: 'w-24' },
         { isAction: true },
       ]}
@@ -119,8 +116,8 @@ async function CustomersContent({
 
 export default function CustomersPage({ params, searchParams }: PageProps) {
   return (
-    <SuspenseLoader fallback={<CustomersPageSkeleton />}>
+    <Suspense fallback={<CustomersSkeleton />}>
       <CustomersContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

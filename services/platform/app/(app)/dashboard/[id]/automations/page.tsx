@@ -1,4 +1,4 @@
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { api } from '@/convex/_generated/api';
 
 import AutomationsTable from './components/automations-table';
@@ -11,19 +11,17 @@ interface AutomationsPageProps {
   params: Promise<{ id: string }>;
 }
 
-/**
- * Skeleton for the automations table.
- */
+/** Skeleton for the automations table with header and rows */
 function AutomationsSkeleton() {
   return (
-    <div className="px-4 py-6">
+    <div className="flex flex-col flex-1 px-4 py-6">
       <DataTableSkeleton
         rows={6}
         columns={[
           { header: 'Name', width: 'w-40' },
           { header: 'Status', width: 'w-24' },
-          { header: 'Trigger', width: 'w-28' },
-          { header: 'Last Run', width: 'w-28' },
+          { header: 'Version', width: 'w-20' },
+          { header: 'Created', width: 'w-28' },
           { isAction: true },
         ]}
         showHeader
@@ -74,8 +72,8 @@ async function AutomationsPageContent({ params }: AutomationsContentProps) {
 
 export default function AutomationsPage({ params }: AutomationsPageProps) {
   return (
-    <SuspenseLoader fallback={<AutomationsSkeleton />}>
+    <Suspense fallback={<AutomationsSkeleton />}>
       <AutomationsPageContent params={params} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

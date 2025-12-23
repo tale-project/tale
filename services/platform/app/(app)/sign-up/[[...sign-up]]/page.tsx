@@ -1,8 +1,9 @@
+import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import AuthLayout from '@/components/auth-layout';
 import SignUpForm from '@/components/auth/sign-up-form';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { FormSkeleton } from '@/components/skeletons';
 
 export const metadata = {
   title: 'Create Account',
@@ -16,8 +17,8 @@ export const metadata = {
 function isMicrosoftAuthEnabled(): boolean {
   return Boolean(
     process.env.AUTH_MICROSOFT_ENTRA_ID_ID &&
-    process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
-    process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID
+      process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+      process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
   );
 }
 
@@ -37,10 +38,21 @@ async function SignUpContent() {
   );
 }
 
+/** Skeleton for the sign-up form */
+function SignUpSkeleton() {
+  return (
+    <AuthLayout>
+      <div className="max-w-md mx-auto">
+        <FormSkeleton fields={3} />
+      </div>
+    </AuthLayout>
+  );
+}
+
 export default function SignUpPage() {
   return (
-    <SuspenseLoader>
+    <Suspense fallback={<SignUpSkeleton />}>
       <SignUpContent />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

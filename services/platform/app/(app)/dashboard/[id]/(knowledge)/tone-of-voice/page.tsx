@@ -1,4 +1,4 @@
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import ToneOfVoiceForm from './tone-of-voice-form';
 import { FormSkeleton } from '@/components/skeletons';
 import { preloadQuery } from '@/lib/convex-next-server';
@@ -51,8 +51,8 @@ async function ToneOfVoicePageContent({ params }: ToneOfVoiceContentProps) {
 
 export default function ToneOfVoicePage({ params }: ToneOfVoicePageProps) {
   return (
-    <SuspenseLoader fallback={<ToneOfVoiceSkeleton />}>
+    <Suspense fallback={<ToneOfVoiceSkeleton />}>
       <ToneOfVoicePageContent params={params} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }
