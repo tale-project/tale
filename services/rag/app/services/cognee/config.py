@@ -47,6 +47,27 @@ def patch_tiktoken() -> None:
     tiktoken._tale_encoding_patch_applied = True
 
 
+def configure_litellm_drop_params() -> None:
+    """Configure LiteLLM to drop unsupported parameters.
+
+    Some OpenAI-compatible API providers (like OpenRouter) don't support all
+    OpenAI parameters such as 'encoding_format' for embeddings. This setting
+    tells LiteLLM to silently drop unsupported parameters instead of raising
+    an exception.
+
+    This is particularly important for embedding calls where 'encoding_format'
+    causes 400 errors on non-OpenAI providers.
+    """
+    try:
+        import litellm
+
+        # Enable dropping of unsupported parameters globally
+        litellm.drop_params = True
+        logger.info("LiteLLM configured to drop unsupported parameters (drop_params=True)")
+    except ImportError:
+        logger.debug("litellm not available, skipping drop_params configuration")
+
+
 def setup_cognee_environment() -> None:
     """Set up environment variables for cognee BEFORE importing it.
 
@@ -308,6 +329,7 @@ def initialize_cognee() -> bool:
         True if cognee was successfully imported, False otherwise.
     """
     patch_tiktoken()
+    configure_litellm_drop_params()
     setup_cognee_environment()
     configure_cognee_base_config()
 
