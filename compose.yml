@@ -202,8 +202,10 @@ services:
 
     # Environment variables
     environment:
-      # Increase chunk size for better context in structured data
-      - CHUNK_SIZE=2048
+      # Chunk size optimized for structured documents (e.g., employee handbooks)
+      # 1024 provides good balance between context and retrieval precision
+      - RAG_CHUNK_SIZE=1024
+      - RAG_CHUNK_OVERLAP=100
 
     # Restart policy
     # Automatically restart the container if it crashes
