@@ -1,4 +1,4 @@
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationSettings from './components/organization-settings';
@@ -77,8 +77,8 @@ export default function OrganizationSettingsPage({
   params,
 }: OrganizationSettingsPageProps) {
   return (
-    <SuspenseLoader fallback={<OrganizationSettingsSkeleton />}>
+    <Suspense fallback={<OrganizationSettingsSkeleton />}>
       <OrganizationSettingsPageContent params={params} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

@@ -1,10 +1,11 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import ConversationsWrapper from './components/conversations-wrapper';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { ListSkeleton } from '@/components/skeletons';
 
 function isValidConversationStatus(
   s: string | undefined,
@@ -87,13 +88,27 @@ async function ConversationsContent({
   );
 }
 
+/** Skeleton for the conversations list */
+function ConversationsSkeleton() {
+  return (
+    <ListSkeleton
+      items={10}
+      itemProps={{
+        showAvatar: true,
+        showSecondary: true,
+        showAction: true,
+      }}
+    />
+  );
+}
+
 export default function ConversationsPage({
   params,
   searchParams,
 }: ConversationsPageProps) {
   return (
-    <SuspenseLoader>
+    <Suspense fallback={<ConversationsSkeleton />}>
       <ConversationsContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

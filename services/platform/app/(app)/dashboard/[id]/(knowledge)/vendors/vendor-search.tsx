@@ -12,12 +12,10 @@ import { Loader2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface VendorSearchProps {
-  organizationId: string;
   currentSearch?: string;
 }
 
 export default function VendorSearch({
-  organizationId: _organizationId,
   currentSearch = '',
 }: VendorSearchProps) {
   const router = useRouter();

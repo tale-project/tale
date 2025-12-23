@@ -31,7 +31,10 @@
  */
 export { TableSkeleton, TableRowSkeleton } from './table-skeleton';
 export { CardSkeleton, CardGridSkeleton } from './card-skeleton';
-export { NavigationSkeleton } from './navigation-skeleton';
+export {
+  NavigationSkeleton,
+  TabNavigationSkeleton,
+} from './navigation-skeleton';
 export { PageHeaderSkeleton } from './page-header-skeleton';
 export { FormSkeleton } from './form-skeleton';
 export { ListSkeleton, ListItemSkeleton } from './list-skeleton';

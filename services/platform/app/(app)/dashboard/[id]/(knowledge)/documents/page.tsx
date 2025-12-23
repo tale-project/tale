@@ -1,4 +1,4 @@
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import DocumentTable from './components/document-table';
@@ -11,10 +11,8 @@ import { DataTableSkeleton } from '@/components/ui/data-table';
 
 const logger = new Logger('documents');
 
-/**
- * Skeleton for the documents page that matches the actual layout.
- */
-function DocumentsPageSkeleton() {
+/** Skeleton for the documents table with header and rows */
+function DocumentsSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
@@ -139,8 +137,8 @@ export default function DocumentsPage({
   searchParams,
 }: DocumentsPageProps) {
   return (
-    <SuspenseLoader fallback={<DocumentsPageSkeleton />}>
+    <Suspense fallback={<DocumentsSkeleton />}>
       <DocumentsPageContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

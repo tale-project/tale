@@ -1,7 +1,8 @@
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import ApprovalsWrapper from './components/approvals-wrapper';
 import { preloadApprovalsData } from './utils/get-approvals-data';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 
 interface ApprovalsPageProps {
   params: Promise<{ id: string }>;
@@ -55,13 +56,30 @@ async function ApprovalsPageContent({
   );
 }
 
+/** Skeleton for the approvals table */
+function ApprovalsSkeleton() {
+  return (
+    <DataTableSkeleton
+      rows={8}
+      columns={[
+        { header: 'Approval / Recipient', width: 'w-40' },
+        { header: 'Event', width: 'w-24' },
+        { header: 'Action', width: 'w-24' },
+        { header: 'Confidence', width: 'w-24' },
+        { header: 'Approved', width: 'w-20' },
+      ]}
+      showHeader
+    />
+  );
+}
+
 export default function ApprovalsPage({
   params,
   searchParams,
 }: ApprovalsPageProps) {
   return (
-    <SuspenseLoader>
+    <Suspense fallback={<ApprovalsSkeleton />}>
       <ApprovalsPageContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

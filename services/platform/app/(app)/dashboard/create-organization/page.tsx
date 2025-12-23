@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
@@ -6,7 +7,7 @@ import OrganizationForm from './organization-form';
 import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import Link from 'next/link';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { FormSkeleton } from '@/components/skeletons';
 
 async function CreateBusinessContent() {
   const user = await getCurrentUser();
@@ -47,10 +48,26 @@ async function CreateBusinessContent() {
   );
 }
 
+/** Skeleton for the create organization form */
+function CreateOrganizationSkeleton() {
+  return (
+    <div>
+      <div className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
+        <div className="flex items-center justify-between">
+          <TaleLogo />
+        </div>
+      </div>
+      <div className="max-w-md mx-auto px-4">
+        <FormSkeleton fields={3} />
+      </div>
+    </div>
+  );
+}
+
 export default function CreateBusinessPage() {
   return (
-    <SuspenseLoader>
+    <Suspense fallback={<CreateOrganizationSkeleton />}>
       <CreateBusinessContent />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 import WebsitesTable from './websites-table';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 
 interface PageProps {
@@ -11,10 +11,8 @@ interface PageProps {
   }>;
 }
 
-/**
- * Skeleton for the websites page that matches the actual layout.
- */
-function WebsitesPageSkeleton() {
+/** Skeleton for the websites table with header and rows */
+function WebsitesSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
@@ -65,8 +63,8 @@ async function WebsitesContent({ params, searchParams }: WebsitesContentProps) {
 
 export default function WebsitesPage({ params, searchParams }: PageProps) {
   return (
-    <SuspenseLoader fallback={<WebsitesPageSkeleton />}>
+    <Suspense fallback={<WebsitesSkeleton />}>
       <WebsitesContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

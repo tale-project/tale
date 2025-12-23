@@ -1,5 +1,5 @@
+import { Suspense } from 'react';
 import ChatInterface from '../components/chat-interface';
-import { SuspenseLoader } from '@/components/suspense-loader';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface AIConversationPageProps {
@@ -7,48 +7,67 @@ interface AIConversationPageProps {
 }
 
 /**
- * Skeleton for the chat interface that matches the actual layout.
+ * Skeleton for the chat input matching the actual ChatInput component layout.
+ */
+function ChatInputSkeleton() {
+  return (
+    <div className="max-w-[var(--chat-max-width)] mx-auto w-full sticky bottom-0 z-50">
+      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
+        <div className="flex relative flex-col gap-2 bg-background rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0">
+          {/* Textarea placeholder */}
+          <Skeleton className="h-[100px] w-full bg-transparent" />
+          {/* Action buttons row */}
+          <div className="flex items-center pb-3">
+            <Skeleton className="h-5 w-5 rounded" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Skeleton for chat thread page with messages.
+ * Matches the actual layout with message bubbles.
  */
 function ChatSkeleton() {
   return (
-    <div className="flex flex-col h-full">
-      {/* Chat header skeleton */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <Skeleton className="h-6 w-48 rounded-md" />
-        <Skeleton className="h-8 w-8 rounded-full" />
-      </div>
-
-      {/* Chat messages area skeleton */}
-      <div className="flex-1 p-4 space-y-4">
-        {/* Assistant message */}
-        <div className="flex gap-3">
-          <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-          <div className="space-y-2 flex-1 max-w-[80%]">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-4 w-3/4 rounded-md" />
+    <div className="relative flex flex-col h-full flex-1 min-h-0">
+      <div className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto">
+        {/* Messages area with conversation skeleton */}
+        <div className="flex-1 overflow-y-visible p-8">
+          <div className="max-w-[var(--chat-max-width)] mx-auto space-y-4">
+            {/* User message */}
+            <div className="flex justify-end">
+              <div className="max-w-[80%]">
+                <Skeleton className="h-12 w-64 rounded-2xl" />
+              </div>
+            </div>
+            {/* Assistant message */}
+            <div className="flex justify-start">
+              <div className="max-w-[80%] space-y-2">
+                <Skeleton className="h-4 w-full max-w-md" />
+                <Skeleton className="h-4 w-5/6 max-w-md" />
+                <Skeleton className="h-4 w-3/4 max-w-md" />
+              </div>
+            </div>
+            {/* User message */}
+            <div className="flex justify-end">
+              <div className="max-w-[80%]">
+                <Skeleton className="h-10 w-48 rounded-2xl" />
+              </div>
+            </div>
+            {/* Assistant message */}
+            <div className="flex justify-start">
+              <div className="max-w-[80%] space-y-2">
+                <Skeleton className="h-4 w-full max-w-lg" />
+                <Skeleton className="h-4 w-4/5 max-w-lg" />
+              </div>
+            </div>
           </div>
         </div>
-        {/* User message */}
-        <div className="flex gap-3 justify-end">
-          <div className="space-y-2 max-w-[80%]">
-            <Skeleton className="h-4 w-48 rounded-md" />
-          </div>
-          <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-        </div>
-        {/* Assistant message */}
-        <div className="flex gap-3">
-          <Skeleton className="h-8 w-8 rounded-full shrink-0" />
-          <div className="space-y-2 flex-1 max-w-[80%]">
-            <Skeleton className="h-4 w-full rounded-md" />
-            <Skeleton className="h-4 w-5/6 rounded-md" />
-            <Skeleton className="h-4 w-2/3 rounded-md" />
-          </div>
-        </div>
-      </div>
-
-      {/* Chat input skeleton */}
-      <div className="p-4 border-t">
-        <Skeleton className="h-12 w-full rounded-lg" />
+        {/* Chat input skeleton */}
+        <ChatInputSkeleton />
       </div>
     </div>
   );
@@ -68,8 +87,8 @@ export default function AIConversationPage({
   params,
 }: AIConversationPageProps) {
   return (
-    <SuspenseLoader fallback={<ChatSkeleton />}>
+    <Suspense fallback={<ChatSkeleton />}>
       <ChatContent params={params} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

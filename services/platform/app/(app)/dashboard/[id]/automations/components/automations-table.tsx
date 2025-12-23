@@ -277,7 +277,7 @@ export default function AutomationsTable({
   );
 
   return (
-    <div className="flex flex-col flex-1 px-4 py-6">
+    <>
       {emptyAutomations ? (
         <DataTableEmptyState
           icon={Workflow}
@@ -317,7 +317,6 @@ export default function AutomationsTable({
           }}
         />
       )}
-
       <CreateAutomationDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
@@ -329,6 +328,6 @@ export default function AutomationsTable({
         onConfirm={handleDeleteConfirm}
         workflowName={automationToDelete?.name || ''}
       />
-    </div>
+    </>
   );
 }

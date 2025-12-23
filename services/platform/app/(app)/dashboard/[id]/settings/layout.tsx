@@ -1,23 +1,31 @@
-import { ReactNode, Suspense } from 'react';
-import { connection } from 'next/server';
+import { ReactNode } from 'react';
 import { api } from '@/convex/_generated/api';
 import SettingsNavigation from './settings-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { NavigationSkeleton } from '@/components/skeletons';
 
 interface SettingsLayoutProps {
   children: ReactNode;
   params: Promise<{ id: string }>;
 }
 
-async function SettingsNavigationWrapper({
-  organizationId,
-}: {
-  organizationId: string;
-}) {
+/**
+ * Settings Layout - Server Component
+ *
+ * This layout fetches member context to determine which navigation items
+ * to show based on user role. The navigation is rendered directly without
+ * Suspense to eliminate skeleton flash.
+ *
+ * Note: The parent dashboard layout already validates auth, so we can
+ * rely on that for the initial auth check.
+ */
+export default async function SettingsLayout({
+  children,
+  params,
+}: SettingsLayoutProps) {
+  const { id: organizationId } = await params;
   const token = await getAuthToken();
   if (!token) {
     redirect('/log-in');
@@ -33,31 +41,16 @@ async function SettingsNavigationWrapper({
   const canChangePassword = userContext?.canChangePassword ?? true;
 
   return (
-    <SettingsNavigation
-      userRole={userRole}
-      canChangePassword={canChangePassword}
-    />
-  );
-}
-
-export default async function SettingsLayout({
-  children,
-  params,
-}: SettingsLayoutProps) {
-  // Opt out of static rendering since this layout accesses cookies for auth
-  await connection();
-  const { id: organizationId } = await params;
-
-  return (
     <>
       {/* Title Section */}
       <div className="px-4 py-2 sticky top-0 z-50 bg-background/50 backdrop-blur-md min-h-12 flex items-center">
         <h1 className="text-base font-semibold text-foreground">Settings</h1>
       </div>
-      {/* Navigation - streams independently */}
-      <Suspense fallback={<NavigationSkeleton items={3} />}>
-        <SettingsNavigationWrapper organizationId={organizationId} />
-      </Suspense>
+      {/* Navigation - rendered directly with SSR, no skeleton needed */}
+      <SettingsNavigation
+        userRole={userRole}
+        canChangePassword={canChangePassword}
+      />
       {/* Content Area */}
       <ErrorBoundaryWithParams>
         <div className="flex flex-col flex-[1_1_0] px-4 py-6">{children}</div>

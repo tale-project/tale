@@ -1,5 +1,5 @@
 import VendorsTable from './vendors-table';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -17,18 +17,15 @@ interface PageProps {
   }>;
 }
 
-/**
- * Skeleton for the vendors page that matches the actual layout.
- */
-function VendorsPageSkeleton() {
+/** Skeleton for the vendors table with header and rows */
+function VendorsSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name', width: 'w-32' },
-        { header: 'Email', width: 'w-32' },
+        { header: 'Name', width: 'w-48' },
         { header: 'Source', width: 'w-24' },
-        { header: 'Locale', width: 'w-20' },
+        { header: '', width: 'w-12' },
         { header: 'Created', width: 'w-24' },
         { isAction: true },
       ]}
@@ -104,8 +101,8 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
 
 export default function VendorsPage({ params, searchParams }: PageProps) {
   return (
-    <SuspenseLoader fallback={<VendorsPageSkeleton />}>
+    <Suspense fallback={<VendorsSkeleton />}>
       <VendorsContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

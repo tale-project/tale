@@ -1,9 +1,8 @@
-import { ReactNode, Suspense } from 'react';
+import { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { api } from '@/convex/_generated/api';
-import { NavigationSkeleton } from '@/components/skeletons';
 import NavigationServer from '@/components/navigation-server';
 
 export interface DashboardLayoutProps {
@@ -12,14 +11,21 @@ export interface DashboardLayoutProps {
 }
 
 /**
- * Navigation wrapper that handles auth and data fetching inside Suspense
+ * Dashboard Layout - Server Component
+ *
+ * This layout is a Server Component that:
+ * 1. Validates authentication and organization access server-side
+ * 2. Renders navigation directly without Suspense (fast server-side render)
+ *
+ * Performance benefits:
+ * - No client-side auth checks (faster initial render)
+ * - Navigation renders immediately with SSR (no skeleton flash)
+ * - Auth validation happens once at layout level
  */
-async function NavigationWrapper({
+export default async function DashboardLayout({
+  children,
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  // All dynamic data access inside Suspense boundary for proper streaming
+}: DashboardLayoutProps) {
   const { id: organizationId } = await params;
   const token = await getAuthToken();
   if (!token) {
@@ -50,36 +56,13 @@ async function NavigationWrapper({
   }
 
   return (
-    <NavigationServer
-      organizationId={organizationId}
-      role={memberContext.role}
-    />
-  );
-}
-
-/**
- * Dashboard Layout - Server Component
- *
- * This layout is a Server Component that:
- * 1. Validates authentication and organization access server-side
- * 2. Streams the navigation independently via Suspense
- *
- * Performance benefits:
- * - No client-side auth checks (faster initial render)
- * - Navigation streams independently from page content
- * - Progressive rendering with Suspense boundaries
- */
-export default function DashboardLayout({
-  children,
-  params,
-}: DashboardLayoutProps) {
-  return (
     <div className="flex justify-stretch size-full">
-      {/* Navigation - streams independently */}
+      {/* Navigation - rendered directly with SSR, no skeleton needed */}
       <div className="flex-[0_0_52px] overflow-y-auto px-2">
-        <Suspense fallback={<NavigationSkeleton items={5} />}>
-          <NavigationWrapper params={params} />
-        </Suspense>
+        <NavigationServer
+          organizationId={organizationId}
+          role={memberContext.role}
+        />
       </div>
 
       {/* Main content area */}

@@ -725,32 +725,28 @@ export default function Approvals({
 
   if (approvals.length === 0) {
     return (
-      <div className="px-4 py-6">
-        <DataTableEmptyState
-          icon={GitCompare}
-          title={`No ${status || ''} approvals`}
-          description={
-            status === 'pending'
-              ? 'When human input is needed, your AI will request it here'
-              : undefined
-          }
-        />
-      </div>
+      <DataTableEmptyState
+        icon={GitCompare}
+        title={`No ${status || ''} approvals`}
+        description={
+          status === 'pending'
+            ? 'When human input is needed, your AI will request it here'
+            : undefined
+        }
+      />
     );
   }
 
   if (status === 'pending') {
     return (
       <>
-        <div className="space-y-4 px-4 py-6">
-          <DataTable
-            columns={pendingColumns}
-            data={approvals}
-            getRowId={(row) => row._id}
-            onRowClick={(row) => handleApprovalRowClick(row.original._id)}
-            rowClassName="cursor-pointer"
-          />
-        </div>
+        <DataTable
+          columns={pendingColumns}
+          data={approvals}
+          getRowId={(row) => row._id}
+          onRowClick={(row) => handleApprovalRowClick(row.original._id)}
+          rowClassName="cursor-pointer"
+        />
         <ApprovalDetailModal
           open={approvalDetailModalOpen}
           onOpenChange={handleApprovalDetailOpenChange}
@@ -771,15 +767,13 @@ export default function Approvals({
   if (status === 'resolved') {
     return (
       <>
-        <div className="space-y-4 px-4 py-6">
-          <DataTable
-            columns={resolvedColumns}
-            data={approvals}
-            getRowId={(row) => row._id}
-            onRowClick={(row) => handleApprovalRowClick(row.original._id)}
-            rowClassName="cursor-pointer"
-          />
-        </div>
+        <DataTable
+          columns={resolvedColumns}
+          data={approvals}
+          getRowId={(row) => row._id}
+          onRowClick={(row) => handleApprovalRowClick(row.original._id)}
+          rowClassName="cursor-pointer"
+        />
         <ApprovalDetailModal
           open={approvalDetailModalOpen}
           onOpenChange={handleApprovalDetailOpenChange}
@@ -799,7 +793,7 @@ export default function Approvals({
 
   // Default return with modal for other cases
   return (
-    <div className="px-4 py-6">
+    <>
       <DataTableEmptyState icon={GitCompare} title="No approvals found" />
       <ApprovalDetailModal
         open={approvalDetailModalOpen}
@@ -814,6 +808,6 @@ export default function Approvals({
         onRemoveRecommendation={handleRemoveRecommendation}
         removingProductId={removingProductId}
       />
-    </div>
+    </>
   );
 }

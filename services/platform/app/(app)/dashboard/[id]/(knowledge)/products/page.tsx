@@ -2,7 +2,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import ProductTable from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 
@@ -11,20 +11,16 @@ interface ProductsPageProps {
   searchParams: Promise<{ page?: string; query?: string; size?: string }>;
 }
 
-/**
- * Skeleton for the products page that matches the actual layout.
- */
-function ProductsPageSkeleton() {
+/** Skeleton for the products table with header and rows */
+function ProductsSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Product', width: 'w-40' },
-        { header: 'SKU', width: 'w-24' },
-        { header: 'Price', width: 'w-20' },
-        { header: 'Status', width: 'w-20' },
-        { header: 'Created', width: 'w-24' },
-        { isAction: true },
+        { header: 'Product', width: 'w-48' },
+        { header: 'Description', width: 'w-64' },
+        { header: 'Stock', width: 'w-16' },
+        { header: 'Updated', width: 'w-24' },
       ]}
       showHeader
       showFilters
@@ -79,8 +75,8 @@ export default function ProductsPage({
   searchParams,
 }: ProductsPageProps) {
   return (
-    <SuspenseLoader fallback={<ProductsPageSkeleton />}>
+    <Suspense fallback={<ProductsSkeleton />}>
       <ProductsContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }

@@ -2,12 +2,10 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable } from './components/executions-table';
-import { SuspenseLoader } from '@/components/suspense-loader';
+import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 
-/**
- * Skeleton for the executions table.
- */
+/** Skeleton for the executions table with header and rows */
 function ExecutionsSkeleton() {
   return (
     <div className="py-6 px-4">
@@ -77,8 +75,8 @@ export default function ExecutionsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   return (
-    <SuspenseLoader fallback={<ExecutionsSkeleton />}>
+    <Suspense fallback={<ExecutionsSkeleton />}>
       <ExecutionsContent params={params} searchParams={searchParams} />
-    </SuspenseLoader>
+    </Suspense>
   );
 }
