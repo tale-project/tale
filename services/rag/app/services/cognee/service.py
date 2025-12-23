@@ -119,12 +119,12 @@ class CogneeService:
 
             # Configure PDF loader to use hi_res strategy with OCR for image-based PDFs.
             # This enables Tesseract OCR to extract text from images embedded in PDFs.
-            # Languages: German (deu) and English (eng) for multi-language documents.
+            # Languages: German (deu), English (eng), and French (fra) for multi-language documents.
             preferred_loaders = [
                 {
                     "advanced_pdf_loader": {
                         "strategy": "hi_res",
-                        "languages": ["deu", "eng"],
+                        "languages": ["deu", "eng", "fra"],
                     }
                 }
             ]
