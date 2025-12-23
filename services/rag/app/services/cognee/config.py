@@ -63,9 +63,59 @@ def configure_litellm_drop_params() -> None:
 
         # Enable dropping of unsupported parameters globally
         litellm.drop_params = True
-        logger.info("LiteLLM configured to drop unsupported parameters (drop_params=True)")
+
+        # Modify embedding parameters to fix OpenRouter compatibility
+        # OpenRouter's embeddings API doesn't accept the encoding_format parameter
+        # with certain values that LiteLLM sends by default
+        litellm.modify_params = True
+
+        logger.info("LiteLLM configured to drop unsupported parameters (drop_params=True, modify_params=True)")
     except ImportError:
         logger.debug("litellm not available, skipping drop_params configuration")
+
+
+def _patch_litellm_embedding() -> None:
+    """Patch LiteLLM embedding to remove encoding_format parameter for OpenRouter.
+
+    OpenRouter's embeddings API only accepts 'float' or 'base64' for encoding_format,
+    but LiteLLM may send other values. This patch removes the encoding_format parameter
+    entirely when calling OpenAI-compatible endpoints (non api.openai.com).
+
+    We patch both sync (embedding) and async (aembedding) functions since Cognee
+    uses async operations internally.
+    """
+    try:
+        import litellm
+
+        # Check if already patched
+        if getattr(litellm, "_tale_embedding_patch_applied", False):
+            return
+
+        _original_embedding = litellm.embedding
+        _original_aembedding = litellm.aembedding
+
+        def _patched_embedding(*args: Any, **kwargs: Any) -> Any:
+            # Remove encoding_format for non-OpenAI endpoints
+            api_base = kwargs.get("api_base") or os.environ.get("OPENAI_BASE_URL", "")
+            if "api.openai.com" not in api_base:
+                kwargs.pop("encoding_format", None)
+            return _original_embedding(*args, **kwargs)
+
+        async def _patched_aembedding(*args: Any, **kwargs: Any) -> Any:
+            # Remove encoding_format for non-OpenAI endpoints
+            api_base = kwargs.get("api_base") or os.environ.get("OPENAI_BASE_URL", "")
+            if "api.openai.com" not in api_base:
+                kwargs.pop("encoding_format", None)
+            return await _original_aembedding(*args, **kwargs)
+
+        litellm.embedding = _patched_embedding
+        litellm.aembedding = _patched_aembedding
+        litellm._tale_embedding_patch_applied = True
+        logger.info("Patched LiteLLM embedding/aembedding to remove encoding_format for non-OpenAI endpoints")
+    except ImportError:
+        logger.debug("litellm not available, skipping embedding patch")
+    except Exception as e:
+        logger.warning(f"Failed to patch LiteLLM embedding: {e}")
 
 
 def setup_cognee_environment() -> None:
@@ -330,6 +380,7 @@ def initialize_cognee() -> bool:
     """
     patch_tiktoken()
     configure_litellm_drop_params()
+    _patch_litellm_embedding()
     setup_cognee_environment()
     configure_cognee_base_config()
 
