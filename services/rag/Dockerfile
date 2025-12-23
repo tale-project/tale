@@ -10,13 +10,23 @@ WORKDIR /app
 # - tesseract-ocr: OCR engine for scanned PDFs and images
 # - poppler-utils: PDF rendering for pdf2image (used by OCR)
 # - libmagic1: File type detection for unstructured
+# - libgl1, libglib2.0-0: OpenCV dependencies for unstructured-inference
+# - tesseract-ocr-eng/deu/fra: Language packs for OCR (English, German, French)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     libpq-dev \
     tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
     poppler-utils \
     libmagic1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for faster package management
