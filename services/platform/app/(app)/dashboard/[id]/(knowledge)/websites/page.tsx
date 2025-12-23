@@ -11,17 +11,18 @@ interface PageProps {
   }>;
 }
 
-/** Skeleton for the websites table with header and rows */
+/** Skeleton for the websites table with header and rows - matches websites-table.tsx column sizes */
 function WebsitesSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'URL', width: 'w-48' },
-        { header: 'Status', width: 'w-24' },
-        { header: 'Pages', width: 'w-16' },
-        { header: 'Last Crawled', width: 'w-28' },
-        { isAction: true },
+        { header: 'Website' }, // No size = expands to fill remaining space
+        { header: 'Title', size: 192 },
+        { header: 'Description', size: 256 },
+        { header: 'Scanned', size: 128 },
+        { header: 'Interval', size: 96 },
+        { isAction: true, size: 128 },
       ]}
       showHeader
       showFilters

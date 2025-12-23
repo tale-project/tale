@@ -56,17 +56,17 @@ async function ApprovalsPageContent({
   );
 }
 
-/** Skeleton for the approvals table */
+/** Skeleton for the approvals table - matches approvals.tsx column sizes */
 function ApprovalsSkeleton() {
   return (
     <DataTableSkeleton
       rows={8}
       columns={[
-        { header: 'Approval / Recipient', width: 'w-40' },
-        { header: 'Event', width: 'w-24' },
-        { header: 'Action', width: 'w-24' },
-        { header: 'Confidence', width: 'w-24' },
-        { header: 'Approved', width: 'w-20' },
+        { header: 'Approval / Recipient' }, // No size = expands to fill remaining space
+        { header: 'Event', size: 256 },
+        { header: 'Action', size: 256 },
+        { header: 'Confidence', size: 100 },
+        { header: 'Approved', size: 100 },
       ]}
       showHeader
     />

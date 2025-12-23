@@ -11,16 +11,16 @@ interface ProductsPageProps {
   searchParams: Promise<{ page?: string; query?: string; size?: string }>;
 }
 
-/** Skeleton for the products table with header and rows */
+/** Skeleton for the products table with header and rows - matches product-table.tsx column sizes */
 function ProductsSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Product', width: 'w-48' },
-        { header: 'Description', width: 'w-64' },
-        { header: 'Stock', width: 'w-16' },
-        { header: 'Updated', width: 'w-24' },
+        { header: 'Product' }, // No size = expands to fill remaining space
+        { header: 'Stock', size: 80 },
+        { header: 'Updated', size: 140 },
+        { isAction: true, size: 80 },
       ]}
       showHeader
       showFilters

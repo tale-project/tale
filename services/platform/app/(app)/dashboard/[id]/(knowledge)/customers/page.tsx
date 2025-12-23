@@ -20,18 +20,18 @@ interface PageProps {
   }>;
 }
 
-/** Skeleton for the customers table with header and rows */
+/** Skeleton for the customers table with header and rows - matches customers-table.tsx column sizes */
 function CustomersSkeleton() {
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name', width: 'w-48' },
-        { header: 'Status', width: 'w-20' },
-        { header: 'Source', width: 'w-24' },
-        { header: '', width: 'w-12' },
-        { header: 'Created', width: 'w-24' },
-        { isAction: true },
+        { header: 'Name' }, // No size = expands to fill remaining space
+        { header: 'Status', size: 140 },
+        { header: 'Source', size: 140 },
+        { header: '', size: 100 },
+        { header: 'Created', size: 140 },
+        { isAction: true, size: 140 },
       ]}
       showHeader
       showFilters

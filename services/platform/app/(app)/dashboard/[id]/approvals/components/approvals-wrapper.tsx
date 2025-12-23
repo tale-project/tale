@@ -14,24 +14,25 @@ interface ApprovalsWrapperProps {
 /**
  * Skeleton for the approvals table that matches the actual layout.
  * Shows different columns based on pending vs resolved status.
+ * Matches approvals.tsx column sizes.
  */
 function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
   const columns =
     status === 'resolved'
       ? [
-          { header: 'Approval / Recipient', width: 'w-40' },
-          { header: 'Event', width: 'w-24' },
-          { header: 'Action', width: 'w-24' },
-          { header: 'Reviewer', width: 'w-28' },
-          { header: 'Reviewed at', width: 'w-28' },
-          { header: 'Approved', width: 'w-20' },
+          { header: 'Approval / Recipient' }, // No size = expands to fill remaining space
+          { header: 'Event', size: 256 },
+          { header: 'Action', size: 256 },
+          { header: 'Reviewer' },
+          { header: 'Reviewed at' },
+          { header: 'Approved', size: 100 },
         ]
       : [
-          { header: 'Approval / Recipient', width: 'w-40' },
-          { header: 'Event', width: 'w-24' },
-          { header: 'Action', width: 'w-24' },
-          { header: 'Confidence', width: 'w-24' },
-          { header: 'Approved', width: 'w-20' },
+          { header: 'Approval / Recipient' }, // No size = expands to fill remaining space
+          { header: 'Event', size: 256 },
+          { header: 'Action', size: 256 },
+          { header: 'Confidence', size: 100 },
+          { header: 'Approved', size: 100 },
         ];
 
   return (

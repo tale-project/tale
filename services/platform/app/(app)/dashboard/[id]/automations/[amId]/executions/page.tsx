@@ -5,22 +5,20 @@ import { ExecutionsTable } from './components/executions-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 
-/** Skeleton for the executions table with header and rows */
+/** Skeleton for the executions table with header and rows - matches executions-table.tsx column sizes */
 function ExecutionsSkeleton() {
   return (
     <div className="py-6 px-4">
       <DataTableSkeleton
         rows={10}
         columns={[
-          { header: 'Execution ID', width: 'w-32' },
-          { header: 'Status', width: 'w-24' },
-          { header: 'Triggered By', width: 'w-28' },
-          { header: 'Started', width: 'w-28' },
-          { header: 'Duration', width: 'w-20' },
-          { isAction: true },
+          { header: 'Execution ID' }, // No size = expands to fill remaining space
+          { header: 'Status', size: 128 },
+          { header: 'Started at', size: 192 },
+          { header: 'Duration', size: 128 },
+          { header: 'Triggered by', size: 128 },
         ]}
         showHeader
-        showFilters
       />
     </div>
   );
