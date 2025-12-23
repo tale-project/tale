@@ -78,42 +78,60 @@ def _patch_litellm_embedding() -> None:
     """Patch LiteLLM embedding to remove encoding_format parameter for OpenRouter.
 
     OpenRouter's embeddings API only accepts 'float' or 'base64' for encoding_format,
-    but LiteLLM may send other values. This patch removes the encoding_format parameter
-    entirely when calling OpenAI-compatible endpoints (non api.openai.com).
+    but LiteLLM may send other values internally. This patch intercepts the internal
+    OpenAI embedding call to remove the encoding_format parameter.
 
-    We patch both sync (embedding) and async (aembedding) functions since Cognee
-    uses async operations internally.
+    We patch litellm.llms.openai.openai.OpenAIChatCompletion.embedding method
+    which is called internally by litellm.aembedding().
     """
     try:
         import litellm
+        from litellm.llms.openai.openai import OpenAIChatCompletion
 
         # Check if already patched
-        if getattr(litellm, "_tale_embedding_patch_applied", False):
+        if getattr(OpenAIChatCompletion, "_tale_embedding_patch_applied", False):
             return
 
-        _original_embedding = litellm.embedding
-        _original_aembedding = litellm.aembedding
+        _original_embedding = OpenAIChatCompletion.embedding
 
-        def _patched_embedding(*args: Any, **kwargs: Any) -> Any:
+        def _patched_embedding(
+            self: Any,
+            model: str,
+            input: list,
+            timeout: float,
+            logging_obj: Any,
+            api_key: str | None = None,
+            api_base: str | None = None,
+            model_response: Any = None,
+            optional_params: dict | None = None,
+            client: Any = None,
+            aembedding: bool = False,
+        ) -> Any:
             # Remove encoding_format for non-OpenAI endpoints
-            api_base = kwargs.get("api_base") or os.environ.get("OPENAI_BASE_URL", "")
-            if "api.openai.com" not in api_base:
-                kwargs.pop("encoding_format", None)
-            return _original_embedding(*args, **kwargs)
+            base_url = api_base or os.environ.get("OPENAI_BASE_URL", "")
+            if optional_params and "api.openai.com" not in base_url:
+                optional_params.pop("encoding_format", None)
+                logger.debug("Removed encoding_format for non-OpenAI endpoint")
 
-        async def _patched_aembedding(*args: Any, **kwargs: Any) -> Any:
-            # Remove encoding_format for non-OpenAI endpoints
-            api_base = kwargs.get("api_base") or os.environ.get("OPENAI_BASE_URL", "")
-            if "api.openai.com" not in api_base:
-                kwargs.pop("encoding_format", None)
-            return await _original_aembedding(*args, **kwargs)
+            return _original_embedding(
+                self,
+                model=model,
+                input=input,
+                timeout=timeout,
+                logging_obj=logging_obj,
+                api_key=api_key,
+                api_base=api_base,
+                model_response=model_response,
+                optional_params=optional_params,
+                client=client,
+                aembedding=aembedding,
+            )
 
-        litellm.embedding = _patched_embedding
-        litellm.aembedding = _patched_aembedding
-        litellm._tale_embedding_patch_applied = True
-        logger.info("Patched LiteLLM embedding/aembedding to remove encoding_format for non-OpenAI endpoints")
-    except ImportError:
-        logger.debug("litellm not available, skipping embedding patch")
+        OpenAIChatCompletion.embedding = _patched_embedding
+        OpenAIChatCompletion._tale_embedding_patch_applied = True
+        logger.info("Patched LiteLLM OpenAIChatCompletion.embedding to remove encoding_format for non-OpenAI endpoints")
+    except ImportError as e:
+        logger.debug(f"litellm not available, skipping embedding patch: {e}")
     except Exception as e:
         logger.warning(f"Failed to patch LiteLLM embedding: {e}")
 
