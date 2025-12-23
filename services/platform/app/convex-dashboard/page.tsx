@@ -1,15 +1,16 @@
+import { headers } from 'next/headers';
+
 /**
  * Convex Dashboard Page - Server Component
  *
  * Embeds the Convex dashboard via a proxy API route.
- * Uses SITE_URL environment variable for the iframe source.
+ * Uses the request host to determine the iframe source URL.
  */
-export default function ConvexDashboardPage() {
-  const siteUrl =
-    process.env.SITE_URL ||
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000');
+export default async function ConvexDashboardPage() {
+  const headersList = await headers();
+  const host = headersList.get('host') || 'localhost:3000';
+  const protocol = headersList.get('x-forwarded-proto') || 'http';
+  const siteUrl = `${protocol}://${host}`;
 
   return (
     <iframe
