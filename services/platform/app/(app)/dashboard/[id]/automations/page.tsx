@@ -11,21 +11,20 @@ interface AutomationsPageProps {
   params: Promise<{ id: string }>;
 }
 
-/** Skeleton for the automations table with header and rows */
+/** Skeleton for the automations table with header and rows - matches automations-table.tsx column sizes */
 function AutomationsSkeleton() {
   return (
     <div className="flex flex-col flex-1 px-4 py-6">
       <DataTableSkeleton
         rows={6}
         columns={[
-          { header: 'Name', width: 'w-40' },
-          { header: 'Status', width: 'w-24' },
-          { header: 'Version', width: 'w-20' },
-          { header: 'Created', width: 'w-28' },
-          { isAction: true },
+          { header: 'Automation' }, // No size = expands to fill remaining space
+          { header: 'Status', size: 140 },
+          { header: 'Version', size: 100 },
+          { header: 'Created', size: 140 },
+          { isAction: true, size: 80 },
         ]}
         showHeader
-        showFilters
       />
     </div>
   );

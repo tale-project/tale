@@ -17,12 +17,12 @@ function DocumentsSkeleton() {
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name', width: 'w-40' },
-        { header: 'Type', width: 'w-20' },
-        { header: 'Size', width: 'w-20' },
-        { header: 'Status', width: 'w-24' },
-        { header: 'Modified', width: 'w-24' },
-        { isAction: true },
+        { header: 'Document' },
+        { header: 'Size', size: 128 },
+        { header: 'Source', size: 96 },
+        { header: 'RAG Status', size: 128 },
+        { header: 'Modified', size: 192 },
+        { isAction: true, size: 160 },
       ]}
       showHeader
       showFilters
