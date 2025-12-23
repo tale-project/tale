@@ -106,6 +106,7 @@ def _patch_litellm_embedding() -> None:
             optional_params: dict | None = None,
             client: Any = None,
             aembedding: bool = False,
+            **kwargs: Any,
         ) -> Any:
             # Remove encoding_format for non-OpenAI endpoints
             base_url = api_base or os.environ.get("OPENAI_BASE_URL", "")
@@ -125,6 +126,7 @@ def _patch_litellm_embedding() -> None:
                 optional_params=optional_params,
                 client=client,
                 aembedding=aembedding,
+                **kwargs,
             )
 
         OpenAIChatCompletion.embedding = _patched_embedding
