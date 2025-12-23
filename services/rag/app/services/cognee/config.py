@@ -192,10 +192,13 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("EMBEDDING_API_KEY", openai_api_key)
     os.environ.setdefault("EMBEDDING_ENDPOINT", base_url)
 
-    # Configure BAML for structured outputs
+    # Configure BAML for structured outputs (knowledge graph extraction)
+    # Use BAML_LLM_MODEL to specify a different model for extraction if needed.
+    # This is useful when the main model is a "thinking" model that causes JSON truncation.
+    baml_model = os.environ.get("BAML_LLM_MODEL") or cognee_llm_model
     os.environ.setdefault("STRUCTURED_OUTPUT_FRAMEWORK", "baml")
     os.environ.setdefault("BAML_LLM_PROVIDER", provider)
-    os.environ.setdefault("BAML_LLM_MODEL", model)
+    os.environ["BAML_LLM_MODEL"] = baml_model  # Use direct assignment to respect env override
     os.environ.setdefault("BAML_LLM_ENDPOINT", base_url)
     os.environ.setdefault("BAML_LLM_API_KEY", openai_api_key)
     os.environ.setdefault("BAML_LLM_TEMPERATURE", "1.0")
@@ -205,10 +208,11 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
-        "LLM configured - Provider: {}, Model: {}, Embedding: {}",
+        "LLM configured - Provider: {}, Model: {}, Embedding: {}, BAML: {}",
         provider,
         cognee_llm_model,
         cognee_embedding_model,
+        baml_model,
     )
 
     if "openai" not in base_url and embedding_model == "text-embedding-3-small":
