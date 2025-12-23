@@ -117,6 +117,18 @@ class CogneeService:
                 f"(timeout: {timeout_seconds}s)"
             )
 
+            # Configure PDF loader to use hi_res strategy with OCR for image-based PDFs.
+            # This enables Tesseract OCR to extract text from images embedded in PDFs.
+            # Languages: German (deu), English (eng), and French (fra) for multi-language documents.
+            preferred_loaders = [
+                {
+                    "advanced_pdf_loader": {
+                        "strategy": "hi_res",
+                        "languages": ["deu", "eng", "fra"],
+                    }
+                }
+            ]
+
             # Wrap cognee.add() with timeout
             try:
                 result = await asyncio.wait_for(
@@ -124,6 +136,7 @@ class CogneeService:
                         content,
                         dataset_name=dataset_name,
                         node_set=node_set,
+                        preferred_loaders=preferred_loaders,
                     ),
                     timeout=timeout_seconds,
                 )

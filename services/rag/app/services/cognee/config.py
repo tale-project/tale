@@ -47,6 +47,97 @@ def patch_tiktoken() -> None:
     tiktoken._tale_encoding_patch_applied = True
 
 
+def configure_litellm_drop_params() -> None:
+    """Configure LiteLLM to drop unsupported parameters.
+
+    Some OpenAI-compatible API providers (like OpenRouter) don't support all
+    OpenAI parameters such as 'encoding_format' for embeddings. This setting
+    tells LiteLLM to silently drop unsupported parameters instead of raising
+    an exception.
+
+    This is particularly important for embedding calls where 'encoding_format'
+    causes 400 errors on non-OpenAI providers.
+    """
+    try:
+        import litellm
+
+        # Enable dropping of unsupported parameters globally
+        litellm.drop_params = True
+
+        # Modify embedding parameters to fix OpenRouter compatibility
+        # OpenRouter's embeddings API doesn't accept the encoding_format parameter
+        # with certain values that LiteLLM sends by default
+        litellm.modify_params = True
+
+        logger.info("LiteLLM configured to drop unsupported parameters (drop_params=True, modify_params=True)")
+    except ImportError:
+        logger.debug("litellm not available, skipping drop_params configuration")
+
+
+def _patch_litellm_embedding() -> None:
+    """Patch LiteLLM embedding to remove encoding_format parameter for OpenRouter.
+
+    OpenRouter's embeddings API only accepts 'float' or 'base64' for encoding_format,
+    but LiteLLM may send other values internally. This patch intercepts the internal
+    OpenAI embedding call to remove the encoding_format parameter.
+
+    We patch litellm.llms.openai.openai.OpenAIChatCompletion.embedding method
+    which is called internally by litellm.aembedding().
+    """
+    try:
+        import litellm
+        from litellm.llms.openai.openai import OpenAIChatCompletion
+
+        # Check if already patched
+        if getattr(OpenAIChatCompletion, "_tale_embedding_patch_applied", False):
+            return
+
+        _original_embedding = OpenAIChatCompletion.embedding
+
+        def _patched_embedding(
+            self: Any,
+            model: str,
+            input: list,
+            timeout: float,
+            logging_obj: Any,
+            api_key: str | None = None,
+            api_base: str | None = None,
+            model_response: Any = None,
+            optional_params: dict | None = None,
+            client: Any = None,
+            aembedding: bool = False,
+            **kwargs: Any,
+        ) -> Any:
+            # Remove encoding_format for non-OpenAI endpoints
+            base_url = api_base or os.environ.get("OPENAI_BASE_URL", "")
+            if optional_params and "api.openai.com" not in base_url:
+                optional_params.pop("encoding_format", None)
+                logger.debug("Removed encoding_format for non-OpenAI endpoint")
+
+            return _original_embedding(
+                self,
+                model=model,
+                input=input,
+                timeout=timeout,
+                logging_obj=logging_obj,
+                api_key=api_key,
+                api_base=api_base,
+                model_response=model_response,
+                optional_params=optional_params,
+                client=client,
+                aembedding=aembedding,
+                **kwargs,
+            )
+
+        OpenAIChatCompletion.embedding = _patched_embedding
+        OpenAIChatCompletion._tale_embedding_patch_applied = True
+        logger.info("Patched LiteLLM OpenAIChatCompletion.embedding to remove encoding_format for non-OpenAI endpoints")
+    except ImportError as e:
+        logger.debug(f"litellm not available, skipping embedding patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch LiteLLM embedding: {e}")
+
+
 def setup_cognee_environment() -> None:
     """Set up environment variables for cognee BEFORE importing it.
 
@@ -308,6 +399,8 @@ def initialize_cognee() -> bool:
         True if cognee was successfully imported, False otherwise.
     """
     patch_tiktoken()
+    configure_litellm_drop_params()
+    _patch_litellm_embedding()
     setup_cognee_environment()
     configure_cognee_base_config()
 
