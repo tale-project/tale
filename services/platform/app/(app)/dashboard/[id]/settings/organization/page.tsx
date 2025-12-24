@@ -3,20 +3,57 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationSettings from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
-import { FormSkeleton } from '@/components/skeletons';
 import { getAuthToken } from '@/lib/auth/auth-server';
+import { Skeleton } from '@/components/ui/skeleton';
+import { DataTableSkeleton } from '@/components/ui/data-table';
+import { AccessDenied } from '@/components/layout';
 
 interface OrganizationSettingsPageProps {
   params: Promise<{ id: string }>;
 }
 
 /**
- * Skeleton for the organization settings page.
+ * Skeleton for the organization settings page - matches OrganizationSettings layout.
+ * Shows organization form section + team members section with table.
  */
 function OrganizationSettingsSkeleton() {
   return (
-    <div className="max-w-2xl">
-      <FormSkeleton fields={4} />
+    <div className="space-y-4">
+      {/* Organization name form */}
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-36" />
+        <div className="flex items-center gap-3 justify-between">
+          <Skeleton className="h-10 flex-1 max-w-sm" />
+          <Skeleton className="h-10 w-28" />
+        </div>
+      </div>
+
+      {/* Team members section */}
+      <div className="space-y-4 pt-4">
+        {/* Title and description */}
+        <div className="space-y-1">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+
+        {/* Search and add member */}
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-9 w-full max-w-md" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+
+        {/* Members table */}
+        <DataTableSkeleton
+          rows={5}
+          columns={[
+            { header: 'Name' },
+            { header: 'Email', size: 200 },
+            { header: 'Role', size: 120 },
+            { isAction: true, size: 80 },
+          ]}
+          showHeader
+        />
+      </div>
     </div>
   );
 }
@@ -47,14 +84,7 @@ async function OrganizationSettingsPageContent({
   // Only Admin can access organization settings
   if (!memberContext.isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
-          Access Denied
-        </h1>
-        <p className="text-muted-foreground">
-          You need Admin permissions to access organization settings.
-        </p>
-      </div>
+      <AccessDenied message="You need Admin permissions to access organization settings." />
     );
   }
 

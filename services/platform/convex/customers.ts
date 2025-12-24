@@ -8,6 +8,7 @@
 import { v } from 'convex/values';
 import { internalQuery, internalMutation } from './_generated/server';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
+import { cursorPaginationOptsValidator } from './lib/pagination';
 
 // Import model functions and validators
 import * as CustomersModel from './model/customers';
@@ -89,19 +90,13 @@ const queryCustomersArgs = {
   source: v.optional(v.union(customerSourceValidator, v.array(v.string()))),
   locale: v.optional(v.array(v.string())),
   searchTerm: v.optional(v.string()),
-  fields: v.optional(v.array(v.string())),
-
-  paginationOpts: v.object({
-    numItems: v.number(),
-    cursor: v.union(v.string(), v.null()),
-  }),
+  paginationOpts: cursorPaginationOptsValidator,
 };
 
 const queryCustomersReturns = v.object({
-  items: v.array(v.any()),
+  page: v.array(customerValidator),
   isDone: v.boolean(),
-  continueCursor: v.union(v.string(), v.null()),
-  count: v.number(),
+  continueCursor: v.string(),
 });
 
 /**
@@ -164,6 +159,25 @@ export const filterCustomers = internalQuery({
 // =============================================================================
 // PUBLIC OPERATIONS (with RLS)
 // =============================================================================
+
+/**
+ * Check if organization has any customers (fast count query for empty state detection)
+ */
+export const hasCustomers = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstCustomer = await ctx.db
+      .query('customers')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstCustomer !== null;
+  },
+});
 
 /**
  * Query customers with flexible filtering and pagination (public, with RLS)

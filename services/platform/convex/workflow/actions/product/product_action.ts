@@ -216,18 +216,16 @@ export const productAction: ActionDefinition<ProductActionParams> = {
           );
         }
 
-        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        // For pagination queries, we return the full result object (items, isDone, continueCursor)
         const result = (await ctx.runQuery!(internal.products.queryProducts, {
           organizationId,
           externalId: params.externalId,
           status: params.status,
           category: params.category,
-          paginationOpts: params.paginationOpts, // Required by validator
+          paginationOpts: params.paginationOpts,
         })) as QueryResult;
 
         return {
-          items: result.items,
+          page: result.page,
           isDone: result.isDone,
           continueCursor: result.continueCursor,
         };

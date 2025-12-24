@@ -5,6 +5,7 @@
 import { v } from 'convex/values';
 import { internalQuery, internalMutation } from './_generated/server';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
+import { cursorPaginationOptsValidator } from './lib/pagination';
 import * as ProductsModel from './model/products';
 
 // =============================================================================
@@ -62,17 +63,12 @@ export const queryProducts = internalQuery({
     ),
     status: v.optional(ProductsModel.productStatusValidator),
     category: v.optional(v.string()),
-
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
+    paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    items: v.array(v.any()),
+    page: v.array(v.any()),
     isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    count: v.number(),
+    continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
     return await ProductsModel.queryProducts(ctx, args);
@@ -117,21 +113,17 @@ export const updateProducts = internalMutation({
 });
 
 /**
- * List products by organization with pagination and field projection (internal operation)
+ * List products by organization with pagination (internal operation)
  */
 export const listByOrganization = internalQuery({
   args: {
     organizationId: v.string(),
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
-    fields: v.optional(v.array(v.string())),
+    paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    items: v.array(v.any()),
+    page: v.array(v.any()),
     isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
+    continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
     return await ProductsModel.listByOrganization(ctx, args);
@@ -157,6 +149,25 @@ export const filterProducts = internalQuery({
 // =============================================================================
 // PUBLIC API OPERATIONS (with RLS)
 // =============================================================================
+
+/**
+ * Check if organization has any products (fast count query for empty state detection)
+ */
+export const hasProducts = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstProduct = await ctx.db
+      .query('products')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstProduct !== null;
+  },
+});
 
 /**
  * Get products with pagination, search, and filtering

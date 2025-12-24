@@ -1,16 +1,16 @@
 /**
  * Query products with flexible filtering and pagination support (internal operation)
  *
- * Optimized to use async iteration with early termination instead of .collect()
- * for better memory efficiency and performance with large datasets.
- *
- * Note: For externalId array queries, we still use parallel queries since
- * each externalId lookup is a targeted index query (efficient).
+ * Uses smart index selection based on available filters:
+ * - externalId (single): by_organizationId_and_externalId
+ * - status: by_organizationId_and_status
+ * - category: by_organizationId_and_category
+ * - default: by_organizationId
  */
 
 import { QueryCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-
+import { paginateWithFilter, type CursorPaginatedResult } from '../../lib/pagination';
 import { ProductStatus } from './types';
 
 export interface QueryProductsArgs {
@@ -18,26 +18,17 @@ export interface QueryProductsArgs {
   externalId?: string | number | Array<string | number>;
   status?: ProductStatus;
   category?: string;
-
   paginationOpts: {
     numItems: number;
     cursor: string | null;
   };
 }
 
-export interface QueryProductsResult {
-  items: Array<Doc<'products'>>;
-  isDone: boolean;
-  continueCursor: string | null;
-  count: number;
-}
-
 export async function queryProducts(
   ctx: QueryCtx,
   args: QueryProductsArgs,
-): Promise<QueryProductsResult> {
-  const numItems = args.paginationOpts.numItems;
-  const cursor = args.paginationOpts.cursor;
+): Promise<CursorPaginatedResult<Doc<'products'>>> {
+  const { numItems, cursor } = args.paginationOpts;
 
   // Special case: externalId array - use parallel targeted queries
   if (args.externalId !== undefined && Array.isArray(args.externalId)) {
@@ -53,21 +44,13 @@ export async function queryProducts(
         .first(),
     );
 
-    // Execute all queries in parallel
     const productResults = await Promise.all(productPromises);
 
-    // Filter out nulls and apply additional filters
-    let products = productResults.filter(
-      (p): p is Doc<'products'> => p !== null,
-    );
-
-    // Remove duplicates
+    // Filter out nulls and dedupe
     const seenIds = new Set<string>();
-    products = products.filter((product) => {
-      if (seenIds.has(product._id)) {
-        return false;
-      }
-      seenIds.add(product._id);
+    let products = productResults.filter((p): p is Doc<'products'> => {
+      if (p === null || seenIds.has(p._id)) return false;
+      seenIds.add(p._id);
       return true;
     });
 
@@ -83,29 +66,25 @@ export async function queryProducts(
     products.sort((a, b) => b._creationTime - a._creationTime);
 
     // Apply cursor-based pagination
-    const startIndex = cursor
-      ? products.findIndex((p) => p._id === cursor) + 1
-      : 0;
-    const endIndex = startIndex + numItems;
-    const paginatedProducts = products.slice(startIndex, endIndex);
+    const startIndex = cursor ? products.findIndex((p) => p._id === cursor) + 1 : 0;
+    const paginatedProducts = products.slice(startIndex, startIndex + numItems);
+    const hasMore = startIndex + numItems < products.length;
 
     return {
-      items: paginatedProducts,
-      isDone: endIndex >= products.length,
+      page: paginatedProducts,
+      isDone: !hasMore,
       continueCursor:
         paginatedProducts.length > 0
           ? paginatedProducts[paginatedProducts.length - 1]._id
-          : null,
-      count: paginatedProducts.length,
+          : '',
     };
   }
 
-  // For other cases, use async iteration with early termination
+  // Select the best index based on available filters
   let query;
   let indexUsed: 'externalId' | 'status' | 'category' | 'organizationId';
 
   if (args.externalId !== undefined) {
-    // Single externalId - use the specific index
     const singleExternalId = args.externalId as string | number;
     query = ctx.db
       .query('products')
@@ -126,9 +105,7 @@ export async function queryProducts(
     query = ctx.db
       .query('products')
       .withIndex('by_organizationId_and_category', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('category', args.category),
+        q.eq('organizationId', args.organizationId).eq('category', args.category),
       );
     indexUsed = 'category';
   } else {
@@ -140,51 +117,20 @@ export async function queryProducts(
     indexUsed = 'organizationId';
   }
 
-  // Use async iteration with early termination and descending order
-  const orderedQuery = query.order('desc');
-
-  const products: Array<Doc<'products'>> = [];
-  let foundCursor = cursor === null;
-  let hasMore = false;
-
-  for await (const product of orderedQuery) {
-    // Skip until we find the cursor
-    if (!foundCursor) {
-      if (product._id === cursor) {
-        foundCursor = true;
-      }
-      continue;
-    }
-
-    // Apply additional filters not covered by the index
+  // Create filter for fields not covered by the selected index
+  const filter = (product: Doc<'products'>): boolean => {
     if (indexUsed === 'externalId') {
-      if (args.status !== undefined && product.status !== args.status) {
-        continue;
-      }
-      if (args.category !== undefined && product.category !== args.category) {
-        continue;
-      }
+      if (args.status !== undefined && product.status !== args.status) return false;
+      if (args.category !== undefined && product.category !== args.category) return false;
     } else if (indexUsed === 'status') {
-      if (args.category !== undefined && product.category !== args.category) {
-        continue;
-      }
+      if (args.category !== undefined && product.category !== args.category) return false;
     }
-    // 'category' and 'organizationId' indexes don't need additional filtering
-
-    products.push(product);
-
-    // Check if we have enough items
-    if (products.length >= numItems) {
-      hasMore = true;
-      break;
-    }
-  }
-
-  return {
-    items: products,
-    isDone: !hasMore,
-    continueCursor:
-      products.length > 0 ? products[products.length - 1]._id : null,
-    count: products.length,
+    return true;
   };
+
+  return paginateWithFilter(query.order('desc'), {
+    numItems,
+    cursor,
+    filter,
+  });
 }

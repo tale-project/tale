@@ -1,12 +1,12 @@
 /**
- * Get products with pagination, search, and filtering (public API)
+ * Get products with offset-based pagination, search, and filtering (public API)
  *
- * Uses async iteration (for await) instead of .collect() for memory efficiency.
+ * Uses offset-based pagination for traditional page navigation with total counts.
  */
 
 import { QueryCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-
+import { normalizePaginationOptions, calculatePaginationMeta } from '../../lib/pagination';
 import {
   ProductListResponse,
   ProductStatus,
@@ -25,9 +25,6 @@ export interface GetProductsArgs {
   sortOrder?: SortOrder;
 }
 
-/**
- * Check if a product matches the search query
- */
 function matchesSearch(product: Doc<'products'>, searchQuery: string): boolean {
   if (!searchQuery) return true;
   return (
@@ -38,9 +35,6 @@ function matchesSearch(product: Doc<'products'>, searchQuery: string): boolean {
   );
 }
 
-/**
- * Get sort value for a product based on sortBy field
- */
 function getSortValue(
   product: Doc<'products'>,
   sortBy: ProductSortBy,
@@ -61,9 +55,6 @@ function getSortValue(
   }
 }
 
-/**
- * Compare two products for sorting
- */
 function compareProducts(
   a: Doc<'products'>,
   b: Doc<'products'>,
@@ -72,17 +63,10 @@ function compareProducts(
 ): number {
   const aValue = getSortValue(a, sortBy);
   const bValue = getSortValue(b, sortBy);
-
-  if (sortOrder === 'asc') {
-    return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-  } else {
-    return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
-  }
+  const multiplier = sortOrder === 'asc' ? 1 : -1;
+  return aValue > bValue ? multiplier : aValue < bValue ? -multiplier : 0;
 }
 
-/**
- * Map a product document to the response format
- */
 function mapProduct(product: Doc<'products'>) {
   return {
     id: product._id,
@@ -102,11 +86,6 @@ function mapProduct(product: Doc<'products'>) {
   };
 }
 
-/**
- * Build the database query with appropriate index based on filters.
- * Priority: status index > category index > organizationId index
- * When both status and category are specified, use status index (category filtered in iteration)
- */
 function buildQuery(ctx: QueryCtx, args: GetProductsArgs) {
   const { organizationId, status, category } = args;
 
@@ -137,8 +116,10 @@ export async function getProducts(
   ctx: QueryCtx,
   args: GetProductsArgs,
 ): Promise<ProductListResponse> {
-  const currentPage = args.currentPage ?? 1;
-  const pageSize = args.pageSize ?? 10;
+  const { page: currentPage, pageSize } = normalizePaginationOptions({
+    page: args.currentPage,
+    pageSize: args.pageSize,
+  });
   const searchQuery = args.searchQuery?.trim().toLowerCase() ?? '';
   const sortBy = args.sortBy ?? 'lastUpdated';
   const sortOrder = args.sortOrder ?? 'desc';
@@ -148,7 +129,6 @@ export async function getProducts(
 
   for await (const product of query) {
     // Apply category filter if both status and category are specified
-    // (status index is used, category filtered in code)
     if (
       args.status !== undefined &&
       args.category !== undefined &&
@@ -157,7 +137,6 @@ export async function getProducts(
       continue;
     }
 
-    // Apply search filter
     if (!matchesSearch(product, searchQuery)) {
       continue;
     }
@@ -166,18 +145,12 @@ export async function getProducts(
   }
 
   const total = matchingProducts.length;
+  const { hasNextPage } = calculatePaginationMeta(total, currentPage, pageSize);
 
-  // Sort products
+  // Sort and paginate
   matchingProducts.sort((a, b) => compareProducts(a, b, sortBy, sortOrder));
-
-  // Apply pagination
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedProducts = matchingProducts.slice(
-    startIndex,
-    startIndex + pageSize,
-  );
-
-  const hasNextPage = currentPage * pageSize < total;
+  const paginatedProducts = matchingProducts.slice(startIndex, startIndex + pageSize);
 
   return {
     products: paginatedProducts.map(mapProduct),

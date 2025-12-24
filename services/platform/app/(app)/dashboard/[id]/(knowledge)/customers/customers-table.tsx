@@ -51,7 +51,7 @@ export default function CustomersTable({
 
   // Use preloaded query for SSR + real-time reactivity
   const result = usePreloadedQuery(preloadedCustomers);
-  const customers = result.items as Doc<'customers'>[];
+  const customers = result.page;
 
   const hasActiveFilters =
     searchTerm ||

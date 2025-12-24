@@ -2,32 +2,28 @@
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 interface ApprovalsNavigationProps {
   organizationId: string;
 }
 
+const STATUSES = ['pending', 'resolved'] as const;
+
 const getApprovalsNavigationItems = ({
   organizationId,
-}: ApprovalsNavigationProps) => [
-  {
-    label: 'Pending',
-    href: `/dashboard/${organizationId}/approvals?status=pending`,
-  },
-  {
-    label: 'Resolved',
-    href: `/dashboard/${organizationId}/approvals?status=resolved`,
-  },
-];
+}: ApprovalsNavigationProps) =>
+  STATUSES.map((status) => ({
+    label: status.charAt(0).toUpperCase() + status.slice(1),
+    href: `/dashboard/${organizationId}/approvals/${status}`,
+    status,
+  }));
 
 export default function ApprovalsNavigation({
   organizationId,
 }: ApprovalsNavigationProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const status = searchParams.get('status');
 
   const navigationItems = getApprovalsNavigationItems({
     organizationId,
@@ -39,16 +35,10 @@ export default function ApprovalsNavigation({
     left: 0,
   });
 
-  // Find active item index
-  const activeIndex = navigationItems.findIndex((item) => {
-    const itemStatus = new URL(item.href, 'http://dummy').searchParams.get(
-      'status',
-    );
-    return (
-      pathname === `/dashboard/${organizationId}/approvals` &&
-      status === itemStatus
-    );
-  });
+  // Find active item index based on pathname
+  const activeIndex = navigationItems.findIndex((item) =>
+    pathname.startsWith(item.href),
+  );
 
   // Update indicator position and width when active item changes
   useEffect(() => {
@@ -61,18 +51,12 @@ export default function ApprovalsNavigation({
         });
       }
     }
-  }, [activeIndex, status]);
+  }, [activeIndex, pathname]);
 
   return (
     <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-50 px-4 py-2 border-b border-border min-h-12 flex items-center gap-4 ">
       {navigationItems.map((item, index) => {
-        // Extract status from item href for comparison
-        const itemStatus = new URL(item.href, 'http://dummy').searchParams.get(
-          'status',
-        );
-        const isActive =
-          pathname === `/dashboard/${organizationId}/approvals` &&
-          status === itemStatus;
+        const isActive = pathname.startsWith(item.href);
 
         return (
           <Link
@@ -81,6 +65,7 @@ export default function ApprovalsNavigation({
               itemRefs.current[index] = el;
             }}
             href={item.href}
+            prefetch={true}
             className={cn(
               'py-1 text-sm font-medium transition-colors',
               isActive

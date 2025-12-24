@@ -1,10 +1,15 @@
 import { getAuthToken } from '@/lib/auth/auth-server';
 import ProductTable from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
-import { preloadQuery } from '@/lib/convex-next-server';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { Package } from 'lucide-react';
+import ImportProductsMenu from './import-products-menu';
 
 interface ProductsPageProps {
   params: Promise<{ id: string }>;
@@ -24,6 +29,18 @@ function ProductsSkeleton() {
       ]}
       showHeader
       showFilters
+    />
+  );
+}
+
+/** Empty state shown when org has no products - avoids unnecessary skeleton */
+function ProductsEmptyState({ organizationId }: { organizationId: string }) {
+  return (
+    <DataTableEmptyState
+      icon={Package}
+      title="No products yet"
+      description="Import your products to help your AI understand context"
+      action={<ImportProductsMenu organizationId={organizationId} />}
     />
   );
 }
@@ -70,10 +87,32 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
   );
 }
 
-export default function ProductsPage({
+export default async function ProductsPage({
   params,
   searchParams,
 }: ProductsPageProps) {
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
+  const { id: organizationId } = await params;
+  const { query } = await searchParams;
+
+  // Two-phase loading: check if products exist before showing skeleton
+  // If no products and no search query, show empty state directly
+  if (!query?.trim()) {
+    const hasProducts = await fetchQuery(
+      api.products.hasProducts,
+      { organizationId },
+      { token },
+    );
+
+    if (!hasProducts) {
+      return <ProductsEmptyState organizationId={organizationId} />;
+    }
+  }
+
   return (
     <Suspense fallback={<ProductsSkeleton />}>
       <ProductsContent params={params} searchParams={searchParams} />

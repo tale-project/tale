@@ -26,15 +26,15 @@ export async function createStep(
 
   // Enforce single trigger step per workflow at the model layer
   if (args.stepType === 'trigger') {
-    const existingTriggers = await ctx.db
+    const existingTrigger = await ctx.db
       .query('wfStepDefs')
       .withIndex('by_definition', (q) =>
         q.eq('wfDefinitionId', args.wfDefinitionId),
       )
       .filter((q) => q.eq(q.field('stepType'), 'trigger'))
-      .collect();
+      .first();
 
-    if (existingTriggers.length > 0) {
+    if (existingTrigger !== null) {
       throw new Error(
         'Workflow already has a trigger step. Only one trigger per workflow is allowed.',
       );

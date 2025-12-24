@@ -8,6 +8,7 @@
 import { v } from 'convex/values';
 import { internalQuery, internalMutation } from './_generated/server';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
+import { cursorPaginationOptsValidator } from './lib/pagination';
 
 // Import model functions and validators
 import * as ConversationsModel from './model/conversations';
@@ -200,14 +201,10 @@ export const queryConversations = internalQuery({
     priority: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
+    paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    items: v.array(
+    page: v.array(
       v.object({
         _id: v.id('conversations'),
         _creationTime: v.number(),
@@ -223,13 +220,11 @@ export const queryConversations = internalQuery({
           v.union(v.literal('inbound'), v.literal('outbound')),
         ),
         providerId: v.optional(v.id('emailProviders')),
-
         metadata: v.optional(v.any()),
       }),
     ),
     isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    count: v.number(),
+    continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
     return await ConversationsModel.queryConversations(ctx, args);
@@ -242,13 +237,10 @@ export const queryConversationMessages = internalQuery({
     conversationId: v.optional(v.id('conversations')),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-    paginationOpts: v.object({
-      numItems: v.number(),
-      cursor: v.union(v.string(), v.null()),
-    }),
+    paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    items: v.array(
+    page: v.array(
       v.object({
         _id: v.id('conversationMessages'),
         _creationTime: v.number(),
@@ -271,8 +263,7 @@ export const queryConversationMessages = internalQuery({
       }),
     ),
     isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    count: v.number(),
+    continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
     return await queryConversationMessagesModel(ctx, args);
@@ -399,6 +390,25 @@ export const updateConversationMessageInternal = internalMutation({
 // =============================================================================
 // PUBLIC OPERATIONS (with RLS)
 // =============================================================================
+
+/**
+ * Check if organization has any conversations (fast count query for empty state detection)
+ */
+export const hasConversations = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstConversation = await ctx.db
+      .query('conversations')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstConversation !== null;
+  },
+});
 
 export const getConversations = queryWithRLS({
   args: {

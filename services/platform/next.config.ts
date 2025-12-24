@@ -27,14 +27,6 @@ export default {
   },
   async rewrites() {
     return [
-      {
-        source: '/ingest/static/:path*',
-        destination: 'https://eu-assets.i.posthog.com/static/:path*',
-      },
-      {
-        source: '/ingest/:path*',
-        destination: 'https://eu.i.posthog.com/:path*',
-      },
       // Proxy Convex API requests to internal backend
       {
         source: '/ws_api/:path*',
@@ -59,7 +51,6 @@ export default {
       },
     ];
   },
-  // This is required to support PostHog trailing slash API requests
   skipTrailingSlashRedirect: true,
 
   // Cache Components (PPR) is currently disabled due to incompatibility with

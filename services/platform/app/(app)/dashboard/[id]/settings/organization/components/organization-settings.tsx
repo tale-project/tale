@@ -13,7 +13,7 @@ import { Search, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import AddMemberDialog from './add-member-dialog';
 import MemberTable from './member-table';
-import { useDebounce } from 'ahooks';
+import { useDebounce } from '@/hooks/use-debounce';
 
 export interface OrganizationSettingsProps {
   organization: { _id: string; name: string } | null;
@@ -32,7 +32,7 @@ export default function OrganizationSettings({
   const { toast } = useToast();
 
   // Debounce search query for server-side filtering
-  const debouncedSearch = useDebounce(searchQuery, { wait: 300 });
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const form = useForm<OrganizationFormData>({
     defaultValues: {

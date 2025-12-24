@@ -10,11 +10,16 @@ export async function getStepsByType(
   ctx: QueryCtx,
   args: GetStepsByTypeArgs,
 ): Promise<Array<Doc<'wfStepDefs'>>> {
-  const allSteps = await ctx.db
-    .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))
-    .collect();
+  const steps: Array<Doc<'wfStepDefs'>> = [];
 
-  return allSteps.filter((step) => step.stepType === args.stepType);
+  for await (const step of ctx.db
+    .query('wfStepDefs')
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))) {
+    if (step.stepType === args.stepType) {
+      steps.push(step);
+    }
+  }
+
+  return steps;
 }
 

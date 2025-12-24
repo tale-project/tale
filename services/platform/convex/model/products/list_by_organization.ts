@@ -1,8 +1,12 @@
 /**
- * List products by organization with pagination and field projection
+ * List products by organization with cursor-based pagination
+ *
+ * Uses Convex's native .paginate() for optimal performance.
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
+import type { CursorPaginatedResult } from '../../lib/pagination';
 
 export interface ListByOrganizationArgs {
   organizationId: string;
@@ -10,19 +14,12 @@ export interface ListByOrganizationArgs {
     numItems: number;
     cursor: string | null;
   };
-  fields?: string[];
-}
-
-export interface ListByOrganizationResult {
-  items: Array<Record<string, unknown>>;
-  isDone: boolean;
-  continueCursor: string | null;
 }
 
 export async function listByOrganization(
   ctx: QueryCtx,
   args: ListByOrganizationArgs,
-): Promise<ListByOrganizationResult> {
+): Promise<CursorPaginatedResult<Doc<'products'>>> {
   const result = await ctx.db
     .query('products')
     .withIndex('by_organizationId', (q) =>
@@ -30,28 +27,9 @@ export async function listByOrganization(
     )
     .paginate(args.paginationOpts);
 
-  // If fields are specified, project only those fields
-  if (args.fields && args.fields.length > 0) {
-    const projectedPage = result.page.map((product) => {
-      const projected: Record<string, unknown> = {};
-      for (const field of args.fields!) {
-        if (field in product) {
-          projected[field] = product[field as keyof typeof product];
-        }
-      }
-      return projected;
-    });
-
-    return {
-      items: projectedPage,
-      isDone: result.isDone,
-      continueCursor: result.continueCursor ?? null,
-    };
-  }
-
   return {
-    items: result.page,
+    page: result.page,
     isDone: result.isDone,
-    continueCursor: result.continueCursor ?? null,
+    continueCursor: result.continueCursor,
   };
 }

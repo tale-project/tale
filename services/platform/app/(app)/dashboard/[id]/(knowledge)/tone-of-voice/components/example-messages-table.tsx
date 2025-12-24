@@ -19,7 +19,7 @@ import {
   Sparkles,
   MoreVertical,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDate } from '@/lib/utils/date/format';
 import Pagination from '@/components/ui/pagination';
 
 interface ExampleMessage {
@@ -82,7 +82,7 @@ export default function ExampleMessagesTable({
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground tracking-[-0.072px]">
-            {format(row.original.updatedAt, 'yyyy-MM-dd')}
+            {formatDate(row.original.updatedAt, { customFormat: 'YYYY-MM-DD' })}
           </span>
         ),
       },

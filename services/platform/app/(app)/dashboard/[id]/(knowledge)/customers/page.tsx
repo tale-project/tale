@@ -1,11 +1,16 @@
 import CustomersTable from './customers-table';
 import { CustomerStatus } from '@/constants/convex-enums';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
-import { preloadQuery } from '@/lib/convex-next-server';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
+import { Users } from 'lucide-react';
+import ImportCustomersMenu from './import-customers-menu';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,6 +40,18 @@ function CustomersSkeleton() {
       ]}
       showHeader
       showFilters
+    />
+  );
+}
+
+/** Empty state shown when org has no customers - avoids unnecessary skeleton */
+function CustomersEmptyState({ organizationId }: { organizationId: string }) {
+  return (
+    <DataTableEmptyState
+      icon={Users}
+      title="No customers yet"
+      description="Upload your first customer to get started"
+      action={<ImportCustomersMenu organizationId={organizationId} />}
     />
   );
 }
@@ -114,7 +131,34 @@ async function CustomersContent({
   );
 }
 
-export default function CustomersPage({ params, searchParams }: PageProps) {
+export default async function CustomersPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
+  const { id: organizationId } = await params;
+  const { query, status, source, locale } = await searchParams;
+
+  // Two-phase loading: check if customers exist before showing skeleton
+  // If no customers and no filters active, show empty state directly
+  const hasActiveFilters = query?.trim() || status || source || locale;
+
+  if (!hasActiveFilters) {
+    const hasCustomers = await fetchQuery(
+      api.customers.hasCustomers,
+      { organizationId },
+      { token },
+    );
+
+    if (!hasCustomers) {
+      return <CustomersEmptyState organizationId={organizationId} />;
+    }
+  }
+
   return (
     <Suspense fallback={<CustomersSkeleton />}>
       <CustomersContent params={params} searchParams={searchParams} />

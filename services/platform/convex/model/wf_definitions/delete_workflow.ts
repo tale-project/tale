@@ -23,14 +23,11 @@ export async function deleteWorkflow(
 
   // If this is the root version (rootVersionId points to this document), delete the whole family.
   if (rootVersionId && rootVersionId === workflow._id) {
-    const allVersions = await ctx.db
+    for await (const version of ctx.db
       .query('wfDefinitions')
       .withIndex('by_rootVersionId', (q) =>
         q.eq('rootVersionId', rootVersionId),
-      )
-      .collect();
-
-    for (const version of allVersions) {
+      )) {
       await cancelAndDeleteExecutionsForDefinition(ctx, version._id);
       await deleteStepsForDefinition(ctx, version._id);
       await ctx.db.delete(version._id);
@@ -95,12 +92,9 @@ async function deleteStepsForDefinition(
   ctx: MutationCtx,
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<void> {
-  const steps = await ctx.db
+  for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))
-    .collect();
-
-  for (const step of steps) {
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
     await ctx.db.delete(step._id);
   }
 }

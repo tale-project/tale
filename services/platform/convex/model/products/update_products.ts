@@ -61,7 +61,7 @@ export async function updateProducts(
 
     if (args.externalId !== undefined) {
       if (Array.isArray(args.externalId)) {
-        // For array of externalIds, execute multiple targeted queries
+        // For array of externalIds, execute multiple targeted queries using .first()
         const externalIdArray = args.externalId as Array<string | number>;
         const productPromises = externalIdArray.map((externalId) =>
           ctx.db
@@ -71,12 +71,14 @@ export async function updateProducts(
                 .eq('organizationId', args.organizationId!)
                 .eq('externalId', externalId),
             )
-            .collect(),
+            .first(),
         );
 
-        // Execute all queries in parallel and flatten results
-        const productArrays = await Promise.all(productPromises);
-        products = productArrays.flat();
+        // Execute all queries in parallel and filter out nulls
+        const productResults = await Promise.all(productPromises);
+        products = productResults.filter(
+          (p): p is Doc<'products'> => p !== null,
+        );
 
         // Remove duplicates (in case same product has multiple matching externalIds)
         const seenIds = new Set<string>();
@@ -88,42 +90,49 @@ export async function updateProducts(
           return true;
         });
       } else {
-        // Single externalId - use the specific index
+        // Single externalId - use the specific index with .first()
         const singleExternalId = args.externalId as string | number;
-        products = await ctx.db
+        const product = await ctx.db
           .query('products')
           .withIndex('by_organizationId_and_externalId', (q) =>
             q
               .eq('organizationId', args.organizationId!)
               .eq('externalId', singleExternalId),
           )
-          .collect();
+          .first();
+        products = product ? [product] : [];
       }
     } else if (args.status !== undefined) {
-      products = await ctx.db
+      products = [];
+      for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId_and_status', (q) =>
           q
             .eq('organizationId', args.organizationId!)
             .eq('status', args.status!),
-        )
-        .collect();
+        )) {
+        products.push(product);
+      }
     } else if (args.category !== undefined) {
-      products = await ctx.db
+      products = [];
+      for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId_and_category', (q) =>
           q
             .eq('organizationId', args.organizationId!)
             .eq('category', args.category!),
-        )
-        .collect();
+        )) {
+        products.push(product);
+      }
     } else {
-      products = await ctx.db
+      products = [];
+      for await (const product of ctx.db
         .query('products')
         .withIndex('by_organizationId', (q) =>
           q.eq('organizationId', args.organizationId!),
-        )
-        .collect();
+        )) {
+        products.push(product);
+      }
     }
 
     // Apply additional filters

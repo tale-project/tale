@@ -16,15 +16,15 @@ export async function deleteProvider(
 
   // Prevent deleting the default provider if there are other providers
   if (provider.isDefault) {
-    const otherProviders = await ctx.db
+    const otherProvider = await ctx.db
       .query('emailProviders')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', provider.organizationId),
       )
       .filter((q) => q.neq(q.field('_id'), args.providerId))
-      .collect();
+      .first();
 
-    if (otherProviders.length > 0) {
+    if (otherProvider !== null) {
       throw new Error(
         'Cannot delete the default provider. Please set another provider as default first.',
       );

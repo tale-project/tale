@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { format } from 'date-fns';
+import { formatDate } from '@/lib/utils/date/format';
 
 interface MessageMetadata {
   model: string;
@@ -49,7 +49,7 @@ export default function MessageInfoModal({
             <div className="text-sm font-medium text-muted-foreground">
               Timestamp
             </div>
-            <div className="text-sm">{format(timestamp, 'PPpp')}</div>
+            <div className="text-sm">{formatDate(timestamp, { preset: 'long' })}</div>
           </div>
 
           {/* Message ID */}

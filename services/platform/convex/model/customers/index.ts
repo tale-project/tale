@@ -14,10 +14,7 @@ export type { CreateCustomerArgs } from './create_customer';
 export { getCustomerById } from './get_customer_by_id';
 
 export { queryCustomers } from './query_customers';
-export type {
-  QueryCustomersArgs,
-  QueryCustomersResult,
-} from './query_customers';
+export type { QueryCustomersArgs } from './query_customers';
 
 export { updateCustomers } from './update_customers';
 export type { UpdateCustomersArgs } from './update_customers';

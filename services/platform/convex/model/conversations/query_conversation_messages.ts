@@ -1,12 +1,15 @@
 /**
  * Query conversation messages with flexible filtering and pagination support (business logic)
  *
- * Optimized to use async iteration with early termination for pagination.
- * The indexes include deliveredAt so ordering is handled by the database.
+ * Uses smart index selection based on available filters:
+ * - conversationId: by_conversationId_and_deliveredAt
+ * - org + channel + direction: by_org_channel_direction_deliveredAt
+ * - default: by_organizationId_and_deliveredAt
  */
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Id, Doc } from '../../_generated/dataModel';
+import { paginateWithFilter, type CursorPaginatedResult } from '../../lib/pagination';
 
 export interface QueryConversationMessagesArgs {
   organizationId: string;
@@ -19,42 +22,15 @@ export interface QueryConversationMessagesArgs {
   };
 }
 
-export interface QueryConversationMessagesResult {
-  items: Array<{
-    _id: Id<'conversationMessages'>;
-    _creationTime: number;
-    organizationId: string;
-    conversationId: Id<'conversations'>;
-    providerId?: Id<'emailProviders'>;
-    channel: string;
-    direction: 'inbound' | 'outbound';
-    externalMessageId?: string;
-    deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
-    content: string;
-    sentAt?: number;
-    deliveredAt?: number;
-    metadata?: unknown;
-  }>;
-  isDone: boolean;
-  continueCursor: string | null;
-  count: number;
-}
-
 export async function queryConversationMessages(
   ctx: QueryCtx,
   args: QueryConversationMessagesArgs,
-): Promise<QueryConversationMessagesResult> {
-  const numItems = args.paginationOpts.numItems;
-  const cursor = args.paginationOpts.cursor;
-
-  // Choose the best index based on provided filters
-  // Priority: conversationId > (organizationId + channel + direction) > organizationId
-  // All indexes include deliveredAt for ordering
+): Promise<CursorPaginatedResult<Doc<'conversationMessages'>>> {
+  // Select the best index based on available filters
   let query;
   let indexUsed: 'conversationId' | 'org_channel_direction' | 'organizationId';
 
   if (args.conversationId !== undefined) {
-    // Use conversationId + deliveredAt index for specific conversation
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_conversationId_and_deliveredAt', (q) =>
@@ -63,7 +39,6 @@ export async function queryConversationMessages(
       .order('asc');
     indexUsed = 'conversationId';
   } else if (args.channel !== undefined && args.direction !== undefined) {
-    // Use the combined index for org + channel + direction
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_org_channel_direction_deliveredAt', (q) =>
@@ -75,7 +50,6 @@ export async function queryConversationMessages(
       .order('asc');
     indexUsed = 'org_channel_direction';
   } else {
-    // Default to organizationId + deliveredAt index
     query = ctx.db
       .query('conversationMessages')
       .withIndex('by_organizationId_and_deliveredAt', (q) =>
@@ -85,44 +59,18 @@ export async function queryConversationMessages(
     indexUsed = 'organizationId';
   }
 
-  // Use async iteration with early termination
-  const messages: Array<Doc<'conversationMessages'>> = [];
-  let foundCursor = cursor === null;
-  let hasMore = false;
-
-  for await (const msg of query) {
-    // Skip until we find the cursor
-    if (!foundCursor) {
-      if (msg._id === cursor) {
-        foundCursor = true;
-      }
-      continue;
-    }
-
-    // Apply additional filters not covered by index (only when conversationId index is used)
+  // Create filter for fields not covered by the selected index
+  const filter = (msg: Doc<'conversationMessages'>): boolean => {
     if (indexUsed === 'conversationId') {
-      if (args.channel !== undefined && msg.channel !== args.channel) {
-        continue;
-      }
-      if (args.direction !== undefined && msg.direction !== args.direction) {
-        continue;
-      }
+      if (args.channel !== undefined && msg.channel !== args.channel) return false;
+      if (args.direction !== undefined && msg.direction !== args.direction) return false;
     }
-
-    messages.push(msg);
-
-    // Check if we have enough items
-    if (messages.length >= numItems) {
-      hasMore = true;
-      break;
-    }
-  }
-
-  return {
-    items: messages,
-    isDone: !hasMore,
-    continueCursor:
-      messages.length > 0 ? messages[messages.length - 1]._id : null,
-    count: messages.length,
+    return true;
   };
+
+  return paginateWithFilter(query, {
+    numItems: args.paginationOpts.numItems,
+    cursor: args.paginationOpts.cursor,
+    filter,
+  });
 }

@@ -206,9 +206,6 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
 
       case 'query': {
         // Note: organizationId is already validated at the start of execute()
-
-        // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-        // For pagination queries, we return the full result object (items, isDone, continueCursor)
         const result = (await ctx.runQuery!(internal.customers.queryCustomers, {
           organizationId,
           externalId: params.externalId,
@@ -218,11 +215,11 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
             | 'file_upload'
             | 'circuly'
             | undefined,
-          paginationOpts: params.paginationOpts, // Required by validator
+          paginationOpts: params.paginationOpts,
         })) as QueryResult;
 
         return {
-          items: result.items,
+          page: result.page,
           isDone: result.isDone,
           continueCursor: result.continueCursor,
         };

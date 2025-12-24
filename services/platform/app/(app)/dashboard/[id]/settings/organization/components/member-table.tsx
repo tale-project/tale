@@ -4,7 +4,7 @@ import { useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { ChevronDownIcon } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDate } from '@/lib/utils/date/format';
 import MemberOptions from './member-options';
 import type { ColumnDef } from '@tanstack/react-table';
 
@@ -105,9 +105,7 @@ export default function MemberTable({
         header: () => <div className="text-right">Joined</div>,
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right">
-            {formatDistanceToNow(new Date(row.original._creationTime), {
-              addSuffix: true,
-            })}
+            {formatDate(new Date(row.original._creationTime), { preset: 'relative' })}
           </div>
         ),
       },

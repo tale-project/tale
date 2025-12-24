@@ -63,22 +63,18 @@ export async function updateCustomers(
     }
     customersToUpdate = [customer];
   } else if (args.organizationId) {
-    // Update by filters (batch update)
-    const customers = await ctx.db
+    // Update by filters (batch update) using async iteration
+    for await (const customer of ctx.db
       .query('customers')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId!),
-      )
-      .collect();
-
-    // Filter by status and metadata
-    customersToUpdate = customers.filter((customer) => {
+      )) {
+      // Filter by status
       if (args.status && customer.status !== args.status) {
-        return false;
+        continue;
       }
-
-      return true;
-    });
+      customersToUpdate.push(customer);
+    }
   }
 
   // Apply updates to each customer

@@ -1,65 +1,64 @@
 import { v } from 'convex/values';
 import { mutationWithRLS, queryWithRLS } from './lib/rls';
-import { paginationOptsValidator } from 'convex/server';
+import {
+  paginateWithFilter,
+  cursorPaginationOptsValidator,
+} from './lib/pagination';
 import type { Doc } from './_generated/dataModel';
 
 /**
+ * Check if organization has any vendors (fast count query for empty state detection)
+ */
+export const hasVendors = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstVendor = await ctx.db
+      .query('vendors')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstVendor !== null;
+  },
+});
+
+/**
  * Get a paginated list of vendors for an organization
- *
- * Optimized to use async iteration with early termination instead of .collect()
- * for better memory efficiency and performance with large datasets.
  */
 export const getVendors = queryWithRLS({
   args: {
     organizationId: v.string(),
-    paginationOpts: paginationOptsValidator,
+    paginationOpts: cursorPaginationOptsValidator,
     source: v.optional(v.array(v.string())),
     searchTerm: v.optional(v.string()),
     locale: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const numItems = args.paginationOpts.numItems;
-    const cursor = args.paginationOpts.cursor;
+    const query = ctx.db
+      .query('vendors')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc');
 
-    // Precompute filter sets for O(1) lookups
+    // Pre-compute filter sets for O(1) lookups
     const sourceSet =
       args.source && args.source.length > 0 ? new Set(args.source) : null;
     const localeSet =
       args.locale && args.locale.length > 0 ? new Set(args.locale) : null;
     const searchLower = args.searchTerm?.toLowerCase();
 
-    // Use async iteration with early termination
-    const query = ctx.db
-      .query('vendors')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc'); // Order by _creationTime descending (newest first)
-
-    const vendors: Array<Doc<'vendors'>> = [];
-    let foundCursor = cursor === null;
-    let hasMore = false;
-
-    for await (const vendor of query) {
-      // Skip until we find the cursor
-      if (!foundCursor) {
-        if (vendor._id === cursor) {
-          foundCursor = true;
-        }
-        continue;
-      }
-
-      // Apply source filter
+    // Create filter function
+    const filter = (vendor: Doc<'vendors'>): boolean => {
       if (sourceSet && (!vendor.source || !sourceSet.has(vendor.source))) {
-        continue;
+        return false;
       }
-
-      // Apply locale filter
       if (localeSet && (!vendor.locale || !localeSet.has(vendor.locale))) {
-        continue;
+        return false;
       }
-
-      // Apply search filter
       if (searchLower) {
         const nameMatch = vendor.name?.toLowerCase().includes(searchLower);
         const emailMatch = vendor.email?.toLowerCase().includes(searchLower);
@@ -67,25 +66,17 @@ export const getVendors = queryWithRLS({
           ? String(vendor.externalId).toLowerCase().includes(searchLower)
           : false;
         if (!nameMatch && !emailMatch && !externalIdMatch) {
-          continue;
+          return false;
         }
       }
-
-      vendors.push(vendor);
-
-      // Check if we have enough items
-      if (vendors.length >= numItems) {
-        hasMore = true;
-        break;
-      }
-    }
-
-    return {
-      page: vendors,
-      isDone: !hasMore,
-      continueCursor:
-        vendors.length > 0 ? vendors[vendors.length - 1]._id : undefined,
+      return true;
     };
+
+    return paginateWithFilter(query, {
+      numItems: args.paginationOpts.numItems,
+      cursor: args.paginationOpts.cursor,
+      filter,
+    });
   },
 });
 

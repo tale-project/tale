@@ -18,15 +18,14 @@ export async function getDocumentByPath(
 > {
   try {
     // Find document by storage path in metadata
-    const documents = await ctx.db
+    const document = await ctx.db
       .query('documents')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )
       .filter((q) => q.eq(q.field('metadata.storagePath'), args.storagePath))
-      .collect();
+      .first();
 
-    const document = documents[0];
     if (!document) {
       return {
         success: false,

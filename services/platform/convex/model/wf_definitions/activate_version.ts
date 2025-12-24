@@ -70,14 +70,16 @@ export async function activateVersion(
     .collect();
 
   // 4. Find highest version number to create new draft
-  const allVersions = await ctx.db
+  let maxVersionNumber = 0;
+  for await (const version of ctx.db
     .query('wfDefinitions')
     .withIndex('by_org_and_name', (q) =>
       q.eq('organizationId', workflow.organizationId).eq('name', workflow.name),
-    )
-    .collect();
-
-  const maxVersionNumber = Math.max(...allVersions.map((v) => v.versionNumber));
+    )) {
+    if (version.versionNumber > maxVersionNumber) {
+      maxVersionNumber = version.versionNumber;
+    }
+  }
   const newVersionNumber = maxVersionNumber + 1;
 
   // 5. Delete existing draft (if any)
@@ -93,13 +95,11 @@ export async function activateVersion(
 
   if (existingDraft) {
     // Delete draft's steps first
-    const draftSteps = await ctx.db
+    for await (const step of ctx.db
       .query('wfStepDefs')
       .withIndex('by_definition', (q) =>
         q.eq('wfDefinitionId', existingDraft._id),
-      )
-      .collect();
-    for (const step of draftSteps) {
+      )) {
       await ctx.db.delete(step._id);
     }
     await ctx.db.delete(existingDraft._id);

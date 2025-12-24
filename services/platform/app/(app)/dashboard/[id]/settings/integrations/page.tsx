@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AccessDenied } from '@/components/layout';
 
 interface IntegrationsPageProps {
   params: Promise<{ id: string }>;
@@ -41,13 +42,17 @@ function IntegrationCardSkeleton() {
 
 /**
  * Skeleton for the integrations page that matches the actual layout.
+ * Includes space-y-4 wrapper to match Integrations component structure.
  */
 function IntegrationsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <IntegrationCardSkeleton key={i} />
-      ))}
+    <div className="space-y-4">
+      {/* Integrations Grid - matches Integrations component layout */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <IntegrationCardSkeleton key={i} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -79,15 +84,7 @@ async function IntegrationsPageContent({ params }: IntegrationsContentProps) {
 
   if (!hasAccess) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
-          Access Denied
-        </h1>
-        <p className="text-muted-foreground">
-          You need Admin or Developer permissions to access integrations
-          settings.
-        </p>
-      </div>
+      <AccessDenied message="You need Admin or Developer permissions to access integrations settings." />
     );
   }
 

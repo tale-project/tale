@@ -15,7 +15,7 @@ import {
   internalMutation,
 } from './_generated/server';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
-import { paginationOptsValidator } from 'convex/server';
+import { cursorPaginationOptsValidator } from './lib/pagination';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 
@@ -269,17 +269,15 @@ export const getDocumentById = internalQuery({
 export const queryDocuments = internalQuery({
   args: {
     organizationId: v.string(),
-
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
     ),
-    paginationOpts: paginationOptsValidator,
+    paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    items: v.array(DocumentRecord),
+    page: v.array(DocumentRecord),
     isDone: v.boolean(),
-    continueCursor: v.union(v.string(), v.null()),
-    count: v.number(),
+    continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
     return await DocumentsModel.queryDocuments(ctx, args);
@@ -454,6 +452,25 @@ export const deleteDocumentFromRagInternal = internalAction({
 // =============================================================================
 // PUBLIC FUNCTIONS (with RLS)
 // =============================================================================
+
+/**
+ * Check if organization has any documents (fast count query for empty state detection)
+ */
+export const hasDocuments = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstDoc = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstDoc !== null;
+  },
+});
 
 /**
  * Get documents with pagination and filtering (public)
