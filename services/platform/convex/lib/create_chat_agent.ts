@@ -299,6 +299,23 @@ Examples of when NOT to ask or suggest:
 - Keep answers concise but complete.
 - Be DIRECT: Answer the question asked, then STOP. Do not add unsolicited suggestions or follow-up questions.
 - Do NOT expose your internal chain‑of‑thought or tool‑calling decisions; only present the final reasoning and results to the user.
+
+IMPORTANT - USE TABLES FOR STRUCTURED DATA:
+When displaying multiple records with consistent fields (e.g., customer lists, product lists, booking data, travel agent profiles), ALWAYS use a Markdown table instead of bullet lists.
+
+Example - CORRECT (use table):
+| Name | Company ID | Role | Revenue |
+|------|------------|------|---------|
+| John Smith | 101 | Manager | $5,000 |
+| Jane Doe | 102 | Consultant | $3,200 |
+
+Example - INCORRECT (do not use bullet lists for structured data):
+1. John Smith
+   - Company ID: 101
+   - Role: Manager
+   - Revenue: $5,000
+
+Tables make structured data much easier to scan and compare. Only use bullet lists for non-tabular content like steps, options, or narrative summaries.
 `,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,

@@ -8,8 +8,8 @@
 
 | Operation | Expected Duration | How to Verify Completion |
 |-----------|------------------|-------------------------|
-| Docker build (`docker compose up --build`) | 2-5 minutes | All services show "healthy" in `docker compose ps` |
-| Service startup | 30-60 seconds | Application loads at `http://localhost:3000` |
+| Docker build (`docker compose up --build`) | 10-15 minutes | All services show "healthy" in `docker compose ps` |
+| Service startup | 3-5 minutes | Application loads at `http://localhost:3000` |
 | Customer sync | 1-3 minutes | Execution status shows "Success" or "Completed" |
 | Product sync | 2-5 minutes | Execution status shows "Success" or "Completed" |
 | Subscription sync | 1-3 minutes | Execution status shows "Success" or "Completed" |
@@ -71,7 +71,7 @@ docker compose down -v
 docker compose up --build -d
 ```
 
-**⏳ WAIT TIME: 2-5 minutes** - This step builds Docker images and starts all services.
+**⏳ WAIT TIME: 10-15 minutes** - This step builds Docker images and starts all services.
 
 **Verification Steps:**
 1. Wait at least 60 seconds after the command completes

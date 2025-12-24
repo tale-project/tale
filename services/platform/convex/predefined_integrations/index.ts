@@ -14,7 +14,11 @@ import type { PredefinedIntegration } from './types';
 export { shopifyIntegration } from './shopify';
 export { circulyIntegration } from './circuly';
 export { protelIntegration } from './protel';
-export type { PredefinedIntegration } from './types';
+export type {
+  PredefinedIntegration,
+  SqlOperation,
+  SqlConnectionConfig,
+} from './types';
 
 // All predefined integrations as an array for iteration
 export const predefinedIntegrations: PredefinedIntegration[] = [

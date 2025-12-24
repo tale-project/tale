@@ -1,5 +1,8 @@
 /**
  * Business logic for creating an integration with encryption and health checks
+ *
+ * Supports both REST API and SQL integrations.
+ * For SQL integrations, pass sqlConnectionConfig with the database connection details.
  */
 
 import { ActionCtx } from '../../_generated/server';
@@ -12,6 +15,8 @@ import {
   OAuth2Auth,
   ConnectionConfig,
   Capabilities,
+  SqlConnectionConfig,
+  SqlOperation,
 } from './types';
 import { saveRelatedWorkflows } from './save_related_workflows';
 import { encryptCredentials } from './encrypt_credentials';
@@ -32,6 +37,10 @@ export interface CreateIntegrationLogicArgs {
   oauth2Auth?: OAuth2Auth;
   connectionConfig?: ConnectionConfig;
   capabilities?: Capabilities;
+  // SQL integration fields
+  type?: 'rest_api' | 'sql';
+  sqlConnectionConfig?: SqlConnectionConfig;
+  sqlOperations?: SqlOperation[];
   metadata?: unknown;
 }
 
@@ -53,8 +62,10 @@ export async function createIntegrationLogic(
     args,
   );
 
-  // Run health check
-  await runHealthCheck(args);
+  // Run health check (skip for SQL integrations - connection test happens at create time)
+  if (args.type !== 'sql') {
+    await runHealthCheck(args);
+  }
 
   // Create integration
   const integrationId: Id<'integrations'> = await ctx.runMutation(
@@ -64,7 +75,7 @@ export async function createIntegrationLogic(
       name: args.name,
       title: args.title,
       description: args.description,
-      // Set to 'active' since health check passed
+      // Set to 'active' since health check passed (or SQL integration)
       status: 'active',
       isActive: true,
       authMethod: args.authMethod,
@@ -73,6 +84,10 @@ export async function createIntegrationLogic(
       oauth2Auth,
       connectionConfig: args.connectionConfig,
       capabilities: args.capabilities,
+      // SQL integration fields
+      type: args.type,
+      sqlConnectionConfig: args.sqlConnectionConfig,
+      sqlOperations: args.sqlOperations,
       metadata: args.metadata,
     },
   );

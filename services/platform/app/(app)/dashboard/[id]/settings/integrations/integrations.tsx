@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
+import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/ui/icons';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Settings, Mail, Loader2 } from 'lucide-react';
@@ -56,10 +56,25 @@ const EmailIntegrationDialog = dynamic(
   },
 );
 
+const ProtelIntegrationDialog = dynamic(
+  () => import('./components/protel-integration-dialog'),
+  {
+    ssr: false,
+  },
+);
+
+const ProtelDisconnectConfirmationDialog = dynamic(
+  () => import('./components/protel-disconnect-confirmation-dialog'),
+  {
+    ssr: false,
+  },
+);
+
 interface IntegrationsProps {
   organizationId: string;
   preloadedShopify: Preloaded<typeof api.integrations.getByName>;
   preloadedCirculy: Preloaded<typeof api.integrations.getByName>;
+  preloadedProtel: Preloaded<typeof api.integrations.getByName>;
   preloadedEmailProviders: Preloaded<typeof api.email_providers.list>;
 }
 
@@ -67,6 +82,7 @@ export default function Integrations({
   organizationId,
   preloadedShopify,
   preloadedCirculy,
+  preloadedProtel,
   preloadedEmailProviders,
 }: IntegrationsProps) {
   const { t } = useT('settings');
@@ -87,6 +103,12 @@ export default function Integrations({
       icon: CirculyIcon,
     },
     {
+      id: 'protel',
+      name: 'Protel PMS',
+      description: t('integrations.protel.description'),
+      icon: ProtelIcon,
+    },
+    {
       id: 'email',
       name: t('integrations.email.name'),
       description: t('integrations.email.description'),
@@ -97,6 +119,7 @@ export default function Integrations({
   // Use preloaded queries for SSR + real-time reactivity
   const shopifyIntegration = usePreloadedQuery(preloadedShopify);
   const circulyIntegration = usePreloadedQuery(preloadedCirculy);
+  const protelIntegration = usePreloadedQuery(preloadedProtel);
   const emailProviders = usePreloadedQuery(preloadedEmailProviders);
   const emailProviderCount = emailProviders?.length || 0;
 
@@ -106,6 +129,7 @@ export default function Integrations({
   const testConnection = useTestIntegration();
   const deleteShopifyIntegration = useDeleteIntegration({ integrationName: 'shopify' });
   const deleteCirculyIntegration = useDeleteIntegration({ integrationName: 'circuly' });
+  const deleteProtelIntegration = useDeleteIntegration({ integrationName: 'protel' });
 
   // Modal states
   const [shopifyModalOpen, setShopifyModalOpen] = useState(false);
@@ -113,6 +137,9 @@ export default function Integrations({
     useState(false);
   const [circulyModalOpen, setCirculyModalOpen] = useState(false);
   const [circulyDisconnectModalOpen, setCirculyDisconnectModalOpen] =
+    useState(false);
+  const [protelModalOpen, setProtelModalOpen] = useState(false);
+  const [protelDisconnectModalOpen, setProtelDisconnectModalOpen] =
     useState(false);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
 
@@ -123,6 +150,8 @@ export default function Integrations({
       setShopifyModalOpen(true);
     } else if (tab === 'circuly') {
       setCirculyModalOpen(true);
+    } else if (tab === 'protel') {
+      setProtelModalOpen(true);
     } else if (tab === 'email') {
       setEmailModalOpen(true);
     }
@@ -144,6 +173,13 @@ export default function Integrations({
           setCirculyDisconnectModalOpen(true);
         }
         break;
+      case 'protel':
+        if (checked) {
+          setProtelModalOpen(true);
+        } else {
+          setProtelDisconnectModalOpen(true);
+        }
+        break;
       case 'email':
         setEmailModalOpen(true);
         break;
@@ -152,6 +188,9 @@ export default function Integrations({
 
   const handleManageClick = (integrationId: string) => {
     switch (integrationId) {
+      case 'protel':
+        setProtelModalOpen(true);
+        break;
       case 'email':
         setEmailModalOpen(true);
         break;
@@ -296,8 +335,81 @@ export default function Integrations({
     }
   };
 
+  const handleProtelConnect = async (data: {
+    server: string;
+    port: number;
+    database: string;
+    username: string;
+    password: string;
+  }) => {
+    if (!organizationId) {
+      throw new Error('Organization ID is required');
+    }
+
+    try {
+      if (protelIntegration) {
+        // Update existing integration
+        await updateIntegration({
+          integrationId: protelIntegration._id,
+          basicAuth: {
+            username: data.username,
+            password: data.password,
+          },
+          status: 'active',
+          isActive: true,
+        });
+      } else {
+        // Create new integration - SQL fields are auto-populated from predefined
+        await createIntegration({
+          organizationId: organizationId,
+          name: 'protel',
+          title: 'Protel PMS',
+          authMethod: 'basic_auth' as const,
+          basicAuth: {
+            username: data.username,
+            password: data.password,
+          },
+          type: 'sql',
+          sqlConnectionConfig: {
+            engine: 'mssql',
+            server: data.server,
+            port: data.port,
+            database: data.database,
+          },
+        });
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handleProtelDisconnect = async () => {
+    if (!protelIntegration) return;
+
+    try {
+      await deleteProtelIntegration({
+        integrationId: protelIntegration._id,
+      });
+      setProtelDisconnectModalOpen(false);
+    } catch (error) {
+      toast({
+        title: t('integrations.toast.disconnectFailed'),
+        description:
+          error instanceof Error
+            ? error.message
+            : t('integrations.protel.disconnectError'),
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   // Show loading while data is loading
-  if (shopifyIntegration === undefined || circulyIntegration === undefined) {
+  if (
+    shopifyIntegration === undefined ||
+    circulyIntegration === undefined ||
+    protelIntegration === undefined
+  ) {
     return (
       <div className="flex items-center justify-center">
         <Loader2 className="size-4 animate-spin" />
@@ -349,6 +461,8 @@ export default function Integrations({
                       setCirculyModalOpen(true);
                     } else if (integration.id === 'shopify') {
                       setShopifyModalOpen(true);
+                    } else if (integration.id === 'protel') {
+                      setProtelModalOpen(true);
                     } else {
                       handleManageClick(integration.id);
                     }
@@ -364,6 +478,8 @@ export default function Integrations({
                       typeof circulyIntegration?._id === 'string') ||
                     (integration.id === 'shopify' &&
                       typeof shopifyIntegration?._id === 'string') ||
+                    (integration.id === 'protel' &&
+                      typeof protelIntegration?._id === 'string') ||
                     (integration.id === 'email' && emailProviderCount > 0) ||
                     false
                   }
@@ -386,8 +502,8 @@ export default function Integrations({
         credentials={
           shopifyIntegration
             ? {
-                domain: shopifyIntegration.connectionConfig?.domain,
-              }
+              domain: shopifyIntegration.connectionConfig?.domain,
+            }
             : null
         }
       />
@@ -398,8 +514,8 @@ export default function Integrations({
         credentials={
           circulyIntegration
             ? {
-                username: circulyIntegration.basicAuth?.username,
-              }
+              username: circulyIntegration.basicAuth?.username,
+            }
             : null
         }
         onConnect={handleCirculyConnect}
@@ -418,6 +534,31 @@ export default function Integrations({
         onOpenChange={setCirculyDisconnectModalOpen}
         username={circulyIntegration?.basicAuth?.username || ''}
         onConfirm={handleCirculyDisconnect}
+      />
+
+      <ProtelIntegrationDialog
+        open={protelModalOpen}
+        onOpenChange={setProtelModalOpen}
+        credentials={
+          protelIntegration
+            ? {
+              server: protelIntegration.sqlConnectionConfig?.server,
+              port: protelIntegration.sqlConnectionConfig?.port,
+              database: protelIntegration.sqlConnectionConfig?.database,
+              username: protelIntegration.basicAuth?.username,
+            }
+            : null
+        }
+        onConnect={handleProtelConnect}
+        onDisconnect={() => setProtelDisconnectModalOpen(true)}
+      />
+
+      <ProtelDisconnectConfirmationDialog
+        open={protelDisconnectModalOpen}
+        onOpenChange={setProtelDisconnectModalOpen}
+        server={protelIntegration?.sqlConnectionConfig?.server || ''}
+        database={protelIntegration?.sqlConnectionConfig?.database || ''}
+        onConfirm={handleProtelDisconnect}
       />
 
       <EmailIntegrationDialog
