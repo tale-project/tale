@@ -14,7 +14,6 @@ import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useQuery, useMutation } from 'convex/react';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
@@ -76,7 +75,7 @@ function truncate(str: string, maxLength: number): string {
  */
 function formatToolDetail(
   toolName: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   input?: Record<string, any>,
 ): ToolDetail {
   // Handle web_read tool with operation-specific display
@@ -139,7 +138,7 @@ interface ThinkingAnimationProps {
 }
 
 function ThinkingAnimation({
-  threadId,
+  threadId: _threadId,
   streamingMessage,
 }: ThinkingAnimationProps) {
   // Extract tool details from streaming message parts
@@ -258,7 +257,7 @@ export default function ChatInterface({
     setOptimisticMessage,
     currentRunId,
     setCurrentRunId,
-    isPending,
+    isPending: _isPending,
     setIsPending,
     isLoading,
     clearChatState,
@@ -401,7 +400,7 @@ export default function ChatInterface({
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
-  const messageCount = threadMessages?.length ?? 0;
+  const _messageCount = threadMessages?.length ?? 0;
 
   // Track when we should scroll to position AI response at top
   const shouldScrollToAIRef = useRef(false);

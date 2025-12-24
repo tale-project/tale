@@ -59,5 +59,5 @@ http.route({
 // This automatically registers endpoints like /api/auth/get-session
 authComponent.registerRoutes(http, createAuth);
 
-const routes = http.getRoutes();
+const _routes = http.getRoutes();
 export default http;

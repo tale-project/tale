@@ -38,8 +38,9 @@ const metroSans = localFont({
   display: 'swap',
 });
 
-// Derive app URL from SITE_URL (server-side) or fallback for Vercel/local dev
+// Derive app URL from DOMAIN (server-side) or fallback for Vercel/local dev
 const appUrl =
+  process.env.DOMAIN ||
   process.env.SITE_URL ||
   (process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`

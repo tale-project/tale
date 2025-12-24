@@ -108,7 +108,7 @@ export default function AutomationsTable({
     setCreateDialogOpen(true);
   };
 
-  const handleCreateAutomationSubmit = async (data: {
+  const _handleCreateAutomationSubmit = async (data: {
     name: string;
     description?: string;
     config?: Record<string, unknown>;

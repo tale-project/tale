@@ -52,14 +52,13 @@ export default function EditAutomationDialog({
 }: EditAutomationDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
-  const { t: tToast } = useT('toast');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     timeout: 300000,
     maxRetries: 3,
     backoffMs: 1000,
-    variables: '{\n  "environment": "test"\n}',
+    variables: '{\n "environment": "test" \n}',
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -153,7 +152,8 @@ export default function EditAutomationDialog({
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="edit-name">
-                {t('configuration.name')} <span className="text-red-500">*</span>
+                {t('configuration.name')}{' '}
+                <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit-name"
@@ -168,7 +168,9 @@ export default function EditAutomationDialog({
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="edit-description">{t('configuration.description')}</Label>
+              <Label htmlFor="edit-description">
+                {t('configuration.description')}
+              </Label>
               <Textarea
                 id="edit-description"
                 value={formData.description}
@@ -189,7 +191,9 @@ export default function EditAutomationDialog({
               {/* Timeout & Retry Policy */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-timeout">{t('configuration.timeout')}</Label>
+                  <Label htmlFor="edit-timeout">
+                    {t('configuration.timeout')}
+                  </Label>
                   <Input
                     id="edit-timeout"
                     type="number"
@@ -205,7 +209,9 @@ export default function EditAutomationDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-maxRetries">{t('configuration.maxRetries')}</Label>
+                  <Label htmlFor="edit-maxRetries">
+                    {t('configuration.maxRetries')}
+                  </Label>
                   <Input
                     id="edit-maxRetries"
                     type="number"
@@ -221,7 +227,9 @@ export default function EditAutomationDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-backoffMs">{t('configuration.backoff')}</Label>
+                  <Label htmlFor="edit-backoffMs">
+                    {t('configuration.backoff')}
+                  </Label>
                   <Input
                     id="edit-backoffMs"
                     type="number"
@@ -268,7 +276,9 @@ export default function EditAutomationDialog({
               {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isLoading} className="flex-1">
-              {isLoading ? t('editDialog.updating') : t('editDialog.updateButton')}
+              {isLoading
+                ? t('editDialog.updating')
+                : t('editDialog.updateButton')}
             </Button>
           </DialogFooter>
         </form>

@@ -10,7 +10,7 @@ interface AppErrorProps {
   reset: () => void;
 }
 
-export default function AppError({ error, reset }: AppErrorProps) {
+export default function AppError({ error, reset: _reset }: AppErrorProps) {
   return (
     <section>
       <DashboardErrorBoundary

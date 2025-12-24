@@ -11,7 +11,7 @@ export interface CreateOrganizationArgs {
 
 export async function createOrganization(
   ctx: MutationCtx,
-  args: CreateOrganizationArgs,
+  _args: CreateOrganizationArgs,
 ): Promise<string> {
   // Ensure user is authenticated
   const authUser = await authComponent.getAuthUser(ctx);

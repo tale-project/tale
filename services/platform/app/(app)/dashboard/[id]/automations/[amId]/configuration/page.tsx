@@ -115,10 +115,9 @@ export default function ConfigurationPage() {
     }
 
     // Validate and parse variables JSON
-    let parsedVariables: Record<string, unknown> = {};
     if (variables.trim()) {
       try {
-        parsedVariables = JSON.parse(variables);
+        JSON.parse(variables);
       } catch {
         toast({
           title: tAutomations('configuration.validation.invalidJson'),

@@ -190,8 +190,8 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           );
 
           const templates = documents
-            .filter((doc) => doc.fileId)
-            .map((doc) => ({
+            .filter((doc: any) => doc.fileId)
+            .map((doc: any) => ({
               documentId: doc._id as string,
               storageId: doc.fileId as string,
               title: doc.title ?? 'Untitled Document',

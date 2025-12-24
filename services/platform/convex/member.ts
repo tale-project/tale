@@ -3,7 +3,7 @@ import { queryWithRLS, mutationWithRLS, getAuthenticatedUser } from './lib/rls';
 import { query } from './_generated/server';
 import { components } from './_generated/api';
 
-const role = v.string();
+const _role = v.string();
 
 /**
  * Public query to get user ID by email (for adding existing users to organizations).

@@ -5,7 +5,7 @@
  * These schemas are used to validate variable references in workflow definitions.
  *
  * IMPORTANT: This module uses Convex generated types (Doc<T>) as type constraints
- * to ensure field definitions match the database schema. The `createDocSchema` and
+ * to ensure field definitions match the database schema. The `_createDocSchema` and
  * `createDocFields` functions require field names to be valid keys of the Doc type.
  */
 
@@ -71,7 +71,7 @@ function createDocFields<T extends TableNames>(
  * Creates an OutputSchema for a Convex document type.
  * Fields are type-checked against the actual Doc<T> type.
  */
-function createDocSchema<T extends TableNames>(
+function _createDocSchema<T extends TableNames>(
   table: T,
   description: string,
   fields: TypeSafeDocFields<T>,

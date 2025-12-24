@@ -21,7 +21,7 @@ import { workflowAction } from './workflow/workflow_action';
 // ACTION REGISTRY
 // =============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type AnyActionDefinition = ActionDefinition<any>;
 
 // Array-based registry for iteration (e.g., listing all actions)

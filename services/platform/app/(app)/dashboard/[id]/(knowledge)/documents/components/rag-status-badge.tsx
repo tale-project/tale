@@ -119,7 +119,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
           variant: 'destructive',
         });
       }
-    } catch (err) {
+    } catch {
       toast({
         title: 'An unexpected error occurred',
         variant: 'destructive',

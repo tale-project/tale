@@ -60,7 +60,7 @@ export default function AccountForm({
 
       // Clear form
       reset();
-    } catch (error) {
+    } catch {
       toast({
         title: tToast('error.passwordChangeFailed'),
         variant: 'destructive',

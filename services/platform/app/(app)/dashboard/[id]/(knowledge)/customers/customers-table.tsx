@@ -40,16 +40,13 @@ export default function CustomersTable({
   const searchParams = useSearchParams();
 
   // Memoize filter parsing to avoid string operations on every render
-  const { statusFilters, sourceFilters, localeFilters, hasActiveFilters } =
+  const { hasActiveFilters } =
     useMemo(() => {
       const status = searchParams.get('status')?.split(',').filter(Boolean);
       const source = searchParams.get('source')?.split(',').filter(Boolean);
       const locale = searchParams.get('locale')?.split(',').filter(Boolean);
 
       return {
-        statusFilters: status,
-        sourceFilters: source,
-        localeFilters: locale,
         hasActiveFilters:
           searchTerm ||
           (status && status.length > 0) ||

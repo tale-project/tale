@@ -55,7 +55,7 @@ export async function testCirculyConnection(
       }
     }
 
-    const data = await response.json();
+    const _data = await response.json();
     debugLog(`Circuly Health Check Successfully connected to account`);
   } catch (error) {
     if (error instanceof Error) {

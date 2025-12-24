@@ -2,7 +2,6 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WebsiteActionParams } from './helpers/types';
 import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
 
 // Common field validators
 const statusValidator = v.optional(
@@ -58,7 +57,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
     switch (params.operation) {
       case 'create': {
 
-        const websiteId = await ctx.runMutation(
+        const _websiteId = await ctx.runMutation(
           internal.websites.createWebsiteInternal,
           {
             organizationId,

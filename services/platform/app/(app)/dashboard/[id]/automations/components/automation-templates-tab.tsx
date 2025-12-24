@@ -40,7 +40,6 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 interface AutomationTemplatesTabProps {
   organizationId: string;
@@ -53,7 +52,6 @@ export function AutomationTemplatesTab({
   selectedWorkflow,
   setSelectedWorkflow,
 }: AutomationTemplatesTabProps) {
-  const router = useRouter();
   const { user } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);

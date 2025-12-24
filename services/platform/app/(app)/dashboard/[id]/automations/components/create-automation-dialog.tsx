@@ -68,7 +68,7 @@ export default function CreateAutomationDialog({
         variant: 'success',
       });
       router.push(`/dashboard/${organizationId}/automations/${wfDefinitionId}`);
-    } catch (error) {
+    } catch {
       toast({
         title: 'Failed to create automation',
         variant: 'destructive',

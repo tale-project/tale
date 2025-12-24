@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Bot,
-  Sparkles,
   Send,
   ChevronDown,
   ChevronRight,

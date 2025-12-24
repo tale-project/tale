@@ -14,7 +14,6 @@ import {
   Background,
   useNodesState,
   useEdgesState,
-  addEdge,
   Connection,
   ConnectionLineType,
   Edge,
@@ -41,8 +40,6 @@ import AutomationSidePanel from './automation-sidepanel';
 import AutomationGroupNode from './automation-group-node';
 import AutomationLoopContainer from './automation-loop-container';
 import AutomationEdge from './automation-edge';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import {
   Tooltip,
@@ -75,11 +72,11 @@ const edgeTypes = {
 // Inner component that uses useReactFlow hook
 function AutomationStepsInner({
   steps,
-  className,
+  className: _className,
   organizationId,
   automationId,
   status,
-  onStepCreated,
+  onStepCreated: _onStepCreated,
 }: AutomationStepsProps) {
   const isDraft = status === 'draft';
   const isActive = status === 'active';
@@ -94,7 +91,7 @@ function AutomationStepsInner({
   const [sidePanelMode, setSidePanelMode] = useState<
     'step' | 'ai-chat' | 'test' | null
   >(isDraft ? 'ai-chat' : null);
-  const [parentStepForNewStep, setParentStepForNewStep] = useState<
+  const [_parentStepForNewStep, setParentStepForNewStep] = useState<
     string | null
   >(null);
   const [edgeToInsertStep, setEdgeToInsertStep] = useState<{
@@ -184,7 +181,7 @@ function AutomationStepsInner({
   );
 
   // Handle deleting edge
-  const handleDeleteEdge = useCallback(async (edgeId: string) => {
+  const handleDeleteEdge = useCallback(async (_edgeId: string) => {
     // NOTE: Editing connections is currently disabled until public Convex
     // mutations are available. This UI is temporarily read-only.
     toast({
@@ -881,7 +878,7 @@ function AutomationStepsInner({
   };
 
   // Handle edge removal
-  const onEdgesDelete = async (edgesToDelete: Edge[]) => {
+  const onEdgesDelete = async (_edgesToDelete: Edge[]) => {
     // NOTE: Editing connections is currently disabled until public Convex mutations
     // are available. This UI is temporarily read-only.
     toast({
@@ -894,25 +891,25 @@ function AutomationStepsInner({
   };
 
   // Handle creating a new step
-  const handleCreateStep = async (data: {
+  const handleCreateStep = async (_data: {
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     config: Doc<'wfStepDefs'>['config'];
   }) => {
     try {
       // Generate a unique stepSlug
-      const stepSlug = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const _stepSlug = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // Calculate the next order number
-      const nextOrder =
+      const _nextOrder =
         steps.length > 0 ? Math.max(...steps.map((s) => s.order)) + 1 : 1;
 
       // Prepare nextSteps for the new step - start with empty object
-      let newStepNextSteps = {};
+      let _newStepNextSteps = {};
 
       // If we're inserting on an edge, the new step should point to the target
       if (edgeToInsertStep) {
-        newStepNextSteps = {
+        _newStepNextSteps = {
           default: edgeToInsertStep.targetId,
         };
       }
