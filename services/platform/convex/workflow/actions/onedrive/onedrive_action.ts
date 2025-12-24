@@ -250,7 +250,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         const existingByItemId = new Map<string, any>();
         let cursor: string | null = null;
         // Paginate through existing onedrive_sync documents
-        // eslint-disable-next-line no-constant-condition
+         
         while (true) {
           const res = (await ctx.runQuery!(internal.documents.queryDocuments, {
             organizationId,

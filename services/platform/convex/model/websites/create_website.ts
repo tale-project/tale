@@ -33,7 +33,7 @@ function toUrlAndDomain(input: string): {
   }
 }
 
-function scanIntervalToCron(interval: string): {
+function _scanIntervalToCron(interval: string): {
   schedule: string;
   timezone: string;
 } {

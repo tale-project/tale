@@ -4,7 +4,6 @@
 
 import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import { saveRelatedWorkflows } from './save_related_workflows';
 
 export interface CreateOAuth2ProviderArgs {
   organizationId: string;

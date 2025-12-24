@@ -2,10 +2,8 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   WebsitePagesActionParams,
-  WebsitePagesActionResult,
 } from './helpers/types';
 import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
 
 // Page validator
 const pageValidator = v.object({

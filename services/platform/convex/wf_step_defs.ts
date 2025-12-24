@@ -6,7 +6,6 @@ import {
   internalQuery,
   internalMutation,
   query,
-  mutation,
 } from './_generated/server';
 import { v } from 'convex/values';
 import * as WfStepDefsModel from './model/wf_step_defs';

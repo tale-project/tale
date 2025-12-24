@@ -8,7 +8,7 @@ interface ErrorProps {
   reset: () => void;
 }
 
-export default function DashboardError({ error, reset }: ErrorProps) {
+export default function DashboardError({ error, reset: _reset }: ErrorProps) {
   const params = useParams();
   const organizationId = params.id as string | undefined;
 

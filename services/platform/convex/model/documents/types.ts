@@ -3,7 +3,7 @@
  */
 
 import { v } from 'convex/values';
-import type { Id, Doc } from '../../_generated/dataModel';
+import type { Id } from '../../_generated/dataModel';
 
 export interface CreateDocumentArgs {
   organizationId: string;

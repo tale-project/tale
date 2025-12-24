@@ -85,7 +85,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
 
     const vars = parsed
       ? (() => {
-          const { steps, ...rest } = parsed as Record<string, unknown>;
+          const { steps: _steps, ...rest } = parsed as Record<string, unknown>;
           return Object.keys(rest).length > 0 ? rest : undefined;
         })()
       : undefined;

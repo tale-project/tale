@@ -17,7 +17,7 @@ interface NavigationServerProps {
  * - Navigation renders immediately with correct role
  */
 export default function NavigationServer({
-  organizationId,
+  organizationId: _organizationId,
   role,
 }: NavigationServerProps) {
   // The Navigation component is a client component that handles

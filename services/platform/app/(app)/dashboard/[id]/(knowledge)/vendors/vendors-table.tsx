@@ -37,13 +37,11 @@ export default function VendorsTable({
   const searchParams = useSearchParams();
 
   // Memoize filter parsing to avoid string operations on every render
-  const { sourceFilters, localeFilters, hasActiveFilters } = useMemo(() => {
+  const { hasActiveFilters } = useMemo(() => {
     const source = searchParams.get('source')?.split(',').filter(Boolean);
     const locale = searchParams.get('locale')?.split(',').filter(Boolean);
 
     return {
-      sourceFilters: source,
-      localeFilters: locale,
       hasActiveFilters:
         searchTerm ||
         (source && source.length > 0) ||

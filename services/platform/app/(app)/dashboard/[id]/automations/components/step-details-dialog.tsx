@@ -20,9 +20,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
 import { z } from 'zod';
 import { Play, Cpu, HelpCircle, CheckCircle2, Zap, Trash2 } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -201,7 +198,7 @@ export default function StepDetailsDialog({
   open,
   onOpenChange,
   step,
-  onStepUpdated,
+  onStepUpdated: _onStepUpdated,
 }: StepDetailsDialogProps) {
   const [editedName, setEditedName] = useState('');
   const [config, setConfig] = useState<string>('{}');

@@ -15,7 +15,7 @@ export async function reopenConversation(
   }
 
   const metadata = (conversation.metadata as Record<string, unknown>) || {};
-  const { resolved_at, resolved_by, ...restMetadata } = metadata;
+  const { _resolved_at, _resolved_by, ...restMetadata } = metadata;
 
   await ctx.db.patch(conversationId, {
     status: 'open',

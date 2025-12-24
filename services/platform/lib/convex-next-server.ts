@@ -37,7 +37,7 @@ function getConvexHttpUrl(): string {
   cachedConvexHttpUrl = url;
   if (process.env.NODE_ENV !== 'production') {
     // Helpful for debugging misconfiguration in local/dev environments.
-    // eslint-disable-next-line no-console
+     
     console.log(
       '[convex-next-server] Using Convex HTTP URL:',
       cachedConvexHttpUrl,
@@ -64,7 +64,7 @@ export async function fetchQuery<Query extends FunctionReference<'query'>>(
   } catch (error) {
     // Surface additional context in server logs to make production
     // failures (like 404s from Convex) diagnosable.
-    // eslint-disable-next-line no-console
+     
     console.error('[convex-next-server] fetchQuery failed', {
       query,
       args: fnArgs,
@@ -89,7 +89,7 @@ export async function fetchMutation<
       withDefaultUrl(options),
     );
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('[convex-next-server] fetchMutation failed', {
       mutation,
       args: fnArgs,
@@ -108,7 +108,7 @@ export async function fetchAction<Action extends FunctionReference<'action'>>(
   try {
     return await baseFetchAction(action, fnArgs ?? {}, withDefaultUrl(options));
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('[convex-next-server] fetchAction failed', {
       action,
       args: fnArgs,
@@ -165,7 +165,7 @@ export async function preloadQuery<Query extends FunctionReference<'query'>>(
   try {
     return await basePreloadQuery(query, fnArgs ?? {}, withDefaultUrl(options));
   } catch (error) {
-    // eslint-disable-next-line no-console
+     
     console.error('[convex-next-server] preloadQuery failed', {
       query,
       args: fnArgs,

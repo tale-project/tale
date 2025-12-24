@@ -28,7 +28,7 @@ export function validateActionStep(config: Record<string, unknown>): ValidationR
   if ('parameters' in config) {
     parameters = config.parameters;
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { type: _type, ...rest } = config;
     parameters = rest;
   }

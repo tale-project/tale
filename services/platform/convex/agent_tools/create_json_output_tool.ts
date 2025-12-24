@@ -18,7 +18,7 @@ import type { JsonSchemaDefinition } from '../workflow/types/nodes';
  */
 export interface JsonOutputToolResult {
   /** The tool to add to the agent's tools */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   tool: ReturnType<typeof createTool<any, string>>;
   /** Function to get the captured output (returns null if not called) */
   getCapturedOutput: () => unknown;

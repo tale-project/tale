@@ -214,8 +214,8 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           );
 
           const templates = documents
-            .filter((doc) => doc.fileId) // Only include documents with file storage
-            .map((doc) => ({
+            .filter((doc: any) => doc.fileId) // Only include documents with file storage
+            .map((doc: any) => ({
               documentId: doc._id,
               storageId: doc.fileId as string,
               title: doc.title ?? 'Untitled Template',

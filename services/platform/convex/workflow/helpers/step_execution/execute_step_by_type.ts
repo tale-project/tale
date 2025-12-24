@@ -21,7 +21,7 @@ export async function executeStepByType(
     function trimLoop(loopVar: any, depth: number): any {
       if (!loopVar || typeof loopVar !== 'object') return loopVar;
       if (depth >= maxLoopDepth) {
-        const { parent, ...rest } = loopVar as Record<string, unknown>;
+        const { parent: _parent, ...rest } = loopVar as Record<string, unknown>;
         return { ...rest, parent: undefined };
       }
       const result: Record<string, unknown> = {};
