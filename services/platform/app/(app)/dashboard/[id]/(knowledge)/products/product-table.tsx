@@ -19,7 +19,7 @@ import ProductImage from './product-image';
 import ProductSearch from './product-search';
 import ImportProductsMenu from './import-products-menu';
 import ProductActions from './product-actions';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 // Product type from the query
 type Product = {
@@ -47,6 +47,7 @@ export default function ProductTable({
   pageSize = 10,
   preloadedProducts,
 }: ProductTableProps) {
+  const locale = useLocale();
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
 
@@ -108,6 +109,7 @@ export default function ProductTable({
           <span className="text-xs text-muted-foreground text-right block">
             {formatDate(new Date(row.original.lastUpdated), {
               preset: 'short',
+              locale,
             })}
           </span>
         ),

@@ -7,7 +7,7 @@ import { ChevronDownIcon } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
 import MemberOptions from './member-options';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 type Member = {
   _id: string;
@@ -50,6 +50,7 @@ export default function MemberTable({
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
+  const locale = useLocale();
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
   }, [sortOrder, onSortChange]);
@@ -114,7 +115,7 @@ export default function MemberTable({
         header: () => <div className="text-right">{tTables('headers.joined')}</div>,
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right">
-            {formatDate(new Date(row.original._creationTime), { preset: 'relative' })}
+            {formatDate(new Date(row.original._creationTime), { preset: 'relative', locale })}
           </div>
         ),
       },

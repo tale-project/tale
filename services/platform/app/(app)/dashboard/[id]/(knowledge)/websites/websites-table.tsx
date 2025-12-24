@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
 import WebsiteRowActions from './website-row-actions';
 import AddWebsiteDialog from './add-website-dialog';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 interface WebsitesTableProps {
   organizationId: string;
@@ -29,6 +29,7 @@ export default function WebsitesTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
+  const locale = useLocale();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
@@ -92,6 +93,7 @@ export default function WebsitesTable({
             {row.original.lastScannedAt ? (
               formatDate(new Date(row.original.lastScannedAt), {
                 preset: 'short',
+                locale,
               })
             ) : (
               <Loader className="size-4 animate-spin text-muted-foreground" />

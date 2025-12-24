@@ -16,7 +16,7 @@ import CustomerRowActions from './customer-row-actions';
 import CustomerFilter from './customer-filter';
 import CustomerSearch from './customer-search';
 import ImportCustomersMenu from './import-customers-menu';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 export interface CustomersTableProps {
   organizationId: string;
@@ -35,6 +35,7 @@ export default function CustomersTable({
 }: CustomersTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
+  const locale = useLocale();
 
   const searchParams = useSearchParams();
 
@@ -116,6 +117,7 @@ export default function CustomersTable({
           <span className="text-xs text-muted-foreground text-right block">
             {formatDate(new Date(row.original._creationTime), {
               preset: 'short',
+              locale,
             })}
           </span>
         ),
