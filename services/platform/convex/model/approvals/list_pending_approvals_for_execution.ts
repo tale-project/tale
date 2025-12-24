@@ -10,11 +10,16 @@ export async function listPendingApprovalsForExecution(
   ctx: QueryCtx,
   executionId: Id<'wfExecutions'>,
 ): Promise<Array<ApprovalItem>> {
-  const approvals = await ctx.db
+  const pendingApprovals: Array<ApprovalItem> = [];
+
+  for await (const approval of ctx.db
     .query('approvals')
     .withIndex('by_execution', (q) => q.eq('wfExecutionId', executionId))
-    .order('desc')
-    .collect();
+    .order('desc')) {
+    if (approval.status === 'pending') {
+      pendingApprovals.push(approval);
+    }
+  }
 
-  return approvals.filter((a) => a.status === 'pending');
+  return pendingApprovals;
 }

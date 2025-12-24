@@ -9,7 +9,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
-import { useDebounce } from 'ahooks';
+import { useDebounce } from '@/hooks/use-debounce';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export default function ChatSearchDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search query to avoid excessive API calls
-  const debouncedQuery = useDebounce(query, { wait: 300 });
+  const debouncedQuery = useDebounce(query, 300);
 
   // Pass search to Convex query - filtering happens server-side
   const threadsData = useQuery(api.threads.listThreads, {

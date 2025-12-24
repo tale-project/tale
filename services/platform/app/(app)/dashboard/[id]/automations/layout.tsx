@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form';
 import AutomationNavigation from './automation-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
+import { PageHeader } from '@/components/layout';
 
 interface AutomationsLayoutProps {
   children: ReactNode;
@@ -74,7 +75,7 @@ export default function AutomationsLayout({
   };
   return (
     <>
-      <div className="px-4 py-2 sticky top-0 z-10 bg-background/50 backdrop-blur-md flex items-center gap-2 min-h-12 border-b border-border">
+      <PageHeader showBorder className="gap-2">
         <h1 className="text-base font-semibold">
           <span
             role="button"
@@ -119,7 +120,7 @@ export default function AutomationsLayout({
         {automation?.status === 'archived' && (
           <Badge variant="outline">Archived</Badge>
         )}
-      </div>
+      </PageHeader>
       {/* Navigation */}
       <AutomationNavigation
         automation={automation}

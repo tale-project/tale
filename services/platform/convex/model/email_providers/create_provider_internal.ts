@@ -41,24 +41,28 @@ export async function createProviderInternal(
   args: CreateProviderInternalArgs,
 ): Promise<Doc<'emailProviders'>['_id']> {
   // Check if there are any existing default providers
-  const existingDefaults = await ctx.db
+  const existingDefault = await ctx.db
     .query('emailProviders')
     .withIndex('by_organizationId_and_isDefault', (q) =>
       q.eq('organizationId', args.organizationId).eq('isDefault', true),
     )
-    .collect();
+    .first();
 
   // Determine if this should be the default provider
   let isDefault = args.isDefault;
 
   // If no existing default provider exists, automatically set this as default
-  if (existingDefaults.length === 0) {
+  if (existingDefault === null) {
     isDefault = true;
   }
 
   // If this is set as default, unset other defaults
-  if (isDefault && existingDefaults.length > 0) {
-    for (const provider of existingDefaults) {
+  if (isDefault && existingDefault !== null) {
+    for await (const provider of ctx.db
+      .query('emailProviders')
+      .withIndex('by_organizationId_and_isDefault', (q) =>
+        q.eq('organizationId', args.organizationId).eq('isDefault', true),
+      )) {
       await ctx.db.patch(provider._id, { isDefault: false });
     }
   }

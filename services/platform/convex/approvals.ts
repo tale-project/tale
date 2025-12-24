@@ -129,6 +129,25 @@ export const getApprovalHistory = internalQuery({
 // =============================================================================
 
 /**
+ * Check if organization has any approvals (fast count query for empty state detection)
+ */
+export const hasApprovals = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstApproval = await ctx.db
+      .query('approvals')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .first();
+    return firstApproval !== null;
+  },
+});
+
+/**
  * Get an approval by ID (public)
  */
 export const getApproval = queryWithRLS({

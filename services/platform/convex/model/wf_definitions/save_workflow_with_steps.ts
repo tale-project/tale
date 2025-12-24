@@ -68,12 +68,9 @@ export async function saveWorkflowWithSteps(
   });
 
   // Delete all existing steps for this workflow
-  const existingSteps = await ctx.db
+  for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.workflowId))
-    .collect();
-
-  for (const step of existingSteps) {
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.workflowId))) {
     await ctx.db.delete(step._id);
   }
 

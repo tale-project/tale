@@ -137,7 +137,6 @@ BEST PRACTICES:
 
       // operation === 'list'
       return readCustomerList(ctx, {
-        fields: args.fields,
         cursor: args.cursor,
         numItems: args.numItems,
       });

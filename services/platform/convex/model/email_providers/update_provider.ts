@@ -32,14 +32,11 @@ export async function updateProvider(
 
   // If setting as default, unset other defaults
   if (args.isDefault) {
-    const existingDefaults = await ctx.db
+    for await (const existingProvider of ctx.db
       .query('emailProviders')
       .withIndex('by_organizationId_and_isDefault', (q) =>
         q.eq('organizationId', provider.organizationId).eq('isDefault', true),
-      )
-      .collect();
-
-    for (const existingProvider of existingDefaults) {
+      )) {
       if (existingProvider._id !== providerId) {
         await ctx.db.patch(existingProvider._id, { isDefault: false });
       }

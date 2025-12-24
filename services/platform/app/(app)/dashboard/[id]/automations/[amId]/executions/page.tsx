@@ -4,21 +4,30 @@ import { preloadQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable } from './components/executions-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
+import { Skeleton } from '@/components/ui/skeleton';
 
-/** Skeleton for the executions table with header and rows - matches executions-table.tsx column sizes */
+/** Skeleton for the executions table with header and rows - matches ExecutionsTable layout */
 function ExecutionsSkeleton() {
   return (
     <div className="py-6 px-4">
       <DataTableSkeleton
         rows={10}
         columns={[
-          { header: 'Execution ID' }, // No size = expands to fill remaining space
+          { header: 'Execution ID', size: 160 },
           { header: 'Status', size: 128 },
           { header: 'Started at', size: 192 },
           { header: 'Duration', size: 128 },
           { header: 'Triggered by', size: 128 },
         ]}
         showHeader
+        customHeader={
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-[18.75rem]" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+          </div>
+        }
       />
     </div>
   );

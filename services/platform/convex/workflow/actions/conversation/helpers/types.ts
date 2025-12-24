@@ -1,8 +1,7 @@
 export type QueryResult<T = unknown> = {
-  items: T[];
+  page: T[];
   isDone: boolean;
-  continueCursor: string | null;
-  count: number;
+  continueCursor: string;
 };
 
 export type ConversationStatus = 'open' | 'closed' | 'archived' | 'spam';
@@ -26,4 +25,3 @@ export type EmailType = {
     size: number;
   }>;
 };
-

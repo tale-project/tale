@@ -32,25 +32,21 @@ export async function updateConversations(
     }
     conversationsToUpdate = [conversation];
   } else if (args.organizationId) {
-    // Update by filters (batch update)
-    const conversations = await ctx.db
+    // Update by filters (batch update) using async iteration
+    for await (const conversation of ctx.db
       .query('conversations')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId!),
-      )
-      .collect();
-
-    // Filter by other criteria
-    conversationsToUpdate = conversations.filter((conversation) => {
+      )) {
+      // Filter by other criteria
       if (args.status && conversation.status !== args.status) {
-        return false;
+        continue;
       }
       if (args.priority && conversation.priority !== args.priority) {
-        return false;
+        continue;
       }
-
-      return true;
-    });
+      conversationsToUpdate.push(conversation);
+    }
   }
 
   // Apply updates to each conversation

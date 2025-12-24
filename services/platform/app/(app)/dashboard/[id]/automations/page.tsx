@@ -5,7 +5,14 @@ import AutomationsTable from './components/automations-table';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { Workflow, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { AccessDenied, ContentWrapper } from '@/components/layout';
 
 interface AutomationsPageProps {
   params: Promise<{ id: string }>;
@@ -14,7 +21,7 @@ interface AutomationsPageProps {
 /** Skeleton for the automations table with header and rows - matches automations-table.tsx column sizes */
 function AutomationsSkeleton() {
   return (
-    <div className="flex flex-col flex-1 px-4 py-6">
+    <ContentWrapper>
       <DataTableSkeleton
         rows={6}
         columns={[
@@ -26,7 +33,28 @@ function AutomationsSkeleton() {
         ]}
         showHeader
       />
-    </div>
+    </ContentWrapper>
+  );
+}
+
+/** Empty state shown when org has no automations - avoids unnecessary skeleton */
+function AutomationsEmptyState({ organizationId }: { organizationId: string }) {
+  return (
+    <ContentWrapper>
+      <DataTableEmptyState
+        icon={Workflow}
+        title="No automations yet"
+        description="Describe your workflow and let your AI automate it"
+        action={
+          <Button asChild>
+            <Link href={`/dashboard/${organizationId}/chat`}>
+              <Sparkles className="size-4 mr-2" />
+              Create automation with AI
+            </Link>
+          </Button>
+        }
+      />
+    </ContentWrapper>
   );
 }
 
@@ -35,41 +63,53 @@ interface AutomationsContentProps {
 }
 
 async function AutomationsPageContent({ params }: AutomationsContentProps) {
-  // All dynamic data access inside Suspense boundary for proper streaming
-  const token = await getAuthToken();
+  // Permission check already done in parent component
   const { id: organizationId } = await params;
+
+  // Automations are fetched in the client component with useQuery
+  // This enables real-time updates and server-side search filtering
+  return (
+    <ContentWrapper>
+      <AutomationsTable organizationId={organizationId} />
+    </ContentWrapper>
+  );
+}
+
+export default async function AutomationsPage({
+  params,
+}: AutomationsPageProps) {
+  const token = await getAuthToken();
   if (!token) {
     redirect('/log-in');
   }
 
-  // Fetch member context to check permissions
+  const { id: organizationId } = await params;
+
+  // Check permissions first
   const memberContext = await fetchQuery(
     api.member.getCurrentMemberContext,
     { organizationId },
     { token },
   );
 
-  // Only Admin and Developer can access automations (case-insensitive comparison)
   const userRole = (memberContext.role ?? '').toLowerCase();
   if (userRole !== 'admin' && userRole !== 'developer') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-        <h1 className="text-2xl font-semibold text-foreground mb-2">
-          Access Denied
-        </h1>
-        <p className="text-muted-foreground">
-          You need Admin or Developer permissions to access automations.
-        </p>
-      </div>
+      <AccessDenied message="You need Admin or Developer permissions to access automations." />
     );
   }
 
-  // Automations are now fetched in the client component with useQuery
-  // This enables real-time updates and server-side search filtering
-  return <AutomationsTable organizationId={organizationId} />;
-}
+  // Two-phase loading: check if automations exist before showing skeleton
+  const hasAutomations = await fetchQuery(
+    api.wf_definitions.hasAutomations,
+    { organizationId },
+    { token },
+  );
 
-export default function AutomationsPage({ params }: AutomationsPageProps) {
+  if (!hasAutomations) {
+    return <AutomationsEmptyState organizationId={organizationId} />;
+  }
+
   return (
     <Suspense fallback={<AutomationsSkeleton />}>
       <AutomationsPageContent params={params} />

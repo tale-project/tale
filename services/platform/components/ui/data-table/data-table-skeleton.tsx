@@ -29,6 +29,8 @@ export interface DataTableSkeletonProps {
   showHeader?: boolean;
   /** Whether to show the filter bar skeleton */
   showFilters?: boolean;
+  /** Custom header content - takes precedence over showFilters */
+  customHeader?: React.ReactNode;
   /** Whether to show the pagination skeleton */
   showPagination?: boolean;
   /** Additional class name */
@@ -46,17 +48,20 @@ export function DataTableSkeleton({
   columns,
   showHeader = true,
   showFilters = false,
+  customHeader,
   showPagination = false,
   className,
 }: DataTableSkeletonProps) {
   return (
     <div className={cn('w-full space-y-4', className)}>
-      {showFilters && (
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-full max-w-[18.75rem]" />
-          <Skeleton className="h-10 w-24" />
-        </div>
-      )}
+      {customHeader
+        ? customHeader
+        : showFilters && (
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-full max-w-[18.75rem]" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+          )}
 
       <Table>
         {showHeader && (

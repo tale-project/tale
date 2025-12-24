@@ -12,7 +12,6 @@ import {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { useTypewriter } from '../hooks/use-typewriter';
 import { CopyIcon, CheckIcon } from 'lucide-react';
@@ -67,184 +66,47 @@ interface Message {
   threadId?: string;
 }
 
-const MarkdownWrapper = styled.div`
-  /* Paragraphs */
-  p:not(:last-child) {
-    margin-bottom: 0.5rem;
-  }
-
-  /* Lists */
-  ul {
-    margin-bottom: 0.5rem;
-    margin-top: 0.5rem;
-    padding-left: 1rem;
-    list-style-type: disc;
-  }
-  ol {
-    margin-bottom: 0.5rem;
-    margin-top: 0.5rem;
-    padding-left: 1rem;
-    list-style-type: decimal;
-  }
-  li {
-    margin-bottom: 0.25rem;
-  }
-
-  /* Headings */
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    margin-bottom: 0.5rem;
-    margin-top: 1rem;
-    font-weight: 700;
-  }
-  h1 {
-    font-size: 1.5rem;
-  }
-  h2 {
-    font-size: 1.25rem;
-  }
-  h3 {
-    font-size: 1.125rem;
-  }
-
-  /* Links */
-  a {
-    color: #0561e6;
-    text-decoration: none;
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  /* Inline Code */
-  code:not(pre code) {
-    background-color: hsl(var(--muted));
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
-    font-size: 0.875em;
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
-      'Courier New', monospace;
-  }
-
-  /* Code Blocks */
-  pre {
-    background-color: hsl(var(--muted));
-    padding: 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid hsl(var(--border));
-    overflow-x: auto;
-    overflow-y: auto;
-    margin: 1rem 0;
-    max-height: 400px;
-    max-width: calc(var(--chat-max-width) - 6rem));
-    box-sizing: border-box;
-    position: relative;
-
-    /* Fade gradient at bottom to indicate scrollable content */
-    &::after {
-      content: '';
-      display: block;
-      position: sticky;
-      bottom: -1rem;
-      left: 0;
-      right: 0;
-      height: 5rem;
-      background: linear-gradient(
-        to bottom,
-        transparent,
-        hsl(var(--muted) / 0.95) 40%,
-        hsl(var(--muted))
-      );
-      pointer-events: none;
-      border-radius: 0 0 0.5rem 0.5rem;
-    }
-
-    code {
-      background-color: transparent;
-      padding: 0;
-      border-radius: 0;
-      font-size: 0.75rem;
-      line-height: 1.5;
-      white-space: pre;
-      display: block;
-      max-width: var(--chat-max-width);
-      min-width: 100%;
-    }
-  }
-
-  /* Blockquotes */
-  blockquote {
-    border-left: 4px solid hsl(var(--border));
-    padding-left: 1rem;
-    margin: 0.5rem 0;
-    color: hsl(var(--muted-foreground));
-    font-style: italic;
-  }
-
-  /* Horizontal Rules */
-  hr {
-    border: none;
-    border-top: 1px solid hsl(var(--border));
-    margin: 1rem 0;
-  }
-
-  /* Images */
-  img {
-    max-width: 24rem;
-    max-height: 24rem;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    border-radius: 0.5rem;
-    margin: 0.5rem 0;
-  }
-
-  /* Strong and Emphasis */
-  strong {
-    font-weight: 600;
-  }
-  em {
-    font-style: italic;
-  }
-
-  /* Tables - Fallback styles (component mapping will override) */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  thead {
-    background-color: hsl(var(--muted));
-  }
-  th {
-    padding: 0.75rem;
-    text-align: left;
-    font-weight: 500;
-    border-bottom: 1px solid hsl(var(--border));
-  }
-  td {
-    padding: 0.75rem;
-    border-bottom: 1px solid hsl(var(--border));
-  }
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  /* Task Lists */
-  input[type='checkbox'] {
-    margin-right: 0.5rem;
-  }
-
-  /* Strikethrough (from remark-gfm) */
-  del {
-    text-decoration: line-through;
-    color: hsl(var(--muted-foreground));
-  }
-`;
+// Tailwind classes for markdown content styling
+const markdownWrapperStyles = cn(
+  // Paragraphs
+  '[&_p:not(:last-child)]:mb-2',
+  // Lists
+  '[&_ul]:my-2 [&_ul]:pl-4 [&_ul]:list-disc',
+  '[&_ol]:my-2 [&_ol]:pl-4 [&_ol]:list-decimal',
+  '[&_li]:mb-1',
+  // Headings
+  '[&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:font-bold [&_h1]:text-2xl',
+  '[&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:font-bold [&_h2]:text-xl',
+  '[&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:font-bold [&_h3]:text-lg',
+  '[&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:font-bold',
+  '[&_h5]:mb-2 [&_h5]:mt-4 [&_h5]:font-bold',
+  '[&_h6]:mb-2 [&_h6]:mt-4 [&_h6]:font-bold',
+  // Links
+  '[&_a]:text-[#0561e6] [&_a]:no-underline hover:[&_a]:underline',
+  // Inline code
+  '[&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:text-[0.875em] [&_code:not(pre_code)]:font-mono',
+  // Code blocks
+  '[&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border [&_pre]:overflow-auto [&_pre]:my-4 [&_pre]:max-h-[400px] [&_pre]:relative',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none [&_pre_code]:text-xs [&_pre_code]:leading-relaxed [&_pre_code]:whitespace-pre [&_pre_code]:block [&_pre_code]:min-w-full',
+  // Blockquotes
+  '[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
+  // Horizontal rules
+  '[&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border [&_hr]:my-4',
+  // Images
+  '[&_img]:max-w-96 [&_img]:max-h-96 [&_img]:w-auto [&_img]:h-auto [&_img]:object-contain [&_img]:rounded-lg [&_img]:my-2',
+  // Strong and emphasis
+  '[&_strong]:font-semibold [&_em]:italic',
+  // Tables (fallback styles)
+  '[&_table]:w-full [&_table]:border-collapse',
+  '[&_thead]:bg-muted',
+  '[&_th]:p-3 [&_th]:text-left [&_th]:font-medium [&_th]:border-b [&_th]:border-border',
+  '[&_td]:p-3 [&_td]:border-b [&_td]:border-border',
+  '[&_tr:last-child_td]:border-b-0',
+  // Task lists
+  "[&_input[type='checkbox']]:mr-2",
+  // Strikethrough
+  '[&_del]:line-through [&_del]:text-muted-foreground',
+);
 
 // File type icon component for messages
 function FileTypeIcon({
@@ -552,7 +414,7 @@ function TypewriterText({
   });
 
   return (
-    <MarkdownWrapper>
+    <div className={markdownWrapperStyles}>
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -571,7 +433,7 @@ function TypewriterText({
           className="inline-block w-2 h-4 bg-current ml-1"
         />
       )}
-    </MarkdownWrapper>
+    </div>
   );
 }
 
@@ -670,7 +532,7 @@ function MessageBubbleComponent({
             {isAssistantStreaming ? (
               <TypewriterText text={message.content} isStreaming={true} />
             ) : (
-              <MarkdownWrapper>
+              <div className={markdownWrapperStyles}>
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
@@ -678,7 +540,7 @@ function MessageBubbleComponent({
                 >
                   {message.content}
                 </Markdown>
-              </MarkdownWrapper>
+              </div>
             )}
           </div>
         )}

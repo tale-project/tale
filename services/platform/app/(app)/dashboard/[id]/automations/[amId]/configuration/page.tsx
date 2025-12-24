@@ -13,6 +13,7 @@ import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-convex-auth';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface WorkflowConfig {
   timeout?: number;
@@ -187,10 +188,51 @@ export default function ConfigurationPage() {
     setHasChanges(false);
   };
 
+  // Show skeleton while loading - matches form layout to prevent CLS
   if (!workflow) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      <div className="py-4 px-6 max-w-xl mx-auto w-full">
+        <div className="space-y-4">
+          {/* Name */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          {/* Description */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+          {/* Grid fields */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+          </div>
+          {/* Backoff */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+          {/* Variables JSON */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-3 w-72" />
+          </div>
+          {/* Button */}
+          <div className="pt-4">
+            <Skeleton className="h-10 w-36" />
+          </div>
+        </div>
       </div>
     );
   }

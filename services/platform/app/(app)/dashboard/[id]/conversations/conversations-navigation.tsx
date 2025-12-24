@@ -2,40 +2,28 @@
 
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 interface ConversationsNavigationProps {
   organizationId: string;
 }
 
+const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
+
 const getConversationsNavigationItems = ({
   organizationId,
-}: ConversationsNavigationProps) => [
-  {
-    label: 'Open',
-    href: `/dashboard/${organizationId}/conversations?status=open`,
-  },
-  {
-    label: 'Closed',
-    href: `/dashboard/${organizationId}/conversations?status=closed`,
-  },
-  {
-    label: 'Spam',
-    href: `/dashboard/${organizationId}/conversations?status=spam`,
-  },
-  {
-    label: 'Archived',
-    href: `/dashboard/${organizationId}/conversations?status=archived`,
-  },
-];
+}: ConversationsNavigationProps) =>
+  STATUSES.map((status) => ({
+    label: status.charAt(0).toUpperCase() + status.slice(1),
+    href: `/dashboard/${organizationId}/conversations/${status}`,
+    status,
+  }));
 
 export default function ConversationsNavigation({
   organizationId,
 }: ConversationsNavigationProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const status = searchParams.get('status');
 
   const navigationItems = getConversationsNavigationItems({
     organizationId,
@@ -47,16 +35,10 @@ export default function ConversationsNavigation({
     left: 0,
   });
 
-  // Find active item index
-  const activeIndex = navigationItems.findIndex((item) => {
-    const itemStatus = new URL(item.href, 'http://dummy').searchParams.get(
-      'status',
-    );
-    return (
-      pathname === `/dashboard/${organizationId}/conversations` &&
-      status === itemStatus
-    );
-  });
+  // Find active item index based on pathname
+  const activeIndex = navigationItems.findIndex((item) =>
+    pathname.startsWith(item.href),
+  );
 
   // Update indicator position and width when active item changes
   useEffect(() => {
@@ -69,18 +51,12 @@ export default function ConversationsNavigation({
         });
       }
     }
-  }, [activeIndex, status]);
+  }, [activeIndex, pathname]);
 
   return (
     <nav className="sticky top-0 z-10 border-b border-border px-4 py-3 h-12 flex items-center gap-4">
       {navigationItems.map((item, index) => {
-        // Extract status from item href for comparison
-        const itemStatus = new URL(item.href, 'http://dummy').searchParams.get(
-          'status',
-        );
-        const isActive =
-          pathname === `/dashboard/${organizationId}/conversations` &&
-          status === itemStatus;
+        const isActive = pathname.startsWith(item.href);
 
         return (
           <Link
@@ -89,6 +65,7 @@ export default function ConversationsNavigation({
               itemRefs.current[index] = el;
             }}
             href={item.href}
+            prefetch={true}
             className={cn(
               'py-1 text-sm font-medium transition-colors',
               isActive

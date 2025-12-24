@@ -423,6 +423,23 @@ export const listWorkflowsWithBestVersion = internalQuery({
 });
 
 /**
+ * PUBLIC API: Check if organization has any automations (fast count query for empty state detection)
+ */
+export const hasAutomations = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const firstAutomation = await ctx.db
+      .query('wfDefinitions')
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+      .first();
+    return firstAutomation !== null;
+  },
+});
+
+/**
  * PUBLIC API: Get workflow by ID
  */
 export const getWorkflowPublic = query({

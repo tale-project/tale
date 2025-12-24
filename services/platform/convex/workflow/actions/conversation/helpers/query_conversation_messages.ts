@@ -1,7 +1,6 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { QueryResult } from './types';
 
 export async function queryConversationMessages(
   ctx: ActionCtx,
@@ -16,7 +15,7 @@ export async function queryConversationMessages(
     };
   },
 ) {
-  const result: QueryResult = await ctx.runQuery(
+  const result = await ctx.runQuery(
     internal.conversations.queryConversationMessages,
     {
       organizationId: params.organizationId!,
@@ -27,12 +26,9 @@ export async function queryConversationMessages(
     },
   );
 
-  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  // For pagination queries, we return the full result object (items, isDone, continueCursor)
   return {
-    items: result.items,
+    page: result.page,
     isDone: result.isDone,
     continueCursor: result.continueCursor,
   };
 }
-

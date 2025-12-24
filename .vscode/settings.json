@@ -6,5 +6,6 @@
   },
   "[ignore]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
-  }
+  },
+  "claudeCode.allowDangerouslySkipPermissions": true
 }

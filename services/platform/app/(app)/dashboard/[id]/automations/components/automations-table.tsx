@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
-import { useDebounce } from 'ahooks';
+import { useDebounce } from '@/hooks/use-debounce';
 import {
   Copy,
   MoreVertical,
@@ -48,7 +48,7 @@ export default function AutomationsTable({
   const { formatDate } = useDateFormat();
 
   // Debounce search query for server-side filtering
-  const debouncedSearch = useDebounce(searchQuery, { wait: 300 });
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Fetch automations with server-side search filtering
   const automationsData = useQuery(

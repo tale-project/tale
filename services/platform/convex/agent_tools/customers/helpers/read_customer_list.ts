@@ -1,10 +1,10 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
-import { defaultListFields, type CustomerReadListResult } from './types';
+import type { CustomerReadListResult } from './types';
 
 export async function readCustomerList(
   ctx: ToolCtx,
-  args: { fields?: string[]; cursor?: string | null; numItems?: number },
+  args: { cursor?: string | null; numItems?: number },
 ): Promise<CustomerReadListResult> {
   const { organizationId } = ctx;
 
@@ -16,29 +16,22 @@ export async function readCustomerList(
 
   const numItems = args.numItems ?? 200;
   const cursor = args.cursor ?? null;
-  const fields = args.fields ?? defaultListFields;
 
-  const result: {
-    items: Array<Record<string, unknown>>;
-    isDone: boolean;
-    continueCursor: string | null;
-    count: number;
-  } = await ctx.runQuery(internal.customers.queryCustomers, {
+  const result = await ctx.runQuery(internal.customers.queryCustomers, {
     organizationId,
     paginationOpts: {
       numItems,
       cursor,
     },
-    fields,
   });
 
   return {
     operation: 'list',
-    customers: result.items,
+    customers: result.page,
     pagination: {
       hasMore: !result.isDone,
-      totalFetched: result.items.length,
-      cursor: result.continueCursor,
+      totalFetched: result.page.length,
+      cursor: result.continueCursor || null,
     },
   };
 }

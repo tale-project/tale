@@ -1,10 +1,15 @@
 import VendorsTable from './vendors-table';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
-import { preloadQuery } from '@/lib/convex-next-server';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
+import { Store } from 'lucide-react';
+import ImportVendorsMenu from './import-vendors-menu';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +36,18 @@ function VendorsSkeleton() {
       ]}
       showHeader
       showFilters
+    />
+  );
+}
+
+/** Empty state shown when org has no vendors - avoids unnecessary skeleton */
+function VendorsEmptyState({ organizationId }: { organizationId: string }) {
+  return (
+    <DataTableEmptyState
+      icon={Store}
+      title="No vendors yet"
+      description="Upload your first vendor to get started"
+      action={<ImportVendorsMenu organizationId={organizationId} />}
     />
   );
 }
@@ -99,7 +116,34 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   );
 }
 
-export default function VendorsPage({ params, searchParams }: PageProps) {
+export default async function VendorsPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
+  const { id: organizationId } = await params;
+  const { query, source, locale } = await searchParams;
+
+  // Two-phase loading: check if vendors exist before showing skeleton
+  // If no vendors and no filters active, show empty state directly
+  const hasActiveFilters = query?.trim() || source || locale;
+
+  if (!hasActiveFilters) {
+    const hasVendors = await fetchQuery(
+      api.vendors.hasVendors,
+      { organizationId },
+      { token },
+    );
+
+    if (!hasVendors) {
+      return <VendorsEmptyState organizationId={organizationId} />;
+    }
+  }
+
   return (
     <Suspense fallback={<VendorsSkeleton />}>
       <VendorsContent params={params} searchParams={searchParams} />

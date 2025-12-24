@@ -32,14 +32,14 @@ export async function handleStartWorkflow(
   }
 
   // Validate that database-backed workflows have at least one step defined
-  const steps = await ctx.db
+  const firstStep = await ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', args.wfDefinitionId),
     )
-    .collect();
+    .first();
 
-  if (steps.length === 0) {
+  if (firstStep === null) {
     throw new Error('No steps defined for workflow');
   }
 

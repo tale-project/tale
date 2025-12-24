@@ -7,11 +7,17 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ClipboardList } from 'lucide-react';
+import ImportDocumentsMenu from './components/import-documents-menu';
 
 const logger = new Logger('documents');
 
-/** Skeleton for the documents table with header and rows */
+/** Skeleton for the documents table with header and rows - matches DocumentTable layout */
 function DocumentsSkeleton() {
   return (
     <DataTableSkeleton
@@ -25,7 +31,35 @@ function DocumentsSkeleton() {
         { isAction: true, size: 160 },
       ]}
       showHeader
-      showFilters
+      customHeader={
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Skeleton className="h-10 w-full sm:w-[300px]" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+      }
+    />
+  );
+}
+
+/** Empty state shown when org has no documents - avoids unnecessary skeleton */
+function DocumentsEmptyState({
+  organizationId,
+  hasMsAccount,
+}: {
+  organizationId: string;
+  hasMsAccount: boolean;
+}) {
+  return (
+    <DataTableEmptyState
+      icon={ClipboardList}
+      title="No documents yet"
+      description="Import documents to make your AI smarter"
+      action={
+        <ImportDocumentsMenu
+          organizationId={organizationId}
+          hasMicrosoftAccount={hasMsAccount}
+        />
+      }
     />
   );
 }
@@ -132,10 +166,40 @@ async function DocumentsPageContent({
   );
 }
 
-export default function DocumentsPage({
+export default async function DocumentsPage({
   params,
   searchParams,
 }: DocumentsPageProps) {
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
+  const { id: organizationId } = await params;
+  const { query } = await searchParams;
+
+  // Two-phase loading: check if documents exist before showing skeleton
+  // If no documents and no search query, show empty state directly
+  if (!query?.trim()) {
+    const [hasDocuments, hasMsAccount] = await Promise.all([
+      fetchQuery(
+        api.documents.hasDocuments,
+        { organizationId },
+        { token },
+      ),
+      hasMicrosoftAccount(),
+    ]);
+
+    if (!hasDocuments) {
+      return (
+        <DocumentsEmptyState
+          organizationId={organizationId}
+          hasMsAccount={hasMsAccount}
+        />
+      );
+    }
+  }
+
   return (
     <Suspense fallback={<DocumentsSkeleton />}>
       <DocumentsPageContent params={params} searchParams={searchParams} />
