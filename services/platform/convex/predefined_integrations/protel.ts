@@ -742,10 +742,11 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'create_reservation',
     title: 'Create Reservation',
-    description: 'Create a new reservation in Protel',
+    description: 'Create a new reservation in Protel. Note: buchnr is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.buch (
+        buchnr,
         kundennr,
         katnr,
         datumvon,
@@ -763,29 +764,34 @@ const protelSqlOperations: SqlOperation[] = [
         resuser,
         not1txt
       )
-      OUTPUT INSERTED.buchnr AS reservation_id
       VALUES (
+        @reservationId,
         @guestId,
         @categoryId,
         @checkInDate,
         @checkOutDate,
         0,
-        @reservationStatus,
-        @totalGuests,
-        @adults,
-        @children,
+        COALESCE(@reservationStatus, 1),
+        COALESCE(@totalGuests, 1),
+        COALESCE(@adults, 1),
+        COALESCE(@children, 0),
         @rate,
         @arrivalTime,
-        @marketCode,
-        @sourceCode,
+        COALESCE(@marketCode, 0),
+        COALESCE(@sourceCode, 0),
         GETDATE(),
         @createdBy,
         @notes
-      )
+      );
+      SELECT @reservationId AS reservation_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        reservationId: {
+          type: 'number',
+          description: 'Reservation ID (buchnr) - must be unique, use MAX(buchnr)+1 from buch table',
+        },
         guestId: {
           type: 'number',
           description: 'Guest profile ID (kdnr from kunden table)',
@@ -835,10 +841,12 @@ const protelSqlOperations: SqlOperation[] = [
         marketCode: {
           type: 'number',
           description: 'Market segment code',
+          default: 0,
         },
         sourceCode: {
           type: 'number',
           description: 'Booking source code',
+          default: 0,
         },
         createdBy: {
           type: 'string',
@@ -849,7 +857,7 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'Reservation notes',
         },
       },
-      required: ['guestId', 'categoryId', 'checkInDate', 'checkOutDate'],
+      required: ['reservationId', 'guestId', 'categoryId', 'checkInDate', 'checkOutDate'],
     },
   },
   {
@@ -1070,10 +1078,11 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'create_guest',
     title: 'Create Guest Profile',
-    description: 'Create a new guest profile',
+    description: 'Create a new guest profile. Note: kdnr is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.kunden (
+        kdnr,
         typ,
         name1,
         name2,
@@ -1095,31 +1104,36 @@ const protelSqlOperations: SqlOperation[] = [
         erfasstusr
       )
       VALUES (
+        @guestId,
         2,
         @lastName,
-        @name2,
-        @firstName,
-        @email,
-        @phone,
-        @mobile,
-        @street,
-        @postalCode,
-        @city,
-        @country,
-        @countryCode,
-        @language,
-        @vipCode,
+        COALESCE(@name2, ''),
+        COALESCE(@firstName, ''),
+        COALESCE(@email, ''),
+        COALESCE(@phone, ''),
+        COALESCE(@mobile, ''),
+        COALESCE(@street, ''),
+        COALESCE(@postalCode, ''),
+        COALESCE(@city, ''),
+        COALESCE(@country, ''),
+        COALESCE(@countryCode, -1),
+        COALESCE(@language, 4),
+        COALESCE(@vipCode, 0),
         @birthDate,
-        @salutation,
-        @remarks,
+        COALESCE(@salutation, ''),
+        COALESCE(@remarks, ''),
         GETDATE(),
-        @createdBy
+        COALESCE(@createdBy, 'SYSTEM')
       );
-      SELECT SCOPE_IDENTITY() AS guest_id;
+      SELECT @guestId AS guest_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        guestId: {
+          type: 'number',
+          description: 'Guest ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+        },
         lastName: {
           type: 'string',
           description: 'Guest last name (name1)',
@@ -1161,12 +1175,14 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'Country name',
         },
         countryCode: {
-          type: 'string',
-          description: 'Country code (2 letter)',
+          type: 'number',
+          description: 'Country code ID (integer, use -1 for default)',
+          default: -1,
         },
         language: {
-          type: 'string',
-          description: 'Preferred language code',
+          type: 'number',
+          description: 'Language ID (integer, use 4 for default)',
+          default: 4,
         },
         vipCode: {
           type: 'number',
@@ -1190,7 +1206,7 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'User creating the profile',
         },
       },
-      required: ['lastName'],
+      required: ['guestId', 'lastName'],
     },
   },
   {
@@ -1306,10 +1322,11 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'create_company',
     title: 'Create Company Profile',
-    description: 'Create a new company profile',
+    description: 'Create a new company profile. Note: kdnr is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.kunden (
+        kdnr,
         typ,
         name1,
         name2,
@@ -1319,6 +1336,9 @@ const protelSqlOperations: SqlOperation[] = [
         plz,
         ort,
         land,
+        landkz,
+        sprache,
+        vip,
         vatno,
         iata,
         contract,
@@ -1327,27 +1347,35 @@ const protelSqlOperations: SqlOperation[] = [
         erfasstusr
       )
       VALUES (
+        @companyId,
         1,
         @companyName,
-        @name2,
-        @email,
-        @phone,
-        @street,
-        @postalCode,
-        @city,
-        @country,
-        @vatNumber,
-        @iataCode,
-        @contractCode,
-        @remarks,
+        COALESCE(@name2, ''),
+        COALESCE(@email, ''),
+        COALESCE(@phone, ''),
+        COALESCE(@street, ''),
+        COALESCE(@postalCode, ''),
+        COALESCE(@city, ''),
+        COALESCE(@country, ''),
+        -1,
+        4,
+        0,
+        COALESCE(@vatNumber, ''),
+        COALESCE(@iataCode, ''),
+        COALESCE(@contractCode, ''),
+        COALESCE(@remarks, ''),
         GETDATE(),
-        @createdBy
+        COALESCE(@createdBy, 'SYSTEM')
       );
-      SELECT SCOPE_IDENTITY() AS company_id;
+      SELECT @companyId AS company_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        companyId: {
+          type: 'number',
+          description: 'Company ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+        },
         companyName: {
           type: 'string',
           description: 'Company name',
@@ -1401,7 +1429,7 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'User creating the profile',
         },
       },
-      required: ['companyName'],
+      required: ['companyId', 'companyName'],
     },
   },
 
@@ -1411,10 +1439,11 @@ const protelSqlOperations: SqlOperation[] = [
   {
     name: 'post_charge',
     title: 'Post Charge to Folio',
-    description: 'Post a charge/service to a reservation folio',
+    description: 'Post a charge/service to a reservation folio. Note: tan is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
+        tan,
         buchnr,
         kundennr,
         datum,
@@ -1427,8 +1456,8 @@ const protelSqlOperations: SqlOperation[] = [
         bediener,
         zimmer
       )
-      OUTPUT INSERTED.tan AS posting_id
       VALUES (
+        @postingId,
         @reservationId,
         (SELECT kundennr FROM proteluser.buch WHERE buchnr = @reservationId),
         COALESCE(@postingDate, CAST(GETDATE() AS DATE)),
@@ -1436,15 +1465,20 @@ const protelSqlOperations: SqlOperation[] = [
         @description,
         @additionalText,
         @unitPrice,
-        @quantity,
+        COALESCE(@quantity, 1),
         @revenueCode,
         @postedBy,
         (SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId)
-      )
+      );
+      SELECT @postingId AS posting_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        postingId: {
+          type: 'number',
+          description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+        },
         reservationId: {
           type: 'number',
           description: 'Reservation ID to post charge to',
@@ -1455,7 +1489,7 @@ const protelSqlOperations: SqlOperation[] = [
         },
         additionalText: {
           type: 'string',
-          description: 'Additional description text',
+          description: 'Additional description text (max 40 chars)',
         },
         unitPrice: {
           type: 'number',
@@ -1484,16 +1518,17 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'User posting the charge',
         },
       },
-      required: ['reservationId', 'description', 'unitPrice', 'revenueCode'],
+      required: ['postingId', 'reservationId', 'description', 'unitPrice', 'revenueCode'],
     },
   },
   {
     name: 'post_payment',
     title: 'Post Payment to Folio',
-    description: 'Post a payment to a reservation folio (negative amount)',
+    description: 'Post a payment to a reservation folio (negative amount). Note: tan is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
+        tan,
         buchnr,
         kundennr,
         datum,
@@ -1505,8 +1540,8 @@ const protelSqlOperations: SqlOperation[] = [
         bediener,
         zimmer
       )
-      OUTPUT INSERTED.tan AS posting_id
       VALUES (
+        @postingId,
         @reservationId,
         (SELECT kundennr FROM proteluser.buch WHERE buchnr = @reservationId),
         COALESCE(@paymentDate, CAST(GETDATE() AS DATE)),
@@ -1517,11 +1552,16 @@ const protelSqlOperations: SqlOperation[] = [
         @paymentMethodCode,
         @postedBy,
         (SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId)
-      )
+      );
+      SELECT @postingId AS posting_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        postingId: {
+          type: 'number',
+          description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+        },
         reservationId: {
           type: 'number',
           description: 'Reservation ID to post payment to',
@@ -1552,16 +1592,17 @@ const protelSqlOperations: SqlOperation[] = [
           description: 'User posting the payment',
         },
       },
-      required: ['reservationId', 'amount', 'description', 'paymentMethodCode'],
+      required: ['postingId', 'reservationId', 'amount', 'description', 'paymentMethodCode'],
     },
   },
   {
     name: 'void_posting',
     title: 'Void/Reverse Posting',
-    description: 'Void a posting by creating a reversal entry',
+    description: 'Void a posting by creating a reversal entry. Note: reversalId (tan) is not auto-generated, must be provided.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.leist (
+        tan,
         buchnr,
         kundennr,
         datum,
@@ -1574,39 +1615,44 @@ const protelSqlOperations: SqlOperation[] = [
         bediener,
         zimmer
       )
-      OUTPUT INSERTED.tan AS reversal_posting_id
       SELECT
+        @reversalId,
         buchnr,
         kundennr,
         CAST(GETDATE() AS DATE),
         CONVERT(VARCHAR(5), GETDATE(), 108),
         CONCAT('VOID: ', text),
-        CONCAT('Reversal of TAN ', @postingId, '. Reason: ', @voidReason),
+        LEFT(CONCAT('Rev TAN ', @postingId, ': ', @voidReason), 40),
         -epreis,
         anzahl,
         ukto,
         @voidedBy,
         zimmer
       FROM proteluser.leist
-      WHERE tan = @postingId
+      WHERE tan = @postingId;
+      SELECT @reversalId AS reversal_posting_id;
     `,
     parametersSchema: {
       type: 'object',
       properties: {
+        reversalId: {
+          type: 'number',
+          description: 'Reversal posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+        },
         postingId: {
           type: 'number',
           description: 'Posting ID (tan) to void',
         },
         voidReason: {
           type: 'string',
-          description: 'Reason for voiding',
+          description: 'Reason for voiding (will be truncated to fit)',
         },
         voidedBy: {
           type: 'string',
           description: 'User voiding the posting',
         },
       },
-      required: ['postingId'],
+      required: ['reversalId', 'postingId'],
     },
   },
 ];
