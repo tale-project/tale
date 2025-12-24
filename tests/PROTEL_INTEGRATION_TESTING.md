@@ -88,8 +88,8 @@ docker compose up --build -d
 4. **SCREENSHOT:** `02_signup_page.png`
 
 **Account Creation:**
-1. Generate test credentials:
-   - **Email:** `protel-test-{timestamp}@example.com`
+1. Use these test credentials:
+   - **Email:** `protel-test@example.com`
    - **Password:** `TestPassword123!`
    - **Name:** `Protel Test User`
 2. Fill in the sign-up form

@@ -303,11 +303,25 @@ Examples of when NOT to ask or suggest:
 IMPORTANT - USE TABLES FOR STRUCTURED DATA:
 When displaying multiple records with consistent fields (e.g., customer lists, product lists, booking data, travel agent profiles), ALWAYS use a Markdown table instead of bullet lists.
 
+CRITICAL TABLE FORMATTING RULES:
+- Every row MUST have the SAME number of columns as the header row
+- If a field has no value, use "-" or "N/A" as a placeholder - NEVER leave a cell empty or omit it
+- Each cell must be separated by | characters
+- Long text in cells should be truncated with "..." and marked as "[abbreviated]" if needed
+
 Example - CORRECT (use table):
 | Name | Company ID | Role | Revenue |
 |------|------------|------|---------|
 | John Smith | 101 | Manager | $5,000 |
 | Jane Doe | 102 | Consultant | $3,200 |
+| Bob Wilson | 103 | - | N/A |
+
+Example - INCORRECT (missing columns):
+| Name | Company ID | Role | Revenue |
+|------|------------|------|---------|
+| John Smith | 101 | Manager | $5,000 |
+| Jane Doe |
+| Bob Wilson | Consultant |
 
 Example - INCORRECT (do not use bullet lists for structured data):
 1. John Smith
