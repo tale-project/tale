@@ -3,13 +3,13 @@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface DeleteVendorDialogProps {
   isOpen: boolean;
@@ -26,18 +26,19 @@ export default function DeleteVendorDialog({
   vendor,
   isDeleting = false,
 }: DeleteVendorDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tVendors } = useT('vendors');
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader className="relative space-y-2">
           <DialogTitle className="font-semibold text-foreground leading-none py-2">
-            Delete vendor
+            {tVendors('deleteVendor')}
           </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground leading-5">
-          Are you sure you want to delete{' '}
-          <span className="font-medium">{vendor.name || 'this vendor'}</span>?
-          All related data will be permanently removed.
+          {tVendors('deleteConfirmation', { name: vendor.name || tVendors('thisVendor') })}
         </p>
         <DialogFooter className="flex justify-end">
           <Button
@@ -46,7 +47,7 @@ export default function DeleteVendorDialog({
             disabled={isDeleting}
             className="px-4 py-2.5"
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="destructive"
@@ -54,7 +55,7 @@ export default function DeleteVendorDialog({
             disabled={isDeleting}
             className="px-4 py-2.5 bg-red-600 hover:bg-red-700"
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? tCommon('actions.deleting') : tCommon('actions.delete')}
           </Button>
         </DialogFooter>
       </DialogContent>

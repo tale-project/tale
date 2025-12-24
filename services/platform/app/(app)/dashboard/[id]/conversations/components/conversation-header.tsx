@@ -44,16 +44,54 @@ export default function ConversationHeader({
   const isLoading =
     isResolvingLoading || isReopeningLoading || isMarkingSpamLoading;
 
-  // Convex mutations
+  // Convex mutations with optimistic updates for immediate UI feedback
   const resolveConversationMutation = useMutation(
     api.conversations.closeConversation,
-  );
+  ).withOptimisticUpdate((localStore, args) => {
+    const current = localStore.getQuery(
+      api.conversations.getConversationWithMessages,
+      { conversationId: args.conversationId },
+    );
+    if (current !== undefined && current !== null) {
+      localStore.setQuery(
+        api.conversations.getConversationWithMessages,
+        { conversationId: args.conversationId },
+        { ...current, status: 'closed' },
+      );
+    }
+  });
+
   const reopenConversationMutation = useMutation(
     api.conversations.reopenConversation,
-  );
+  ).withOptimisticUpdate((localStore, args) => {
+    const current = localStore.getQuery(
+      api.conversations.getConversationWithMessages,
+      { conversationId: args.conversationId },
+    );
+    if (current !== undefined && current !== null) {
+      localStore.setQuery(
+        api.conversations.getConversationWithMessages,
+        { conversationId: args.conversationId },
+        { ...current, status: 'open' },
+      );
+    }
+  });
+
   const markAsSpamMutation = useMutation(
     api.conversations.markConversationAsSpam,
-  );
+  ).withOptimisticUpdate((localStore, args) => {
+    const current = localStore.getQuery(
+      api.conversations.getConversationWithMessages,
+      { conversationId: args.conversationId },
+    );
+    if (current !== undefined && current !== null) {
+      localStore.setQuery(
+        api.conversations.getConversationWithMessages,
+        { conversationId: args.conversationId },
+        { ...current, status: 'spam' },
+      );
+    }
+  });
 
   // Fetch full customer document when dialog is open
   const customerDoc = useQuery(

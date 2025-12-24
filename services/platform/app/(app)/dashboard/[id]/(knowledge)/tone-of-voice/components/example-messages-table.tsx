@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
 import Pagination from '@/components/ui/pagination';
+import { useT } from '@/lib/i18n';
 
 interface ExampleMessage {
   id: string;
@@ -36,6 +37,11 @@ interface ExampleMessagesTableProps {
   onDeleteExample: (exampleId: string) => Promise<void>;
 }
 
+const truncateMessage = (message: string, maxLength: number = 100) => {
+  if (message.length <= maxLength) return message;
+  return `"${message.substring(0, maxLength)}..."`;
+};
+
 export default function ExampleMessagesTable({
   examples,
   onAddExample,
@@ -43,19 +49,15 @@ export default function ExampleMessagesTable({
   onEditExample,
   onDeleteExample,
 }: ExampleMessagesTableProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tTone } = useT('toneOfVoice');
+  const { t: tTables } = useT('tables');
+  const { t: tEmpty } = useT('emptyStates');
   const searchParams = useSearchParams();
   const itemsPerPage = 5;
 
   // Get current page from URL query params, default to 1
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
-
-  const truncateMessage = useCallback(
-    (message: string, maxLength: number = 100) => {
-      if (message.length <= maxLength) return message;
-      return `"${message.substring(0, maxLength)}..."`;
-    },
-    [],
-  );
 
   // Calculate pagination
   const totalPages = Math.ceil(examples.length / itemsPerPage);
@@ -69,7 +71,7 @@ export default function ExampleMessagesTable({
     () => [
       {
         accessorKey: 'content',
-        header: 'Message',
+        header: tTables('headers.message'),
         cell: ({ row }) => (
           <span className="text-sm font-medium text-foreground">
             {truncateMessage(row.original.content)}
@@ -78,7 +80,7 @@ export default function ExampleMessagesTable({
       },
       {
         accessorKey: 'updatedAt',
-        header: 'Updated',
+        header: tTables('headers.updated'),
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground tracking-[-0.072px]">
@@ -95,24 +97,24 @@ export default function ExampleMessagesTable({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8">
                   <MoreVertical className="size-4 text-muted-foreground" />
-                  <span className="sr-only">Open menu</span>
+                  <span className="sr-only">{tTables('headers.actions')}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onViewExample(row.original)}>
                   <Eye className="size-4 mr-2" />
-                  View
+                  {tCommon('actions.view')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onEditExample(row.original)}>
                   <Pencil className="size-4 mr-2" />
-                  Edit
+                  {tCommon('actions.edit')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => onDeleteExample(row.original.id)}
                   className="text-destructive focus:text-destructive"
                 >
                   <Trash2 className="size-4 mr-2" />
-                  Delete
+                  {tCommon('actions.delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -120,7 +122,7 @@ export default function ExampleMessagesTable({
         ),
       },
     ],
-    [truncateMessage, onViewExample, onEditExample, onDeleteExample],
+    [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 
   // Header component
@@ -128,16 +130,16 @@ export default function ExampleMessagesTable({
     <div className="flex items-center justify-between">
       <div className="space-y-1">
         <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
-          Example messages
+          {tTone('exampleMessages.title')}
         </h3>
         <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-          Samples to guide the AI to match your tone and style.
+          {tTone('exampleMessages.description')}
         </p>
       </div>
       {examples.length > 0 && (
         <Button onClick={onAddExample}>
           <Plus className="size-4 mr-2" />
-          Add example
+          {tTone('exampleMessages.addButton')}
         </Button>
       )}
     </div>
@@ -150,12 +152,12 @@ export default function ExampleMessagesTable({
         {header}
         <DataTableEmptyState
           icon={Sparkles}
-          title="No examples yet"
-          description="Add example messages to train the AI on your tone"
+          title={tEmpty('examples.title')}
+          description={tEmpty('examples.description')}
           action={
             <Button onClick={onAddExample}>
               <Plus className="size-4 mr-2" />
-              Add example
+              {tTone('exampleMessages.addButton')}
             </Button>
           }
         />

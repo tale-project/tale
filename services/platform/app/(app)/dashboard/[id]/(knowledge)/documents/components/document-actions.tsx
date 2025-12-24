@@ -10,6 +10,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import DeleteConfirmationModal from './delete-confirmation-modal';
 import DeleteSyncFolderConfirmationModal from './delete-folder-confirmation-modal';
 import { Trash2 } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 type StorageSourceMode = 'auto' | 'manual';
 
@@ -34,6 +35,7 @@ export default function DocumentActions({
   isDirectlySelected,
   sourceMode,
 }: DocumentActionsProps) {
+  const { t: tDocuments } = useT('documents');
   const [isSyncPending, _startSyncTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -100,7 +102,9 @@ export default function DocumentActions({
           onClick={handleDeleteClick}
           disabled={isSyncPending || isDeletePending}
           title={
-            itemType === 'folder' ? 'Delete sync folder' : 'Delete document'
+            itemType === 'folder'
+              ? tDocuments('actions.deleteSyncFolder')
+              : tDocuments('actions.deleteDocument')
           }
         >
           {isDeletePending ? (

@@ -25,13 +25,18 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Info } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
-const formSchema = z.object({
-  domain: z.string().min(1, 'Domain is required').url('Must be a valid URL'),
-  scanInterval: z.string().min(1, 'Scan interval is required'),
+const getFormSchema = (t: (key: string) => string) => z.object({
+  domain: z.string().min(1, t('validation.domainRequired')).url(t('validation.validUrl')),
+  scanInterval: z.string().min(1, t('validation.scanIntervalRequired')),
 });
 
-type FormData = z.infer<typeof formSchema>;
+// Helper to cast translation function for zod schema
+const asSchemaTranslator = (t: ReturnType<typeof useT>['t']): ((key: string) => string) =>
+  t as unknown as (key: string) => string;
+
+type FormData = z.infer<ReturnType<typeof getFormSchema>>;
 
 interface AddWebsiteDialogProps {
   isOpen: boolean;
@@ -39,23 +44,25 @@ interface AddWebsiteDialogProps {
   organizationId: string;
 }
 
-const SCAN_INTERVALS = [
-  { value: '60m', label: 'Every 1 hour' },
-  { value: '6h', label: 'Every 6 hours' },
-  { value: '12h', label: 'Every 12 hours' },
-  { value: '1d', label: 'Every 1 day' },
-  { value: '5d', label: 'Every 5 days' },
-  { value: '7d', label: 'Every 7 days' },
-  { value: '30d', label: 'Every 30 days' },
-];
-
 export default function AddWebsiteDialog({
   isOpen,
   onClose,
   organizationId,
 }: AddWebsiteDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
   const createWebsite = useMutation(api.websites.createWebsite);
+
+  const SCAN_INTERVALS = [
+    { value: '60m', label: tWebsites('scanIntervals.1hour') },
+    { value: '6h', label: tWebsites('scanIntervals.6hours') },
+    { value: '12h', label: tWebsites('scanIntervals.12hours') },
+    { value: '1d', label: tWebsites('scanIntervals.1day') },
+    { value: '5d', label: tWebsites('scanIntervals.5days') },
+    { value: '7d', label: tWebsites('scanIntervals.7days') },
+    { value: '30d', label: tWebsites('scanIntervals.30days') },
+  ];
 
   const {
     register,
@@ -65,7 +72,7 @@ export default function AddWebsiteDialog({
     setValue,
     watch,
   } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(getFormSchema(asSchemaTranslator(tWebsites))),
     defaultValues: {
       domain: '',
       scanInterval: '6h',
@@ -85,7 +92,7 @@ export default function AddWebsiteDialog({
       });
 
       toast({
-        title: 'Website added successfully',
+        title: tWebsites('toast.addSuccess'),
         variant: 'success',
       });
 
@@ -93,7 +100,7 @@ export default function AddWebsiteDialog({
       onClose();
     } catch (error) {
       toast({
-        title: error instanceof Error ? error.message : 'Failed to add website',
+        title: error instanceof Error ? error.message : tWebsites('toast.addError'),
         variant: 'destructive',
       });
     } finally {
@@ -110,16 +117,16 @@ export default function AddWebsiteDialog({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="py-2">Add website</DialogTitle>
+          <DialogTitle className="py-2">{tWebsites('addWebsite')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="domain">Domain</Label>
+            <Label htmlFor="domain">{tWebsites('domain')}</Label>
             <Input
               id="domain"
               type="url"
-              placeholder="example.com"
+              placeholder={tWebsites('urlPlaceholder')}
               {...register('domain')}
               disabled={isLoading}
             />
@@ -132,7 +139,7 @@ export default function AddWebsiteDialog({
 
           <div className="space-y-2">
             <Label htmlFor="scanInterval">
-              Scan interval
+              {tWebsites('scanInterval')}
               <Info className="inline-block ml-1 w-3.5 h-3.5 text-muted-foreground" />
             </Label>
             <Select
@@ -141,7 +148,7 @@ export default function AddWebsiteDialog({
               disabled={isLoading}
             >
               <SelectTrigger id="scanInterval">
-                <SelectValue placeholder="Select scan interval" />
+                <SelectValue placeholder={tWebsites('scanIntervalPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {SCAN_INTERVALS.map((interval) => (
@@ -165,10 +172,10 @@ export default function AddWebsiteDialog({
               onClick={handleClose}
               disabled={isLoading}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Adding...' : 'Save'}
+              {isLoading ? tWebsites('adding') : tCommon('actions.save')}
             </Button>
           </DialogFooter>
         </form>

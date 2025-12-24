@@ -11,7 +11,7 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
-import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n';
 
 const MessageEditor = dynamic(() => import('./message-editor'), {
   ssr: false,
@@ -22,10 +22,8 @@ const MessageEditor = dynamic(() => import('./message-editor'), {
   ),
 });
 
-import {
-  groupMessagesByDate,
-  formatDateHeader,
-} from '@/lib/utils/conversation/date-utils';
+import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
+import { useDateFormat } from '@/hooks/use-date-format';
 
 interface AttachedFile {
   id: string;
@@ -50,6 +48,10 @@ export default function ConversationPanel({
   selectedConversationId,
   onSelectedConversationChange,
 }: ConversationPanelProps) {
+  // Translations
+  const { t: tConversations } = useT('conversations');
+  const { formatDateHeader } = useDateFormat();
+
   // Use Convex query hook
   const conversation = useConvexQuery(
     api.conversations.getConversationWithMessages,
@@ -134,19 +136,23 @@ export default function ConversationPanel({
 
     if (attachments && attachments.length > 0) {
       try {
+        // Validate all attachments have files first
+        const validAttachments = attachments.filter((a) => a.file);
+        if (validAttachments.length !== attachments.length) {
+          throw new Error('Invalid file attachment');
+        }
+
+        // Generate all upload URLs in parallel first (avoids waterfall)
+        const uploadUrls = await Promise.all(
+          validAttachments.map(() => generateUploadUrl()),
+        );
+
+        // Then upload all files in parallel
         uploadedAttachments = await Promise.all(
-          attachments.map(async (attachment) => {
-            if (!attachment.file) {
-              throw new Error('Invalid file attachment');
-            }
-
-            // Generate upload URL from Convex
-            const uploadUrl = await generateUploadUrl();
-
-            // Upload file to Convex storage
-            const response = await fetch(uploadUrl, {
+          validAttachments.map(async (attachment, index) => {
+            const response = await fetch(uploadUrls[index], {
               method: 'POST',
-              headers: { 'Content-Type': attachment.file.type },
+              headers: { 'Content-Type': attachment.file!.type },
               body: attachment.file,
             });
 
@@ -154,10 +160,10 @@ export default function ConversationPanel({
 
             return {
               storageId,
-              name: attachment.file.name,
-              size: attachment.file.size,
+              name: attachment.file!.name,
+              size: attachment.file!.size,
               type: attachment.type,
-              contentType: attachment.file.type,
+              contentType: attachment.file!.type,
             };
           }),
         );
@@ -334,7 +340,7 @@ export default function ConversationPanel({
             <MessageEditor
               key={conversation.id}
               onSave={handleSaveMessage}
-              placeholder="Type a message"
+              placeholder={tConversations('messagePlaceholder')}
               messageId={conversation.id}
               businessId={conversation.business_id}
               conversationId={conversation.id}

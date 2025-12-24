@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n';
 
 export interface DataTablePaginationProps {
   /** Current page number (1-based) */
@@ -58,6 +59,8 @@ export function DataTablePagination({
   pageSizeOptions = [10, 20, 50, 100],
   onPageSizeChange,
 }: DataTablePaginationProps) {
+  const { t } = useT('common');
+
   // Calculate range
   const startIdx = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIdx = Math.min(currentPage * pageSize, total);
@@ -96,7 +99,7 @@ export function DataTablePagination({
     <div className={cn('flex items-center gap-2', className)}>
       {showPageSizeSelector && onPageSizeChange && (
         <div className="flex items-center gap-2 mr-4">
-          <span className="text-xs text-muted-foreground">Rows per page</span>
+          <span className="text-xs text-muted-foreground">{t('pagination.rowsPerPage')}</span>
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value, 10))}

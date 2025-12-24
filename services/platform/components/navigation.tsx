@@ -24,10 +24,7 @@ import {
   Network,
 } from 'lucide-react';
 import { UserButton } from '@/components/auth/user-button';
-
-interface GetMainNavigationItemsProps {
-  businessId: string;
-}
+import { useT } from '@/lib/i18n';
 
 interface NavItem {
   label: string;
@@ -38,63 +35,65 @@ interface NavItem {
   subItems?: NavItem[];
 }
 
-const getMainNavigationItems = ({
-  businessId,
-}: GetMainNavigationItemsProps): NavItem[] => [
+function useNavigationItems(businessId: string): NavItem[] {
+  const { t: tNav } = useT('navigation');
+  const { t: tKnowledge } = useT('knowledge');
+
+  return [
     {
-      label: 'Chat with AI',
+      label: tNav('chatWithAI'),
       href: `/dashboard/${businessId}/chat`,
       icon: MessageCircle,
     },
-
     {
-      label: 'Conversations',
+      label: tNav('conversations'),
       href: `/dashboard/${businessId}/conversations`,
       icon: Inbox,
     },
     {
-      label: 'Knowledge',
+      label: tNav('knowledge'),
       href: `/dashboard/${businessId}/documents`,
       icon: BrainIcon,
       subItems: [
         {
-          label: 'Tone of voice',
+          label: tKnowledge('toneOfVoice'),
           href: `/dashboard/${businessId}/tone-of-voice`,
         },
         {
-          label: 'Documents',
+          label: tKnowledge('documents'),
           href: `/dashboard/${businessId}/documents`,
         },
         {
-          label: 'Websites',
+          label: tKnowledge('websites'),
           href: `/dashboard/${businessId}/websites`,
         },
         {
-          label: 'Products',
+          label: tKnowledge('products'),
           href: `/dashboard/${businessId}/products`,
         },
         {
-          label: 'Customers',
+          label: tKnowledge('customers'),
           href: `/dashboard/${businessId}/customers`,
         },
         {
-          label: 'Vendors',
+          label: tKnowledge('vendors'),
           href: `/dashboard/${businessId}/vendors`,
         },
       ],
     },
     {
-      label: 'Approvals',
+      label: tNav('approvals'),
       href: `/dashboard/${businessId}/approvals`,
       icon: CircleCheck,
     },
     {
-      label: 'Automations',
+      label: tNav('automations'),
       href: `/dashboard/${businessId}/automations`,
       icon: Network,
       roles: ['admin', 'developer'],
     },
   ];
+}
 
 const hasRequiredRole = (
   userRole?: string | null,
@@ -184,9 +183,7 @@ export default function Navigation({ role }: { role?: string | null }) {
   const params = useParams();
   const businessId = params.id as string;
 
-  const navigationItems = getMainNavigationItems({
-    businessId,
-  });
+  const navigationItems = useNavigationItems(businessId);
 
   return (
     <NavigationMenu className="flex flex-col bg-background border-border min-h-full">

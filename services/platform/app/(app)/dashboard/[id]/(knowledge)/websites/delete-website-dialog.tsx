@@ -14,6 +14,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface DeleteWebsiteDialogProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ export default function DeleteWebsiteDialog({
   onClose,
   website,
 }: DeleteWebsiteDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
   const deleteWebsite = useMutation(api.websites.deleteWebsite);
 
@@ -38,7 +41,7 @@ export default function DeleteWebsiteDialog({
     } catch (error) {
       toast({
         title:
-          error instanceof Error ? error.message : 'Failed to delete website',
+          error instanceof Error ? error.message : tWebsites('toast.deleteError'),
         variant: 'destructive',
       });
     } finally {
@@ -50,10 +53,9 @@ export default function DeleteWebsiteDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="py-2">Delete website</DialogTitle>
+          <DialogTitle className="py-2">{tWebsites('delete.title')}</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete this website? This action cannot be
-            undone.
+            {tWebsites('delete.confirmation')}
           </DialogDescription>
         </DialogHeader>
 
@@ -75,7 +77,7 @@ export default function DeleteWebsiteDialog({
             onClick={onClose}
             disabled={isLoading}
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             type="button"
@@ -83,7 +85,7 @@ export default function DeleteWebsiteDialog({
             onClick={handleDelete}
             disabled={isLoading}
           >
-            {isLoading ? 'Deleting...' : 'Delete'}
+            {isLoading ? tCommon('actions.deleting') : tCommon('actions.delete')}
           </Button>
         </DialogFooter>
       </DialogContent>

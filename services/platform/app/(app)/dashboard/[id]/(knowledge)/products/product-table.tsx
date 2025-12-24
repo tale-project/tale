@@ -19,6 +19,7 @@ import ProductImage from './product-image';
 import ProductSearch from './product-search';
 import ImportProductsMenu from './import-products-menu';
 import ProductActions from './product-actions';
+import { useT } from '@/lib/i18n';
 
 // Product type from the query
 type Product = {
@@ -46,6 +47,9 @@ export default function ProductTable({
   pageSize = 10,
   preloadedProducts,
 }: ProductTableProps) {
+  const { t: tProducts } = useT('products');
+  const { t: tCommon } = useT('common');
+
   // Use preloaded data with real-time reactivity
   const { products, total, hasNextPage } = usePreloadedQuery(preloadedProducts);
 
@@ -130,7 +134,7 @@ export default function ProductTable({
                       className="flex items-center"
                     >
                       <ExternalLink className="size-4 mr-2" />
-                      View Source
+                      {tCommon('actions.viewSource')}
                     </a>
                   </DropdownMenuItem>
                 )}
@@ -140,7 +144,7 @@ export default function ProductTable({
         ),
       },
     ],
-    [],
+    [tCommon],
   );
 
   // Show empty state when no products and no search
@@ -148,8 +152,8 @@ export default function ProductTable({
     return (
       <DataTableEmptyState
         icon={Package}
-        title="No products yet"
-        description="Import your products to help your AI understand context"
+        title={tProducts('emptyState.title')}
+        description={tProducts('emptyState.description')}
         action={<ImportProductsMenu organizationId={organizationId} />}
       />
     );
@@ -171,8 +175,8 @@ export default function ProductTable({
       emptyState={
         searchQuery
           ? {
-              title: 'No matching products found',
-              description: 'Try adjusting your search terms',
+              title: tProducts('searchEmptyState.title'),
+              description: tProducts('searchEmptyState.description'),
               isFiltered: true,
             }
           : undefined

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, usePreloadedQuery } from 'convex/react';
 import { Search, X, Copy, Check } from 'lucide-react';
@@ -16,11 +16,24 @@ import ExecutionsFilterDropdown, {
   ExecutionsFilterState,
 } from './executions-filter-dropdown';
 import { JsonViewer } from '@/components/ui/json-viewer';
+import { useT, useLocale } from '@/lib/i18n';
+import { formatDuration } from '@/lib/utils/format';
 
 interface ExecutionsTableProps {
   preloadedExecutions: Preloaded<typeof api.wf_executions.listExecutions>;
   amId: Id<'wfDefinitions'>;
 }
+
+// Status badge variants - defined outside component to avoid recreation
+const STATUS_BADGE_VARIANTS: Record<
+  string,
+  'green' | 'destructive' | 'blue' | 'outline'
+> = {
+  completed: 'green',
+  failed: 'destructive',
+  running: 'blue',
+  pending: 'outline',
+};
 
 export interface Execution {
   _id: Id<'wfExecutions'>;
@@ -38,25 +51,29 @@ export interface Execution {
 }
 
 // Component to display all execution details in a single viewer
-function ExecutionDetails({ execution }: { execution: Execution }) {
+const ExecutionDetails = memo(function ExecutionDetails({
+  execution,
+}: {
+  execution: Execution;
+}) {
   const journal = useQuery(
     api.wf_executions.getExecutionStepJournal,
     execution._id ? { executionId: execution._id } : 'skip',
   );
 
-  const metadata = execution.metadata
-    ? (() => {
-        try {
-          return JSON.parse(execution.metadata);
-        } catch {
-          return {};
-        }
-      })()
-    : undefined;
+  // Memoize parsed metadata and variables to avoid JSON parsing on every render
+  const { metadata, parsedVariables, variables } = useMemo(() => {
+    const meta = execution.metadata
+      ? (() => {
+          try {
+            return JSON.parse(execution.metadata);
+          } catch {
+            return {};
+          }
+        })()
+      : undefined;
 
-  // Parse variables JSON and transform to exclude steps (since they are shown separately)
-  const parsedVariables: Record<string, unknown> | undefined =
-    execution.variables
+    const parsed: Record<string, unknown> | undefined = execution.variables
       ? (() => {
           try {
             return JSON.parse(execution.variables) as Record<string, unknown>;
@@ -66,62 +83,68 @@ function ExecutionDetails({ execution }: { execution: Execution }) {
         })()
       : undefined;
 
-  const variables = parsedVariables
-    ? (() => {
-        const { steps, ...rest } = parsedVariables as Record<string, unknown>;
-        return Object.keys(rest).length > 0 ? rest : undefined;
-      })()
-    : undefined;
+    const vars = parsed
+      ? (() => {
+          const { steps, ...rest } = parsed as Record<string, unknown>;
+          return Object.keys(rest).length > 0 ? rest : undefined;
+        })()
+      : undefined;
+
+    return { metadata: meta, parsedVariables: parsed, variables: vars };
+  }, [execution.metadata, execution.variables]);
 
   // Transform journal array to object keyed by stepSlug and flatten structure
-  const steps = journal
-    ? (() => {
-        const logs: Record<string, any> = {};
-        journal.forEach((log: any) => {
-          const stepSlug = log.step?.args?.stepSlug;
-          let key = log._id;
+  const steps = useMemo(() => {
+    if (!journal) return undefined;
 
-          if (stepSlug) {
-            key = stepSlug;
-          } else {
-            // Try to derive a readable key from the step name for system steps
-            // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
-            if (log.step?.name && typeof log.step.name === 'string') {
-              const parts = log.step.name.split(':');
-              if (parts.length > 1) {
-                key = parts[parts.length - 1];
-              }
-            }
+    const logs: Record<string, any> = {};
+    journal.forEach((log: any) => {
+      const stepSlug = log.step?.args?.stepSlug;
+      let key = log._id;
+
+      if (stepSlug) {
+        key = stepSlug;
+      } else {
+        // Try to derive a readable key from the step name for system steps
+        // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
+        if (log.step?.name && typeof log.step.name === 'string') {
+          const parts = log.step.name.split(':');
+          if (parts.length > 1) {
+            key = parts[parts.length - 1];
           }
+        }
+      }
 
-          // Flatten: merge log and log.step, remove log.step
-          const { step, ...restLog } = log;
-          const entry = { ...restLog, ...step };
+      // Flatten: merge log and log.step, remove log.step
+      const { step, ...restLog } = log;
+      const entry = { ...restLog, ...step };
 
-          // Enrich with output from variables if available
-          if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
-            const stepVar = (
-              (parsedVariables as any).steps as Record<string, any>
-            )[stepSlug];
-            if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
-              entry.output = stepVar.output;
-            }
-          }
+      // Enrich with output from variables if available
+      if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
+        const stepVar = ((parsedVariables as any).steps as Record<string, any>)[
+          stepSlug
+        ];
+        if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
+          entry.output = stepVar.output;
+        }
+      }
 
-          logs[key] = entry;
-        });
-        return logs;
-      })()
-    : undefined;
+      logs[key] = entry;
+    });
+    return logs;
+  }, [journal, parsedVariables]);
 
-  const data = {
-    ...(execution.error && { error: execution.error }),
-    ...(execution.input && { input: execution.input }),
-    ...(execution.output && { output: execution.output }),
-    ...(variables && { variables }),
-    ...(metadata && { metadata }),
-    ...(steps && { steps }),
-  };
+  const data = useMemo(
+    () => ({
+      ...(execution.error && { error: execution.error }),
+      ...(execution.input && { input: execution.input }),
+      ...(execution.output && { output: execution.output }),
+      ...(variables && { variables }),
+      ...(metadata && { metadata }),
+      ...(steps && { steps }),
+    }),
+    [execution.error, execution.input, execution.output, variables, metadata, steps],
+  );
 
   return (
     <JsonViewer
@@ -131,7 +154,7 @@ function ExecutionDetails({ execution }: { execution: Execution }) {
       data={data}
     />
   );
-}
+});
 
 export function ExecutionsTable({
   preloadedExecutions,
@@ -140,6 +163,10 @@ export function ExecutionsTable({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const locale = useLocale();
+  const { t: tCommon } = useT('common');
+  const { t: tTables } = useT('tables');
 
   // Read from searchParams hook
   const searchQuery = searchParams.get('search') || '';
@@ -186,7 +213,7 @@ export function ExecutionsTable({
     return Array.from(unique).sort();
   }, [executions]);
 
-  // Keep filters in sync with URL (for browser back/forward)
+  // Keep all URL params in sync with local state (for browser back/forward)
   useEffect(() => {
     setLocalFilters({
       status: statusFilter,
@@ -194,14 +221,10 @@ export function ExecutionsTable({
       dateFrom,
       dateTo,
     });
-  }, [statusFilter, triggeredByFilter, dateFrom, dateTo]);
-
-  // Keep searchInput in sync with URL
-  useEffect(() => {
     setSearchInput(searchQuery);
-  }, [searchQuery]);
+  }, [statusFilter, triggeredByFilter, dateFrom, dateTo, searchQuery]);
 
-  // Debounce search input
+  // Debounce search input (separate effect due to cleanup requirement)
   useEffect(() => {
     const timer = setTimeout(() => {
       updateSearchParam('search', searchInput || null);
@@ -276,27 +299,18 @@ export function ExecutionsTable({
     setTimeout(() => setCopiedId(null), 1500);
   }, []);
 
-  const getStatusBadge = useCallback((status: string) => {
-    const variants: Record<
-      string,
-      'green' | 'destructive' | 'blue' | 'outline'
-    > = {
-      completed: 'green',
-      failed: 'destructive',
-      running: 'blue',
-      pending: 'outline',
-    };
-
-    return (
+  const getStatusBadge = useCallback(
+    (status: string) => (
       <Badge
         dot
-        variant={variants[status] || 'outline'}
+        variant={STATUS_BADGE_VARIANTS[status] || 'outline'}
         className="capitalize text-xs"
       >
         {status}
       </Badge>
-    );
-  }, []);
+    ),
+    [],
+  );
 
   const formatTimestampWithMillis = useCallback((timestamp: number) => {
     const date = new Date(timestamp);
@@ -310,16 +324,19 @@ export function ExecutionsTable({
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${millis}`;
   }, []);
 
-  const calculateDuration = useCallback((execution: Execution) => {
-    if (execution.status === 'running') {
-      return 'Running...';
-    }
-    if (execution.completedAt && execution.startedAt) {
-      const duration = execution.completedAt - execution.startedAt;
-      return `${duration.toLocaleString()}ms`;
-    }
-    return '-';
-  }, []);
+  const calculateDuration = useCallback(
+    (execution: Execution) => {
+      if (execution.status === 'running') {
+        return tCommon('actions.loading');
+      }
+      if (execution.completedAt && execution.startedAt) {
+        const duration = execution.completedAt - execution.startedAt;
+        return formatDuration(duration, locale);
+      }
+      return tTables('cells.empty');
+    },
+    [tCommon, tTables, locale],
+  );
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Execution>[]>(
@@ -356,7 +373,7 @@ export function ExecutionsTable({
       },
       {
         accessorKey: 'status',
-        header: 'Status',
+        header: tTables('headers.status'),
         size: 128,
         cell: ({ row }) => getStatusBadge(row.original.status),
       },
@@ -386,7 +403,7 @@ export function ExecutionsTable({
         size: 128,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
-            {row.original.triggeredBy || '-'}
+            {row.original.triggeredBy || tTables('cells.empty')}
           </span>
         ),
       },
@@ -397,6 +414,7 @@ export function ExecutionsTable({
       getStatusBadge,
       formatTimestampWithMillis,
       calculateDuration,
+      tTables,
     ],
   );
 
@@ -419,7 +437,7 @@ export function ExecutionsTable({
             <div className="relative w-[18.75rem]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
               <Input
-                placeholder="Search executions..."
+                placeholder={tCommon('search.placeholder')}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10"
@@ -437,15 +455,15 @@ export function ExecutionsTable({
             {(searchInput || activeFiltersCount > 0) && (
               <Button variant="ghost" onClick={clearFilters} className="gap-2">
                 <X className="size-4" />
-                Clear all
+                {tCommon('actions.clearAll')}
               </Button>
             )}
           </div>
         </div>
       }
       emptyState={{
-        title: 'No executions found',
-        description: 'Try adjusting your search or filters',
+        title: tCommon('search.noResults'),
+        description: tCommon('search.tryAdjusting'),
         isFiltered: true,
       }}
     />

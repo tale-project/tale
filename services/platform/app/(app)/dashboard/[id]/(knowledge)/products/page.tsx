@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/data-table';
 import { Package } from 'lucide-react';
 import ImportProductsMenu from './import-products-menu';
+import { getT } from '@/lib/i18n/server';
 
 interface ProductsPageProps {
   params: Promise<{ id: string }>;
@@ -17,14 +18,15 @@ interface ProductsPageProps {
 }
 
 /** Skeleton for the products table with header and rows - matches product-table.tsx column sizes */
-function ProductsSkeleton() {
+async function ProductsSkeleton() {
+  const { t } = await getT('tables');
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Product' }, // No size = expands to fill remaining space
-        { header: 'Stock', size: 80 },
-        { header: 'Updated', size: 140 },
+        { header: t('headers.product') }, // No size = expands to fill remaining space
+        { header: t('headers.stock'), size: 80 },
+        { header: t('headers.updated'), size: 140 },
         { isAction: true, size: 80 },
       ]}
       showHeader
@@ -34,12 +36,13 @@ function ProductsSkeleton() {
 }
 
 /** Empty state shown when org has no products - avoids unnecessary skeleton */
-function ProductsEmptyState({ organizationId }: { organizationId: string }) {
+async function ProductsEmptyState({ organizationId }: { organizationId: string }) {
+  const { t } = await getT('emptyStates');
   return (
     <DataTableEmptyState
       icon={Package}
-      title="No products yet"
-      description="Import your products to help your AI understand context"
+      title={t('products.title')}
+      description={t('products.description')}
       action={<ImportProductsMenu organizationId={organizationId} />}
     />
   );
@@ -113,8 +116,10 @@ export default async function ProductsPage({
     }
   }
 
+  const skeletonFallback = await Promise.resolve(<ProductsSkeleton />);
+
   return (
-    <Suspense fallback={<ProductsSkeleton />}>
+    <Suspense fallback={skeletonFallback}>
       <ProductsContent params={params} searchParams={searchParams} />
     </Suspense>
   );

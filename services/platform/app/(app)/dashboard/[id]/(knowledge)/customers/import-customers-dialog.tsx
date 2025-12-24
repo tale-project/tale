@@ -17,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 export interface ParsedCustomer {
@@ -78,6 +79,8 @@ export default function ImportCustomersDialog({
   onSuccess,
   mode = 'manual',
 }: ImportCustomersDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tCustomers } = useT('customers');
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -206,9 +209,8 @@ export default function ImportCustomersDialog({
       // Handle different data sources
       if (values.dataSource === 'circuly') {
         toast({
-          title: 'Sync feature',
-          description:
-            'Circuly sync is not yet implemented. Please use manual import or file upload.',
+          title: tCustomers('import.syncFeature'),
+          description: tCustomers('import.syncNotImplemented'),
           variant: 'destructive',
         });
         return;
@@ -218,7 +220,7 @@ export default function ImportCustomersDialog({
         customers = await parseFileData(values.file);
       } else {
         toast({
-          title: 'Please provide customer data',
+          title: tCustomers('import.provideData'),
           variant: 'destructive',
         });
         return;
@@ -226,7 +228,7 @@ export default function ImportCustomersDialog({
 
       if (customers.length === 0) {
         toast({
-          title: 'No valid customer data found',
+          title: tCustomers('import.noValidData'),
           variant: 'destructive',
         });
         return;
@@ -241,8 +243,11 @@ export default function ImportCustomersDialog({
       // Show results
       if (result.success > 0) {
         toast({
-          title: 'Import successful',
-          description: `Successfully imported ${result.success} customers${result.failed > 0 ? `, ${result.failed} failed` : ''}`,
+          title: tCustomers('import.success'),
+          description: tCustomers('import.successDescription', {
+            success: result.success,
+            failed: result.failed > 0 ? `, ${result.failed} ${tCustomers('import.failed')}` : ''
+          }),
         });
 
         if (result.errors.length > 0) {
@@ -253,21 +258,21 @@ export default function ImportCustomersDialog({
         handleClose();
       } else {
         toast({
-          title: 'Import failed',
-          description: 'No customers were imported',
+          title: tCustomers('import.failed'),
+          description: tCustomers('import.noneImported'),
           variant: 'destructive',
         });
       }
     } catch (err) {
       console.error('Error importing customers:', err);
       toast({
-        title: 'Failed to import customers',
+        title: tCustomers('import.error'),
         variant: 'destructive',
       });
     }
   }
 
-  const dialogTitle = mode === 'manual' ? 'Add customers' : 'Upload customers';
+  const dialogTitle = mode === 'manual' ? tCustomers('import.addCustomers') : tCustomers('import.uploadCustomers');
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -281,11 +286,11 @@ export default function ImportCustomersDialog({
             <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
               <DialogClose asChild>
                 <Button variant="outline" disabled={isSubmitting}>
-                  Cancel
+                  {tCommon('actions.cancel')}
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Importing...' : 'Import'}
+                {isSubmitting ? tCommon('actions.importing') : tCustomers('import.import')}
               </Button>
             </DialogFooter>
           </form>

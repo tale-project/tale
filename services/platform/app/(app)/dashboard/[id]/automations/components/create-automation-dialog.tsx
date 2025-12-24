@@ -18,6 +18,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -35,6 +36,8 @@ export default function CreateAutomationDialog({
   onOpenChange,
   organizationId,
 }: CreateAutomationDialogProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const {
     register,
     handleSubmit,
@@ -82,30 +85,30 @@ export default function CreateAutomationDialog({
       <DialogContent className="!p-0 gap-0">
         <form onSubmit={onSubmit}>
           <DialogHeader className="px-4 py-6 border-b border-border">
-            <DialogTitle>Create automation</DialogTitle>
+            <DialogTitle>{t('createDialog.title')}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 px-4 py-4">
             {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('configuration.name')}</Label>
               <Input
                 id="name"
                 {...register('name')}
-                placeholder="e.g., Social media workflow"
+                placeholder={t('createDialog.namePlaceholder')}
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
               <Label htmlFor="description">
-                Description{' '}
+                {t('configuration.description')}{' '}
                 <span className="text-muted-foreground">(optional)</span>
               </Label>
               <Textarea
                 id="description"
                 {...register('description')}
-                placeholder="Describe what this automation does..."
+                placeholder={t('createDialog.descriptionPlaceholder')}
                 rows={3}
               />
             </div>
@@ -118,10 +121,10 @@ export default function CreateAutomationDialog({
               onClick={handleClose}
               disabled={isSubmitting}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isSubmitting || !isValid}>
-              {isSubmitting ? 'Creating...' : 'Continue'}
+              {isSubmitting ? t('createDialog.creating') : t('createDialog.continue')}
             </Button>
           </DialogFooter>
         </form>

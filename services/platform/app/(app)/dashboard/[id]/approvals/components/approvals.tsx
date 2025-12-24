@@ -17,6 +17,18 @@ import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 type ApprovalDoc = Doc<'approvals'>;
 
+// Pure function moved outside component - no dependencies, never changes
+function getApprovalTypeLabel(resourceType: string): string {
+  switch (resourceType) {
+    case 'conversations':
+      return 'Review reply';
+    case 'product_recommendation':
+      return 'Recommend product';
+    default:
+      return 'Review';
+  }
+}
+
 interface ApprovalsProps {
   status?: 'pending' | 'resolved';
   organizationId: string;
@@ -86,110 +98,117 @@ export default function Approvals({
     api.approvals.removeRecommendedProduct,
   );
 
-  const handleApprove = async (approvalId: string) => {
-    if (!memberContext?.member?._id) {
-      toast({
-        title: 'You must be logged in to approve.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleApprove = useCallback(
+    async (approvalId: string) => {
+      if (!memberContext?.member?._id) {
+        toast({
+          title: 'You must be logged in to approve.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    setApproving(approvalId);
-    try {
-      await updateApprovalStatus({
-        approvalId: approvalId as Id<'approvals'>,
-        status: 'approved',
-        approvedBy: memberContext.member._id,
-        comments: 'Approved via UI',
-      });
-    } catch (error) {
-      console.error('Failed to approve:', error);
-      toast({
-        title: 'Failed to approve. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setApproving(null);
-    }
-  };
+      setApproving(approvalId);
+      try {
+        await updateApprovalStatus({
+          approvalId: approvalId as Id<'approvals'>,
+          status: 'approved',
+          approvedBy: memberContext.member._id,
+          comments: 'Approved via UI',
+        });
+      } catch (error) {
+        console.error('Failed to approve:', error);
+        toast({
+          title: 'Failed to approve. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setApproving(null);
+      }
+    },
+    [memberContext?.member?._id, updateApprovalStatus],
+  );
 
-  const handleReject = async (approvalId: string) => {
-    if (!memberContext?.member?._id) {
-      toast({
-        title: 'You must be logged in to reject.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleReject = useCallback(
+    async (approvalId: string) => {
+      if (!memberContext?.member?._id) {
+        toast({
+          title: 'You must be logged in to reject.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    setRejecting(approvalId);
-    try {
-      await updateApprovalStatus({
-        approvalId: approvalId as Id<'approvals'>,
-        status: 'rejected',
-        approvedBy: memberContext.member._id,
-        comments: 'Rejected via UI',
-      });
-    } catch (error) {
-      console.error('Failed to reject:', error);
-      toast({
-        title: 'Failed to reject. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRejecting(null);
-    }
-  };
+      setRejecting(approvalId);
+      try {
+        await updateApprovalStatus({
+          approvalId: approvalId as Id<'approvals'>,
+          status: 'rejected',
+          approvedBy: memberContext.member._id,
+          comments: 'Rejected via UI',
+        });
+      } catch (error) {
+        console.error('Failed to reject:', error);
+        toast({
+          title: 'Failed to reject. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setRejecting(null);
+      }
+    },
+    [memberContext?.member?._id, updateApprovalStatus],
+  );
 
-  const handleRemoveRecommendation = async (
-    approvalId: string,
-    productId: string,
-  ) => {
-    if (!memberContext?.member?._id) {
-      toast({
-        title: 'You must be logged in to update recommendations.',
-        variant: 'destructive',
-      });
-      return;
-    }
+  const handleRemoveRecommendation = useCallback(
+    async (approvalId: string, productId: string) => {
+      if (!memberContext?.member?._id) {
+        toast({
+          title: 'You must be logged in to update recommendations.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    setRemovingProductId(productId);
-    try {
-      await removeRecommendedProduct({
-        approvalId: approvalId as Id<'approvals'>,
-        productId,
-      });
-    } catch (error) {
-      console.error('Failed to remove recommendation:', error);
-      toast({
-        title: 'Failed to remove recommendation. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRemovingProductId(null);
-    }
-  };
+      setRemovingProductId(productId);
+      try {
+        await removeRecommendedProduct({
+          approvalId: approvalId as Id<'approvals'>,
+          productId,
+        });
+      } catch (error) {
+        console.error('Failed to remove recommendation:', error);
+        toast({
+          title: 'Failed to remove recommendation. Please try again.',
+          variant: 'destructive',
+        });
+      } finally {
+        setRemovingProductId(null);
+      }
+    },
+    [memberContext?.member?._id, removeRecommendedProduct],
+  );
 
-  const handleApprovalRowClick = (approvalId: string) => {
+  const handleApprovalRowClick = useCallback((approvalId: string) => {
     setSelectedApprovalId(approvalId);
     setApprovalDetailModalOpen(true);
-  };
+  }, []);
 
-  const handleApprovalDetailOpenChange = (open: boolean) => {
+  const handleApprovalDetailOpenChange = useCallback((open: boolean) => {
     setApprovalDetailModalOpen(open);
     if (!open) {
       setSelectedApprovalId(null);
     }
-  };
+  }, []);
 
-  // Function to get approval detail data
-  const getApprovalDetail = (approvalId: string): ApprovalDetail | null => {
-    const approval = approvals.find((a) => a._id === approvalId);
-    if (!approval) return null;
+  // Memoized function to get approval detail data
+  const getApprovalDetail = useCallback(
+    (approvalId: string): ApprovalDetail | null => {
+      const approval = approvals.find((a) => a._id === approvalId);
+      if (!approval) return null;
 
-    // Cast metadata to Record for dynamic property access
-    const metadata = (approval.metadata || {}) as Record<string, unknown>;
+      // Cast metadata to Record for dynamic property access
+      const metadata = (approval.metadata || {}) as Record<string, unknown>;
 
     // Map recommended products using the canonical shape: productId, productName, relationshipType (camelCase)
     const recommendedProducts = (
@@ -295,20 +314,9 @@ export default function Approvals({
       recommendedProducts,
       previousPurchases,
     };
-  };
+  }, [approvals]);
 
-  const getApprovalTypeLabel = (resourceType: string): string => {
-    switch (resourceType) {
-      case 'conversations':
-        return 'Review reply';
-      case 'product_recommendation':
-        return 'Recommend product';
-      default:
-        return 'Review';
-    }
-  };
-
-  const renderProductList = (products: unknown, isRecommendation = false) => {
+  const renderProductList = useCallback((products: unknown, isRecommendation = false) => {
     const list: Array<Record<string, unknown>> = Array.isArray(products)
       ? (products as Array<Record<string, unknown>>)
       : [];
@@ -444,7 +452,7 @@ export default function Approvals({
         })}
       </div>
     );
-  };
+  }, []);
 
   // Helper to get customer label
   const getCustomerLabel = useCallback((approval: ApprovalDoc) => {
@@ -608,6 +616,7 @@ export default function Approvals({
       getConfidencePercent,
       handleApprove,
       handleReject,
+      renderProductList,
     ],
   );
 
@@ -720,7 +729,7 @@ export default function Approvals({
         ),
       },
     ],
-    [getCustomerLabel],
+    [getCustomerLabel, renderProductList],
   );
 
   if (approvals.length === 0) {

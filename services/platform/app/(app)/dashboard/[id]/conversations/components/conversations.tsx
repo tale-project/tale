@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search } from 'lucide-react';
@@ -20,6 +20,7 @@ import { useMutation, usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import type { Conversation } from '../types';
+import { useT } from '@/lib/i18n';
 
 export interface ConversationsProps {
   status?: Conversation['status'];
@@ -51,6 +52,9 @@ export default function Conversations({
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | null
   >(null);
+
+  // Translations
+  const { t: tChat } = useT('chat');
 
   // Use preloaded data with real-time reactivity
   // This provides SSR benefits AND automatic updates when data changes
@@ -90,42 +94,42 @@ export default function Conversations({
   // Use conversations directly since server-side filtering is already applied
   const filteredConversations = conversations;
 
-  const handleConversationSelect = (conversation: Conversation) => {
+  const handleConversationSelect = useCallback((conversation: Conversation) => {
     setSelectedConversationId(conversation.id);
-  };
+  }, []);
 
-  const handleConversationCheck = (
-    conversationId: string,
-    checked: boolean,
-  ) => {
-    if (selectionState.type === 'all') {
-      // If we're in "select all" mode, switch to individual mode
-      const newSelectedIds: Set<string> = new Set(
-        filteredConversations.map((c) => c.id),
-      );
-      if (!checked) {
-        newSelectedIds.delete(conversationId);
-      }
-      setSelectionState({
-        type: 'individual',
-        selectedIds: newSelectedIds,
-      });
-    } else {
-      // Individual selection mode
-      const newSelectedIds = new Set(selectionState.selectedIds);
-      if (checked) {
-        newSelectedIds.add(conversationId);
+  const handleConversationCheck = useCallback(
+    (conversationId: string, checked: boolean) => {
+      if (selectionState.type === 'all') {
+        // If we're in "select all" mode, switch to individual mode
+        const newSelectedIds: Set<string> = new Set(
+          filteredConversations.map((c) => c.id),
+        );
+        if (!checked) {
+          newSelectedIds.delete(conversationId);
+        }
+        setSelectionState({
+          type: 'individual',
+          selectedIds: newSelectedIds,
+        });
       } else {
-        newSelectedIds.delete(conversationId);
+        // Individual selection mode
+        const newSelectedIds = new Set(selectionState.selectedIds);
+        if (checked) {
+          newSelectedIds.add(conversationId);
+        } else {
+          newSelectedIds.delete(conversationId);
+        }
+        setSelectionState({
+          type: 'individual',
+          selectedIds: newSelectedIds,
+        });
       }
-      setSelectionState({
-        type: 'individual',
-        selectedIds: newSelectedIds,
-      });
-    }
-  };
+    },
+    [selectionState, filteredConversations],
+  );
 
-  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+  const handleSelectAll = useCallback((checked: boolean | 'indeterminate') => {
     if (typeof checked !== 'boolean') return;
 
     if (checked) {
@@ -133,50 +137,56 @@ export default function Conversations({
     } else {
       setSelectionState({ type: 'individual', selectedIds: new Set() });
     }
-  };
+  }, []);
 
-  const isConversationSelected = (conversationId: string): boolean => {
-    if (selectionState.type === 'all') {
-      return true;
-    }
-    return selectionState.selectedIds.has(conversationId);
-  };
+  const isConversationSelected = useCallback(
+    (conversationId: string): boolean => {
+      if (selectionState.type === 'all') {
+        return true;
+      }
+      return selectionState.selectedIds.has(conversationId);
+    },
+    [selectionState],
+  );
 
-  const isSelectAllChecked = (): boolean => {
-    if (selectionState.type === 'all') {
-      return true;
-    }
-    return (
-      filteredConversations.length > 0 &&
-      filteredConversations.every((c) => selectionState.selectedIds.has(c._id))
-    );
-  };
+  // Memoize selection state calculations to avoid recalculating on every render
+  const { isSelectAllChecked, isSelectAllIndeterminate, selectedCount } =
+    useMemo(() => {
+      if (selectionState.type === 'all') {
+        return {
+          isSelectAllChecked: true,
+          isSelectAllIndeterminate: false,
+          selectedCount: filteredConversations.length,
+        };
+      }
 
-  const isSelectAllIndeterminate = (): boolean => {
-    if (selectionState.type === 'all') {
-      return false;
-    }
-    const selectedCount = filteredConversations.filter((c) =>
-      selectionState.selectedIds.has(c._id),
-    ).length;
-    return selectedCount > 0 && selectedCount < filteredConversations.length;
-  };
+      const selectedIds = selectionState.selectedIds;
+      const conversationCount = filteredConversations.length;
+      const selectedInFilteredCount = filteredConversations.filter((c) =>
+        selectedIds.has(c._id),
+      ).length;
+
+      return {
+        isSelectAllChecked:
+          conversationCount > 0 && selectedInFilteredCount === conversationCount,
+        isSelectAllIndeterminate:
+          selectedInFilteredCount > 0 &&
+          selectedInFilteredCount < conversationCount,
+        selectedCount: selectedIds.size,
+      };
+    }, [selectionState, filteredConversations]);
 
   // Check if any items are selected AND there are conversations available
   const hasSelectedItems =
     filteredConversations.length > 0 &&
     (selectionState.type === 'all' || selectionState.selectedIds.size > 0);
 
-  const handleApproveSelected = () => {
+  const handleApproveSelected = useCallback(() => {
     setBulkSendMessagesDialog({
       isOpen: true,
       isSending: false,
     });
-  };
-
-  const selectedCount = isAllSelection(selectionState)
-    ? filteredConversations.length
-    : selectionState.selectedIds.size;
+  }, []);
 
   const handleSendMessages = async () => {
     if (!businessId || typeof businessId !== 'string') {
@@ -197,26 +207,32 @@ export default function Conversations({
         ? filteredConversations.map((c) => c._id)
         : Array.from(selectionState.selectedIds);
 
-      // Send messages to all selected conversations
-      let successCount = 0;
-      let failedCount = 0;
-
-      for (const conversationId of conversationIds) {
-        try {
-          await addMessage({
+      // Send messages to all selected conversations in parallel
+      const results = await Promise.allSettled(
+        conversationIds.map((conversationId) =>
+          addMessage({
             conversationId: conversationId as Id<'conversations'>,
             organizationId: businessId as string,
             sender: 'Agent', // TODO: Get from user context
             content: 'Message sent', // TODO: Get actual message content
             isCustomer: false,
             status: 'sent',
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to send message to ${conversationId}:`, error);
-          failedCount++;
+          }),
+        ),
+      );
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+
+      // Log failed messages for debugging
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(
+            `Failed to send message to ${conversationIds[index]}:`,
+            result.reason,
+          );
         }
-      }
+      });
 
       toast({
         title: 'Messages sent',
@@ -323,11 +339,9 @@ export default function Conversations({
     setIsLoading(false);
   };
 
-  const selectAllChecked = isSelectAllIndeterminate()
+  const selectAllChecked = isSelectAllIndeterminate
     ? 'indeterminate'
-    : isSelectAllChecked()
-      ? true
-      : false;
+    : isSelectAllChecked;
 
   // Show empty state when there are no conversations and no email providers configured
   const showActivateEmptyState =
@@ -401,7 +415,7 @@ export default function Conversations({
                 >
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search conversations"
+                    placeholder={tChat('searchConversations')}
                     size="sm"
                     className="pl-9 pr-3 bg-transparent shadow-none text-sm"
                     value={searchQuery}

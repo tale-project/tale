@@ -10,10 +10,14 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterSection } from '@/components/filters/filter-section';
 import { FilterButton } from '@/components/filters/filter-button';
+import { useT } from '@/lib/i18n';
 
 type FilterSectionKey = 'status' | 'source' | 'locale';
 
 export default function CustomerFilter() {
+  const { t: tCustomers } = useT('customers');
+  const { t: tCommon } = useT('common');
+  const { t: tTables } = useT('tables');
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<
     Record<FilterSectionKey, boolean>
@@ -82,21 +86,21 @@ export default function CustomerFilter() {
       <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <div className="flex items-center justify-between p-2">
-          <h4 className="text-sm font-semibold text-foreground">Filters</h4>
+          <h4 className="text-sm font-semibold text-foreground">{tCustomers('filter.title')}</h4>
           {totalFilters > 0 && (
             <button
               type="button"
               onClick={handleClearAll}
               className="text-xs text-primary hover:text-primary/80 font-medium"
             >
-              Clear all
+              {tCommon('actions.clearAll')}
             </button>
           )}
         </div>
 
         {/* Status Filter */}
         <FilterSection
-          title="Status"
+          title={tTables('headers.status')}
           isExpanded={expandedSections.status}
           onToggle={() =>
             setExpandedSections((prev) => ({
@@ -126,7 +130,7 @@ export default function CustomerFilter() {
 
         {/* Source Filter */}
         <FilterSection
-          title="Source"
+          title={tTables('headers.source')}
           isExpanded={expandedSections.source}
           onToggle={() =>
             setExpandedSections((prev) => ({
@@ -160,7 +164,7 @@ export default function CustomerFilter() {
 
         {/* Locale Filter */}
         <FilterSection
-          title="Locale"
+          title={tTables('headers.locale')}
           isExpanded={expandedSections.locale}
           onToggle={() =>
             setExpandedSections((prev) => ({

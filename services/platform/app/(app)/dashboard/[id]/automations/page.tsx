@@ -13,6 +13,7 @@ import { Workflow, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { AccessDenied, ContentWrapper } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface AutomationsPageProps {
   params: Promise<{ id: string }>;
@@ -38,18 +39,24 @@ function AutomationsSkeleton() {
 }
 
 /** Empty state shown when org has no automations - avoids unnecessary skeleton */
-function AutomationsEmptyState({ organizationId }: { organizationId: string }) {
+async function AutomationsEmptyState({
+  organizationId,
+}: {
+  organizationId: string;
+}) {
+  const { t: tEmpty } = await getT('emptyStates');
+  const { t: tAutomations } = await getT('automations');
   return (
     <ContentWrapper>
       <DataTableEmptyState
         icon={Workflow}
-        title="No automations yet"
-        description="Describe your workflow and let your AI automate it"
+        title={tEmpty('automations.title')}
+        description={tEmpty('automations.description')}
         action={
           <Button asChild>
             <Link href={`/dashboard/${organizationId}/chat`}>
               <Sparkles className="size-4 mr-2" />
-              Create automation with AI
+              {tAutomations('createWithAI')}
             </Link>
           </Button>
         }
@@ -94,9 +101,8 @@ export default async function AutomationsPage({
 
   const userRole = (memberContext.role ?? '').toLowerCase();
   if (userRole !== 'admin' && userRole !== 'developer') {
-    return (
-      <AccessDenied message="You need Admin or Developer permissions to access automations." />
-    );
+    const { t } = await getT('accessDenied');
+    return <AccessDenied message={t('automations')} />;
   }
 
   // Two-phase loading: check if automations exist before showing skeleton

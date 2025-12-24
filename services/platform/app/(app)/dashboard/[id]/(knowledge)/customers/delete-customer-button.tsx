@@ -8,6 +8,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import DeleteCustomerDialog from './delete-customer-dialog';
+import { useT } from '@/lib/i18n';
 
 interface DeleteCustomerButtonProps {
   customer: Doc<'customers'>;
@@ -22,6 +23,7 @@ export default function DeleteCustomerButton({
   onOpenChange: controlledOnOpenChange,
   asChild = false,
 }: DeleteCustomerButtonProps) {
+  const { t: tCustomers } = useT('customers');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteCustomer = useMutation(api.customers.deleteCustomer);
@@ -43,7 +45,7 @@ export default function DeleteCustomerButton({
     } catch (err) {
       console.error('Deletion error:', err);
       toast({
-        title: 'An error occurred while deleting the customer',
+        title: tCustomers('deleteError'),
         variant: 'destructive',
       });
     } finally {
@@ -58,7 +60,7 @@ export default function DeleteCustomerButton({
           variant="ghost"
           size="icon"
           onClick={() => setIsDialogOpen(true)}
-          title="Delete customer"
+          title={tCustomers('deleteCustomer')}
         >
           <Trash2 className="size-4 text-muted-foreground" />
         </Button>

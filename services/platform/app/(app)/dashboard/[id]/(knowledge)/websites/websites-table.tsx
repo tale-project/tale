@@ -8,30 +8,12 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { WebsiteIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
 import WebsiteRowActions from './website-row-actions';
 import AddWebsiteDialog from './add-website-dialog';
-
-// Website icon component
-const WebsiteIcon = () => (
-  <div className="flex-shrink-0 size-5 rounded flex items-center justify-center bg-muted">
-    <svg
-      className="size-3 text-muted-foreground"
-      fill="none"
-      viewBox="0 0 16 16"
-    >
-      <path
-        d="M2 4.5C2 3.67157 2.67157 3 3.5 3H12.5C13.3284 3 14 3.67157 14 4.5V11.5C14 12.3284 13.3284 13 12.5 13H3.5C2.67157 13 2 12.3284 2 11.5V4.5Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path d="M2 6.5H14" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="4.5" cy="4.75" r="0.5" fill="currentColor" />
-      <circle cx="6" cy="4.75" r="0.5" fill="currentColor" />
-    </svg>
-  </div>
-);
+import { useT } from '@/lib/i18n';
 
 interface WebsitesTableProps {
   organizationId: string;
@@ -44,6 +26,10 @@ export default function WebsitesTable({
   currentPage = 1,
   pageSize = 10,
 }: WebsitesTableProps) {
+  const { t: tTables } = useT('tables');
+  const { t: tEmpty } = useT('emptyStates');
+  const { t: tWebsites } = useT('websites');
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   const searchParams = useSearchParams();
@@ -64,11 +50,13 @@ export default function WebsitesTable({
     () => [
       {
         accessorKey: 'domain',
-        header: 'Website',
+        header: tTables('headers.website'),
         size: 256,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <WebsiteIcon />
+            <div className="flex-shrink-0 size-5 rounded flex items-center justify-center bg-muted">
+              <WebsiteIcon className="size-3 text-muted-foreground" />
+            </div>
             <span className="font-medium text-sm text-foreground truncate">
               {row.original.domain}
             </span>
@@ -77,33 +65,33 @@ export default function WebsitesTable({
       },
       {
         accessorKey: 'title',
-        header: 'Title',
+        header: tTables('headers.title'),
         size: 192,
         cell: ({ row }) => (
           <span className="text-sm text-foreground truncate">
-            {row.original.title || '-'}
+            {row.original.title || tTables('cells.empty')}
           </span>
         ),
       },
       {
         accessorKey: 'description',
-        header: 'Description',
+        header: tTables('headers.description'),
         size: 256,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground truncate">
-            {row.original.description || '-'}
+            {row.original.description || tTables('cells.empty')}
           </span>
         ),
       },
       {
         accessorKey: 'lastScannedAt',
-        header: 'Scanned',
+        header: tTables('headers.scanned'),
         size: 128,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.lastScannedAt ? (
               formatDate(new Date(row.original.lastScannedAt), {
-                preset: 'long',
+                preset: 'short',
               })
             ) : (
               <Loader className="size-4 animate-spin text-muted-foreground" />
@@ -113,7 +101,7 @@ export default function WebsitesTable({
       },
       {
         accessorKey: 'scanInterval',
-        header: 'Interval',
+        header: tTables('headers.interval'),
         size: 96,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -123,7 +111,7 @@ export default function WebsitesTable({
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
         size: 128,
         cell: ({ row }) => (
           <div className="flex items-center justify-end">
@@ -132,7 +120,7 @@ export default function WebsitesTable({
         ),
       },
     ],
-    [],
+    [tTables],
   );
 
   if (result === undefined) {
@@ -146,7 +134,7 @@ export default function WebsitesTable({
   const addButton = (
     <Button onClick={() => setIsAddDialogOpen(true)}>
       <Plus className="size-4 mr-1" />
-      Add website
+      {tWebsites('addButton')}
     </Button>
   );
 
@@ -156,8 +144,8 @@ export default function WebsitesTable({
       <>
         <DataTableEmptyState
           icon={Globe}
-          title="No websites yet"
-          description="Add websites to make your AI smarter"
+          title={tEmpty('websites.title')}
+          description={tEmpty('websites.description')}
           action={addButton}
         />
         <AddWebsiteDialog

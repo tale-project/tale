@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
+import createNextIntlPlugin from 'next-intl/plugin';
 
-export default {
+const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts');
+
+const config: NextConfig = {
   // Enable standalone output for Docker deployment
   output: 'standalone',
 
@@ -107,5 +110,19 @@ export default {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    // Optimize imports for large libraries - only import what's used
+    // This significantly reduces bundle size for packages with many exports
+    optimizePackageImports: [
+      'lucide-react',
+      '@radix-ui/react-icons',
+      'lodash',
+      'date-fns',
+      'recharts',
+      '@tanstack/react-table',
+      'framer-motion',
+      'react-day-picker',
+    ],
   },
-} satisfies NextConfig;
+};
+
+export default withNextIntl(config);

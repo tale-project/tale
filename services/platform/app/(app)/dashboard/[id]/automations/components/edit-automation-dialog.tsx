@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface AutomationConfig {
   timeout?: number;
@@ -49,6 +50,9 @@ export default function EditAutomationDialog({
   workflow,
   onUpdateAutomation,
 }: EditAutomationDialogProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -85,7 +89,7 @@ export default function EditAutomationDialog({
 
     if (!formData.name.trim()) {
       toast({
-        title: 'Automation name is required',
+        title: t('configuration.validation.nameRequired'),
         variant: 'destructive',
       });
       return;
@@ -101,7 +105,7 @@ export default function EditAutomationDialog({
           variables = JSON.parse(formData.variables);
         } catch {
           toast({
-            title: 'Invalid JSON in variables field',
+            title: t('configuration.validation.invalidJson'),
             variant: 'destructive',
           });
           return;
@@ -142,14 +146,14 @@ export default function EditAutomationDialog({
       <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Edit automation</DialogTitle>
+            <DialogTitle>{t('editDialog.title')}</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="edit-name">
-                Name <span className="text-red-500">*</span>
+                {t('configuration.name')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit-name"
@@ -157,14 +161,14 @@ export default function EditAutomationDialog({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
-                placeholder="Enter automation name"
+                placeholder={t('editDialog.namePlaceholder')}
                 disabled={isLoading}
               />
             </div>
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">{t('configuration.description')}</Label>
               <Textarea
                 id="edit-description"
                 value={formData.description}
@@ -174,7 +178,7 @@ export default function EditAutomationDialog({
                     description: e.target.value,
                   }))
                 }
-                placeholder="Enter automation description (optional)"
+                placeholder={t('editDialog.descriptionPlaceholder')}
                 rows={3}
                 disabled={isLoading}
               />
@@ -185,7 +189,7 @@ export default function EditAutomationDialog({
               {/* Timeout & Retry Policy */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-timeout">Timeout (ms)</Label>
+                  <Label htmlFor="edit-timeout">{t('configuration.timeout')}</Label>
                   <Input
                     id="edit-timeout"
                     type="number"
@@ -196,12 +200,12 @@ export default function EditAutomationDialog({
                         timeout: parseInt(e.target.value) || 300000,
                       }))
                     }
-                    placeholder="300000"
+                    placeholder={t('editDialog.timeoutPlaceholder')}
                     disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-maxRetries">Max Retries</Label>
+                  <Label htmlFor="edit-maxRetries">{t('configuration.maxRetries')}</Label>
                   <Input
                     id="edit-maxRetries"
                     type="number"
@@ -212,12 +216,12 @@ export default function EditAutomationDialog({
                         maxRetries: parseInt(e.target.value) || 3,
                       }))
                     }
-                    placeholder="3"
+                    placeholder={t('editDialog.maxRetriesPlaceholder')}
                     disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-backoffMs">Backoff (ms)</Label>
+                  <Label htmlFor="edit-backoffMs">{t('configuration.backoff')}</Label>
                   <Input
                     id="edit-backoffMs"
                     type="number"
@@ -228,7 +232,7 @@ export default function EditAutomationDialog({
                         backoffMs: parseInt(e.target.value) || 1000,
                       }))
                     }
-                    placeholder="1000"
+                    placeholder={t('editDialog.backoffPlaceholder')}
                     disabled={isLoading}
                   />
                 </div>
@@ -237,7 +241,7 @@ export default function EditAutomationDialog({
               {/* Variables */}
               <JsonInput
                 id="edit-variables"
-                label="Variables (JSON)"
+                label={t('configuration.variables')}
                 value={formData.variables}
                 onChange={(value) =>
                   setFormData((prev) => ({
@@ -245,10 +249,10 @@ export default function EditAutomationDialog({
                     variables: value,
                   }))
                 }
-                placeholder='{\n  "environment": "test"\n}'
+                placeholder={t('editDialog.variablesPlaceholder')}
                 rows={4}
                 disabled={isLoading}
-                description="Default variables available to all automation steps"
+                description={t('editDialog.variablesDescription')}
               />
             </div>
           </div>
@@ -261,10 +265,10 @@ export default function EditAutomationDialog({
               onClick={handleClose}
               disabled={isLoading}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isLoading} className="flex-1">
-              {isLoading ? 'Updating...' : 'Update automation'}
+              {isLoading ? t('editDialog.updating') : t('editDialog.updateButton')}
             </Button>
           </DialogFooter>
         </form>

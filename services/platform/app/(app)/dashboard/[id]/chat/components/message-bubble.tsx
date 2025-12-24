@@ -12,7 +12,6 @@ import {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { motion } from 'framer-motion';
 import { useTypewriter } from '../hooks/use-typewriter';
 import { CopyIcon, CheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,6 +37,8 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import MessageInfoModal from './message-info-modal';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
+import { StreamingMarkdown } from './streaming-markdown';
+import { useT } from '@/lib/i18n';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -108,6 +109,23 @@ const markdownWrapperStyles = cn(
   '[&_del]:line-through [&_del]:text-muted-foreground',
 );
 
+// Helper function to get file type info - extracted outside component for stable reference
+function getFileTypeInfo(type: string, name: string) {
+  if (type.startsWith('image/'))
+    return { icon: '🖼️', label: 'IMG', bgColor: 'bg-blue-100' };
+  if (type === 'application/pdf')
+    return { icon: '📄', label: 'PDF', bgColor: 'bg-red-100' };
+  if (
+    type.includes('word') ||
+    name.endsWith('.doc') ||
+    name.endsWith('.docx')
+  )
+    return { icon: '📝', label: 'DOC', bgColor: 'bg-blue-100' };
+  if (type === 'text/plain')
+    return { icon: '📄', label: 'TXT', bgColor: 'bg-gray-100' };
+  return { icon: '📎', label: 'FILE', bgColor: 'bg-gray-100' };
+}
+
 // File type icon component for messages
 function FileTypeIcon({
   fileType,
@@ -116,22 +134,6 @@ function FileTypeIcon({
   fileType: string;
   fileName: string;
 }) {
-  const getFileTypeInfo = (type: string, name: string) => {
-    if (type.startsWith('image/'))
-      return { icon: '🖼️', label: 'IMG', bgColor: 'bg-blue-100' };
-    if (type === 'application/pdf')
-      return { icon: '📄', label: 'PDF', bgColor: 'bg-red-100' };
-    if (
-      type.includes('word') ||
-      name.endsWith('.doc') ||
-      name.endsWith('.docx')
-    )
-      return { icon: '📝', label: 'DOC', bgColor: 'bg-blue-100' };
-    if (type === 'text/plain')
-      return { icon: '📄', label: 'TXT', bgColor: 'bg-gray-100' };
-    return { icon: '📎', label: 'FILE', bgColor: 'bg-gray-100' };
-  };
-
   const { icon, label, bgColor } = getFileTypeInfo(fileType, fileName);
 
   return (
@@ -415,23 +417,13 @@ function TypewriterText({
 
   return (
     <div className={markdownWrapperStyles}>
-      <Markdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+      <StreamingMarkdown
+        content={displayText}
+        isStreaming={isStreaming}
         components={markdownComponents}
-      >
-        {displayText}
-      </Markdown>
+      />
       {isStreaming && isTyping && (
-        <motion.span
-          animate={{ opacity: [1, 0] }}
-          transition={{
-            duration: 0.6,
-            repeat: Infinity,
-            repeatType: 'reverse',
-          }}
-          className="inline-block w-2 h-4 bg-current ml-1"
-        />
+        <span className="inline-block w-2 h-4 bg-current ml-1 animate-cursor-blink" />
       )}
     </div>
   );
@@ -446,6 +438,7 @@ function MessageBubbleComponent({
   className,
   ...restProps
 }: MessageBubbleProps) {
+  const { t } = useT('common');
   const isUser = message.role === 'user';
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
@@ -563,7 +556,7 @@ function MessageBubbleComponent({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  {isCopied ? 'Copied!' : 'Copy'}
+                  {isCopied ? t('actions.copied') : t('actions.copy')}
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
@@ -577,7 +570,7 @@ function MessageBubbleComponent({
                     <Info className="size-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">Show info</TooltipContent>
+                <TooltipContent side="bottom">{t('actions.showInfo')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>

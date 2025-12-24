@@ -66,7 +66,7 @@ export default function BreadcrumbNavigation({
   };
 
   return (
-    <nav className="flex items-center gap-1 mb-4 bg-background/50 backdrop-blur-md sticky top-14 z-10">
+    <nav className="flex items-center gap-1 mb-4 bg-background sticky top-14 z-10">
       {/* Back Arrow */}
       <button
         onClick={() => navigateToPath('')}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface ApprovalsNavigationProps {
   organizationId: string;
@@ -13,9 +14,10 @@ const STATUSES = ['pending', 'resolved'] as const;
 
 const getApprovalsNavigationItems = ({
   organizationId,
-}: ApprovalsNavigationProps) =>
+  t,
+}: ApprovalsNavigationProps & { t: any }) =>
   STATUSES.map((status) => ({
-    label: status.charAt(0).toUpperCase() + status.slice(1),
+    label: t(`status.${status}` as any),
     href: `/dashboard/${organizationId}/approvals/${status}`,
     status,
   }));
@@ -24,9 +26,11 @@ export default function ApprovalsNavigation({
   organizationId,
 }: ApprovalsNavigationProps) {
   const pathname = usePathname();
+  const { t } = useT('approvals');
 
   const navigationItems = getApprovalsNavigationItems({
     organizationId,
+    t,
   });
 
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -54,7 +58,7 @@ export default function ApprovalsNavigation({
   }, [activeIndex, pathname]);
 
   return (
-    <nav className="bg-background/50 backdrop-blur-md sticky top-12 z-50 px-4 py-2 border-b border-border min-h-12 flex items-center gap-4 ">
+    <nav className="bg-background sticky top-12 z-50 px-4 py-2 border-b border-border min-h-12 flex items-center gap-4 ">
       {navigationItems.map((item, index) => {
         const isActive = pathname.startsWith(item.href);
 

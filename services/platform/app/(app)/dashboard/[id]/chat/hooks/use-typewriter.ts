@@ -22,11 +22,75 @@ interface UseTypewriterOptions {
   catchUpMultiplier?: number;
 }
 
+// Ring buffer for metrics tracking - avoids array allocations/GC pressure
+const HISTORY_SIZE = 30; // ~500ms at 60fps
+
+interface MetricsEntry {
+  time: number;
+  length: number;
+}
+
+class RingBuffer {
+  private buffer: MetricsEntry[] = new Array(HISTORY_SIZE);
+  private writeIndex = 0;
+  private count = 0;
+
+  push(entry: MetricsEntry) {
+    this.buffer[this.writeIndex] = entry;
+    this.writeIndex = (this.writeIndex + 1) % HISTORY_SIZE;
+    if (this.count < HISTORY_SIZE) this.count++;
+  }
+
+  getOldestNewerThan(cutoffTime: number): MetricsEntry | null {
+    if (this.count === 0) return null;
+
+    // Find oldest entry newer than cutoff
+    for (let i = 0; i < this.count; i++) {
+      const idx =
+        (this.writeIndex - this.count + i + HISTORY_SIZE) % HISTORY_SIZE;
+      const entry = this.buffer[idx];
+      if (entry.time > cutoffTime) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  getNewest(): MetricsEntry | null {
+    if (this.count === 0) return null;
+    return this.buffer[(this.writeIndex - 1 + HISTORY_SIZE) % HISTORY_SIZE];
+  }
+
+  clear() {
+    this.writeIndex = 0;
+    this.count = 0;
+  }
+}
+
 interface BufferMetrics {
   lastUpdateTime: number;
-  textLengthHistory: Array<{ time: number; length: number }>;
+  history: RingBuffer;
   incomingRate: number; // characters per second
 }
+
+// Check if position is at a word boundary (space, newline, punctuation)
+function isAtWordBoundary(text: string, pos: number): boolean {
+  if (pos >= text.length) return true;
+  const char = text[pos];
+  return (
+    char === ' ' ||
+    char === '\n' ||
+    char === '.' ||
+    char === ',' ||
+    char === '!' ||
+    char === '?' ||
+    char === ';' ||
+    char === ':'
+  );
+}
+
+// Throttle interval for React state updates (ms)
+const STATE_UPDATE_INTERVAL = 50;
 
 /**
  * Improved typewriter hook with buffering and self-adjusting speed.
@@ -55,12 +119,15 @@ export function useTypewriter({
   const targetTextRef = useRef('');
   const isStreamingRef = useRef(false);
 
-  // Buffer metrics for adaptive speed
+  // Buffer metrics for adaptive speed (using ring buffer to avoid GC)
   const metricsRef = useRef<BufferMetrics>({
     lastUpdateTime: 0,
-    textLengthHistory: [],
+    history: new RingBuffer(),
     incomingRate: 0,
   });
+
+  // Throttle ref for state updates
+  const lastStateUpdateRef = useRef<number>(0);
 
   // Accumulated fractional characters (for sub-character-per-frame precision)
   const accumulatedCharsRef = useRef(0);
@@ -94,26 +161,21 @@ export function useTypewriter({
     [targetCPS, minBufferSize, catchUpMultiplier],
   );
 
-  // Update metrics when text changes
+  // Update metrics when text changes (using ring buffer - no allocations)
   const updateMetrics = useCallback((newTextLength: number) => {
     const now = performance.now();
     const metrics = metricsRef.current;
 
-    // Add to history
-    metrics.textLengthHistory.push({ time: now, length: newTextLength });
+    // Add to ring buffer (no array allocation)
+    metrics.history.push({ time: now, length: newTextLength });
 
-    // Keep only last 500ms of history
+    // Calculate incoming rate from ring buffer
     const cutoff = now - 500;
-    metrics.textLengthHistory = metrics.textLengthHistory.filter(
-      (h) => h.time > cutoff,
-    );
+    const oldest = metrics.history.getOldestNewerThan(cutoff);
+    const newest = metrics.history.getNewest();
 
-    // Calculate incoming rate (chars per second)
-    if (metrics.textLengthHistory.length >= 2) {
-      const oldest = metrics.textLengthHistory[0];
-      const newest =
-        metrics.textLengthHistory[metrics.textLengthHistory.length - 1];
-      const timeDelta = (newest.time - oldest.time) / 1000; // Convert to seconds
+    if (oldest && newest && oldest !== newest) {
+      const timeDelta = (newest.time - oldest.time) / 1000;
       const charsDelta = newest.length - oldest.length;
       metrics.incomingRate = timeDelta > 0 ? charsDelta / timeDelta : 0;
     }
@@ -135,7 +197,8 @@ export function useTypewriter({
         return;
       }
 
-      const textLength = targetTextRef.current.length;
+      const text = targetTextRef.current;
+      const textLength = text.length;
       const currentDisplayed = displayedLengthRef.current;
       const bufferSize = textLength - currentDisplayed;
 
@@ -169,15 +232,36 @@ export function useTypewriter({
       const charsToAdd = Math.floor(accumulatedCharsRef.current);
       if (charsToAdd > 0) {
         accumulatedCharsRef.current -= charsToAdd;
-        const newDisplayed = Math.min(
-          currentDisplayed + charsToAdd,
-          textLength,
-        );
+        let newDisplayed = Math.min(currentDisplayed + charsToAdd, textLength);
 
+        // Snap to word boundary if we're close (within 3 chars of a space)
+        // This creates a more natural word-by-word feel
+        const lookAhead = Math.min(newDisplayed + 3, textLength);
+        for (let i = newDisplayed; i <= lookAhead; i++) {
+          if (isAtWordBoundary(text, i)) {
+            // Found word boundary, snap to it (include the space)
+            newDisplayed = Math.min(i + 1, textLength);
+            break;
+          }
+        }
+
+        // Update internal ref immediately
         if (newDisplayed !== displayedLengthRef.current) {
           displayedLengthRef.current = newDisplayed;
-          setDisplayedLength(newDisplayed);
-          setIsTyping(true);
+
+          // Throttle React state updates to reduce re-renders
+          // Update if: enough time passed OR at word boundary OR caught up
+          const timeSinceLastUpdate = currentTime - lastStateUpdateRef.current;
+          const shouldUpdate =
+            timeSinceLastUpdate >= STATE_UPDATE_INTERVAL ||
+            isAtWordBoundary(text, newDisplayed) ||
+            newDisplayed === textLength;
+
+          if (shouldUpdate) {
+            lastStateUpdateRef.current = currentTime;
+            setDisplayedLength(newDisplayed);
+            setIsTyping(true);
+          }
         }
       }
 
@@ -207,11 +291,9 @@ export function useTypewriter({
       setIsTyping(false);
 
       // Reset metrics
-      metricsRef.current = {
-        lastUpdateTime: 0,
-        textLengthHistory: [],
-        incomingRate: 0,
-      };
+      metricsRef.current.history.clear();
+      metricsRef.current.lastUpdateTime = 0;
+      metricsRef.current.incomingRate = 0;
     }
   }, [text, isStreaming, animate, updateMetrics]);
 

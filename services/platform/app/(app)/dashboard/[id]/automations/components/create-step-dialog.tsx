@@ -23,6 +23,7 @@ import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface CreateStepDialogProps {
   open: boolean;
@@ -91,6 +92,8 @@ export default function CreateStepDialog({
   onCreateStep,
   // selectedWorkflow is not used - commented out to prevent unused variable warning
 }: CreateStepDialogProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const initialDefaults = getDefaultTemplates('action');
 
   const [formData, setFormData] = useState({
@@ -139,7 +142,7 @@ export default function CreateStepDialog({
           parsedConfig = JSON.parse(formData.config);
         } catch {
           toast({
-            title: 'Invalid JSON in config field',
+            title: t('configuration.validation.invalidJson'),
             variant: 'destructive',
           });
           return;
@@ -151,7 +154,7 @@ export default function CreateStepDialog({
           parsedNextSteps = JSON.parse(formData.nextSteps);
         } catch {
           toast({
-            title: 'Invalid JSON in next steps field',
+            title: t('configuration.validation.invalidJson'),
             variant: 'destructive',
           });
           return;
@@ -213,16 +216,16 @@ export default function CreateStepDialog({
       <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader className="sticky top-0">
-            <DialogTitle>Create step</DialogTitle>
+            <DialogTitle>{t('createStep.title')}</DialogTitle>
             <DialogDescription>
-              Add a new step to the selected workflow
+              {t('createStep.description')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="step-name">
-                Name <span className="text-red-500">*</span>
+                {t('configuration.name')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="step-name"
@@ -232,7 +235,7 @@ export default function CreateStepDialog({
                   if (nameError) validateStepName(e.target.value);
                 }}
                 onBlur={(e) => validateStepName(e.target.value)}
-                placeholder="analyze_data"
+                placeholder={t('createStep.namePlaceholder')}
                 disabled={isLoading}
                 className={nameError ? 'border-red-500' : ''}
               />
@@ -294,14 +297,14 @@ export default function CreateStepDialog({
               onClick={handleClose}
               disabled={isLoading}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button
               className="flex-1"
               type="submit"
               disabled={!formData.name.trim() || isLoading}
             >
-              {isLoading ? 'Creating...' : 'Create step'}
+              {isLoading ? t('createStep.creating') : t('createStep.createButton')}
             </Button>
           </DialogFooter>
         </form>
@@ -318,10 +321,11 @@ export function CreateStepTrigger({
   onClick: () => void;
   disabled?: boolean;
 }) {
+  const { t } = useT('automations');
   return (
     <Button className="w-full" onClick={onClick} disabled={disabled}>
       <Plus className="size-4 mr-2" />
-      Create step
+      {t('createStep.createButton')}
     </Button>
   );
 }

@@ -6,12 +6,15 @@ import AuthLayout from '@/components/auth-layout';
 import LogInForm from '@/components/auth/log-in-form';
 import { FormSkeleton } from '@/components/skeletons';
 import { api } from '@/convex/_generated/api';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Tale Log In | Access your account',
-  description:
-    'Log in to your Tale account to analyze customer churn rate, and automate your customer retention workflow.',
-};
+export async function generateMetadata() {
+  const { t } = await getT('auth');
+  return {
+    title: t('login.title'),
+    description: t('login.description'),
+  };
+}
 
 /**
  * Check if Microsoft Entra ID authentication is configured

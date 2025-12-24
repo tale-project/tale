@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import AddMemberDialog from './add-member-dialog';
 import MemberTable from './member-table';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useT } from '@/lib/i18n';
 
 export interface OrganizationSettingsProps {
   organization: { _id: string; name: string } | null;
@@ -26,6 +27,9 @@ interface OrganizationFormData {
 export default function OrganizationSettings({
   organization,
 }: OrganizationSettingsProps) {
+  const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
@@ -69,13 +73,13 @@ export default function OrganizationSettings({
       reset(data);
 
       toast({
-        title: 'Organization updated successfully',
+        title: tToast('success.organizationUpdated'),
         variant: 'success',
       });
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Failed to update organization',
+        title: tToast('error.organizationUpdateFailed'),
         variant: 'destructive',
       });
     }
@@ -90,7 +94,7 @@ export default function OrganizationSettings({
             htmlFor="org-name"
             className="text-sm font-medium text-foreground"
           >
-            Organization (optional)
+            {tSettings('organization.title')}
           </Label>
           <div className="flex items-center gap-3 justify-between">
             <Input
@@ -103,7 +107,7 @@ export default function OrganizationSettings({
               disabled={!isDirty || isSubmitting}
               className="bg-foreground text-background hover:bg-foreground/90"
             >
-              {isSubmitting ? 'Saving...' : 'Save changes'}
+              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
             </Button>
           </div>
         </div>
@@ -114,10 +118,10 @@ export default function OrganizationSettings({
         {/* Team Header */}
         <div className="space-y-1">
           <h2 className="text-base font-semibold text-foreground">
-            Team members
+            {tSettings('organization.teamMembers')}
           </h2>
           <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-            Manage access to the organization
+            {tSettings('organization.manageAccess')}
           </p>
         </div>
 
@@ -126,7 +130,7 @@ export default function OrganizationSettings({
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search member"
+              placeholder={tSettings('organization.searchMember')}
               size="sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -140,7 +144,7 @@ export default function OrganizationSettings({
               className="bg-foreground text-background hover:bg-foreground/90"
             >
               <Plus className="size-4 mr-2" />
-              Add member
+              {tCommon('actions.add')} member
             </Button>
           )}
         </div>

@@ -18,6 +18,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useRouter } from 'next/navigation';
+import { useT } from '@/lib/i18n';
 
 interface EditProductDialogProps {
   isOpen: boolean;
@@ -40,6 +41,8 @@ export default function EditProductDialog({
   onClose,
   product,
 }: EditProductDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tProducts } = useT('products');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const updateProduct = useMutation(api.products.updateProduct);
@@ -135,7 +138,7 @@ export default function EditProductDialog({
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
-              placeholder="Enter product name"
+              placeholder={tProducts('edit.namePlaceholder')}
               disabled={isSubmitting}
               required
             />
@@ -150,7 +153,7 @@ export default function EditProductDialog({
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              placeholder="Enter product description"
+              placeholder={tProducts('edit.descriptionPlaceholder')}
               disabled={isSubmitting}
               rows={3}
             />
@@ -166,7 +169,7 @@ export default function EditProductDialog({
               onChange={(e) =>
                 setFormData({ ...formData, imageUrl: e.target.value })
               }
-              placeholder="https://example.com/image.jpg"
+              placeholder={tProducts('edit.imageUrlPlaceholder')}
               disabled={isSubmitting}
             />
           </div>
@@ -184,7 +187,7 @@ export default function EditProductDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, price: e.target.value })
                 }
-                placeholder="0.00"
+                placeholder={tProducts('edit.pricePlaceholder')}
                 disabled={isSubmitting}
               />
             </div>
@@ -196,7 +199,7 @@ export default function EditProductDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, currency: e.target.value })
                 }
-                placeholder="USD"
+                placeholder={tProducts('edit.currencyPlaceholder')}
                 disabled={isSubmitting}
                 maxLength={3}
               />
@@ -215,7 +218,7 @@ export default function EditProductDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, stock: e.target.value })
                 }
-                placeholder="0"
+                placeholder={tProducts('edit.stockPlaceholder')}
                 disabled={isSubmitting}
               />
             </div>
@@ -227,7 +230,7 @@ export default function EditProductDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
                 }
-                placeholder="Electronics, Clothing, etc."
+                placeholder={tProducts('edit.categoryPlaceholder')}
                 disabled={isSubmitting}
               />
             </div>
@@ -243,7 +246,7 @@ export default function EditProductDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save changes'}
+              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
             </Button>
           </DialogFooter>
         </form>

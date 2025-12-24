@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/tooltip';
 import ChatHistorySidebar from './chat-history-sidebar';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface ChatHeaderProps {
   organizationId: string;
@@ -24,6 +25,9 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
+
+  // Translations
+  const { t: tChat } = useT('chat');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -87,7 +91,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
         animate={{ width: isHistoryOpen ? '18rem' : 0 }}
         transition={{ duration: 0.275 }}
         className={cn(
-          'flex flex-col sticky top-0 h-full w-[18rem] border-r border-border overflow-hidden backdrop-blur-sm rounded-tl-xl',
+          'flex flex-col sticky top-0 h-full w-[18rem] border-r border-border overflow-hidden bg-background rounded-tl-xl',
           !isHistoryOpen && 'border-r-0',
         )}
       >
@@ -97,7 +101,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
         initial={{ x: -284 }}
         animate={{ x: isHistoryOpen ? 0 : -284 }}
         transition={{ duration: 0.275 }}
-        className="absolute top-0 left-[18rem] flex items-center px-5 py-2 backdrop-blur-sm rounded-br-xl"
+        className="absolute top-0 left-[18rem] flex items-center px-5 py-2 bg-background rounded-br-xl"
       >
         <TooltipProvider>
           <Tooltip>
@@ -136,7 +140,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">
-              {isSearchOpen ? 'Hide search' : 'Search chat'}
+              {isSearchOpen ? tChat('hideSearch') : tChat('searchChat')}
               <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
                 {findShortcut}
               </span>

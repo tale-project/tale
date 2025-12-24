@@ -4,12 +4,15 @@ import { redirect } from 'next/navigation';
 import AuthLayout from '@/components/auth-layout';
 import SignUpForm from '@/components/auth/sign-up-form';
 import { FormSkeleton } from '@/components/skeletons';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Create Account',
-  description:
-    'Create a Tale account to analyze customer churn rate, and automate your customer retention workflow.',
-};
+export async function generateMetadata() {
+  const { t } = await getT('auth');
+  return {
+    title: t('signup.title'),
+    description: t('signup.description'),
+  };
+}
 
 /**
  * Check if Microsoft Entra ID authentication is configured

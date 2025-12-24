@@ -15,6 +15,7 @@ import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialo
 import EditCustomerButton from './edit-customer-button';
 import DeleteCustomerButton from './delete-customer-button';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 interface CustomerRowActionsProps {
   customer: Doc<'customers'>;
 }
@@ -22,6 +23,8 @@ interface CustomerRowActionsProps {
 export default function CustomerRowActions({
   customer,
 }: CustomerRowActionsProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tCustomers } = useT('customers');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -36,7 +39,7 @@ export default function CustomerRowActions({
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon">
             <MoreVertical className="size-4" />
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">{tCommon('actions.openMenu')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[10rem]">
@@ -47,7 +50,7 @@ export default function CustomerRowActions({
             }}
           >
             <Eye className="mr-2 size-4" />
-            View Details
+            {tCustomers('viewDetails')}
           </DropdownMenuItem>
           {canEdit && (
             <>
@@ -59,7 +62,7 @@ export default function CustomerRowActions({
                 }}
               >
                 <Pencil className="mr-2 size-4" />
-                Edit
+                {tCommon('actions.edit')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
@@ -69,7 +72,7 @@ export default function CustomerRowActions({
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="mr-2 size-4" />
-                Delete
+                {tCommon('actions.delete')}
               </DropdownMenuItem>
             </>
           )}

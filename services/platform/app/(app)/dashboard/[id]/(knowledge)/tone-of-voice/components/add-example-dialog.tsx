@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useT } from '@/lib/i18n';
 
 interface AddExampleDialogProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ export default function AddExampleDialog({
   onClose,
   onAdd,
 }: AddExampleDialogProps) {
+  const { t: tTone } = useT('toneOfVoice');
+  const { t: tCommon } = useT('common');
+  const { t: tTables } = useT('tables');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<ExampleFormData>({
@@ -66,7 +70,7 @@ export default function AddExampleDialog({
         {/* Header */}
         <DialogHeader className="py-6 px-4 border-b border-border">
           <DialogTitle className="font-semibold text-foreground tracking-[-0.3px]">
-            Add example
+            {tTone('exampleMessages.addButton')}
           </DialogTitle>
         </DialogHeader>
 
@@ -83,11 +87,11 @@ export default function AddExampleDialog({
                 htmlFor="content"
                 className="text-sm font-medium text-foreground tracking-[-0.21px]"
               >
-                Message
+                {tTables('headers.message')}
               </Label>
               <Textarea
                 {...register('content', { required: true })}
-                placeholder="e.g. Hello, I hope this finds you well."
+                placeholder={tTone('exampleMessages.placeholder')}
                 className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
               />
             </div>
@@ -103,7 +107,7 @@ export default function AddExampleDialog({
               onClick={handleClose}
               className="flex-1"
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button
               type="submit"
@@ -111,7 +115,7 @@ export default function AddExampleDialog({
               disabled={!isValid || isSubmitting}
               className="flex-1"
             >
-              {isSubmitting ? 'Adding...' : 'Add'}
+              {isSubmitting ? tTone('exampleMessages.adding') : tCommon('actions.add')}
             </Button>
           </div>
         </div>

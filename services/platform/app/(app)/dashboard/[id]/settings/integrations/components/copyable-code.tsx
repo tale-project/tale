@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface CopyableCodeProps {
   value: string;
 }
 
 export function CopyableCode({ value }: CopyableCodeProps) {
+  const { t } = useT('settings');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -20,7 +22,7 @@ export function CopyableCode({ value }: CopyableCodeProps) {
     } catch (error) {
       console.error('Failed to copy:', error);
       toast({
-        title: 'Failed to copy to clipboard',
+        title: t('integrations.failedToCopy'),
         variant: 'destructive',
       });
     }
@@ -32,7 +34,7 @@ export function CopyableCode({ value }: CopyableCodeProps) {
       variant="ghost"
       size="icon"
       className="p-1"
-      title="Click to copy"
+      title={t('integrations.clickToCopy')}
     >
       <code className="font-mono">{value}</code>
       {copied ? (

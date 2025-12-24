@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface DeleteConfirmationModalProps {
   open: boolean;
@@ -25,21 +26,24 @@ export default function DeleteConfirmationModal({
   isLoading = false,
   fileName,
 }: DeleteConfirmationModalProps) {
+  const { t: tDocuments } = useT('documents');
+  const { t: tCommon } = useT('common');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="py-2">Delete file</DialogTitle>
+          <DialogTitle className="py-2">{tDocuments('deleteFile.title')}</DialogTitle>
           <div className="text-left space-y-4 py-2">
             <DialogDescription className="mb-2">
-              Are you sure you want to permanently delete{' '}
+              {tDocuments('deleteFile.confirmation')}{' '}
               <span className="font-medium text-foreground">
-                {fileName ?? 'this file'}
+                {fileName ?? tDocuments('deleteFile.thisFile')}
               </span>
               ?
             </DialogDescription>
             <p className="text-sm text-muted-foreground">
-              You won’t be able to recover this file after deletion.
+              {tDocuments('deleteFile.warning')}
             </p>
           </div>
         </DialogHeader>
@@ -50,7 +54,7 @@ export default function DeleteConfirmationModal({
             disabled={isLoading}
             className="flex-1"
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             onClick={onConfirmDelete}
@@ -59,7 +63,7 @@ export default function DeleteConfirmationModal({
             isLoading={isLoading}
             className="flex-1"
           >
-            Delete File
+            {tDocuments('deleteFile.deleteButton')}
           </Button>
         </DialogFooter>
       </DialogContent>

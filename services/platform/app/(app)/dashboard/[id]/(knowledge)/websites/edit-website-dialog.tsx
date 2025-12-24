@@ -24,14 +24,20 @@ import {
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
+import { InfoCircleIcon } from '@/components/ui/icons';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
-const formSchema = z.object({
-  domain: z.string().min(1, 'Domain is required').url('Must be a valid URL'),
-  scanInterval: z.string().min(1, 'Scan interval is required'),
+const getFormSchema = (t: (key: string) => string) => z.object({
+  domain: z.string().min(1, t('validation.domainRequired')).url(t('validation.validUrl')),
+  scanInterval: z.string().min(1, t('validation.scanIntervalRequired')),
 });
 
-type FormData = z.infer<typeof formSchema>;
+// Helper to cast translation function for zod schema
+const asSchemaTranslator = (t: ReturnType<typeof useT>['t']): ((key: string) => string) =>
+  t as unknown as (key: string) => string;
+
+type FormData = z.infer<ReturnType<typeof getFormSchema>>;
 
 interface EditWebsiteDialogProps {
   isOpen: boolean;
@@ -39,23 +45,25 @@ interface EditWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-const SCAN_INTERVALS = [
-  { value: '60m', label: 'Every 1 hour' },
-  { value: '6h', label: 'Every 6 hours' },
-  { value: '12h', label: 'Every 12 hours' },
-  { value: '1d', label: 'Every 1 day' },
-  { value: '5d', label: 'Every 5 days' },
-  { value: '7d', label: 'Every 7 days' },
-  { value: '30d', label: 'Every 30 days' },
-];
-
 export default function EditWebsiteDialog({
   isOpen,
   onClose,
   website,
 }: EditWebsiteDialogProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
   const updateWebsite = useMutation(api.websites.updateWebsite);
+
+  const SCAN_INTERVALS = [
+    { value: '60m', label: tWebsites('scanIntervals.1hour') },
+    { value: '6h', label: tWebsites('scanIntervals.6hours') },
+    { value: '12h', label: tWebsites('scanIntervals.12hours') },
+    { value: '1d', label: tWebsites('scanIntervals.1day') },
+    { value: '5d', label: tWebsites('scanIntervals.5days') },
+    { value: '7d', label: tWebsites('scanIntervals.7days') },
+    { value: '30d', label: tWebsites('scanIntervals.30days') },
+  ];
 
   const {
     register,
@@ -65,7 +73,7 @@ export default function EditWebsiteDialog({
     setValue,
     watch,
   } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(getFormSchema(asSchemaTranslator(tWebsites))),
     defaultValues: {
       domain: website.domain,
       scanInterval: website.scanInterval,
@@ -94,7 +102,7 @@ export default function EditWebsiteDialog({
       });
 
       toast({
-        title: 'Website updated successfully',
+        title: tWebsites('toast.updateSuccess'),
         variant: 'success',
       });
 
@@ -102,7 +110,7 @@ export default function EditWebsiteDialog({
     } catch (error) {
       toast({
         title:
-          error instanceof Error ? error.message : 'Failed to update website',
+          error instanceof Error ? error.message : tWebsites('toast.updateError'),
         variant: 'destructive',
       });
     } finally {
@@ -114,16 +122,16 @@ export default function EditWebsiteDialog({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="py-2">Edit website</DialogTitle>
+          <DialogTitle className="py-2">{tWebsites('editWebsite')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="domain">Domain</Label>
+            <Label htmlFor="domain">{tWebsites('domain')}</Label>
             <Input
               id="domain"
               type="url"
-              placeholder="example.com"
+              placeholder={tWebsites('urlPlaceholder')}
               {...register('domain')}
               disabled={isLoading}
             />
@@ -136,19 +144,8 @@ export default function EditWebsiteDialog({
 
           <div className="space-y-2">
             <Label htmlFor="scanInterval">
-              Scan interval
-              <svg
-                className="inline-block ml-1 w-3.5 h-3.5 text-muted-foreground"
-                fill="none"
-                viewBox="0 0 16 16"
-              >
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" />
-                <path
-                  d="M8 6v3m0 2h.01"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                />
-              </svg>
+              {tWebsites('scanInterval')}
+              <InfoCircleIcon className="inline-block ml-1 w-3.5 h-3.5 text-muted-foreground" />
             </Label>
             <Select
               value={scanInterval}
@@ -156,7 +153,7 @@ export default function EditWebsiteDialog({
               disabled={isLoading}
             >
               <SelectTrigger id="scanInterval">
-                <SelectValue placeholder="Select scan interval" />
+                <SelectValue placeholder={tWebsites('scanIntervalPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
                 {SCAN_INTERVALS.map((interval) => (
@@ -180,10 +177,10 @@ export default function EditWebsiteDialog({
               onClick={onClose}
               disabled={isLoading}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : 'Save'}
+              {isLoading ? tWebsites('saving') : tCommon('actions.save')}
             </Button>
           </DialogFooter>
         </form>

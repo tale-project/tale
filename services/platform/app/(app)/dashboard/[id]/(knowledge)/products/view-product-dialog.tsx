@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import ProductImage from './product-image';
 import { formatDate } from '@/lib/utils/date/format';
+import { formatCurrency } from '@/lib/utils/format';
+import { useLocale, useT } from '@/lib/i18n';
 
 interface ViewProductDialogProps {
   isOpen: boolean;
@@ -36,6 +38,9 @@ export default function ViewProductDialog({
   onClose,
   product,
 }: ViewProductDialogProps) {
+  const locale = useLocale();
+  const { t } = useT('common');
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -87,10 +92,7 @@ export default function ViewProductDialog({
                   Price
                 </label>
                 <p className="text-sm text-foreground mt-1">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: product.currency || 'USD',
-                  }).format(product.price)}
+                  {formatCurrency(product.price, product.currency || 'USD', locale)}
                 </p>
               </div>
             )}
@@ -108,7 +110,7 @@ export default function ViewProductDialog({
                       : 'text-foreground'
                   }`}
                 >
-                  {product.stock} units
+                  {t('units.stock', { count: product.stock })}
                 </p>
               </div>
             )}

@@ -11,6 +11,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { Users } from 'lucide-react';
 import ImportCustomersMenu from './import-customers-menu';
+import { getT } from '@/lib/i18n/server';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -26,16 +27,17 @@ interface PageProps {
 }
 
 /** Skeleton for the customers table with header and rows - matches customers-table.tsx column sizes */
-function CustomersSkeleton() {
+async function CustomersSkeleton() {
+  const { t } = await getT('tables');
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name' }, // No size = expands to fill remaining space
-        { header: 'Status', size: 140 },
-        { header: 'Source', size: 140 },
+        { header: t('headers.name') }, // No size = expands to fill remaining space
+        { header: t('headers.status'), size: 140 },
+        { header: t('headers.source'), size: 140 },
         { header: '', size: 100 },
-        { header: 'Created', size: 140 },
+        { header: t('headers.created'), size: 140 },
         { isAction: true, size: 140 },
       ]}
       showHeader
@@ -45,12 +47,13 @@ function CustomersSkeleton() {
 }
 
 /** Empty state shown when org has no customers - avoids unnecessary skeleton */
-function CustomersEmptyState({ organizationId }: { organizationId: string }) {
+async function CustomersEmptyState({ organizationId }: { organizationId: string }) {
+  const { t } = await getT('emptyStates');
   return (
     <DataTableEmptyState
       icon={Users}
-      title="No customers yet"
-      description="Upload your first customer to get started"
+      title={t('customers.title')}
+      description={t('customers.description')}
       action={<ImportCustomersMenu organizationId={organizationId} />}
     />
   );
@@ -159,8 +162,10 @@ export default async function CustomersPage({
     }
   }
 
+  const skeletonFallback = await Promise.resolve(<CustomersSkeleton />);
+
   return (
-    <Suspense fallback={<CustomersSkeleton />}>
+    <Suspense fallback={skeletonFallback}>
       <CustomersContent params={params} searchParams={searchParams} />
     </Suspense>
   );

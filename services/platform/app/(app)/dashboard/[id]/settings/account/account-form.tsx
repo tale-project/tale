@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface AccountFormProps {
   organizationId: string;
@@ -22,6 +23,9 @@ interface PasswordFormData {
 export default function AccountForm({
   preloadedMemberContext,
 }: AccountFormProps) {
+  const { t: tAuth } = useT('auth');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
   const memberContext = usePreloadedQuery(preloadedMemberContext);
   const updatePassword = useMutation(api.users.updateUserPassword);
   const { toast } = useToast();
@@ -50,19 +54,15 @@ export default function AccountForm({
       });
 
       toast({
-        title: 'Success',
-        description: 'Password changed successfully',
+        title: tToast('success.passwordChanged'),
+        variant: 'success',
       });
 
       // Clear form
       reset();
     } catch (error) {
       toast({
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to change password. Please check your current password and try again.',
+        title: tToast('error.passwordChangeFailed'),
         variant: 'destructive',
       });
     }
@@ -72,8 +72,7 @@ export default function AccountForm({
     return (
       <div className="flex justify-center py-6">
         <div className="w-full max-w-md text-sm text-muted-foreground">
-          Account details and passwords are managed by your identity provider
-          and can&apos;t be changed here.
+          {tAuth('changePassword.ssoMessage')}
         </div>
       </div>
     );
@@ -82,37 +81,37 @@ export default function AccountForm({
   return (
     <div className="flex justify-center py-6">
       <div className="w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-6">Change password</h2>
+        <h2 className="text-lg font-semibold mb-6">{tAuth('changePassword.title')}</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Current Password */}
           <div className="space-y-2">
-            <Label htmlFor="current-password">Current password</Label>
+            <Label htmlFor="current-password">{tAuth('changePassword.currentPassword')}</Label>
             <Input
               id="current-password"
               type="password"
-              placeholder="Enter current password"
+              placeholder={tAuth('changePassword.placeholder.current')}
               disabled={isSubmitting}
               errorMessage={errors.currentPassword?.message}
               {...register('currentPassword', {
-                required: 'Current password is required',
+                required: tAuth('changePassword.validation.currentRequired'),
               })}
             />
           </div>
 
           {/* New Password */}
           <div className="space-y-2">
-            <Label htmlFor="new-password">New password</Label>
+            <Label htmlFor="new-password">{tAuth('changePassword.newPassword')}</Label>
             <Input
               id="new-password"
               type="password"
-              placeholder="Enter new password"
+              placeholder={tAuth('changePassword.placeholder.new')}
               disabled={isSubmitting}
               errorMessage={errors.newPassword?.message}
               {...register('newPassword', {
-                required: 'New password is required',
+                required: tAuth('changePassword.validation.newRequired'),
                 minLength: {
                   value: 8,
-                  message: 'Password must be at least 8 characters long',
+                  message: tAuth('changePassword.validation.minLength'),
                 },
               })}
             />
@@ -120,24 +119,24 @@ export default function AccountForm({
 
           {/* Confirm New Password */}
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
+            <Label htmlFor="confirm-password">{tAuth('changePassword.confirmPassword')}</Label>
             <Input
               id="confirm-password"
               type="password"
-              placeholder="Confirm new password"
+              placeholder={tAuth('changePassword.placeholder.confirm')}
               disabled={isSubmitting}
               errorMessage={errors.confirmPassword?.message}
               {...register('confirmPassword', {
-                required: 'Please confirm your new password',
+                required: tAuth('changePassword.validation.confirmRequired'),
                 validate: (value) =>
-                  value === newPassword || 'Passwords do not match',
+                  value === newPassword || tAuth('changePassword.validation.mismatch'),
               })}
             />
           </div>
 
           {/* Submit Button */}
           <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? 'Saving...' : 'Save changes'}
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
           </Button>
         </form>
       </div>

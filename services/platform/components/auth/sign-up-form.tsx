@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
+import { useT } from '@/lib/i18n';
 
 // Zod validation schema
 const signUpSchema = z.object({
@@ -40,6 +41,7 @@ export default function SignUpForm({
   microsoftEnabled = false,
 }: SignUpFormProps) {
   const router = useRouter();
+  const { t } = useT('auth');
 
   // Single form for both email and password
   const form = useForm<SignUpFormData>({
@@ -110,7 +112,7 @@ export default function SignUpForm({
   };
 
   return (
-    <AuthFormLayout title="Create your account">
+    <AuthFormLayout title={t('signup.signupTitle')}>
       <div className="space-y-8">
         <div className="space-y-5">
           <form
@@ -120,12 +122,12 @@ export default function SignUpForm({
           >
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
                 size="lg"
-                placeholder="Enter your email address"
+                placeholder={t('emailPlaceholder')}
                 disabled={isSubmitting}
                 autoComplete="email"
                 className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
@@ -144,13 +146,13 @@ export default function SignUpForm({
                 htmlFor="password"
                 error={Boolean(errors.password?.message)}
               >
-                Password
+                {t('password')}
               </Label>
               <Input
                 id="password"
                 type="password"
                 size="lg"
-                placeholder="Enter your password"
+                placeholder={t('passwordPlaceholder')}
                 disabled={isSubmitting}
                 autoComplete="new-password"
                 errorMessage={errors.password?.message}
@@ -160,19 +162,19 @@ export default function SignUpForm({
               {password && (
                 <ul className="text-xs space-y-1 text-muted-foreground list-none">
                   <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    At least 8 characters
+                    {t('requirements.length')}
                   </li>
                   <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Lowercase letter
+                    {t('requirements.lowercase')}
                   </li>
                   <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Uppercase letter
+                    {t('requirements.uppercase')}
                   </li>
                   <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Number
+                    {t('requirements.number')}
                   </li>
                   <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    Special character
+                    {t('requirements.specialChar')}
                   </li>
                 </ul>
               )}
@@ -192,7 +194,7 @@ export default function SignUpForm({
                   !!errors.email
                 }
               >
-                {isSubmitting ? 'Creating...' : 'Create'}
+                {isSubmitting ? t('signup.creating') : t('signup.createButton')}
               </Button>
             </div>
           </form>
@@ -215,7 +217,7 @@ export default function SignUpForm({
               <span className="mr-3 inline-flex">
                 <MicrosoftIcon />
               </span>
-              Continue with Microsoft
+              {t('continueWithMicrosoft')}
             </Button>
           </>
         )}

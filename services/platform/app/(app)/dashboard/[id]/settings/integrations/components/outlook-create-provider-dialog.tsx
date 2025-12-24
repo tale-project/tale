@@ -21,6 +21,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
 const passwordSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -50,6 +51,7 @@ export default function OutlookCreateProviderDialog({
   onSuccess,
   ...props
 }: OutlookCreateProviderDialogProps) {
+  const { t } = useT('settings');
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -303,7 +305,7 @@ export default function OutlookCreateProviderDialog({
                   <Input
                     id="oauth2-name"
                     {...oauth2Form.register('name')}
-                    placeholder="e.g., Outlook Work Account"
+                    placeholder={t('integrations.outlook.namePlaceholder')}
                   />
                   {oauth2Form.formState.errors.name && (
                     <p className="text-sm text-red-600 mt-1">
@@ -384,7 +386,7 @@ export default function OutlookCreateProviderDialog({
                   <Input
                     id="name"
                     {...passwordForm.register('name')}
-                    placeholder="e.g., Outlook organization Account"
+                    placeholder={t('integrations.outlook.namePlaceholder')}
                   />
                   {passwordForm.formState.errors.name && (
                     <p className="text-sm text-red-600 mt-1">
@@ -399,7 +401,7 @@ export default function OutlookCreateProviderDialog({
                     id="email"
                     type="email"
                     {...passwordForm.register('email')}
-                    placeholder="your-email@outlook.com"
+                    placeholder={t('integrations.outlook.emailPlaceholder')}
                   />
                   {passwordForm.formState.errors.email && (
                     <p className="text-sm text-red-600 mt-1">
@@ -414,7 +416,7 @@ export default function OutlookCreateProviderDialog({
                     id="password"
                     type="password"
                     {...passwordForm.register('password')}
-                    placeholder="App password from Microsoft"
+                    placeholder={t('integrations.outlook.passwordPlaceholder')}
                   />
                   {passwordForm.formState.errors.password && (
                     <p className="text-sm text-red-600 mt-1">

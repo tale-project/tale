@@ -30,6 +30,7 @@ import { toast } from '@/hooks/use-toast';
 import { useDateFormat } from '@/hooks/use-date-format';
 import CreateAutomationDialog from './create-automation-dialog';
 import DeleteAutomationDialog from './delete-automation-dialog';
+import { useT } from '@/lib/i18n';
 
 interface AutomationsTableProps {
   organizationId: string;
@@ -46,6 +47,11 @@ export default function AutomationsTable({
 
   const router = useRouter();
   const { formatDate } = useDateFormat();
+  const { t: tAutomations } = useT('automations');
+  const { t: tTables } = useT('tables');
+  const { t: tToast } = useT('toast');
+  const { t: tCommon } = useT('common');
+  const { t: tEmpty } = useT('emptyStates');
 
   // Debounce search query for server-side filtering
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -118,40 +124,43 @@ export default function AutomationsTable({
         stepsConfig: [],
       });
       toast({
-        title: 'Automation created successfully',
+        title: tToast('success.automationCreated'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Failed to create automation:', error);
       toast({
-        title: `Failed to create automation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        title: `${tToast('error.automationCreateFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
         variant: 'destructive',
       });
     }
   };
 
-  const handleDuplicateAutomation = async (workflow: Doc<'wfDefinitions'>) => {
-    try {
-      await duplicateAutomation({
-        wfDefinitionId: workflow._id,
-      });
-      toast({
-        title: 'Automation duplicated successfully',
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to duplicate automation:', error);
-      toast({
-        title: `Failed to duplicate automation: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleDuplicateAutomation = useCallback(
+    async (workflow: Doc<'wfDefinitions'>) => {
+      try {
+        await duplicateAutomation({
+          wfDefinitionId: workflow._id,
+        });
+        toast({
+          title: tToast('success.automationDuplicated'),
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('Failed to duplicate automation:', error);
+        toast({
+          title: `${tToast('error.automationDuplicateFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
+          variant: 'destructive',
+        });
+      }
+    },
+    [duplicateAutomation, tToast, tTables],
+  );
 
-  const handleDeleteClick = (workflow: Doc<'wfDefinitions'>) => {
+  const handleDeleteClick = useCallback((workflow: Doc<'wfDefinitions'>) => {
     setAutomationToDelete(workflow);
     setDeleteDialogOpen(true);
-  };
+  }, []);
 
   const handleDeleteConfirm = async () => {
     if (!automationToDelete) return;
@@ -165,7 +174,7 @@ export default function AutomationsTable({
     } catch (error) {
       console.error('Failed to delete automation:', error);
       toast({
-        title: `Failed to delete automation: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        title: `${tToast('error.automationDeleteFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
         variant: 'destructive',
       });
     }
@@ -176,20 +185,25 @@ export default function AutomationsTable({
   };
 
   // Helper function to get status badge color
-  const getStatusBadge = useCallback((status: string) => {
-    return (
-      <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-        {status === 'active' ? 'Published' : 'Draft'}
-      </Badge>
-    );
-  }, []);
+  const getStatusBadge = useCallback(
+    (status: string) => {
+      return (
+        <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
+          {status === 'active'
+            ? tCommon('status.published')
+            : tCommon('status.draft')}
+        </Badge>
+      );
+    },
+    [tCommon],
+  );
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Doc<'wfDefinitions'>>[]>(
     () => [
       {
         accessorKey: 'name',
-        header: 'Automation',
+        header: tTables('headers.automation'),
         size: 328,
         cell: ({ row }) => (
           <span className="text-sm font-medium text-foreground truncate px-2">
@@ -199,13 +213,13 @@ export default function AutomationsTable({
       },
       {
         accessorKey: 'status',
-        header: 'Status',
+        header: tTables('headers.status'),
         size: 140,
         cell: ({ row }) => getStatusBadge(row.original.status),
       },
       {
         accessorKey: 'version',
-        header: 'Version',
+        header: tTables('headers.version'),
         size: 100,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -215,7 +229,11 @@ export default function AutomationsTable({
       },
       {
         accessorKey: '_creationTime',
-        header: () => <span className="text-right w-full block">Created</span>,
+        header: () => (
+          <span className="text-right w-full block">
+            {tTables('headers.created')}
+          </span>
+        ),
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground text-right block">
@@ -246,7 +264,7 @@ export default function AutomationsTable({
               >
                 <Copy className="size-4 mr-2 text-muted-foreground p-0.5" />
                 <span className="text-sm font-medium text-muted-foreground">
-                  Duplicate
+                  {tCommon('actions.duplicate')}
                 </span>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -257,14 +275,23 @@ export default function AutomationsTable({
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="size-4 mr-2" />
-                <span className="text-sm font-medium">Delete</span>
+                <span className="text-sm font-medium">
+                  {tCommon('actions.delete')}
+                </span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [formatDate, getStatusBadge, handleDuplicateAutomation, handleDeleteClick],
+    [
+      formatDate,
+      getStatusBadge,
+      handleDuplicateAutomation,
+      handleDeleteClick,
+      tTables,
+      tCommon,
+    ],
   );
 
   const emptyAutomations = automations.length === 0 && !debouncedSearch;
@@ -272,7 +299,7 @@ export default function AutomationsTable({
   const createButton = (
     <Button onClick={handleCreateAutomation} className="gap-2">
       <Plus className="size-4" />
-      Create automation
+      {tAutomations('createButton')}
     </Button>
   );
 
@@ -281,12 +308,12 @@ export default function AutomationsTable({
       {emptyAutomations ? (
         <DataTableEmptyState
           icon={Workflow}
-          title="No automations yet"
-          description="Describe your workflow and let your AI automate it"
+          title={tEmpty('automations.title')}
+          description={tEmpty('automations.description')}
           action={
             <Button onClick={handleCreateAutomation}>
               <Sparkles className="size-4 mr-2" />
-              Create automation with AI
+              {tAutomations('createWithAI')}
             </Button>
           }
         />
@@ -301,7 +328,7 @@ export default function AutomationsTable({
               <div className="relative w-full max-w-[18.75rem]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
                 <Input
-                  placeholder="Search automations..."
+                  placeholder={tAutomations('searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -311,8 +338,8 @@ export default function AutomationsTable({
             </div>
           }
           emptyState={{
-            title: 'No automations found',
-            description: 'Try adjusting your search criteria',
+            title: tCommon('search.noResults'),
+            description: tCommon('search.tryAdjusting'),
             isFiltered: true,
           }}
         />

@@ -8,6 +8,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import DeleteVendorDialog from './delete-vendor-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface DeleteVendorButtonProps {
   vendor: Doc<'vendors'>;
@@ -22,6 +23,7 @@ export default function DeleteVendorButton({
   onOpenChange: controlledOnOpenChange,
   asChild = false,
 }: DeleteVendorButtonProps) {
+  const { t: tVendors } = useT('vendors');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const deleteVendor = useMutation(api.vendors.deleteVendor);
@@ -42,7 +44,7 @@ export default function DeleteVendorButton({
     } catch (err) {
       console.error('Deletion error:', err);
       toast({
-        title: 'Failed to delete vendor',
+        title: tVendors('deleteError'),
         variant: 'destructive',
       });
     } finally {
@@ -57,7 +59,7 @@ export default function DeleteVendorButton({
           variant="ghost"
           size="icon"
           onClick={() => setIsDialogOpen(true)}
-          title="Delete vendor"
+          title={tVendors('deleteVendor')}
           className="hover:bg-transparent"
         >
           <Trash2 className="size-4" />

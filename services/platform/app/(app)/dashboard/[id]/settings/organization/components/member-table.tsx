@@ -7,6 +7,7 @@ import { ChevronDownIcon } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
 import MemberOptions from './member-options';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useT } from '@/lib/i18n';
 
 type Member = {
   _id: string;
@@ -47,6 +48,8 @@ export default function MemberTable({
   memberContext,
   onSortChange,
 }: MemberTableProps) {
+  const { t: tTables } = useT('tables');
+  const { t: tSettings } = useT('settings');
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
   }, [sortOrder, onSortChange]);
@@ -61,7 +64,7 @@ export default function MemberTable({
             className="h-auto p-0 font-medium text-muted-foreground hover:text-foreground"
             onClick={handleSort}
           >
-            Member
+            {tTables('headers.member')}
             <ChevronDownIcon
               className={`ml-1 size-4 transition-transform ${
                 sortOrder === 'desc' ? 'rotate-180' : ''
@@ -88,21 +91,27 @@ export default function MemberTable({
       },
       {
         id: 'role',
-        header: 'Role',
-        cell: ({ row }) => (
-          <span
-            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(
-              row.original.role,
-            )}`}
-          >
-            {row.original.role || 'Disabled'}
-          </span>
-        ),
+        header: tTables('headers.role'),
+        cell: ({ row }) => {
+          const role = row.original.role;
+          const roleKey = role
+            ? (`roles.${role.toLowerCase()}` as const)
+            : 'roles.disabled';
+          return (
+            <span
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(
+                role,
+              )}`}
+            >
+              {tSettings(roleKey as Parameters<typeof tSettings>[0])}
+            </span>
+          );
+        },
         size: 200,
       },
       {
         id: 'joined',
-        header: () => <div className="text-right">Joined</div>,
+        header: () => <div className="text-right">{tTables('headers.joined')}</div>,
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right">
             {formatDate(new Date(row.original._creationTime), { preset: 'relative' })}
@@ -123,7 +132,7 @@ export default function MemberTable({
         size: 140,
       },
     ],
-    [handleSort, sortOrder, memberContext],
+    [handleSort, sortOrder, memberContext, tTables, tSettings],
   );
 
   return (

@@ -17,8 +17,8 @@ import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import * as XLSX from 'xlsx';
 import { useEffect } from 'react';
+// Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 // Validation schema for the form
 const formSchema = z
@@ -135,7 +135,7 @@ export default function ImportVendorsDialog({
     return new Promise<ParsedVendor[]>((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = e.target?.result;
           if (!data) {
@@ -167,6 +167,8 @@ export default function ImportVendorsDialog({
               });
             }
           } else {
+            // Dynamically import xlsx to reduce bundle size
+            const XLSX = await import('xlsx');
             // Parse Excel
             const workbook = XLSX.read(data, { type: 'binary' });
             const sheetName = workbook.SheetNames[0];

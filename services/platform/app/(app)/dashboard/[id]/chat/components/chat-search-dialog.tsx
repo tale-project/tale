@@ -10,6 +10,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useT } from '@/lib/i18n';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function ChatSearchDialog({
   onOpenChange,
   organizationId,
 }: ChatSearchDialogProps) {
+  const { t } = useT('dialogs');
   const { formatDateSmart } = useDateFormat();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -38,7 +40,7 @@ export default function ChatSearchDialog({
   const chats =
     threadsData?.map((thread) => ({
       _id: thread._id,
-      title: thread.title ?? 'Untitled Chat',
+      title: thread.title ?? t('searchChat.untitledChat'),
       createdAt: thread._creationTime,
     })) || [];
 
@@ -96,11 +98,11 @@ export default function ChatSearchDialog({
       <DialogContent className="p-0 overflow-hidden gap-0">
         <div className="py-3 px-4 border-b border-border">
           <VisuallyHidden>
-            <DialogTitle>Search chat</DialogTitle>
+            <DialogTitle>{t('searchChat.title')}</DialogTitle>
           </VisuallyHidden>
           <Input
             ref={inputRef}
-            placeholder="Search chat"
+            placeholder={t('searchChat.placeholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -110,7 +112,7 @@ export default function ChatSearchDialog({
         <div className="h-[13.75rem] overflow-y-auto p-3">
           {chats.length === 0 ? (
             <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
-              No results
+              {t('searchChat.noResults')}
             </div>
           ) : (
             <ul className="py-1">

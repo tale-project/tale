@@ -12,14 +12,6 @@ export interface ValidationResult {
 }
 
 /**
- * Alternative validation result with single error
- */
-export interface SimpleValidationResult {
-  isValid: boolean;
-  error: string | null;
-}
-
-/**
  * Generic operation result type using discriminated union
  * Prevents contradictory states by ensuring success: true has data
  * and success: false has error information
@@ -27,20 +19,6 @@ export interface SimpleValidationResult {
 export type OperationResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; errors?: string[] };
-
-/**
- * Supported value types for rules and conditions
- */
-export type SupportedValue = string | number | boolean | string[];
-
-/**
- * Generic condition interface
- */
-export interface BaseCondition {
-  field: string;
-  operator: string;
-  value: SupportedValue;
-}
 
 /**
  * Standard pagination interface used across the application

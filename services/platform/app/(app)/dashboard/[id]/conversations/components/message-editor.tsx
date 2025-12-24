@@ -36,6 +36,7 @@ import {
 } from '@milkdown/react';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
+import { useT } from '@/lib/i18n';
 
 // Markdown -> HTML conversion using existing deps
 import ReactMarkdown from 'react-markdown';
@@ -102,7 +103,7 @@ const formatFileSize = (bytes: number): string => {
 
 // Inner editor component that has access to Milkdown instance
 function MilkdownEditorInner({
-  placeholder = 'Type a message',
+  placeholder,
   disabled = false,
   onSave,
   messageId,
@@ -111,6 +112,11 @@ function MilkdownEditorInner({
   pendingMessage,
   hasMessageHistory = false,
 }: MessageEditorProps) {
+  // Translations
+  const { t: tConversations } = useT('conversations');
+
+  // Use placeholder from props or fallback to translation
+  const editorPlaceholder = placeholder || tConversations('messagePlaceholder');
   const [message, setMessage] = usePersistedState(
     messageId ? `conversation-${messageId}` : 'new-conversation',
     pendingMessage?.content || '',
@@ -158,7 +164,7 @@ function MilkdownEditorInner({
         defaultValue,
         featureConfigs: {
           [Crepe.Feature.Placeholder]: {
-            text: placeholder || 'Type a message',
+            text: editorPlaceholder,
           },
         },
       });
@@ -414,7 +420,7 @@ function MilkdownEditorInner({
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                   setImproveInstruction(e.target.value);
                 }}
-                placeholder="Suggest edits to the text (optional)"
+                placeholder={tConversations('suggestEditsPlaceholder')}
                 className="flex-1 resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm text-muted-foreground h-auto min-h-[10rem]"
                 onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                   if (

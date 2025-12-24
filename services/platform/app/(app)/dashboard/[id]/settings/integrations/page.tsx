@@ -6,6 +6,7 @@ import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccessDenied } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface IntegrationsPageProps {
   params: Promise<{ id: string }>;
@@ -69,6 +70,8 @@ async function IntegrationsPageContent({ params }: IntegrationsContentProps) {
     redirect('/log-in');
   }
 
+  const { t } = await getT('accessDenied');
+
   // Check user's role in the organization
   const memberContext = await fetchQuery(
     api.member.getCurrentMemberContext,
@@ -84,7 +87,7 @@ async function IntegrationsPageContent({ params }: IntegrationsContentProps) {
 
   if (!hasAccess) {
     return (
-      <AccessDenied message="You need Admin or Developer permissions to access integrations settings." />
+      <AccessDenied message={t('integrations')} />
     );
   }
 
