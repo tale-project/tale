@@ -15,7 +15,7 @@ import VendorRowActions from './vendor-row-actions';
 import VendorFilter from './vendor-filter';
 import VendorSearch from './vendor-search';
 import ImportVendorsMenu from './import-vendors-menu';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 export interface VendorsTableProps {
   organizationId: string;
@@ -33,6 +33,7 @@ export default function VendorsTable({
   preloadedVendors,
 }: VendorsTableProps) {
   const { t: tVendors } = useT('vendors');
+  const locale = useLocale();
   const searchParams = useSearchParams();
 
   // Memoize filter parsing to avoid string operations on every render
@@ -105,6 +106,7 @@ export default function VendorsTable({
           <span className="text-xs text-muted-foreground text-right block">
             {formatDate(new Date(row.original._creationTime), {
               preset: 'short',
+              locale,
             })}
           </span>
         ),

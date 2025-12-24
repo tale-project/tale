@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
 import Pagination from '@/components/ui/pagination';
-import { useT } from '@/lib/i18n';
+import { useT, useLocale } from '@/lib/i18n';
 
 interface ExampleMessage {
   id: string;
@@ -53,6 +53,7 @@ export default function ExampleMessagesTable({
   const { t: tTone } = useT('toneOfVoice');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const itemsPerPage = 5;
 
@@ -84,7 +85,7 @@ export default function ExampleMessagesTable({
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground tracking-[-0.072px]">
-            {formatDate(row.original.updatedAt, { customFormat: 'YYYY-MM-DD' })}
+            {formatDate(row.original.updatedAt, { customFormat: 'YYYY-MM-DD', locale })}
           </span>
         ),
       },

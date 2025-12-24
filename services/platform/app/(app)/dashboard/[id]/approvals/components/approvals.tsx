@@ -11,6 +11,7 @@ import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
 import { useMutation, usePreloadedQuery, useQuery } from 'convex/react';
+import { useLocale } from '@/lib/i18n';
 import { api } from '@/convex/_generated/api';
 import type { Id, Doc } from '@/convex/_generated/dataModel';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
@@ -40,6 +41,7 @@ export default function Approvals({
   organizationId,
   preloadedApprovals,
 }: ApprovalsProps) {
+  const locale = useLocale();
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
@@ -709,6 +711,7 @@ export default function Approvals({
             {row.original.reviewedAt
               ? formatDate(new Date(row.original.reviewedAt).toISOString(), {
                   preset: 'short',
+                  locale,
                 })
               : ''}
           </span>

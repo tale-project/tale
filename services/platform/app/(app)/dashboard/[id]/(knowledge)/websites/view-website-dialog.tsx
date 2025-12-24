@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
+import { useLocale } from '@/lib/i18n';
 
 interface ViewWebsiteDialogProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function ViewWebsiteDialog({
   onClose,
   website,
 }: ViewWebsiteDialogProps) {
+  const locale = useLocale();
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
@@ -75,6 +77,7 @@ export default function ViewWebsiteDialog({
                 {website.lastScannedAt
                   ? formatDate(new Date(website.lastScannedAt), {
                       preset: 'long',
+                      locale,
                     })
                   : 'Not scanned yet'}
               </Value>
@@ -97,6 +100,7 @@ export default function ViewWebsiteDialog({
               <Value>
                 {formatDate(new Date(website._creationTime), {
                   preset: 'long',
+                  locale,
                 })}
               </Value>
             </div>

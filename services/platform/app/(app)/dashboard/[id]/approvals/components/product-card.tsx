@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
 import { formatDate } from '@/lib/utils/date/format';
+import { useLocale } from '@/lib/i18n';
 
 interface ProductCardProps {
   product?: RecommendedProduct;
@@ -61,6 +62,7 @@ export default function ProductCard({
   isRemoving,
   canRemove,
 }: ProductCardProps) {
+  const locale = useLocale();
   if (type === 'recommended' && product) {
     return (
       <div className="flex items-start gap-3 p-3 border-b border-border last:border-b-0">
@@ -140,7 +142,7 @@ export default function ProductCard({
             </h4>
             {purchase.purchaseDate && (
               <p className="text-xs text-muted-foreground">
-                {formatDate(purchase.purchaseDate)}
+                {formatDate(purchase.purchaseDate, { locale })}
               </p>
             )}
           </div>
