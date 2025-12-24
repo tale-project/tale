@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface DeleteSyncFolderConfirmationModalProps {
   open: boolean;
@@ -25,31 +26,35 @@ export default function DeleteSyncFolderConfirmationModal({
   isLoading = false,
   folderName,
 }: DeleteSyncFolderConfirmationModalProps) {
+  const { t: tDocuments } = useT('documents');
+  const { t: tCommon } = useT('common');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="py-2">Delete sync folder</DialogTitle>
+          <DialogTitle className="py-2">{tDocuments('deleteSyncFolder.title')}</DialogTitle>
           <div className="text-left space-y-4 py-2">
             <DialogDescription className="mb-2">
-              Are you sure you want to permanently delete
+              {tDocuments('deleteSyncFolder.confirmation')}
               <span className="font-medium text-foreground">
                 {` ${folderName}`}
               </span>
               ?
             </DialogDescription>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">This will delete:</p>
+              <p className="text-sm text-muted-foreground">{tDocuments('deleteSyncFolder.thisWillDelete')}</p>
               <ul className="text-sm text-muted-foreground ml-4 space-y-1 list-disc">
-                <li>All files and subfolders directly synced to this folder</li>
-                <li>The auto-sync configuration for this folder</li>
-                <li>All sync history and metadata</li>
+                <li>{tDocuments('deleteSyncFolder.willDelete.filesAndSubfolders')}</li>
+                <li>{tDocuments('deleteSyncFolder.willDelete.autoSyncConfig')}</li>
+                <li>{tDocuments('deleteSyncFolder.willDelete.syncHistory')}</li>
               </ul>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                This will <strong className="text-foreground">NOT</strong>{' '}
-                delete any files that are not auto-synced to this folder.
+                {tDocuments('deleteSyncFolder.willNotDelete.prefix')}{' '}
+                <strong className="text-foreground">{tDocuments('deleteSyncFolder.willNotDelete.not')}</strong>{' '}
+                {tDocuments('deleteSyncFolder.willNotDelete.suffix')}
               </p>
             </div>
           </div>
@@ -61,7 +66,7 @@ export default function DeleteSyncFolderConfirmationModal({
             disabled={isLoading}
             className="flex-1"
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             onClick={onConfirmDelete}
@@ -70,7 +75,7 @@ export default function DeleteSyncFolderConfirmationModal({
             isLoading={isLoading}
             className="flex-1"
           >
-            Delete Sync Folder
+            {tDocuments('deleteSyncFolder.deleteButton')}
           </Button>
         </DialogFooter>
       </DialogContent>

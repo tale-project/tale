@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, ChangeEvent } from 'react';
 import { Search } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 export default function ProductSearch() {
+  const { t: tProducts } = useT('products');
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('query') || '');
@@ -29,7 +31,7 @@ export default function ProductSearch() {
       <Input
         value={query}
         onChange={handleSearchChange}
-        placeholder="Search products..."
+        placeholder={tProducts('searchPlaceholder')}
         className="pl-8"
       />
     </div>

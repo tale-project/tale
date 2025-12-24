@@ -10,6 +10,11 @@ export interface FormatDateOptions {
   customFormat?: string;
 }
 
+export interface DateTranslations {
+  today: string;
+  yesterday: string;
+}
+
 /**
  * Check if timestamp has timezone information using ISO 8601 format patterns
  */
@@ -91,12 +96,23 @@ export function formatDate(
   }
 }
 
+/** Default translations for date strings */
+const defaultDateTranslations: DateTranslations = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+};
+
 /**
  * Format date with relative time for today/yesterday, otherwise use preset
+ *
+ * @param date - The date to format
+ * @param options - Format options including preset and locale
+ * @param translations - Localized strings for "Today" and "Yesterday"
  */
 export function formatDateSmart(
   date: string | Date | Dayjs,
   options: FormatDateOptions = {},
+  translations: DateTranslations = defaultDateTranslations,
 ): string {
   const { locale = 'en-US', preset = 'short' } = options;
 
@@ -123,7 +139,7 @@ export function formatDateSmart(
 
     if (dayjsDate.isYesterday()) {
       const timeStr = formatDate(dayjsDate, { preset: 'time', locale });
-      return `Yesterday ${timeStr}`;
+      return `${translations.yesterday} ${timeStr}`;
     }
 
     return formatDate(dayjsDate, { preset, locale });
@@ -135,10 +151,15 @@ export function formatDateSmart(
 
 /**
  * Format date header for grouping (Today, Yesterday, or full date)
+ *
+ * @param date - The date to format
+ * @param options - Format options including locale
+ * @param translations - Localized strings for "Today" and "Yesterday"
  */
 export function formatDateHeader(
   date: string | Date | Dayjs,
   options: FormatDateOptions = {},
+  translations: DateTranslations = defaultDateTranslations,
 ): string {
   const { locale = 'en-US' } = options;
 
@@ -160,11 +181,11 @@ export function formatDateHeader(
     dayjsDate = dayjsDate.locale(baseLocale);
 
     if (dayjsDate.isToday()) {
-      return 'Today';
+      return translations.today;
     }
 
     if (dayjsDate.isYesterday()) {
-      return 'Yesterday';
+      return translations.yesterday;
     }
 
     return formatDate(dayjsDate, { preset: 'medium', locale });

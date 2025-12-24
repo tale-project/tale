@@ -17,6 +17,7 @@ import { Download, X, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import DocumentPreview from './document-preview';
 import { useToast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface DocumentPreviewModalProps {
   open: boolean;
@@ -40,6 +41,7 @@ export default function DocumentPreviewModal({
   documentId,
   fileName,
 }: DocumentPreviewModalProps) {
+  const { t } = useT('documents');
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
@@ -102,14 +104,14 @@ export default function DocumentPreviewModal({
       window.URL.revokeObjectURL(blobUrl);
 
       toast({
-        title: 'Download complete',
+        title: t('preview.downloadComplete'),
         description: `${displayName} has been downloaded`,
         variant: 'success',
       });
     } catch (error) {
       console.error('Download error:', error);
       toast({
-        title: 'Failed to download the file',
+        title: t('preview.failedToLoad'),
         variant: 'destructive',
       });
     } finally {
@@ -141,7 +143,7 @@ export default function DocumentPreviewModal({
                 size="icon"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                aria-label="Download file"
+                aria-label={t('preview.downloadFile')}
               >
                 {isDownloading ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -162,13 +164,13 @@ export default function DocumentPreviewModal({
         {/* Body */}
         {isLoading && (
           <div className="flex-1 grid place-items-center p-6">
-            <div className="text-sm text-muted-foreground">Loading…</div>
+            <div className="text-sm text-muted-foreground">{t('preview.loading')}</div>
           </div>
         )}
         {isError && (
           <div className="flex-1 grid place-items-center p-6">
             <div className="text-sm text-destructive">
-              {queryError?.message || 'Failed to load document'}
+              {queryError?.message || t('preview.failedToLoad')}
             </div>
           </div>
         )}

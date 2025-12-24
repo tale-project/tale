@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils/cn';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 import {
   DataTableEmptyState,
   type DataTableEmptyStateProps,
@@ -120,6 +121,8 @@ export function DataTable<TData>({
   header,
   footer,
 }: DataTableProps<TData>) {
+  const { t } = useT('common');
+
   // Internal state for uncontrolled modes
   const [internalSorting, setInternalSorting] =
     useState<SortingState>(initialSorting);
@@ -236,7 +239,7 @@ export function DataTable<TData>({
                 colSpan={columns.length + (enableExpanding ? 1 : 0)}
                 className="text-center py-10 text-muted-foreground"
               >
-                No results found
+                {t('search.noResults')}
               </TableCell>
             </TableRow>
           ) : (

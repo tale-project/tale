@@ -73,7 +73,7 @@ export function TabNavigationSkeleton({
   return (
     <nav
       className={cn(
-        'bg-background/50 backdrop-blur-md sticky top-12 z-50 border-b border-border px-4 py-2 min-h-12 flex items-center gap-4',
+        'bg-background sticky top-12 z-50 border-b border-border px-4 py-2 min-h-12 flex items-center gap-4',
         className,
       )}
     >

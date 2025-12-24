@@ -30,6 +30,7 @@ import GmailCreateProviderDialog from './gmail-create-provider-dialog';
 import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useDateFormat } from '@/hooks/use-date-format';
 
 interface GmailIntegrationDialogProps extends DialogProps {
   organizationId: string;
@@ -39,6 +40,7 @@ export default function GmailIntegrationDialog({
   organizationId,
   ...props
 }: GmailIntegrationDialogProps) {
+  const { formatDate } = useDateFormat();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
     null,
@@ -286,7 +288,7 @@ export default function GmailIntegrationDialog({
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
                       Created:{' '}
-                      {new Date(provider._creationTime).toLocaleDateString()}
+                      {formatDate(new Date(provider._creationTime), 'short')}
                     </span>
                   </div>
                 </div>

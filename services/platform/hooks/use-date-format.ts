@@ -8,7 +8,9 @@ import {
   formatDateHeader,
   DatePreset,
   FormatDateOptions,
+  DateTranslations,
 } from '@/lib/utils/date/format';
+import { useT } from '@/lib/i18n';
 
 export interface UseDateFormatReturn {
   formatDate: (
@@ -27,7 +29,6 @@ export interface UseDateFormatReturn {
   ) => string;
   formatRelative: (date: string | Date | Dayjs) => string;
   locale: string;
-  setLocale: (locale: string) => void;
 }
 
 /**
@@ -35,7 +36,14 @@ export interface UseDateFormatReturn {
  * Provides convenient methods for formatting dates with automatic locale application
  */
 export function useDateFormat(): UseDateFormatReturn {
-  const { locale, setLocale } = useLocale();
+  const { locale } = useLocale();
+  const { t } = useT('common');
+
+  // Get localized date translations
+  const dateTranslations: DateTranslations = {
+    today: t('dates.today'),
+    yesterday: t('dates.yesterday'),
+  };
 
   // Format date with automatic locale application
   const formatDateWithLocale = (
@@ -56,11 +64,15 @@ export function useDateFormat(): UseDateFormatReturn {
     preset: DatePreset = 'short',
     options: Omit<FormatDateOptions, 'locale' | 'preset'> = {},
   ): string => {
-    return formatDateSmart(date, {
-      ...options,
-      preset,
-      locale,
-    });
+    return formatDateSmart(
+      date,
+      {
+        ...options,
+        preset,
+        locale,
+      },
+      dateTranslations,
+    );
   };
 
   // Format date header with automatic locale application
@@ -68,10 +80,14 @@ export function useDateFormat(): UseDateFormatReturn {
     date: string | Date | Dayjs,
     options: Omit<FormatDateOptions, 'locale'> = {},
   ): string => {
-    return formatDateHeader(date, {
-      ...options,
-      locale,
-    });
+    return formatDateHeader(
+      date,
+      {
+        ...options,
+        locale,
+      },
+      dateTranslations,
+    );
   };
 
   // Format relative time with automatic locale application
@@ -88,6 +104,5 @@ export function useDateFormat(): UseDateFormatReturn {
     formatDateHeader: formatDateHeaderWithLocale,
     formatRelative,
     locale,
-    setLocale,
   };
 }

@@ -17,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 type TranslatedNames = {
   [language: string]: string;
@@ -33,6 +34,7 @@ export default function ProductTranslationsEditor({
   productName,
   translatedNames,
 }: ProductTranslationsEditorProps) {
+  const { t: tProducts } = useT('products');
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<TranslatedNames>({
@@ -57,16 +59,18 @@ export default function ProductTranslationsEditor({
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      // Update each translation using the Convex API
-      for (const [language, name] of Object.entries(formData)) {
-        if (name.trim()) {
-          await upsertTranslation({
+      // Update all translations in parallel using Promise.all
+      const translationPromises = Object.entries(formData)
+        .filter(([, name]) => name.trim())
+        .map(([language, name]) =>
+          upsertTranslation({
             productId: productId as Id<'products'>,
             language,
             name: name.trim(),
-          });
-        }
-      }
+          }),
+        );
+
+      await Promise.all(translationPromises);
 
       toast({
         title: 'Product translations updated',
@@ -104,7 +108,7 @@ export default function ProductTranslationsEditor({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit product translations</DialogTitle>
+          <DialogTitle>{tProducts('translations.title')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {/* Original Product Name */}
@@ -126,7 +130,7 @@ export default function ProductTranslationsEditor({
               id="en-translation"
               value={formData.en}
               onChange={(e) => handleInputChange('en', e.target.value)}
-              placeholder="Enter English translation..."
+              placeholder={tProducts('translations.enterTranslation', { language: 'English' })}
               className="w-full"
             />
           </div>
@@ -140,7 +144,7 @@ export default function ProductTranslationsEditor({
               id="de-translation"
               value={formData.de}
               onChange={(e) => handleInputChange('de', e.target.value)}
-              placeholder="Enter German translation..."
+              placeholder={tProducts('translations.enterTranslation', { language: 'German' })}
               className="w-full"
             />
           </div>
@@ -154,7 +158,7 @@ export default function ProductTranslationsEditor({
               id="fr-translation"
               value={formData.fr}
               onChange={(e) => handleInputChange('fr', e.target.value)}
-              placeholder="Enter French translation..."
+              placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
               className="w-full"
             />
           </div>

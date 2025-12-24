@@ -16,6 +16,8 @@ import DocumentActions from './document-actions';
 import DocumentPreviewModal from './document-preview-modal';
 import DocumentIcon from '@/components/ui/document-icon';
 import RagStatusBadge from './rag-status-badge';
+import { useT } from '@/lib/i18n';
+import { useDateFormat } from '@/hooks/use-date-format';
 export interface DocumentTableProps {
   items: DocumentItem[];
   total: number;
@@ -39,6 +41,8 @@ export default function DocumentTable({
   currentFolderPath,
   hasMicrosoftAccount,
 }: DocumentTableProps) {
+  const { t: tDocuments } = useT('documents');
+  const { formatDate } = useDateFormat();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -56,19 +60,29 @@ export default function DocumentTable({
     return params;
   }, [searchParams]);
 
-  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    const params = new URLSearchParams(baseParams.toString());
-    if (value.trim().length > 0) {
-      params.set('query', value.trim());
-    } else {
-      params.delete('query');
-    }
-    params.delete('page'); // Reset to first page when searching
-    const url = params.toString() ? `${pathname}?${params}` : pathname;
-    router.push(url);
-  };
+  const handleSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      setQuery(value);
+      const params = new URLSearchParams(baseParams.toString());
+      if (value.trim().length > 0) {
+        params.set('query', value.trim());
+      } else {
+        params.delete('query');
+      }
+      params.delete('page'); // Reset to first page when searching
+      const url = params.toString() ? `${pathname}?${params}` : pathname;
+      router.push(url);
+    },
+    [baseParams, pathname, router],
+  );
+
+  // Memoize row className function to avoid recreation on every render
+  const getRowClassName = useCallback(
+    (row: Row<DocumentItem>) =>
+      row.original.type === 'folder' ? 'cursor-pointer' : '',
+    [],
+  );
 
   const handleFolderClick = useCallback(
     (item: DocumentItem) => {
@@ -198,7 +212,7 @@ export default function DocumentTable({
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground text-right block">
             {row.original.lastModified
-              ? new Date(row.original.lastModified).toLocaleDateString()
+              ? formatDate(new Date(row.original.lastModified), 'short')
               : '—'}
           </span>
         ),
@@ -229,8 +243,8 @@ export default function DocumentTable({
     return (
       <DataTableEmptyState
         icon={ClipboardList}
-        title="No documents yet"
-        description="Import documents to make your AI smarter"
+        title={tDocuments('emptyState.title')}
+        description={tDocuments('emptyState.description')}
         action={
           <ImportDocumentsMenu
             organizationId={organizationId}
@@ -253,9 +267,7 @@ export default function DocumentTable({
         data={items}
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
-        rowClassName={(row) =>
-          row.original.type === 'folder' ? 'cursor-pointer' : ''
-        }
+        rowClassName={getRowClassName}
         header={
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="relative w-full sm:w-[300px]">
@@ -263,7 +275,7 @@ export default function DocumentTable({
               <Input
                 value={query}
                 onChange={handleSearchChange}
-                placeholder="Search documents..."
+                placeholder={tDocuments('searchPlaceholder')}
                 className="pl-8"
               />
             </div>
@@ -276,8 +288,8 @@ export default function DocumentTable({
           </div>
         }
         emptyState={{
-          title: 'No results found',
-          description: 'Try adjusting your search criteria',
+          title: tDocuments('searchEmptyState.title'),
+          description: tDocuments('searchEmptyState.description'),
           isFiltered: true,
         }}
         footer={

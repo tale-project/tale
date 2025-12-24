@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
+import { useT } from '@/lib/i18n';
 
 // Zod validation schema
 const logInSchema = z.object({
@@ -36,6 +37,7 @@ export default function LogInForm({
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
+  const { t } = useT('auth');
 
   const form = useForm<LogInFormData>({
     resolver: zodResolver(logInSchema),
@@ -105,7 +107,7 @@ export default function LogInForm({
   }, [redirectTo, router, userId]);
 
   return (
-    <AuthFormLayout title="Log in">
+    <AuthFormLayout title={t('login.loginTitle')}>
       <div className="space-y-8">
         <div className="space-y-5">
           <form
@@ -115,12 +117,12 @@ export default function LogInForm({
           >
             {/* Email Field */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
                 size="lg"
-                placeholder="Enter your email address"
+                placeholder={t('emailPlaceholder')}
                 disabled={isSubmitting}
                 autoComplete="email"
                 className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
@@ -139,13 +141,13 @@ export default function LogInForm({
                 htmlFor="password"
                 error={Boolean(errors.password?.message)}
               >
-                Password
+                {t('password')}
               </Label>
               <Input
                 id="password"
                 type="password"
                 size="lg"
-                placeholder="Enter your password"
+                placeholder={t('passwordPlaceholder')}
                 disabled={isSubmitting}
                 autoComplete="current-password"
                 errorMessage={errors.password?.message}
@@ -167,7 +169,7 @@ export default function LogInForm({
                   !!errors.email
                 }
               >
-                {isSubmitting ? 'Signing in...' : 'Log in'}
+                {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
               </Button>
             </div>
           </form>
@@ -190,7 +192,7 @@ export default function LogInForm({
               <span className="mr-3 inline-flex">
                 <MicrosoftIcon />
               </span>
-              Continue with Microsoft
+              {t('continueWithMicrosoft')}
             </Button>
           </>
         )}

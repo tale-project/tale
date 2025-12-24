@@ -10,6 +10,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/lib/i18n';
 
 interface VendorSearchProps {
   currentSearch?: string;
@@ -18,6 +19,7 @@ interface VendorSearchProps {
 export default function VendorSearch({
   currentSearch = '',
 }: VendorSearchProps) {
+  const { t: tVendors } = useT('vendors');
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(currentSearch);
@@ -76,7 +78,7 @@ export default function VendorSearch({
         onKeyDown={handleQueryKeyDown}
         onChange={handleQueryChange}
         onBlur={handleBlur}
-        placeholder="Search product"
+        placeholder={tVendors('searchPlaceholder')}
         className="pl-10"
         disabled={isPending}
       />

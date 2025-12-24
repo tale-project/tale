@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 // Validation schema for Circuly credentials
 const circulySchema = z.object({
@@ -54,6 +55,7 @@ export default function CirculyIntegrationDialog({
   onDisconnect,
   ...props
 }: CirculyIntegrationDialogProps) {
+  const { t } = useT('settings');
   const isConnected = !!credentials?.username;
   const existingUsername = credentials?.username || '';
 
@@ -172,7 +174,7 @@ export default function CirculyIntegrationDialog({
                       <FormLabel>Circuly Username</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Enter your Circuly username"
+                          placeholder={t('integrations.circuly.usernamePlaceholder')}
                           {...field}
                           disabled={isSubmitting}
                           className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
@@ -193,7 +195,7 @@ export default function CirculyIntegrationDialog({
                         <div className="relative">
                           <Input
                             type="password"
-                            placeholder="Enter your Circuly password"
+                            placeholder={t('integrations.circuly.passwordPlaceholder')}
                             {...field}
                             disabled={isSubmitting}
                             className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pr-10"

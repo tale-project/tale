@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { read, utils } from 'xlsx';
 import DOMPurify from 'dompurify';
+// Note: xlsx is dynamically imported to reduce initial bundle size
 
 interface DocumentPreviewXlsxProps {
   url: string;
@@ -23,6 +23,8 @@ export default function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
         if (!res.ok)
           throw new Error(`Failed to fetch spreadsheet (${res.status})`);
         const ab = await res.arrayBuffer();
+        // Dynamically import xlsx to reduce bundle size
+        const { read, utils } = await import('xlsx');
         const wb = read(ab);
         const ws = wb.Sheets[wb.SheetNames[0]];
         const tableHtml = utils.sheet_to_html(ws);

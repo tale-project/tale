@@ -1,13 +1,14 @@
 'use client';
 
 import { Textarea } from '@/components/ui/textarea';
-import { ComponentPropsWithoutRef, useRef, useState } from 'react';
+import { ComponentPropsWithoutRef, useRef, useState, useMemo, useCallback } from 'react';
 import { X, Paperclip } from 'lucide-react';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import DocumentIcon from '@/components/ui/document-icon';
+import { EnterKeyIcon } from '@/components/ui/icons';
 import { LoaderCircleIcon } from 'lucide-react';
 
 interface FileAttachment {
@@ -142,7 +143,7 @@ export default function ChatInput({
     await Promise.all(uploadPromises);
   };
 
-  const removeAttachment = (fileId: Id<'_storage'>) => {
+  const removeAttachment = useCallback((fileId: Id<'_storage'>) => {
     setAttachments((prev) => {
       const attachment = prev.find((att) => att.fileId === fileId);
       if (attachment?.previewUrl) {
@@ -150,7 +151,18 @@ export default function ChatInput({
       }
       return prev.filter((att) => att.fileId !== fileId);
     });
-  };
+  }, []);
+
+  // Memoize filtered attachments to avoid recreating arrays on every render
+  const imageAttachments = useMemo(
+    () => attachments.filter((att) => att.fileType.startsWith('image/')),
+    [attachments],
+  );
+
+  const fileAttachments = useMemo(
+    () => attachments.filter((att) => !att.fileType.startsWith('image/')),
+    [attachments],
+  );
 
   const handleInputChange = (newValue: string) => {
     onChange?.(newValue);
@@ -252,9 +264,7 @@ export default function ChatInput({
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <div className="flex flex-wrap gap-1 mb-2">
               {/* Image attachments - small square thumbnails */}
-              {attachments
-                .filter((att) => att.fileType.startsWith('image/'))
-                .map((attachment) => (
+              {imageAttachments.map((attachment) => (
                   <div key={attachment.fileId} className="relative group">
                     <div className="size-11 rounded-lg bg-secondary/20 overflow-hidden">
                       {attachment.previewUrl ? (
@@ -280,9 +290,7 @@ export default function ChatInput({
                 ))}
 
               {/* File attachments - horizontal cards */}
-              {attachments
-                .filter((att) => !att.fileType.startsWith('image/'))
-                .map((attachment) => (
+              {fileAttachments.map((attachment) => (
                   <div
                     key={attachment.fileId}
                     className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[216px]"
@@ -349,21 +357,8 @@ export default function ChatInput({
             {value.length === 0 && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground absolute top-0 left-0 pointer-events-none">
                 {placeholder}
-                <div className="flex items-center justify-center size-4 rounded border border-muted-foreground/30">
-                  <span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="12"
-                      height="12"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                    >
-                      <path
-                        d="M11.3331 0.666687V6.66669C11.3331 7.37393 11.0522 8.05221 10.5521 8.55231C10.052 9.0524 9.37371 9.33335 8.66646 9.33335H2.60913L4.2758 11L3.33313 11.9427L0.0571289 8.66669L3.33313 5.39069L4.2758 6.33335L2.60913 8.00002H8.66646C9.02008 8.00002 9.35922 7.85954 9.60927 7.6095C9.85932 7.35945 9.9998 7.02031 9.9998 6.66669V0.666687H11.3331Z"
-                        fill="#9CA3AF"
-                      />
-                    </svg>
-                  </span>
+                <div className="flex items-center justify-center size-4 rounded border border-muted-foreground/30 text-muted-foreground">
+                  <EnterKeyIcon />
                 </div>
                 to send
               </div>

@@ -1,0 +1,684 @@
+{
+  "common": {
+    "dates": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "units": {
+      "stock": "{count, plural, one {# unit} other {# units}}"
+    },
+    "actions": {
+      "save": "Save",
+      "saveChanges": "Save changes",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "deleting": "Deleting...",
+      "edit": "Edit",
+      "add": "Add",
+      "create": "Create",
+      "close": "Close",
+      "confirm": "Confirm",
+      "back": "Back",
+      "next": "Next",
+      "submit": "Submit",
+      "loading": "Loading...",
+      "done": "Done",
+      "duplicate": "Duplicate",
+      "view": "View",
+      "viewSource": "View source",
+      "source": "Source",
+      "copy": "Copy",
+      "copied": "Copied!",
+      "showInfo": "Show info",
+      "clearAll": "Clear all",
+      "upload": "Upload",
+      "import": "Import",
+      "select": "Select",
+      "search": "Search",
+      "hideSearch": "Hide search",
+      "updating": "Updating...",
+      "importing": "Importing...",
+      "openMenu": "Open menu"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "completed": "Completed",
+      "failed": "Failed",
+      "published": "Published",
+      "draft": "Draft",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "validation": {
+      "required": "This field is required",
+      "email": "Please enter a valid email address",
+      "minLength": "Must be at least {min} characters",
+      "passwordMismatch": "Passwords do not match",
+      "invalidJson": "Invalid JSON format"
+    },
+    "pagination": {
+      "rowsPerPage": "Rows per page",
+      "of": "of",
+      "showing": "{start}-{end} of {total}"
+    },
+    "search": {
+      "noResults": "No results found",
+      "tryAdjusting": "Try adjusting your search criteria",
+      "placeholder": "Search..."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "failedToCopy": "Failed to copy to clipboard"
+    },
+    "keyboardShortcuts": {
+      "ctrlEnter": "Ctrl+Enter",
+      "escape": "Esc"
+    },
+    "unsavedChanges": "Unsaved changes"
+  },
+  "navigation": {
+    "chatWithAI": "Chat with AI",
+    "conversations": "Conversations",
+    "knowledge": "Knowledge",
+    "approvals": "Approvals",
+    "automations": "Automations",
+    "settings": "Settings",
+    "organization": "Organization",
+    "integrations": "Integrations",
+    "account": "Account",
+    "logs": "Logs"
+  },
+  "knowledge": {
+    "toneOfVoice": "Tone of voice",
+    "documents": "Documents",
+    "websites": "Websites",
+    "products": "Products",
+    "customers": "Customers",
+    "vendors": "Vendors"
+  },
+  "emptyStates": {
+    "customers": {
+      "title": "No customers yet",
+      "description": "Upload your first customer to get started"
+    },
+    "products": {
+      "title": "No products yet",
+      "description": "Import your products to help your AI understand context"
+    },
+    "documents": {
+      "title": "No documents yet",
+      "description": "Import documents to make your AI smarter"
+    },
+    "vendors": {
+      "title": "No vendors yet",
+      "description": "Upload your first vendor to get started"
+    },
+    "websites": {
+      "title": "No websites yet",
+      "description": "Add websites to make your AI smarter"
+    },
+    "automations": {
+      "title": "No automations yet",
+      "description": "Describe your workflow and let your AI automate it"
+    },
+    "examples": {
+      "title": "No examples yet",
+      "description": "Add example messages to train the AI on your tone"
+    },
+    "approvals": {
+      "title": "No approvals found",
+      "description": "There are no approvals matching your criteria"
+    },
+    "conversations": {
+      "title": "No conversations yet",
+      "description": "Conversations will appear here"
+    },
+    "chats": {
+      "title": "No chats yet",
+      "description": "Start a new chat to begin"
+    },
+    "members": {
+      "title": "No members found",
+      "description": "Add team members to get started"
+    }
+  },
+  "tables": {
+    "headers": {
+      "name": "Name",
+      "email": "Email",
+      "status": "Status",
+      "source": "Source",
+      "created": "Created",
+      "updated": "Updated",
+      "modified": "Modified",
+      "actions": "Actions",
+      "member": "Member",
+      "role": "Role",
+      "joined": "Joined",
+      "automation": "Automation",
+      "version": "Version",
+      "product": "Product",
+      "description": "Description",
+      "stock": "Stock",
+      "document": "Document",
+      "size": "Size",
+      "ragStatus": "RAG status",
+      "locale": "Locale",
+      "website": "Website",
+      "title": "Title",
+      "scanned": "Scanned",
+      "interval": "Interval",
+      "message": "Message"
+    },
+    "cells": {
+      "noEmail": "No email",
+      "unknown": "Unknown",
+      "empty": "-"
+    }
+  },
+  "toast": {
+    "success": {
+      "saved": "Changes saved successfully",
+      "deleted": "Successfully deleted",
+      "created": "Successfully created",
+      "duplicated": "Successfully duplicated",
+      "passwordChanged": "Password changed successfully",
+      "organizationUpdated": "Organization updated successfully",
+      "memberAdded": "Member added successfully",
+      "newMemberCreated": "New member created and added to organization",
+      "existingUserAdded": "Existing user added to organization",
+      "automationCreated": "Automation created successfully",
+      "automationDuplicated": "Automation duplicated successfully",
+      "exampleAdded": "Example added successfully",
+      "exampleUpdated": "Example updated successfully",
+      "toneGenerated": "Tone of voice generated successfully",
+      "toneSaved": "Tone of voice saved successfully"
+    },
+    "error": {
+      "generic": "Something went wrong. Please try again.",
+      "saveFailed": "Failed to save changes",
+      "deleteFailed": "Failed to delete",
+      "createFailed": "Failed to create",
+      "duplicateFailed": "Failed to duplicate",
+      "passwordChangeFailed": "Failed to change password. Please check your current password and try again.",
+      "organizationUpdateFailed": "Failed to update organization",
+      "addMemberFailed": "Failed to add member",
+      "automationCreateFailed": "Failed to create automation",
+      "automationDuplicateFailed": "Failed to duplicate automation",
+      "automationDeleteFailed": "Failed to delete automation",
+      "exampleAddFailed": "Failed to add example",
+      "exampleUpdateFailed": "Failed to update example",
+      "exampleDeleteFailed": "Failed to delete example",
+      "noExampleMessages": "No example messages",
+      "addExampleFirst": "Please add at least one example message",
+      "toneGenerateFailed": "Failed to generate tone of voice",
+      "toneSaveFailed": "Failed to save tone of voice"
+    }
+  },
+  "dialogs": {
+    "addMember": {
+      "title": "Add member",
+      "description": "Add a new team member to your organization"
+    },
+    "memberAdded": {
+      "title": "Member added successfully",
+      "credentialsWarning": "Important: Save these credentials now. They won't be shown again."
+    },
+    "confirmDelete": {
+      "title": "Confirm deletion",
+      "description": "Are you sure you want to delete this? This action cannot be undone."
+    },
+    "imagePreview": {
+      "title": "Image preview"
+    },
+    "searchChat": {
+      "title": "Search chat",
+      "placeholder": "Search chat",
+      "noResults": "No results",
+      "untitledChat": "Untitled chat"
+    }
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "Enter your email address",
+    "passwordPlaceholder": "Enter your password",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "login": {
+      "title": "Tale Log In | Access your account",
+      "description": "Log in to your Tale account to analyze customer churn rate, and automate your customer retention workflow.",
+      "loginTitle": "Log in",
+      "signingIn": "Signing in...",
+      "loginButton": "Log in"
+    },
+    "signup": {
+      "title": "Create account",
+      "description": "Create a Tale account to analyze customer churn rate, and automate your customer retention workflow.",
+      "signupTitle": "Create your account",
+      "creating": "Creating...",
+      "createButton": "Create"
+    },
+    "requirements": {
+      "length": "At least 8 characters",
+      "lowercase": "Lowercase letter",
+      "uppercase": "Uppercase letter",
+      "number": "Number",
+      "specialChar": "Special character"
+    },
+    "changePassword": {
+      "title": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "placeholder": {
+        "current": "Enter current password",
+        "new": "Enter new password",
+        "confirm": "Confirm new password"
+      },
+      "requirements": {
+        "title": "Password requirements",
+        "length": "At least 8 characters",
+        "lowercase": "One lowercase letter",
+        "uppercase": "One uppercase letter",
+        "number": "One number"
+      },
+      "validation": {
+        "currentRequired": "Current password is required",
+        "newRequired": "New password is required",
+        "minLength": "Password must be at least 8 characters long",
+        "confirmRequired": "Please confirm your new password",
+        "mismatch": "Passwords do not match"
+      },
+      "ssoMessage": "Account details and passwords are managed by your identity provider and can't be changed here."
+    }
+  },
+  "settings": {
+    "organization": {
+      "title": "Organization (optional)",
+      "teamMembers": "Team members",
+      "manageAccess": "Manage access to the organization",
+      "searchMember": "Search member"
+    },
+    "integrations": {
+      "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
+      "gmail": {
+        "namePlaceholder": "e.g., Gmail Work Account",
+        "emailPlaceholder": "your-email@gmail.com",
+        "passwordPlaceholder": "16-character app password"
+      },
+      "outlook": {
+        "namePlaceholder": "e.g., Outlook Work Account",
+        "emailPlaceholder": "your-email@outlook.com",
+        "passwordPlaceholder": "App password from Microsoft"
+      },
+      "circuly": {
+        "usernamePlaceholder": "Enter your Circuly username",
+        "passwordPlaceholder": "Enter your Circuly password"
+      },
+      "shopify": {
+        "domainPlaceholder": "mystore.myshopify.com"
+      },
+      "clickToCopy": "Click to copy",
+      "failedToCopy": "Failed to copy to clipboard"
+    },
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "Enter full name",
+      "email": "Email",
+      "emailPlaceholder": "Enter email address",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password",
+      "role": "Role",
+      "passwordHint": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password."
+    },
+    "roles": {
+      "admin": "Admin",
+      "developer": "Developer",
+      "editor": "Editor",
+      "member": "Member",
+      "disabled": "Disabled"
+    }
+  },
+  "automations": {
+    "title": "Automations",
+    "createButton": "Create automation",
+    "createWithAI": "Create automation with AI",
+    "searchPlaceholder": "Search automations...",
+    "accessDenied": "You need Admin or Developer permissions to access automations.",
+    "configuration": {
+      "title": "Configuration",
+      "name": "Name",
+      "namePlaceholder": "Enter automation name",
+      "description": "Description",
+      "descriptionPlaceholder": "Enter automation description",
+      "timeout": "Timeout (ms)",
+      "timeoutPlaceholder": "120000",
+      "timeoutHelp": "Maximum execution time in milliseconds",
+      "maxRetries": "Max retries",
+      "maxRetriesPlaceholder": "2",
+      "maxRetriesHelp": "Number of retry attempts on failure",
+      "backoff": "Backoff (ms)",
+      "backoffPlaceholder": "1000",
+      "backoffHelp": "Delay between retry attempts in milliseconds",
+      "variables": "Variables (JSON)",
+      "variablesHelp": "These variables will be available to all steps in the automation",
+      "saveButton": "Save configuration",
+      "validation": {
+        "nameRequired": "Name is required",
+        "invalidJson": "Invalid JSON in variables field"
+      },
+      "notAvailable": {
+        "title": "Saving not yet available",
+        "message": "Saving workflow configuration is not yet wired to a public API. Please update this workflow via backend/admin tools for now."
+      }
+    },
+    "executions": {
+      "title": "Executions"
+    },
+    "createDialog": {
+      "title": "Create automation",
+      "namePlaceholder": "e.g., Social media workflow",
+      "descriptionPlaceholder": "Describe what this automation does...",
+      "creating": "Creating...",
+      "continue": "Continue"
+    },
+    "editDialog": {
+      "title": "Edit automation",
+      "namePlaceholder": "Enter automation name",
+      "descriptionPlaceholder": "Enter automation description (optional)",
+      "timeoutPlaceholder": "300000",
+      "maxRetriesPlaceholder": "3",
+      "backoffPlaceholder": "1000",
+      "variablesPlaceholder": "{\n  \"environment\": \"test\"\n}",
+      "variablesDescription": "Default variables available to all automation steps",
+      "updating": "Updating...",
+      "updateButton": "Update automation"
+    },
+    "createStep": {
+      "title": "Create step",
+      "description": "Add a new step to the selected workflow",
+      "namePlaceholder": "analyze_data",
+      "creating": "Creating...",
+      "createButton": "Create step"
+    },
+    "assistant": {
+      "messagePlaceholder": "Type your message...",
+      "attachFiles": "Attach files"
+    }
+  },
+  "conversations": {
+    "title": "Conversations",
+    "messagePlaceholder": "Type a message",
+    "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
+    "status": {
+      "open": "Open",
+      "closed": "Closed",
+      "spam": "Spam",
+      "archived": "Archived"
+    }
+  },
+  "approvals": {
+    "title": "Approvals",
+    "status": {
+      "pending": "Pending",
+      "resolved": "Resolved"
+    },
+    "emptyState": {
+      "pending": {
+        "title": "No pending approvals",
+        "description": "When human input is needed, your AI will request it here"
+      },
+      "resolved": {
+        "title": "No resolved approvals"
+      }
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "newChat": "New chat",
+    "deleteChat": "Delete chat",
+    "searchChat": "Search chat",
+    "hideSearch": "Hide search",
+    "searchPlaceholder": "Search chats...",
+    "messagePlaceholder": "Type a message...",
+    "searchConversations": "Search conversations",
+    "fileTypes": {
+      "image": "IMG",
+      "pdf": "PDF",
+      "doc": "DOC",
+      "txt": "TXT",
+      "file": "FILE"
+    },
+    "toolStatus": {
+      "ragSearch": "Searching knowledge base",
+      "contextSearch": "Searching for related topics"
+    }
+  },
+  "toneOfVoice": {
+    "title": "Tone of voice",
+    "exampleMessages": {
+      "title": "Example messages",
+      "description": "Samples to guide the AI to match your tone and style.",
+      "addButton": "Add example",
+      "noExamples": "No example messages",
+      "viewExample": "View example",
+      "editExample": "Edit example",
+      "placeholder": "e.g. Hello, I hope this finds you well.",
+      "adding": "Adding..."
+    },
+    "form": {
+      "title": "Tone of voice",
+      "optional": "(optional)",
+      "description": "Set your tone of voice — or have it auto-generated from your examples.",
+      "placeholder": "Describe your brand tone",
+      "generating": "Generating...",
+      "generateTone": "Generate tone"
+    }
+  },
+  "documents": {
+    "title": "Documents",
+    "searchPlaceholder": "Search documents...",
+    "addButton": "Add document",
+    "deleteDocument": "Delete document",
+    "deleteSyncFolder": {
+      "title": "Delete sync folder",
+      "confirmation": "Are you sure you want to delete the sync folder",
+      "thisWillDelete": "This will permanently delete:",
+      "willDelete": {
+        "filesAndSubfolders": "All files and subfolders",
+        "autoSyncConfig": "Auto-sync configuration",
+        "syncHistory": "Sync history"
+      },
+      "willNotDelete": {
+        "prefix": "This will",
+        "not": "not",
+        "suffix": "delete the files from your OneDrive."
+      },
+      "deleteButton": "Delete sync folder"
+    },
+    "noItemsFound": "No items found",
+    "noItemsMatchingSearch": "No items found matching your search.",
+    "noItemsAvailable": "No items available",
+    "noItemsSelected": "No items selected",
+    "searchFilesAndFolders": "Search files and folders...",
+    "emptyState": {
+      "title": "No documents yet",
+      "description": "Import documents to make your AI smarter"
+    },
+    "searchEmptyState": {
+      "title": "No items found",
+      "description": "No items found matching your search."
+    },
+    "actions": {
+      "deleteDocument": "Delete document",
+      "deleteSyncFolder": "Delete sync folder"
+    },
+    "deleteFile": {
+      "title": "Delete file",
+      "confirmation": "Are you sure you want to delete",
+      "thisFile": "this file",
+      "warning": "This action cannot be undone.",
+      "deleteButton": "Delete file"
+    },
+    "preview": {
+      "loading": "Loading…",
+      "failedToLoad": "Failed to load document",
+      "downloadComplete": "Download complete",
+      "downloadFile": "Download file"
+    }
+  },
+  "products": {
+    "title": "Products",
+    "searchPlaceholder": "Search products...",
+    "addButton": "Add product",
+    "editProduct": "Edit product",
+    "deleteProduct": "Delete product",
+    "noValidData": "No valid product data found",
+    "noneImported": "No products were imported",
+    "noMatchingProducts": "No matching products found",
+    "emptyState": {
+      "title": "No products yet",
+      "description": "Import your products to help your AI understand context"
+    },
+    "searchEmptyState": {
+      "title": "No products found",
+      "description": "No products match your search criteria"
+    },
+    "edit": {
+      "namePlaceholder": "Enter product name",
+      "descriptionPlaceholder": "Enter product description",
+      "categoryPlaceholder": "Electronics, Clothing, etc.",
+      "pricePlaceholder": "0.00",
+      "stockPlaceholder": "0",
+      "imageUrlPlaceholder": "https://example.com/image.jpg",
+      "currencyPlaceholder": "USD"
+    },
+    "translations": {
+      "title": "Edit product translations",
+      "enterTranslation": "Enter {language} translation..."
+    }
+  },
+  "customers": {
+    "title": "Customers",
+    "searchPlaceholder": "Search customers",
+    "filter": {
+      "title": "Filters"
+    },
+    "addButton": "Add customer",
+    "addCustomers": "Add customers",
+    "uploadCustomers": "Upload customers",
+    "editCustomer": "Edit customer",
+    "deleteCustomer": "Delete customer",
+    "viewDetails": "View Details",
+    "noValidData": "No valid customer data found",
+    "noneImported": "No customers were imported",
+    "deleteError": "Failed to delete customer",
+    "deleteConfirmation": "Are you sure you want to delete {name}?",
+    "thisCustomer": "this customer",
+    "deleteWarning": "This action cannot be undone.",
+    "updateSuccess": "Customer updated successfully",
+    "updateError": "Failed to update customer",
+    "updateCustomer": "Update customer",
+    "name": "Name",
+    "namePlaceholder": "Enter customer name",
+    "email": "Email",
+    "emailPlaceholder": "Enter email address",
+    "locale": "Locale",
+    "localePlaceholder": "e.g., en-US",
+    "import": {
+      "syncFeature": "Sync feature",
+      "syncNotImplemented": "Auto-sync is not yet implemented",
+      "provideData": "Please provide data",
+      "noValidData": "No valid customer data found",
+      "success": "Import successful",
+      "successDescription": "{success} customers imported{failed}",
+      "failed": "failed",
+      "noneImported": "No customers were imported",
+      "error": "Import error",
+      "addCustomers": "Add customers",
+      "uploadCustomers": "Upload customers",
+      "import": "Import"
+    }
+  },
+  "vendors": {
+    "title": "Vendors",
+    "searchPlaceholder": "Search vendors",
+    "addButton": "Add vendor",
+    "addVendors": "Add vendors",
+    "uploadVendors": "Upload vendors",
+    "editVendor": "Edit vendor",
+    "deleteVendor": "Delete vendor",
+    "noValidData": "No valid vendor data found",
+    "noneImported": "No vendors were imported",
+    "name": "Name",
+    "noEmail": "No email",
+    "source": "Source",
+    "unknown": "Unknown",
+    "created": "Created",
+    "actions": "Actions",
+    "noVendorsYet": "No vendors yet",
+    "uploadFirstVendor": "Upload your first vendor to get started",
+    "deleteError": "Failed to delete vendor",
+    "deleteConfirmation": "Are you sure you want to delete {name}?",
+    "thisVendor": "this vendor",
+    "deleteWarning": "This action cannot be undone.",
+    "updateSuccess": "Vendor updated successfully",
+    "updateError": "Failed to update vendor",
+    "updateVendor": "Update vendor",
+    "namePlaceholder": "Enter vendor name",
+    "email": "Email",
+    "emailPlaceholder": "Enter email address",
+    "locale": "Locale",
+    "localePlaceholder": "e.g., en-US",
+    "filter": {
+      "title": "Filters"
+    }
+  },
+  "websites": {
+    "title": "Websites",
+    "searchPlaceholder": "Search website",
+    "addButton": "Add website",
+    "addWebsite": "Add website",
+    "editWebsite": "Edit website",
+    "deleteWebsite": "Delete website",
+    "delete": {
+      "title": "Delete website",
+      "confirmation": "Are you sure you want to delete this website? This action cannot be undone."
+    },
+    "urlPlaceholder": "example.com",
+    "scanIntervalPlaceholder": "Select scan interval",
+    "domain": "Domain",
+    "scanInterval": "Scan interval",
+    "scanIntervals": {
+      "1hour": "Every 1 hour",
+      "6hours": "Every 6 hours",
+      "12hours": "Every 12 hours",
+      "1day": "Every 1 day",
+      "5days": "Every 5 days",
+      "7days": "Every 7 days",
+      "30days": "Every 30 days"
+    },
+    "validation": {
+      "domainRequired": "Domain is required",
+      "validUrl": "Must be a valid URL",
+      "scanIntervalRequired": "Scan interval is required"
+    },
+    "toast": {
+      "addSuccess": "Website added successfully",
+      "addError": "Failed to add website",
+      "updateSuccess": "Website updated successfully",
+      "updateError": "Failed to update website",
+      "deleteError": "Failed to delete website"
+    },
+    "adding": "Adding...",
+    "saving": "Saving..."
+  },
+  "accessDenied": {
+    "title": "Access denied",
+    "automations": "You need Admin or Developer permissions to access automations.",
+    "integrations": "You need Admin or Developer permissions to access integrations settings."
+  }
+}

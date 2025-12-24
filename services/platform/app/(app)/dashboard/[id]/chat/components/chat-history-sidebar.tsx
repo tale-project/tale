@@ -1,6 +1,6 @@
 'use client';
 
-import { ComponentPropsWithoutRef, useEffect, useState, useRef } from 'react';
+import { ComponentPropsWithoutRef, useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -32,13 +32,33 @@ export default function ChatHistorySidebar({
 
   // Load chat threads for current user
   const threadsData = useQuery(api.threads.listThreads, {});
-  const updateThread = useMutation(api.threads.updateChatThread);
 
-  const chats = threadsData?.map((thread) => ({
-    _id: thread._id,
-    title: thread.title ?? 'Untitled Chat',
-    createdAt: thread._creationTime,
-  }));
+  // Update thread with optimistic update for immediate title change
+  const updateThread = useMutation(
+    api.threads.updateChatThread,
+  ).withOptimisticUpdate((localStore, args) => {
+    const currentThreads = localStore.getQuery(api.threads.listThreads, {});
+
+    if (currentThreads !== undefined && args.title) {
+      const updatedThreads = currentThreads.map((thread) =>
+        thread._id === args.threadId
+          ? { ...thread, title: args.title }
+          : thread,
+      );
+      localStore.setQuery(api.threads.listThreads, {}, updatedThreads);
+    }
+  });
+
+  // Memoize chat transformation to prevent unnecessary recalculations
+  const chats = useMemo(
+    () =>
+      threadsData?.map((thread) => ({
+        _id: thread._id,
+        title: thread.title ?? 'Untitled Chat',
+        createdAt: thread._creationTime,
+      })),
+    [threadsData],
+  );
 
   // Auto-focus input when editing starts
   useEffect(() => {
@@ -137,7 +157,7 @@ export default function ChatHistorySidebar({
       )}
       {...restProps}
     >
-      <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background/50 backdrop-blur-md z-10 pt-3">
+      <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background z-10 pt-3">
         Recent
       </div>
       <div className="flex flex-col gap-1">

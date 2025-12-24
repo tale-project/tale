@@ -21,6 +21,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
 const passwordSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -50,6 +51,7 @@ export default function GmailCreateProviderDialog({
   onSuccess,
   ...props
 }: GmailCreateProviderDialogProps) {
+  const { t } = useT('settings');
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -300,7 +302,7 @@ export default function GmailCreateProviderDialog({
                   <Input
                     id="oauth2-name"
                     {...oauth2Form.register('name')}
-                    placeholder="e.g., Gmail Work Account"
+                    placeholder={t('integrations.gmail.namePlaceholder')}
                   />
                   {oauth2Form.formState.errors.name && (
                     <p className="text-sm text-red-600 mt-1">
@@ -360,7 +362,7 @@ export default function GmailCreateProviderDialog({
                   <Input
                     id="name"
                     {...passwordForm.register('name')}
-                    placeholder="e.g., Gmail organization Account"
+                    placeholder={t('integrations.gmail.namePlaceholder')}
                   />
                   {passwordForm.formState.errors.name && (
                     <p className="text-sm text-red-600 mt-1">
@@ -375,7 +377,7 @@ export default function GmailCreateProviderDialog({
                     id="email"
                     type="email"
                     {...passwordForm.register('email')}
-                    placeholder="your-email@gmail.com"
+                    placeholder={t('integrations.gmail.emailPlaceholder')}
                   />
                   {passwordForm.formState.errors.email && (
                     <p className="text-sm text-red-600 mt-1">
@@ -390,7 +392,7 @@ export default function GmailCreateProviderDialog({
                     id="password"
                     type="password"
                     {...passwordForm.register('password')}
-                    placeholder="16-character app password"
+                    placeholder={t('integrations.gmail.passwordPlaceholder')}
                   />
                   {passwordForm.formState.errors.password && (
                     <p className="text-sm text-red-600 mt-1">

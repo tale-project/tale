@@ -4,6 +4,7 @@ import { ChangeEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/lib/i18n';
 
 interface CustomerSearchProps {
   currentSearch?: string;
@@ -12,6 +13,7 @@ interface CustomerSearchProps {
 export default function CustomerSearch({
   currentSearch = '',
 }: CustomerSearchProps) {
+  const { t: tCustomers } = useT('customers');
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(currentSearch);
@@ -35,7 +37,7 @@ export default function CustomerSearch({
       <Input
         value={query}
         onChange={handleSearchChange}
-        placeholder="Search customers"
+        placeholder={tCustomers('searchPlaceholder')}
         className="pl-8"
       />
     </div>

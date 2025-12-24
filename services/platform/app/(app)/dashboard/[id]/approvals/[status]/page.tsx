@@ -10,6 +10,7 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { GitCompare } from 'lucide-react';
+import { getT } from '@/lib/i18n/server';
 
 const VALID_STATUSES = ['pending', 'resolved'] as const;
 type ApprovalStatus = (typeof VALID_STATUSES)[number];
@@ -81,14 +82,16 @@ function ApprovalsSkeleton() {
 }
 
 /** Empty state shown when org has no approvals - avoids unnecessary skeleton */
-function ApprovalsEmptyState({ status }: { status: string }) {
+async function ApprovalsEmptyState({ status }: { status: string }) {
+  const { t } = await getT('approvals');
+
   return (
     <DataTableEmptyState
       icon={GitCompare}
-      title={`No ${status} approvals`}
+      title={t(`emptyState.${status}.title` as any)}
       description={
         status === 'pending'
-          ? 'When human input is needed, your AI will request it here'
+          ? t('emptyState.pending.description' as any)
           : undefined
       }
     />

@@ -29,6 +29,7 @@ import DocumentIcon from '@/components/ui/document-icon';
 import { useUIMessages } from '@convex-dev/agent/react';
 import Image from 'next/image';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
+import { useT } from '@/lib/i18n';
 
 interface FileAttachment extends BaseFileAttachment {
   previewUrl?: string;
@@ -156,6 +157,7 @@ export function AutomationAssistant({
   organizationId,
   onClearChat,
 }: AutomationAssistantProps) {
+  const { t } = useT('automations');
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -733,7 +735,7 @@ export function AutomationAssistant({
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder="Type your message..."
+              placeholder={t('assistant.messagePlaceholder')}
               className="resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[2.5rem]"
               disabled={isLoading}
             />
@@ -745,7 +747,7 @@ export function AutomationAssistant({
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
               className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Attach files"
+              title={t('assistant.attachFiles')}
             >
               <Paperclip className="size-4" />
             </button>

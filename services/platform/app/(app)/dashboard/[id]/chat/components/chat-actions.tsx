@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
 interface ChatActionsProps {
   chat: {
@@ -42,8 +43,23 @@ export default function ChatActions({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convex hooks
-  const deleteThread = useMutation(api.threads.deleteChatThread);
+  // Translations
+  const { t: tCommon } = useT('common');
+  const { t: tChat } = useT('chat');
+
+  // Convex hooks - Delete thread with optimistic update for immediate UI feedback
+  const deleteThread = useMutation(
+    api.threads.deleteChatThread,
+  ).withOptimisticUpdate((localStore, args) => {
+    const currentThreads = localStore.getQuery(api.threads.listThreads, {});
+
+    if (currentThreads !== undefined) {
+      const updatedThreads = currentThreads.filter(
+        (thread) => thread._id !== args.threadId,
+      );
+      localStore.setQuery(api.threads.listThreads, {}, updatedThreads);
+    }
+  });
 
   const handleDelete = async () => {
     try {
@@ -107,7 +123,7 @@ export default function ChatActions({
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader className="pt-2">
-            <DialogTitle>Delete chat</DialogTitle>
+            <DialogTitle>{tChat('deleteChat')}</DialogTitle>
           </DialogHeader>
           <div className="text-left space-y-2 py-2">
             <DialogDescription className="mb-2">
@@ -136,7 +152,7 @@ export default function ChatActions({
               disabled={isLoading}
               className="flex-1"
             >
-              {isLoading ? 'Deleting...' : 'Delete chat'}
+              {isLoading ? tCommon('actions.deleting') : tChat('deleteChat')}
             </Button>
           </DialogFooter>
         </DialogContent>

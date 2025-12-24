@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useT } from '@/lib/i18n';
 
 interface ViewEditExampleDialogProps {
   isOpen: boolean;
@@ -35,6 +36,9 @@ export default function ViewEditExampleDialog({
   example,
   onUpdate,
 }: ViewEditExampleDialogProps) {
+  const { t: tTone } = useT('toneOfVoice');
+  const { t: tCommon } = useT('common');
+  const { t: tTables } = useT('tables');
   const [mode, setMode] = useState<'view' | 'edit'>(initialMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,7 +101,7 @@ export default function ViewEditExampleDialog({
         {/* Header */}
         <DialogHeader className="py-6 px-4 border-b border-border">
           <DialogTitle className="font-semibold text-foreground tracking-[-0.3px]">
-            {mode === 'view' ? 'View example' : 'Edit example'}
+            {mode === 'view' ? tTone('exampleMessages.viewExample') : tTone('exampleMessages.editExample')}
           </DialogTitle>
         </DialogHeader>
 
@@ -114,7 +118,7 @@ export default function ViewEditExampleDialog({
                 htmlFor="content"
                 className="text-sm font-medium text-foreground tracking-[-0.21px]"
               >
-                Message
+                {tTables('headers.message')}
               </Label>
               {mode === 'view' ? (
                 <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
@@ -123,7 +127,7 @@ export default function ViewEditExampleDialog({
               ) : (
                 <Textarea
                   {...register('content', { required: true })}
-                  placeholder="e.g. Hello, I hope this finds you well."
+                  placeholder={tTone('exampleMessages.placeholder')}
                   className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
                 />
               )}
@@ -141,14 +145,14 @@ export default function ViewEditExampleDialog({
                 onClick={handleClose}
                 className="flex-1"
               >
-                Close
+                {tCommon('actions.close')}
               </Button>
               <Button
                 type="button"
                 onClick={handleEditClick}
                 className="flex-1"
               >
-                Edit
+                {tCommon('actions.edit')}
               </Button>
             </div>
           ) : (
@@ -159,7 +163,7 @@ export default function ViewEditExampleDialog({
                 onClick={handleCancelEdit}
                 className="flex-1"
               >
-                Cancel
+                {tCommon('actions.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -167,7 +171,7 @@ export default function ViewEditExampleDialog({
                 disabled={!isValid || !isDirty || isSubmitting}
                 className="flex-1"
               >
-                {isSubmitting ? 'Saving...' : 'Save changes'}
+                {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
               </Button>
             </div>
           )}

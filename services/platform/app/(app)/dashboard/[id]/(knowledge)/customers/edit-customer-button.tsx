@@ -26,6 +26,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 const editCustomerSchema = z.object({
   name: z.string(),
@@ -50,6 +51,8 @@ export default function EditCustomerButton({
   asChild = false,
   triggerButton,
 }: EditCustomerButtonProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tCustomers } = useT('customers');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
 
   // Use controlled state if provided, otherwise use internal state
@@ -77,7 +80,7 @@ export default function EditCustomerButton({
       });
 
       toast({
-        title: 'Customer updated successfully',
+        title: tCustomers('updateSuccess'),
         variant: 'success',
       });
 
@@ -86,7 +89,7 @@ export default function EditCustomerButton({
     } catch (error) {
       console.error('Error updating customer:', error);
       toast({
-        title: 'Failed to update customer',
+        title: tCustomers('updateError'),
         variant: 'destructive',
       });
     }
@@ -104,7 +107,7 @@ export default function EditCustomerButton({
       {!asChild && (
         <DialogTrigger asChild>
           {triggerButton || (
-            <Button variant="ghost" size="icon" title="Edit customer">
+            <Button variant="ghost" size="icon" title={tCustomers('editCustomer')}>
               <Pencil className="size-4 text-muted-foreground" />
             </Button>
           )}
@@ -112,7 +115,7 @@ export default function EditCustomerButton({
       )}
       <DialogContent>
         <DialogHeader className="py-2">
-          <DialogTitle>Edit customer</DialogTitle>
+          <DialogTitle>{tCustomers('editCustomer')}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -121,9 +124,9 @@ export default function EditCustomerButton({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{tCustomers('name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter customer name" {...field} />
+                    <Input placeholder={tCustomers('namePlaceholder')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,11 +137,11 @@ export default function EditCustomerButton({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{tCustomers('email')}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="Enter customer email"
+                      placeholder={tCustomers('emailPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -151,10 +154,10 @@ export default function EditCustomerButton({
               name="locale"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Locale</FormLabel>
+                  <FormLabel>{tCustomers('locale')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter locale (e.g., en, es, fr)"
+                      placeholder={tCustomers('localePlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -168,12 +171,12 @@ export default function EditCustomerButton({
                 variant="outline"
                 onClick={() => setIsOpen(false)}
               >
-                Cancel
+                {tCommon('actions.cancel')}
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting
-                  ? 'Updating...'
-                  : 'Update customer'}
+                  ? tCommon('actions.updating')
+                  : tCustomers('updateCustomer')}
               </Button>
             </div>
           </form>

@@ -4,29 +4,18 @@ import { useMemo } from 'react';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { useSearchParams } from 'next/navigation';
 import { Store } from 'lucide-react';
-import { startCase } from 'lodash';
+import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { LocaleIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
 import VendorRowActions from './vendor-row-actions';
 import VendorFilter from './vendor-filter';
 import VendorSearch from './vendor-search';
 import ImportVendorsMenu from './import-vendors-menu';
-
-// Locale icon component
-const LocaleIcon = () => (
-  <svg className="size-4 text-muted-foreground" fill="none" viewBox="0 0 20 20">
-    <path
-      d="M7.25 16L11.625 6.625L16 16M8.5 13.5H14.75M1 3.18447C2.63797 2.98022 4.3067 2.875 6 2.875M6 2.875C6.93401 2.875 7.86054 2.90701 8.77856 2.97M6 2.875V1M8.77856 2.97C7.81361 7.38151 4.90723 11.0668 1 13.0852M8.77856 2.97C9.52485 3.0212 10.2655 3.09288 11 3.18447M7.17606 10.2635C5.82129 8.88493 4.73087 7.24575 3.98694 5.42805"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.5"
-    />
-  </svg>
-);
+import { useT } from '@/lib/i18n';
 
 export interface VendorsTableProps {
   organizationId: string;
@@ -43,18 +32,27 @@ export default function VendorsTable({
   searchTerm,
   preloadedVendors,
 }: VendorsTableProps) {
+  const { t: tVendors } = useT('vendors');
   const searchParams = useSearchParams();
-  const sourceFilters = searchParams.get('source')?.split(',').filter(Boolean);
-  const localeFilters = searchParams.get('locale')?.split(',').filter(Boolean);
+
+  // Memoize filter parsing to avoid string operations on every render
+  const { sourceFilters, localeFilters, hasActiveFilters } = useMemo(() => {
+    const source = searchParams.get('source')?.split(',').filter(Boolean);
+    const locale = searchParams.get('locale')?.split(',').filter(Boolean);
+
+    return {
+      sourceFilters: source,
+      localeFilters: locale,
+      hasActiveFilters:
+        searchTerm ||
+        (source && source.length > 0) ||
+        (locale && locale.length > 0),
+    };
+  }, [searchParams, searchTerm]);
 
   // Use preloaded query for SSR + real-time reactivity
   const result = usePreloadedQuery(preloadedVendors);
   const vendors = result.page;
-
-  const hasActiveFilters =
-    searchTerm ||
-    (sourceFilters && sourceFilters.length > 0) ||
-    (localeFilters && localeFilters.length > 0);
   const emptyVendors = vendors.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
@@ -62,7 +60,7 @@ export default function VendorsTable({
     () => [
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: tVendors('name'),
         size: 408,
         cell: ({ row }) => (
           <div className="flex flex-col gap-1">
@@ -70,26 +68,26 @@ export default function VendorsTable({
               {row.original.name || ''}
             </span>
             <span className="text-xs text-muted-foreground">
-              {row.original.email || 'No email'}
+              {row.original.email || tVendors('noEmail')}
             </span>
           </div>
         ),
       },
       {
         accessorKey: 'source',
-        header: 'Source',
+        header: tVendors('source'),
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {row.original.source
               ? startCase(row.original.source.toLowerCase())
-              : 'Unknown'}
+              : tVendors('unknown')}
           </span>
         ),
       },
       {
         accessorKey: 'locale',
-        header: () => <LocaleIcon />,
+        header: () => <LocaleIcon className="size-4 text-muted-foreground" />,
         size: 100,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -101,7 +99,7 @@ export default function VendorsTable({
       },
       {
         accessorKey: '_creationTime',
-        header: () => <span className="text-right w-full block">Created</span>,
+        header: () => <span className="text-right w-full block">{tVendors('created')}</span>,
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground text-right block">
@@ -113,7 +111,7 @@ export default function VendorsTable({
       },
       {
         id: 'actions',
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => <span className="sr-only">{tVendors('actions')}</span>,
         size: 140,
         cell: ({ row }) => (
           <div className="flex items-center justify-end">
@@ -122,7 +120,7 @@ export default function VendorsTable({
         ),
       },
     ],
-    [],
+    [tVendors],
   );
 
   // Show empty state when no vendors and no filters
@@ -130,8 +128,8 @@ export default function VendorsTable({
     return (
       <DataTableEmptyState
         icon={Store}
-        title="No vendors yet"
-        description="Upload your first vendor to get started"
+        title={tVendors('noVendorsYet')}
+        description={tVendors('uploadFirstVendor')}
         action={<ImportVendorsMenu organizationId={organizationId} />}
       />
     );

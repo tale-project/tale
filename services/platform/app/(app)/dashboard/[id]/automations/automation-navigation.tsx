@@ -265,7 +265,7 @@ export default function AutomationNavigation({
   return (
     <nav
       ref={navRef}
-      className="bg-background/50 backdrop-blur-md sticky top-12 z-10 border-b border-border px-4 flex items-center gap-4 min-h-12"
+      className="bg-background sticky top-12 z-10 border-b border-border px-4 flex items-center gap-4 min-h-12"
     >
       {accessibleItems.map((item, index) => {
         // Check if current path matches the nav item

@@ -3,12 +3,12 @@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface DeleteProductDialogProps {
   isOpen: boolean;
@@ -25,6 +25,8 @@ export default function DeleteProductDialog({
   productName,
   isDeleting = false,
 }: DeleteProductDialogProps) {
+  const { t: tCommon } = useT('common');
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
@@ -54,7 +56,7 @@ export default function DeleteProductDialog({
             disabled={isDeleting}
             className="px-4 py-2.5 bg-red-600 hover:bg-red-700"
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? tCommon('actions.deleting') : tCommon('actions.delete')}
           </Button>
         </DialogFooter>
       </DialogContent>

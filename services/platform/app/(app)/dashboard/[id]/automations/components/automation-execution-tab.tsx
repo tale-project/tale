@@ -17,6 +17,8 @@ import { JsonInput } from '@/components/ui/json-input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Play, Clock, Square, TestTube } from 'lucide-react';
+import { formatDate } from '@/lib/utils/date/format';
+import { useLocale } from '@/lib/i18n';
 
 interface AutomationTemplate {
   _id: Id<'wfDefinitions'>;
@@ -48,6 +50,7 @@ export function AutomationExecutionTab({
   setSelectedExecution,
   setPollingHandle,
 }: AutomationExecutionTabProps) {
+  const locale = useLocale();
   const [executionInput, setExecutionInput] = useState('{}');
 
   // Queries
@@ -261,7 +264,7 @@ export function AutomationExecutionTab({
                               {execution.status}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
-                              {new Date(execution.startedAt).toLocaleString()}
+                              {formatDate(new Date(execution.startedAt), { preset: 'long', locale })}
                             </span>
                           </div>
                           <p className="text-sm mt-1">

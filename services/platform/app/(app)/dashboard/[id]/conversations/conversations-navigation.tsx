@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface ConversationsNavigationProps {
   organizationId: string;
@@ -13,9 +14,10 @@ const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
 
 const getConversationsNavigationItems = ({
   organizationId,
-}: ConversationsNavigationProps) =>
+  t,
+}: ConversationsNavigationProps & { t: any }) =>
   STATUSES.map((status) => ({
-    label: status.charAt(0).toUpperCase() + status.slice(1),
+    label: t(`status.${status}` as any),
     href: `/dashboard/${organizationId}/conversations/${status}`,
     status,
   }));
@@ -24,9 +26,11 @@ export default function ConversationsNavigation({
   organizationId,
 }: ConversationsNavigationProps) {
   const pathname = usePathname();
+  const { t } = useT('conversations');
 
   const navigationItems = getConversationsNavigationItems({
     organizationId,
+    t,
   });
 
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);

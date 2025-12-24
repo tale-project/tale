@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useLocale } from '@/lib/i18n';
 
 const CustomerInfoDialog = dynamic(
   () =>
@@ -54,6 +55,7 @@ export default function ApprovalDetailModal({
   onRemoveRecommendation,
   removingProductId,
 }: ApprovalDetailModalProps) {
+  const locale = useLocale();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
   const customer = useQuery(
@@ -88,7 +90,7 @@ export default function ApprovalDetailModal({
   const formatDate = (timestamp: number) => {
     return formatDateUtil(new Date(timestamp).toISOString(), {
       preset: 'long',
-      locale: 'en-US',
+      locale,
     });
   };
 

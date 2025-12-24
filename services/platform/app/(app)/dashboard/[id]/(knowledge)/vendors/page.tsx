@@ -10,6 +10,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { Store } from 'lucide-react';
 import ImportVendorsMenu from './import-vendors-menu';
+import { getT } from '@/lib/i18n/server';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,15 +24,16 @@ interface PageProps {
 }
 
 /** Skeleton for the vendors table with header and rows - matches vendors-table.tsx column sizes */
-function VendorsSkeleton() {
+async function VendorsSkeleton() {
+  const { t } = await getT('tables');
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Name' }, // No size = expands to fill remaining space
-        { header: 'Source', size: 140 },
+        { header: t('headers.name') }, // No size = expands to fill remaining space
+        { header: t('headers.source'), size: 140 },
         { header: '', size: 100 },
-        { header: 'Created', size: 140 },
+        { header: t('headers.created'), size: 140 },
         { isAction: true, size: 140 },
       ]}
       showHeader
@@ -41,12 +43,13 @@ function VendorsSkeleton() {
 }
 
 /** Empty state shown when org has no vendors - avoids unnecessary skeleton */
-function VendorsEmptyState({ organizationId }: { organizationId: string }) {
+async function VendorsEmptyState({ organizationId }: { organizationId: string }) {
+  const { t } = await getT('emptyStates');
   return (
     <DataTableEmptyState
       icon={Store}
-      title="No vendors yet"
-      description="Upload your first vendor to get started"
+      title={t('vendors.title')}
+      description={t('vendors.description')}
       action={<ImportVendorsMenu organizationId={organizationId} />}
     />
   );
@@ -144,8 +147,10 @@ export default async function VendorsPage({
     }
   }
 
+  const skeletonFallback = await Promise.resolve(<VendorsSkeleton />);
+
   return (
-    <Suspense fallback={<VendorsSkeleton />}>
+    <Suspense fallback={skeletonFallback}>
       <VendorsContent params={params} searchParams={searchParams} />
     </Suspense>
   );

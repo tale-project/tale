@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import type { RagStatus } from '@/types/documents';
 import { retryRagIndexing } from '../actions/retry-rag-indexing';
+import { useDateFormat } from '@/hooks/use-date-format';
 
 // Statuses that indicate indexing is in progress and should auto-refresh
 const IN_PROGRESS_STATUSES: RagStatus[] = ['pending', 'queued', 'running'];
@@ -75,6 +76,7 @@ const statusConfig: Record<
 };
 
 export default function RagStatusBadge({ status, indexedAt, error, documentId }: RagStatusBadgeProps) {
+  const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
   const router = useRouter();
 
@@ -147,13 +149,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   if (status === 'completed') {
     const indexedDate = indexedAt ? new Date(indexedAt * 1000) : null;
     const formattedDate = indexedDate
-      ? indexedDate.toLocaleDateString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+      ? formatDate(indexedDate, 'long')
       : 'Unknown';
 
     return (

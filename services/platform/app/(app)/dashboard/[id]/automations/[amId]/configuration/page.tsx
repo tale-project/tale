@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/lib/i18n';
 
 interface WorkflowConfig {
   timeout?: number;
@@ -29,6 +30,10 @@ export default function ConfigurationPage() {
   const router = useRouter();
   const amId = params?.amId as Id<'wfDefinitions'>;
   const { user } = useAuth();
+
+  const { t: tAutomations } = useT('automations');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -94,7 +99,7 @@ export default function ConfigurationPage() {
 
     if (!user?._id) {
       toast({
-        title: 'Authentication required',
+        title: tCommon('errors.generic'),
         variant: 'destructive',
       });
       return;
@@ -103,7 +108,7 @@ export default function ConfigurationPage() {
     // Validate name
     if (!name.trim()) {
       toast({
-        title: 'Name is required',
+        title: tAutomations('configuration.validation.nameRequired'),
         variant: 'destructive',
       });
       return;
@@ -116,7 +121,7 @@ export default function ConfigurationPage() {
         parsedVariables = JSON.parse(variables);
       } catch {
         toast({
-          title: 'Invalid JSON in variables field',
+          title: tAutomations('configuration.validation.invalidJson'),
           variant: 'destructive',
         });
         return;
@@ -134,9 +139,8 @@ export default function ConfigurationPage() {
       // we temporarily disable the actual save call here. The UI validation
       // still runs and we show a clear error to the user.
       toast({
-        title: 'Saving not yet available',
-        description:
-          'Saving workflow configuration is not yet wired to a public API. Please update this workflow via backend/admin tools for now.',
+        title: tAutomations('configuration.notAvailable.title'),
+        description: tAutomations('configuration.notAvailable.message'),
         variant: 'destructive',
       });
 
@@ -147,7 +151,7 @@ export default function ConfigurationPage() {
       return;
 
       toast({
-        title: 'Configuration saved successfully',
+        title: tToast('success.saved'),
         variant: 'success',
       });
 
@@ -157,9 +161,7 @@ export default function ConfigurationPage() {
       console.error('Failed to save configuration:', error);
       toast({
         title:
-          error instanceof Error
-            ? error.message
-            : 'Failed to save configuration',
+          error instanceof Error ? error.message : tToast('error.saveFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -242,23 +244,23 @@ export default function ConfigurationPage() {
       <div className="space-y-4">
         {/* Name */}
         <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="name">{tAutomations('configuration.name')}</Label>
           <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Enter automation name"
+            placeholder={tAutomations('configuration.namePlaceholder')}
           />
         </div>
 
         {/* Description */}
         <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
+          <Label htmlFor="description">{tAutomations('configuration.description')}</Label>
           <Textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter automation description"
+            placeholder={tAutomations('configuration.descriptionPlaceholder')}
             rows={4}
           />
         </div>
@@ -266,60 +268,60 @@ export default function ConfigurationPage() {
         {/* Timeout and Max Retries */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="timeout">Timeout (ms)</Label>
+            <Label htmlFor="timeout">{tAutomations('configuration.timeout')}</Label>
             <Input
               id="timeout"
               type="number"
               value={timeout}
               onChange={(e) => setTimeout(parseInt(e.target.value) || 300000)}
-              placeholder="120000"
+              placeholder={tAutomations('configuration.timeoutPlaceholder')}
               min={1000}
             />
             <p className="text-xs text-muted-foreground">
-              Maximum execution time in milliseconds
+              {tAutomations('configuration.timeoutHelp')}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="maxRetries">Max retries</Label>
+            <Label htmlFor="maxRetries">{tAutomations('configuration.maxRetries')}</Label>
             <Input
               id="maxRetries"
               type="number"
               value={maxRetries}
               onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-              placeholder="2"
+              placeholder={tAutomations('configuration.maxRetriesPlaceholder')}
               min={0}
               max={10}
             />
             <p className="text-xs text-muted-foreground">
-              Number of retry attempts on failure
+              {tAutomations('configuration.maxRetriesHelp')}
             </p>
           </div>
         </div>
 
         {/* Backoff */}
         <div className="space-y-2">
-          <Label htmlFor="backoffMs">Backoff (ms)</Label>
+          <Label htmlFor="backoffMs">{tAutomations('configuration.backoff')}</Label>
           <Input
             id="backoffMs"
             type="number"
             value={backoffMs}
             onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
-            placeholder="1000"
+            placeholder={tAutomations('configuration.backoffPlaceholder')}
             min={100}
           />
           <p className="text-xs text-muted-foreground">
-            Delay between retry attempts in milliseconds
+            {tAutomations('configuration.backoffHelp')}
           </p>
         </div>
 
         {/* Variables */}
         <JsonInput
           id="variables"
-          label="Variables (JSON)"
+          label={tAutomations('configuration.variables')}
           value={variables}
           onChange={setVariables}
-          description="These variables will be available to all steps in the automation"
+          description={tAutomations('configuration.variablesHelp')}
         />
 
         {/* Actions */}
@@ -328,10 +330,10 @@ export default function ConfigurationPage() {
             {isSaving ? (
               <>
                 <Loader2 className="size-4 mr-2 animate-spin" />
-                Saving...
+                {tCommon('actions.saving')}
               </>
             ) : (
-              'Save configuration'
+              tAutomations('configuration.saveButton')
             )}
           </Button>
         </div>

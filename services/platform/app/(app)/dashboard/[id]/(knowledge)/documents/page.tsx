@@ -14,20 +14,22 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardList } from 'lucide-react';
 import ImportDocumentsMenu from './components/import-documents-menu';
+import { getT } from '@/lib/i18n/server';
 
 const logger = new Logger('documents');
 
 /** Skeleton for the documents table with header and rows - matches DocumentTable layout */
-function DocumentsSkeleton() {
+async function DocumentsSkeleton() {
+  const { t } = await getT('tables');
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Document' },
-        { header: 'Size', size: 128 },
-        { header: 'Source', size: 96 },
-        { header: 'RAG Status', size: 128 },
-        { header: 'Modified', size: 192 },
+        { header: t('headers.document') },
+        { header: t('headers.size'), size: 128 },
+        { header: t('headers.source'), size: 96 },
+        { header: t('headers.ragStatus'), size: 128 },
+        { header: t('headers.modified'), size: 192 },
         { isAction: true, size: 160 },
       ]}
       showHeader
@@ -42,18 +44,19 @@ function DocumentsSkeleton() {
 }
 
 /** Empty state shown when org has no documents - avoids unnecessary skeleton */
-function DocumentsEmptyState({
+async function DocumentsEmptyState({
   organizationId,
   hasMsAccount,
 }: {
   organizationId: string;
   hasMsAccount: boolean;
 }) {
+  const { t } = await getT('emptyStates');
   return (
     <DataTableEmptyState
       icon={ClipboardList}
-      title="No documents yet"
-      description="Import documents to make your AI smarter"
+      title={t('documents.title')}
+      description={t('documents.description')}
       action={
         <ImportDocumentsMenu
           organizationId={organizationId}
@@ -200,8 +203,10 @@ export default async function DocumentsPage({
     }
   }
 
+  const skeletonFallback = await Promise.resolve(<DocumentsSkeleton />);
+
   return (
-    <Suspense fallback={<DocumentsSkeleton />}>
+    <Suspense fallback={skeletonFallback}>
       <DocumentsPageContent params={params} searchParams={searchParams} />
     </Suspense>
   );

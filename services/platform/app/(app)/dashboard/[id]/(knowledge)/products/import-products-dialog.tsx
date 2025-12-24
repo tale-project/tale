@@ -16,8 +16,8 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import * as XLSX from 'xlsx';
 import { ProductStatus, PRODUCT_STATUS } from '@/constants/convex-enums';
+// Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 // Validation schema for the form - simplified to only file upload
 const formSchema = z.object({
@@ -102,13 +102,16 @@ export default function ImportProductsDialog({
     return new Promise<ParsedProduct[]>((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = e.target?.result;
           if (!data) {
             reject(new Error('Failed to read file'));
             return;
           }
+
+          // Dynamically import xlsx to reduce bundle size
+          const XLSX = await import('xlsx');
 
           const products: ParsedProduct[] = [];
 
@@ -243,14 +246,10 @@ export default function ImportProductsDialog({
         return;
       }
 
-      // Import products using Convex
-      let successCount = 0;
-      let failedCount = 0;
-      const errors: string[] = [];
-
-      for (const product of products) {
-        try {
-          await createProduct({
+      // Import products in parallel using Promise.allSettled
+      const results = await Promise.allSettled(
+        products.map((product) =>
+          createProduct({
             organizationId,
             name: product.name,
             description: product.description,
@@ -260,13 +259,19 @@ export default function ImportProductsDialog({
             currency: product.currency,
             category: product.category,
             status: product.status,
-          });
-          successCount++;
-        } catch (error) {
-          failedCount++;
-          errors.push(`Failed to import ${product.name}: ${error}`);
-        }
-      }
+          }),
+        ),
+      );
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      const errors: string[] = results
+        .map((result, index) =>
+          result.status === 'rejected'
+            ? `Failed to import ${products[index].name}: ${result.reason}`
+            : null,
+        )
+        .filter((error): error is string => error !== null);
 
       // Show results
       if (successCount > 0) {

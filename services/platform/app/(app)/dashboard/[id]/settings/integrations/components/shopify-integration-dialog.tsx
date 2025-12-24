@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
+import { useT } from '@/lib/i18n';
 
 interface ShopifyIntegrationDialogProps extends DialogProps {
   credentials?: {
@@ -32,6 +33,7 @@ export default function ShopifyIntegrationDialog({
   onDisconnect,
   ...props
 }: ShopifyIntegrationDialogProps) {
+  const { t } = useT('settings');
   const [domain, setDomain] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,7 +128,7 @@ export default function ShopifyIntegrationDialog({
               </Label>
               <Input
                 id="shopify-domain"
-                placeholder="mystore.myshopify.com"
+                placeholder={t('integrations.shopify.domainPlaceholder')}
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 disabled={isSubmitting}

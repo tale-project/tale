@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
 
-export function setItem(key: string, value: unknown) {
+function setItem(key: string, value: unknown) {
   if (!isBrowser) return;
 
   try {
@@ -13,7 +13,7 @@ export function setItem(key: string, value: unknown) {
   }
 }
 
-export function getItem<T>(key: string): T | undefined {
+function getItem<T>(key: string): T | undefined {
   if (!isBrowser) return undefined;
 
   try {

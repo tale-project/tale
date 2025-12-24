@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface WebsiteSearchProps {
   organizationId: string;
@@ -14,6 +15,7 @@ export default function WebsiteSearch({
   organizationId: _organizationId,
   currentSearch = '',
 }: WebsiteSearchProps) {
+  const { t: tWebsites } = useT('websites');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -45,7 +47,7 @@ export default function WebsiteSearch({
       <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="text"
-        placeholder="Search website"
+        placeholder={tWebsites('searchPlaceholder')}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         className="pl-9"

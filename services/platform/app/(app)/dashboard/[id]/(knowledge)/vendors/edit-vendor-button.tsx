@@ -26,6 +26,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 const editVendorSchema = z.object({
   name: z.string(),
@@ -50,6 +51,8 @@ export default function EditVendorButton({
   asChild = false,
   triggerButton,
 }: EditVendorButtonProps) {
+  const { t: tCommon } = useT('common');
+  const { t: tVendors } = useT('vendors');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
 
   // Use controlled state if provided, otherwise use internal state
@@ -77,7 +80,7 @@ export default function EditVendorButton({
       });
 
       toast({
-        title: 'Vendor updated successfully',
+        title: tVendors('updateSuccess'),
         variant: 'success',
       });
 
@@ -86,7 +89,7 @@ export default function EditVendorButton({
     } catch (error) {
       console.error('Error updating vendor:', error);
       toast({
-        title: 'Failed to update vendor',
+        title: tVendors('updateError'),
         variant: 'destructive',
       });
     }
@@ -107,7 +110,7 @@ export default function EditVendorButton({
             <Button
               variant="ghost"
               size="icon"
-              title="Edit vendor"
+              title={tVendors('editVendor')}
               className="hover:bg-transparent"
             >
               <Pencil className="size-4" />
@@ -117,7 +120,7 @@ export default function EditVendorButton({
       )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="py-2">Edit vendor</DialogTitle>
+          <DialogTitle className="py-2">{tVendors('editVendor')}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -126,9 +129,9 @@ export default function EditVendorButton({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{tVendors('name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter vendor name" {...field} />
+                    <Input placeholder={tVendors('namePlaceholder')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -139,11 +142,11 @@ export default function EditVendorButton({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{tVendors('email')}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="Enter vendor email"
+                      placeholder={tVendors('emailPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -156,10 +159,10 @@ export default function EditVendorButton({
               name="locale"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Locale</FormLabel>
+                  <FormLabel>{tVendors('locale')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter locale (e.g., en, es, fr)"
+                      placeholder={tVendors('localePlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -173,10 +176,10 @@ export default function EditVendorButton({
                 variant="outline"
                 onClick={() => setIsOpen(false)}
               >
-                Cancel
+                {tCommon('actions.cancel')}
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Updating...' : 'Update vendor'}
+                {form.formState.isSubmitting ? tCommon('actions.updating') : tVendors('updateVendor')}
               </Button>
             </div>
           </form>

@@ -21,35 +21,3 @@ export class AppError extends Error {
   }
 }
 
-/**
- * Validation error
- */
-export class ValidationError extends AppError {
-  constructor(
-    message: string,
-    public errors: string[],
-  ) {
-    super(message, 'VALIDATION_ERROR', 400);
-    this.name = 'ValidationError';
-  }
-}
-
-/**
- * Configuration error
- */
-export class ConfigurationError extends AppError {
-  constructor(message: string) {
-    super(message, 'CONFIGURATION_ERROR', 500);
-    this.name = 'ConfigurationError';
-  }
-}
-
-/**
- * Rule converter error
- */
-export class RuleFormatConverterError extends AppError {
-  constructor(message: string, code = 'RULE_FORMAT_CONVERTER_ERROR') {
-    super(message, code, 400);
-    this.name = 'RuleFormatConverterError';
-  }
-}

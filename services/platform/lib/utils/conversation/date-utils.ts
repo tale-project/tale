@@ -1,12 +1,13 @@
 import type { Message } from '@/app/(app)/dashboard/[id]/conversations/types';
 import { formatDate, formatDateHeader, dayjs } from '@/lib/utils/date/format';
+import { defaultLocale } from '@/lib/i18n/config';
 
-export function formatMessageTime(timestamp: string): string {
-  return formatDate(timestamp, { preset: 'time', locale: 'en-US' });
+export function formatMessageTime(timestamp: string, locale: string = defaultLocale): string {
+  return formatDate(timestamp, { preset: 'time', locale });
 }
 
-export function formatConversationDateHeader(timestamp: string): string {
-  return formatDateHeader(timestamp, { locale: 'en-US' });
+export function formatConversationDateHeader(timestamp: string, locale: string = defaultLocale): string {
+  return formatDateHeader(timestamp, { locale });
 }
 
 // Export for backward compatibility
@@ -19,11 +20,11 @@ export { formatDateHeader } from '@/lib/utils/date/format';
  */
 export function formatEmailTimestamp(
   timestamp: string,
-  locale?: string,
+  locale: string = defaultLocale,
 ): string {
   return formatDate(timestamp, {
     preset: 'relative',
-    locale: locale || 'en-US',
+    locale,
   });
 }
 

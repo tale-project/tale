@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
@@ -10,6 +10,7 @@ import { Textarea } from './textarea';
 import { z } from 'zod';
 import { toast } from '@/hooks/use-toast';
 import dynamic from 'next/dynamic';
+import { useT } from '@/lib/i18n';
 
 const ReactJsonView = dynamic(() => import('@microlink/react-json-view'), {
   ssr: false,
@@ -51,6 +52,7 @@ export function JsonInput({
   fontSize = 12,
   id,
 }: JsonInputProps) {
+  const { t } = useT('common');
   const [isEditing, setIsEditing] = useState(false);
   const [textValue, setTextValue] = useState(value);
   const [parsedValue, setParsedValue] = useState(() => {
@@ -67,48 +69,51 @@ export function JsonInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Validate JSON and schema
-  const validateJson = (jsonString: string) => {
-    if (!jsonString.trim()) {
-      setIsValid(true);
-      setError('');
-      return true;
-    }
-
-    try {
-      const parsed = JSON.parse(jsonString);
-
-      // If schema is provided, validate against it
-      if (schema) {
-        try {
-          schema.parse(parsed);
-          setIsValid(true);
-          setError('');
-          return true;
-        } catch (err) {
-          if (err instanceof z.ZodError) {
-            const zodError = err as z.ZodError<unknown>;
-            const errorMessage = zodError.issues
-              .map((e) => `${e.path.join('.')}: ${e.message}`)
-              .join(', ');
-            setIsValid(false);
-            setError(`Schema validation failed: ${errorMessage}`);
-          } else {
-            setIsValid(false);
-            setError('Schema validation failed');
-          }
-          return false;
-        }
-      } else {
+  const validateJson = useCallback(
+    (jsonString: string) => {
+      if (!jsonString.trim()) {
         setIsValid(true);
         setError('');
         return true;
       }
-    } catch (err) {
-      setIsValid(false);
-      setError(err instanceof Error ? err.message : 'Invalid JSON');
-      return false;
-    }
-  };
+
+      try {
+        const parsed = JSON.parse(jsonString);
+
+        // If schema is provided, validate against it
+        if (schema) {
+          try {
+            schema.parse(parsed);
+            setIsValid(true);
+            setError('');
+            return true;
+          } catch (err) {
+            if (err instanceof z.ZodError) {
+              const zodError = err as z.ZodError<unknown>;
+              const errorMessage = zodError.issues
+                .map((e) => `${e.path.join('.')}: ${e.message}`)
+                .join(', ');
+              setIsValid(false);
+              setError(`Schema validation failed: ${errorMessage}`);
+            } else {
+              setIsValid(false);
+              setError('Schema validation failed');
+            }
+            return false;
+          }
+        } else {
+          setIsValid(true);
+          setError('');
+          return true;
+        }
+      } catch (err) {
+        setIsValid(false);
+        setError(err instanceof Error ? err.message : 'Invalid JSON');
+        return false;
+      }
+    },
+    [schema],
+  );
 
   // Validate initial value and when schema changes
   useEffect(() => {
@@ -245,7 +250,7 @@ export function JsonInput({
                   className="h-6 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
                 >
                   <Save className="size-3 mr-1" />
-                  Save
+                  {t('actions.save')}
                 </Button>
                 <Button
                   type="button"
@@ -255,7 +260,7 @@ export function JsonInput({
                   className="h-6 px-2 text-foreground hover:text-foreground/80 hover:bg-muted"
                 >
                   <X className="size-3 mr-1" />
-                  Cancel
+                  {t('actions.cancel')}
                 </Button>
               </>
             ) : (
@@ -267,7 +272,7 @@ export function JsonInput({
                 className="h-6 px-2"
               >
                 <Code2 className="size-3 mr-1" />
-                Source
+                {t('actions.source')}
               </Button>
             )}
           </div>
@@ -356,14 +361,14 @@ export function JsonInput({
           <div>
             Press{' '}
             <kbd className="px-1 py-0.5 text-xs bg-muted rounded">
-              Ctrl+Enter
+              {t('keyboardShortcuts.ctrlEnter')}
             </kbd>{' '}
             to save,{' '}
-            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">Esc</kbd> to
+            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">{t('keyboardShortcuts.escape')}</kbd> to
             cancel
           </div>
           {isDirty && (
-            <span className="text-amber-600 font-medium">Unsaved changes</span>
+            <span className="text-amber-600 font-medium">{t('unsavedChanges')}</span>
           )}
         </div>
       )}

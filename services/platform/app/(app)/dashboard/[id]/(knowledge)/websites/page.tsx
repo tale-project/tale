@@ -1,6 +1,7 @@
 import WebsitesTable from './websites-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
+import { getT } from '@/lib/i18n/server';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -12,16 +13,18 @@ interface PageProps {
 }
 
 /** Skeleton for the websites table with header and rows - matches websites-table.tsx column sizes */
-function WebsitesSkeleton() {
+async function WebsitesSkeleton() {
+  const { t } = await getT('tables');
+
   return (
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: 'Website' }, // No size = expands to fill remaining space
-        { header: 'Title', size: 192 },
-        { header: 'Description', size: 256 },
-        { header: 'Scanned', size: 128 },
-        { header: 'Interval', size: 96 },
+        { header: t('headers.website') }, // No size = expands to fill remaining space
+        { header: t('headers.title'), size: 192 },
+        { header: t('headers.description'), size: 256 },
+        { header: t('headers.scanned'), size: 128 },
+        { header: t('headers.interval'), size: 96 },
         { isAction: true, size: 128 },
       ]}
       showHeader
@@ -62,9 +65,14 @@ async function WebsitesContent({ params, searchParams }: WebsitesContentProps) {
   );
 }
 
-export default function WebsitesPage({ params, searchParams }: PageProps) {
+export default async function WebsitesPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const skeletonFallback = await Promise.resolve(<WebsitesSkeleton />);
+
   return (
-    <Suspense fallback={<WebsitesSkeleton />}>
+    <Suspense fallback={skeletonFallback}>
       <WebsitesContent params={params} searchParams={searchParams} />
     </Suspense>
   );

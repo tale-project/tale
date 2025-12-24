@@ -91,6 +91,21 @@ body {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+
+  /* Cursor blink animation for typewriter effect */
+  .animate-cursor-blink {
+    animation: cursor-blink 1s ease-in-out infinite;
+  }
+}
+
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 html,

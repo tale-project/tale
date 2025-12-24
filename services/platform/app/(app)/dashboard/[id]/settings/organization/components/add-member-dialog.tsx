@@ -27,6 +27,7 @@ import { api } from '@/convex/_generated/api';
 
 import { Check, X, Copy } from 'lucide-react';
 import { ConvexHttpClient } from 'convex/browser';
+import { useT } from '@/lib/i18n';
 
 const addMemberSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -66,6 +67,11 @@ export default function AddMemberDialog({
   open,
   onOpenChange,
 }: AddMemberDialogProps) {
+  const { t: tDialogs } = useT('dialogs');
+  const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { t: tAuth } = useT('auth');
+  const { t: tToast } = useT('toast');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{
@@ -113,7 +119,7 @@ export default function AddMemberDialog({
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Failed to copy to clipboard',
+        title: tCommon('errors.failedToCopy'),
         variant: 'destructive',
       });
     }
@@ -179,8 +185,8 @@ export default function AddMemberDialog({
       // Success! Show credentials modal only for new users
       toast({
         title: isNewUser
-          ? 'New member created and added to organization'
-          : 'Existing user added to organization',
+          ? tToast('success.newMemberCreated')
+          : tToast('success.existingUserAdded'),
         variant: 'success',
       });
 
@@ -200,7 +206,7 @@ export default function AddMemberDialog({
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Failed to add member',
+        title: tToast('error.addMemberFailed'),
         variant: 'destructive',
       });
       setIsSubmitting(false);
@@ -230,17 +236,17 @@ export default function AddMemberDialog({
       <Dialog open={open && !showCredentials} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add member</DialogTitle>
+            <DialogTitle>{tDialogs('addMember.title')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Name Field */}
             <div className="space-y-2">
               <Label htmlFor="displayName" className="text-sm font-medium">
-                Name
+                {tSettings('form.name')}
               </Label>
               <Input
                 id="displayName"
-                placeholder="Enter full name"
+                placeholder={tSettings('form.namePlaceholder')}
                 {...register('displayName')}
                 className="w-full"
               />
@@ -249,12 +255,12 @@ export default function AddMemberDialog({
             {/* Email Field */}
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">
-                Email
+                {tSettings('form.email')}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter email address"
+                placeholder={tSettings('form.emailPlaceholder')}
                 {...register('email')}
                 className="w-full"
                 required
@@ -269,12 +275,12 @@ export default function AddMemberDialog({
             {/* Password Field */}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm font-medium">
-                Password
+                {tSettings('form.password')}
               </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter password"
+                placeholder={tSettings('form.passwordPlaceholder')}
                 {...register('password')}
                 className="w-full"
               />
@@ -293,7 +299,7 @@ export default function AddMemberDialog({
                           : 'text-muted-foreground'
                       }
                     >
-                      At least 8 characters
+                      {tAuth('changePassword.requirements.length')}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -309,7 +315,7 @@ export default function AddMemberDialog({
                           : 'text-muted-foreground'
                       }
                     >
-                      One lowercase letter
+                      {tAuth('changePassword.requirements.lowercase')}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -325,7 +331,7 @@ export default function AddMemberDialog({
                           : 'text-muted-foreground'
                       }
                     >
-                      One uppercase letter
+                      {tAuth('changePassword.requirements.uppercase')}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -341,7 +347,7 @@ export default function AddMemberDialog({
                           : 'text-muted-foreground'
                       }
                     >
-                      One number
+                      {tAuth('changePassword.requirements.number')}
                     </span>
                   </div>
                 </div>
@@ -351,7 +357,7 @@ export default function AddMemberDialog({
             {/* Role Field */}
             <div className="space-y-2">
               <Label htmlFor="role" className="text-sm font-medium">
-                Role
+                {tSettings('form.role')}
               </Label>
               <Select
                 value={selectedRole}
@@ -371,11 +377,11 @@ export default function AddMemberDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="developer">Developer</SelectItem>
-                  <SelectItem value="editor">Editor</SelectItem>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="disabled">Disabled</SelectItem>
+                  <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
+                  <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
+                  <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
+                  <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
+                  <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -388,10 +394,10 @@ export default function AddMemberDialog({
                 disabled={isSubmitting}
                 className="flex-1"
               >
-                Cancel
+                {tCommon('actions.cancel')}
               </Button>
               <Button type="submit" disabled={isSubmitting} className="flex-1">
-                {isSubmitting ? 'Adding...' : 'Add member'}
+                {isSubmitting ? 'Adding...' : tDialogs('addMember.title')}
               </Button>
             </DialogFooter>
           </form>
@@ -402,19 +408,18 @@ export default function AddMemberDialog({
       <Dialog open={showCredentials} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Member added successfully</DialogTitle>
+            <DialogTitle>{tDialogs('memberAdded.title')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 border border-yellow-200">
-              <strong>Important:</strong> Save these credentials now. They
-              won&apos;t be shown again.
+              {tDialogs('memberAdded.credentialsWarning')}
             </div>
 
             {credentials && (
               <div className="space-y-4">
                 {/* Email */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email</Label>
+                  <Label className="text-sm font-medium">{tSettings('form.email')}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       value={credentials.email}
@@ -438,7 +443,7 @@ export default function AddMemberDialog({
 
                 {/* Password */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Password</Label>
+                  <Label className="text-sm font-medium">{tSettings('form.password')}</Label>
                   <div className="flex items-center gap-2">
                     <Input
                       value={credentials.password}
@@ -467,7 +472,7 @@ export default function AddMemberDialog({
 
           <DialogFooter>
             <Button onClick={handleClose} className="w-full">
-              Done
+              {tCommon('actions.done')}
             </Button>
           </DialogFooter>
         </DialogContent>

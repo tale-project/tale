@@ -18,6 +18,7 @@ import AddExampleDialog from './components/add-example-dialog';
 import ViewEditExampleDialog from './components/view-edit-example-dialog';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
+import { useT } from '@/lib/i18n';
 
 interface ToneOfVoiceFormProps {
   organizationId: string;
@@ -34,6 +35,9 @@ export default function ToneOfVoiceForm({
   organizationId,
   preloadedToneOfVoice,
 }: ToneOfVoiceFormProps) {
+  const { t: tTone } = useT('toneOfVoice');
+  const { t: tCommon } = useT('common');
+  const { t: tToast } = useT('toast');
   const orgId = organizationId as string;
 
   // Use preloaded query for SSR + real-time reactivity
@@ -78,13 +82,13 @@ export default function ToneOfVoiceForm({
         content: newExample.content,
       });
       toast({
-        title: 'Example added successfully',
+        title: tToast('success.exampleAdded'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Error adding example:', error);
       toast({
-        title: 'Failed to add example',
+        title: tToast('error.exampleAddFailed'),
         variant: 'destructive',
       });
       throw error;
@@ -114,13 +118,13 @@ export default function ToneOfVoiceForm({
         content,
       });
       toast({
-        title: 'Example updated successfully',
+        title: tToast('success.exampleUpdated'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Error updating example:', error);
       toast({
-        title: 'Failed to update example',
+        title: tToast('error.exampleUpdateFailed'),
         variant: 'destructive',
       });
       throw error;
@@ -135,7 +139,7 @@ export default function ToneOfVoiceForm({
     } catch (error) {
       console.error('Error deleting example:', error);
       toast({
-        title: 'Failed to delete example',
+        title: tToast('error.exampleDeleteFailed'),
         variant: 'destructive',
       });
       throw error;
@@ -148,8 +152,8 @@ export default function ToneOfVoiceForm({
 
       if (examples.length === 0) {
         toast({
-          title: 'No example messages',
-          description: 'Please add at least one example message',
+          title: tToast('error.noExampleMessages'),
+          description: tToast('error.addExampleFirst'),
           variant: 'destructive',
         });
         return;
@@ -162,19 +166,19 @@ export default function ToneOfVoiceForm({
       if (result.success && result.tone) {
         setValue('tone', result.tone, { shouldDirty: false });
         toast({
-          title: 'Tone of voice generated successfully',
+          title: tToast('success.toneGenerated'),
           variant: 'success',
         });
       } else {
         toast({
-          title: 'Failed to generate tone of voice',
+          title: tToast('error.toneGenerateFailed'),
           variant: 'destructive',
         });
       }
     } catch (error) {
       console.error('Error generating tone:', error);
       toast({
-        title: 'Failed to generate tone of voice',
+        title: tToast('error.toneGenerateFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -193,13 +197,13 @@ export default function ToneOfVoiceForm({
       setValue('tone', data.tone.trim(), { shouldDirty: false });
 
       toast({
-        title: 'Tone of voice saved successfully',
+        title: tToast('success.toneSaved'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Error saving tone:', error);
       toast({
-        title: 'Failed to save tone of voice',
+        title: tToast('error.toneSaveFailed'),
         variant: 'destructive',
       });
     }
@@ -221,14 +225,13 @@ export default function ToneOfVoiceForm({
         <div className="flex items-end justify-between">
           <div className="space-y-1">
             <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
-              Tone of voice
+              {tTone('form.title')}
               <span className="text-xs text-muted-foreground ml-2">
-                {'(optional)'}
+                {tTone('form.optional')}
               </span>
             </h3>
             <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-              Set your tone of voice — or have it auto-generated from your
-              examples.
+              {tTone('form.description')}
             </p>
           </div>
         </div>
@@ -239,7 +242,7 @@ export default function ToneOfVoiceForm({
             {...register('tone')}
             defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
             disabled={isSubmitting}
-            placeholder="Describe your brand tone"
+            placeholder={tTone('form.placeholder')}
             className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-base text-foreground resize-none"
           />
         </div>
@@ -249,10 +252,10 @@ export default function ToneOfVoiceForm({
             onClick={handleGenerateTone}
             disabled={isGenerating}
           >
-            {isGenerating ? 'Generating...' : 'Generate tone'}
+            {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
           </Button>
           <Button disabled={!isDirty} type="submit">
-            {isSubmitting ? 'Saving...' : 'Save changes'}
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
           </Button>
         </div>
       </form>

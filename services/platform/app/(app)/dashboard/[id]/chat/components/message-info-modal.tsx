@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatDate } from '@/lib/utils/date/format';
+import { formatNumber } from '@/lib/utils/format';
+import { useLocale } from '@/lib/i18n';
 
 interface MessageMetadata {
   model: string;
@@ -35,6 +37,8 @@ export default function MessageInfoModal({
   timestamp,
   metadata,
 }: MessageInfoModalProps) {
+  const locale = useLocale();
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -87,7 +91,7 @@ export default function MessageInfoModal({
                           Input
                         </div>
                         <div className="font-medium">
-                          {metadata.inputTokens.toLocaleString()}
+                          {formatNumber(metadata.inputTokens, locale)}
                         </div>
                       </div>
                     )}
@@ -97,7 +101,7 @@ export default function MessageInfoModal({
                           Output
                         </div>
                         <div className="font-medium">
-                          {metadata.outputTokens.toLocaleString()}
+                          {formatNumber(metadata.outputTokens, locale)}
                         </div>
                       </div>
                     )}
@@ -107,7 +111,7 @@ export default function MessageInfoModal({
                           Total
                         </div>
                         <div className="font-medium">
-                          {metadata.totalTokens.toLocaleString()}
+                          {formatNumber(metadata.totalTokens, locale)}
                         </div>
                       </div>
                     )}
@@ -118,7 +122,7 @@ export default function MessageInfoModal({
                             Reasoning
                           </div>
                           <div className="font-medium">
-                            {metadata.reasoningTokens.toLocaleString()}
+                            {formatNumber(metadata.reasoningTokens, locale)}
                           </div>
                         </div>
                       )}
@@ -129,7 +133,7 @@ export default function MessageInfoModal({
                             Cached
                           </div>
                           <div className="font-medium">
-                            {metadata.cachedInputTokens.toLocaleString()}
+                            {formatNumber(metadata.cachedInputTokens, locale)}
                           </div>
                         </div>
                       )}

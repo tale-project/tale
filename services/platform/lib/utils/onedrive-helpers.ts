@@ -6,14 +6,6 @@ import type { DriveItem } from '@/types/microsoft-graph';
 
 // File category types for type safety
 export type FileCategory = 'folder' | 'image' | 'document' | 'text' | 'other';
-export type FilterCategory =
-  | 'all'
-  | 'files'
-  | 'folders'
-  | 'images'
-  | 'documents'
-  | 'text'
-  | 'other';
 
 /**
  * Sanitize file path for storage
@@ -207,67 +199,3 @@ export function getFileCategory(item: DriveItem): FileCategory {
   return 'other';
 }
 
-/**
- * Filter files by category
- */
-export function filterFilesByCategory(
-  items: DriveItem[],
-  category: FilterCategory,
-): DriveItem[] {
-  if (category === 'all') return items;
-
-  return items.filter((item) => {
-    switch (category) {
-      case 'files':
-        return isFile(item);
-      case 'folders':
-        return isFolder(item);
-      case 'images':
-        return isImageFile(item);
-      case 'documents':
-        return isDocumentFile(item);
-      case 'text':
-        return isTextFile(item);
-      case 'other':
-        return isFile(item) && getFileCategory(item) === 'other';
-      default:
-        return true;
-    }
-  });
-}
-
-/**
- * Sort files by different criteria
- */
-export function sortFiles(
-  items: DriveItem[],
-  sortBy: 'name' | 'size' | 'modified' | 'type',
-  order: 'asc' | 'desc' = 'asc',
-): DriveItem[] {
-  const sorted = [...items].sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortBy) {
-      case 'name':
-        comparison = a.name.localeCompare(b.name);
-        break;
-      case 'size':
-        comparison = (a.size || 0) - (b.size || 0);
-        break;
-      case 'modified':
-        comparison =
-          new Date(a.lastModifiedDateTime).getTime() -
-          new Date(b.lastModifiedDateTime).getTime();
-        break;
-      case 'type':
-        const aCategory = getFileCategory(a);
-        const bCategory = getFileCategory(b);
-        comparison = aCategory.localeCompare(bCategory);
-        break;
-    }
-
-    return order === 'desc' ? -comparison : comparison;
-  });
-
-  return sorted;
-}
