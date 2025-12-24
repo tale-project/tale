@@ -65,6 +65,25 @@ User-defined operations:
 • Examples: "get_reservations", "get_active_orders", "customer_totals"
 • Parameters are mapped to SQL query placeholders
 
+WRITE OPERATIONS & APPROVALS:
+• Write operations (INSERT, UPDATE, DELETE) require user approval before execution
+• When a write operation is requested, an approval card will be shown in the chat
+• The user must click "Approve" before the operation is executed
+• If the result contains "requiresApproval: true", inform the user that approval is needed
+• Do NOT retry the operation - wait for the user to approve via the UI
+
+PRE-VALIDATION (CRITICAL - DO THIS BEFORE WRITE OPERATIONS):
+• ALWAYS verify the target record exists BEFORE calling a write operation
+• Use the corresponding read operation first (e.g., get_guest before update_guest)
+• Check that the record meets operation constraints (e.g., profile type, status)
+• If validation fails, inform the user immediately - do NOT create an approval
+• This prevents wasting user time approving operations that will fail
+
+Example workflow for update_guest:
+1. Call get_guest with the guestId to verify it exists
+2. Check that profile_type is 2 (Guest), not 0 (Travel Agent) or 1 (Company)
+3. Only if both checks pass, proceed with update_guest
+
 BEST PRACTICES:
 • Use integration_introspect tool first to discover available operations
 • For SQL databases, use introspect_tables and introspect_columns to understand schema
@@ -102,8 +121,40 @@ IMPORTANT NOTES:
             integrationName: args.integrationName,
             operation: args.operation,
             params: args.params || {},
+            threadId: ctx.threadId, // Pass threadId for approval card linking
           },
         );
+
+        // Check if approval is required (write operation)
+        // Type guard for approval result
+        const isApprovalResult = (r: unknown): r is {
+          requiresApproval: true;
+          approvalId: string;
+          operationName: string;
+          operationTitle: string;
+          operationType: 'read' | 'write';
+          parameters: Record<string, unknown>;
+        } => {
+          return r !== null && typeof r === 'object' && 'requiresApproval' in r && (r as any).requiresApproval === true;
+        };
+
+        if (isApprovalResult(result)) {
+          return {
+            success: true,
+            integration: args.integrationName,
+            operation: args.operation,
+            requiresApproval: true,
+            approvalId: result.approvalId,
+            approvalMessage: `This operation requires approval before execution. An approval card has been created for "${result.operationTitle || args.operation}" on ${args.integrationName}. The user can approve or reject this operation in the chat.`,
+            data: {
+              approvalId: result.approvalId,
+              operationName: result.operationName,
+              operationTitle: result.operationTitle,
+              operationType: result.operationType,
+              parameters: result.parameters,
+            },
+          };
+        }
 
         return {
           success: true,

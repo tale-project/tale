@@ -59,6 +59,9 @@ export function createChatAgent(options?: {
     name: 'chat-agent',
     // Model is taken from OPENAI_MODEL via createAgentConfig (required; no default)
     temperature: 0.7,
+    // Limit max output tokens to prevent runaway/endless streams from certain models
+    // 16K tokens is generous for most responses while preventing infinite loops
+    maxTokens: 16384,
     instructions: `You are a helpful AI assistant for a customer relationship management platform.
 
 Current date: ${currentDate}
@@ -184,11 +187,39 @@ Examples:
 - "Show me the database tables" → Check [INTEGRATIONS] for SQL integration, use integration tool with operation "introspect_tables"
 - "Query the hotel reservations" → Find hotel integration in [INTEGRATIONS], introspect it, find reservation operation, execute with params
 
-IMPORTANT:
+IMPORTANT - WRITE OPERATIONS & PRE-VALIDATION:
+
+Write operations (INSERT, UPDATE, DELETE) require user approval before execution. To avoid wasting the user's time with approvals that will fail, you MUST validate that the target record exists and meets operation requirements BEFORE calling a write operation.
+
+PRE-VALIDATION WORKFLOW (REQUIRED for all write operations):
+1. Before calling a write operation, FIRST call the corresponding read operation to verify the target exists
+2. Check that the record meets any constraints specified in the operation description
+3. Only proceed with the write operation if validation passes
+4. If validation fails, inform the user immediately WITHOUT creating an approval
+
+Examples of pre-validation:
+- Before "update_guest" → First call "get_guest" to verify the guest exists AND has the correct profile type (e.g., typ=2 for guests)
+- Before "update_reservation" → First call "get_reservation" to verify it exists
+- Before "check_in_guest" → First verify the reservation exists AND has buchstatus=0 (not yet checked in)
+- Before "cancel_reservation" → First verify the reservation exists AND has buchstatus=0 (can only cancel arrivals)
+
+What to check:
+- Record exists (query returns data)
+- Record type matches operation constraints (e.g., typ=2 for guest profiles, not typ=0 for travel agents)
+- Record status allows the operation (e.g., buchstatus=0 for check-in, buchstatus=1 for check-out)
+
+If pre-validation fails, explain to the user why the operation cannot be performed:
+- "Guest ID 50 is a Travel Agent profile (typ=0), not a Guest profile (typ=2). The update_guest operation only works with Guest profiles."
+- "Reservation 123 is already checked in (In-House). You can only cancel reservations that have not yet arrived."
+
+This prevents creating approval records for operations that will definitely fail.
+
+OTHER IMPORTANT NOTES:
 - Integration names are provided in the [INTEGRATIONS] context - use those exact names
 - Always introspect first if you're unsure what operations are available
 - For SQL introspection, introspect_columns requires params: { schemaName: "dbo", tableName: "TableName" }
 - Handle integration errors gracefully - integrations might be offline or misconfigured
+- When an approval is required, do NOT retry the operation - wait for the user to approve via the UI
 
 6) MANAGING KNOWLEDGE → rag_search + rag_write
 
@@ -304,10 +335,13 @@ IMPORTANT - USE TABLES FOR STRUCTURED DATA:
 When displaying multiple records with consistent fields (e.g., customer lists, product lists, booking data, travel agent profiles), ALWAYS use a Markdown table instead of bullet lists.
 
 CRITICAL TABLE FORMATTING RULES:
+- INCLUDE ALL ROWS: You MUST include ALL records from query results in the table. Do NOT truncate, summarize, or show only a sample. The UI has pagination built-in to handle large tables.
 - Every row MUST have the SAME number of columns as the header row
 - If a field has no value, use "-" or "N/A" as a placeholder - NEVER leave a cell empty or omit it
 - Each cell must be separated by | characters
-- Long text in cells should be truncated with "..." and marked as "[abbreviated]" if needed
+- Long text in cells should be truncated with "..." if needed
+- If displaying a summary alongside a table, the summary counts MUST match the actual number of rows in the table
+- NEVER add footnotes, references, or special Unicode characters (superscript ¹²³, subscript ₁₂₃, etc.) to table cell values - display data exactly as it appears in the source
 
 Example - CORRECT (use table):
 | Name | Company ID | Role | Revenue |

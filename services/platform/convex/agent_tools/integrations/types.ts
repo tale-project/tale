@@ -18,6 +18,12 @@ export interface IntegrationExecutionResult {
   data: unknown;
   duration?: number;
   version?: number;
+  /** True if this operation requires user approval before execution */
+  requiresApproval?: boolean;
+  /** Approval ID if approval is required */
+  approvalId?: string;
+  /** Message to show user about the approval */
+  approvalMessage?: string;
 }
 
 /**

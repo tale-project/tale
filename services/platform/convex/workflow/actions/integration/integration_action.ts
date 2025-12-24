@@ -17,6 +17,7 @@ import type { IntegrationExecutionResult } from '../../../node_only/integration_
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
+import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -29,6 +30,10 @@ export const integrationAction: ActionDefinition<{
   operation: string;
   // Parameters for the operation
   params?: Record<string, unknown>;
+  // Skip approval check (used when executing already approved operations)
+  skipApprovalCheck?: boolean;
+  // Thread ID for linking approvals to chat
+  threadId?: string;
 }> = {
   type: 'integration',
   title: 'Integration',
@@ -38,10 +43,12 @@ export const integrationAction: ActionDefinition<{
     name: v.string(),
     operation: v.string(),
     params: v.optional(v.any()),
+    skipApprovalCheck: v.optional(v.boolean()),
+    threadId: v.optional(v.string()),
   }),
 
   async execute(ctx, params, variables) {
-    const { name, operation, params: opParams = {} } = params;
+    const { name, operation, params: opParams = {}, skipApprovalCheck = false, threadId } = params;
 
     // Read organizationId from workflow context variables with proper type validation
     const organizationId = variables.organizationId;
@@ -68,7 +75,7 @@ export const integrationAction: ActionDefinition<{
 
     // Handle SQL integrations
     if (integrationType === 'sql') {
-      return await executeSqlIntegration(ctx, integration, operation, opParams);
+      return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId);
     }
 
     // Handle REST API integrations (existing logic)
@@ -90,19 +97,56 @@ export const integrationAction: ActionDefinition<{
       );
     }
 
-    // 4. Validate the operation is supported
-    const supportedOps = connectorConfig.operations.map((op) => op.name);
-    if (!supportedOps.includes(operation)) {
+    // 4. Validate the operation is supported and get operation config
+    const operationConfig = connectorConfig.operations.find((op) => op.name === operation);
+    if (!operationConfig) {
+      const supportedOps = connectorConfig.operations.map((op) => op.name);
       throw new Error(
         `Operation "${operation}" not supported by integration "${name}". ` +
           `Supported operations: ${supportedOps.join(', ')}`,
       );
     }
 
-    // 5. Build secrets from integration credentials
+    // 5. Check if this operation requires approval
+    if (!skipApprovalCheck && requiresApproval(operationConfig)) {
+      const operationType = getOperationType(operationConfig);
+      debugLog(
+        `REST operation ${operation} requires approval (type: ${operationType})`,
+      );
+
+      // Create approval and return approval result instead of executing
+      const approvalId = await ctx.runMutation!(
+        internal.agent_tools.integrations.create_integration_approval
+          .createIntegrationApproval,
+        {
+          organizationId,
+          integrationId: integration._id,
+          integrationName: name,
+          integrationType: 'rest_api',
+          operationName: operation,
+          operationTitle: operationConfig.title || operation,
+          operationType,
+          parameters: opParams,
+          estimatedImpact: `This ${operationType} operation will modify data via ${name} API`,
+        },
+      );
+
+      // Return approval required result
+      return {
+        requiresApproval: true,
+        approvalId,
+        integrationName: name,
+        operationName: operation,
+        operationTitle: operationConfig.title || operation,
+        operationType,
+        parameters: opParams,
+      };
+    }
+
+    // 6. Build secrets from integration credentials
     const secrets = await buildSecretsFromIntegration(ctx, integration);
 
-    // 6. Execute the connector in sandbox (via Node.js action)
+    // 7. Execute the connector in sandbox (via Node.js action)
     debugLog(`Executing ${name}.${operation} (v${connectorConfig.version})`);
 
     const result = (await ctx.runAction!(

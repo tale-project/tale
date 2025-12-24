@@ -14,8 +14,22 @@ import { getIntrospectTablesQuery } from './get_introspect_tables_query';
 import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
 import { getIntrospectionOperations } from './get_introspection_operations';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
+import { requiresApproval, getOperationType } from './detect_write_operation';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
+
+/**
+ * Result indicating an approval is required instead of execution
+ */
+export interface ApprovalRequiredResult {
+  requiresApproval: true;
+  approvalId: string;
+  integrationName: string;
+  operationName: string;
+  operationTitle: string;
+  operationType: 'read' | 'write';
+  parameters: Record<string, unknown>;
+}
 
 /**
  * Execute a SQL integration operation
@@ -25,6 +39,8 @@ export async function executeSqlIntegration(
   integration: Doc<'integrations'>,
   operation: string,
   params: Record<string, unknown>,
+  skipApprovalCheck: boolean = false,
+  threadId?: string,
 ): Promise<any> {
   const sqlConnectionConfig = (integration as any).sqlConnectionConfig;
   const sqlOperations = (integration as any).sqlOperations || [];
@@ -38,9 +54,10 @@ export async function executeSqlIntegration(
   // Handle system introspection operations
   let query: string;
   let queryParams: Record<string, unknown> = params;
+  let operationConfig: any = null;
 
   if (isIntrospectionOperation(operation)) {
-    // System introspection operations
+    // System introspection operations - never require approval
     if (operation === 'introspect_tables') {
       query = getIntrospectTablesQuery(sqlConnectionConfig.engine);
       queryParams = {};
@@ -67,7 +84,7 @@ export async function executeSqlIntegration(
     }
   } else {
     // User-defined operation
-    const operationConfig = sqlOperations.find(
+    operationConfig = sqlOperations.find(
       (op: any) => op.name === operation,
     );
 
@@ -82,14 +99,56 @@ export async function executeSqlIntegration(
     }
 
     query = operationConfig.query;
+
+    // Check if this operation requires approval
+    if (!skipApprovalCheck && requiresApproval(operationConfig)) {
+      const operationType = getOperationType(operationConfig);
+      debugLog(
+        `Operation ${operation} requires approval (type: ${operationType})`,
+      );
+
+      // Create approval and return approval result instead of executing
+      const approvalId = await ctx.runMutation!(
+        internal.agent_tools.integrations.create_integration_approval
+          .createIntegrationApproval,
+        {
+          organizationId: (integration as any).organizationId,
+          integrationId: integration._id,
+          integrationName: integration.name,
+          integrationType: 'sql',
+          operationName: operation,
+          operationTitle: operationConfig.title || operation,
+          operationType,
+          parameters: params,
+          threadId,
+          estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
+        },
+      );
+
+      // Return approval required result
+      return {
+        requiresApproval: true,
+        approvalId,
+        integrationName: integration.name,
+        operationName: operation,
+        operationTitle: operationConfig.title || operation,
+        operationType,
+        parameters: params,
+      } as ApprovalRequiredResult;
+    }
   }
 
   // Decrypt credentials
   const credentials = await decryptSqlCredentials(ctx, integration);
 
+  // Determine if this is a write operation (only relevant for user-defined operations)
+  const isWriteOperation = operationConfig
+    ? getOperationType(operationConfig) === 'write'
+    : false;
+
   // Execute SQL query
   debugLog(
-    `Executing SQL ${sqlConnectionConfig.engine} query: ${operation} on ${sqlConnectionConfig.server}/${sqlConnectionConfig.database}`,
+    `Executing SQL ${sqlConnectionConfig.engine} query: ${operation} on ${sqlConnectionConfig.server}/${sqlConnectionConfig.database} (write: ${isWriteOperation})`,
   );
 
   const result = (await ctx.runAction!(
@@ -110,11 +169,21 @@ export async function executeSqlIntegration(
         maxResultRows: sqlConnectionConfig.security?.maxResultRows,
         queryTimeoutMs: sqlConnectionConfig.security?.queryTimeoutMs,
       },
+      // Allow write operations when the operation type is 'write' (approval was already checked above)
+      allowWrite: isWriteOperation,
     },
   )) as SqlExecutionResult;
 
   if (!result.success) {
     throw new Error(`SQL query failed: ${result.error}`);
+  }
+
+  // For write operations, check if any rows were affected
+  if (isWriteOperation && (result.rowCount === 0 || !result.data || result.data.length === 0)) {
+    throw new Error(
+      `Write operation "${operation}" completed but no rows were affected. ` +
+      `This may indicate the target record doesn't exist or doesn't match the operation's criteria.`
+    );
   }
 
   debugLog(`SQL query returned ${result.rowCount} rows in ${result.duration}ms`);

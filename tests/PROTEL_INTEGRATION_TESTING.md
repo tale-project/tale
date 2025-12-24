@@ -446,15 +446,219 @@ Can you look up the details for a specific reservation? Pick one from the recent
 
 ---
 
-### 6. Disconnect Protel Integration (Optional)
+### 6. Test Write Operations (Reservations, Guests, Postings)
+
+> **⚠️ WARNING:** These tests modify data in the Protel database. Only run on test/staging environments!
+
+---
+
+#### 6a. Create a New Guest Profile
+
+**Chat Message:**
+```
+Create a new guest profile with the following details:
+- Last Name: TestGuest
+- First Name: Automated
+- Email: testguest@example.com
+- Phone: +1-555-0123
+- City: Test City
+- Country: USA
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `20a_create_guest.png`
+
+**Expected:** AI creates guest profile and returns the new guest_id.
+
+---
+
+#### 6b. Update the Guest Profile
+
+**Chat Message:**
+```
+Update the guest we just created (use the guest ID from the previous response). Add VIP code 1 and change the phone to +1-555-9999.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `20b_update_guest.png`
+
+**Expected:** AI updates the guest profile and confirms the changes.
+
+---
+
+#### 6c. Create a New Reservation
+
+**Chat Message:**
+```
+Create a reservation for the guest we just created. Use these details:
+- Check-in: Tomorrow's date
+- Check-out: 3 days from now
+- Room category: Use the first available category
+- Rate: 150
+- Adults: 2
+- Reservation status: Confirmed (1)
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `21a_create_reservation.png`
+
+**Expected:** AI creates reservation and returns the new reservation_id.
+
+---
+
+#### 6d. Update the Reservation
+
+**Chat Message:**
+```
+Update the reservation we just created. Change the rate to 175 and add a note saying "VIP guest - complimentary upgrade".
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `21b_update_reservation.png`
+
+**Expected:** AI updates the reservation and confirms the changes.
+
+---
+
+#### 6e. Assign Room to Reservation
+
+**Chat Message:**
+```
+Assign an available room to our test reservation. Pick a room from the category we used.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `21c_assign_room.png`
+
+**Expected:** AI assigns a room and returns the room assignment confirmation.
+
+---
+
+#### 6f. Post a Charge to the Reservation
+
+**Chat Message:**
+```
+Post a room service charge of 45.00 to our test reservation. Use the description "Room Service - Dinner" and an appropriate revenue code.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `22a_post_charge.png`
+
+**Expected:** AI posts the charge and returns the posting_id.
+
+---
+
+#### 6g. Post a Payment
+
+**Chat Message:**
+```
+Post a cash payment of 100.00 to our test reservation as a deposit.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `22b_post_payment.png`
+
+**Expected:** AI posts the payment and returns the posting_id.
+
+---
+
+#### 6h. Void a Posting
+
+**Chat Message:**
+```
+Void the room service charge we just posted (use the posting ID). Reason: "Posted in error - guest complaint".
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `22c_void_posting.png`
+
+**Expected:** AI creates a reversal posting and returns the new posting_id.
+
+---
+
+#### 6i. Check In the Guest
+
+**Chat Message:**
+```
+Check in the guest for our test reservation.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `23a_check_in.png`
+
+**Expected:** AI changes reservation status to In-House and confirms check-in.
+
+---
+
+#### 6j. Check Out the Guest
+
+**Chat Message:**
+```
+Check out the guest from our test reservation.
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `23b_check_out.png`
+
+**Expected:** AI changes reservation status to Checked-Out and confirms check-out.
+
+---
+
+#### 6k. Create a Company Profile
+
+**Chat Message:**
+```
+Create a company profile:
+- Company Name: Test Corp International
+- Email: accounts@testcorp.com
+- Phone: +1-800-555-0199
+- City: Corporate City
+- Country: USA
+- VAT Number: US123456789
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `24_create_company.png`
+
+**Expected:** AI creates company profile and returns the new company_id.
+
+---
+
+#### 6l. Cancel a Reservation (Test with New Reservation)
+
+**Chat Message:**
+```
+First create a new provisional reservation for tomorrow with the test guest we created, then cancel it with reason "Guest requested cancellation".
+```
+
+**Wait for response**
+
+**SCREENSHOT:** `25_cancel_reservation.png`
+
+**Expected:** AI creates and then cancels the reservation, showing both operations.
+
+---
+
+### 7. Disconnect Protel Integration (Optional)
 
 **Actions:**
 1. Navigate to **Settings > Integrations**
 2. Click on the connected Protel integration
-3. **SCREENSHOT:** `20_protel_connected_state.png`
+3. **SCREENSHOT:** `30_protel_connected_state.png`
 4. Click **Disconnect**
 5. Confirm disconnection
-6. **SCREENSHOT:** `21_protel_disconnected.png`
+6. **SCREENSHOT:** `31_protel_disconnected.png`
 
 **Verification:** Protel shows as disconnected.
 
@@ -468,7 +672,9 @@ Can you look up the details for a specific reservation? Pick one from the recent
 
 ### Screenshot Verification Checklist
 
-**Expected screenshots (minimum 25):**
+**Expected screenshots (minimum 47 for full test, 35 for read-only test):**
+
+#### Setup & Connection (10 screenshots)
 
 | Step | Filename | Description |
 |------|----------|-------------|
@@ -482,6 +688,11 @@ Can you look up the details for a specific reservation? Pick one from the recent
 | 8 | `08_protel_credentials_filled.png` | Credentials entered |
 | 9 | `09_protel_connected.png` | Connection success |
 | 10 | `10_chat_page.png` | Chat interface |
+
+#### Read Operations (24 screenshots)
+
+| Step | Filename | Description |
+|------|----------|-------------|
 | 11a | `11a_introspect_tables.png` | Database tables |
 | 11b | `11b_list_rooms.png` | Room list |
 | 11c | `11c_room_categories.png` | Room categories |
@@ -504,21 +715,45 @@ Can you look up the details for a specific reservation? Pick one from the recent
 | 17e | `17e_source_codes.png` | Source codes |
 | 18 | `18_complex_query.png` | Complex summary |
 | 19 | `19_reservation_detail.png` | Reservation detail |
-| 20 | `20_protel_connected_state.png` | Connected state |
-| 21 | `21_protel_disconnected.png` | Disconnected |
+
+#### Write Operations (12 screenshots)
+
+| Step | Filename | Description |
+|------|----------|-------------|
+| 20a | `20a_create_guest.png` | Create guest profile |
+| 20b | `20b_update_guest.png` | Update guest profile |
+| 21a | `21a_create_reservation.png` | Create reservation |
+| 21b | `21b_update_reservation.png` | Update reservation |
+| 21c | `21c_assign_room.png` | Assign room |
+| 22a | `22a_post_charge.png` | Post charge |
+| 22b | `22b_post_payment.png` | Post payment |
+| 22c | `22c_void_posting.png` | Void posting |
+| 23a | `23a_check_in.png` | Check in guest |
+| 23b | `23b_check_out.png` | Check out guest |
+| 24 | `24_create_company.png` | Create company |
+| 25 | `25_cancel_reservation.png` | Cancel reservation |
+
+#### Cleanup & Summary (3 screenshots)
+
+| Step | Filename | Description |
+|------|----------|-------------|
+| 30 | `30_protel_connected_state.png` | Connected state |
+| 31 | `31_protel_disconnected.png` | Disconnected |
 | 99 | `99_test_summary.png` | Final state |
 
 ### Protel Operations Coverage
 
-| Category | Operations Tested |
-|----------|------------------|
-| Introspection | `introspect_tables` |
-| Rooms | `list_rooms`, `list_room_categories`, `get_room_availability` |
-| Guests | `list_guests`, `get_guest`, `list_companies`, `list_travel_agents` |
-| Reservations | `list_reservations`, `get_reservation`, `get_arrivals_today`, `get_departures_today`, `get_inhouse_guests` |
-| Postings | `get_reservation_postings`, `get_daily_postings` |
-| Revenue | `list_revenue_codes`, `get_daily_revenue_summary`, `get_occupancy_statistics` |
-| Reference | `list_payment_methods`, `list_reservation_statuses`, `list_vip_codes`, `list_market_codes`, `list_source_codes` |
+| Category | Read Operations | Write Operations |
+|----------|-----------------|------------------|
+| Introspection | `introspect_tables` | - |
+| Rooms | `list_rooms`, `list_room_categories`, `get_room_availability` | `assign_room` |
+| Guests | `list_guests`, `get_guest`, `list_companies`, `list_travel_agents` | `create_guest`, `update_guest`, `create_company` |
+| Reservations | `list_reservations`, `get_reservation`, `get_arrivals_today`, `get_departures_today`, `get_inhouse_guests` | `create_reservation`, `update_reservation`, `cancel_reservation`, `check_in_guest`, `check_out_guest` |
+| Postings | `get_reservation_postings`, `get_daily_postings` | `post_charge`, `post_payment`, `void_posting` |
+| Revenue | `list_revenue_codes`, `get_daily_revenue_summary`, `get_occupancy_statistics` | - |
+| Reference | `list_payment_methods`, `list_reservation_statuses`, `list_vip_codes`, `list_market_codes`, `list_source_codes` | - |
+
+**Total Operations:** 22 read + 13 write = 35 operations
 
 ### Test Report
 

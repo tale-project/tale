@@ -15,8 +15,9 @@ export async function executeQuery(
 ): Promise<SqlExecutionResult> {
   const startTime = Date.now();
 
-  // Validate query for security
-  validateQuery(params.query, true); // Default to read-only for now
+  // Validate query for security (readOnly = !allowWrite)
+  const readOnly = !params.allowWrite;
+  validateQuery(params.query, readOnly);
 
   // Route to appropriate engine
   let result: SqlExecutionResult;

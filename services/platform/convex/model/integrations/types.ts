@@ -110,6 +110,14 @@ export const capabilitiesValidator = v.object({
 });
 
 /**
+ * Operation type validator (read vs write)
+ */
+export const operationTypeValidator = v.union(
+  v.literal('read'),
+  v.literal('write'),
+);
+
+/**
  * Connector operation validator
  */
 export const connectorOperationValidator = v.object({
@@ -117,6 +125,11 @@ export const connectorOperationValidator = v.object({
   title: v.optional(v.string()),
   description: v.optional(v.string()),
   parametersSchema: v.optional(v.any()),
+  // Operation type: 'read' or 'write' - defaults to 'read' if not specified
+  operationType: v.optional(operationTypeValidator),
+  // Whether this operation requires user approval before execution
+  // Defaults to true for write operations, false for read operations
+  requiresApproval: v.optional(v.boolean()),
 });
 
 /**
@@ -175,6 +188,11 @@ export const sqlOperationValidator = v.object({
   description: v.optional(v.string()),
   query: v.string(),
   parametersSchema: v.optional(v.any()),
+  // Operation type: 'read' or 'write' - defaults to 'read' if not specified
+  operationType: v.optional(operationTypeValidator),
+  // Whether this operation requires user approval before execution
+  // Defaults to true for write operations, false for read operations
+  requiresApproval: v.optional(v.boolean()),
 });
 
 /**
@@ -193,6 +211,7 @@ export type IntegrationType = 'rest_api' | 'sql';
 export type SqlEngine = 'mssql' | 'postgres' | 'mysql';
 export type AuthMethod = 'api_key' | 'bearer_token' | 'basic_auth' | 'oauth2';
 export type Status = 'active' | 'inactive' | 'error' | 'testing';
+export type OperationType = 'read' | 'write';
 
 export interface ApiKeyAuth {
   key: string;
@@ -248,6 +267,10 @@ export interface ConnectorOperation {
   title?: string;
   description?: string;
   parametersSchema?: unknown;
+  /** Operation type: 'read' or 'write' - defaults to 'read' if not specified */
+  operationType?: OperationType;
+  /** Whether this operation requires user approval before execution */
+  requiresApproval?: boolean;
 }
 
 export interface ConnectorConfig {
@@ -284,6 +307,10 @@ export interface SqlOperation {
   description?: string;
   query: string;
   parametersSchema?: unknown;
+  /** Operation type: 'read' or 'write' - defaults to 'read' if not specified */
+  operationType?: OperationType;
+  /** Whether this operation requires user approval before execution */
+  requiresApproval?: boolean;
 }
 
 export interface TestConnectionResult {

@@ -2,7 +2,11 @@
  * Type definitions for predefined integrations
  */
 
-import type { AuthMethod, ConnectorConfig } from '../model/integrations/types';
+import type {
+  AuthMethod,
+  ConnectorConfig,
+  OperationType,
+} from '../model/integrations/types';
 
 /**
  * SQL operation definition for predefined SQL integrations
@@ -12,6 +16,16 @@ export interface SqlOperation {
   title?: string;
   description?: string;
   query: string;
+  /**
+   * Operation type: 'read' or 'write'
+   * Defaults to 'read' if not specified
+   */
+  operationType?: OperationType;
+  /**
+   * Whether this operation requires user approval before execution
+   * Defaults to true for write operations, false for read operations
+   */
+  requiresApproval?: boolean;
   parametersSchema?: {
     type?: string;
     properties?: Record<string, unknown>;

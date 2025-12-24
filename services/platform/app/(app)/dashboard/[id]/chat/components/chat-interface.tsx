@@ -9,6 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import MessageBubble from './message-bubble';
 import ChatInput from './chat-input';
+import { IntegrationApprovalCard } from './integration-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
@@ -24,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
+import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -344,6 +346,9 @@ export default function ChatInterface({
     (m) => m.role === 'assistant' && m.status === 'streaming',
   );
 
+  // Fetch integration approvals for this thread
+  const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
+
   // Query for active runId from thread (for recovery on page refresh)
   const activeRunIdFromThread = useQuery(
     api.threads.getActiveRunId,
@@ -643,6 +648,21 @@ export default function ChatInterface({
                   }}
                 />
               )}
+              {/* Integration Approval Cards */}
+              {integrationApprovals && integrationApprovals.length > 0 && (
+                <div className="space-y-3">
+                  {integrationApprovals.map((approval) => (
+                    <div key={approval._id} className="flex justify-start">
+                      <IntegrationApprovalCard
+                        approvalId={approval._id}
+                        status={approval.status}
+                        metadata={approval.metadata}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* AI Response area - ref used for scroll positioning */}
               <div ref={aiResponseAreaRef}>
                 {isLoading && (

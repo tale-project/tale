@@ -27,6 +27,8 @@ export interface SqlExecutionParams {
     maxResultRows?: number;
     queryTimeoutMs?: number;
   };
+  /** Allow write operations (UPDATE, INSERT, DELETE). Default: false (read-only) */
+  allowWrite?: boolean;
 }
 
 export interface SqlExecutionResult {

@@ -343,6 +343,8 @@ export default defineSchema({
           description: v.optional(v.string()),
           query: v.string(), // SQL query with native placeholders
           parametersSchema: v.optional(v.any()), // JSON Schema for parameters
+          operationType: v.optional(v.union(v.literal('read'), v.literal('write'))), // Operation type for approval workflow
+          requiresApproval: v.optional(v.boolean()), // Whether operation requires user approval
         }),
       ),
     ),
@@ -745,8 +747,13 @@ export default defineSchema({
     resourceType: v.union(
       v.literal('conversations'),
       v.literal('product_recommendation'),
+      v.literal('integration_operation'),
     ),
     resourceId: v.string(),
+
+    // Thread context for chat-based approvals (Agent Component thread ID)
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()), // The message ID where approval was requested
 
     // Priority and timing
     priority: v.union(

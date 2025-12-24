@@ -18,9 +18,13 @@ export const executeIntegrationInternal = internalAction({
     integrationName: v.string(),
     operation: v.string(),
     params: v.optional(v.any()),
+    // Skip approval check - used when executing an already approved operation
+    skipApprovalCheck: v.optional(v.boolean()),
+    // Thread ID for linking approvals to chat
+    threadId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { organizationId, integrationName, operation, params } = args;
+    const { organizationId, integrationName, operation, params, skipApprovalCheck, threadId } = args;
 
     // Call the integration action's execute method
     const result = await integrationAction.execute(
@@ -29,6 +33,8 @@ export const executeIntegrationInternal = internalAction({
         name: integrationName,
         operation,
         params: params || {},
+        skipApprovalCheck: skipApprovalCheck || false,
+        threadId,
       },
       {
         organizationId,

@@ -44,6 +44,8 @@ export const executeQueryInternal = internalAction({
         queryTimeoutMs: v.optional(v.number()),
       }),
     ),
+    // Allow write operations (UPDATE, INSERT, DELETE) when explicitly enabled
+    allowWrite: v.optional(v.boolean()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -59,6 +61,7 @@ export const executeQueryInternal = internalAction({
       query: args.query,
       params: args.params as Record<string, unknown> | undefined,
       security: args.security,
+      allowWrite: args.allowWrite,
     });
   },
 });

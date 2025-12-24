@@ -33,6 +33,8 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
+import type * as agent_tools_integrations_create_integration_approval from "../agent_tools/integrations/create_integration_approval.js";
+import type * as agent_tools_integrations_execute_approved_operation from "../agent_tools/integrations/execute_approved_operation.js";
 import type * as agent_tools_integrations_execute_integration_internal from "../agent_tools/integrations/execute_integration_internal.js";
 import type * as agent_tools_integrations_integration_introspect_tool from "../agent_tools/integrations/integration_introspect_tool.js";
 import type * as agent_tools_integrations_integration_tool from "../agent_tools/integrations/integration_tool.js";
@@ -515,6 +517,7 @@ import type * as workflow_actions_imap_helpers_types from "../workflow/actions/i
 import type * as workflow_actions_imap_imap_action from "../workflow/actions/imap/imap_action.js";
 import type * as workflow_actions_integration_helpers_build_secrets_from_integration from "../workflow/actions/integration/helpers/build_secrets_from_integration.js";
 import type * as workflow_actions_integration_helpers_decrypt_sql_credentials from "../workflow/actions/integration/helpers/decrypt_sql_credentials.js";
+import type * as workflow_actions_integration_helpers_detect_write_operation from "../workflow/actions/integration/helpers/detect_write_operation.js";
 import type * as workflow_actions_integration_helpers_execute_sql_integration from "../workflow/actions/integration/helpers/execute_sql_integration.js";
 import type * as workflow_actions_integration_helpers_get_introspect_columns_query from "../workflow/actions/integration/helpers/get_introspect_columns_query.js";
 import type * as workflow_actions_integration_helpers_get_introspect_tables_query from "../workflow/actions/integration/helpers/get_introspect_tables_query.js";
@@ -668,6 +671,8 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
+  "agent_tools/integrations/create_integration_approval": typeof agent_tools_integrations_create_integration_approval;
+  "agent_tools/integrations/execute_approved_operation": typeof agent_tools_integrations_execute_approved_operation;
   "agent_tools/integrations/execute_integration_internal": typeof agent_tools_integrations_execute_integration_internal;
   "agent_tools/integrations/integration_introspect_tool": typeof agent_tools_integrations_integration_introspect_tool;
   "agent_tools/integrations/integration_tool": typeof agent_tools_integrations_integration_tool;
@@ -1150,6 +1155,7 @@ declare const fullApi: ApiFromModules<{
   "workflow/actions/imap/imap_action": typeof workflow_actions_imap_imap_action;
   "workflow/actions/integration/helpers/build_secrets_from_integration": typeof workflow_actions_integration_helpers_build_secrets_from_integration;
   "workflow/actions/integration/helpers/decrypt_sql_credentials": typeof workflow_actions_integration_helpers_decrypt_sql_credentials;
+  "workflow/actions/integration/helpers/detect_write_operation": typeof workflow_actions_integration_helpers_detect_write_operation;
   "workflow/actions/integration/helpers/execute_sql_integration": typeof workflow_actions_integration_helpers_execute_sql_integration;
   "workflow/actions/integration/helpers/get_introspect_columns_query": typeof workflow_actions_integration_helpers_get_introspect_columns_query;
   "workflow/actions/integration/helpers/get_introspect_tables_query": typeof workflow_actions_integration_helpers_get_introspect_tables_query;
