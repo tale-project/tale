@@ -13,6 +13,15 @@ import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { websiteFilterDefinitions } from './filter-definitions';
 import AddWebsiteButton from './add-website-button';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('websites.title')} | ${t('suffix')}`,
+    description: t('websites.description'),
+  };
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

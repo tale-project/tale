@@ -5,6 +5,16 @@ import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
+import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('toneOfVoice.title')} | ${t('suffix')}`,
+    description: t('toneOfVoice.description'),
+  };
+}
 
 interface ToneOfVoicePageProps {
   params: Promise<{ id: string }>;

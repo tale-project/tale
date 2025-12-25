@@ -43,9 +43,6 @@ services/platform/.env.local
 !.env.example
 !services/platform/.env.example
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

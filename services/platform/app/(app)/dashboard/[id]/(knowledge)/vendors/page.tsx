@@ -13,6 +13,15 @@ import ImportVendorsMenu from './import-vendors-menu';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { vendorFilterDefinitions } from './filter-definitions';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('vendors.title')} | ${t('suffix')}`,
+    description: t('vendors.description'),
+  };
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

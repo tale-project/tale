@@ -8,6 +8,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams } from '@/lib/pagination/parse-search-params';
 import { executionFilterDefinitions } from './filter-definitions';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('automationExecutions.title')} | ${t('suffix')}`,
+    description: t('automationExecutions.description'),
+  };
+}
 
 /** Skeleton for the executions table with header and rows - matches ExecutionsTable layout */
 async function ExecutionsSkeleton() {

@@ -13,6 +13,15 @@ import ImportCustomersMenu from './import-customers-menu';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { customerFilterDefinitions } from './filter-definitions';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('customers.title')} | ${t('suffix')}`,
+    description: t('customers.description'),
+  };
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

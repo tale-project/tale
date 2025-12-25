@@ -1762,5 +1762,89 @@
     "automations": "You need Admin or Developer permissions to access automations.",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
     "organization": "You need Admin permissions to access organization settings."
+  },
+  "metadata": {
+    "suffix": "Tale",
+    "default": {
+      "title": "AI that automates your workflows",
+      "description": "Tale is an AI-powered platform that automates your business workflows, handles customer conversations, and streamlines approvals."
+    },
+    "keywords": "AI automation, workflow automation, customer service AI, business automation, Tale",
+    "chat": {
+      "title": "Chat",
+      "description": "Chat with AI to get help with your tasks."
+    },
+    "conversations": {
+      "title": "Conversations",
+      "description": "View and manage customer conversations."
+    },
+    "approvals": {
+      "title": "Approvals",
+      "description": "Review and approve pending actions."
+    },
+    "automations": {
+      "title": "Automations",
+      "description": "Manage your automation workflows."
+    },
+    "automation": {
+      "title": "Automation",
+      "description": "View and edit automation workflow."
+    },
+    "automationConfiguration": {
+      "title": "Automation configuration",
+      "description": "Configure automation settings."
+    },
+    "automationExecutions": {
+      "title": "Automation executions",
+      "description": "View automation execution history."
+    },
+    "documents": {
+      "title": "Documents",
+      "description": "Manage your knowledge base documents."
+    },
+    "products": {
+      "title": "Products",
+      "description": "Manage your product catalog."
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Manage your customer database."
+    },
+    "vendors": {
+      "title": "Vendors",
+      "description": "Manage your vendor relationships."
+    },
+    "websites": {
+      "title": "Websites",
+      "description": "Manage websites for knowledge extraction."
+    },
+    "toneOfVoice": {
+      "title": "Tone of voice",
+      "description": "Configure your brand's tone of voice."
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Manage your account and organization settings."
+    },
+    "account": {
+      "title": "Account",
+      "description": "Manage your account settings."
+    },
+    "organization": {
+      "title": "Organization",
+      "description": "Manage your organization settings."
+    },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Connect third-party services."
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "View system logs and activity."
+    },
+    "createOrganization": {
+      "title": "Create organization",
+      "description": "Create a new organization."
+    }
   }
 }

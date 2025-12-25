@@ -20,16 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteModal, FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -260,60 +251,49 @@ export function AutomationTemplatesTab({
             <CardDescription>{t('templates.createNewTemplate')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full">{t('createButton')}</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t('createDialog.title')}</DialogTitle>
-                  <DialogDescription>
-                    {t('templates.fillDetails')}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="workflow-name">{t('configuration.name')}</Label>
-                    <Input
-                      id="workflow-name"
-                      value={newAutomationForm.name}
-                      onChange={(e) =>
-                        setNewAutomationForm((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
-                      }
-                      placeholder={t('configuration.namePlaceholder')}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="workflow-description">{t('configuration.description')}</Label>
-                    <Textarea
-                      id="automation-description"
-                      value={newAutomationForm.description}
-                      onChange={(e) =>
-                        setNewAutomationForm((prev) => ({
-                          ...prev,
-                          description: e.target.value,
-                        }))
-                      }
-                      placeholder={t('configuration.descriptionPlaceholder')}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    onClick={async () => {
-                      await handleCreateAutomation();
-                      setCreateOpen(false);
-                    }}
-                    disabled={!newAutomationForm.name}
-                  >
-                    {tCommon('actions.create')}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <FormModal
+              open={createOpen}
+              onOpenChange={setCreateOpen}
+              title={t('createDialog.title')}
+              description={t('templates.fillDetails')}
+              submitText={tCommon('actions.create')}
+              submitDisabled={!newAutomationForm.name}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                await handleCreateAutomation();
+                setCreateOpen(false);
+              }}
+              trigger={<Button className="w-full">{t('createButton')}</Button>}
+            >
+              <div>
+                <Label htmlFor="workflow-name">{t('configuration.name')}</Label>
+                <Input
+                  id="workflow-name"
+                  value={newAutomationForm.name}
+                  onChange={(e) =>
+                    setNewAutomationForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                  placeholder={t('configuration.namePlaceholder')}
+                />
+              </div>
+              <div>
+                <Label htmlFor="workflow-description">{t('configuration.description')}</Label>
+                <Textarea
+                  id="automation-description"
+                  value={newAutomationForm.description}
+                  onChange={(e) =>
+                    setNewAutomationForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  placeholder={t('configuration.descriptionPlaceholder')}
+                />
+              </div>
+            </FormModal>
           </CardContent>
         </Card>
 

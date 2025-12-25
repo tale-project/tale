@@ -1,6 +1,16 @@
 import { Suspense } from 'react';
 import ChatInterface from '../components/chat-interface';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('chat.title')} | ${t('suffix')}`,
+    description: t('chat.description'),
+  };
+}
 
 interface AIConversationPageProps {
   params: Promise<{ id: string; threadId: string }>;

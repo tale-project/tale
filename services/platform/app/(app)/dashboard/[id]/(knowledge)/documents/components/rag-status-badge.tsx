@@ -3,14 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CircleCheck, XCircle, Clock, Database, RotateCw, AlertTriangle } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
@@ -73,6 +66,8 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
+  const [isFailedModalOpen, setIsFailedModalOpen] = useState(false);
   const router = useRouter();
 
   // Get translated label for status
@@ -162,33 +157,28 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       : t('rag.status.unknown');
 
     return (
-      <Dialog>
-        <DialogTrigger asChild>
-          <button
-            type="button"
-            className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
-          >
-            <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-            {getStatusLabel(status)}
-          </button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader className="pr-8">
-            <DialogTitle className="flex items-center gap-2 text-success">
-              <CircleCheck className="size-5" />
-              {t('rag.dialog.indexed.title')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('rag.dialog.indexed.description')}
-            </DialogDescription>
-          </DialogHeader>
+      <>
+        <button
+          type="button"
+          onClick={() => setIsCompletedModalOpen(true)}
+          className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
+        >
+          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
+          {getStatusLabel(status)}
+        </button>
+        <ViewModal
+          open={isCompletedModalOpen}
+          onOpenChange={setIsCompletedModalOpen}
+          title={t('rag.dialog.indexed.title')}
+          description={t('rag.dialog.indexed.description')}
+        >
           <div className="mt-4">
             <p className="text-sm">
               <span className="font-medium">{t('rag.dialog.indexed.indexedOn')}</span> {formattedDate}
             </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ViewModal>
+      </>
     );
   }
 
@@ -196,34 +186,27 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   if (status === 'failed') {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
-            >
-              <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-              {getStatusLabel(status)}
-            </button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader className="pr-8">
-              <DialogTitle className="flex items-center gap-2 text-destructive">
-                <XCircle className="size-5" />
-                {t('rag.dialog.failed.title')}
-              </DialogTitle>
-              <DialogDescription>
-                {t('rag.dialog.failed.description')}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4">
-              <p className="text-sm font-medium mb-2">{t('rag.dialog.failed.errorDetails')}</p>
-              <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap">
-                {error || t('rag.dialog.failed.unknownError')}
-              </pre>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <button
+          type="button"
+          onClick={() => setIsFailedModalOpen(true)}
+          className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
+        >
+          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
+          {getStatusLabel(status)}
+        </button>
+        <ViewModal
+          open={isFailedModalOpen}
+          onOpenChange={setIsFailedModalOpen}
+          title={t('rag.dialog.failed.title')}
+          description={t('rag.dialog.failed.description')}
+        >
+          <div className="mt-4">
+            <p className="text-sm font-medium mb-2">{t('rag.dialog.failed.errorDetails')}</p>
+            <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap">
+              {error || t('rag.dialog.failed.unknownError')}
+            </pre>
+          </div>
+        </ViewModal>
         <Button
           size="icon"
           variant="outline"

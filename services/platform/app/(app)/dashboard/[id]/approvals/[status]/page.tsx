@@ -11,6 +11,15 @@ import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { GitCompare } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('approvals.title')} | ${t('suffix')}`,
+    description: t('approvals.description'),
+  };
+}
 
 const VALID_STATUSES = ['pending', 'resolved'] as const;
 type ApprovalStatus = (typeof VALID_STATUSES)[number];
