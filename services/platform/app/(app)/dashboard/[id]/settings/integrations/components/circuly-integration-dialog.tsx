@@ -56,6 +56,7 @@ export default function CirculyIntegrationDialog({
   ...props
 }: CirculyIntegrationDialogProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const isConnected = !!credentials?.username;
   const existingUsername = credentials?.username || '';
 
@@ -84,10 +85,8 @@ export default function CirculyIntegrationDialog({
       await onConnect(values);
 
       toast({
-        title: isConnected ? 'Update successful' : 'Connection successful',
-        description: isConnected
-          ? 'Circuly integration has been updated successfully.'
-          : 'Circuly integration has been connected successfully.',
+        title: isConnected ? t('integrations.updateSuccessful') : t('integrations.connectionSuccessful'),
+        description: t('integrations.connectedTo', { provider: 'Circuly' }),
         variant: 'success',
       });
 
@@ -99,9 +98,8 @@ export default function CirculyIntegrationDialog({
     } catch (error) {
       console.error('Failed to connect to Circuly:', error);
       toast({
-        title: isConnected ? 'Update failed' : 'Connection failed',
-        description:
-          'Failed to connect to Circuly. Please check your credentials.',
+        title: isConnected ? t('integrations.updateFailed') : t('integrations.connectionTestFailed'),
+        description: t('integrations.failedToDisconnect', { provider: 'Circuly' }),
         variant: 'destructive',
       });
     }
@@ -116,7 +114,7 @@ export default function CirculyIntegrationDialog({
       props.onOpenChange?.(false);
     } catch {
       toast({
-        title: 'Failed to disconnect Circuly',
+        title: t('integrations.failedToDisconnect', { provider: 'Circuly' }),
         variant: 'destructive',
       });
     }
@@ -132,7 +130,7 @@ export default function CirculyIntegrationDialog({
         {/* Header */}
         <div className="border-b border-border flex items-start justify-between px-4 py-6">
           <DialogHeader className="space-y-1">
-            <DialogTitle>Circuly integration</DialogTitle>
+            <DialogTitle>{t('integrations.circulyIntegration')}</DialogTitle>
           </DialogHeader>
         </div>
 
@@ -143,20 +141,20 @@ export default function CirculyIntegrationDialog({
             <div className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-green-600">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>Connected to Circuly</span>
+                <span>{t('integrations.circuly.connectedToCirculy')}</span>
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground/80">
-                  Connected Username
+                  {t('integrations.circuly.connectedUsername')}
                 </label>
                 <div className="p-3 bg-muted rounded-md text-sm">
-                  {existingUsername || 'Connected'}
+                  {existingUsername || t('integrations.circuly.connected')}
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Your Circuly account is connected and syncing subscription data.
+                {t('integrations.circuly.syncingData')}
               </p>
             </div>
           ) : (
@@ -171,7 +169,7 @@ export default function CirculyIntegrationDialog({
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Circuly Username</FormLabel>
+                      <FormLabel>{t('integrations.circuly.username')}</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={t('integrations.circuly.usernamePlaceholder')}
@@ -190,7 +188,7 @@ export default function CirculyIntegrationDialog({
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Circuly Password</FormLabel>
+                      <FormLabel>{t('integrations.circuly.password')}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input
@@ -208,8 +206,7 @@ export default function CirculyIntegrationDialog({
                 />
 
                 <p className="text-xs text-muted-foreground">
-                  Enter your Circuly credentials to sync subscription and
-                  customer data.
+                  {t('integrations.circuly.enterCredentials')}
                 </p>
               </form>
             </Form>
@@ -226,21 +223,21 @@ export default function CirculyIntegrationDialog({
                 disabled={isSubmitting}
                 className="flex-1"
               >
-                {isSubmitting ? 'Disconnecting...' : 'Disconnect'}
+                {isSubmitting ? t('integrations.disconnecting') : t('integrations.disconnect')}
               </Button>
               <Button
                 onClick={handleSubmit(handleConnect)}
                 disabled={isSubmitting || !username || !password}
                 className="flex-1"
               >
-                {isSubmitting ? 'Updating...' : 'Update'}
+                {isSubmitting ? t('integrations.circuly.updating') : t('integrations.circuly.update')}
               </Button>
             </>
           ) : (
             <>
               <DialogClose asChild>
                 <Button variant="outline" className="flex-1">
-                  Cancel
+                  {tCommon('actions.cancel')}
                 </Button>
               </DialogClose>
               <Button
@@ -248,7 +245,7 @@ export default function CirculyIntegrationDialog({
                 className="flex-1"
                 disabled={isSubmitting || !username || !password}
               >
-                {isSubmitting ? 'Connecting...' : 'Connect'}
+                {isSubmitting ? t('integrations.circuly.connecting') : t('integrations.circuly.connect')}
               </Button>
             </>
           )}

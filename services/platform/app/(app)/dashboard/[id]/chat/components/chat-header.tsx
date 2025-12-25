@@ -110,7 +110,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
                 size="icon"
                 variant="ghost"
                 onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                aria-label="Chat history"
+                aria-label={tChat('chatHistory')}
               >
                 <Clock className={baseIconClasses} />
               </Button>
@@ -121,7 +121,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
               side="bottom"
               className="py-1.5"
             >
-              {isHistoryOpen ? 'Hide history' : 'Show history'}
+              {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
               <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
                 {historyShortcut}
               </span>
@@ -134,7 +134,7 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
                 size="icon"
                 variant="ghost"
                 onClick={handleToggleSearch}
-                aria-label="Search chat"
+                aria-label={tChat('searchChat')}
               >
                 <Search className={baseIconClasses} />
               </Button>
@@ -153,13 +153,13 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
                 size="icon"
                 variant="ghost"
                 onClick={handleNewChat}
-                aria-label="New chat"
+                aria-label={tChat('newChat')}
               >
                 <Plus className={baseIconClasses} />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="py-1.5">
-              New Chat
+              {tChat('newChat')}
               <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
                 {newChatShortcut}
               </span>

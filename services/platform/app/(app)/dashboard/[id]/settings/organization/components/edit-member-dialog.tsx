@@ -25,6 +25,7 @@ import {
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 const editMemberSchema = z.object({
   displayName: z.string().min(1, 'Name is required'),
@@ -56,6 +57,9 @@ export default function EditMemberDialog({
   member,
   currentUserMemberId,
 }: EditMemberDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
     defaultValues: {
@@ -90,13 +94,13 @@ export default function EditMemberDialog({
       });
 
       toast({
-        title: 'Member updated successfully',
+        title: t('organization.memberUpdated'),
         variant: 'success',
       });
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Failed to update member',
+        title: t('organization.memberUpdateFailed'),
         variant: 'destructive',
       });
     }
@@ -124,18 +128,18 @@ export default function EditMemberDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit member</DialogTitle>
+          <DialogTitle>{t('organization.editMember')}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {/* Name Field */}
           <div className="space-y-2">
             <Label htmlFor="displayName" className="text-sm font-medium">
-              Name
+              {t('form.name')}
             </Label>
             <Input
               id="displayName"
-              placeholder="Enter full name"
+              placeholder={t('form.namePlaceholder')}
               {...register('displayName')}
               className="w-full"
               required
@@ -145,26 +149,26 @@ export default function EditMemberDialog({
           {/* Email Field - Read-only */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium">
-              Email
+              {t('form.email')}
             </Label>
             <Input
               id="email"
               type="email"
-              placeholder="Enter email address"
+              placeholder={t('form.emailPlaceholder')}
               {...register('email')}
               className="w-full bg-muted"
               disabled
               required
             />
             <p className="text-xs text-muted-foreground">
-              Email cannot be changed
+              {t('organization.emailCannotChange')}
             </p>
           </div>
 
           {/* Role Field */}
           <div className="space-y-2">
             <Label htmlFor="role" className="text-sm font-medium">
-              Role
+              {t('form.role')}
             </Label>
             <Controller
               control={form.control}
@@ -179,18 +183,18 @@ export default function EditMemberDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="developer">Developer</SelectItem>
-                    <SelectItem value="editor">Editor</SelectItem>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="disabled">Disabled</SelectItem>
+                    <SelectItem value="admin">{t('roles.admin')}</SelectItem>
+                    <SelectItem value="developer">{t('roles.developer')}</SelectItem>
+                    <SelectItem value="editor">{t('roles.editor')}</SelectItem>
+                    <SelectItem value="member">{t('roles.member')}</SelectItem>
+                    <SelectItem value="disabled">{t('roles.disabled')}</SelectItem>
                   </SelectContent>
                 </Select>
               )}
             />
             {isEditingSelf && (
               <p className="text-sm text-muted-foreground">
-                You cannot change your own role
+                {t('organization.cannotChangeOwnRole')}
               </p>
             )}
             {!isEditingSelf &&
@@ -198,9 +202,7 @@ export default function EditMemberDialog({
               watch('role') !== 'admin' && (
                 <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
                   <p className="text-sm text-amber-800">
-                    <strong>Warning:</strong> Your organization should have at
-                    least 2 admins for security. This change will be blocked if
-                    it would leave fewer than 2 admins.
+                    {t('organization.adminWarning')}
                   </p>
                 </div>
               )}
@@ -224,24 +226,24 @@ export default function EditMemberDialog({
                 htmlFor="updatePassword"
                 className="text-sm font-medium cursor-pointer"
               >
-                Update password
+                {t('organization.updatePassword')}
               </Label>
             </div>
 
             {watch('updatePassword') && (
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium">
-                  Password
+                  {t('form.password')}
                 </Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Enter new password"
+                  placeholder={t('organization.enterNewPassword')}
                   {...register('password')}
                   className="w-full"
                 />
                 <p className="text-xs text-muted-foreground">
-                  User must update the password on login
+                  {t('organization.userMustUpdatePassword')}
                 </p>
               </div>
             )}
@@ -255,14 +257,14 @@ export default function EditMemberDialog({
               disabled={isSubmitting}
               className="flex-1"
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting || !isDirty}
               className="flex-1"
             >
-              {isSubmitting ? 'Updating...' : 'Update'}
+              {isSubmitting ? tCommon('actions.updating') : tCommon('actions.save')}
             </Button>
           </DialogFooter>
         </form>

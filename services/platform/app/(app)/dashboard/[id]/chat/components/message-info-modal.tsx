@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format';
-import { useLocale } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 
 interface MessageMetadata {
   model: string;
@@ -38,20 +38,21 @@ export default function MessageInfoModal({
   metadata,
 }: MessageInfoModalProps) {
   const locale = useLocale();
+  const { t } = useT('chat');
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Message Information</DialogTitle>
-          <DialogDescription>Details about this AI response</DialogDescription>
+          <DialogTitle>{t('messageInfo.title')}</DialogTitle>
+          <DialogDescription>{t('messageInfo.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {/* Timestamp */}
           <div className="space-y-1">
             <div className="text-sm font-medium text-muted-foreground">
-              Timestamp
+              {t('messageInfo.timestamp')}
             </div>
             <div className="text-sm">{formatDate(timestamp, { preset: 'long' })}</div>
           </div>
@@ -59,7 +60,7 @@ export default function MessageInfoModal({
           {/* Message ID */}
           <div className="space-y-1">
             <div className="text-sm font-medium text-muted-foreground">
-              Message ID
+              {t('messageInfo.messageId')}
             </div>
             <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
               {messageId}
@@ -71,7 +72,7 @@ export default function MessageInfoModal({
               {/* Model */}
               <div className="space-y-1">
                 <div className="text-sm font-medium text-muted-foreground">
-                  Model
+                  {t('messageInfo.model')}
                 </div>
                 <div className="text-sm">
                   {metadata.model} ({metadata.provider})
@@ -82,13 +83,13 @@ export default function MessageInfoModal({
               {metadata.totalTokens !== undefined && (
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-muted-foreground">
-                    Token Usage
+                    {t('messageInfo.tokenUsage')}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {metadata.inputTokens !== undefined && (
                       <div className="space-y-0.5">
                         <div className="text-xs text-muted-foreground">
-                          Input
+                          {t('messageInfo.input')}
                         </div>
                         <div className="font-medium">
                           {formatNumber(metadata.inputTokens, locale)}
@@ -98,7 +99,7 @@ export default function MessageInfoModal({
                     {metadata.outputTokens !== undefined && (
                       <div className="space-y-0.5">
                         <div className="text-xs text-muted-foreground">
-                          Output
+                          {t('messageInfo.output')}
                         </div>
                         <div className="font-medium">
                           {formatNumber(metadata.outputTokens, locale)}
@@ -108,7 +109,7 @@ export default function MessageInfoModal({
                     {metadata.totalTokens !== undefined && (
                       <div className="space-y-0.5">
                         <div className="text-xs text-muted-foreground">
-                          Total
+                          {t('messageInfo.total')}
                         </div>
                         <div className="font-medium">
                           {formatNumber(metadata.totalTokens, locale)}
@@ -119,7 +120,7 @@ export default function MessageInfoModal({
                       metadata.reasoningTokens > 0 && (
                         <div className="space-y-0.5">
                           <div className="text-xs text-muted-foreground">
-                            Reasoning
+                            {t('messageInfo.reasoning')}
                           </div>
                           <div className="font-medium">
                             {formatNumber(metadata.reasoningTokens, locale)}
@@ -130,7 +131,7 @@ export default function MessageInfoModal({
                       metadata.cachedInputTokens > 0 && (
                         <div className="space-y-0.5">
                           <div className="text-xs text-muted-foreground">
-                            Cached
+                            {t('messageInfo.cached')}
                           </div>
                           <div className="font-medium">
                             {formatNumber(metadata.cachedInputTokens, locale)}
@@ -145,7 +146,7 @@ export default function MessageInfoModal({
               {metadata.reasoning && (
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-muted-foreground">
-                    Reasoning
+                    {t('messageInfo.reasoning')}
                   </div>
                   <div className="text-sm bg-muted px-3 py-2 rounded max-h-40 overflow-y-auto">
                     {metadata.reasoning}
@@ -156,8 +157,7 @@ export default function MessageInfoModal({
           ) : (
             <div className="space-y-1">
               <div className="text-sm text-muted-foreground">
-                Token usage and model information are not available for this
-                message.
+                {t('messageInfo.noMetadata')}
               </div>
             </div>
           )}

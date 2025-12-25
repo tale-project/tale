@@ -6,6 +6,7 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface KnowledgeLayoutProps {
   children: ReactNode;
@@ -20,11 +21,13 @@ interface KnowledgeLayoutProps {
  * 2. The navigation component only needs the organizationId from params
  * 3. This eliminates skeleton flash and provides instant navigation
  */
-export default function KnowledgeLayout({ children }: KnowledgeLayoutProps) {
+export default async function KnowledgeLayout({ children }: KnowledgeLayoutProps) {
+  const { t } = await getT('knowledge');
+
   return (
     <>
       <PageHeader>
-        <PageHeaderTitle>Knowledge</PageHeaderTitle>
+        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
       </PageHeader>
       <KnowledgeNavigation />
       <ErrorBoundaryWithParams>

@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -10,6 +12,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import EditMemberDialog from './edit-member-dialog';
 import DeleteMemberDialog from './delete-member-dialog';
+import { useT } from '@/lib/i18n';
 
 type MemberItem = {
   _id: string;
@@ -35,6 +38,7 @@ export default function MemberOptions({
   member,
   memberContext,
 }: MemberOptionsProps) {
+  const { t } = useT('settings');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
@@ -58,7 +62,7 @@ export default function MemberOptions({
                 <Pencil className="size-4 text-muted-foreground hover:text-foreground" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Edit member</TooltipContent>
+            <TooltipContent>{t('organization.editMember')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
@@ -70,7 +74,7 @@ export default function MemberOptions({
                 <Trash2 className="size-4 text-muted-foreground hover:text-foreground" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Remove member</TooltipContent>
+            <TooltipContent>{t('organization.removeMember')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}

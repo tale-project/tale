@@ -5,6 +5,7 @@ import { Monitor } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface DocumentUploadProps {
   organizationId: string;
@@ -15,6 +16,7 @@ export default function DocumentUpload({
   organizationId,
   onUploadComplete,
 }: DocumentUploadProps) {
+  const { t } = useT('documents');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { uploadFiles, isUploading, cancelUpload } = useDocumentUpload({
@@ -53,9 +55,9 @@ export default function DocumentUpload({
             <Monitor className="size-4 text-foreground" />
           </div>
           <div className="text-left">
-            <div className="font-medium">From computer</div>
+            <div className="font-medium">{t('upload.fromComputer')}</div>
             <div className="text-sm text-muted-foreground">
-              Upload directly from your device
+              {t('upload.fromComputerDescription')}
             </div>
           </div>
         </div>
@@ -75,13 +77,13 @@ export default function DocumentUpload({
       {isUploading && (
         <div className="p-3 border rounded-lg bg-secondary/20">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Uploading files...</span>
+            <span className="text-sm font-medium">{t('upload.uploading')}</span>
             <Button
               variant="outline"
               onClick={cancelUpload}
               className="text-red-600 hover:text-red-700"
             >
-              Cancel upload
+              {t('upload.cancelUpload')}
             </Button>
           </div>
         </div>

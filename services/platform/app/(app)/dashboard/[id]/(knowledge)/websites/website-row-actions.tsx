@@ -17,12 +17,15 @@ import DeleteWebsiteDialog from './delete-website-dialog';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface WebsiteRowActionsProps {
   website: Doc<'websites'>;
 }
 
 export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
+  const { t } = useT('websites');
+  const { t: tCommon } = useT('common');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -35,13 +38,13 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
     try {
       await rescanWebsite({ websiteId: website._id });
       toast({
-        title: 'Website rescan triggered',
+        title: t('actions.rescanTriggered'),
         variant: 'success',
       });
     } catch (error) {
       toast({
         title:
-          error instanceof Error ? error.message : 'Failed to rescan website',
+          error instanceof Error ? error.message : t('actions.rescanFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -61,7 +64,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => setIsViewDialogOpen(true)}>
             <Eye className="mr-2 size-4" />
-            View
+            {tCommon('actions.view')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleRescan} disabled={isRescanning}>
             {isRescanning ? (
@@ -69,18 +72,18 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
             ) : (
               <ScanText className="mr-2 size-4" />
             )}
-            Rescan
+            {t('actions.rescan')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
             <Pencil className="mr-2 size-4" />
-            Edit
+            {tCommon('actions.edit')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => setIsDeleteDialogOpen(true)}
             className="text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 size-4" />
-            Delete
+            {tCommon('actions.delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

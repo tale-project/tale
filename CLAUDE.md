@@ -1,0 +1,1 @@
+- Do NOT hardcode text, use the translation hooks/functions instead.

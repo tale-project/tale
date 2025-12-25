@@ -172,7 +172,7 @@ export default function ConversationPanel({
       } catch (error) {
         console.error('Error uploading attachments:', error);
         toast({
-          title: 'Failed to upload attachments. Please try again.',
+          title: tConversations('panel.uploadFailed'),
           variant: 'destructive',
         });
         return;
@@ -241,10 +241,10 @@ export default function ConversationPanel({
           <MessageSquareMoreIcon className="size-5 text-muted-foreground" />
           <div className="flex flex-col gap-3 h-14 items-center justify-start text-center w-full">
             <h2 className="font-semibold text-lg text-foreground tracking-[-0.12px]">
-              No conversation selected
+              {tConversations('panel.noSelected')}
             </h2>
             <p className="font-normal text-sm text-muted-foreground tracking-[-0.084px] leading-[20px]">
-              Select a conversation to view details
+              {tConversations('panel.selectToView')}
             </p>
           </div>
         </div>
@@ -263,7 +263,7 @@ export default function ConversationPanel({
   if (!conversation) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p>Conversation not found</p>
+        <p>{tConversations('panel.notFound')}</p>
       </div>
     );
   }
@@ -308,7 +308,7 @@ export default function ConversationPanel({
       <div className="pt-2 mx-auto max-w-3xl flex-1 w-full">
         {messageGroups.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p className="text-sm">No messages yet</p>
+            <p className="text-sm">{tConversations('panel.noMessages')}</p>
           </div>
         ) : (
           messageGroups.map((group) => (
@@ -357,8 +357,8 @@ export default function ConversationPanel({
           <div className="px-8 py-10">
             <p className="text-center text-sm text-muted-foreground">
               {conversation.status === 'spam'
-                ? 'This conversation has been marked as spam.'
-                : 'This conversation has been marked as closed.'}
+                ? tConversations('panel.markedAsSpam')
+                : tConversations('panel.markedAsClosed')}
             </p>
           </div>
         )}

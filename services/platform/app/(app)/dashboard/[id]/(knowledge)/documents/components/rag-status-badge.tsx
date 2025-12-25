@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import type { RagStatus } from '@/types/documents';
 import { retryRagIndexing } from '../actions/retry-rag-indexing';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -76,6 +77,7 @@ const statusConfig: Record<
 };
 
 export default function RagStatusBadge({ status, indexedAt, error, documentId }: RagStatusBadgeProps) {
+  const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
   const router = useRouter();
@@ -96,7 +98,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   const handleRetry = async () => {
     if (!documentId) {
       toast({
-        title: 'Document ID is required for retry',
+        title: t('rag.toast.documentIdRequired'),
         variant: 'destructive',
       });
       return;
@@ -107,21 +109,21 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       const result = await retryRagIndexing(documentId);
       if (result.success) {
         toast({
-          title: 'Indexing started',
-          description: 'Document indexing has been queued.',
+          title: t('rag.toast.indexingStarted'),
+          description: t('rag.toast.indexingQueued'),
         });
         // Refresh the page data to show updated status
         router.refresh();
       } else {
         toast({
-          title: 'Retry failed',
-          description: result.error || 'Failed to retry RAG indexing',
+          title: t('rag.toast.retryFailed'),
+          description: result.error || t('rag.toast.retryFailedDescription'),
           variant: 'destructive',
         });
       }
     } catch {
       toast({
-        title: 'An unexpected error occurred',
+        title: t('rag.toast.unexpectedError'),
         variant: 'destructive',
       });
     } finally {
@@ -167,15 +169,15 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
           <DialogHeader className="pr-8">
             <DialogTitle className="flex items-center gap-2 text-success">
               <CircleCheck className="size-5" />
-              Document Indexed
+              {t('rag.dialog.indexed.title')}
             </DialogTitle>
             <DialogDescription>
-              This document has been successfully indexed and is available for RAG search.
+              {t('rag.dialog.indexed.description')}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4">
             <p className="text-sm">
-              <span className="font-medium">Indexed on:</span> {formattedDate}
+              <span className="font-medium">{t('rag.dialog.indexed.indexedOn')}</span> {formattedDate}
             </p>
           </div>
         </DialogContent>
@@ -201,16 +203,16 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
             <DialogHeader className="pr-8">
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <XCircle className="size-5" />
-                Indexing Failed
+                {t('rag.dialog.failed.title')}
               </DialogTitle>
               <DialogDescription>
-                The document could not be indexed for RAG search.
+                {t('rag.dialog.failed.description')}
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4">
-              <p className="text-sm font-medium mb-2">Error Details:</p>
+              <p className="text-sm font-medium mb-2">{t('rag.dialog.failed.errorDetails')}</p>
               <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap">
-                {error || 'Unknown error occurred'}
+                {error || t('rag.dialog.failed.unknownError')}
               </pre>
             </div>
           </DialogContent>
@@ -221,7 +223,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
           className="size-5 rounded-full border-muted-foreground/30 hover:border-primary hover:bg-primary/10 hover:text-primary"
           onClick={handleRetry}
           disabled={isRetrying || !documentId}
-          title="Retry indexing"
+          title={t('rag.retryIndexing')}
         >
           {isRetrying ? (
             <Loader2 className="size-3 animate-spin" />
@@ -239,7 +241,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       <span className="inline-flex items-center gap-2">
         <span className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}>
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          Stale
+          {t('rag.status.stale')}
         </span>
         <Button
           size="sm"
@@ -251,12 +253,12 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
           {isRetrying ? (
             <>
               <Loader2 className="size-3 animate-spin mr-1" />
-              Reindexing...
+              {t('rag.reindexing')}
             </>
           ) : (
             <>
               <RotateCw className="size-3 mr-1" />
-              Reindex
+              {t('rag.reindex')}
             </>
           )}
         </Button>
@@ -282,12 +284,12 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
           {isRetrying ? (
             <>
               <Loader2 className="size-3 animate-spin mr-1" />
-              Indexing...
+              {t('rag.indexing')}
             </>
           ) : (
             <>
               <Database className="size-3 mr-1" />
-              Index
+              {t('rag.index')}
             </>
           )}
         </Button>

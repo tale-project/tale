@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Dispatch, SetStateAction } from 'react';
+import { useT } from '@/lib/i18n';
+
 interface LeaveOrganizationDialogProps {
   open: boolean;
   onOpenChange: Dispatch<SetStateAction<boolean>>;
@@ -23,21 +25,23 @@ export default function LeaveOrganizationDialog({
   onLeave,
   onOpenChange,
 }: LeaveOrganizationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader className="space-y-3">
-          <DialogTitle className="text-lg">Leave organization</DialogTitle>
+          <DialogTitle className="text-lg">{t('organization.leaveOrganization')}</DialogTitle>
           <DialogDescription className="text-sm">
-            Are you sure you want to leave this organization? You will lose
-            access to all resources.
+            {t('organization.leaveConfirmation')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
           <DialogClose asChild>
             <Button variant="outline" disabled={isUpdating} className="flex-1">
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
           </DialogClose>
           <Button
@@ -46,7 +50,7 @@ export default function LeaveOrganizationDialog({
             disabled={isUpdating}
             className="flex-1"
           >
-            {isUpdating ? 'Leaving...' : 'Leave organization'}
+            {isUpdating ? t('organization.leaving') : t('organization.leaveOrganization')}
           </Button>
         </div>
       </DialogContent>

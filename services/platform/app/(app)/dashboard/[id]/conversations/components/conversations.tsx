@@ -55,6 +55,8 @@ export default function Conversations({
 
   // Translations
   const { t: tChat } = useT('chat');
+  const { t: tConversations } = useT('conversations');
+  const { t: tCommon } = useT('common');
 
   // Use preloaded data with real-time reactivity
   // This provides SSR benefits AND automatic updates when data changes
@@ -191,7 +193,7 @@ export default function Conversations({
   const handleSendMessages = async () => {
     if (!businessId || typeof businessId !== 'string') {
       toast({
-        title: 'Business ID not found',
+        title: tCommon('errors.organizationNotFound'),
         variant: 'destructive',
       });
       return;
@@ -235,8 +237,8 @@ export default function Conversations({
       });
 
       toast({
-        title: 'Messages sent',
-        description: `Successfully sent ${successCount} messages${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
+        title: tConversations('bulk.messagesSent'),
+        description: tConversations('bulk.messagesSentDescription', { successCount, failedCount }),
         variant: successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -251,7 +253,7 @@ export default function Conversations({
     } catch (error) {
       console.error('Error sending messages:', error);
       toast({
-        title: 'Failed to send messages',
+        title: tConversations('bulk.sendFailed'),
         variant: 'destructive',
       });
       setBulkSendMessagesDialog({
@@ -264,7 +266,7 @@ export default function Conversations({
   const handleBulkResolveConversations = async () => {
     if (!businessId || typeof businessId !== 'string') {
       toast({
-        title: 'Business ID not found',
+        title: tCommon('errors.organizationNotFound'),
         variant: 'destructive',
       });
       return;
@@ -282,8 +284,8 @@ export default function Conversations({
       });
 
       toast({
-        title: 'Conversations resolved',
-        description: `Successfully resolved ${result.successCount} conversations${result.failedCount > 0 ? `, ${result.failedCount} failed` : ''}`,
+        title: tConversations('bulk.resolved'),
+        description: tConversations('bulk.resolvedDescription', { successCount: result.successCount, failedCount: result.failedCount }),
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -293,7 +295,7 @@ export default function Conversations({
     } catch (error) {
       console.error('Error resolving conversations:', error);
       toast({
-        title: 'Failed to resolve conversations',
+        title: tConversations('bulk.resolveFailed'),
         variant: 'destructive',
       });
     }
@@ -303,7 +305,7 @@ export default function Conversations({
   const handleReopenConversations = async () => {
     if (!businessId || typeof businessId !== 'string') {
       toast({
-        title: 'Business ID not found',
+        title: tCommon('errors.organizationNotFound'),
         variant: 'destructive',
       });
       return;
@@ -321,8 +323,8 @@ export default function Conversations({
       });
 
       toast({
-        title: 'Conversations reopened',
-        description: `Successfully reopened ${result.successCount} conversations${result.failedCount > 0 ? `, ${result.failedCount} failed` : ''}`,
+        title: tConversations('bulk.reopened'),
+        description: tConversations('bulk.reopenedDescription', { successCount: result.successCount, failedCount: result.failedCount }),
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -332,7 +334,7 @@ export default function Conversations({
     } catch (error) {
       console.error('Error reopening conversations:', error);
       toast({
-        title: 'Failed to reopen conversations',
+        title: tConversations('bulk.reopenFailed'),
         variant: 'destructive',
       });
     }
@@ -379,7 +381,7 @@ export default function Conversations({
                     onClick={handleApproveSelected}
                     className="flex-1"
                   >
-                    Send messages
+                    {tConversations('bulk.sendMessages')}
                   </Button>
                 )}
                 {status === 'open' && (
@@ -389,7 +391,7 @@ export default function Conversations({
                     onClick={handleBulkResolveConversations}
                     className="flex-1"
                   >
-                    Close
+                    {tConversations('bulk.close')}
                   </Button>
                 )}
                 {status !== 'open' && (
@@ -399,7 +401,7 @@ export default function Conversations({
                     onClick={handleReopenConversations}
                     className="flex-1"
                   >
-                    Reopen
+                    {tConversations('bulk.reopen')}
                   </Button>
                 )}
               </>
@@ -460,7 +462,7 @@ export default function Conversations({
             <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
               <div className="flex items-center text-muted-foreground">
                 <Loader2Icon className="size-4 mr-2 animate-spin" />
-                <span className="text-sm">Updating conversations...</span>
+                <span className="text-sm">{tConversations('updating')}</span>
               </div>
             </div>
           )}

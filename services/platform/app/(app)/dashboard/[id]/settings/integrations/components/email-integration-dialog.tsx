@@ -23,6 +23,7 @@ import EmailProviderTypeSelector from './email-provider-type-selector';
 import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface EmailIntegrationDialogProps extends DialogProps {
   organizationId: string;
@@ -32,6 +33,8 @@ export default function EmailIntegrationDialog({
   organizationId,
   ...props
 }: EmailIntegrationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
     null,
@@ -59,8 +62,8 @@ export default function EmailIntegrationDialog({
     setTestingProviderId(providerId);
     try {
       toast({
-        title: 'Testing connection',
-        description: 'Validating SMTP and IMAP credentials...',
+        title: t('integrations.testingConnection'),
+        description: t('integrations.validatingCredentials'),
       });
 
       const result = await testExistingProvider({
@@ -69,9 +72,9 @@ export default function EmailIntegrationDialog({
 
       if (result.success) {
         toast({
-          title: 'Connection successful',
+          title: t('integrations.connectionSuccessful'),
           variant: 'success',
-          description: `All tests passed! SMTP: ${result.smtp.latencyMs}ms, IMAP: ${result.imap.latencyMs}ms`,
+          description: t('integrations.allTestsPassed', { smtp: result.smtp.latencyMs, imap: result.imap.latencyMs }),
         });
       } else {
         const errors = [];
@@ -82,7 +85,7 @@ export default function EmailIntegrationDialog({
           errors.push(`IMAP: ${result.imap.error}`);
         }
         toast({
-          title: 'Connection test failed',
+          title: t('integrations.connectionTestFailed'),
           description: errors.join('. '),
           variant: 'destructive',
         });
@@ -90,7 +93,7 @@ export default function EmailIntegrationDialog({
     } catch (error) {
       console.error('Failed to test connection:', error);
       toast({
-        title: 'Failed to test connection',
+        title: t('integrations.failedToTestConnection'),
         variant: 'destructive',
       });
     } finally {
@@ -106,7 +109,7 @@ export default function EmailIntegrationDialog({
     } catch (error) {
       console.error('Failed to delete provider:', error);
       toast({
-        title: 'Failed to delete provider',
+        title: t('integrations.failedToDeleteProvider'),
         variant: 'destructive',
       });
     }
@@ -118,13 +121,13 @@ export default function EmailIntegrationDialog({
         providerId: providerId as Id<'emailProviders'>,
       });
       toast({
-        title: 'Default provider updated',
+        title: t('integrations.defaultProviderUpdated'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Failed to set default provider:', error);
       toast({
-        title: 'Failed to set default provider',
+        title: t('integrations.failedToSetDefault'),
         variant: 'destructive',
       });
     }
@@ -163,7 +166,7 @@ export default function EmailIntegrationDialog({
           {/* Header */}
           <div className="border-b border-border flex items-start justify-between px-4 py-6">
             <DialogHeader className="space-y-1">
-              <DialogTitle>Email Integration</DialogTitle>
+              <DialogTitle>{t('integrations.emailIntegration')}</DialogTitle>
             </DialogHeader>
           </div>
 
@@ -201,7 +204,7 @@ export default function EmailIntegrationDialog({
                               size="sm"
                               className="size-8 p-0"
                             >
-                              <span className="sr-only">More options</span>
+                              <span className="sr-only">{t('integrations.moreOptions')}</span>
                               <MoreVertical className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -212,15 +215,15 @@ export default function EmailIntegrationDialog({
                             >
                               <TestTube className="mr-2 size-4" />
                               {testingProviderId === provider._id
-                                ? 'Testing...'
-                                : 'Test'}
+                                ? t('integrations.testing')
+                                : t('integrations.test')}
                             </DropdownMenuItem>
                             {!provider.isDefault && (
                               <DropdownMenuItem
                                 onClick={() => handleSetDefault(provider._id)}
                               >
                                 <Star className="mr-2 size-4" />
-                                Set as Default
+                                {t('integrations.setAsDefault')}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
@@ -228,7 +231,7 @@ export default function EmailIntegrationDialog({
                               className="text-red-600 focus:text-red-600"
                             >
                               <Trash2 className="mr-2 size-4" />
-                              Delete
+                              {tCommon('actions.delete')}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -243,7 +246,7 @@ export default function EmailIntegrationDialog({
                           className="[&>span]:flex [&>span]:items-center"
                         >
                           <Star className="size-3.5 mr-1" />
-                          Default
+                          {t('integrations.default')}
                         </Badge>
                       )}
                       {provider.authMethod === 'oauth2' && (
@@ -259,35 +262,35 @@ export default function EmailIntegrationDialog({
                       {provider.authMethod === 'oauth2' &&
                         provider.metadata?.oauth2_user && (
                           <div>
-                            <span className="font-medium">Account:</span>{' '}
+                            <span className="font-medium">{t('integrations.account')}:</span>{' '}
                             {provider.metadata.oauth2_user as string}
                           </div>
                         )}
                       {provider.sendMethod && (
                         <div>
-                          <span className="font-medium">Send Method:</span>{' '}
+                          <span className="font-medium">{t('integrations.sendMethod')}:</span>{' '}
                           {provider.sendMethod === 'api'
-                            ? 'API (Gmail/Graph)'
-                            : 'SMTP'}
+                            ? t('integrations.apiGmailGraph')
+                            : t('integrations.smtp')}
                         </div>
                       )}
                       {provider.smtpConfig && (
                         <div>
-                          <span className="font-medium">SMTP:</span>{' '}
+                          <span className="font-medium">{t('integrations.smtp')}:</span>{' '}
                           {provider.smtpConfig.host}:{provider.smtpConfig.port}{' '}
-                          ({provider.smtpConfig.secure ? 'SSL' : 'TLS'})
+                          ({provider.smtpConfig.secure ? t('integrations.ssl') : t('integrations.tls')})
                         </div>
                       )}
                       {provider.imapConfig && (
                         <div>
-                          <span className="font-medium">IMAP:</span>{' '}
+                          <span className="font-medium">{t('integrations.imap')}:</span>{' '}
                           {provider.imapConfig.host}:{provider.imapConfig.port}{' '}
-                          ({provider.imapConfig.secure ? 'SSL' : 'TLS'})
+                          ({provider.imapConfig.secure ? t('integrations.ssl') : t('integrations.tls')})
                         </div>
                       )}
                       {provider.passwordAuth && (
                         <div>
-                          <span className="font-medium">User:</span>{' '}
+                          <span className="font-medium">{t('integrations.user')}:</span>{' '}
                           {provider.passwordAuth.user}
                         </div>
                       )}
@@ -299,10 +302,10 @@ export default function EmailIntegrationDialog({
               <div className="text-center py-8">
                 <Mail className="size-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm text-muted-foreground mb-2">
-                  No email providers configured yet
+                  {t('integrations.noProvidersYet')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Add Gmail, Outlook, or a custom SMTP provider to get started
+                  {t('integrations.addProviderToStart')}
                 </p>
               </div>
             )}
@@ -312,7 +315,7 @@ export default function EmailIntegrationDialog({
           <div className="border-t border-border p-4">
             <Button onClick={handleAddProvider} className="w-full">
               <Plus className="size-4 mr-2" />
-              Add Email Provider
+              {t('integrations.addEmailProvider')}
             </Button>
           </div>
         </DialogContent>

@@ -12,6 +12,7 @@ import { DialogProps } from '@radix-ui/react-dialog';
 import { Mail, ChevronRight } from 'lucide-react';
 import GmailCreateProviderDialog from './gmail-create-provider-dialog';
 import OutlookCreateProviderDialog from './outlook-create-provider-dialog';
+import { useT } from '@/lib/i18n';
 
 interface EmailProviderTypeSelectorProps extends DialogProps {
   organizationId: string;
@@ -23,6 +24,7 @@ export default function EmailProviderTypeSelector({
   onSuccess,
   ...props
 }: EmailProviderTypeSelectorProps) {
+  const { t } = useT('settings');
   const [showGmailDialog, setShowGmailDialog] = useState(false);
   const [showOutlookDialog, setShowOutlookDialog] = useState(false);
 
@@ -30,7 +32,7 @@ export default function EmailProviderTypeSelector({
     {
       id: 'gmail',
       name: 'Gmail',
-      description: 'Connect with OAuth2 (recommended) or app password',
+      description: t('integrations.connectOAuth'),
       icon: GmailIcon,
       onClick: () => {
         setShowGmailDialog(true);
@@ -39,7 +41,7 @@ export default function EmailProviderTypeSelector({
     {
       id: 'outlook',
       name: 'Outlook',
-      description: 'Connect Microsoft Outlook or Office 365 account',
+      description: t('integrations.connectMicrosoft'),
       icon: OutlookIcon,
       onClick: () => {
         setShowOutlookDialog(true);
@@ -47,8 +49,8 @@ export default function EmailProviderTypeSelector({
     },
     {
       id: 'custom',
-      name: 'Custom SMTP',
-      description: 'Configure a custom SMTP/IMAP email server',
+      name: t('integrations.customSMTP'),
+      description: t('integrations.configureCustom'),
       icon: Mail,
       onClick: () => {
         // TODO: Open custom SMTP dialog when implemented
@@ -65,7 +67,7 @@ export default function EmailProviderTypeSelector({
           {/* Header */}
           <div className="border-b border-border px-4 py-6">
             <DialogHeader className="space-y-1">
-              <DialogTitle>Choose Email Provider</DialogTitle>
+              <DialogTitle>{t('integrations.chooseEmailProvider')}</DialogTitle>
             </DialogHeader>
           </div>
 
@@ -89,7 +91,7 @@ export default function EmailProviderTypeSelector({
                         {provider.name}
                         {provider.disabled && (
                           <span className="ml-2 text-xs text-muted-foreground">
-                            (Coming Soon)
+                            {t('integrations.comingSoon')}
                           </span>
                         )}
                       </h3>

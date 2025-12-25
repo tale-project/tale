@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface ShopifyDisconnectConfirmationDialogProps extends DialogProps {
   domain?: string;
@@ -23,6 +24,8 @@ export default function ShopifyDisconnectConfirmationDialog({
   onConfirm,
   ...props
 }: ShopifyDisconnectConfirmationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleConfirm = async () => {
@@ -31,18 +34,18 @@ export default function ShopifyDisconnectConfirmationDialog({
       await onConfirm();
 
       toast({
-        title: 'Shopify disconnected successfully.',
+        title: t('integrations.disconnectedSuccessfully', { provider: 'Shopify' }),
         variant: 'success',
       });
 
       // Dialog will be closed by parent component after successful disconnect
     } catch (error) {
       toast({
-        title: 'Disconnection failed',
+        title: t('integrations.disconnectionFailed'),
         description:
           error instanceof Error
             ? error.message
-            : 'Failed to disconnect Shopify. Please try again.',
+            : t('integrations.failedToDisconnect', { provider: 'Shopify' }),
         variant: 'destructive',
       });
 
@@ -62,7 +65,7 @@ export default function ShopifyDisconnectConfirmationDialog({
           <DialogHeader className="space-y-1">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="size-4 text-destructive" />
-              <DialogTitle>Disconnect Shopify?</DialogTitle>
+              <DialogTitle>{t('integrations.disconnectConfirm', { provider: 'Shopify' })}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -73,7 +76,7 @@ export default function ShopifyDisconnectConfirmationDialog({
             {domain && (
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">
-                  Connected Store:
+                  {t('integrations.shopify.connectedStore')}
                 </p>
                 <p className="text-sm text-muted-foreground">{domain}</p>
               </div>
@@ -81,14 +84,12 @@ export default function ShopifyDisconnectConfirmationDialog({
 
             <div className="space-y-2">
               <p className="text-sm text-foreground">
-                Are you sure you want to disconnect the Shopify integration?
+                {t('integrations.shopify.disconnectQuestion')}
               </p>
 
               <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
                 <p className="text-sm text-destructive">
-                  <strong>Warning:</strong> Disconnecting Shopify will stop all
-                  data synchronization for products, orders, and customers. You
-                  will need to reconnect to resume these features.
+                  {t('integrations.shopify.disconnectWarning')}
                 </p>
               </div>
             </div>
@@ -103,7 +104,7 @@ export default function ShopifyDisconnectConfirmationDialog({
               className="flex-1"
               disabled={isDisconnecting}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
           </DialogClose>
 
@@ -113,7 +114,7 @@ export default function ShopifyDisconnectConfirmationDialog({
             className="flex-1"
             disabled={isDisconnecting}
           >
-            {isDisconnecting ? 'Disconnecting...' : 'Yes, Disconnect'}
+            {isDisconnecting ? t('integrations.disconnecting') : t('integrations.shopify.yesDisconnect')}
           </Button>
         </div>
       </DialogContent>

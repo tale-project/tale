@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Dialog,
   DialogContent,
@@ -6,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface BulkSendMessagesDialogProps {
   open: boolean;
@@ -22,19 +25,19 @@ export function BulkSendMessagesDialog({
   onSend,
   isLoading,
 }: BulkSendMessagesDialogProps) {
+  const { t } = useT('conversations');
+  const { t: tCommon } = useT('common');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader className="pt-2">
-          <DialogTitle>Send {selectedCount} Messages</DialogTitle>
+          <DialogTitle>{t('bulkSend.title', { count: selectedCount })}</DialogTitle>
         </DialogHeader>
         <p className="text-muted-foreground text-sm">
-          You&apos;re about to send replies for {selectedCount}{' '}
-          {selectedCount === 1 ? 'conversation' : 'conversations'}. This action
-          can&apos;t be undone.
+          {t('bulkSend.description', { count: selectedCount })}
           <br />
           <br />
-          Are you sure you want to continue?
+          {t('bulkSend.confirm')}
         </p>
         <DialogFooter className="flex">
           <Button
@@ -43,10 +46,10 @@ export function BulkSendMessagesDialog({
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button className="flex-1" onClick={onSend} disabled={isLoading}>
-            {isLoading ? 'Sending...' : 'Send'}
+            {isLoading ? t('bulkSend.sending') : t('bulkSend.send')}
           </Button>
         </DialogFooter>
       </DialogContent>

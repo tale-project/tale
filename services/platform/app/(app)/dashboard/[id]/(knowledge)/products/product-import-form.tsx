@@ -1,3 +1,5 @@
+'use client';
+
 import { Input } from '@/components/ui/input';
 import { useFormContext } from 'react-hook-form';
 import {
@@ -12,6 +14,7 @@ import { cn } from '@/lib/utils/cn';
 import DocumentIcon from '../../../../../../components/ui/document-icon';
 import { Trash2 } from 'lucide-react';
 import { Button } from '../../../../../../components/ui/button';
+import { useT } from '@/lib/i18n';
 
 interface ProductImportFormProps {
   hideTabs?: boolean;
@@ -25,6 +28,7 @@ export default function ProductImportForm({
   organizationId: _organizationId,
 }: ProductImportFormProps) {
   const { setValue, control } = useFormContext();
+  const { t } = useT('products');
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleFileChange = (file: File) => {
@@ -86,7 +90,7 @@ export default function ProductImportForm({
                 <div
                   role="button"
                   tabIndex={0}
-                  aria-label="Upload file - click or press Enter to select a file, or drag and drop a file here"
+                  aria-label={t('import.dropzoneAriaLabel')}
                   className={cn(
                     'bg-background box-border content-stretch flex flex-col gap-[16px] h-[160px] items-center justify-center px-[16px] py-[12px] relative rounded-[12px] shrink-0 w-full cursor-pointer transition-colors group',
                     isDragOver
@@ -122,18 +126,18 @@ export default function ProductImportForm({
                     <div className="content-stretch flex font-['Inter:Medium',_sans-serif] font-medium gap-[4px] items-center justify-start relative shrink-0 text-[16px] text-foreground text-nowrap">
                       <div className="relative shrink-0">
                         <p className="leading-[1.5] text-nowrap whitespace-pre">
-                          Click to upload
+                          {t('import.clickToUpload')}
                         </p>
                       </div>
                       <div className="relative shrink-0">
-                        <p className="leading-[1.5] text-nowrap whitespace-pre">{`or `}</p>
+                        <p className="leading-[1.5] text-nowrap whitespace-pre">{`${t('import.or')} `}</p>
                       </div>
                       <div className="relative shrink-0">
-                        <p className="leading-[1.5] text-nowrap whitespace-pre">{`drag and drop `}</p>
+                        <p className="leading-[1.5] text-nowrap whitespace-pre">{`${t('import.dragAndDrop')} `}</p>
                       </div>
                     </div>
                     <div className="min-w-full relative shrink-0 text-[14px] text-center text-muted-foreground">
-                      <p className="leading-[1.5]">.xlsx, .xls or .csv</p>
+                      <p className="leading-[1.5]">{t('import.supportedFormats')}</p>
                     </div>
                   </div>
                   <Input
@@ -150,12 +154,10 @@ export default function ProductImportForm({
                 </div>
                 <ul className="min-w-full not-italic relative shrink-0 text-muted-foreground tracking-[-0.21px] text-xs space-y-2 list-disc list-outside pl-4">
                   <li>
-                    Expected columns: name, description, imageUrl, stock, price,
-                    currency, category, status
+                    {t('import.expectedColumns')}
                   </li>
                   <li className="text-blue-600">
-                    Imported products are created with &apos;draft&apos; status
-                    by default.
+                    {t('import.draftStatusNote')}
                   </li>
                 </ul>
                 {value && (

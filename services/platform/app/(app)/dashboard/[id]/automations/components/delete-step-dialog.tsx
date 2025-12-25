@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface DeleteStepDialogProps {
   open: boolean;
@@ -27,6 +28,8 @@ export default function DeleteStepDialog({
   onConfirm,
   isLoading = false,
 }: DeleteStepDialogProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const handleClose = () => {
     if (!isLoading) {
       onOpenChange(false);
@@ -48,9 +51,9 @@ export default function DeleteStepDialog({
               <AlertTriangle className="size-6 text-red-600 dark:text-red-400" />
             </div>
             <div>
-              <DialogTitle>Delete step</DialogTitle>
+              <DialogTitle>{t('deleteStep.title')}</DialogTitle>
               <DialogDescription>
-                This action cannot be undone
+                {t('deleteStep.description')}
               </DialogDescription>
             </div>
           </div>
@@ -58,7 +61,7 @@ export default function DeleteStepDialog({
 
         <div className="py-4">
           <p className="text-sm text-muted-foreground mb-4">
-            Are you sure you want to delete the step{' '}
+            {t('deleteStep.confirmMessage')}{' '}
             <span className="font-semibold text-foreground">
               &quot;{step.name}&quot;
             </span>
@@ -69,11 +72,9 @@ export default function DeleteStepDialog({
             <div className="flex items-start gap-2">
               <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-amber-800 dark:text-amber-200">
-                <p className="font-medium mb-1">Warning</p>
+                <p className="font-medium mb-1">{t('deleteStep.warning')}</p>
                 <p>
-                  This may break your automation if other steps depend on this
-                  one. Make sure to update any references in other steps&apos;
-                  &quot;Next Steps&quot; configuration.
+                  {t('deleteStep.warningMessage')}
                 </p>
               </div>
             </div>
@@ -81,17 +82,17 @@ export default function DeleteStepDialog({
 
           <div className="mt-4 space-y-2">
             <div className="text-sm">
-              <span className="text-muted-foreground">Step Slug:</span>{' '}
+              <span className="text-muted-foreground">{t('deleteStep.stepSlug')}</span>{' '}
               <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
                 {step.stepSlug}
               </span>
             </div>
             <div className="text-sm">
-              <span className="text-muted-foreground">Type:</span>{' '}
+              <span className="text-muted-foreground">{t('deleteStep.type')}</span>{' '}
               <span className="capitalize">{step.stepType}</span>
             </div>
             <div className="text-sm">
-              <span className="text-muted-foreground">Order:</span> #
+              <span className="text-muted-foreground">{t('deleteStep.order')}</span> #
               {step.order}
             </div>
           </div>
@@ -104,7 +105,7 @@ export default function DeleteStepDialog({
             onClick={handleClose}
             disabled={isLoading}
           >
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             type="button"
@@ -115,12 +116,12 @@ export default function DeleteStepDialog({
             {isLoading ? (
               <>
                 <div className="mr-2 size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Deleting...
+                {t('deleteStep.deleting')}
               </>
             ) : (
               <>
                 <Trash2 className="size-4 mr-1" />
-                Delete step
+                {t('deleteStep.deleteButton')}
               </>
             )}
           </Button>

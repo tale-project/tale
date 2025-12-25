@@ -17,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { ProductStatus, PRODUCT_STATUS } from '@/constants/convex-enums';
+import { useT } from '@/lib/i18n';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 // Validation schema for the form - simplified to only file upload
@@ -51,6 +52,9 @@ export default function ImportProductsDialog({
   organizationId,
   onSuccess,
 }: ImportProductsDialogProps) {
+  const { t } = useT('products');
+  const { t: tCommon } = useT('common');
+
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
   });
@@ -232,7 +236,7 @@ export default function ImportProductsDialog({
         products = await parseFileData(values.file);
       } else {
         toast({
-          title: 'Please upload a file',
+          title: t('import.uploadFile'),
           variant: 'destructive',
         });
         return;
@@ -240,7 +244,7 @@ export default function ImportProductsDialog({
 
       if (products.length === 0) {
         toast({
-          title: 'No valid product data found',
+          title: t('noValidData'),
           variant: 'destructive',
         });
         return;
@@ -276,8 +280,8 @@ export default function ImportProductsDialog({
       // Show results
       if (successCount > 0) {
         toast({
-          title: 'Import successful',
-          description: `Successfully imported ${successCount} products${failedCount > 0 ? `, ${failedCount} failed` : ''}`,
+          title: t('import.success'),
+          description: t('import.successDescription', { count: successCount, failed: failedCount }),
         });
 
         if (errors.length > 0) {
@@ -288,15 +292,15 @@ export default function ImportProductsDialog({
         handleClose();
       } else {
         toast({
-          title: 'Import failed',
-          description: 'No products were imported',
+          title: t('import.failed'),
+          description: t('noneImported'),
           variant: 'destructive',
         });
       }
     } catch (err) {
       console.error('Error importing products:', err);
       toast({
-        title: 'Failed to import products',
+        title: t('import.error'),
         variant: 'destructive',
       });
     }
@@ -306,7 +310,7 @@ export default function ImportProductsDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="!p-0 gap-0">
         <DialogHeader className="px-4 py-6 border-b border-border">
-          <DialogTitle>Upload products</DialogTitle>
+          <DialogTitle>{t('import.uploadProducts')}</DialogTitle>
         </DialogHeader>
         <FormProvider {...formMethods}>
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -317,11 +321,11 @@ export default function ImportProductsDialog({
             <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
               <DialogClose asChild>
                 <Button variant="outline" disabled={isSubmitting}>
-                  Cancel
+                  {tCommon('actions.cancel')}
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Importing...' : 'Import'}
+                {isSubmitting ? tCommon('actions.importing') : tCommon('actions.import')}
               </Button>
             </DialogFooter>
           </form>

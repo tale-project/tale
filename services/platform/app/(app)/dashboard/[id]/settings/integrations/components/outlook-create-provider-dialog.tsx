@@ -87,7 +87,7 @@ export default function OutlookCreateProviderDialog({
     try {
       // Step 1: Create provider with OAuth2 config (credentials from server env vars)
       toast({
-        title: 'Setting up OAuth2 configuration...',
+        title: t('integrations.settingUpOAuth'),
       });
 
       const providerId = await createOAuth2Provider({
@@ -130,8 +130,8 @@ export default function OutlookCreateProviderDialog({
       console.log('[OAuth2 Client] Generated authUrl:', authUrl);
 
       toast({
-        title: 'Redirecting to Microsoft',
-        description: 'Please authorize access to your Outlook account...',
+        title: t('integrations.redirectingToMicrosoft'),
+        description: t('integrations.authorizeOutlook'),
       });
 
       // Step 3: Redirect to Microsoft for authorization
@@ -139,7 +139,7 @@ export default function OutlookCreateProviderDialog({
     } catch (error) {
       console.error('Failed to initiate OAuth2 flow:', error);
       toast({
-        title: 'Failed to start OAuth2 authorization',
+        title: t('integrations.failedToStartAuth'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -151,8 +151,8 @@ export default function OutlookCreateProviderDialog({
     try {
       // Step 1: Test connection BEFORE saving
       toast({
-        title: 'Testing connection',
-        description: 'Validating SMTP and IMAP credentials...',
+        title: t('integrations.testingConnection'),
+        description: t('integrations.validatingCredentials'),
       });
 
       const testResult = await testConnection({
@@ -185,7 +185,7 @@ export default function OutlookCreateProviderDialog({
         }
 
         toast({
-          title: 'Connection test failed',
+          title: t('integrations.connectionTestFailed'),
           description: errors.join('. '),
           variant: 'destructive',
         });
@@ -194,9 +194,9 @@ export default function OutlookCreateProviderDialog({
 
       // Step 2: Connection successful, now save
       toast({
-        title: 'Connection successful',
+        title: t('integrations.connectionSuccessful'),
         variant: 'success',
-        description: `Outlook provider created successfully (SMTP: ${testResult.smtp.latencyMs}ms, IMAP: ${testResult.imap.latencyMs}ms)`,
+        description: t('integrations.providerCreated', { provider: 'Outlook', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
       });
 
       await createProvider({
@@ -222,7 +222,7 @@ export default function OutlookCreateProviderDialog({
       });
 
       toast({
-        title: `Outlook provider created successfully (SMTP: ${testResult.smtp.latencyMs}ms, IMAP: ${testResult.imap.latencyMs}ms)`,
+        title: t('integrations.providerCreated', { provider: 'Outlook', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
         variant: 'success',
       });
 
@@ -231,7 +231,7 @@ export default function OutlookCreateProviderDialog({
     } catch (error) {
       console.error('Failed to create Outlook provider:', error);
       toast({
-        title: 'Failed to create Outlook provider',
+        title: t('integrations.failedToCreateProvider', { provider: 'Outlook' }),
         variant: 'destructive',
       });
     } finally {
@@ -249,7 +249,7 @@ export default function OutlookCreateProviderDialog({
               <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
                 <OutlookIcon className="size-5" />
               </div>
-              <DialogTitle>Add Outlook provider</DialogTitle>
+              <DialogTitle>{t('integrations.addProvider', { provider: 'Outlook' })}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -263,14 +263,14 @@ export default function OutlookCreateProviderDialog({
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="oauth2" className="gap-2">
                 <Shield className="size-4" />
-                OAuth2
+                {t('integrations.oauth2Tab')}
                 <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                  Recommended
+                  {t('integrations.recommended')}
                 </span>
               </TabsTrigger>
               <TabsTrigger value="password" className="gap-2">
                 <Key className="size-4" />
-                App Password
+                {t('integrations.appPasswordTab')}
               </TabsTrigger>
             </TabsList>
 
@@ -278,12 +278,10 @@ export default function OutlookCreateProviderDialog({
             <TabsContent value="oauth2" className="mt-0">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800 mb-2">
-                  <strong>OAuth2 Authentication</strong>
+                  <strong>{t('integrations.oauth2Authentication')}</strong>
                 </p>
                 <p className="text-sm text-blue-700 mb-2">
-                  You'll be redirected to Microsoft to authorize access. This
-                  method works with Microsoft 365 security defaults and is more
-                  secure than password authentication.
+                  {t('integrations.oauth2MicrosoftInfo')}
                 </p>
                 <a
                   href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
@@ -292,7 +290,7 @@ export default function OutlookCreateProviderDialog({
                   className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  Microsoft OAuth2 Setup Guide
+                  {t('integrations.microsoftOAuth2Guide')}
                 </a>
               </div>
 
@@ -301,7 +299,7 @@ export default function OutlookCreateProviderDialog({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <Label htmlFor="oauth2-name">Provider name</Label>
+                  <Label htmlFor="oauth2-name">{t('integrations.providerName')}</Label>
                   <Input
                     id="oauth2-name"
                     {...oauth2Form.register('name')}
@@ -327,7 +325,7 @@ export default function OutlookCreateProviderDialog({
                       htmlFor="oauth2-api-sending"
                       className="text-sm font-normal cursor-pointer"
                     >
-                      Use API sending (recommended - no port blocking)
+                      {t('integrations.useApiSending')}
                     </Label>
                   </div>
 
@@ -343,15 +341,15 @@ export default function OutlookCreateProviderDialog({
                       htmlFor="oauth2-default"
                       className="text-sm font-normal cursor-pointer"
                     >
-                      Set as default email provider
+                      {t('integrations.setAsDefaultProvider')}
                     </Label>
                   </div>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
-                    ? 'Redirecting to Microsoft...'
-                    : 'Continue with Microsoft'}
+                    ? t('integrations.redirectingToMicrosoft')
+                    : t('integrations.continueWithMicrosoft')}
                 </Button>
               </form>
             </TabsContent>
@@ -360,11 +358,10 @@ export default function OutlookCreateProviderDialog({
             <TabsContent value="password" className="mt-0">
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-orange-800 mb-2">
-                  <strong>⚠️ Limited Availability</strong>
+                  <strong>{t('integrations.outlookLimitedAvailability')}</strong>
                 </p>
                 <p className="text-sm text-orange-700 mb-2">
-                  Microsoft 365 security defaults block password authentication.
-                  This may not work for your account.
+                  {t('integrations.outlookSecurityWarning')}
                 </p>
                 <a
                   href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4851-ad95-6d07799387e9"
@@ -373,7 +370,7 @@ export default function OutlookCreateProviderDialog({
                   className="text-sm text-orange-600 hover:underline flex items-center gap-1"
                 >
                   <ExternalLink className="size-3" />
-                  Microsoft App Passwords Guide
+                  {t('integrations.microsoftAppPasswordsGuide')}
                 </a>
               </div>
 
@@ -382,7 +379,7 @@ export default function OutlookCreateProviderDialog({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <Label htmlFor="name">Provider name</Label>
+                  <Label htmlFor="name">{t('integrations.providerName')}</Label>
                   <Input
                     id="name"
                     {...passwordForm.register('name')}
@@ -396,7 +393,7 @@ export default function OutlookCreateProviderDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="email">Email address</Label>
+                  <Label htmlFor="email">{t('integrations.emailAddress')}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -411,7 +408,7 @@ export default function OutlookCreateProviderDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="password">App password</Label>
+                  <Label htmlFor="password">{t('integrations.appPassword')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -437,14 +434,14 @@ export default function OutlookCreateProviderDialog({
                     htmlFor="password-default"
                     className="text-sm font-normal cursor-pointer"
                   >
-                    Set as default email provider
+                    {t('integrations.setAsDefaultProvider')}
                   </Label>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
-                    ? 'Testing & Creating...'
-                    : 'Test & create provider'}
+                    ? t('integrations.testingAndCreating')
+                    : t('integrations.testAndCreate')}
                 </Button>
               </form>
             </TabsContent>

@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import { z } from 'zod';
 import { Play, Cpu, HelpCircle, CheckCircle2, Zap, Trash2 } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -200,6 +201,8 @@ export default function StepDetailsDialog({
   step,
   onStepUpdated: _onStepUpdated,
 }: StepDetailsDialogProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const [editedName, setEditedName] = useState('');
   const [config, setConfig] = useState<string>('{}');
   const [nameError, setNameError] = useState<string>('');
@@ -249,13 +252,13 @@ export default function StepDetailsDialog({
   // Validate step name
   const validateStepName = (name: string) => {
     if (!name.trim()) {
-      setNameError('Step name is required');
+      setNameError(t('stepDetails.validation.nameRequired'));
       return false;
     }
 
     const stepNamePattern = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
     if (!stepNamePattern.test(name.trim())) {
-      setNameError('Format: letters, numbers, "_", "-"');
+      setNameError(t('stepDetails.validation.nameFormat'));
       return false;
     }
 
@@ -303,9 +306,8 @@ export default function StepDetailsDialog({
 
     // Step editing is currently read-only until public Convex mutations are available.
     toast({
-      title: 'Step editing not yet available',
-      description:
-        'Public APIs for editing workflow steps are not wired up yet.',
+      title: t('stepDetails.toast.editNotAvailable'),
+      description: t('stepDetails.toast.apiNotReady'),
     });
 
     return;
@@ -316,9 +318,8 @@ export default function StepDetailsDialog({
 
     // Step deletion is currently disabled until public Convex mutations are available.
     toast({
-      title: 'Step deletion not yet available',
-      description:
-        'Public APIs for editing workflow steps are not wired up yet.',
+      title: t('stepDetails.toast.deleteNotAvailable'),
+      description: t('stepDetails.toast.apiNotReady'),
     });
 
     setShowDeleteConfirm(false);
@@ -343,7 +344,7 @@ export default function StepDetailsDialog({
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{step.stepType} step</p>
+                      <p>{t('stepDetails.stepTypeTooltip', { type: step.stepType })}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -356,7 +357,7 @@ export default function StepDetailsDialog({
             <div className="grid gap-4 max-h-[70vh] overflow-y-auto py-4 px-6">
               <div className="space-y-2">
                 <Label htmlFor="step-name">
-                  Name <span className="text-red-500">*</span>
+                  {tCommon('labels.name')} <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="step-name"
@@ -376,7 +377,7 @@ export default function StepDetailsDialog({
               </div>
               <JsonInput
                 id="step-config"
-                label="Config (JSON)"
+                label={t('stepDetails.configLabel')}
                 value={config}
                 schema={configSchema}
                 onChange={setConfig}
@@ -396,7 +397,7 @@ export default function StepDetailsDialog({
                   className="mr-auto"
                 >
                   <Trash2 className="size-4 mr-1" />
-                  Delete
+                  {tCommon('actions.delete')}
                 </Button>
               )}
               <Button
@@ -405,10 +406,10 @@ export default function StepDetailsDialog({
                 onClick={handleClose}
                 disabled={isLoading}
               >
-                Cancel
+                {tCommon('actions.cancel')}
               </Button>
               <Button type="submit" disabled={!editedName.trim() || isLoading}>
-                {isLoading ? 'Saving...' : 'Save changes'}
+                {isLoading ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
               </Button>
             </DialogFooter>
           </form>

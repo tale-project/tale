@@ -42,6 +42,7 @@ export default function SignUpForm({
 }: SignUpFormProps) {
   const router = useRouter();
   const { t } = useT('auth');
+  const { t: tCommon } = useT('common');
 
   // Single form for both email and password
   const form = useForm<SignUpFormData>({
@@ -68,7 +69,7 @@ export default function SignUpForm({
         { name: data.email, email: data.email, password: data.password },
         {
           onError: (ctx) => {
-            const errorMessage = ctx.error.message || 'Wrong email or password';
+            const errorMessage = ctx.error.message || t('signup.wrongCredentials');
             form.setError('password', { message: errorMessage });
           },
         },
@@ -76,13 +77,13 @@ export default function SignUpForm({
 
       if (result.error) {
         form.setError('password', {
-          message: result.error.message || 'Wrong email or password',
+          message: result.error.message || t('signup.wrongCredentials'),
         });
         return;
       }
 
       toast({
-        title: 'Account created successfully!',
+        title: t('signup.accountCreated'),
         variant: 'success',
       });
 
@@ -90,7 +91,7 @@ export default function SignUpForm({
     } catch (error) {
       console.error('Sign up error:', error);
       toast({
-        title: 'Something went wrong',
+        title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
       });
     }
@@ -105,7 +106,7 @@ export default function SignUpForm({
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
       toast({
-        title: 'Microsoft sign-in failed. Please try again.',
+        title: t('signup.microsoftSignInFailed'),
         variant: 'destructive',
       });
     }

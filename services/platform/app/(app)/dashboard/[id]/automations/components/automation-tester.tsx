@@ -7,6 +7,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import { TestTubeDiagonal, Loader2 } from 'lucide-react';
 
 interface AutomationTesterProps {
@@ -20,6 +21,7 @@ export function AutomationTester({
   automationId,
   onTestComplete,
 }: AutomationTesterProps) {
+  const { t } = useT('automations');
   const [testInput, setTestInput] = useState('{}');
   const [isExecuting, setIsExecuting] = useState(false);
 
@@ -35,8 +37,8 @@ export function AutomationTester({
         input = JSON.parse(testInput);
       } catch {
         toast({
-          title: 'Invalid JSON',
-          description: 'Please provide valid JSON input',
+          title: t('tester.toast.invalidJson'),
+          description: t('tester.toast.invalidJsonDescription'),
           variant: 'destructive',
         });
         setIsExecuting(false);
@@ -57,8 +59,8 @@ export function AutomationTester({
       });
 
       toast({
-        title: 'Test execution started',
-        description: `Execution ID: ${executionId}`,
+        title: t('tester.toast.executionStarted'),
+        description: t('tester.toast.executionId', { id: executionId }),
       });
 
       // Reset test input
@@ -69,11 +71,11 @@ export function AutomationTester({
     } catch (error) {
       console.error('Test execution failed:', error);
       toast({
-        title: 'Test failed',
+        title: t('tester.toast.testFailed'),
         description:
           error instanceof Error
             ? error.message
-            : 'Failed to start test execution',
+            : t('tester.toast.startFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -88,15 +90,14 @@ export function AutomationTester({
           className="px-2"
           value={testInput}
           onChange={setTestInput}
-          label="Test input (JSON)"
-          description="Provide input data in JSON format for the automation execution"
+          label={t('tester.inputLabel')}
+          description={t('tester.inputDescription')}
           disabled={isExecuting}
           rows={10}
         />
         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
           <p className="text-xs text-blue-900 dark:text-blue-100">
-            💡 Test executions create real automation runs. Monitor progress in
-            the Executions tab.
+            {t('tester.tip')}
           </p>
         </div>
       </div>
@@ -106,12 +107,12 @@ export function AutomationTester({
           {isExecuting ? (
             <>
               <Loader2 className="size-4 mr-2 animate-spin" />
-              Running Test...
+              {t('tester.runningTest')}
             </>
           ) : (
             <>
               <TestTubeDiagonal className="size-4 mr-2" />
-              Run Test
+              {t('tester.runTest')}
             </>
           )}
         </Button>

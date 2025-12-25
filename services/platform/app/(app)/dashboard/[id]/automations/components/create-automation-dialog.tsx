@@ -64,13 +64,13 @@ export default function CreateAutomationDialog({
         stepsConfig: [],
       });
       toast({
-        title: 'Automation created successfully',
+        title: t('toast.created'),
         variant: 'success',
       });
       router.push(`/dashboard/${organizationId}/automations/${wfDefinitionId}`);
     } catch {
       toast({
-        title: 'Failed to create automation',
+        title: t('toast.createFailed'),
         variant: 'destructive',
       });
     }

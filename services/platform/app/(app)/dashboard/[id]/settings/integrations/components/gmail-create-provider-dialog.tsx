@@ -87,8 +87,8 @@ export default function GmailCreateProviderDialog({
     try {
       // Step 1: Create provider with OAuth2 config (credentials from server env vars)
       toast({
-        title: 'Creating provider',
-        description: 'Setting up OAuth2 configuration...',
+        title: t('integrations.creatingProvider'),
+        description: t('integrations.settingUpOAuth'),
       });
 
       const providerId = await createOAuth2Provider({
@@ -130,8 +130,8 @@ export default function GmailCreateProviderDialog({
       console.log('[OAuth2 Client] Generated authUrl:', authUrl);
 
       toast({
-        title: 'Redirecting to Google',
-        description: 'Please authorize access to your Gmail account...',
+        title: t('integrations.redirectingToGoogle'),
+        description: t('integrations.authorizeGmail'),
       });
 
       // Step 3: Redirect to Google for authorization
@@ -139,11 +139,7 @@ export default function GmailCreateProviderDialog({
     } catch (error) {
       console.error('Failed to initiate OAuth2 flow:', error);
       toast({
-        title: 'Error',
-        description:
-          error instanceof Error
-            ? error.message
-            : 'Failed to start OAuth2 authorization',
+        title: t('integrations.failedToStartAuth'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -155,8 +151,8 @@ export default function GmailCreateProviderDialog({
     try {
       // Step 1: Test connection BEFORE saving
       toast({
-        title: 'Testing connection',
-        description: 'Validating SMTP and IMAP credentials...',
+        title: t('integrations.testingConnection'),
+        description: t('integrations.validatingCredentials'),
       });
 
       const testResult = await testConnection({
@@ -189,7 +185,7 @@ export default function GmailCreateProviderDialog({
         }
 
         toast({
-          title: 'Connection test failed',
+          title: t('integrations.connectionTestFailed'),
           description: errors.join('. '),
           variant: 'destructive',
         });
@@ -198,7 +194,7 @@ export default function GmailCreateProviderDialog({
 
       // Step 2: Connection successful, now save
       toast({
-        title: 'Connection successful',
+        title: t('integrations.connectionSuccessful'),
         variant: 'success',
       });
 
@@ -225,7 +221,7 @@ export default function GmailCreateProviderDialog({
       });
 
       toast({
-        title: `Gmail provider created successfully (SMTP: ${testResult.smtp.latencyMs}ms, IMAP: ${testResult.imap.latencyMs}ms)`,
+        title: t('integrations.providerCreated', { provider: 'Gmail', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
         variant: 'success',
       });
 
@@ -234,7 +230,7 @@ export default function GmailCreateProviderDialog({
     } catch (error) {
       console.error('Failed to create Gmail provider:', error);
       toast({
-        title: 'Failed to create Gmail provider',
+        title: t('integrations.failedToCreateProvider', { provider: 'Gmail' }),
         variant: 'destructive',
       });
     } finally {
@@ -252,7 +248,7 @@ export default function GmailCreateProviderDialog({
               <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
                 <GmailIcon className="size-5" />
               </div>
-              <DialogTitle>Add Gmail provider</DialogTitle>
+              <DialogTitle>{t('integrations.addProvider', { provider: 'Gmail' })}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -266,11 +262,11 @@ export default function GmailCreateProviderDialog({
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="oauth2" className="gap-2">
                 <Shield className="size-4" />
-                OAuth2
+                {t('integrations.oauth2Tab')}
               </TabsTrigger>
               <TabsTrigger value="password" className="gap-2">
                 <Key className="size-4" />
-                App Password
+                {t('integrations.appPasswordTab')}
               </TabsTrigger>
             </TabsList>
 
@@ -278,9 +274,7 @@ export default function GmailCreateProviderDialog({
             <TabsContent value="oauth2" className="mt-0">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-xs text-blue-700 mb-2">
-                  You'll be redirected to Google to authorize access. This
-                  method works with Google security defaults and is more secure
-                  than password authentication.
+                  {t('integrations.oauth2GoogleInfo')}
                 </p>
                 <a
                   href="https://support.google.com/cloud/answer/6158849"
@@ -289,7 +283,7 @@ export default function GmailCreateProviderDialog({
                   className="text-xs text-blue-600 hover:underline flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  Google OAuth2 Setup Guide
+                  {t('integrations.googleOAuth2Guide')}
                 </a>
               </div>
 
@@ -298,7 +292,7 @@ export default function GmailCreateProviderDialog({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <Label htmlFor="oauth2-name">Provider name</Label>
+                  <Label htmlFor="oauth2-name">{t('integrations.providerName')}</Label>
                   <Input
                     id="oauth2-name"
                     {...oauth2Form.register('name')}
@@ -323,14 +317,14 @@ export default function GmailCreateProviderDialog({
                     htmlFor="oauth2-default"
                     className="text-sm font-normal cursor-pointer"
                   >
-                    Set as default email provider
+                    {t('integrations.setAsDefaultProvider')}
                   </Label>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
-                    ? 'Redirecting to Google...'
-                    : 'Continue with Google'}
+                    ? t('integrations.redirectingToGoogle')
+                    : t('integrations.continueWithGoogle')}
                 </Button>
               </form>
             </TabsContent>
@@ -339,8 +333,7 @@ export default function GmailCreateProviderDialog({
             <TabsContent value="password" className="mt-0">
               <div className="border border-border rounded-lg p-3 mb-4">
                 <p className="text-xs">
-                  Use Gmail App Passwords for quick setup. Requires 2FA enabled
-                  on your Google account.
+                  {t('integrations.gmailAppPasswordInfo')}
                 </p>
                 <a
                   href="https://support.google.com/accounts/answer/185833"
@@ -349,7 +342,7 @@ export default function GmailCreateProviderDialog({
                   className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
                 >
                   <ExternalLink className="w-3 h-3" />
-                  Google App Passwords Guide
+                  {t('integrations.googleAppPasswordsGuide')}
                 </a>
               </div>
 
@@ -358,7 +351,7 @@ export default function GmailCreateProviderDialog({
                 className="space-y-4"
               >
                 <div className="space-y-1">
-                  <Label htmlFor="name">Provider Name</Label>
+                  <Label htmlFor="name">{t('integrations.providerName')}</Label>
                   <Input
                     id="name"
                     {...passwordForm.register('name')}
@@ -372,7 +365,7 @@ export default function GmailCreateProviderDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="email">Gmail Address</Label>
+                  <Label htmlFor="email">{t('integrations.gmailAddress')}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -387,7 +380,7 @@ export default function GmailCreateProviderDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="password">App Password</Label>
+                  <Label htmlFor="password">{t('integrations.appPassword')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -413,14 +406,14 @@ export default function GmailCreateProviderDialog({
                     htmlFor="password-default"
                     className="text-sm font-normal cursor-pointer"
                   >
-                    Set as default email provider
+                    {t('integrations.setAsDefaultProvider')}
                   </Label>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
-                    ? 'Testing & Creating...'
-                    : 'Test & create provider'}
+                    ? t('integrations.testingAndCreating')
+                    : t('integrations.testAndCreate')}
                 </Button>
               </form>
             </TabsContent>

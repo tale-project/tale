@@ -12,16 +12,19 @@ import { toast } from '@/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
-const formSchema = z.object({
-  name: z.string().min(1, 'Company name is required'),
-});
-
-type FormData = z.infer<typeof formSchema>;
+type FormData = { name: string };
 
 export default function OrganizationForm() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+
+  const formSchema = z.object({
+    name: z.string().min(1, t('organization.companyNameRequired')),
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -65,7 +68,7 @@ export default function OrganizationForm() {
       }
 
       toast({
-        title: 'Organization created successfully!',
+        title: t('organization.organizationCreated'),
         variant: 'success',
       });
 
@@ -73,7 +76,7 @@ export default function OrganizationForm() {
     } catch (error) {
       console.error('Error in organization creation:', error);
       toast({
-        title: 'An unexpected error occurred. Please try again.',
+        title: tCommon('errors.unexpectedError'),
         variant: 'destructive',
       });
     }
@@ -83,19 +86,19 @@ export default function OrganizationForm() {
     <div className="flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-[24rem]">
         <h1 className="text-base text-center font-semibold mb-8">
-          Create organization
+          {t('organization.createOrganization')}
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label required htmlFor="org-name">
-              Organization name
+              {t('organization.organizationName')}
             </Label>
             <Input
               id="org-name"
               type="text"
               className="mt-2"
               {...form.register('name')}
-              placeholder="Enter your company name"
+              placeholder={t('organization.enterCompanyName')}
               disabled={form.formState.isSubmitting}
             />
             {form.formState.errors.name && (
@@ -109,7 +112,7 @@ export default function OrganizationForm() {
             className="w-full"
             disabled={form.formState.isSubmitting || !form.formState.isValid}
           >
-            {form.formState.isSubmitting ? 'Creating...' : 'Create'}
+            {form.formState.isSubmitting ? t('organization.creating') : tCommon('actions.create')}
           </Button>
         </form>
       </div>

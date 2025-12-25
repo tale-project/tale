@@ -14,16 +14,10 @@ import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
 import { useT } from '@/lib/i18n';
 
-// Zod validation schema
-const logInSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-type LogInFormData = z.infer<typeof logInSchema>;
+type LogInFormData = {
+  email: string;
+  password: string;
+};
 
 interface LogInFormProps {
   userId: string | undefined;
@@ -38,6 +32,16 @@ export default function LogInForm({
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
   const { t } = useT('auth');
+  const { t: tCommon } = useT('common');
+
+  // Zod validation schema with translated messages
+  const logInSchema = z.object({
+    email: z
+      .string()
+      .min(1, tCommon('validation.required'))
+      .email(tCommon('validation.email')),
+    password: z.string().min(1, tCommon('validation.required')),
+  });
 
   const form = useForm<LogInFormData>({
     resolver: zodResolver(logInSchema),
@@ -59,17 +63,17 @@ export default function LogInForm({
         { email: data.email, password: data.password },
         {
           onError: () => {
-            form.setError('password', { message: 'Wrong email or password' });
+            form.setError('password', { message: t('login.wrongCredentials') });
           },
         },
       );
 
       if (!response.data?.user) {
-        form.setError('password', { message: 'Wrong email or password' });
+        form.setError('password', { message: t('login.wrongCredentials') });
         return;
       } else {
         toast({
-          title: 'Signed in successfully',
+          title: t('login.toast.success'),
           variant: 'success',
         });
 
@@ -79,7 +83,7 @@ export default function LogInForm({
     } catch (error) {
       console.error('Log in error:', error);
       toast({
-        title: 'Something went wrong',
+        title: tCommon('errors.somethingWentWrong'),
         variant: 'destructive',
       });
     }
@@ -94,7 +98,7 @@ export default function LogInForm({
     } catch (error) {
       console.error('Microsoft sign-in error:', error);
       toast({
-        title: 'Microsoft sign-in failed. Please try again.',
+        title: t('login.toast.microsoftFailed'),
         variant: 'destructive',
       });
     }

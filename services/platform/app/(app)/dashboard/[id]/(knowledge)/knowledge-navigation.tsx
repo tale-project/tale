@@ -4,49 +4,19 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useParams, usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface KnowledgeNavigationProps {
   userRole?: string | null;
 }
 
-interface GetKnowledgeNavigationItemsProps extends KnowledgeNavigationProps {
-  businessId: string;
-}
+type KnowledgeLabelKey = 'documents' | 'websites' | 'products' | 'customers' | 'vendors' | 'toneOfVoice';
 
 interface NavItem {
-  label: string;
+  labelKey: KnowledgeLabelKey;
   href: string;
   roles?: string[];
 }
-
-const getKnowledgeNavigationItems = ({
-  businessId,
-}: GetKnowledgeNavigationItemsProps): NavItem[] => [
-  {
-    label: 'Documents',
-    href: `/dashboard/${businessId}/documents`,
-  },
-  {
-    label: 'Websites',
-    href: `/dashboard/${businessId}/websites`,
-  },
-  {
-    label: 'Products',
-    href: `/dashboard/${businessId}/products`,
-  },
-  {
-    label: 'Customers',
-    href: `/dashboard/${businessId}/customers`,
-  },
-  {
-    label: 'Vendors',
-    href: `/dashboard/${businessId}/vendors`,
-  },
-  {
-    label: 'Tone of voice',
-    href: `/dashboard/${businessId}/tone-of-voice`,
-  },
-];
 
 const hasRequiredRole = (
   userRole?: string | null,
@@ -60,13 +30,19 @@ const hasRequiredRole = (
 export default function KnowledgeNavigation({
   userRole,
 }: KnowledgeNavigationProps) {
+  const { t } = useT('knowledge');
   const params = useParams();
   const businessId = params.id as string;
   const pathname = usePathname();
 
-  const navigationItems = getKnowledgeNavigationItems({
-    businessId,
-  });
+  const navigationItems: NavItem[] = [
+    { labelKey: 'documents', href: `/dashboard/${businessId}/documents` },
+    { labelKey: 'websites', href: `/dashboard/${businessId}/websites` },
+    { labelKey: 'products', href: `/dashboard/${businessId}/products` },
+    { labelKey: 'customers', href: `/dashboard/${businessId}/customers` },
+    { labelKey: 'vendors', href: `/dashboard/${businessId}/vendors` },
+    { labelKey: 'toneOfVoice', href: `/dashboard/${businessId}/tone-of-voice` },
+  ];
 
   const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({
@@ -122,7 +98,7 @@ export default function KnowledgeNavigation({
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}

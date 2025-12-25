@@ -2,24 +2,27 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useT } from '@/lib/i18n';
 
 export default function LogsPage() {
+  const { t } = useT('settings');
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="activity" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="activity">Activity logs</TabsTrigger>
-          <TabsTrigger value="errors">Error logs</TabsTrigger>
+          <TabsTrigger value="activity">{t('logs.activityLogs')}</TabsTrigger>
+          <TabsTrigger value="errors">{t('logs.errorLogs')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="activity">
           <Card>
             <CardHeader>
-              <CardTitle>Activity logs</CardTitle>
+              <CardTitle>{t('logs.activityLogs')}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                View system activity and audit logs.
+                {t('logs.activityDescription')}
               </p>
             </CardContent>
           </Card>
@@ -28,11 +31,11 @@ export default function LogsPage() {
         <TabsContent value="errors">
           <Card>
             <CardHeader>
-              <CardTitle>Error logs</CardTitle>
+              <CardTitle>{t('logs.errorLogs')}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                View system errors and warnings.
+                {t('logs.errorDescription')}
               </p>
             </CardContent>
           </Card>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowDown } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import MessageBubble from './message-bubble';
 import ChatInput from './chat-input';
 import { cn } from '@/lib/utils/cn';
@@ -251,6 +252,7 @@ export default function ChatInterface({
   organizationId,
   threadId,
 }: ChatInterfaceProps) {
+  const { t } = useT('chat');
   const router = useRouter();
   const {
     optimisticMessage,
@@ -349,7 +351,7 @@ export default function ChatInterface({
       clearChatState();
     } else if (chatStatus.status === 'failed') {
       toast({
-        title: 'Failed to generate response',
+        title: t('toast.generateFailed'),
         description: chatStatus.error,
         variant: 'destructive',
       });
@@ -541,7 +543,7 @@ export default function ChatInterface({
       setInputValue('');
       toast({
         title:
-          error instanceof Error ? error.message : 'Failed to send message',
+          error instanceof Error ? error.message : t('toast.sendFailed'),
         variant: 'destructive',
       });
     }
@@ -569,7 +571,7 @@ export default function ChatInterface({
             threadMessages?.length === 0 && (
               <div className="flex-1 flex items-center justify-center size-full">
                 <h1 className="text-[2rem] font-semibold text-center">
-                  How can I assist you?
+                  {t('welcome')}
                 </h1>
               </div>
             )}

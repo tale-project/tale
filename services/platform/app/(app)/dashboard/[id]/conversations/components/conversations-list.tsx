@@ -8,6 +8,7 @@ import { decode } from 'he';
 import { useDateFormat } from '@/hooks/use-date-format';
 import type { Conversation } from '../types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useT } from '@/lib/i18n';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {
@@ -114,30 +115,30 @@ interface ConversationsListProps {
 
 const priorityConfig = {
   high: {
-    label: 'High',
+    translationKey: 'priority.high' as const,
     variant: 'destructive' as const,
   },
   medium: {
-    label: 'Medium',
+    translationKey: 'priority.medium' as const,
     variant: 'orange' as const,
   },
   low: {
-    label: 'Low',
+    translationKey: 'priority.low' as const,
     variant: 'blue' as const,
   },
 };
 
 const categoryConfig = {
   'product-recommendation': {
-    label: 'Product recommendation',
+    translationKey: 'category.productRecommendation' as const,
     icon: Sparkles,
   },
   'service-request': {
-    label: 'Service request',
+    translationKey: 'category.serviceRequest' as const,
     icon: Mail,
   },
   'churn-survey': {
-    label: 'Churn survey',
+    translationKey: 'category.churnSurvey' as const,
     icon: ClipboardList,
   },
 };
@@ -150,6 +151,8 @@ export default function ConversationsList({
   isConversationSelected,
 }: ConversationsListProps) {
   const { formatDateSmart } = useDateFormat();
+  const { t } = useT('conversations');
+  const { t: tDialogs } = useT('dialogs');
   const handleConversationClick = (
     conversation: Conversation,
     event: React.MouseEvent,
@@ -207,7 +210,7 @@ export default function ConversationsList({
                 onCheckedChange={(checked) =>
                   handleCheckboxChange(conversation.id, checked)
                 }
-                aria-label="Select conversation"
+                aria-label={tDialogs('selectConversation')}
               />
             </div>
 
@@ -251,11 +254,11 @@ export default function ConversationsList({
                         ].variant
                       }
                     >
-                      {
+                      {t(
                         priorityConfig[
                           conversation.priority as keyof typeof priorityConfig
-                        ].label
-                      }
+                        ].translationKey
+                      )}
                     </Badge>
                   )}
 
@@ -269,11 +272,11 @@ export default function ConversationsList({
                       ].icon
                     }
                   >
-                    {
+                    {t(
                       categoryConfig[
                         conversation.type as keyof typeof categoryConfig
-                      ].label
-                    }
+                      ].translationKey
+                    )}
                   </Badge>
                 )}
               </div>

@@ -18,6 +18,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useEffect } from 'react';
+import { useT } from '@/lib/i18n';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 // Validation schema for the form
@@ -77,6 +78,9 @@ export default function ImportVendorsDialog({
   onSuccess,
   mode = 'manual',
 }: ImportVendorsDialogProps) {
+  const { t } = useT('vendors');
+  const { t: tCommon } = useT('common');
+
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -214,7 +218,7 @@ export default function ImportVendorsDialog({
         vendors = await parseFileData(values.file);
       } else {
         toast({
-          title: 'Please provide vendor data',
+          title: t('import.provideData'),
           variant: 'destructive',
         });
         return;
@@ -222,7 +226,7 @@ export default function ImportVendorsDialog({
 
       if (vendors.length === 0) {
         toast({
-          title: 'No valid vendor data found',
+          title: t('noValidData'),
           variant: 'destructive',
         });
         return;
@@ -237,8 +241,8 @@ export default function ImportVendorsDialog({
       // Show results
       if (result.success > 0) {
         toast({
-          title: 'Import successful',
-          description: `Successfully imported ${result.success} vendors${result.failed > 0 ? `, ${result.failed} failed` : ''}`,
+          title: t('import.success'),
+          description: t('import.successDescription', { success: result.success, failed: result.failed }),
         });
 
         if (result.errors.length > 0) {
@@ -249,21 +253,21 @@ export default function ImportVendorsDialog({
         handleClose();
       } else {
         toast({
-          title: 'Import failed',
-          description: 'No vendors were imported',
+          title: t('import.failed'),
+          description: t('noneImported'),
           variant: 'destructive',
         });
       }
     } catch (err) {
       console.error('Error importing vendors:', err);
       toast({
-        title: err instanceof Error ? err.message : 'Failed to import vendors',
+        title: err instanceof Error ? err.message : t('import.error'),
         variant: 'destructive',
       });
     }
   }
 
-  const dialogTitle = mode === 'manual' ? 'Add vendors' : 'Upload vendors';
+  const dialogTitle = mode === 'manual' ? t('addVendors') : t('uploadVendors');
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -277,11 +281,11 @@ export default function ImportVendorsDialog({
             <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
               <DialogClose asChild>
                 <Button variant="outline" disabled={isSubmitting}>
-                  Cancel
+                  {tCommon('actions.cancel')}
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Importing...' : 'Import'}
+                {isSubmitting ? tCommon('actions.importing') : tCommon('actions.import')}
               </Button>
             </DialogFooter>
           </form>

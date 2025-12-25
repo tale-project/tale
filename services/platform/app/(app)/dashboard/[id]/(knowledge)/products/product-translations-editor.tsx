@@ -35,6 +35,7 @@ export default function ProductTranslationsEditor({
   translatedNames,
 }: ProductTranslationsEditorProps) {
   const { t: tProducts } = useT('products');
+  const { t: tCommon } = useT('common');
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<TranslatedNames>({
@@ -73,7 +74,7 @@ export default function ProductTranslationsEditor({
       await Promise.all(translationPromises);
 
       toast({
-        title: 'Product translations updated',
+        title: tProducts('translations.toast.success'),
         variant: 'success',
       });
 
@@ -82,7 +83,7 @@ export default function ProductTranslationsEditor({
     } catch (error) {
       console.error('Error updating translations:', error);
       toast({
-        title: 'Failed to update translations',
+        title: tProducts('translations.toast.error'),
         variant: 'destructive',
       });
     } finally {
@@ -114,7 +115,7 @@ export default function ProductTranslationsEditor({
           {/* Original Product Name */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-muted-foreground">
-              Original Product Name
+              {tProducts('translations.originalProductName')}
             </Label>
             <div className="p-3 bg-muted rounded-md">
               <span className="text-sm">{productName}</span>
@@ -124,7 +125,7 @@ export default function ProductTranslationsEditor({
           {/* English Translation */}
           <div className="space-y-2">
             <Label htmlFor="en-translation" className="text-sm font-medium">
-              English Translation
+              {tProducts('translations.englishTranslation')}
             </Label>
             <Input
               id="en-translation"
@@ -138,7 +139,7 @@ export default function ProductTranslationsEditor({
           {/* German Translation */}
           <div className="space-y-2">
             <Label htmlFor="de-translation" className="text-sm font-medium">
-              German Translation
+              {tProducts('translations.germanTranslation')}
             </Label>
             <Input
               id="de-translation"
@@ -152,7 +153,7 @@ export default function ProductTranslationsEditor({
           {/* French Translation */}
           <div className="space-y-2">
             <Label htmlFor="fr-translation" className="text-sm font-medium">
-              French Translation
+              {tProducts('translations.frenchTranslation')}
             </Label>
             <Input
               id="fr-translation"
@@ -171,7 +172,7 @@ export default function ProductTranslationsEditor({
               disabled={isLoading}
             >
               <X className="size-4 mr-2" />
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={isLoading}>
               {isLoading ? (
@@ -179,7 +180,7 @@ export default function ProductTranslationsEditor({
               ) : (
                 <Save className="size-4 mr-2" />
               )}
-              Save
+              {tCommon('actions.save')}
             </Button>
           </div>
         </div>

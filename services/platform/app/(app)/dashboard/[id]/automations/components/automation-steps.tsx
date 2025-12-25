@@ -34,6 +34,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import CreateStepDialog from './create-step-dialog';
 import AutomationStep from './automation-step';
 import AutomationSidePanel from './automation-sidepanel';
@@ -78,6 +79,7 @@ function AutomationStepsInner({
   status,
   onStepCreated: _onStepCreated,
 }: AutomationStepsProps) {
+  const { t } = useT('automations');
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
@@ -185,12 +187,11 @@ function AutomationStepsInner({
     // NOTE: Editing connections is currently disabled until public Convex
     // mutations are available. This UI is temporarily read-only.
     toast({
-      title: 'Editing connections not yet available',
-      description:
-        'Public APIs for editing workflow steps are not wired up yet.',
+      title: t('steps.toast.editingNotAvailable'),
+      description: t('steps.toast.apiNotWired'),
     });
     return;
-  }, []);
+  }, [t]);
 
   // Convert steps to nodes and edges using Dagre layout
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -861,9 +862,8 @@ function AutomationStepsInner({
     // NOTE: Editing connections is currently disabled until public Convex mutations
     // are available. This UI is temporarily read-only.
     toast({
-      title: 'Editing connections not yet available',
-      description:
-        'Public APIs for editing workflow steps are not wired up yet.',
+      title: t('steps.toast.editingNotAvailable'),
+      description: t('steps.toast.apiNotWired'),
     });
 
     // Remove the edge if it was optimistically added elsewhere
@@ -882,9 +882,8 @@ function AutomationStepsInner({
     // NOTE: Editing connections is currently disabled until public Convex mutations
     // are available. This UI is temporarily read-only.
     toast({
-      title: 'Editing connections not yet available',
-      description:
-        'Public APIs for editing workflow steps are not wired up yet.',
+      title: t('steps.toast.editingNotAvailable'),
+      description: t('steps.toast.apiNotWired'),
     });
 
     return;
@@ -917,15 +916,14 @@ function AutomationStepsInner({
       // NOTE: Step creation is currently disabled until public Convex mutations
       // are available. This UI is temporarily read-only.
       toast({
-        title: 'Step creation not yet available',
-        description:
-          'Public APIs for editing workflow steps are not wired up yet.',
+        title: t('steps.toast.stepCreationNotAvailable'),
+        description: t('steps.toast.apiNotWired'),
       });
       return;
     } catch (error) {
       console.error('Failed to create step:', error);
       toast({
-        title: 'Failed to create step',
+        title: t('steps.toast.createFailed'),
         variant: 'destructive',
       });
     }

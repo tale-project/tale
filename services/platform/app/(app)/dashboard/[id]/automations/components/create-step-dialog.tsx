@@ -108,13 +108,13 @@ export default function CreateStepDialog({
   // Validate step name
   const validateStepName = (name: string) => {
     if (!name.trim()) {
-      setNameError('Step name is required');
+      setNameError(t('createStep.validation.nameRequired'));
       return false;
     }
 
     const stepNamePattern = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
     if (!stepNamePattern.test(name.trim())) {
-      setNameError('Format: letters, numbers, "_", "-"');
+      setNameError(t('createStep.validation.nameFormat'));
       return false;
     }
 
@@ -243,7 +243,7 @@ export default function CreateStepDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label>{t('createStep.type')}</Label>
               <Select
                 value={formData.stepType}
                 onValueChange={handleTypeChange}
@@ -253,9 +253,9 @@ export default function CreateStepDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="action">Action</SelectItem>
-                  <SelectItem value="llm">LLM</SelectItem>
-                  <SelectItem value="condition">Condition</SelectItem>
+                  <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
+                  <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
+                  <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -263,7 +263,7 @@ export default function CreateStepDialog({
             <div className="space-y-4">
               <JsonInput
                 id="step-config"
-                label="Config (JSON)"
+                label={t('createStep.configLabel')}
                 value={formData.config}
                 onChange={(value) =>
                   setFormData((prev) => ({ ...prev, config: value }))
@@ -271,12 +271,12 @@ export default function CreateStepDialog({
                 placeholder='{"key":"value"}'
                 rows={4}
                 disabled={isLoading}
-                description="Configuration settings"
+                description={t('createStep.configDescription')}
               />
 
               <JsonInput
                 id="step-next"
-                label="Next steps (JSON)"
+                label={t('createStep.nextStepsLabel')}
                 value={formData.nextSteps}
                 onChange={(value) =>
                   setFormData((prev) => ({ ...prev, nextSteps: value }))
@@ -284,7 +284,7 @@ export default function CreateStepDialog({
                 placeholder='{"onSuccess":"step-2","onFailure":"step-x"}'
                 rows={3}
                 disabled={isLoading}
-                description="Step transitions & flow control"
+                description={t('createStep.nextStepsDescription')}
               />
             </div>
           </div>

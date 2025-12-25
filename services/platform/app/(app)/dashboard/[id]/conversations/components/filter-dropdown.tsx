@@ -14,6 +14,7 @@ import type {
 } from '@/hooks/use-conversation-filters';
 import { FilterSection } from '@/components/filters/filter-section';
 import { FilterButton } from '@/components/filters/filter-button';
+import { useT } from '@/lib/i18n';
 
 // Export these for reuse in other components
 export type { TypeFilter, PriorityFilter, FilterState };
@@ -24,21 +25,21 @@ interface FilterDropdownProps {
   isLoading?: boolean;
 }
 
-const typeOptions = [
-  {
-    id: 'product_recommendation' as TypeFilter,
-    label: 'Product recommendation',
-  },
-  { id: 'service_request' as TypeFilter, label: 'Service request' },
-  { id: 'churn_survey' as TypeFilter, label: 'Churn survey' },
-  { id: 'general' as TypeFilter, label: 'General' },
-  { id: 'spam' as TypeFilter, label: 'Spam' },
+type TypeOptionKey = 'productRecommendation' | 'serviceRequest' | 'churnSurvey' | 'general' | 'spam';
+type PriorityOptionKey = 'low' | 'medium' | 'high';
+
+const typeOptions: { id: TypeFilter; labelKey: TypeOptionKey }[] = [
+  { id: 'product_recommendation' as TypeFilter, labelKey: 'productRecommendation' },
+  { id: 'service_request' as TypeFilter, labelKey: 'serviceRequest' },
+  { id: 'churn_survey' as TypeFilter, labelKey: 'churnSurvey' },
+  { id: 'general' as TypeFilter, labelKey: 'general' },
+  { id: 'spam' as TypeFilter, labelKey: 'spam' },
 ];
 
-const priorityOptions = [
-  { id: 'low' as PriorityFilter, label: 'Low' },
-  { id: 'medium' as PriorityFilter, label: 'Medium' },
-  { id: 'high' as PriorityFilter, label: 'High' },
+const priorityOptions: { id: PriorityFilter; labelKey: PriorityOptionKey }[] = [
+  { id: 'low' as PriorityFilter, labelKey: 'low' },
+  { id: 'medium' as PriorityFilter, labelKey: 'medium' },
+  { id: 'high' as PriorityFilter, labelKey: 'high' },
 ];
 
 interface FilterOptionProps {
@@ -62,6 +63,8 @@ export default function FilterDropdown({
   onFiltersChange,
   isLoading = false,
 }: FilterDropdownProps) {
+  const { t } = useT('conversations');
+  const { t: tCommon } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     type: false,
@@ -116,21 +119,21 @@ export default function FilterDropdown({
       <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <div className="flex items-center justify-between p-2">
-          <h4 className="text-sm font-semibold text-foreground">Filters</h4>
+          <h4 className="text-sm font-semibold text-foreground">{t('filters.title')}</h4>
           {hasActiveFilters && (
             <button
               type="button"
               onClick={handleClearAll}
               className="text-xs text-primary hover:text-primary/80 font-medium"
             >
-              Clear all
+              {tCommon('actions.clearAll')}
             </button>
           )}
         </div>
 
         {/* Type Section */}
         <FilterSection
-          title="Type"
+          title={t('filters.type')}
           isExpanded={expandedSections.type}
           onToggle={() => toggleSection('type')}
           active={filters.types.length > 0}
@@ -139,7 +142,7 @@ export default function FilterDropdown({
             <FilterOption
               key={option.id}
               id={option.id}
-              label={option.label}
+              label={t(`filters.typeOptions.${option.labelKey}`)}
               isSelected={filters.types.includes(option.id)}
               onToggle={() => handleTypeToggle(option.id)}
             />
@@ -148,7 +151,7 @@ export default function FilterDropdown({
 
         {/* Priority Section */}
         <FilterSection
-          title="Priority"
+          title={t('filters.priority')}
           isExpanded={expandedSections.priority}
           onToggle={() => toggleSection('priority')}
           active={filters.priorities.length > 0}
@@ -157,7 +160,7 @@ export default function FilterDropdown({
             <FilterOption
               key={option.id}
               id={option.id}
-              label={option.label}
+              label={t(`filters.priorityOptions.${option.labelKey}`)}
               isSelected={filters.priorities.includes(option.id)}
               onToggle={() => handlePriorityToggle(option.id)}
             />
