@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ViewModal } from '@/components/ui/modals';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import ProductImage from './product-image';
@@ -39,163 +33,159 @@ export default function ViewProductDialog({
   product,
 }: ViewProductDialogProps) {
   const locale = useLocale();
-  const { t } = useT('common');
+  const { t: tCommon } = useT('common');
+  const { t: tProducts } = useT('products');
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="space-y-3">
-          <DialogTitle className="font-semibold text-foreground">
-            Product details
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            View all information about this product
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 mt-6">
-          {/* Product Image and Basic Info */}
-          <div className="flex items-start gap-4">
-            <ProductImage
-              images={product.imageUrl ? [product.imageUrl] : []}
-              productName={product.name}
-              className="size-20 rounded-lg flex-shrink-0"
-            />
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground truncate">
-                {product.name}
-              </h3>
-              {product.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {product.description}
-                </p>
-              )}
-              {product.status && (
-                <Badge
-                  variant={product.status === 'active' ? 'blue' : 'outline'}
-                  className="mt-2 capitalize"
-                >
-                  {product.status}
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Product Details Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Price */}
-            {product.price !== undefined && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Price
-                </label>
-                <p className="text-sm text-foreground mt-1">
-                  {formatCurrency(product.price, product.currency || 'USD', locale)}
-                </p>
-              </div>
-            )}
-
-            {/* Stock */}
-            {product.stock !== undefined && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Stock
-                </label>
-                <p
-                  className={`text-sm mt-1 ${
-                    product.stock === 0
-                      ? 'text-red-600 font-medium'
-                      : 'text-foreground'
-                  }`}
-                >
-                  {t('units.stock', { count: product.stock })}
-                </p>
-              </div>
-            )}
-
-            {/* Category */}
-            {product.category && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Category
-                </label>
-                <p className="text-sm text-foreground mt-1">
-                  {product.category}
-                </p>
-              </div>
-            )}
-
-            {/* Last Updated */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Last Updated
-              </label>
-              <p className="text-sm text-foreground mt-1">
-                {formatDate(new Date(product.lastUpdated), {
-                  preset: 'long',
-                })}
-              </p>
-            </div>
-          </div>
-
-          {/* Tags */}
-          {product.tags && product.tags.length > 0 && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-                Tags
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {product.tags.map((tag, index) => (
-                  <Badge key={index} variant="outline">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Full Description */}
-          {product.description && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-                Full Description
-              </label>
-              <p className="text-sm text-foreground leading-relaxed">
+    <ViewModal
+      open={isOpen}
+      onOpenChange={onClose}
+      title={tProducts('view.title')}
+      description={tProducts('view.description')}
+      className="sm:max-w-[600px]"
+    >
+      <div className="space-y-4">
+        {/* Product Image and Basic Info */}
+        <div className="flex items-start gap-4">
+          <ProductImage
+            images={product.imageUrl ? [product.imageUrl] : []}
+            productName={product.name}
+            className="size-20 rounded-lg flex-shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-foreground truncate">
+              {product.name}
+            </h3>
+            {product.description && (
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                 {product.description}
               </p>
-            </div>
-          )}
-
-          {/* Product Source URL */}
-          {typeof product.metadata?.url === 'string' && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-                Source
-              </label>
-              <a
-                href={product.metadata.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:text-blue-700 underline break-all"
+            )}
+            {product.status && (
+              <Badge
+                variant={product.status === 'active' ? 'blue' : 'outline'}
+                className="mt-2 capitalize"
               >
-                {product.metadata.url}
-              </a>
-            </div>
-          )}
-
-          {/* Product ID */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
-              Product ID
-            </label>
-            <code className="text-xs bg-muted px-2 py-1 rounded">
-              {product.id}
-            </code>
+                {product.status}
+              </Badge>
+            )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <Separator />
+
+        {/* Product Details Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Price */}
+          {product.price !== undefined && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {tProducts('view.labels.price')}
+              </label>
+              <p className="text-sm text-foreground mt-1">
+                {formatCurrency(product.price, product.currency || 'USD', locale)}
+              </p>
+            </div>
+          )}
+
+          {/* Stock */}
+          {product.stock !== undefined && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {tProducts('view.labels.stock')}
+              </label>
+              <p
+                className={`text-sm mt-1 ${
+                  product.stock === 0
+                    ? 'text-red-600 font-medium'
+                    : 'text-foreground'
+                }`}
+              >
+                {tCommon('units.stock', { count: product.stock })}
+              </p>
+            </div>
+          )}
+
+          {/* Category */}
+          {product.category && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {tProducts('view.labels.category')}
+              </label>
+              <p className="text-sm text-foreground mt-1">
+                {product.category}
+              </p>
+            </div>
+          )}
+
+          {/* Last Updated */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {tProducts('view.labels.lastUpdated')}
+            </label>
+            <p className="text-sm text-foreground mt-1">
+              {formatDate(new Date(product.lastUpdated), {
+                preset: 'long',
+              })}
+            </p>
+          </div>
+        </div>
+
+        {/* Tags */}
+        {product.tags && product.tags.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+              {tProducts('view.labels.tags')}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {product.tags.map((tag, index) => (
+                <Badge key={index} variant="outline">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Full Description */}
+        {product.description && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+              {tProducts('view.labels.fullDescription')}
+            </label>
+            <p className="text-sm text-foreground leading-relaxed">
+              {product.description}
+            </p>
+          </div>
+        )}
+
+        {/* Product Source URL */}
+        {typeof product.metadata?.url === 'string' && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+              {tProducts('view.labels.source')}
+            </label>
+            <a
+              href={product.metadata.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:text-blue-700 underline break-all"
+            >
+              {product.metadata.url}
+            </a>
+          </div>
+        )}
+
+        {/* Product ID */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+            {tProducts('view.labels.productId')}
+          </label>
+          <code className="text-xs bg-muted px-2 py-1 rounded">
+            {product.id}
+          </code>
+        </div>
+      </div>
+    </ViewModal>
   );
 }

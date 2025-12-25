@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useT } from '@/lib/i18n';
 import {
   CheckCircle,
   XCircle,
@@ -43,6 +44,9 @@ export default function SyncStatus({
   onRetry,
   fileStatuses = [],
 }: SyncStatusProps) {
+  const { t } = useT('documents');
+  const { t: tCommon } = useT('common');
+
   if (!isVisible) return null;
 
   const hasResult = !!result;
@@ -59,7 +63,7 @@ export default function SyncStatus({
               <span>→</span>
               <Database className="size-4 text-green-600" />
             </div>
-            OneDrive to Storage Sync
+            {t('sync.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -69,7 +73,7 @@ export default function SyncStatus({
               <div className="flex items-center gap-2">
                 <Loader2 className="size-4 animate-spin" />
                 <span className="text-sm">
-                  {currentFile || 'Syncing files to storage...'}
+                  {currentFile || t('sync.syncingToStorage')}
                 </span>
               </div>
               {/* Indeterminate progress bar */}
@@ -80,7 +84,7 @@ export default function SyncStatus({
                 ></div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Please wait while files are being processed...
+                {t('sync.pleaseWait')}
               </p>
             </div>
           )}
@@ -89,7 +93,7 @@ export default function SyncStatus({
           {isLoading && fileStatuses.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium">
-                Processing Files ({fileStatuses.length} total):
+                {t('sync.processingFiles', { count: fileStatuses.length })}
               </h4>
               <div className="max-h-64 overflow-y-auto space-y-1">
                 {fileStatuses.map((file) => (
@@ -123,7 +127,7 @@ export default function SyncStatus({
                         className="text-xs text-red-500 flex-shrink-0"
                         title={file.error}
                       >
-                        Error
+                        {t('sync.error')}
                       </span>
                     )}
                   </div>
@@ -145,12 +149,12 @@ export default function SyncStatus({
                   )}
                   <span className="font-medium">
                     {isSuccess
-                      ? 'Sync Completed'
-                      : 'Sync Completed with Errors'}
+                      ? t('sync.syncCompleted')
+                      : t('sync.syncCompletedWithErrors')}
                   </span>
                 </div>
                 <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span>{result.totalFiles} files processed</span>
+                  <span>{t('sync.filesProcessed', { count: result.totalFiles })}</span>
                 </div>
               </div>
 
@@ -160,7 +164,7 @@ export default function SyncStatus({
                   <div className="flex items-center gap-2">
                     <CheckCircle className="size-4 text-green-600" />
                     <span className="font-medium text-green-700">
-                      Successfully Synced ({result.syncedFiles.length})
+                      {t('sync.successfullySynced', { count: result.syncedFiles.length })}
                     </span>
                   </div>
                   <div className="max-h-32 overflow-y-auto space-y-1">
@@ -188,7 +192,7 @@ export default function SyncStatus({
                   <div className="flex items-center gap-2">
                     <XCircle className="size-4 text-red-600" />
                     <span className="font-medium text-red-700">
-                      Failed to Sync ({result.failedFiles.length})
+                      {t('sync.failedToSync', { count: result.failedFiles.length })}
                     </span>
                   </div>
                   <div className="max-h-32 overflow-y-auto space-y-1">
@@ -217,12 +221,11 @@ export default function SyncStatus({
                 <div className="flex items-center gap-2 mb-2">
                   <Database className="size-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-700">
-                    Storage Location
+                    {t('sync.storageLocation')}
                   </span>
                 </div>
                 <p className="text-xs text-blue-600">
-                  Files have been synced to your storage bucket. You can access
-                  them through the storage dashboard or API.
+                  {t('sync.storageDescription')}
                 </p>
               </div>
             </div>
@@ -234,7 +237,7 @@ export default function SyncStatus({
               <div className="flex items-center gap-2 mb-1">
                 <XCircle className="size-4 text-red-600" />
                 <span className="text-sm font-medium text-red-700">
-                  Sync Error
+                  {t('sync.syncError')}
                 </span>
               </div>
               <p className="text-xs text-red-600">{result.error}</p>
@@ -244,11 +247,11 @@ export default function SyncStatus({
           {/* Actions */}
           <div className="flex gap-2 pt-2">
             <Button variant="outline" onClick={onClose}>
-              Close
+              {tCommon('actions.close')}
             </Button>
             {hasErrors && onRetry && (
               <Button variant="default" onClick={onRetry}>
-                Retry Failed Files
+                {t('sync.retryFailedFiles')}
               </Button>
             )}
           </div>

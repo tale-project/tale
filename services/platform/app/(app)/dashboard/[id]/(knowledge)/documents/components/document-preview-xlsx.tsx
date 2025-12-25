@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
+import { useT } from '@/lib/i18n';
 // Note: xlsx is dynamically imported to reduce initial bundle size
 
 interface DocumentPreviewXlsxProps {
@@ -9,6 +10,7 @@ interface DocumentPreviewXlsxProps {
 }
 
 export default function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
+  const { t } = useT('documents');
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export default function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
         if (!isCancelled) setHtml(sanitized);
       } catch (e) {
         console.error('Error loading XLSX:', e);
-        if (!isCancelled) setError('Failed to load document.');
+        if (!isCancelled) setError(t('preview.failedToLoad'));
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -41,13 +43,13 @@ export default function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
     return () => {
       isCancelled = true;
     };
-  }, [url]);
+  }, [url, t]);
 
   return (
     <div className="p-6 mx-auto relative overflow-y-auto w-full flex-1 overflow-x-auto">
       {loading && (
         <div className="mt-4 text-gray-500 text-center">
-          Loading document...
+          {t('preview.loading')}
         </div>
       )}
       {!loading && error && (

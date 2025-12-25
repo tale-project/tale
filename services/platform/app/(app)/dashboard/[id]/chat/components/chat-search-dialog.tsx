@@ -11,6 +11,7 @@ import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useT } from '@/lib/i18n';
+import { X } from 'lucide-react';
 
 interface ChatSearchDialogProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function ChatSearchDialog({
   organizationId,
 }: ChatSearchDialogProps) {
   const { t } = useT('dialogs');
+  const { t: tCommon } = useT('common');
   const { formatDateSmart } = useDateFormat();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -95,8 +97,8 @@ export default function ChatSearchDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 overflow-hidden gap-0">
-        <div className="py-3 px-4 border-b border-border">
+      <DialogContent className="p-0 overflow-hidden gap-0" hideClose>
+        <div className="py-3 px-4 border-b border-border relative flex items-center">
           <VisuallyHidden>
             <DialogTitle>{t('searchChat.title')}</DialogTitle>
           </VisuallyHidden>
@@ -108,6 +110,14 @@ export default function ChatSearchDialog({
             onKeyDown={handleKeyDown}
             className="!outline-none !ring-0 !ring-offset-0 border-0 pr-9 p-0 h-6"
           />
+          <button
+            type="button"
+            onClick={close}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={tCommon('actions.close')}
+          >
+            <X className="size-4" />
+          </button>
         </div>
         <div className="h-[13.75rem] overflow-y-auto p-3">
           {chats.length === 0 ? (

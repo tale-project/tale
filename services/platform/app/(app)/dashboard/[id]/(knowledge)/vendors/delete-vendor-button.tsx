@@ -4,11 +4,10 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import DeleteVendorDialog from './delete-vendor-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
+import { useDeleteVendor } from './hooks';
 
 interface DeleteVendorButtonProps {
   vendor: Doc<'vendors'>;
@@ -26,7 +25,7 @@ export default function DeleteVendorButton({
   const { t: tVendors } = useT('vendors');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteVendor = useMutation(api.vendors.deleteVendor);
+  const deleteVendor = useDeleteVendor();
 
   // Use controlled state if provided, otherwise use internal state
   const isDialogOpen =
@@ -59,7 +58,7 @@ export default function DeleteVendorButton({
           variant="ghost"
           size="icon"
           onClick={() => setIsDialogOpen(true)}
-          title={tVendors('deleteVendor')}
+          aria-label={tVendors('deleteVendor')}
           className="hover:bg-transparent"
         >
           <Trash2 className="size-4" />

@@ -6,6 +6,17 @@ import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
 import { Button } from './button';
+import { useT } from '@/lib/i18n';
+
+// Internal close button component to use hook
+function DialogCloseButton() {
+  const { t } = useT('common');
+  return (
+    <Button variant="ghost" size="icon" aria-label={t('aria.close')}>
+      <X className="size-4" />
+    </Button>
+  );
+}
 
 const Dialog = DialogPrimitive.Root;
 
@@ -52,9 +63,7 @@ const DialogContent = React.forwardRef<
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
           asChild
         >
-          <Button variant="ghost" size="icon" aria-label="Close">
-            <X className="size-4" />
-          </Button>
+          <DialogCloseButton />
         </DialogPrimitive.Close>
       )}
     </DialogPrimitive.Content>

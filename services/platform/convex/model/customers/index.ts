@@ -49,3 +49,6 @@ export type {
 } from './find_or_create_customer';
 
 export { filterCustomers } from './filter_customers';
+
+export { getCustomers } from './get_customers';
+export type { GetCustomersArgs } from './get_customers';

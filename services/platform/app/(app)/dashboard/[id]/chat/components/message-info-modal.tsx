@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ViewModal } from '@/components/ui/modals';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format';
 import { useLocale, useT } from '@/lib/i18n';
@@ -41,14 +35,14 @@ export default function MessageInfoModal({
   const { t } = useT('chat');
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{t('messageInfo.title')}</DialogTitle>
-          <DialogDescription>{t('messageInfo.description')}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
+    <ViewModal
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      title={t('messageInfo.title')}
+      description={t('messageInfo.description')}
+      className="sm:max-w-[500px]"
+    >
+      <div className="space-y-4">
           {/* Timestamp */}
           <div className="space-y-1">
             <div className="text-sm font-medium text-muted-foreground">
@@ -162,7 +156,6 @@ export default function MessageInfoModal({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+    </ViewModal>
   );
 }

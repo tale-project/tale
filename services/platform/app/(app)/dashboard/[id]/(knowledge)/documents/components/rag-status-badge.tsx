@@ -34,42 +34,35 @@ interface RagStatusBadgeProps {
 
 const statusConfig: Record<
   RagStatus,
-  { label: string; icon: React.ElementType; iconClassName?: string; textClassName?: string }
+  { icon: React.ElementType; iconClassName?: string; textClassName?: string }
 > = {
   pending: {
-    label: 'Pending',
     icon: Clock,
     textClassName: 'text-muted-foreground',
   },
   queued: {
-    label: 'Queued',
     icon: Clock,
     textClassName: 'text-muted-foreground',
   },
   running: {
-    label: 'Indexing',
     icon: Loader2,
     textClassName: 'text-muted-foreground',
   },
   completed: {
-    label: 'Indexed',
     icon: CircleCheck,
     iconClassName: 'text-success',
     textClassName: 'text-muted-foreground',
   },
   failed: {
-    label: 'Failed',
     icon: XCircle,
     iconClassName: 'text-destructive',
     textClassName: 'text-destructive',
   },
   not_indexed: {
-    label: 'Not indexed',
     icon: Database,
     textClassName: 'text-muted-foreground',
   },
   stale: {
-    label: 'Needs reindex',
     icon: AlertTriangle,
     iconClassName: 'text-warning',
     textClassName: 'text-muted-foreground',
@@ -81,6 +74,20 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
   const router = useRouter();
+
+  // Get translated label for status
+  const getStatusLabel = (s: RagStatus) => {
+    const labels: Record<RagStatus, string> = {
+      pending: t('rag.status.pending'),
+      queued: t('rag.status.queued'),
+      running: t('rag.status.indexing'),
+      completed: t('rag.status.indexed'),
+      failed: t('rag.status.failed'),
+      not_indexed: t('rag.status.notIndexed'),
+      stale: t('rag.status.needsReindex'),
+    };
+    return labels[s];
+  };
 
   // Auto-poll for status updates when indexing is in progress
   useEffect(() => {
@@ -143,7 +150,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       <Icon
         className={`size-3.5 ${status === 'running' ? 'animate-spin' : ''} ${config.iconClassName || ''}`}
       />
-      {config.label}
+      {getStatusLabel(status)}
     </span>
   );
 
@@ -152,7 +159,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
     const indexedDate = indexedAt ? new Date(indexedAt * 1000) : null;
     const formattedDate = indexedDate
       ? formatDate(indexedDate, 'long')
-      : 'Unknown';
+      : t('rag.status.unknown');
 
     return (
       <Dialog>
@@ -162,7 +169,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
             className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
           >
             <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-            {config.label}
+            {getStatusLabel(status)}
           </button>
         </DialogTrigger>
         <DialogContent>
@@ -196,7 +203,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
               className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
             >
               <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-              {config.label}
+              {getStatusLabel(status)}
             </button>
           </DialogTrigger>
           <DialogContent>
@@ -272,7 +279,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       <span className="inline-flex items-center gap-2">
         <span className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}>
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {config.label}
+          {getStatusLabel(status)}
         </span>
         <Button
           size="sm"

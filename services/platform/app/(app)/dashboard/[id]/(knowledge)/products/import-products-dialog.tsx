@@ -1,31 +1,21 @@
 'use client';
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
+import { FormModal } from '@/components/ui/modals';
 import ProductImportForm from './product-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { ProductStatus, PRODUCT_STATUS } from '@/constants/convex-enums';
 import { useT } from '@/lib/i18n';
+import { useCreateProduct } from './hooks';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
-// Validation schema for the form - simplified to only file upload
-const formSchema = z.object({
-  file: z.instanceof(File, { message: 'Please upload a file' }),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+// Type for the form data
+type FormValues = {
+  file: File;
+};
 
 // Parsed product interface
 interface ParsedProduct {
@@ -55,6 +45,15 @@ export default function ImportProductsDialog({
   const { t } = useT('products');
   const { t: tCommon } = useT('common');
 
+  // Create Zod schema with translated validation messages
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        file: z.instanceof(File, { message: tCommon('validation.uploadFile') }),
+      }),
+    [tCommon],
+  );
+
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
   });
@@ -64,7 +63,7 @@ export default function ImportProductsDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const createProduct = useMutation(api.products.createProductPublic);
+  const createProduct = useCreateProduct();
 
   const resetForm = () => {
     formMethods.reset();
@@ -307,30 +306,21 @@ export default function ImportProductsDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="!p-0 gap-0">
-        <DialogHeader className="px-4 py-6 border-b border-border">
-          <DialogTitle>{t('import.uploadProducts')}</DialogTitle>
-        </DialogHeader>
-        <FormProvider {...formMethods}>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <ProductImportForm
-              organizationId={organizationId as string}
-              hideTabs={true}
-            />
-            <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSubmitting}>
-                  {tCommon('actions.cancel')}
-                </Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? tCommon('actions.importing') : tCommon('actions.import')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </FormProvider>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={t('import.uploadProducts')}
+      submitText={tCommon('actions.import')}
+      submittingText={tCommon('actions.importing')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      <FormProvider {...formMethods}>
+        <ProductImportForm
+          organizationId={organizationId as string}
+          hideTabs={true}
+        />
+      </FormProvider>
+    </FormModal>
   );
 }

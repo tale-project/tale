@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { ConfirmModal } from '@/components/ui/modals';
 import { useT } from '@/lib/i18n';
 
 interface BulkSendMessagesDialogProps {
@@ -26,33 +19,24 @@ export function BulkSendMessagesDialog({
   isLoading,
 }: BulkSendMessagesDialogProps) {
   const { t } = useT('conversations');
-  const { t: tCommon } = useT('common');
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader className="pt-2">
-          <DialogTitle>{t('bulkSend.title', { count: selectedCount })}</DialogTitle>
-        </DialogHeader>
-        <p className="text-muted-foreground text-sm">
+    <ConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('bulkSend.title', { count: selectedCount })}
+      description={
+        <>
           {t('bulkSend.description', { count: selectedCount })}
           <br />
           <br />
           {t('bulkSend.confirm')}
-        </p>
-        <DialogFooter className="flex">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-          >
-            {tCommon('actions.cancel')}
-          </Button>
-          <Button className="flex-1" onClick={onSend} disabled={isLoading}>
-            {isLoading ? t('bulkSend.sending') : t('bulkSend.send')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+      confirmText={t('bulkSend.send')}
+      loadingText={t('bulkSend.sending')}
+      isLoading={isLoading}
+      onConfirm={onSend}
+    />
   );
 }

@@ -1,8 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import {
+  useCreateAutomationDraft,
+  useUpdateAutomationStatus,
+  useUpdateAutomation,
+  useDeleteAutomation,
+} from '../hooks';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import type { WorkflowConfig } from '@/convex/model/wf_definitions/types';
 import { useAuth } from '@/hooks/use-convex-auth';
@@ -23,6 +29,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { DeleteModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -79,19 +86,11 @@ export function AutomationTemplatesTab({
   );
 
   // Mutations (only public APIs should be used from the client)
-  const createAutomation = useMutation(
-    api.wf_definitions.createWorkflowDraftPublic,
-  );
-  const activateAutomation = useMutation(
-    api.wf_definitions.updateWorkflowStatusPublic,
-  );
-  const deactivateAutomation = useMutation(
-    api.wf_definitions.updateWorkflowStatusPublic,
-  );
-  const updateWorkflow = useMutation(api.wf_definitions.updateWorkflowPublic);
-  const deleteAutomation = useMutation(
-    api.wf_definitions.deleteWorkflowPublic,
-  );
+  const createAutomation = useCreateAutomationDraft();
+  const activateAutomation = useUpdateAutomationStatus();
+  const deactivateAutomation = useUpdateAutomationStatus();
+  const updateWorkflow = useUpdateAutomation();
+  const deleteAutomation = useDeleteAutomation();
 
   // Handlers
   const handleCreateAutomation = async () => {
@@ -504,32 +503,18 @@ export function AutomationTemplatesTab({
         </Card>
       </div>
       {/* Delete confirmation dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('templates.deleteTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('templates.deleteDescription')}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                if (!deleteTarget) return;
-                await handleDeleteAutomation(deleteTarget);
-                setDeleteOpen(false);
-                setDeleteTarget(null);
-              }}
-            >
-              {tCommon('actions.delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteModal
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t('templates.deleteTitle')}
+        description={t('templates.deleteDescription')}
+        onDelete={async () => {
+          if (!deleteTarget) return;
+          await handleDeleteAutomation(deleteTarget);
+          setDeleteOpen(false);
+          setDeleteTarget(null);
+        }}
+      />
     </TabsContent>
   );
 }

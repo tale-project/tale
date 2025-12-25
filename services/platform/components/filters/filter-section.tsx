@@ -31,7 +31,7 @@ export function FilterSection({
         <span className="text-sm font-medium text-foreground">{title}</span>
         {active && <div className="h-2 w-2 bg-blue-500 rounded-full ml-auto" />}
       </button>
-      {isExpanded && <div className="space-y-2 pl-4">{children}</div>}
+      {isExpanded && <div className="space-y-2 px-2">{children}</div>}
     </div>
   );
 }

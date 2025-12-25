@@ -4,12 +4,11 @@ import { useState } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import DeleteProductDialog from './delete-product-dialog';
 import ViewProductDialog from './view-product-dialog';
 import EditProductDialog from './edit-product-dialog';
+import { useDeleteProduct } from './hooks';
 
 interface Product {
   id: string;
@@ -41,7 +40,7 @@ export default function ProductActions({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteProduct = useMutation(api.products.deleteProduct);
+  const deleteProduct = useDeleteProduct();
 
   const handleDeleteProduct = async () => {
     try {

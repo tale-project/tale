@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { api } from '@/convex/_generated/api';
 
 import AutomationsTable from './components/automations-table';
-import { fetchQuery } from '@/lib/convex-next-server';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import {
@@ -14,25 +14,30 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { AccessDenied, ContentWrapper } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { automationFilterDefinitions } from './filter-definitions';
 
 interface AutomationsPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** Skeleton for the automations table with header and rows - matches automations-table.tsx column sizes */
-function AutomationsSkeleton() {
+async function AutomationsSkeleton() {
+  const { t } = await getT('automations');
   return (
     <ContentWrapper>
       <DataTableSkeleton
         rows={6}
         columns={[
-          { header: 'Automation' }, // No size = expands to fill remaining space
-          { header: 'Status', size: 140 },
-          { header: 'Version', size: 100 },
-          { header: 'Created', size: 140 },
+          { header: t('columns.automation') }, // No size = expands to fill remaining space
+          { header: t('columns.status'), size: 140 },
+          { header: t('columns.version'), size: 100 },
+          { header: t('columns.created'), size: 140 },
           { isAction: true, size: 80 },
         ]}
         showHeader
+        showFilters
       />
     </ContentWrapper>
   );
@@ -67,23 +72,54 @@ async function AutomationsEmptyState({
 
 interface AutomationsContentProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-async function AutomationsPageContent({ params }: AutomationsContentProps) {
+async function AutomationsPageContent({ params, searchParams }: AutomationsContentProps) {
   // Permission check already done in parent component
-  const { id: organizationId } = await params;
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
 
-  // Automations are fetched in the client component with useQuery
-  // This enables real-time updates and server-side search filtering
+  const { id: organizationId } = await params;
+  const rawSearchParams = await searchParams;
+
+  // Parse filters, pagination, and sorting using unified system
+  const { filters, pagination, sorting } = parseSearchParams(
+    rawSearchParams,
+    automationFilterDefinitions,
+    { defaultSort: '_creationTime', defaultDesc: true },
+  );
+
+  // Preload automations for SSR + real-time reactivity on client
+  const preloadedAutomations = await preloadQuery(
+    api.wf_definitions.listAutomations,
+    {
+      organizationId,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchTerm: filters.query || undefined,
+      status: filters.status.length > 0 ? filters.status : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+    },
+    { token },
+  );
+
   return (
     <ContentWrapper>
-      <AutomationsTable organizationId={organizationId} />
+      <AutomationsTable
+        organizationId={organizationId}
+        preloadedAutomations={preloadedAutomations}
+      />
     </ContentWrapper>
   );
 }
 
 export default async function AutomationsPage({
   params,
+  searchParams,
 }: AutomationsPageProps) {
   const token = await getAuthToken();
   if (!token) {
@@ -91,6 +127,7 @@ export default async function AutomationsPage({
   }
 
   const { id: organizationId } = await params;
+  const rawSearchParams = await searchParams;
 
   // Check permissions first
   const memberContext = await fetchQuery(
@@ -105,20 +142,26 @@ export default async function AutomationsPage({
     return <AccessDenied message={t('automations')} />;
   }
 
-  // Two-phase loading: check if automations exist before showing skeleton
-  const hasAutomations = await fetchQuery(
-    api.wf_definitions.hasAutomations,
-    { organizationId },
-    { token },
-  );
+  // Parse filters to check for active filters
+  const { filters } = parseSearchParams(rawSearchParams, automationFilterDefinitions);
+  const hasFilters = hasActiveFilters(filters, automationFilterDefinitions);
 
-  if (!hasAutomations) {
-    return <AutomationsEmptyState organizationId={organizationId} />;
+  // Two-phase loading: check if automations exist before showing skeleton
+  if (!hasFilters) {
+    const hasAutomations = await fetchQuery(
+      api.wf_definitions.hasAutomations,
+      { organizationId },
+      { token },
+    );
+
+    if (!hasAutomations) {
+      return <AutomationsEmptyState organizationId={organizationId} />;
+    }
   }
 
   return (
     <Suspense fallback={<AutomationsSkeleton />}>
-      <AutomationsPageContent params={params} />
+      <AutomationsPageContent params={params} searchParams={searchParams} />
     </Suspense>
   );
 }

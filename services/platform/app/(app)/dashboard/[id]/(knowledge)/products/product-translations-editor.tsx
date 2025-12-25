@@ -1,23 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Edit, Save, X, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
+import { useUpsertProductTranslation } from './hooks';
 
 type TranslatedNames = {
   [language: string]: string;
@@ -45,7 +38,7 @@ export default function ProductTranslationsEditor({
   });
 
   const router = useRouter();
-  const upsertTranslation = useMutation(api.products.upsertProductTranslation);
+  const upsertTranslation = useUpsertProductTranslation();
 
   const handleInputChange = (
     language: keyof TranslatedNames,
@@ -101,90 +94,87 @@ export default function ProductTranslationsEditor({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <FormModal
+      open={open}
+      onOpenChange={setOpen}
+      title={tProducts('translations.title')}
+      trigger={
         <Button variant="ghost" size="icon">
           <Edit className="size-4" />
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{tProducts('translations.title')}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {/* Original Product Name */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">
-              {tProducts('translations.originalProductName')}
-            </Label>
-            <div className="p-3 bg-muted rounded-md">
-              <span className="text-sm">{productName}</span>
-            </div>
-          </div>
-
-          {/* English Translation */}
-          <div className="space-y-2">
-            <Label htmlFor="en-translation" className="text-sm font-medium">
-              {tProducts('translations.englishTranslation')}
-            </Label>
-            <Input
-              id="en-translation"
-              value={formData.en}
-              onChange={(e) => handleInputChange('en', e.target.value)}
-              placeholder={tProducts('translations.enterTranslation', { language: 'English' })}
-              className="w-full"
-            />
-          </div>
-
-          {/* German Translation */}
-          <div className="space-y-2">
-            <Label htmlFor="de-translation" className="text-sm font-medium">
-              {tProducts('translations.germanTranslation')}
-            </Label>
-            <Input
-              id="de-translation"
-              value={formData.de}
-              onChange={(e) => handleInputChange('de', e.target.value)}
-              placeholder={tProducts('translations.enterTranslation', { language: 'German' })}
-              className="w-full"
-            />
-          </div>
-
-          {/* French Translation */}
-          <div className="space-y-2">
-            <Label htmlFor="fr-translation" className="text-sm font-medium">
-              {tProducts('translations.frenchTranslation')}
-            </Label>
-            <Input
-              id="fr-translation"
-              value={formData.fr}
-              onChange={(e) => handleInputChange('fr', e.target.value)}
-              placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
-              className="w-full"
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-2 pt-2">
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isLoading}
-            >
-              <X className="size-4 mr-2" />
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button onClick={handleSave} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="size-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="size-4 mr-2" />
-              )}
-              {tCommon('actions.save')}
-            </Button>
-          </div>
+      }
+      customFooter={
+        <div className="flex justify-end space-x-2">
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isLoading}
+          >
+            <X className="size-4 mr-2" />
+            {tCommon('actions.cancel')}
+          </Button>
+          <Button onClick={handleSave} disabled={isLoading}>
+            {isLoading ? (
+              <Loader2 className="size-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="size-4 mr-2" />
+            )}
+            {tCommon('actions.save')}
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      }
+    >
+      {/* Original Product Name */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-muted-foreground">
+          {tProducts('translations.originalProductName')}
+        </Label>
+        <div className="p-3 bg-muted rounded-md">
+          <span className="text-sm">{productName}</span>
+        </div>
+      </div>
+
+      {/* English Translation */}
+      <div className="space-y-2">
+        <Label htmlFor="en-translation" className="text-sm font-medium">
+          {tProducts('translations.englishTranslation')}
+        </Label>
+        <Input
+          id="en-translation"
+          value={formData.en}
+          onChange={(e) => handleInputChange('en', e.target.value)}
+          placeholder={tProducts('translations.enterTranslation', { language: 'English' })}
+          className="w-full"
+        />
+      </div>
+
+      {/* German Translation */}
+      <div className="space-y-2">
+        <Label htmlFor="de-translation" className="text-sm font-medium">
+          {tProducts('translations.germanTranslation')}
+        </Label>
+        <Input
+          id="de-translation"
+          value={formData.de}
+          onChange={(e) => handleInputChange('de', e.target.value)}
+          placeholder={tProducts('translations.enterTranslation', { language: 'German' })}
+          className="w-full"
+        />
+      </div>
+
+      {/* French Translation */}
+      <div className="space-y-2">
+        <Label htmlFor="fr-translation" className="text-sm font-medium">
+          {tProducts('translations.frenchTranslation')}
+        </Label>
+        <Input
+          id="fr-translation"
+          value={formData.fr}
+          onChange={(e) => handleInputChange('fr', e.target.value)}
+          placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
+          className="w-full"
+        />
+      </div>
+    </FormModal>
   );
 }

@@ -8,6 +8,7 @@ import type {
   RenderTask,
   PageViewport,
 } from 'pdfjs-dist/types/src/pdf';
+import { useT } from '@/lib/i18n';
 
 type PdfJsLib = {
   getDocument: typeof import('pdfjs-dist/types/src/pdf').getDocument;
@@ -15,6 +16,8 @@ type PdfJsLib = {
 };
 
 const PDFViewer = ({ url }: { url: string }) => {
+  const { t } = useT('documents');
+  const { t: tCommon } = useT('common');
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState<number>(1);
   const [pageRendering, setPageRendering] = useState<boolean>(false);
@@ -215,7 +218,7 @@ const PDFViewer = ({ url }: { url: string }) => {
                 onClick={onPrevPage}
                 disabled={pageNum <= 1}
                 className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition disabled:opacity-35"
-                aria-label="Previous page"
+                aria-label={tCommon('aria.previousPage')}
               >
                 <ChevronUp className="size-5" />
               </button>
@@ -223,7 +226,7 @@ const PDFViewer = ({ url }: { url: string }) => {
                 onClick={onNextPage}
                 disabled={pageNum >= totalPages}
                 className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition disabled:opacity-35"
-                aria-label="Next page"
+                aria-label={tCommon('aria.nextPage')}
               >
                 <ChevronDown className="size-5" />
               </button>
@@ -244,14 +247,14 @@ const PDFViewer = ({ url }: { url: string }) => {
               <button
                 onClick={onZoomOut}
                 className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition"
-                aria-label="Zoom out"
+                aria-label={tCommon('aria.zoomOut')}
               >
                 <ZoomOut className="size-4" />
               </button>
               <button
                 onClick={onZoomIn}
                 className="grid place-items-center size-8 rounded-full hover:bg-white/10 transition"
-                aria-label="Zoom in"
+                aria-label={tCommon('aria.zoomIn')}
               >
                 <ZoomIn className="size-4" />
               </button>
@@ -259,7 +262,7 @@ const PDFViewer = ({ url }: { url: string }) => {
           </div>
         </div>
         {!pdfDoc && (
-          <div className="mt-4 text-gray-500 text-center">Loading PDF...</div>
+          <div className="mt-4 text-gray-500 text-center">{t('preview.loading')}</div>
         )}
       </div>
     </>

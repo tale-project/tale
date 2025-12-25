@@ -1,61 +1,23 @@
 'use client';
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { FormModal } from '@/components/ui/modals';
 import VendorImportForm from '@/components/vendor-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useEffect } from 'react';
+import { useBulkCreateVendors } from './hooks';
+import { useEffect, useMemo } from 'react';
 import { useT } from '@/lib/i18n';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
-// Validation schema for the form
-const formSchema = z
-  .object({
-    dataSource: z.enum(['manual_import', 'file_upload'], {
-      message: 'Please select a data source',
-    }),
-    vendors: z.string().optional(),
-    file: z.instanceof(File).optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.dataSource === 'manual_import') {
-        return !!data.vendors;
-      }
-      return true;
-    },
-    {
-      message: 'Please provide vendor data',
-      path: ['vendors'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.dataSource === 'file_upload') {
-        return !!data.file;
-      }
-      return true;
-    },
-    {
-      message: 'Please upload a file',
-      path: ['file'],
-    },
-  );
-
-type FormValues = z.infer<typeof formSchema>;
+// Type for the form data
+type FormValues = {
+  dataSource: 'manual_import' | 'file_upload';
+  vendors?: string;
+  file?: File;
+};
 
 interface ParsedVendor {
   email: string;
@@ -81,6 +43,44 @@ export default function ImportVendorsDialog({
   const { t } = useT('vendors');
   const { t: tCommon } = useT('common');
 
+  // Create Zod schema with translated validation messages
+  const formSchema = useMemo(
+    () =>
+      z
+        .object({
+          dataSource: z.enum(['manual_import', 'file_upload'], {
+            message: t('import.selectDataSource'),
+          }),
+          vendors: z.string().optional(),
+          file: z.instanceof(File).optional(),
+        })
+        .refine(
+          (data) => {
+            if (data.dataSource === 'manual_import') {
+              return !!data.vendors;
+            }
+            return true;
+          },
+          {
+            message: t('import.provideData'),
+            path: ['vendors'],
+          },
+        )
+        .refine(
+          (data) => {
+            if (data.dataSource === 'file_upload') {
+              return !!data.file;
+            }
+            return true;
+          },
+          {
+            message: tCommon('validation.uploadFile'),
+            path: ['file'],
+          },
+        ),
+    [t, tCommon],
+  );
+
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -93,7 +93,7 @@ export default function ImportVendorsDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const bulkCreateVendors = useMutation(api.vendors.bulkCreateVendors);
+  const bulkCreateVendors = useBulkCreateVendors();
 
   // Reset form when mode changes to ensure defaultValues are current
   useEffect(() => {
@@ -270,27 +270,18 @@ export default function ImportVendorsDialog({
   const dialogTitle = mode === 'manual' ? t('addVendors') : t('uploadVendors');
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="p-0 gap-0">
-        <DialogHeader className="px-4 py-6 border-b border-border">
-          <DialogTitle>{dialogTitle}</DialogTitle>
-        </DialogHeader>
-        <FormProvider {...formMethods}>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <VendorImportForm organizationId={organizationId} mode={mode} />
-            <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSubmitting}>
-                  {tCommon('actions.cancel')}
-                </Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? tCommon('actions.importing') : tCommon('actions.import')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </FormProvider>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={dialogTitle}
+      submitText={tCommon('actions.import')}
+      submittingText={tCommon('actions.importing')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      <FormProvider {...formMethods}>
+        <VendorImportForm organizationId={organizationId} mode={mode} />
+      </FormProvider>
+    </FormModal>
   );
 }

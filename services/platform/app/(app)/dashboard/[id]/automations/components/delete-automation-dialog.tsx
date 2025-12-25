@@ -1,14 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { DeleteModal } from '@/components/ui/modals';
 import { useT } from '@/lib/i18n';
 
 interface DeleteAutomationDialogProps {
@@ -27,35 +19,15 @@ export default function DeleteAutomationDialog({
   isDeleting = false,
 }: DeleteAutomationDialogProps) {
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[25rem]">
-        <DialogHeader>
-          <DialogTitle>{t('deleteAutomation.title')}</DialogTitle>
-          <DialogDescription>
-            {t('deleteAutomation.description', { name: workflowName })}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isDeleting}
-          >
-            {tCommon('actions.cancel')}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isDeleting}
-          >
-            {isDeleting ? tCommon('actions.deleting') : tCommon('actions.delete')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <DeleteModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('deleteAutomation.title')}
+      description={t('deleteAutomation.description', { name: workflowName })}
+      isDeleting={isDeleting}
+      onDelete={onConfirm}
+    />
   );
 }

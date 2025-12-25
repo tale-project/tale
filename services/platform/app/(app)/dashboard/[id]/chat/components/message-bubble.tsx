@@ -109,23 +109,6 @@ const markdownWrapperStyles = cn(
   '[&_del]:line-through [&_del]:text-muted-foreground',
 );
 
-// Helper function to get file type info - extracted outside component for stable reference
-function getFileTypeInfo(type: string, name: string) {
-  if (type.startsWith('image/'))
-    return { icon: '🖼️', label: 'IMG', bgColor: 'bg-blue-100' };
-  if (type === 'application/pdf')
-    return { icon: '📄', label: 'PDF', bgColor: 'bg-red-100' };
-  if (
-    type.includes('word') ||
-    name.endsWith('.doc') ||
-    name.endsWith('.docx')
-  )
-    return { icon: '📝', label: 'DOC', bgColor: 'bg-blue-100' };
-  if (type === 'text/plain')
-    return { icon: '📄', label: 'TXT', bgColor: 'bg-gray-100' };
-  return { icon: '📎', label: 'FILE', bgColor: 'bg-gray-100' };
-}
-
 // File type icon component for messages
 function FileTypeIcon({
   fileType,
@@ -134,7 +117,30 @@ function FileTypeIcon({
   fileType: string;
   fileName: string;
 }) {
-  const { icon, label, bgColor } = getFileTypeInfo(fileType, fileName);
+  const { t } = useT('chat');
+
+  // Get file type info with localized labels
+  const getFileTypeInfo = () => {
+    if (fileType.startsWith('image/'))
+      return {
+        icon: '🖼️',
+        label: t('fileTypes.image'),
+        bgColor: 'bg-blue-100',
+      };
+    if (fileType === 'application/pdf')
+      return { icon: '📄', label: t('fileTypes.pdf'), bgColor: 'bg-red-100' };
+    if (
+      fileType.includes('word') ||
+      fileName.endsWith('.doc') ||
+      fileName.endsWith('.docx')
+    )
+      return { icon: '📝', label: t('fileTypes.doc'), bgColor: 'bg-blue-100' };
+    if (fileType === 'text/plain')
+      return { icon: '📄', label: t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+    return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
+  };
+
+  const { icon, label, bgColor } = getFileTypeInfo();
 
   return (
     <div
@@ -156,6 +162,7 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
 }: {
   attachment: FileAttachment;
 }) {
+  const { t } = useT('chat');
   // Use previewUrl for optimistic display, otherwise fetch from server
   const serverFileUrl = useQuery(
     api.file.getFileUrl,
@@ -197,12 +204,12 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
         </div>
         <div className="text-xs text-gray-500">
           {attachment.fileType === 'application/pdf'
-            ? 'PDF'
+            ? t('fileTypes.pdf')
             : attachment.fileType.includes('word')
-              ? 'DOC'
+              ? t('fileTypes.doc')
               : attachment.fileType === 'text/plain'
-                ? 'TXT'
-                : 'FILE'}
+                ? t('fileTypes.txt')
+                : t('fileTypes.file')}
         </div>
       </div>
     </a>
@@ -215,6 +222,7 @@ const FilePartDisplay = memo(function FilePartDisplay({
 }: {
   filePart: FilePart;
 }) {
+  const { t } = useT('chat');
   const isImage = filePart.mediaType.startsWith('image/');
 
   if (isImage) {
@@ -224,7 +232,7 @@ const FilePartDisplay = memo(function FilePartDisplay({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={filePart.url}
-          alt={filePart.filename || 'Image'}
+          alt={filePart.filename || t('fileTypes.image')}
           className="size-full object-cover"
         />
       </div>
@@ -241,20 +249,20 @@ const FilePartDisplay = memo(function FilePartDisplay({
     >
       <FileTypeIcon
         fileType={filePart.mediaType}
-        fileName={filePart.filename || 'file'}
+        fileName={filePart.filename || t('fileTypes.file')}
       />
       <div className="flex flex-col min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
-          {filePart.filename || 'File'}
+          {filePart.filename || t('fileTypes.file')}
         </div>
         <div className="text-xs text-muted-foreground">
           {filePart.mediaType === 'application/pdf'
-            ? 'PDF'
+            ? t('fileTypes.pdf')
             : filePart.mediaType.includes('word')
-              ? 'DOC'
+              ? t('fileTypes.doc')
               : filePart.mediaType === 'text/plain'
-                ? 'TXT'
-                : 'FILE'}
+                ? t('fileTypes.txt')
+                : t('fileTypes.file')}
         </div>
       </div>
     </a>
@@ -324,8 +332,10 @@ function CodeBlock({
 const MarkdownImage = memo(function MarkdownImage(
   props: React.ImgHTMLAttributes<HTMLImageElement>,
 ) {
+  const { t } = useT('chat');
   const [isOpen, setIsOpen] = useState(false);
-  const altText = typeof props.alt === 'string' ? props.alt : 'Image';
+  const altText =
+    typeof props.alt === 'string' ? props.alt : t('fileTypes.image');
   const imageSrc = typeof props.src === 'string' ? props.src : '';
 
   const handleOpen = () => setIsOpen(true);
@@ -357,7 +367,7 @@ const MarkdownImage = memo(function MarkdownImage(
       </span>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-fit p-0 border-0 [&>button]:hidden bg-background/50 backdrop-blur-sm">
-          <DialogTitle className="sr-only">Image preview</DialogTitle>
+          <DialogTitle className="sr-only">{t('imagePreview')}</DialogTitle>
           <Image
             src={imageSrc}
             alt={altText}

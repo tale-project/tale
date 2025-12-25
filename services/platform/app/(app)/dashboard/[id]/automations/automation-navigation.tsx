@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { usePublishAutomationDraft, useCreateDraftFromActive } from './hooks';
 import { Button } from '@/components/ui/button';
 import {
   NavigationMenu,
@@ -65,11 +66,8 @@ export default function AutomationNavigation({
     left: 0,
   });
 
-  const publishAutomation = useMutation(api.wf_definitions.publishDraftPublic);
-
-  const createDraftFromActive = useMutation(
-    api.wf_definitions.createDraftFromActivePublic,
-  );
+  const publishAutomation = usePublishAutomationDraft();
+  const createDraftFromActive = useCreateDraftFromActive();
 
   // Fetch all versions of this automation
   const versions = useQuery(
@@ -256,6 +254,7 @@ export default function AutomationNavigation({
     <nav
       ref={navRef}
       className="bg-background sticky top-12 z-10 border-b border-border px-4 flex items-center gap-4 min-h-12"
+      aria-label={tCommon('aria.automationsNavigation')}
     >
       {accessibleItems.map((item, index) => {
         // Check if current path matches the nav item
@@ -272,6 +271,7 @@ export default function AutomationNavigation({
               itemRefs.current[index] = el;
             }}
             href={item.href}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'h-full flex items-center text-sm font-medium transition-colors cursor-pointer',
               isActive

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface PaginatedMarkdownTableProps {
   children?: ReactNode;
@@ -27,6 +28,7 @@ export default function PaginatedMarkdownTable({
   children,
   pageSize = 10,
 }: PaginatedMarkdownTableProps) {
+  const { t } = useT('common');
   const [currentPage, setCurrentPage] = useState(1);
 
   // Extract thead and tbody from children
@@ -109,7 +111,7 @@ export default function PaginatedMarkdownTable({
               onClick={handlePrevPage}
               disabled={currentPage === 1}
               className="text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              aria-label="Previous page"
+              aria-label={t('aria.previousPage')}
             >
               <ChevronLeft className="size-5" />
             </button>
@@ -138,7 +140,7 @@ export default function PaginatedMarkdownTable({
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
               className="text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              aria-label="Next page"
+              aria-label={t('aria.nextPage')}
             >
               <ChevronRight className="size-5" />
             </button>
@@ -146,7 +148,11 @@ export default function PaginatedMarkdownTable({
 
           {/* Page info text */}
           <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-            {startIdx + 1}-{endIdx} of {totalRows}
+            {t('pagination.showing', {
+              start: startIdx + 1,
+              end: endIdx,
+              total: totalRows,
+            })}
           </span>
         </div>
       )}

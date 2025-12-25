@@ -1,12 +1,16 @@
+'use client';
+
 import { CustomerStatusBadge } from '../customers/customer-status-badge';
 import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface CustomerInformationProps {
   customer: Doc<'customers'>;
 }
 
 export function CustomerInformation({ customer }: CustomerInformationProps) {
+  const { t } = useT('common');
   if (!customer) return null;
 
   return (
@@ -16,10 +20,10 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
         {/* Customer Name & Email */}
         <div className="space-y-1">
           <div className="text-lg font-semibold text-foreground leading-none">
-            {customer.name || 'N/A'}
+            {customer.name || t('labels.notAvailable')}
           </div>
           <div className="text-sm text-muted-foreground tracking-tight">
-            {customer.email || 'N/A'}
+            {customer.email || t('labels.notAvailable')}
           </div>
         </div>
 
@@ -27,7 +31,7 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
         <div className="space-y-3">
           <div className="flex items-center">
             <div className="text-xs text-muted-foreground tracking-tight w-[5.625rem]">
-              Status
+              {t('labels.status')}
             </div>
             {customer.status && (
               <CustomerStatusBadge status={customer.status} />
@@ -36,29 +40,29 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
 
           <div className="flex items-center">
             <div className="text-xs text-muted-foreground tracking-tight w-[5.625rem]">
-              Source
+              {t('labels.source')}
             </div>
             <div className="text-sm font-medium text-foreground tracking-tight">
-              {customer.source || 'N/A'}
+              {customer.source || t('labels.notAvailable')}
             </div>
           </div>
 
           <div className="flex items-center">
             <div className="text-xs text-muted-foreground tracking-tight w-[5.625rem]">
-              Created at
+              {t('labels.created')}
             </div>
             <div className="text-sm font-medium text-foreground tracking-tight">
               {customer._creationTime
                 ? formatDate(new Date(customer._creationTime), {
                     preset: 'long',
                   })
-                : 'N/A'}
+                : t('labels.notAvailable')}
             </div>
           </div>
 
           <div className="flex items-center">
             <div className="text-xs text-muted-foreground tracking-tight w-[5.625rem]">
-              Locale
+              {t('labels.locale')}
             </div>
             <div className="text-base font-medium text-foreground tracking-tight">
               {customer.locale || 'en'}

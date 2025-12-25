@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,25 +14,11 @@ import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
 import { useT } from '@/lib/i18n';
 
-// Zod validation schema
-const signUpSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters long')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/\d/, 'Password must contain at least one number')
-    .regex(
-      /[!@#$%^&*(),.?":{}|<>]/,
-      'Password must contain at least one special character',
-    ),
-});
-
-type SignUpFormData = z.infer<typeof signUpSchema>;
+// Type for the form data
+type SignUpFormData = {
+  email: string;
+  password: string;
+};
 
 interface SignUpFormProps {
   microsoftEnabled?: boolean;
@@ -43,6 +30,25 @@ export default function SignUpForm({
   const router = useRouter();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
+
+  // Create Zod schema with translated validation messages
+  const signUpSchema = useMemo(
+    () =>
+      z.object({
+        email: z
+          .string()
+          .min(1, t('validation.emailRequired'))
+          .email(tCommon('validation.email')),
+        password: z
+          .string()
+          .min(8, t('validation.passwordMinLength'))
+          .regex(/[a-z]/, t('validation.passwordLowercase'))
+          .regex(/[A-Z]/, t('validation.passwordUppercase'))
+          .regex(/\d/, t('validation.passwordNumber'))
+          .regex(/[!@#$%^&*(),.?":{}|<>]/, t('validation.passwordSpecial')),
+      }),
+    [t, tCommon],
+  );
 
   // Single form for both email and password
   const form = useForm<SignUpFormData>({

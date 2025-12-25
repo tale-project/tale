@@ -1,9 +1,8 @@
 'use client';
 
-import { Dialog } from '@/components/ui/dialog';
+import { useState } from 'react';
 import { EyeIcon } from 'lucide-react';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
-import { DialogTrigger } from '@radix-ui/react-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
@@ -16,16 +15,24 @@ export default function ViewCustomerButton({
   customer,
 }: ViewCustomerButtonProps) {
   const { t } = useT('customers');
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title={t('viewSubscriptions')}>
-          <EyeIcon className="size-4 text-muted-foreground" />
-        </Button>
-      </DialogTrigger>
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        title={t('viewSubscriptions')}
+        onClick={() => setIsOpen(true)}
+      >
+        <EyeIcon className="size-4 text-muted-foreground" />
+      </Button>
 
-      <CustomerInfoDialog customer={customer} />
-    </Dialog>
+      <CustomerInfoDialog
+        customer={customer}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+      />
+    </>
   );
 }

@@ -18,6 +18,8 @@ export async function getDocuments(
     size?: number;
     query?: string;
     folderPath?: string;
+    sortField?: string;
+    sortOrder?: 'asc' | 'desc';
   },
 ): Promise<DocumentListResponse> {
   const page = args.page ?? 1;
@@ -63,7 +65,20 @@ export async function getDocuments(
 
     const totalItems = matchingDocuments.length;
 
-    // Apply pagination (documents are already sorted by _creationTime desc)
+    // Apply sorting if specified
+    const sortField = args.sortField || '_creationTime';
+    const sortOrder = args.sortOrder || 'desc';
+    matchingDocuments.sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[sortField];
+      const bVal = (b as Record<string, unknown>)[sortField];
+      if (aVal === bVal) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      const comparison = aVal < bVal ? -1 : 1;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    // Apply pagination
     const startIndex = (page - 1) * size;
     const paginatedDocuments = matchingDocuments.slice(
       startIndex,

@@ -482,6 +482,8 @@ export const getDocuments = queryWithRLS({
     size: v.optional(v.number()),
     query: v.optional(v.string()),
     folderPath: v.optional(v.string()),
+    sortField: v.optional(v.string()),
+    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
   },
   returns: DocumentListResponse,
   handler: async (ctx, args) => {

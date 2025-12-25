@@ -4,6 +4,7 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { api } from '@/convex/_generated/api';
 import NavigationServer from '@/components/navigation-server';
+import MobileNavigationServer from '@/components/mobile-navigation-server';
 
 export interface DashboardLayoutProps {
   children: ReactNode;
@@ -56,9 +57,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex justify-stretch size-full">
-      {/* Navigation - rendered directly with SSR, no skeleton needed */}
-      <div className="flex-[0_0_52px] overflow-y-auto px-2">
+    <div className="flex flex-col md:flex-row size-full">
+      {/* Mobile header with hamburger menu */}
+      <div className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background">
+        <MobileNavigationServer role={memberContext.role} />
+      </div>
+
+      {/* Desktop Navigation - hidden on mobile */}
+      <div className="hidden md:flex md:flex-[0_0_52px] overflow-y-auto px-2">
         <NavigationServer
           organizationId={organizationId}
           role={memberContext.role}
@@ -66,7 +72,7 @@ export default async function DashboardLayout({
       </div>
 
       {/* Main content area */}
-      <div className="flex flex-col flex-[1_1_0] justify-stretch overflow-y-auto border-l border-border bg-background">
+      <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
         <div className="flex-1 min-h-0 overflow-auto flex flex-col">
           {children}
         </div>

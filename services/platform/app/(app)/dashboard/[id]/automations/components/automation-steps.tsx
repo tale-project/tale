@@ -1032,11 +1032,10 @@ function AutomationStepsInner({
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center space-y-2">
                 <div className="text-muted-foreground">
-                  No automation steps to display
+                  {t('emptyState.noSteps')}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Create steps to see the automation overview, or use the AI
-                  assistant to help you get started.
+                  {t('emptyState.createStepsHint')}
                 </div>
               </div>
             </div>
@@ -1048,7 +1047,7 @@ function AutomationStepsInner({
               <div className="flex items-center gap-2 rounded-lg ring-1 ring-blue-200 bg-blue-50 p-3 shadow-sm">
                 <Info className="size-4 shrink-0 text-blue-600" />
                 <p className="text-sm text-blue-600">
-                  This automation is not yet published
+                  {t('steps.banners.draftNotPublished')}
                 </p>
                 <Button
                   variant="ghost"
@@ -1067,8 +1066,7 @@ function AutomationStepsInner({
               <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
                 <AlertTriangle className="size-4 shrink-0 text-amber-600" />
                 <p className="text-sm text-amber-600">
-                  This automation is published and cannot be modified. Create a
-                  new version to make changes.
+                  {t('steps.banners.activeCannotModify')}
                 </p>
                 <Button
                   variant="ghost"
@@ -1103,7 +1101,7 @@ function AutomationStepsInner({
                         <Scan className="size-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">Focus</TooltipContent>
+                    <TooltipContent side="top">{t('steps.toolbar.focus')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
@@ -1118,7 +1116,7 @@ function AutomationStepsInner({
                         <Sparkles className="size-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">AI assistant</TooltipContent>
+                    <TooltipContent side="top">{t('steps.toolbar.aiAssistant')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
@@ -1134,7 +1132,7 @@ function AutomationStepsInner({
                         <TestTubeDiagonal className="size-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">Test Automation</TooltipContent>
+                    <TooltipContent side="top">{t('steps.toolbar.testAutomation')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>

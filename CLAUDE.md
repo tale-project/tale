@@ -1,1 +1,10 @@
-- Do NOT hardcode text, use the translation hooks/functions instead.
+## General
+
+- ALWAYS optimize your code for MAX performance.
+- ALWAYS ensure that you follow the existing design.
+- ALL pages should be optimized for accessibility (Level AA).
+
+## React
+
+- Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
+- CONSIDER ALWAYS TO add optimistic updates with `withOptimisticUpdate` for `useMutation`. If you decide to NOT add a optimistic update you need to provide a good reason why and comment the hook.

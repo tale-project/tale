@@ -6,9 +6,14 @@ import dynamic from 'next/dynamic';
 import Message from './message';
 import ConversationHeader from './conversation-header';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
-import { useQuery as useConvexQuery, useMutation } from 'convex/react';
+import { useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import {
+  useMarkAsRead,
+  useSendMessageViaEmail,
+  useGenerateUploadUrl,
+} from '../hooks';
 import { toast } from '@/hooks/use-toast';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n';
@@ -61,11 +66,9 @@ export default function ConversationPanel({
   );
 
   // Convex mutations
-  const markAsRead = useMutation(api.conversations.markConversationAsRead);
-  const sendMessageViaEmail = useMutation(
-    api.conversations.sendMessageViaEmail,
-  );
-  const generateUploadUrl = useMutation(api.file.generateUploadUrl);
+  const markAsRead = useMarkAsRead();
+  const sendMessageViaEmail = useSendMessageViaEmail();
+  const generateUploadUrl = useGenerateUploadUrl();
 
   const isLoading = conversation === undefined;
 
@@ -139,7 +142,7 @@ export default function ConversationPanel({
         // Validate all attachments have files first
         const validAttachments = attachments.filter((a) => a.file);
         if (validAttachments.length !== attachments.length) {
-          throw new Error('Invalid file attachment');
+          throw new Error(tConversations('panel.invalidFileAttachment'));
         }
 
         // Generate all upload URLs in parallel first (avoids waterfall)
@@ -197,7 +200,7 @@ export default function ConversationPanel({
       }
     }
 
-    const subject = conversation.subject || 'Re: Conversation';
+    const subject = conversation.subject || tConversations('panel.defaultSubject');
 
     // For email threading, use the conversation's external message ID
     const inReplyTo = conversation.externalMessageId;
@@ -205,13 +208,14 @@ export default function ConversationPanel({
 
     if (!customerEmail) {
       console.error('No customer email found in conversation metadata');
-      throw new Error('Cannot send email: customer email not found');
+      throw new Error(tConversations('panel.customerEmailNotFound'));
     }
 
+    const replySubject = tConversations('panel.replySubjectPrefix', { subject });
     console.log('Sending message via sendMessageViaEmail mutation', {
       conversationId: conversation._id,
       to: [customerEmail],
-      subject: `Re: ${subject}`,
+      subject: replySubject,
       attachments: uploadedAttachments,
     });
 
@@ -222,7 +226,7 @@ export default function ConversationPanel({
       organizationId: conversation.organizationId,
       content: message,
       to: [customerEmail],
-      subject: `Re: ${subject}`,
+      subject: replySubject,
       html: message, // Already sanitized HTML from editor
       text: message.replace(/<[^>]*>/g, ''), // Strip HTML for plain text version
       inReplyTo,
@@ -236,8 +240,8 @@ export default function ConversationPanel({
 
   if (!selectedConversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-6 w-[316px]">
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-6 w-full max-w-[316px]">
           <MessageSquareMoreIcon className="size-5 text-muted-foreground" />
           <div className="flex flex-col gap-3 h-14 items-center justify-start text-center w-full">
             <h2 className="font-semibold text-lg text-foreground tracking-[-0.12px]">
@@ -301,6 +305,9 @@ export default function ConversationPanel({
             onSelectedConversationChange(null);
           }}
           onReopen={() => {
+            onSelectedConversationChange(null);
+          }}
+          onBack={() => {
             onSelectedConversationChange(null);
           }}
         />

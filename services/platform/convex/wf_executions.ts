@@ -50,6 +50,25 @@ export const listExecutions = query({
 });
 
 /**
+ * List executions for workflow with offset-based pagination
+ */
+export const listExecutionsPaginated = query({
+  args: WfExecutionsModel.listExecutionsPaginatedArgsValidator,
+  returns: v.object({
+    items: v.array(v.any()),
+    total: v.number(),
+    page: v.number(),
+    pageSize: v.number(),
+    totalPages: v.number(),
+    hasNextPage: v.boolean(),
+    hasPreviousPage: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return await WfExecutionsModel.listExecutionsPaginated(ctx, args);
+  },
+});
+
+/**
  * Update execution status
  */
 export const updateExecutionStatus = internalMutation({

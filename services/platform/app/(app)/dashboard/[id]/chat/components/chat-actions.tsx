@@ -1,14 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { DeleteModal } from '@/components/ui/modals';
 import {
   Tooltip,
   TooltipContent,
@@ -19,9 +12,8 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import { useDeleteThread } from '../hooks';
 
 interface ChatActionsProps {
   chat: {
@@ -48,18 +40,7 @@ export default function ChatActions({
   const { t: tChat } = useT('chat');
 
   // Convex hooks - Delete thread with optimistic update for immediate UI feedback
-  const deleteThread = useMutation(
-    api.threads.deleteChatThread,
-  ).withOptimisticUpdate((localStore, args) => {
-    const currentThreads = localStore.getQuery(api.threads.listThreads, {});
-
-    if (currentThreads !== undefined) {
-      const updatedThreads = currentThreads.filter(
-        (thread) => thread._id !== args.threadId,
-      );
-      localStore.setQuery(api.threads.listThreads, {}, updatedThreads);
-    }
-  });
+  const deleteThread = useDeleteThread();
 
   const handleDelete = async () => {
     try {
@@ -96,6 +77,7 @@ export default function ChatActions({
                 className="p-1"
                 size="icon"
                 onClick={onRename}
+                aria-label={tCommon('actions.rename')}
               >
                 <Pencil className="size-4" />
               </Button>
@@ -110,6 +92,7 @@ export default function ChatActions({
                 className="p-1"
                 size="icon"
                 onClick={() => setIsDeleteDialogOpen(true)}
+                aria-label={tCommon('actions.delete')}
               >
                 <Trash2 className="size-4" />
               </Button>
@@ -120,41 +103,23 @@ export default function ChatActions({
       </TooltipProvider>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader className="pt-2">
-            <DialogTitle>{tChat('deleteChat')}</DialogTitle>
-          </DialogHeader>
-          <div className="text-left space-y-2 py-2">
-            <DialogDescription className="mb-2">
-              {tChat('deleteConfirmation', { title: chat.title })}
-            </DialogDescription>
-            <p className="text-sm text-muted-foreground">
+      <DeleteModal
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title={tChat('deleteChat')}
+        description={
+          <>
+            {tChat('deleteConfirmation', { title: chat.title })}
+            <br /><br />
+            <span className="text-muted-foreground">
               {tChat('deleteArchiveMessage')}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              {isLoading ? tCommon('actions.deleting') : tChat('deleteChat')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </span>
+          </>
+        }
+        deleteText={tChat('deleteChat')}
+        isDeleting={isLoading}
+        onDelete={handleDelete}
+      />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import Banner from '@/components/banner';
+import { useT } from '@/lib/i18n';
 
 /**
  * OAuth2Banner Component
@@ -18,6 +19,7 @@ import Banner from '@/components/banner';
  * - ?email_error=<type>&description=<desc> - Error with description
  */
 export function OAuth2Banner() {
+  const { t } = useT('auth');
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -37,39 +39,34 @@ export function OAuth2Banner() {
       setBannerType('success');
       setMessage(
         providerId
-          ? 'Email provider has been authorized and is ready to use.'
-          : 'OAuth2 authorization completed successfully.',
+          ? t('oauth2.success.providerAuthorized')
+          : t('oauth2.success.completed'),
       );
     }
 
     // Handle OAuth2 errors
     if (error) {
       const errorMessages: Record<string, string> = {
-        missing_code: 'No authorization code received from the provider.',
-        missing_state: 'Missing state parameter in callback.',
-        invalid_state: 'Invalid state parameter. This may be a security issue.',
-        missing_provider:
-          'The email provider configuration could not be found.',
-        missing_oauth2_config:
-          'OAuth2 configuration is missing for this provider.',
-        token_exchange_failed:
-          'Failed to exchange authorization code for access tokens.',
-        callback_failed:
-          'An error occurred while processing the OAuth2 callback.',
-        missing_parameters:
-          'Required parameters are missing from the callback.',
+        missing_code: t('oauth2.errors.missingCode'),
+        missing_state: t('oauth2.errors.missingState'),
+        invalid_state: t('oauth2.errors.invalidState'),
+        missing_provider: t('oauth2.errors.missingProvider'),
+        missing_oauth2_config: t('oauth2.errors.missingOauth2Config'),
+        token_exchange_failed: t('oauth2.errors.tokenExchangeFailed'),
+        callback_failed: t('oauth2.errors.callbackFailed'),
+        missing_parameters: t('oauth2.errors.missingParameters'),
       };
 
       const errorMessage =
         errorDescription ||
         errorMessages[error] ||
-        'An unexpected error occurred during authorization.';
+        t('oauth2.errors.unexpected');
 
       setIsVisible(true);
       setBannerType('error');
       setMessage(errorMessage);
     }
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   const handleDismiss = () => {
     setIsVisible(false);

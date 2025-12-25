@@ -5,19 +5,23 @@ import { ExecutionsTable } from './components/executions-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getT } from '@/lib/i18n/server';
+import { parseSearchParams } from '@/lib/pagination/parse-search-params';
+import { executionFilterDefinitions } from './filter-definitions';
 
 /** Skeleton for the executions table with header and rows - matches ExecutionsTable layout */
-function ExecutionsSkeleton() {
+async function ExecutionsSkeleton() {
+  const { t } = await getT('automations');
   return (
     <div className="py-6 px-4">
       <DataTableSkeleton
         rows={10}
         columns={[
-          { header: 'Execution ID', size: 160 },
-          { header: 'Status', size: 128 },
-          { header: 'Started at', size: 192 },
-          { header: 'Duration', size: 128 },
-          { header: 'Triggered by', size: 128 },
+          { header: t('executions.columns.executionId'), size: 160 },
+          { header: t('executions.columns.status'), size: 128 },
+          { header: t('executions.columns.startedAt'), size: 192 },
+          { header: t('executions.columns.duration'), size: 128 },
+          { header: t('executions.columns.triggeredBy'), size: 128 },
         ]}
         showHeader
         customHeader={
@@ -46,24 +50,25 @@ async function ExecutionsContent({
   const { amId } = await params;
   const search = await searchParams;
 
-  // Extract filter params from URL
-  const searchQuery = (search.search as string) || undefined;
-  const statusFilter = (search.status as string) || undefined;
-  const triggeredByFilter = (search.triggeredBy as string) || undefined;
-  const dateFrom = (search.dateFrom as string) || undefined;
-  const dateTo = (search.dateTo as string) || undefined;
+  // Parse URL params using unified filter definitions
+  const { filters, pagination } = parseSearchParams(
+    search as Record<string, string | undefined>,
+    executionFilterDefinitions,
+  );
 
   // Preload executions for SSR + real-time reactivity on client
   const preloadedExecutions = await preloadQuery(
-    api.wf_executions.listExecutions,
+    api.wf_executions.listExecutionsPaginated,
     {
       wfDefinitionId: amId,
-      limit: 100,
-      search: searchQuery,
-      status: statusFilter,
-      triggeredBy: triggeredByFilter,
-      dateFrom,
-      dateTo,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchTerm: filters.query || undefined,
+      status: filters.status.length > 0 ? filters.status : undefined,
+      triggeredBy:
+        filters.triggeredBy.length > 0 ? filters.triggeredBy : undefined,
+      dateFrom: filters.dateRange?.from || undefined,
+      dateTo: filters.dateRange?.to || undefined,
     },
   );
 

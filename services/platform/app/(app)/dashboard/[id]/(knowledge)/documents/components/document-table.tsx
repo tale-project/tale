@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, ChangeEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import Pagination from '@/components/ui/pagination';
@@ -18,6 +18,7 @@ import DocumentIcon from '@/components/ui/document-icon';
 import RagStatusBadge from './rag-status-badge';
 import { useT } from '@/lib/i18n';
 import { useDateFormat } from '@/hooks/use-date-format';
+
 export interface DocumentTableProps {
   items: DocumentItem[];
   total: number;
@@ -28,6 +29,8 @@ export interface DocumentTableProps {
   organizationId: string;
   currentFolderPath?: string;
   hasMicrosoftAccount?: boolean;
+  initialSortField?: string;
+  initialSortOrder?: 'asc' | 'desc';
 }
 
 export default function DocumentTable({
@@ -40,8 +43,11 @@ export default function DocumentTable({
   organizationId,
   currentFolderPath,
   hasMicrosoftAccount,
+  initialSortField = '_creationTime',
+  initialSortOrder = 'desc',
 }: DocumentTableProps) {
   const { t: tDocuments } = useT('documents');
+  const { t: tTables } = useT('tables');
   const { formatDate } = useDateFormat();
   const router = useRouter();
   const pathname = usePathname();
@@ -53,6 +59,29 @@ export default function DocumentTable({
     null,
   );
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+
+  // Initialize sorting state from props
+  const initialSorting: SortingState = useMemo(() => [
+    { id: initialSortField, desc: initialSortOrder === 'desc' }
+  ], [initialSortField, initialSortOrder]);
+
+  const handleSortingChange = useCallback(
+    (sorting: SortingState | ((prev: SortingState) => SortingState)) => {
+      const newSorting = typeof sorting === 'function' ? sorting(initialSorting) : sorting;
+      const params = new URLSearchParams(searchParams.toString());
+      if (newSorting.length > 0) {
+        params.set('sort', newSorting[0].id);
+        params.set('sortOrder', newSorting[0].desc ? 'desc' : 'asc');
+      } else {
+        params.delete('sort');
+        params.delete('sortOrder');
+      }
+      params.delete('page'); // Reset to first page when sorting changes
+      const url = params.toString() ? `${pathname}?${params}` : pathname;
+      router.push(url);
+    },
+    [searchParams, pathname, router, initialSorting],
+  );
 
   const baseParams = useMemo(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -134,7 +163,7 @@ export default function DocumentTable({
     () => [
       {
         accessorKey: 'name',
-        header: 'Document',
+        header: tTables('headers.document'),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <DocumentIcon
@@ -159,7 +188,7 @@ export default function DocumentTable({
       },
       {
         accessorKey: 'size',
-        header: 'Size',
+        header: tTables('headers.size'),
         size: 128,
         cell: ({ row }) =>
           row.original.type === 'folder'
@@ -168,7 +197,7 @@ export default function DocumentTable({
       },
       {
         id: 'source',
-        header: 'Source',
+        header: tTables('headers.source'),
         size: 96,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
@@ -191,7 +220,7 @@ export default function DocumentTable({
       },
       {
         id: 'ragStatus',
-        header: 'RAG Status',
+        header: tTables('headers.ragStatus'),
         size: 128,
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
@@ -207,7 +236,7 @@ export default function DocumentTable({
       },
       {
         accessorKey: 'lastModified',
-        header: () => <span className="text-right w-full block">Modified</span>,
+        header: () => <span className="text-right w-full block">{tTables('headers.modified')}</span>,
         size: 192,
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground text-right block">
@@ -234,7 +263,7 @@ export default function DocumentTable({
         ),
       },
     ],
-    [organizationId, handleDocumentClick],
+    [organizationId, handleDocumentClick, tTables],
   );
 
   const emptyDocuments = items.length === 0 && !query;
@@ -268,6 +297,9 @@ export default function DocumentTable({
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
+        enableSorting
+        initialSorting={initialSorting}
+        onSortingChange={handleSortingChange}
         header={
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="relative w-full sm:w-[300px]">

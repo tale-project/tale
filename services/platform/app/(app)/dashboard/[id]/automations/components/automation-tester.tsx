@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { useStartWorkflow } from '../hooks';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
@@ -25,7 +24,7 @@ export function AutomationTester({
   const [testInput, setTestInput] = useState('{}');
   const [isExecuting, setIsExecuting] = useState(false);
 
-  const startWorkflow = useMutation(api.workflow.engine.startWorkflow);
+  const startWorkflow = useStartWorkflow();
 
   const handleTest = async () => {
     try {

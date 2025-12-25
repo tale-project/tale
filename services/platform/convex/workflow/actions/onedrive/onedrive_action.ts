@@ -308,6 +308,10 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               throw new Error(readRes.error || 'Failed to read file');
             }
 
+            // Extract content after validation (TypeScript narrowing workaround)
+            const fileContent = readRes.content;
+            const fileMimeType = readRes.mimeType;
+
             // Merge metadata
             const baseMeta = existing ? (existing as any).metadata || {} : {};
             const metadata: Record<string, unknown> = {
@@ -328,12 +332,9 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               {
                 organizationId,
                 fileName: f.name,
-                fileData:
-                  typeof readRes.content === 'string'
-                    ? new TextEncoder().encode(readRes.content).buffer
-                    : readRes.content,
+                fileData: fileContent,
                 contentType:
-                  readRes.mimeType || f.mimeType || 'application/octet-stream',
+                  fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
                 documentIdToUpdate: existing
                   ? (existing as any)._id

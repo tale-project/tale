@@ -2,8 +2,9 @@
 
 import { ComponentPropsWithoutRef, useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useUpdateThread } from '../hooks';
 import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
@@ -36,20 +37,7 @@ export default function ChatHistorySidebar({
   const threadsData = useQuery(api.threads.listThreads, {});
 
   // Update thread with optimistic update for immediate title change
-  const updateThread = useMutation(
-    api.threads.updateChatThread,
-  ).withOptimisticUpdate((localStore, args) => {
-    const currentThreads = localStore.getQuery(api.threads.listThreads, {});
-
-    if (currentThreads !== undefined && args.title) {
-      const updatedThreads = currentThreads.map((thread) =>
-        thread._id === args.threadId
-          ? { ...thread, title: args.title }
-          : thread,
-      );
-      localStore.setQuery(api.threads.listThreads, {}, updatedThreads);
-    }
-  });
+  const updateThread = useUpdateThread();
 
   // Memoize chat transformation to prevent unnecessary recalculations
   const chats = useMemo(
@@ -180,9 +168,7 @@ export default function ChatHistorySidebar({
                 key={chat._id}
                 className={cn(
                   'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                  isEditing
-                    ? 'px-0 py-0'
-                    : 'hover:bg-accent hover:text-accent-foreground',
+                  !isEditing && 'hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
                   !isEditing &&
                   'bg-accent text-accent-foreground',
@@ -203,7 +189,7 @@ export default function ChatHistorySidebar({
                       }
                     }}
                     onBlur={() => handleInputBlur(chat._id)}
-                    className="flex-1 h-[2.125rem] text-sm px-[7px] py-0 leading-none"
+                    className="flex-1 h-6 text-sm px-1.5 py-0 leading-none -mx-1.5"
                   />
                 ) : (
                   <>

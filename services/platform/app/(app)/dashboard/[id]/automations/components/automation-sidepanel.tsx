@@ -22,6 +22,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { AutomationTester } from './automation-tester';
 import { AutomationAssistant } from './automation-assistant';
+import { useT } from '@/lib/i18n';
 
 interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;
@@ -79,6 +80,7 @@ export default function AutomationSidePanel({
   automationId,
   organizationId,
 }: AutomationSidePanelProps) {
+  const { t } = useT('automations');
   const [width, setWidth] = useState(384); // 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -128,13 +130,13 @@ export default function AutomationSidePanel({
     <div
       ref={panelRef}
       style={{ width: `${width}px` }}
-      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden"
+      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden max-md:!w-full max-md:absolute max-md:inset-0 max-md:z-20"
     >
-      {/* Resize handle */}
+      {/* Resize handle - hidden on mobile */}
       <div
         onMouseDown={handleMouseDown}
         className={cn(
-          'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-10',
+          'absolute left-0 top-0 bottom-0 w-px cursor-col-resize z-10 max-md:hidden',
           'hover:bg-border transition-colors',
         )}
       >
@@ -151,7 +153,7 @@ export default function AutomationSidePanel({
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-semibold text-foreground">
-                  AI Assistant
+                  {t('sidePanel.aiAssistant')}
                 </h2>
               </div>
             </>
@@ -162,7 +164,7 @@ export default function AutomationSidePanel({
               </div>
               <div className="flex-1">
                 <h2 className="text-sm font-semibold text-foreground">
-                  Test Automation
+                  {t('sidePanel.testAutomation')}
                 </h2>
               </div>
             </>
@@ -181,7 +183,7 @@ export default function AutomationSidePanel({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{step.stepType} step</p>
+                    <p>{t('sidePanel.stepTooltip', { stepType: step.stepType })}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

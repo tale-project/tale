@@ -14,9 +14,8 @@ import { Doc } from '@/convex/_generated/dataModel';
 import ViewWebsiteDialog from './view-website-dialog';
 import EditWebsiteDialog from './edit-website-dialog';
 import DeleteWebsiteDialog from './delete-website-dialog';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useRescanWebsite } from './hooks';
 import { useT } from '@/lib/i18n';
 
 interface WebsiteRowActionsProps {
@@ -31,7 +30,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isRescanning, setIsRescanning] = useState(false);
 
-  const rescanWebsite = useMutation(api.websites.rescanWebsite);
+  const rescanWebsite = useRescanWebsite();
 
   const handleRescan = async () => {
     setIsRescanning(true);
@@ -58,7 +57,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="size-8 p-0">
             <MoreVertical className="size-4" />
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">{tCommon('actions.openMenu')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

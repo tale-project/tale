@@ -70,14 +70,14 @@ export default function DocumentPreviewModal({
 
   const isLoading = data === undefined;
   const isError = data?.success === false;
-  const queryError = isError ? new Error(data?.error || 'Unknown error') : null;
+  const queryError = isError ? new Error(data?.error || t('preview.unknownError')) : null;
   const doc = data?.success ? data.item : undefined;
 
   // Determine display name
   const displayName =
     fileName ||
     doc?.name ||
-    (storagePath ? extractNameFromStoragePath(storagePath) : 'Document');
+    (storagePath ? extractNameFromStoragePath(storagePath) : t('preview.document'));
 
   const handleDownload = async () => {
     if (!doc?.url) return;
@@ -87,7 +87,7 @@ export default function DocumentPreviewModal({
 
       // Fetch the file as a blob to bypass CORS restrictions
       const response = await fetch(doc.url);
-      if (!response.ok) throw new Error('Download failed');
+      if (!response.ok) throw new Error(t('preview.downloadFailed'));
 
       const blob = await response.blob();
 
@@ -105,7 +105,7 @@ export default function DocumentPreviewModal({
 
       toast({
         title: t('preview.downloadComplete'),
-        description: `${displayName} has been downloaded`,
+        description: t('preview.downloadedSuccessfully', { filename: displayName }),
         variant: 'success',
       });
     } catch (error) {
@@ -154,7 +154,7 @@ export default function DocumentPreviewModal({
             )}
             <Separator className="h-6" orientation="vertical" />
             <DialogClose asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label={t('preview.closePreview')}>
                 <X className="size-4" />
               </Button>
             </DialogClose>

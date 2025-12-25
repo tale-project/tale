@@ -35,7 +35,7 @@ export default function DocumentPreview({
 
       // Fetch the file as a blob to bypass CORS restrictions
       const response = await fetch(url);
-      if (!response.ok) throw new Error('Download failed');
+      if (!response.ok) throw new Error(t('preview.downloadFailed'));
 
       const blob = await response.blob();
 

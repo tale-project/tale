@@ -10,6 +10,7 @@ export * from './types';
 export { getExecution } from './get_execution';
 export { getRawExecution } from './get_raw_execution';
 export { listExecutions } from './list_executions';
+export { listExecutionsPaginated } from './list_executions_paginated';
 export { updateExecutionStatus } from './update_execution_status';
 export { completeExecution } from './complete_execution';
 export { failExecution } from './fail_execution';

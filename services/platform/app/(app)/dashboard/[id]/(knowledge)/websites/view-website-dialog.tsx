@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { ViewModal } from '@/components/ui/modals';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
 import { useLocale, useT } from '@/lib/i18n';
@@ -35,81 +30,80 @@ export default function ViewWebsiteDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="py-2">{t('viewDialog.title')}</DialogTitle>
-        </DialogHeader>
+    <ViewModal
+      open={isOpen}
+      onOpenChange={onClose}
+      title={t('viewDialog.title')}
+      className="max-w-2xl"
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>{t('viewDialog.domain')}</Label>
+            <Value>{website.domain}</Value>
+          </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>{t('viewDialog.domain')}</Label>
-              <Value>{website.domain}</Value>
-            </div>
+          <div>
+            <Label>{t('viewDialog.status')}</Label>
+            <Value>
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    website.status === 'active'
+                      ? 'bg-green-500'
+                      : website.status === 'error'
+                        ? 'bg-red-500'
+                        : 'bg-gray-500'
+                  }`}
+                />
+                {website.status || t('viewDialog.unknown')}
+              </div>
+            </Value>
+          </div>
 
-            <div>
-              <Label>{t('viewDialog.status')}</Label>
-              <Value>
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      website.status === 'active'
-                        ? 'bg-green-500'
-                        : website.status === 'error'
-                          ? 'bg-red-500'
-                          : 'bg-gray-500'
-                    }`}
-                  />
-                  {website.status || t('viewDialog.unknown')}
-                </div>
-              </Value>
-            </div>
+          <div>
+            <Label>{t('viewDialog.scanInterval')}</Label>
+            <Value>
+              {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
+            </Value>
+          </div>
 
-            <div>
-              <Label>{t('viewDialog.scanInterval')}</Label>
-              <Value>
-                {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
-              </Value>
-            </div>
+          <div>
+            <Label>{t('viewDialog.lastScanned')}</Label>
+            <Value>
+              {website.lastScannedAt
+                ? formatDate(new Date(website.lastScannedAt), {
+                    preset: 'long',
+                    locale,
+                  })
+                : t('viewDialog.notScannedYet')}
+            </Value>
+          </div>
 
-            <div>
-              <Label>{t('viewDialog.lastScanned')}</Label>
-              <Value>
-                {website.lastScannedAt
-                  ? formatDate(new Date(website.lastScannedAt), {
-                      preset: 'long',
-                      locale,
-                    })
-                  : t('viewDialog.notScannedYet')}
-              </Value>
-            </div>
+          <div className="col-span-2">
+            <Label>{t('viewDialog.titleField')}</Label>
+            <Value>{website.title || '-'}</Value>
+          </div>
 
-            <div className="col-span-2">
-              <Label>{t('viewDialog.titleField')}</Label>
-              <Value>{website.title || '-'}</Value>
-            </div>
+          <div className="col-span-2">
+            <Label>{t('viewDialog.description')}</Label>
+            <Value className="whitespace-pre-wrap">
+              {website.description || '-'}
+            </Value>
+          </div>
 
-            <div className="col-span-2">
-              <Label>{t('viewDialog.description')}</Label>
-              <Value className="whitespace-pre-wrap">
-                {website.description || '-'}
-              </Value>
-            </div>
-
-            <div>
-              <Label>{t('viewDialog.created')}</Label>
-              <Value>
-                {formatDate(new Date(website._creationTime), {
-                  preset: 'long',
-                  locale,
-                })}
-              </Value>
-            </div>
+          <div>
+            <Label>{t('viewDialog.created')}</Label>
+            <Value>
+              {formatDate(new Date(website._creationTime), {
+                preset: 'long',
+                locale,
+              })}
+            </Value>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ViewModal>
   );
 }
 

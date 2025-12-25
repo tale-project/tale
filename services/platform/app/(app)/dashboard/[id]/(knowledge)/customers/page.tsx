@@ -1,5 +1,4 @@
 import CustomersTable from './customers-table';
-import { CustomerStatus } from '@/constants/convex-enums';
 import { Suspense } from 'react';
 import {
   DataTableSkeleton,
@@ -12,18 +11,12 @@ import { redirect } from 'next/navigation';
 import { Users } from 'lucide-react';
 import ImportCustomersMenu from './import-customers-menu';
 import { getT } from '@/lib/i18n/server';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { customerFilterDefinitions } from './filter-definitions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    import?: string;
-    status?: string;
-    query?: string;
-    size?: string;
-    source?: string;
-    locale?: string;
-  }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 /** Skeleton for the customers table with header and rows - matches customers-table.tsx column sizes */
@@ -61,15 +54,7 @@ async function CustomersEmptyState({ organizationId }: { organizationId: string 
 
 interface CustomersContentProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    import?: string;
-    status?: string;
-    query?: string;
-    size?: string;
-    source?: string;
-    locale?: string;
-  }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }
 
 async function CustomersContent({
@@ -85,40 +70,29 @@ async function CustomersContent({
   const { id: organizationId } = await params;
   const resolvedSearchParams = await searchParams;
 
-  const currentPage = resolvedSearchParams.page
-    ? parseInt(resolvedSearchParams.page)
-    : 1;
-
-  // Get page size from search params (default to 10)
-  const pageSize = resolvedSearchParams.size
-    ? Number.parseInt(resolvedSearchParams.size)
-    : 10;
-
-  // Get status filter from search params (can be comma-separated)
-  const statusFilters = resolvedSearchParams.status
-    ?.split(',')
-    .filter(Boolean) as CustomerStatus[] | undefined;
-
-  // Get source and locale filters
-  const sourceFilters = resolvedSearchParams.source?.split(',').filter(Boolean);
-  const localeFilters = resolvedSearchParams.locale?.split(',').filter(Boolean);
-
-  // Get search term from search params
-  const searchTerm = resolvedSearchParams.query;
+  // Parse filters, pagination, and sorting from URL using unified utility
+  const { filters, pagination, sorting } = parseSearchParams(
+    resolvedSearchParams,
+    customerFilterDefinitions,
+    { defaultSort: '_creationTime', defaultDesc: true },
+  );
 
   // Preload customers for SSR + real-time reactivity on client
   const preloadedCustomers = await preloadQuery(
-    api.customers.getCustomers,
+    api.customers.listCustomers,
     {
       organizationId,
-      paginationOpts: {
-        numItems: pageSize,
-        cursor: null,
-      },
-      status: statusFilters,
-      source: sourceFilters,
-      locale: localeFilters,
-      searchTerm,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchTerm: filters.query || undefined,
+      // Cast status to the expected type
+      status: filters.status.length > 0
+        ? (filters.status as Array<'active' | 'churned' | 'potential'>)
+        : undefined,
+      source: filters.source.length > 0 ? filters.source : undefined,
+      locale: filters.locale.length > 0 ? filters.locale : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0]?.desc ? 'desc' : 'asc',
     },
     { token },
   );
@@ -126,9 +100,6 @@ async function CustomersContent({
   return (
     <CustomersTable
       organizationId={organizationId}
-      currentPage={currentPage}
-      pageSize={pageSize}
-      searchTerm={searchTerm}
       preloadedCustomers={preloadedCustomers}
     />
   );
@@ -144,13 +115,15 @@ export default async function CustomersPage({
   }
 
   const { id: organizationId } = await params;
-  const { query, status, source, locale } = await searchParams;
+  const resolvedSearchParams = await searchParams;
+
+  // Parse filters to check if any are active
+  const { filters } = parseSearchParams(resolvedSearchParams, customerFilterDefinitions);
+  const filtersActive = hasActiveFilters(filters, customerFilterDefinitions);
 
   // Two-phase loading: check if customers exist before showing skeleton
   // If no customers and no filters active, show empty state directly
-  const hasActiveFilters = query?.trim() || status || source || locale;
-
-  if (!hasActiveFilters) {
+  if (!filtersActive) {
     const hasCustomers = await fetchQuery(
       api.customers.hasCustomers,
       { organizationId },

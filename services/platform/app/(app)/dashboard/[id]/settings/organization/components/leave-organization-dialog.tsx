@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { ConfirmModal } from '@/components/ui/modals';
 import { Dispatch, SetStateAction } from 'react';
 import { useT } from '@/lib/i18n';
 
@@ -26,34 +18,18 @@ export default function LeaveOrganizationDialog({
   onOpenChange,
 }: LeaveOrganizationDialogProps) {
   const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader className="space-y-3">
-          <DialogTitle className="text-lg">{t('organization.leaveOrganization')}</DialogTitle>
-          <DialogDescription className="text-sm">
-            {t('organization.leaveConfirmation')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-2">
-          <DialogClose asChild>
-            <Button variant="outline" disabled={isUpdating} className="flex-1">
-              {tCommon('actions.cancel')}
-            </Button>
-          </DialogClose>
-          <Button
-            variant="destructive"
-            onClick={onLeave}
-            disabled={isUpdating}
-            className="flex-1"
-          >
-            {isUpdating ? t('organization.leaving') : t('organization.leaveOrganization')}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('organization.leaveOrganization')}
+      description={t('organization.leaveConfirmation')}
+      confirmText={t('organization.leaveOrganization')}
+      loadingText={t('organization.leaving')}
+      isLoading={isUpdating}
+      onConfirm={onLeave}
+      variant="destructive"
+    />
   );
 }

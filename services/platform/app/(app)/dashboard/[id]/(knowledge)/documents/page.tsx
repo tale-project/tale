@@ -7,6 +7,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
+import type { DocumentItemResponse } from '@/convex/model/documents/types';
 import {
   DataTableSkeleton,
   DataTableEmptyState,
@@ -74,6 +75,8 @@ interface DocumentsPageProps {
     size?: string;
     query?: string;
     folderPath?: string;
+    sort?: string;
+    sortOrder?: string;
   }>;
 }
 
@@ -84,6 +87,8 @@ interface DocumentsContentProps {
     size?: string;
     query?: string;
     folderPath?: string;
+    sort?: string;
+    sortOrder?: string;
   }>;
 }
 
@@ -98,11 +103,13 @@ async function DocumentsPageContent({
   }
 
   const { id: organizationId } = await params;
-  const { page, size, query, folderPath } = await searchParams;
+  const { page, size, query, folderPath, sort, sortOrder } = await searchParams;
 
   const currentPage = page ? Number.parseInt(page, 10) : 1;
   const pageSize = size ? Number.parseInt(size, 10) : 10;
   const searchQuery = query?.trim();
+  const sortField = sort || '_creationTime';
+  const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
 
   // Parallelize independent fetches for better performance
   const [documentInfo, hasMsAccount] = await Promise.all([
@@ -114,6 +121,8 @@ async function DocumentsPageContent({
         size: pageSize,
         query: searchQuery || '',
         folderPath: folderPath || '',
+        sortField,
+        sortOrder: sortDirection,
       },
       { token },
     ),
@@ -131,16 +140,16 @@ async function DocumentsPageContent({
   // Fetch RAG statuses for all file documents (not folders)
   // This must be sequential since it depends on documentInfo
   const fileDocuments = (documentInfo.items || [])
-    .filter((item) => item.type === 'file')
-    .map((item) => ({
+    .filter((item: DocumentItemResponse) => item.type === 'file')
+    .map((item: DocumentItemResponse) => ({
       id: item.id,
-      lastModified: item.lastModified,
+      lastModified: item.lastModified ?? 0,
     }));
 
   const ragStatuses = await fetchRagStatuses(fileDocuments);
 
   // Merge RAG statuses into document items
-  const itemsWithRagStatus = (documentInfo.items || []).map((item) => {
+  const itemsWithRagStatus = (documentInfo.items || []).map((item: DocumentItemResponse) => {
     const ragInfo = item.type === 'file' ? ragStatuses[item.id] : undefined;
     return {
       ...item,
@@ -165,6 +174,8 @@ async function DocumentsPageContent({
       organizationId={organizationId}
       currentFolderPath={folderPath}
       hasMicrosoftAccount={hasMsAccount}
+      initialSortField={sortField}
+      initialSortOrder={sortDirection}
     />
   );
 }

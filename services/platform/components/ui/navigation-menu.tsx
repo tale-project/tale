@@ -7,9 +7,10 @@ import { cn } from '@/lib/utils/cn';
 const NavigationMenu = forwardRef<
   ComponentRef<typeof NavigationMenuPrimitive.Root>,
   ComponentPropsWithoutRef<typeof NavigationMenuPrimitive.Root>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, delayDuration = 1000000, ...props }, ref) => (
   <NavigationMenuPrimitive.Root
     ref={ref}
+    delayDuration={delayDuration}
     className={cn('relative flex justify-center', className)}
     {...props}
   >

@@ -2,14 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -90,10 +83,8 @@ export default function CreateStepDialog({
   open,
   onOpenChange,
   onCreateStep,
-  // selectedWorkflow is not used - commented out to prevent unused variable warning
 }: CreateStepDialogProps) {
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
   const initialDefaults = getDefaultTemplates('action');
 
   const [formData, setFormData] = useState({
@@ -212,104 +203,83 @@ export default function CreateStepDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader className="sticky top-0">
-            <DialogTitle>{t('createStep.title')}</DialogTitle>
-            <DialogDescription>
-              {t('createStep.description')}
-            </DialogDescription>
-          </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={handleClose}
+      title={t('createStep.title')}
+      description={t('createStep.description')}
+      submitText={t('createStep.createButton')}
+      submittingText={t('createStep.creating')}
+      isSubmitting={isLoading}
+      submitDisabled={!formData.name.trim()}
+      onSubmit={handleSubmit}
+      large
+    >
+      <div className="space-y-2">
+        <Label htmlFor="step-name">
+          {t('configuration.name')} <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id="step-name"
+          value={formData.name}
+          onChange={(e) => {
+            setFormData((prev) => ({ ...prev, name: e.target.value }));
+            if (nameError) validateStepName(e.target.value);
+          }}
+          onBlur={(e) => validateStepName(e.target.value)}
+          placeholder={t('createStep.namePlaceholder')}
+          disabled={isLoading}
+          className={nameError ? 'border-red-500' : ''}
+        />
+        {nameError && <p className="text-xs text-red-500">{nameError}</p>}
+      </div>
 
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="step-name">
-                {t('configuration.name')} <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="step-name"
-                value={formData.name}
-                onChange={(e) => {
-                  setFormData((prev) => ({ ...prev, name: e.target.value }));
-                  if (nameError) validateStepName(e.target.value);
-                }}
-                onBlur={(e) => validateStepName(e.target.value)}
-                placeholder={t('createStep.namePlaceholder')}
-                disabled={isLoading}
-                className={nameError ? 'border-red-500' : ''}
-              />
-              {nameError && <p className="text-xs text-red-500">{nameError}</p>}
-            </div>
+      <div className="space-y-2">
+        <Label>{t('createStep.type')}</Label>
+        <Select
+          value={formData.stepType}
+          onValueChange={handleTypeChange}
+          disabled={isLoading}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
+            <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
+            <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            <div className="space-y-2">
-              <Label>{t('createStep.type')}</Label>
-              <Select
-                value={formData.stepType}
-                onValueChange={handleTypeChange}
-                disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
-                  <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
-                  <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <div className="space-y-4">
+        <JsonInput
+          id="step-config"
+          label={t('createStep.configLabel')}
+          value={formData.config}
+          onChange={(value) =>
+            setFormData((prev) => ({ ...prev, config: value }))
+          }
+          placeholder='{"key":"value"}'
+          rows={4}
+          disabled={isLoading}
+          description={t('createStep.configDescription')}
+        />
 
-            <div className="space-y-4">
-              <JsonInput
-                id="step-config"
-                label={t('createStep.configLabel')}
-                value={formData.config}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, config: value }))
-                }
-                placeholder='{"key":"value"}'
-                rows={4}
-                disabled={isLoading}
-                description={t('createStep.configDescription')}
-              />
-
-              <JsonInput
-                id="step-next"
-                label={t('createStep.nextStepsLabel')}
-                value={formData.nextSteps}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, nextSteps: value }))
-                }
-                placeholder='{"onSuccess":"step-2","onFailure":"step-x"}'
-                rows={3}
-                disabled={isLoading}
-                description={t('createStep.nextStepsDescription')}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              className="flex-1"
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isLoading}
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              className="flex-1"
-              type="submit"
-              disabled={!formData.name.trim() || isLoading}
-            >
-              {isLoading ? t('createStep.creating') : t('createStep.createButton')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <JsonInput
+          id="step-next"
+          label={t('createStep.nextStepsLabel')}
+          value={formData.nextSteps}
+          onChange={(value) =>
+            setFormData((prev) => ({ ...prev, nextSteps: value }))
+          }
+          placeholder='{"onSuccess":"step-2","onFailure":"step-x"}'
+          rows={3}
+          disabled={isLoading}
+          description={t('createStep.nextStepsDescription')}
+        />
+      </div>
+    </FormModal>
   );
 }
 

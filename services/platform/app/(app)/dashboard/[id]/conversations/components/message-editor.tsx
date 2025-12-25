@@ -92,15 +92,6 @@ const getFileIcon = (type: AttachedFile['type'], size = 'size-4') => {
   }
 };
 
-// Helper function to format file size
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
-};
-
 // Inner editor component that has access to Milkdown instance
 function MilkdownEditorInner({
   placeholder,
@@ -114,6 +105,21 @@ function MilkdownEditorInner({
 }: MessageEditorProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
+  const { t: tCommon } = useT('common');
+
+  // Helper function to format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return `0 ${tCommon('fileSize.bytes')}`;
+    const k = 1024;
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const units = [
+      tCommon('fileSize.bytes'),
+      tCommon('fileSize.kb'),
+      tCommon('fileSize.mb'),
+      tCommon('fileSize.gb'),
+    ];
+    return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${units[i]}`;
+  };
 
   // Use placeholder from props or fallback to translation
   const editorPlaceholder = placeholder || tConversations('messagePlaceholder');

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import Approvals from './approvals';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
+import { useT } from '@/lib/i18n';
 
 interface ApprovalsWrapperProps {
   status?: 'pending' | 'resolved';
@@ -17,22 +18,23 @@ interface ApprovalsWrapperProps {
  * Matches approvals.tsx column sizes.
  */
 function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
+  const { t } = useT('approvals');
   const columns =
     status === 'resolved'
       ? [
-          { header: 'Approval / Recipient' }, // No size = expands to fill remaining space
-          { header: 'Event', size: 256 },
-          { header: 'Action', size: 256 },
-          { header: 'Reviewer' },
-          { header: 'Reviewed at' },
-          { header: 'Approved', size: 100 },
+          { header: t('columns.approvalRecipient') }, // No size = expands to fill remaining space
+          { header: t('columns.event'), size: 256 },
+          { header: t('columns.action'), size: 256 },
+          { header: t('columns.reviewer') },
+          { header: t('columns.reviewedAt') },
+          { header: t('columns.approved'), size: 100 },
         ]
       : [
-          { header: 'Approval / Recipient' }, // No size = expands to fill remaining space
-          { header: 'Event', size: 256 },
-          { header: 'Action', size: 256 },
-          { header: 'Confidence', size: 100 },
-          { header: 'Approved', size: 100 },
+          { header: t('columns.approvalRecipient') }, // No size = expands to fill remaining space
+          { header: t('columns.event'), size: 256 },
+          { header: t('columns.action'), size: 256 },
+          { header: t('columns.confidence'), size: 100 },
+          { header: t('columns.approved'), size: 100 },
         ];
 
   return (

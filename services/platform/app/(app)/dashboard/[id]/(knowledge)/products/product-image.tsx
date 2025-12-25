@@ -3,6 +3,7 @@
 
 import { cn } from '@/lib/utils/cn';
 import { ComponentPropsWithoutRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   images: string[];
@@ -15,6 +16,7 @@ export default function ProductImage({
   className,
   ...restProps
 }: ProductImageProps) {
+  const { t } = useT('products');
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   const handleImageError = (imageUrl: string) => {
@@ -35,7 +37,7 @@ export default function ProductImage({
           className,
         )}
       >
-        No image
+        {t('noImage')}
       </div>
     );
   }

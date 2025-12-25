@@ -2,6 +2,7 @@
 
 import { Handle, Position } from '@xyflow/react';
 import { Plus } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface AddStepNodeProps {
   data: {
@@ -10,6 +11,7 @@ interface AddStepNodeProps {
 }
 
 export default function AddStepNode({ data }: AddStepNodeProps) {
+  const { t } = useT('common');
   return (
     <div className="relative">
       {/* Input Handle */}
@@ -21,7 +23,7 @@ export default function AddStepNode({ data }: AddStepNodeProps) {
 
       <button
         type="button"
-        aria-label="Add step"
+        aria-label={t('aria.addStep')}
         className="w-16 h-16 rounded-full border-2 border-dashed border-muted-foreground/50 hover:border-primary/50 hover:bg-primary/10 transition-all cursor-pointer flex items-center justify-center group focus:outline-none focus:ring-2 focus:ring-primary/50"
         onClick={data.onAddStep}
       >

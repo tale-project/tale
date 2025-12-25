@@ -4,6 +4,7 @@ import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface MicrosoftReauthButtonProps {
   error?: string;
@@ -18,6 +19,7 @@ export function MicrosoftReauthButton({
   error,
   className,
 }: MicrosoftReauthButtonProps) {
+  const { t } = useT('auth');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleReauth = async () => {
@@ -37,12 +39,12 @@ export function MicrosoftReauthButton({
 
   const getButtonText = () => {
     if (error === 'ConsentRequired') {
-      return 'Grant Microsoft Permissions';
+      return t('microsoft.grantPermissions');
     }
     if (error === 'RefreshTokenError') {
-      return 'Re-authenticate with Microsoft';
+      return t('microsoft.reauthenticate');
     }
-    return 'Sign in with Microsoft';
+    return t('microsoft.signIn');
   };
 
   return (
@@ -53,7 +55,7 @@ export function MicrosoftReauthButton({
       variant={error ? 'destructive' : 'default'}
     >
       <RefreshCw className={`size-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-      {isLoading ? 'Redirecting...' : getButtonText()}
+      {isLoading ? t('microsoft.redirecting') : getButtonText()}
     </Button>
   );
 }

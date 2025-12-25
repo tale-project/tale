@@ -1,11 +1,10 @@
 import { NextRequest } from 'next/server';
-import { getCurrentUser } from '@/lib/auth/auth-server';
+import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
 import { Logger } from '@/lib/logger';
-import { readOneDriveFile } from '@/actions/onedrive/read-file';
-import { uploadFileToStorage } from '@/actions/storage/upload-file';
+import { fetchAction, fetchMutation } from '@/lib/convex-next-server';
+import { api } from '@/convex/_generated/api';
 import type { DriveItem } from '@/types/microsoft-graph';
 import { isFile, sanitizeStoragePath } from '@/lib/utils/onedrive-helpers';
-import { enableAutoSync } from '@/actions/onedrive/config/enable-auto-sync';
 
 interface SyncRequestItem {
   id: string;
@@ -29,6 +28,8 @@ async function importSingleFile(
   file: DriveItem,
   folderPrefix: string,
   importType: ImportType,
+  token: string,
+  organizationId: string,
   relativePath?: string,
   user?: { id: string; email?: string | null },
   isDirectlySelected?: boolean,
@@ -47,8 +48,12 @@ async function importSingleFile(
   };
 }> {
   try {
-    // Read file content from OneDrive
-    const readResult = await readOneDriveFile(file.id, { asText: false });
+    // Read file content from OneDrive via Convex action
+    const readResult = await fetchAction(
+      api.onedrive.readFile,
+      { fileId: file.id },
+      { token },
+    );
 
     if (!readResult.success || !readResult.data) {
       return {
@@ -107,13 +112,18 @@ async function importSingleFile(
       }),
     };
 
-    // Upload to Convex storage via documents.uploadFile
-    const uploadResult = await uploadFileToStorage({
-      filePath: storagePath,
-      fileBuffer: readResult.data.content as ArrayBuffer,
-      contentType: readResult.data.mimeType,
-      metadata,
-    });
+    // Upload to Convex storage via documents.uploadFile action
+    const uploadResult = await fetchAction(
+      api.documents.uploadFile,
+      {
+        organizationId,
+        fileName: storagePath,
+        fileData: readResult.data.content,
+        contentType: readResult.data.mimeType,
+        metadata,
+      },
+      { token },
+    );
 
     if (!uploadResult.success) {
       return {
@@ -127,7 +137,7 @@ async function importSingleFile(
       fileInfo: {
         name: file.name,
         oneDriveId: file.id,
-        storagePath: uploadResult.filePath!,
+        storagePath,
         size: file.size || 0,
       },
     };
@@ -178,6 +188,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     const user = await getCurrentUser();
     if (!user) {
       return new Response('Authentication required', { status: 401 });
+    }
+
+    // Get auth token for Convex calls
+    const token = await getAuthToken();
+    if (!token) {
+      return new Response('Authentication token not available', { status: 401 });
     }
 
     // Ensure the specified bucket exists
@@ -251,18 +267,24 @@ export async function POST(request: NextRequest): Promise<Response> {
                 if (item.isDirectlySelected) {
                   // File-level auto-sync
                   if (!enabledFiles.has(item.id)) {
-                    const result = await enableAutoSync(organizationId, {
-                      itemType: 'file',
-                      fileId: item.id,
-                      fileName: item.name,
-                      filePath: item.relativePath
-                        ? `${item.relativePath}/${item.name}`
-                        : item.name,
-                      // targetBucket kept in sync config metadata for potential future use
-                      targetBucket: 'documents',
-                    });
-                    if (result.success && result.data?.id) {
-                      syncConfigMap.set(item.id, result.data.id);
+                    const result = await fetchMutation(
+                      api.documents.createOneDriveSyncConfig,
+                      {
+                        organizationId,
+                        userId: user._id,
+                        itemType: 'file',
+                        itemId: item.id,
+                        itemName: item.name,
+                        itemPath: item.relativePath
+                          ? `${item.relativePath}/${item.name}`
+                          : item.name,
+                        targetBucket: 'documents',
+                        storagePrefix: `${organizationId}/onedrive`,
+                      },
+                      { token },
+                    );
+                    if (result.success && result.configId) {
+                      syncConfigMap.set(item.id, result.configId);
                       enabledFiles.add(item.id);
                     }
                   }
@@ -271,21 +293,27 @@ export async function POST(request: NextRequest): Promise<Response> {
                   !enabledFolders.has(item.selectedParentId)
                 ) {
                   // Folder-level auto-sync (preferred)
-                  const result = await enableAutoSync(organizationId, {
-                    itemType: 'folder',
-                    folderId: item.selectedParentId,
-                    folderName: item.selectedParentName || 'OneDrive Folder',
-                    folderPath: item.relativePath || '/',
-                    // targetBucket kept in sync config metadata for potential future use
-                    targetBucket: 'documents',
-                  });
-                  if (result.success && result.data?.id) {
+                  const result = await fetchMutation(
+                    api.documents.createOneDriveSyncConfig,
+                    {
+                      organizationId,
+                      userId: user._id,
+                      itemType: 'folder',
+                      itemId: item.selectedParentId,
+                      itemName: item.selectedParentName || 'OneDrive Folder',
+                      itemPath: item.relativePath || '/',
+                      targetBucket: 'documents',
+                      storagePrefix: `${organizationId}/onedrive/${item.selectedParentName || 'OneDrive Folder'}`,
+                    },
+                    { token },
+                  );
+                  if (result.success && result.configId) {
                     // Map all files from this folder to the same config
                     items
                       .filter(
                         (f) => f.selectedParentId === item.selectedParentId,
                       )
-                      .forEach((f) => syncConfigMap.set(f.id, result.data!.id));
+                      .forEach((f) => syncConfigMap.set(f.id, result.configId!));
                     enabledFolders.add(item.selectedParentId);
                   }
                 }
@@ -391,6 +419,8 @@ export async function POST(request: NextRequest): Promise<Response> {
                   driveItem,
                   folderPrefix || '',
                   importType,
+                  token,
+                  organizationId,
                   item.relativePath,
                   user._id ? { id: user._id, email: user.email } : undefined,
                   item.isDirectlySelected,

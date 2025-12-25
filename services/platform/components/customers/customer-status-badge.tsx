@@ -1,40 +1,44 @@
+'use client';
+
 import { Badge } from '@/components/ui/badge';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 // Stub type for customer status - matches Convex schema
 type CustomerStatus = Doc<'customers'>['status'];
 
-const getStatusConfig = (status: CustomerStatus) => {
+const getStatusVariant = (status: CustomerStatus) => {
   switch (status) {
     case 'active':
-      return {
-        variant: 'green' as const,
-        label: 'Active',
-      };
+      return 'green' as const;
     case 'churned':
-      return {
-        variant: 'destructive' as const,
-        label: 'Churned',
-      };
+      return 'destructive' as const;
     case 'potential':
-      return {
-        variant: 'yellow' as const,
-        label: 'Potential',
-      };
+      return 'yellow' as const;
     default:
-      return {
-        variant: 'outline' as const,
-        label: status,
-      };
+      return 'outline' as const;
   }
 };
 
 export function CustomerStatusBadge({ status }: { status?: CustomerStatus }) {
-  const config = getStatusConfig(status);
+  const { t } = useT('customers');
+
+  const getStatusLabel = (status: CustomerStatus) => {
+    switch (status) {
+      case 'active':
+        return t('filter.status.active');
+      case 'churned':
+        return t('filter.status.churned');
+      case 'potential':
+        return t('filter.status.potential');
+      default:
+        return status;
+    }
+  };
 
   return (
-    <Badge variant={config.variant} dot>
-      {config.label}
+    <Badge variant={getStatusVariant(status)} dot>
+      {getStatusLabel(status)}
     </Badge>
   );
 }

@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { DeleteModal } from '@/components/ui/modals';
 import { useT } from '@/lib/i18n';
 
 interface DeleteProductDialogProps {
@@ -25,41 +18,21 @@ export default function DeleteProductDialog({
   productName,
   isDeleting = false,
 }: DeleteProductDialogProps) {
-  const { t: tCommon } = useT('common');
+  const { t: tProducts } = useT('products');
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader className="relative space-y-2 py-2">
-          <DialogTitle className="font-semibold text-foreground leading-none">
-            Delete product
-          </DialogTitle>
-        </DialogHeader>
-
-        <p className="text-sm text-muted-foreground leading-5">
-          Are you sure you want to delete{' '}
-          <span className="font-medium">{productName || 'this product'}</span>?
-          All related relationships and data will be permanently removed.
-        </p>
-        <DialogFooter className="flex justify-end">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isDeleting}
-            className="px-4 py-2.5"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className="px-4 py-2.5 bg-red-600 hover:bg-red-700"
-          >
-            {isDeleting ? tCommon('actions.deleting') : tCommon('actions.delete')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <DeleteModal
+      open={isOpen}
+      onOpenChange={() => onClose()}
+      title={tProducts('delete.title')}
+      description={
+        <>
+          {tProducts('delete.confirmation', { name: productName || tProducts('delete.thisProduct') })}{' '}
+          {tProducts('delete.warning')}
+        </>
+      }
+      isDeleting={isDeleting}
+      onDelete={onConfirm}
+    />
   );
 }

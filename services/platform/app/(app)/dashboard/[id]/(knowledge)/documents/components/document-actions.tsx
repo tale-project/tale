@@ -4,9 +4,8 @@ import { useTransition, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { useDeleteDocument } from '../hooks';
 import DeleteConfirmationModal from './delete-confirmation-modal';
 import DeleteSyncFolderConfirmationModal from './delete-folder-confirmation-modal';
 import { Trash2 } from 'lucide-react';
@@ -41,7 +40,7 @@ export default function DocumentActions({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
 
-  const deleteDocumentMutation = useMutation(api.documents.deleteDocument);
+  const deleteDocumentMutation = useDeleteDocument();
 
   const handleConfirmDeleteAutoSyncFolder = () => {
     setIsDeleteFolderModalOpen(false);
@@ -101,7 +100,7 @@ export default function DocumentActions({
           size="icon"
           onClick={handleDeleteClick}
           disabled={isSyncPending || isDeletePending}
-          title={
+          aria-label={
             itemType === 'folder'
               ? tDocuments('actions.deleteSyncFolder')
               : tDocuments('actions.deleteDocument')

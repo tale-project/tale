@@ -1,16 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormModal, ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,39 +16,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
-
 import { Check, X, Copy } from 'lucide-react';
+import { useAddMember, useCreateMember } from '../hooks';
 import { ConvexHttpClient } from 'convex/browser';
+import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
 
-const addMemberSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z
-    .string()
-    .optional()
-    .refine(
-      (val) => {
-        // If password is provided, it must meet requirements
-        if (!val || val.length === 0) return true;
-        return (
-          val.length >= 8 &&
-          /[a-z]/.test(val) &&
-          /[A-Z]/.test(val) &&
-          /\d/.test(val)
-        );
-      },
-      {
-        message:
-          'Password must be at least 8 characters with uppercase, lowercase, and number',
-      },
-    ),
-  displayName: z.string().optional(),
-  role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
-});
-
-type AddMemberFormData = z.infer<typeof addMemberSchema>;
+// Type for the form data
+type AddMemberFormData = {
+  email: string;
+  password?: string;
+  displayName?: string;
+  role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
+};
 
 interface AddMemberDialogProps {
   organizationId: string;
@@ -72,6 +46,36 @@ export default function AddMemberDialog({
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
+
+  // Create Zod schema with translated validation messages
+  const addMemberSchema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(tCommon('validation.email')),
+        password: z
+          .string()
+          .optional()
+          .refine(
+            (val) => {
+              // If password is provided, it must meet requirements
+              if (!val || val.length === 0) return true;
+              return (
+                val.length >= 8 &&
+                /[a-z]/.test(val) &&
+                /[A-Z]/.test(val) &&
+                /\d/.test(val)
+              );
+            },
+            {
+              message: tAuth('validation.passwordRequirements'),
+            },
+          ),
+        displayName: z.string().optional(),
+        role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
+      }),
+    [tCommon, tAuth],
+  );
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCredentials, setShowCredentials] = useState(false);
   const [credentials, setCredentials] = useState<{
@@ -82,8 +86,8 @@ export default function AddMemberDialog({
   const [copiedPassword, setCopiedPassword] = useState(false);
   const { toast } = useToast();
 
-  const addMember = useMutation(api.member.addMember);
-  const createMember = useMutation(api.users.createMember);
+  const addMember = useAddMember();
+  const createMember = useCreateMember();
   const form = useForm<AddMemberFormData>({
     resolver: zodResolver(addMemberSchema),
     defaultValues: {
@@ -157,10 +161,7 @@ export default function AddMemberDialog({
         // User doesn't exist - create new account SERVER-SIDE
         // This won't affect the admin's session!
         if (!data.password || data.password.length === 0) {
-          throw new Error(
-            'Password is required to create a new user account. ' +
-              'If the user already has an account, they will be added without needing a password.',
-          );
+          throw new Error(tDialogs('addMember.passwordRequiredForNewUser'));
         }
 
         // Use server-side mutation that creates user WITHOUT creating a session
@@ -233,250 +234,233 @@ export default function AddMemberDialog({
   return (
     <>
       {/* Add Member Form Dialog */}
-      <Dialog open={open && !showCredentials} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tDialogs('addMember.title')}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Name Field */}
-            <div className="space-y-2">
-              <Label htmlFor="displayName" className="text-sm font-medium">
-                {tSettings('form.name')}
-              </Label>
-              <Input
-                id="displayName"
-                placeholder={tSettings('form.namePlaceholder')}
-                {...register('displayName')}
-                className="w-full"
-              />
-            </div>
+      <FormModal
+        open={open && !showCredentials}
+        onOpenChange={handleOpenChange}
+        title={tDialogs('addMember.title')}
+        submitText={tDialogs('addMember.title')}
+        submittingText={tCommon('actions.adding')}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSubmit(onSubmit)}
+      >
+        {/* Name Field */}
+        <div className="space-y-2">
+          <Label htmlFor="displayName" className="text-sm font-medium">
+            {tSettings('form.name')}
+          </Label>
+          <Input
+            id="displayName"
+            placeholder={tSettings('form.namePlaceholder')}
+            {...register('displayName')}
+            className="w-full"
+          />
+        </div>
 
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium">
-                {tSettings('form.email')}
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder={tSettings('form.emailPlaceholder')}
-                {...register('email')}
-                className="w-full"
-                required
-              />
-              {formState.errors.email && (
-                <p className="text-sm text-red-500">
-                  {formState.errors.email.message}
-                </p>
-              )}
-            </div>
+        {/* Email Field */}
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-medium">
+            {tSettings('form.email')}
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder={tSettings('form.emailPlaceholder')}
+            {...register('email')}
+            className="w-full"
+            required
+          />
+          {formState.errors.email && (
+            <p className="text-sm text-red-500">
+              {formState.errors.email.message}
+            </p>
+          )}
+        </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium">
-                {tSettings('form.password')}
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={tSettings('form.passwordPlaceholder')}
-                {...register('password')}
-                className="w-full"
-              />
-              {password && (
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    {passwordChecks.length ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                    ) : (
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    <span
-                      className={
-                        passwordChecks.length
-                          ? 'text-green-600'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {tAuth('changePassword.requirements.length')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {passwordChecks.lowercase ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                    ) : (
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    <span
-                      className={
-                        passwordChecks.lowercase
-                          ? 'text-green-600'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {tAuth('changePassword.requirements.lowercase')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {passwordChecks.uppercase ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                    ) : (
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    <span
-                      className={
-                        passwordChecks.uppercase
-                          ? 'text-green-600'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {tAuth('changePassword.requirements.uppercase')}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {passwordChecks.number ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                    ) : (
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    )}
-                    <span
-                      className={
-                        passwordChecks.number
-                          ? 'text-green-600'
-                          : 'text-muted-foreground'
-                      }
-                    >
-                      {tAuth('changePassword.requirements.number')}
-                    </span>
-                  </div>
-                </div>
-              )}
+        {/* Password Field */}
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-sm font-medium">
+            {tSettings('form.password')}
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder={tSettings('form.passwordPlaceholder')}
+            {...register('password')}
+            className="w-full"
+          />
+          {password && (
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center gap-1.5">
+                {passwordChecks.length ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <span
+                  className={
+                    passwordChecks.length
+                      ? 'text-green-600'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {tAuth('changePassword.requirements.length')}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {passwordChecks.lowercase ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <span
+                  className={
+                    passwordChecks.lowercase
+                      ? 'text-green-600'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {tAuth('changePassword.requirements.lowercase')}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {passwordChecks.uppercase ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <span
+                  className={
+                    passwordChecks.uppercase
+                      ? 'text-green-600'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {tAuth('changePassword.requirements.uppercase')}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {passwordChecks.number ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <span
+                  className={
+                    passwordChecks.number
+                      ? 'text-green-600'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {tAuth('changePassword.requirements.number')}
+                </span>
+              </div>
             </div>
+          )}
+        </div>
 
-            {/* Role Field */}
-            <div className="space-y-2">
-              <Label htmlFor="role" className="text-sm font-medium">
-                {tSettings('form.role')}
-              </Label>
-              <Select
-                value={selectedRole}
-                onValueChange={(value) =>
-                  setValue(
-                    'role',
-                    value as
-                      | 'disabled'
-                      | 'admin'
-                      | 'developer'
-                      | 'editor'
-                      | 'member',
-                  )
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
-                  <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
-                  <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
-                  <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
-                  <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <DialogFooter className="gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                {tCommon('actions.cancel')}
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="flex-1">
-                {isSubmitting ? 'Adding...' : tDialogs('addMember.title')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        {/* Role Field */}
+        <div className="space-y-2">
+          <Label htmlFor="role" className="text-sm font-medium">
+            {tSettings('form.role')}
+          </Label>
+          <Select
+            value={selectedRole}
+            onValueChange={(value) =>
+              setValue(
+                'role',
+                value as
+                  | 'disabled'
+                  | 'admin'
+                  | 'developer'
+                  | 'editor'
+                  | 'member',
+              )
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
+              <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
+              <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
+              <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
+              <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </FormModal>
 
       {/* Credentials Display Dialog */}
-      <Dialog open={showCredentials} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tDialogs('memberAdded.title')}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 border border-yellow-200">
-              {tDialogs('memberAdded.credentialsWarning')}
-            </div>
-
-            {credentials && (
-              <div className="space-y-4">
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">{tSettings('form.email')}</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={credentials.email}
-                      readOnly
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="p-1"
-                      onClick={() => handleCopy(credentials.email, 'email')}
-                    >
-                      {copiedEmail ? (
-                        <Check className="size-4 text-success p-0.5" />
-                      ) : (
-                        <Copy className="size-4 p-0.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Password */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">{tSettings('form.password')}</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={credentials.password}
-                      readOnly
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="p-1"
-                      onClick={() =>
-                        handleCopy(credentials.password, 'password')
-                      }
-                    >
-                      {copiedPassword ? (
-                        <Check className="size-4 text-success p-0.5" />
-                      ) : (
-                        <Copy className="size-4 p-0.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+      <ViewModal
+        open={showCredentials}
+        onOpenChange={handleClose}
+        title={tDialogs('memberAdded.title')}
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 border border-yellow-200">
+            {tDialogs('memberAdded.credentialsWarning')}
           </div>
 
-          <DialogFooter>
-            <Button onClick={handleClose} className="w-full">
-              {tCommon('actions.done')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          {credentials && (
+            <div className="space-y-4">
+              {/* Email */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">{tSettings('form.email')}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={credentials.email}
+                    readOnly
+                    className="flex-1 font-mono text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="p-1"
+                    onClick={() => handleCopy(credentials.email, 'email')}
+                  >
+                    {copiedEmail ? (
+                      <Check className="size-4 text-success p-0.5" />
+                    ) : (
+                      <Copy className="size-4 p-0.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">{tSettings('form.password')}</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={credentials.password}
+                    readOnly
+                    className="flex-1 font-mono text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="p-1"
+                    onClick={() =>
+                      handleCopy(credentials.password, 'password')
+                    }
+                  >
+                    {copiedPassword ? (
+                      <Check className="size-4 text-success p-0.5" />
+                    ) : (
+                      <Copy className="size-4 p-0.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Button onClick={handleClose} className="w-full">
+            {tCommon('actions.done')}
+          </Button>
+        </div>
+      </ViewModal>
     </>
   );
 }

@@ -3,9 +3,8 @@
 import { Textarea } from '@/components/ui/textarea';
 import { ComponentPropsWithoutRef, useRef, useState, useMemo, useCallback } from 'react';
 import { X, Paperclip } from 'lucide-react';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useGenerateUploadUrl } from '../hooks';
 import { Id } from '@/convex/_generated/dataModel';
 import DocumentIcon from '@/components/ui/document-icon';
 import { EnterKeyIcon } from '@/components/ui/icons';
@@ -50,7 +49,7 @@ export default function ChatInput({
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
-  const generateUploadUrl = useMutation(api.file.generateUploadUrl);
+  const generateUploadUrl = useGenerateUploadUrl();
 
   const handleSendMessage = () => {
     if ((!value.trim() && attachments.length === 0) || isLoading) return;
@@ -111,7 +110,7 @@ export default function ChatInput({
         });
 
         if (!result.ok) {
-          throw new Error('Upload failed');
+          throw new Error(tChat('uploadFailed'));
         }
 
         const { storageId } = await result.json();
@@ -280,7 +279,9 @@ export default function ChatInput({
                         />
                       ) : (
                         <div className="size-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                          <span className="text-xs text-blue-600">IMG</span>
+                          <span className="text-xs text-blue-600">
+                            {tChat('fileTypes.image')}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -307,12 +308,12 @@ export default function ChatInput({
                       </div>
                       <div className="text-xs text-muted-foreground/50">
                         {attachment.fileType === 'application/pdf'
-                          ? 'PDF'
+                          ? tChat('fileTypes.pdf')
                           : attachment.fileType.includes('word')
-                            ? 'DOC'
+                            ? tChat('fileTypes.doc')
                             : attachment.fileType === 'text/plain'
-                              ? 'TXT'
-                              : 'FILE'}
+                              ? tChat('fileTypes.txt')
+                              : tChat('fileTypes.file')}
                       </div>
                     </div>
                     {/* Remove button - appears on hover */}

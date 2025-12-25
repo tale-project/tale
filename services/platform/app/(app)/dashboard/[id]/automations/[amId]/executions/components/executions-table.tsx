@@ -1,26 +1,27 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect, memo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useQuery, usePreloadedQuery } from 'convex/react';
-import { Search, X, Copy, Check } from 'lucide-react';
+import { useState, useMemo, useCallback, memo } from 'react';
+import { useQuery } from 'convex/react';
+import { Copy, Check } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
+import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import ExecutionsFilterDropdown, {
-  ExecutionsFilterState,
-} from './executions-filter-dropdown';
 import { JsonViewer } from '@/components/ui/json-viewer';
 import { useT, useLocale } from '@/lib/i18n';
 import { formatDuration } from '@/lib/utils/format';
+import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { executionFilterDefinitions } from '../filter-definitions';
 
 interface ExecutionsTableProps {
-  preloadedExecutions: Preloaded<typeof api.wf_executions.listExecutions>;
+  preloadedExecutions: Preloaded<
+    typeof api.wf_executions.listExecutionsPaginated
+  >;
   amId: Id<'wfDefinitions'>;
 }
 
@@ -44,9 +45,9 @@ export interface Execution {
   waitingFor?: string;
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;
-  variables?: string; // JSON string from Convex; parsed on the client
+  variables?: string;
   error?: string;
-  metadata?: string; // JSON string that needs parsing
+  metadata?: string;
   componentWorkflowId?: string;
 }
 
@@ -143,7 +144,14 @@ const ExecutionDetails = memo(function ExecutionDetails({
       ...(metadata && { metadata }),
       ...(steps && { steps }),
     }),
-    [execution.error, execution.input, execution.output, variables, metadata, steps],
+    [
+      execution.error,
+      execution.input,
+      execution.output,
+      variables,
+      metadata,
+      steps,
+    ],
   );
 
   return (
@@ -160,138 +168,61 @@ export function ExecutionsTable({
   preloadedExecutions,
   amId,
 }: ExecutionsTableProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const locale = useLocale();
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 
-  // Read from searchParams hook
-  const searchQuery = searchParams.get('search') || '';
-  const statusFilter = searchParams.get('status') || 'All';
-  const triggeredByFilter = searchParams.get('triggeredBy') || 'All';
-  const dateFrom = searchParams.get('dateFrom');
-  const dateTo = searchParams.get('dateTo');
-
-  // Use preloaded data with real-time reactivity
-  const preloadedData = usePreloadedQuery(preloadedExecutions) as Execution[];
-
-  // Fetch executions reactively when filters change from initial state
-  const liveExecutions = useQuery(api.wf_executions.listExecutions, {
-    wfDefinitionId: amId,
-    limit: 100,
-    search: searchQuery || undefined,
-    status: statusFilter === 'All' ? undefined : statusFilter,
-    triggeredBy: triggeredByFilter === 'All' ? undefined : triggeredByFilter,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
-  }) as Execution[] | undefined;
-
-  // Use live data if available, otherwise fall back to preloaded data
-  const executions = liveExecutions ?? preloadedData;
-
-  // Local state for filters (before applying)
-  const [localFilters, setLocalFilters] = useState<ExecutionsFilterState>({
-    status: statusFilter,
-    triggeredBy: triggeredByFilter,
-    dateFrom,
-    dateTo,
+  // Use unified URL filters hook with sorting
+  const {
+    filters: filterValues,
+    sorting,
+    setSorting,
+    pagination,
+    setFilter,
+    setPage,
+    setPageSize,
+    clearAll,
+    hasActiveFilters,
+    isPending,
+  } = useUrlFilters({
+    filters: executionFilterDefinitions,
+    pagination: { defaultPageSize: 10 },
+    sorting: { defaultSort: 'startedAt', defaultDesc: true },
   });
 
-  // Local search state for debouncing
-  const [searchInput, setSearchInput] = useState(searchQuery);
+  // Use paginated query with SSR + real-time updates
+  const { data, isLoading } = useOffsetPaginatedQuery({
+    query: api.wf_executions.listExecutionsPaginated,
+    preloadedData: preloadedExecutions,
+    organizationId: amId, // Using amId as the key since executions are scoped by definition
+    filters: {
+      filters: filterValues,
+      sorting,
+      pagination,
+      setFilter,
+      setSorting,
+      setPage,
+      setPageSize,
+      clearAll,
+      hasActiveFilters,
+      isPending,
+      definitions: executionFilterDefinitions,
+    },
+    transformFilters: (f) => ({
+      wfDefinitionId: amId,
+      searchTerm: f.query || undefined,
+      status: f.status.length > 0 ? f.status : undefined,
+      triggeredBy: f.triggeredBy.length > 0 ? f.triggeredBy : undefined,
+      dateFrom: f.dateRange?.from || undefined,
+      dateTo: f.dateRange?.to || undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+    }),
+  });
 
-  // Get unique triggeredBy values for filter options
-  const triggeredByOptions = useMemo<string[]>(() => {
-    const unique = new Set<string>(
-      executions
-        .map((e: Execution) => e.triggeredBy || 'unknown')
-        .filter(Boolean),
-    );
-    return Array.from(unique).sort();
-  }, [executions]);
-
-  // Keep all URL params in sync with local state (for browser back/forward)
-  useEffect(() => {
-    setLocalFilters({
-      status: statusFilter,
-      triggeredBy: triggeredByFilter,
-      dateFrom,
-      dateTo,
-    });
-    setSearchInput(searchQuery);
-  }, [statusFilter, triggeredByFilter, dateFrom, dateTo, searchQuery]);
-
-  // Debounce search input (separate effect due to cleanup requirement)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      updateSearchParam('search', searchInput || null);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  // Update URL search params
-  const updateSearchParam = (key: string, value: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
-    }
-    router.push(`?${params.toString()}`, { scroll: false });
-  };
-
-  const updateMultipleParams = (updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
-    });
-    router.push(`?${params.toString()}`, { scroll: false });
-  };
-
-  // Count active filters
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (statusFilter !== 'All') count++;
-    if (triggeredByFilter !== 'All') count++;
-    if (dateFrom || dateTo) count++;
-    return count;
-  }, [statusFilter, triggeredByFilter, dateFrom, dateTo]);
-
-  const handleFiltersChange = (newFilters: ExecutionsFilterState) => {
-    setLocalFilters(newFilters);
-    updateMultipleParams({
-      status: newFilters.status === 'All' ? null : newFilters.status,
-      triggeredBy:
-        newFilters.triggeredBy === 'All' ? null : newFilters.triggeredBy,
-      dateFrom: newFilters.dateFrom,
-      dateTo: newFilters.dateTo,
-    });
-  };
-
-  const clearFilters = () => {
-    setSearchInput('');
-    setLocalFilters({
-      status: 'All',
-      triggeredBy: 'All',
-      dateFrom: null,
-      dateTo: null,
-    });
-    updateMultipleParams({
-      search: null,
-      status: null,
-      triggeredBy: null,
-      dateFrom: null,
-      dateTo: null,
-    });
-  };
+  const executions = (data?.items ?? []) as Execution[];
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -343,7 +274,7 @@ export function ExecutionsTable({
     () => [
       {
         accessorKey: '_id',
-        header: 'Execution ID',
+        header: tTables('headers.executionId'),
         size: 160,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
@@ -379,7 +310,7 @@ export function ExecutionsTable({
       },
       {
         accessorKey: 'startedAt',
-        header: 'Started at',
+        header: tTables('headers.startedAt'),
         size: 192,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -389,7 +320,7 @@ export function ExecutionsTable({
       },
       {
         id: 'duration',
-        header: 'Duration',
+        header: tTables('headers.duration'),
         size: 128,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -399,7 +330,7 @@ export function ExecutionsTable({
       },
       {
         accessorKey: 'triggeredBy',
-        header: 'Triggered by',
+        header: tTables('headers.triggeredBy'),
         size: 128,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
@@ -418,10 +349,40 @@ export function ExecutionsTable({
     ],
   );
 
+  // Build filter configs for DataTableFilters component
+  const filterConfigs = useMemo(
+    () => [
+      {
+        key: 'status',
+        title: tTables('headers.status'),
+        options: [
+          { value: 'running', label: tCommon('status.running') },
+          { value: 'completed', label: tCommon('status.completed') },
+          { value: 'failed', label: tCommon('status.failed') },
+          { value: 'pending', label: tCommon('status.pending') },
+        ],
+        selectedValues: filterValues.status,
+        onChange: (values: string[]) => setFilter('status', values),
+      },
+    ],
+    [filterValues, setFilter, tTables, tCommon],
+  );
+
   // Render expanded row content
   const renderExpandedRow = useCallback(
     (row: Row<Execution>) => <ExecutionDetails execution={row.original} />,
     [],
+  );
+
+  // Handle date range change
+  const handleDateRangeChange = useCallback(
+    (range: { from?: Date; to?: Date } | undefined) => {
+      setFilter('dateRange', {
+        from: range?.from?.toISOString().split('T')[0],
+        to: range?.to?.toISOString().split('T')[0],
+      });
+    },
+    [setFilter],
   );
 
   return (
@@ -431,34 +392,32 @@ export function ExecutionsTable({
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
+      isLoading={isLoading}
+      stickyLayout
+      enableSorting
+      initialSorting={sorting}
+      onSortingChange={setSorting}
       header={
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative w-[18.75rem]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-              <Input
-                placeholder={tCommon('search.placeholder')}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <ExecutionsFilterDropdown
-              filters={localFilters}
-              onFiltersChange={handleFiltersChange}
-              triggeredByOptions={triggeredByOptions}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {(searchInput || activeFiltersCount > 0) && (
-              <Button variant="ghost" onClick={clearFilters} className="gap-2">
-                <X className="size-4" />
-                {tCommon('actions.clearAll')}
-              </Button>
-            )}
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <DataTableFilters
+            search={{
+              value: filterValues.query,
+              onChange: (value) => setFilter('query', value),
+              placeholder: tCommon('search.placeholder'),
+            }}
+            filters={filterConfigs}
+            isLoading={isPending}
+            onClearAll={clearAll}
+            dateRange={{
+              from: filterValues.dateRange?.from
+                ? new Date(filterValues.dateRange.from)
+                : undefined,
+              to: filterValues.dateRange?.to
+                ? new Date(filterValues.dateRange.to)
+                : undefined,
+              onChange: handleDateRangeChange,
+            }}
+          />
         </div>
       }
       emptyState={{
@@ -466,6 +425,17 @@ export function ExecutionsTable({
         description: tCommon('search.tryAdjusting'),
         isFiltered: true,
       }}
+      pagination={{
+        total: data?.total ?? 0,
+        pageSize: pagination.pageSize,
+        totalPages: data?.totalPages ?? 1,
+        hasNextPage: data?.hasNextPage ?? false,
+        hasPreviousPage: data?.hasPreviousPage ?? false,
+        onPageChange: setPage,
+        onPageSizeChange: setPageSize,
+        clientSide: false,
+      }}
+      currentPage={pagination.page}
     />
   );
 }

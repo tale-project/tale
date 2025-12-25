@@ -86,15 +86,19 @@ export function DataTableSkeleton({
                 <TableCell
                   key={colIndex}
                   style={col.size ? { width: col.size } : undefined}
+                  className="h-[52px]"
                 >
                   {col.isAction ? (
                     <div className="flex justify-end">
                       <Skeleton className="h-8 w-8 rounded-md" />
                     </div>
                   ) : colIndex === 0 ? (
-                    <div className="flex flex-col gap-1">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-3 w-2/3 max-w-24" />
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="size-8 rounded-md shrink-0" />
+                      <div className="flex flex-col gap-1 flex-1">
+                        <Skeleton className="h-4 w-full max-w-48" />
+                        <Skeleton className="h-3 w-2/3 max-w-24" />
+                      </div>
                     </div>
                   ) : (
                     <Skeleton className="h-4 w-full" />

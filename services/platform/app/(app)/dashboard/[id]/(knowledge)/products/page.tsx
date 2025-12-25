@@ -11,10 +11,12 @@ import {
 import { Package } from 'lucide-react';
 import ImportProductsMenu from './import-products-menu';
 import { getT } from '@/lib/i18n/server';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { productFilterDefinitions } from './filter-definitions';
 
 interface ProductsPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string; query?: string; size?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** Skeleton for the products table with header and rows - matches product-table.tsx column sizes */
@@ -50,7 +52,7 @@ async function ProductsEmptyState({ organizationId }: { organizationId: string }
 
 interface ProductsContentProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string; query?: string; size?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 async function ProductsContent({ params, searchParams }: ProductsContentProps) {
@@ -61,20 +63,29 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
   }
 
   const { id: organizationId } = await params;
-  const { page, query, size } = await searchParams;
+  const rawSearchParams = await searchParams;
 
-  const currentPage = page ? Number.parseInt(page, 10) : 1;
-  const pageSize = size ? Number.parseInt(size, 10) : 10;
-  const searchQuery = query?.trim();
+  // Parse filters, pagination, and sorting using unified system
+  const { filters, pagination, sorting } = parseSearchParams(
+    rawSearchParams,
+    productFilterDefinitions,
+    { defaultSort: 'lastUpdated', defaultDesc: true },
+  );
 
   // Preload products for SSR + real-time reactivity on client
   const preloadedProducts = await preloadQuery(
     api.products.getProducts,
     {
       organizationId,
-      currentPage,
-      searchQuery,
-      pageSize,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchQuery: filters.query || undefined,
+      // Backend currently only supports single status filter
+      status: filters.status.length === 1
+        ? (filters.status[0] as 'active' | 'inactive' | 'draft' | 'archived')
+        : undefined,
+      sortBy: sorting[0]?.id as 'name' | 'createdAt' | 'lastUpdated' | 'stock' | 'price' | undefined,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
     },
     { token },
   );
@@ -82,9 +93,6 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
   return (
     <ProductTable
       organizationId={organizationId}
-      currentPage={currentPage}
-      searchQuery={searchQuery}
-      pageSize={pageSize}
       preloadedProducts={preloadedProducts}
     />
   );
@@ -100,11 +108,15 @@ export default async function ProductsPage({
   }
 
   const { id: organizationId } = await params;
-  const { query } = await searchParams;
+  const rawSearchParams = await searchParams;
+
+  // Parse filters to check for active filters
+  const { filters } = parseSearchParams(rawSearchParams, productFilterDefinitions);
+  const hasFilters = hasActiveFilters(filters, productFilterDefinitions);
 
   // Two-phase loading: check if products exist before showing skeleton
-  // If no products and no search query, show empty state directly
-  if (!query?.trim()) {
+  // If no products and no active filters, show empty state directly
+  if (!hasFilters) {
     const hasProducts = await fetchQuery(
       api.products.hasProducts,
       { organizationId },

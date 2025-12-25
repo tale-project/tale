@@ -16,9 +16,14 @@ import ActivateConversationsEmptyState from './activate-conversations-empty-stat
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/hooks/use-toast';
 import { useParams } from 'next/navigation';
-import { useMutation, usePreloadedQuery, type Preloaded } from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import {
+  useBulkCloseConversations,
+  useBulkReopenConversations,
+  useAddMessage,
+} from '../hooks';
 import type { Conversation } from '../types';
 import { useT } from '@/lib/i18n';
 
@@ -68,9 +73,9 @@ export default function Conversations({
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Convex mutations
-  const bulkResolve = useMutation(api.conversations.bulkCloseConversations);
-  const bulkReopen = useMutation(api.conversations.bulkReopenConversations);
-  const addMessage = useMutation(api.conversations.addMessageToConversation);
+  const bulkResolve = useBulkCloseConversations();
+  const bulkReopen = useBulkReopenConversations();
+  const addMessage = useAddMessage();
 
   // Use URL-based filtering with optimistic updates
   const {
@@ -358,8 +363,12 @@ export default function Conversations({
   return (
     <>
       <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
-        {/* Left Panel - Conversation List */}
-        <div className="flex flex-col flex-[0_0_24.75rem] max-w-[24.75rem] border-r border-border overflow-y-auto relative">
+        {/* Left Panel - Conversation List - hidden on mobile when conversation is selected */}
+        <div className={cn(
+          "flex flex-col border-r border-border overflow-y-auto relative",
+          "w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]",
+          selectedConversationId ? "hidden md:flex" : "flex"
+        )}>
           {/* Fixed Search and Filter Section / Action Buttons */}
           <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
             {/* Select All Checkbox */}
@@ -368,7 +377,7 @@ export default function Conversations({
                 id="select-all"
                 checked={selectAllChecked}
                 onCheckedChange={handleSelectAll}
-                aria-label="Select all conversations"
+                aria-label={tCommon('aria.selectAll')}
               />
             </div>
 
@@ -468,11 +477,16 @@ export default function Conversations({
           )}
         </div>
 
-        {/* Right Panel - Conversation Details */}
-        <ConversationPanel
-          selectedConversationId={selectedConversationId}
-          onSelectedConversationChange={setSelectedConversationId}
-        />
+        {/* Right Panel - Conversation Details - full width on mobile when conversation is selected */}
+        <div className={cn(
+          "flex-1 min-w-0",
+          selectedConversationId ? "flex" : "hidden md:flex"
+        )}>
+          <ConversationPanel
+            selectedConversationId={selectedConversationId}
+            onSelectedConversationChange={setSelectedConversationId}
+          />
+        </div>
       </div>
 
       <BulkSendMessagesDialog

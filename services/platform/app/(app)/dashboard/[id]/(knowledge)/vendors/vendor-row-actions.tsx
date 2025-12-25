@@ -10,17 +10,19 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Dialog } from '@/components/ui/dialog';
 import { VendorInfoDialog } from '@/components/email-table/vendor-info-dialog';
 import EditVendorButton from './edit-vendor-button';
 import DeleteVendorButton from './delete-vendor-button';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface VendorRowActionsProps {
   vendor: Doc<'vendors'>;
 }
 
 export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
+  const { t } = useT('vendors');
+  const { t: tCommon } = useT('common');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -35,7 +37,7 @@ export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon">
             <MoreVertical className="size-4" />
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">{tCommon('actions.openMenu')}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[10rem]">
@@ -46,7 +48,7 @@ export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
             }}
           >
             <Eye className="mr-2 size-4" />
-            View Details
+            {t('viewDetails')}
           </DropdownMenuItem>
           {canEdit && (
             <>
@@ -58,7 +60,7 @@ export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
                 }}
               >
                 <Pencil className="mr-2 size-4" />
-                Edit
+                {tCommon('actions.edit')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
@@ -68,7 +70,7 @@ export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="mr-2 size-4" />
-                Delete
+                {tCommon('actions.delete')}
               </DropdownMenuItem>
             </>
           )}
@@ -76,9 +78,11 @@ export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
       </DropdownMenu>
 
       {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <VendorInfoDialog vendor={vendor} />
-      </Dialog>
+      <VendorInfoDialog
+        vendor={vendor}
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+      />
 
       {/* Edit Dialog */}
       <EditVendorButton

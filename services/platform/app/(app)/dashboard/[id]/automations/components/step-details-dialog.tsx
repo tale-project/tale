@@ -1,13 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormModal } from '@/components/ui/modals';
 import DeleteStepDialog from './delete-step-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -327,94 +321,105 @@ export default function StepDetailsDialog({
 
   if (!step) return null;
 
+  const customHeader = (
+    <div className="flex items-center gap-3">
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className={`p-2 rounded-lg ${getStepTypeColor(step.stepType)}`}
+            >
+              {getIcon(step.stepType)}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('stepDetails.stepTypeTooltip', { type: step.stepType })}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <div className="flex-1">
+        <span className="text-lg font-semibold">{step.name}</span>
+      </div>
+    </div>
+  );
+
+  const customFooter = (
+    <div className="flex gap-2 w-full">
+      {step.stepType !== 'trigger' && (
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={isLoading}
+          className="mr-auto"
+        >
+          <Trash2 className="size-4 mr-1" />
+          {tCommon('actions.delete')}
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleClose}
+        disabled={isLoading}
+        className="flex-1"
+      >
+        {tCommon('actions.cancel')}
+      </Button>
+      <Button
+        type="submit"
+        disabled={!editedName.trim() || isLoading}
+        className="flex-1"
+      >
+        {isLoading ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+      </Button>
+    </div>
+  );
+
   return (
     <>
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-lg !p-0">
-          <form onSubmit={handleSubmit}>
-            <DialogHeader className="sticky top-0 bg-background shadow-sm px-6 py-4 rounded-t-2xl">
-              <div className="flex items-center gap-3">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={`p-2 rounded-lg ${getStepTypeColor(step.stepType)}`}
-                      >
-                        {getIcon(step.stepType)}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{t('stepDetails.stepTypeTooltip', { type: step.stepType })}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <div className="flex-1">
-                  <DialogTitle className="text-lg">{step.name}</DialogTitle>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <div className="grid gap-4 max-h-[70vh] overflow-y-auto py-4 px-6">
-              <div className="space-y-2">
-                <Label htmlFor="step-name">
-                  {tCommon('labels.name')} <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="step-name"
-                  value={editedName}
-                  onChange={(e) => {
-                    setEditedName(e.target.value);
-                    if (nameError) validateStepName(e.target.value);
-                  }}
-                  onBlur={(e) => validateStepName(e.target.value)}
-                  placeholder="analyze_data"
-                  disabled={isLoading}
-                  className={nameError ? 'border-red-500' : ''}
-                />
-                {nameError && (
-                  <p className="text-xs text-red-500">{nameError}</p>
-                )}
-              </div>
-              <JsonInput
-                id="step-config"
-                label={t('stepDetails.configLabel')}
-                value={config}
-                schema={configSchema}
-                onChange={setConfig}
-                placeholder=""
-                rows={4}
-                disabled={isLoading}
-              />
-            </div>
-
-            <DialogFooter className="gap-2 px-6 py-4">
-              {step.stepType !== 'trigger' && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isLoading}
-                  className="mr-auto"
-                >
-                  <Trash2 className="size-4 mr-1" />
-                  {tCommon('actions.delete')}
-                </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                disabled={isLoading}
-              >
-                {tCommon('actions.cancel')}
-              </Button>
-              <Button type="submit" disabled={!editedName.trim() || isLoading}>
-                {isLoading ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <FormModal
+        open={open}
+        onOpenChange={handleClose}
+        title={step.name}
+        isSubmitting={isLoading}
+        submitDisabled={!editedName.trim()}
+        onSubmit={handleSubmit}
+        customHeader={customHeader}
+        customFooter={customFooter}
+        large
+      >
+        <div className="space-y-2">
+          <Label htmlFor="step-name">
+            {tCommon('labels.name')} <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="step-name"
+            value={editedName}
+            onChange={(e) => {
+              setEditedName(e.target.value);
+              if (nameError) validateStepName(e.target.value);
+            }}
+            onBlur={(e) => validateStepName(e.target.value)}
+            placeholder="analyze_data"
+            disabled={isLoading}
+            className={nameError ? 'border-red-500' : ''}
+          />
+          {nameError && (
+            <p className="text-xs text-red-500">{nameError}</p>
+          )}
+        </div>
+        <JsonInput
+          id="step-config"
+          label={t('stepDetails.configLabel')}
+          value={config}
+          schema={configSchema}
+          onChange={setConfig}
+          placeholder=""
+          rows={4}
+          disabled={isLoading}
+        />
+      </FormModal>
 
       <DeleteStepDialog
         open={showDeleteConfirm}

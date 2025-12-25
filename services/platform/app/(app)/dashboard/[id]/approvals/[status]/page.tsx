@@ -65,16 +65,17 @@ async function ApprovalsPageContent({
 }
 
 /** Skeleton for the approvals table - matches approvals.tsx column sizes */
-function ApprovalsSkeleton() {
+async function ApprovalsSkeleton() {
+  const { t } = await getT('approvals');
   return (
     <DataTableSkeleton
       rows={8}
       columns={[
-        { header: 'Approval / Recipient' },
-        { header: 'Event', size: 256 },
-        { header: 'Action', size: 256 },
-        { header: 'Confidence', size: 100 },
-        { header: 'Approved', size: 100 },
+        { header: t('columns.approvalRecipient') },
+        { header: t('columns.event'), size: 256 },
+        { header: t('columns.action'), size: 256 },
+        { header: t('columns.confidence'), size: 100 },
+        { header: t('columns.approved'), size: 100 },
       ]}
       showHeader
     />

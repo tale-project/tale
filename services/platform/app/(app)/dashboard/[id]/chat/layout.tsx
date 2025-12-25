@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import ChatHeader from './components/chat-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import type { Id } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface ChatLayoutProps {
   children: React.ReactNode;
@@ -52,6 +53,7 @@ export function useChatLayout() {
 
 export default function ChatLayout({ children }: ChatLayoutProps) {
   const { id: organizationId } = useParams();
+  const { t } = useT('common');
   const [optimisticMessage, setOptimisticMessage] =
     useState<OptimisticMessage | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
 
   // Validate organizationId is a string
   if (!organizationId || Array.isArray(organizationId)) {
-    throw new Error('Invalid organization ID');
+    throw new Error(t('errors.invalidOrganizationId'));
   }
 
   return (

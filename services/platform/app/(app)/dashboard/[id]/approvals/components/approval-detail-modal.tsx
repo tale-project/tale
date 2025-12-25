@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils/cn';
 import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useLocale } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 
 const CustomerInfoDialog = dynamic(
   () =>
@@ -55,6 +55,7 @@ export default function ApprovalDetailModal({
   onRemoveRecommendation,
   removingProductId,
 }: ApprovalDetailModalProps) {
+  const { t } = useT('approvals');
   const locale = useLocale();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
@@ -98,10 +99,10 @@ export default function ApprovalDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[376px] max-h-[90vh] overflow-hidden p-0 gap-0">
+      <DialogContent className="w-full max-w-[376px] max-h-[90vh] overflow-hidden p-0 gap-0">
         <DialogHeader className="px-4 py-6 border-b border-border">
           <DialogTitle className="font-semibold text-foreground">
-            Approval details
+            {t('detail.title')}
           </DialogTitle>
         </DialogHeader>
 
@@ -128,7 +129,7 @@ export default function ApprovalDetailModal({
               {/* Status */}
               <div className="flex items-center">
                 <div className="w-[90px] text-xs text-muted-foreground">
-                  Status
+                  {t('detail.status')}
                 </div>
                 <Badge
                   dot
@@ -139,27 +140,27 @@ export default function ApprovalDetailModal({
                     'outline'
                   }
                 >
-                  {(approvalDetail.status === 'pending' && 'Pending') ||
-                    (approvalDetail.status === 'approved' && 'Approved') ||
-                    (approvalDetail.status === 'rejected' && 'Rejected') ||
-                    'Pending'}
+                  {(approvalDetail.status === 'pending' && t('detail.statusPending')) ||
+                    (approvalDetail.status === 'approved' && t('detail.statusApproved')) ||
+                    (approvalDetail.status === 'rejected' && t('detail.statusRejected')) ||
+                    t('detail.statusPending')}
                 </Badge>
               </div>
 
               {/* Type */}
               <div className="flex items-center">
                 <div className="w-[90px] text-xs text-muted-foreground">
-                  Type
+                  {t('detail.type')}
                 </div>
                 <Badge variant="outline" icon={RecommendationIcon}>
-                  Product recommendation
+                  {t('detail.typeProductRecommendation')}
                 </Badge>
               </div>
 
               {/* Created at */}
               <div className="flex items-center">
                 <div className="w-[90px] text-xs text-muted-foreground">
-                  Created at
+                  {t('detail.createdAt')}
                 </div>
                 <div className="text-sm font-medium text-muted-foreground">
                   {formatDate(approvalDetail.createdAt)}
@@ -170,7 +171,7 @@ export default function ApprovalDetailModal({
               {approvalDetail.confidence !== undefined && (
                 <div className="flex items-center">
                   <div className="w-[90px] text-xs text-muted-foreground">
-                    Confidence
+                    {t('detail.confidence')}
                   </div>
                   <Badge variant="outline">{approvalDetail.confidence}%</Badge>
                 </div>
@@ -182,7 +183,7 @@ export default function ApprovalDetailModal({
           {visibleProducts.length > 0 && (
             <div className="space-y-4">
               <h4 className="text-lg font-semibold text-foreground">
-                Recommended products
+                {t('detail.recommendedProducts')}
               </h4>
               <div className="border border-border rounded-[10px] overflow-hidden">
                 {visibleProducts.map((product) => (
@@ -203,7 +204,7 @@ export default function ApprovalDetailModal({
           {approvalDetail.previousPurchases.length > 0 && (
             <div className="space-y-4">
               <h4 className="text-lg font-semibold text-foreground">
-                User purchased
+                {t('detail.userPurchased')}
               </h4>
               <div className="border border-border rounded-[10px] overflow-hidden">
                 {approvalDetail.previousPurchases.map((purchase) => (
@@ -227,24 +228,26 @@ export default function ApprovalDetailModal({
               variant="outline"
               className="flex-1"
             >
-              Reject
+              {t('detail.reject')}
             </Button>
             <Button
               onClick={() => onApprove?.(approvalDetail._id)}
               disabled={isApproving || isRejecting}
               className="flex-1"
             >
-              Approve
+              {t('detail.approve')}
             </Button>
           </DialogFooter>
         )}
       </DialogContent>
 
       {/* Nested dialog for Customer Information */}
-      {customerInfoOpen && customerRecord && (
-        <Dialog open={customerInfoOpen} onOpenChange={setCustomerInfoOpen}>
-          <CustomerInfoDialog customer={customerRecord} />
-        </Dialog>
+      {customerRecord && (
+        <CustomerInfoDialog
+          customer={customerRecord}
+          open={customerInfoOpen}
+          onOpenChange={setCustomerInfoOpen}
+        />
       )}
     </Dialog>
   );

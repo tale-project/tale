@@ -1,67 +1,88 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useState, useMemo } from 'react';
+import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GmailIcon } from '@/components/ui/icons';
-import { DialogProps } from '@radix-ui/react-dialog';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAction } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import {
+  useCreateEmailProvider,
+  useCreateOAuth2Provider,
+  useTestEmailConnection,
+  useGenerateOAuthUrl,
+} from '../hooks';
 
-const passwordSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Valid email is required'),
-  password: z.string().min(1, 'App password is required'),
-  isDefault: z.boolean(),
-});
+// Type for the form data
+type PasswordFormData = {
+  name: string;
+  email: string;
+  password: string;
+  isDefault: boolean;
+};
 
-const oauth2Schema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  isDefault: z.boolean(),
-  useApiSending: z.boolean(),
-});
-
-type PasswordFormData = z.infer<typeof passwordSchema>;
-type OAuth2FormData = z.infer<typeof oauth2Schema>;
+type OAuth2FormData = {
+  name: string;
+  isDefault: boolean;
+  useApiSending: boolean;
+};
 
 type AuthMethod = 'oauth2' | 'password';
 
-interface GmailCreateProviderDialogProps extends DialogProps {
+interface GmailCreateProviderDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess: () => void;
 }
 
 export default function GmailCreateProviderDialog({
+  open,
+  onOpenChange,
   organizationId,
   onSuccess,
-  ...props
 }: GmailCreateProviderDialogProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+
+  // Create Zod schemas with translated validation messages
+  const passwordSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        email: z.string().email(tCommon('validation.email')),
+        password: z.string().min(1, tCommon('validation.required', { field: t('integrations.appPassword') })),
+        isDefault: z.boolean(),
+      }),
+    [t, tCommon],
+  );
+
+  const oauth2Schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        isDefault: z.boolean(),
+        useApiSending: z.boolean(),
+      }),
+    [t, tCommon],
+  );
+
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convex actions
-  const createProvider = useAction(api.email_providers.create);
-  const createOAuth2Provider = useAction(
-    api.email_providers.createOAuth2Provider,
-  );
-  const testConnection = useAction(api.email_providers.testConnection);
-  const generateAuthUrl = useAction(api.email_providers.generateOAuth2AuthUrl);
+  // Convex actions (hooks)
+  const createProvider = useCreateEmailProvider();
+  const createOAuth2Provider = useCreateOAuth2Provider();
+  const testConnection = useTestEmailConnection();
+  const generateAuthUrl = useGenerateOAuthUrl();
 
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -238,188 +259,187 @@ export default function GmailCreateProviderDialog({
     }
   };
 
+  const customHeader = (
+    <div className="flex items-center gap-3">
+      <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
+        <GmailIcon className="size-5" />
+      </div>
+      <span className="font-semibold">{t('integrations.addProvider', { provider: 'Gmail' })}</span>
+    </div>
+  );
+
   return (
-    <Dialog {...props}>
-      <DialogContent className="p-0">
-        {/* Header */}
-        <div className="border-b border-border flex items-start justify-between px-4 py-6">
-          <DialogHeader className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
-                <GmailIcon className="size-5" />
-              </div>
-              <DialogTitle>{t('integrations.addProvider', { provider: 'Gmail' })}</DialogTitle>
-            </div>
-          </DialogHeader>
-        </div>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('integrations.addProvider', { provider: 'Gmail' })}
+      customHeader={customHeader}
+      customFooter={<></>}
+      isSubmitting={isLoading}
+    >
+      <Tabs
+        value={authMethod}
+        onValueChange={(value) => setAuthMethod(value as AuthMethod)}
+      >
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="oauth2" className="gap-2">
+            <Shield className="size-4" />
+            {t('integrations.oauth2Tab')}
+          </TabsTrigger>
+          <TabsTrigger value="password" className="gap-2">
+            <Key className="size-4" />
+            {t('integrations.appPasswordTab')}
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Content */}
-        <div className="p-4 pt-2">
-          <Tabs
-            value={authMethod}
-            onValueChange={(value) => setAuthMethod(value as AuthMethod)}
+        {/* OAuth2 Form */}
+        <TabsContent value="oauth2" className="mt-0">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-xs text-blue-700 mb-2">
+              {t('integrations.oauth2GoogleInfo')}
+            </p>
+            <a
+              href="https://support.google.com/cloud/answer/6158849"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              {t('integrations.googleOAuth2Guide')}
+            </a>
+          </div>
+
+          <form
+            onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
+            className="space-y-4"
           >
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="oauth2" className="gap-2">
-                <Shield className="size-4" />
-                {t('integrations.oauth2Tab')}
-              </TabsTrigger>
-              <TabsTrigger value="password" className="gap-2">
-                <Key className="size-4" />
-                {t('integrations.appPasswordTab')}
-              </TabsTrigger>
-            </TabsList>
-
-            {/* OAuth2 Form */}
-            <TabsContent value="oauth2" className="mt-0">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <p className="text-xs text-blue-700 mb-2">
-                  {t('integrations.oauth2GoogleInfo')}
+            <div className="space-y-1">
+              <Label htmlFor="oauth2-name">{t('integrations.providerName')}</Label>
+              <Input
+                id="oauth2-name"
+                {...oauth2Form.register('name')}
+                placeholder={t('integrations.gmail.namePlaceholder')}
+              />
+              {oauth2Form.formState.errors.name && (
+                <p className="text-sm text-red-600 mt-1">
+                  {oauth2Form.formState.errors.name.message}
                 </p>
-                <a
-                  href="https://support.google.com/cloud/answer/6158849"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {t('integrations.googleOAuth2Guide')}
-                </a>
-              </div>
+              )}
+            </div>
 
-              <form
-                onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
-                className="space-y-4"
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="oauth2-default"
+                checked={oauth2Form.watch('isDefault')}
+                onCheckedChange={(checked) =>
+                  oauth2Form.setValue('isDefault', !!checked)
+                }
+              />
+              <Label
+                htmlFor="oauth2-default"
+                className="text-sm font-normal cursor-pointer"
               >
-                <div className="space-y-1">
-                  <Label htmlFor="oauth2-name">{t('integrations.providerName')}</Label>
-                  <Input
-                    id="oauth2-name"
-                    {...oauth2Form.register('name')}
-                    placeholder={t('integrations.gmail.namePlaceholder')}
-                  />
-                  {oauth2Form.formState.errors.name && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {oauth2Form.formState.errors.name.message}
-                    </p>
-                  )}
-                </div>
+                {t('integrations.setAsDefaultProvider')}
+              </Label>
+            </div>
 
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="oauth2-default"
-                    checked={oauth2Form.watch('isDefault')}
-                    onCheckedChange={(checked) =>
-                      oauth2Form.setValue('isDefault', !!checked)
-                    }
-                  />
-                  <Label
-                    htmlFor="oauth2-default"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {t('integrations.setAsDefaultProvider')}
-                  </Label>
-                </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading
+                ? t('integrations.redirectingToGoogle')
+                : t('integrations.continueWithGoogle')}
+            </Button>
+          </form>
+        </TabsContent>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading
-                    ? t('integrations.redirectingToGoogle')
-                    : t('integrations.continueWithGoogle')}
-                </Button>
-              </form>
-            </TabsContent>
+        {/* Password Form */}
+        <TabsContent value="password" className="mt-0">
+          <div className="border border-border rounded-lg p-3 mb-4">
+            <p className="text-xs">
+              {t('integrations.gmailAppPasswordInfo')}
+            </p>
+            <a
+              href="https://support.google.com/accounts/answer/185833"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              {t('integrations.googleAppPasswordsGuide')}
+            </a>
+          </div>
 
-            {/* Password Form */}
-            <TabsContent value="password" className="mt-0">
-              <div className="border border-border rounded-lg p-3 mb-4">
-                <p className="text-xs">
-                  {t('integrations.gmailAppPasswordInfo')}
+          <form
+            onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
+            className="space-y-4"
+          >
+            <div className="space-y-1">
+              <Label htmlFor="name">{t('integrations.providerName')}</Label>
+              <Input
+                id="name"
+                {...passwordForm.register('name')}
+                placeholder={t('integrations.gmail.namePlaceholder')}
+              />
+              {passwordForm.formState.errors.name && (
+                <p className="text-sm text-red-600 mt-1">
+                  {passwordForm.formState.errors.name.message}
                 </p>
-                <a
-                  href="https://support.google.com/accounts/answer/185833"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {t('integrations.googleAppPasswordsGuide')}
-                </a>
-              </div>
+              )}
+            </div>
 
-              <form
-                onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
-                className="space-y-4"
+            <div className="space-y-1">
+              <Label htmlFor="email">{t('integrations.gmailAddress')}</Label>
+              <Input
+                id="email"
+                type="email"
+                {...passwordForm.register('email')}
+                placeholder={t('integrations.gmail.emailPlaceholder')}
+              />
+              {passwordForm.formState.errors.email && (
+                <p className="text-sm text-red-600 mt-1">
+                  {passwordForm.formState.errors.email.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="password">{t('integrations.appPassword')}</Label>
+              <Input
+                id="password"
+                type="password"
+                {...passwordForm.register('password')}
+                placeholder={t('integrations.gmail.passwordPlaceholder')}
+              />
+              {passwordForm.formState.errors.password && (
+                <p className="text-sm text-red-600 mt-1">
+                  {passwordForm.formState.errors.password.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="password-default"
+                checked={passwordForm.watch('isDefault')}
+                onCheckedChange={(checked) =>
+                  passwordForm.setValue('isDefault', !!checked)
+                }
+              />
+              <Label
+                htmlFor="password-default"
+                className="text-sm font-normal cursor-pointer"
               >
-                <div className="space-y-1">
-                  <Label htmlFor="name">{t('integrations.providerName')}</Label>
-                  <Input
-                    id="name"
-                    {...passwordForm.register('name')}
-                    placeholder={t('integrations.gmail.namePlaceholder')}
-                  />
-                  {passwordForm.formState.errors.name && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.name.message}
-                    </p>
-                  )}
-                </div>
+                {t('integrations.setAsDefaultProvider')}
+              </Label>
+            </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="email">{t('integrations.gmailAddress')}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    {...passwordForm.register('email')}
-                    placeholder={t('integrations.gmail.emailPlaceholder')}
-                  />
-                  {passwordForm.formState.errors.email && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.email.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="password">{t('integrations.appPassword')}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    {...passwordForm.register('password')}
-                    placeholder={t('integrations.gmail.passwordPlaceholder')}
-                  />
-                  {passwordForm.formState.errors.password && (
-                    <p className="text-sm text-red-600 mt-1">
-                      {passwordForm.formState.errors.password.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="password-default"
-                    checked={passwordForm.watch('isDefault')}
-                    onCheckedChange={(checked) =>
-                      passwordForm.setValue('isDefault', !!checked)
-                    }
-                  />
-                  <Label
-                    htmlFor="password-default"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    {t('integrations.setAsDefaultProvider')}
-                  </Label>
-                </div>
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading
-                    ? t('integrations.testingAndCreating')
-                    : t('integrations.testAndCreate')}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </DialogContent>
-    </Dialog>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading
+                ? t('integrations.testingAndCreating')
+                : t('integrations.testAndCreate')}
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
+    </FormModal>
   );
 }

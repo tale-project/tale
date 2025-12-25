@@ -7,6 +7,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { AccessDenied } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface OrganizationSettingsPageProps {
   params: Promise<{ id: string }>;
@@ -16,7 +17,8 @@ interface OrganizationSettingsPageProps {
  * Skeleton for the organization settings page - matches OrganizationSettings layout.
  * Shows organization form section + team members section with table.
  */
-function OrganizationSettingsSkeleton() {
+async function OrganizationSettingsSkeleton() {
+  const { t } = await getT('settings');
   return (
     <div className="space-y-4">
       {/* Organization name form */}
@@ -46,9 +48,9 @@ function OrganizationSettingsSkeleton() {
         <DataTableSkeleton
           rows={5}
           columns={[
-            { header: 'Name' },
-            { header: 'Email', size: 200 },
-            { header: 'Role', size: 120 },
+            { header: t('organization.members.columns.name') },
+            { header: t('organization.members.columns.email'), size: 200 },
+            { header: t('organization.members.columns.role'), size: 120 },
             { isAction: true, size: 80 },
           ]}
           showHeader
@@ -83,8 +85,9 @@ async function OrganizationSettingsPageContent({
 
   // Only Admin can access organization settings
   if (!memberContext.isAdmin) {
+    const { t } = await getT('accessDenied');
     return (
-      <AccessDenied message="You need Admin permissions to access organization settings." />
+      <AccessDenied message={t('organization')} />
     );
   }
 
