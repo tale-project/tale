@@ -1,6 +1,9 @@
-import React, { useRef, useState } from 'react';
+'use client';
+
+import React, { useRef, useState, useId } from 'react';
 import { Button } from '@/components/ui/button';
 import { CloudUpload } from 'lucide-react';
+import { Label } from './label';
 
 interface FileUploadProps {
   accept?: string;
@@ -8,17 +11,23 @@ interface FileUploadProps {
   label?: string;
   buttonText?: string;
   className?: string;
+  required?: boolean;
+  id?: string;
 }
 
 export function FileUpload({
   accept = '',
   onChange,
-  label = 'Upload a file',
+  label,
   buttonText = 'Select file',
   className = '',
+  required,
+  id: providedId,
 }: FileUploadProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
 
   const handleClick = () => {
     inputRef.current?.click();
@@ -38,7 +47,11 @@ export function FileUpload({
 
   return (
     <div className={`w-full ${className}`}>
-      {label && <p className="text-sm font-medium mb-2">{label}</p>}
+      {label && (
+        <Label htmlFor={id} required={required} className="mb-2 block">
+          {label}
+        </Label>
+      )}
       <div className="flex items-start gap-4">
         <Button
           type="button"
@@ -55,11 +68,13 @@ export function FileUpload({
           </span>
         )}
         <input
+          id={id}
           type="file"
           ref={inputRef}
           onChange={handleChange}
           accept={effectiveAccept}
           className="hidden"
+          required={required}
         />
       </div>
     </div>

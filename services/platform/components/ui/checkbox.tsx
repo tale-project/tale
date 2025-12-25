@@ -5,11 +5,20 @@ import * as CheckboxPrimitive from '@radix-ui/react-checkbox';
 import { Check, Minus } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
+import { Label } from './label';
+
+interface CheckboxProps
+  extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
+  label?: string;
+  required?: boolean;
+}
 
 const Checkbox = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, onCheckedChange, checked, ...rest }, ref) => {
+  CheckboxProps
+>(({ className, onCheckedChange, checked, label, required, id: providedId, ...rest }, ref) => {
+  const generatedId = React.useId();
+  const id = providedId ?? generatedId;
   const mappedState =
     checked === undefined
       ? undefined
@@ -19,9 +28,10 @@ const Checkbox = React.forwardRef<
           ? 'checked'
           : 'unchecked';
 
-  return (
+  const checkbox = (
     <CheckboxPrimitive.Root
       ref={ref}
+      id={id}
       className={cn(
         'peer size-4 shrink-0 rounded-sm border border-border ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white data-[state=indeterminate]:text-white data-[state=indeterminate]:bg-blue-600 data-[state=indeterminate]:border-blue-600 bg-background',
         className,
@@ -30,6 +40,7 @@ const Checkbox = React.forwardRef<
       {...rest}
       checked={checked}
       data-state={mappedState}
+      required={required}
     >
       <CheckboxPrimitive.Indicator
         className={cn(
@@ -43,6 +54,19 @@ const Checkbox = React.forwardRef<
         )}
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
+  );
+
+  if (!label) {
+    return checkbox;
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {checkbox}
+      <Label htmlFor={id} required={required} className="cursor-pointer">
+        {label}
+      </Label>
+    </div>
   );
 });
 Checkbox.displayName = CheckboxPrimitive.Root.displayName;

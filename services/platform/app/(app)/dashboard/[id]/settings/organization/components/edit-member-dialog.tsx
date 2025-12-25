@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
@@ -139,27 +138,21 @@ export default function EditMemberDialog({
       onSubmit={handleSubmit(onSubmit)}
     >
       {/* Name Field */}
-      <div className="space-y-2">
-        <Label htmlFor="displayName" className="text-sm font-medium">
-          {t('form.name')}
-        </Label>
-        <Input
-          id="displayName"
-          placeholder={t('form.namePlaceholder')}
-          {...register('displayName')}
-          className="w-full"
-          required
-        />
-      </div>
+      <Input
+        id="displayName"
+        label={t('form.name')}
+        placeholder={t('form.namePlaceholder')}
+        {...register('displayName')}
+        className="w-full"
+        required
+      />
 
       {/* Email Field - Read-only */}
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-sm font-medium">
-          {t('form.email')}
-        </Label>
         <Input
           id="email"
           type="email"
+          label={t('form.email')}
           placeholder={t('form.emailPlaceholder')}
           {...register('email')}
           className="w-full bg-muted"
@@ -173,9 +166,6 @@ export default function EditMemberDialog({
 
       {/* Role Field */}
       <div className="space-y-2">
-        <Label htmlFor="role" className="text-sm font-medium">
-          {t('form.role')}
-        </Label>
         <Controller
           control={form.control}
           name="role"
@@ -185,7 +175,7 @@ export default function EditMemberDialog({
               onValueChange={field.onChange}
               disabled={isEditingSelf}
             >
-              <SelectTrigger>
+              <SelectTrigger label={t('form.role')}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -216,34 +206,25 @@ export default function EditMemberDialog({
 
       {/* Password Update Section */}
       <div className="space-y-4 pt-4 border-t">
-        <div className="flex items-center space-x-2">
-          <Controller
-            control={form.control}
-            name="updatePassword"
-            render={({ field }) => (
-              <Checkbox
-                id="updatePassword"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label
-            htmlFor="updatePassword"
-            className="text-sm font-medium cursor-pointer"
-          >
-            {t('organization.updatePassword')}
-          </Label>
-        </div>
+        <Controller
+          control={form.control}
+          name="updatePassword"
+          render={({ field }) => (
+            <Checkbox
+              id="updatePassword"
+              checked={field.value}
+              onCheckedChange={field.onChange}
+              label={t('organization.updatePassword')}
+            />
+          )}
+        />
 
         {watch('updatePassword') && (
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium">
-              {t('form.password')}
-            </Label>
             <Input
               id="password"
               type="password"
+              label={t('form.password')}
               placeholder={t('organization.enterNewPassword')}
               {...register('password')}
               className="w-full"

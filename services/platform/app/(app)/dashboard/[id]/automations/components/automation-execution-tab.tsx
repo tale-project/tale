@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { JsonInput } from '@/components/ui/json-input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
@@ -133,8 +132,8 @@ export function AutomationExecutionTab({
           <CardContent className="space-y-4">
             {selectedAutomation ? (
               <>
-                <div>
-                  <Label>{t('execution.selectedAutomation')}</Label>
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">{t('execution.selectedAutomation')}</span>
                   <div className="p-2 bg-muted rounded text-sm">
                     {selectedAutomationData?.name || selectedAutomation}
                   </div>

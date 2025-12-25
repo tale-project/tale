@@ -1,11 +1,12 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
+import { Label } from './label';
 
 const Select = SelectPrimitive.Root;
 
@@ -13,24 +14,52 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
+interface SelectTriggerProps
+  extends ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> {
+  label?: string;
+  required?: boolean;
+  error?: boolean;
+}
+
 const SelectTrigger = forwardRef<
   ComponentRef<typeof SelectPrimitive.Trigger>,
-  ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="size-4 opacity-50" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+  SelectTriggerProps
+>(({ className, children, label, required, error, id: providedId, ...props }, ref) => {
+  const generatedId = useId();
+  const id = providedId ?? generatedId;
+
+  const trigger = (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      id={id}
+      className={cn(
+        'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
+        error && 'border-destructive focus:ring-destructive',
+        className,
+      )}
+      aria-invalid={error}
+      {...props}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="size-4 opacity-50" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+
+  if (!label) {
+    return trigger;
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id} required={required} error={error}>
+        {label}
+      </Label>
+      {trigger}
+    </div>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = forwardRef<

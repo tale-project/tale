@@ -5,7 +5,6 @@ import { FormModal } from '@/components/ui/modals';
 import DeleteStepDialog from './delete-step-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { JsonInput } from '@/components/ui/json-input';
 import {
   Tooltip,
@@ -389,26 +388,20 @@ export default function StepDetailsDialog({
         customFooter={customFooter}
         large
       >
-        <div className="space-y-2">
-          <Label htmlFor="step-name">
-            {tCommon('labels.name')} <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="step-name"
-            value={editedName}
-            onChange={(e) => {
-              setEditedName(e.target.value);
-              if (nameError) validateStepName(e.target.value);
-            }}
-            onBlur={(e) => validateStepName(e.target.value)}
-            placeholder="analyze_data"
-            disabled={isLoading}
-            className={nameError ? 'border-red-500' : ''}
-          />
-          {nameError && (
-            <p className="text-xs text-red-500">{nameError}</p>
-          )}
-        </div>
+        <Input
+          id="step-name"
+          label={tCommon('labels.name')}
+          required
+          value={editedName}
+          onChange={(e) => {
+            setEditedName(e.target.value);
+            if (nameError) validateStepName(e.target.value);
+          }}
+          onBlur={(e) => validateStepName(e.target.value)}
+          placeholder="analyze_data"
+          disabled={isLoading}
+          errorMessage={nameError}
+        />
         <JsonInput
           id="step-config"
           label={t('stepDetails.configLabel')}

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Edit, Save, X, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
@@ -126,55 +125,43 @@ export default function ProductTranslationsEditor({
     >
       {/* Original Product Name */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium text-muted-foreground">
+        <span className="text-sm font-medium text-muted-foreground">
           {tProducts('translations.originalProductName')}
-        </Label>
+        </span>
         <div className="p-3 bg-muted rounded-md">
           <span className="text-sm">{productName}</span>
         </div>
       </div>
 
       {/* English Translation */}
-      <div className="space-y-2">
-        <Label htmlFor="en-translation" className="text-sm font-medium">
-          {tProducts('translations.englishTranslation')}
-        </Label>
-        <Input
-          id="en-translation"
-          value={formData.en}
-          onChange={(e) => handleInputChange('en', e.target.value)}
-          placeholder={tProducts('translations.enterTranslation', { language: 'English' })}
-          className="w-full"
-        />
-      </div>
+      <Input
+        id="en-translation"
+        label={tProducts('translations.englishTranslation')}
+        value={formData.en}
+        onChange={(e) => handleInputChange('en', e.target.value)}
+        placeholder={tProducts('translations.enterTranslation', { language: 'English' })}
+        className="w-full"
+      />
 
       {/* German Translation */}
-      <div className="space-y-2">
-        <Label htmlFor="de-translation" className="text-sm font-medium">
-          {tProducts('translations.germanTranslation')}
-        </Label>
-        <Input
-          id="de-translation"
-          value={formData.de}
-          onChange={(e) => handleInputChange('de', e.target.value)}
-          placeholder={tProducts('translations.enterTranslation', { language: 'German' })}
-          className="w-full"
-        />
-      </div>
+      <Input
+        id="de-translation"
+        label={tProducts('translations.germanTranslation')}
+        value={formData.de}
+        onChange={(e) => handleInputChange('de', e.target.value)}
+        placeholder={tProducts('translations.enterTranslation', { language: 'German' })}
+        className="w-full"
+      />
 
       {/* French Translation */}
-      <div className="space-y-2">
-        <Label htmlFor="fr-translation" className="text-sm font-medium">
-          {tProducts('translations.frenchTranslation')}
-        </Label>
-        <Input
-          id="fr-translation"
-          value={formData.fr}
-          onChange={(e) => handleInputChange('fr', e.target.value)}
-          placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
-          className="w-full"
-        />
-      </div>
+      <Input
+        id="fr-translation"
+        label={tProducts('translations.frenchTranslation')}
+        value={formData.fr}
+        onChange={(e) => handleInputChange('fr', e.target.value)}
+        placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
+        className="w-full"
+      />
     </FormModal>
   );
 }

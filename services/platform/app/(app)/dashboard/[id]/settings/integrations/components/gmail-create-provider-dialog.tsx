@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GmailIcon } from '@/components/ui/icons';
@@ -313,35 +312,22 @@ export default function GmailCreateProviderDialog({
             onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
             className="space-y-4"
           >
-            <div className="space-y-1">
-              <Label htmlFor="oauth2-name">{t('integrations.providerName')}</Label>
-              <Input
-                id="oauth2-name"
-                {...oauth2Form.register('name')}
-                placeholder={t('integrations.gmail.namePlaceholder')}
-              />
-              {oauth2Form.formState.errors.name && (
-                <p className="text-sm text-red-600 mt-1">
-                  {oauth2Form.formState.errors.name.message}
-                </p>
-              )}
-            </div>
+            <Input
+              id="oauth2-name"
+              label={t('integrations.providerName')}
+              {...oauth2Form.register('name')}
+              placeholder={t('integrations.gmail.namePlaceholder')}
+              errorMessage={oauth2Form.formState.errors.name?.message}
+            />
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="oauth2-default"
-                checked={oauth2Form.watch('isDefault')}
-                onCheckedChange={(checked) =>
-                  oauth2Form.setValue('isDefault', !!checked)
-                }
-              />
-              <Label
-                htmlFor="oauth2-default"
-                className="text-sm font-normal cursor-pointer"
-              >
-                {t('integrations.setAsDefaultProvider')}
-              </Label>
-            </div>
+            <Checkbox
+              id="oauth2-default"
+              checked={oauth2Form.watch('isDefault')}
+              onCheckedChange={(checked) =>
+                oauth2Form.setValue('isDefault', !!checked)
+              }
+              label={t('integrations.setAsDefaultProvider')}
+            />
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading
@@ -372,65 +358,40 @@ export default function GmailCreateProviderDialog({
             onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
             className="space-y-4"
           >
-            <div className="space-y-1">
-              <Label htmlFor="name">{t('integrations.providerName')}</Label>
-              <Input
-                id="name"
-                {...passwordForm.register('name')}
-                placeholder={t('integrations.gmail.namePlaceholder')}
-              />
-              {passwordForm.formState.errors.name && (
-                <p className="text-sm text-red-600 mt-1">
-                  {passwordForm.formState.errors.name.message}
-                </p>
-              )}
-            </div>
+            <Input
+              id="name"
+              label={t('integrations.providerName')}
+              {...passwordForm.register('name')}
+              placeholder={t('integrations.gmail.namePlaceholder')}
+              errorMessage={passwordForm.formState.errors.name?.message}
+            />
 
-            <div className="space-y-1">
-              <Label htmlFor="email">{t('integrations.gmailAddress')}</Label>
-              <Input
-                id="email"
-                type="email"
-                {...passwordForm.register('email')}
-                placeholder={t('integrations.gmail.emailPlaceholder')}
-              />
-              {passwordForm.formState.errors.email && (
-                <p className="text-sm text-red-600 mt-1">
-                  {passwordForm.formState.errors.email.message}
-                </p>
-              )}
-            </div>
+            <Input
+              id="email"
+              type="email"
+              label={t('integrations.gmailAddress')}
+              {...passwordForm.register('email')}
+              placeholder={t('integrations.gmail.emailPlaceholder')}
+              errorMessage={passwordForm.formState.errors.email?.message}
+            />
 
-            <div className="space-y-1">
-              <Label htmlFor="password">{t('integrations.appPassword')}</Label>
-              <Input
-                id="password"
-                type="password"
-                {...passwordForm.register('password')}
-                placeholder={t('integrations.gmail.passwordPlaceholder')}
-              />
-              {passwordForm.formState.errors.password && (
-                <p className="text-sm text-red-600 mt-1">
-                  {passwordForm.formState.errors.password.message}
-                </p>
-              )}
-            </div>
+            <Input
+              id="password"
+              type="password"
+              label={t('integrations.appPassword')}
+              {...passwordForm.register('password')}
+              placeholder={t('integrations.gmail.passwordPlaceholder')}
+              errorMessage={passwordForm.formState.errors.password?.message}
+            />
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="password-default"
-                checked={passwordForm.watch('isDefault')}
-                onCheckedChange={(checked) =>
-                  passwordForm.setValue('isDefault', !!checked)
-                }
-              />
-              <Label
-                htmlFor="password-default"
-                className="text-sm font-normal cursor-pointer"
-              >
-                {t('integrations.setAsDefaultProvider')}
-              </Label>
-            </div>
+            <Checkbox
+              id="password-default"
+              checked={passwordForm.watch('isDefault')}
+              onCheckedChange={(checked) =>
+                passwordForm.setValue('isDefault', !!checked)
+              }
+              label={t('integrations.setAsDefaultProvider')}
+            />
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading

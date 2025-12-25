@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -857,12 +856,12 @@ export default function OneDriveImportDialog({
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="one-time" id="one-time" />
                   <div className="flex-1">
-                    <Label
+                    <label
                       htmlFor="one-time"
                       className="font-medium text-base cursor-pointer"
                     >
                       {t('onedrive.oneTimeImport')}
-                    </Label>
+                    </label>
                     <div className="text-sm text-muted-foreground">
                       {t('onedrive.oneTimeDescription')}
                     </div>
@@ -875,12 +874,12 @@ export default function OneDriveImportDialog({
                 <div className="flex items-center gap-3">
                   <RadioGroupItem value="sync" id="sync" />
                   <div className="flex-1">
-                    <Label
+                    <label
                       htmlFor="sync"
                       className="font-medium text-base cursor-pointer"
                     >
                       {t('onedrive.syncImport')}
-                    </Label>
+                    </label>
                     <div className="text-sm text-muted-foreground">
                       {t('onedrive.syncDescription')}
                     </div>

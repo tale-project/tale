@@ -6,7 +6,6 @@ import { useQuery } from 'convex/react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 import { api } from '@/convex/_generated/api';
 import { Search, Plus } from 'lucide-react';
@@ -89,27 +88,20 @@ export default function OrganizationSettings({
     <div className="space-y-4">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Organization Name */}
-        <div className="space-y-2">
-          <Label
-            htmlFor="org-name"
-            className="text-sm font-medium text-foreground"
+        <div className="flex items-end gap-3 justify-between">
+          <Input
+            id="org-name"
+            label={tSettings('organization.title')}
+            {...register('name')}
+            className="flex-1 max-w-sm"
+          />
+          <Button
+            type="submit"
+            disabled={!isDirty || isSubmitting}
+            className="bg-foreground text-background hover:bg-foreground/90"
           >
-            {tSettings('organization.title')}
-          </Label>
-          <div className="flex items-center gap-3 justify-between">
-            <Input
-              id="org-name"
-              {...register('name')}
-              className="flex-1 max-w-sm"
-            />
-            <Button
-              type="submit"
-              disabled={!isDirty || isSubmitting}
-              className="bg-foreground text-background hover:bg-foreground/90"
-            >
-              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-            </Button>
-          </div>
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+          </Button>
         </div>
       </form>
 

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/lib/i18n';
 
@@ -139,25 +138,23 @@ export default function ViewEditExampleDialog({
       className="max-w-lg"
     >
       {/* Message Field */}
-      <div className="space-y-2">
-        <Label
-          htmlFor="content"
-          className="text-sm font-medium text-foreground tracking-[-0.21px]"
-        >
-          {tTables('headers.message')}
-        </Label>
-        {mode === 'view' ? (
+      {mode === 'view' ? (
+        <div className="space-y-2">
+          <span className="text-sm font-medium text-foreground tracking-[-0.21px]">
+            {tTables('headers.message')}
+          </span>
           <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
             {example.content}
           </div>
-        ) : (
-          <Textarea
-            {...register('content', { required: true })}
-            placeholder={tTone('exampleMessages.placeholder')}
-            className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        <Textarea
+          {...register('content', { required: true })}
+          label={tTables('headers.message')}
+          placeholder={tTone('exampleMessages.placeholder')}
+          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+        />
+      )}
     </FormModal>
   );
 }
