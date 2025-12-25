@@ -8,6 +8,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { AccessDenied } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('organization.title')} | ${t('suffix')}`,
+    description: t('organization.description'),
+  };
+}
 
 interface OrganizationSettingsPageProps {
   params: Promise<{ id: string }>;

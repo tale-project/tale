@@ -16,6 +16,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardList } from 'lucide-react';
 import ImportDocumentsMenu from './components/import-documents-menu';
 import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('documents.title')} | ${t('suffix')}`,
+    description: t('documents.description'),
+  };
+}
 
 const logger = new Logger('documents');
 

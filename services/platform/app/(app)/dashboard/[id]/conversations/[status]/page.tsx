@@ -7,6 +7,16 @@ import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { ListSkeleton } from '@/components/skeletons';
 import ActivateConversationsEmptyState from '../components/activate-conversations-empty-state';
+import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('conversations.title')} | ${t('suffix')}`,
+    description: t('conversations.description'),
+  };
+}
 
 const VALID_STATUSES = ['open', 'closed', 'archived', 'spam'] as const;
 type ConversationStatus = (typeof VALID_STATUSES)[number];

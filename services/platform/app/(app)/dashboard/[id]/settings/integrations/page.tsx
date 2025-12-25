@@ -7,6 +7,15 @@ import { api } from '@/convex/_generated/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccessDenied } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('integrations.title')} | ${t('suffix')}`,
+    description: t('integrations.description'),
+  };
+}
 
 interface IntegrationsPageProps {
   params: Promise<{ id: string }>;

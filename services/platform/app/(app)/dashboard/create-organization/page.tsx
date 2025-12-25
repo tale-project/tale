@@ -8,6 +8,16 @@ import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import Link from 'next/link';
 import { FormSkeleton } from '@/components/skeletons';
+import { getT } from '@/lib/i18n/server';
+import type { Metadata } from 'next';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+  return {
+    title: `${t('createOrganization.title')} | ${t('suffix')}`,
+    description: t('createOrganization.description'),
+  };
+}
 
 async function CreateBusinessContent() {
   const user = await getCurrentUser();

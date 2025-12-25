@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import localFont from 'next/font/local';
 import { Analytics } from '@vercel/analytics/react';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
@@ -9,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppProviders } from '@/components/app-providers';
+import { getT } from '@/lib/i18n/server';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -16,54 +16,48 @@ const inter = Inter({
   weight: ['400', '500', '600', '700'],
 });
 
-const metroSans = localFont({
-  src: [
-    {
-      path: './metro-sans-variable-regular.woff2',
-      style: 'normal',
-      weight: '100 900',
-    },
-    {
-      path: './metro-sans-variable-regular.woff',
-      style: 'normal',
-      weight: '100 900',
-    },
-    {
-      path: './metro-sans-variable-regular.ttf',
-      style: 'normal',
-      weight: '100 900',
-    },
-  ],
-  variable: '--font-metro-sans',
-  display: 'swap',
-});
-
-// Derive app URL from DOMAIN (server-side) or fallback for Vercel/local dev
+// Derive app URL from DOMAIN (server-side) or fallback for local dev
 const appUrl =
-  process.env.DOMAIN ||
-  process.env.SITE_URL ||
-  (process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000');
+  process.env.DOMAIN || process.env.SITE_URL || 'http://localhost:3000';
 
-export const metadata: Metadata = {
-  metadataBase: new URL(appUrl),
-  title: 'Tale | Reduce Churn Rate & Boost Retention',
-  description:
-    'Use Tale to understand customer churn rate, improve retention, and increase customer lifetime value through feedback and analytics.',
-  openGraph: {
-    title: 'Tale | Reduce Churn Rate & Boost Retention',
-    description:
-      'Use Tale to understand customer churn rate, improve retention, and increase customer lifetime value through feedback and analytics.',
-    url: appUrl,
-    type: 'website',
-    images: [
-      {
-        url: `${appUrl}/opengraph-image.png`,
-      },
-    ],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT('metadata');
+
+  return {
+    metadataBase: new URL(appUrl),
+    title: {
+      default: `${t('default.title')} | ${t('suffix')}`,
+      template: `%s | ${t('suffix')}`,
+    },
+    description: t('default.description'),
+    keywords: t('keywords'),
+    authors: [{ name: 'Tale', url: 'https://tale.dev' }],
+    creator: 'Tale',
+    publisher: 'Tale',
+    formatDetection: {
+      email: false,
+      address: false,
+      telephone: false,
+    },
+    openGraph: {
+      title: t('default.title'),
+      description: t('default.description'),
+      url: appUrl,
+      siteName: t('suffix'),
+      locale: 'en_US',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: t('default.title'),
+      description: t('default.description'),
+    },
+    icons: {
+      icon: '/favicon.ico',
+    },
+    manifest: '/manifest.webmanifest',
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -73,7 +67,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={`${inter.variable} ${metroSans.variable} antialiased`}>
+      <body className={`${inter.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
