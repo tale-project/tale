@@ -4,6 +4,7 @@ import React, { Component, ReactNode, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useParams, usePathname } from 'next/navigation';
+import { useT } from '@/lib/i18n';
 
 type ErrorSize = 'default' | 'compact';
 
@@ -31,6 +32,8 @@ function ErrorDisplay({
   size?: ErrorSize;
   header?: ReactNode;
 }) {
+  const { t } = useT('common');
+
   const reset = () => {
     window.location.reload();
   };
@@ -64,14 +67,14 @@ function ErrorDisplay({
             <h2
               className={`text-foreground ${isCompact ? 'text-lg font-semibold' : 'text-3xl font-extrabold tracking-tight'}`}
             >
-              Something went wrong
+              {t('errors.somethingWentWrong')}
             </h2>
             <p
               className={`text-muted-foreground ${isCompact ? 'text-sm' : ''}`}
             >
               {isCompact
-                ? 'An error occurred while loading this page. You can try again or navigate to another section.'
-                : 'An unexpected error occurred while loading this page. This might be a temporary issue.'}
+                ? t('errors.errorLoadingPage')
+                : t('errors.unexpectedErrorLoading')}
             </p>
           </div>
 
@@ -79,14 +82,14 @@ function ErrorDisplay({
           <div className={`flex ${isCompact ? 'gap-2' : 'gap-3'}`}>
             <Button onClick={reset} className="flex-1">
               <RefreshCw className="size-4 mr-2" />
-              Try again
+              {t('errors.tryAgain')}
             </Button>
           </div>
 
           {/* Support message */}
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              If this problem persists, please{' '}
+              {t('errors.persistsProblem')}{' '}
               <a
                 href={
                   organizationId
@@ -97,9 +100,9 @@ function ErrorDisplay({
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                contact support
+                {t('errors.contactSupport')}
               </a>
-              {isCompact ? '.' : ' for assistance.'}
+              {isCompact ? '.' : ` ${t('errors.forAssistance')}`}
             </p>
           </div>
         </div>

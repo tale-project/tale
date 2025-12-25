@@ -30,12 +30,14 @@ import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
 }
 
 export function UserButton({ align = 'start' }: UserButtonProps) {
+  const { t } = useT('auth');
   const { user, signOut, isLoading: loading } = useAuth();
   const router = useRouter();
   const params = useParams();
@@ -60,20 +62,20 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
     try {
       await signOut();
       toast({
-        title: 'Signed out',
-        description: 'You have been signed out successfully',
+        title: t('userButton.toast.signedOut'),
+        description: t('userButton.toast.signedOutDescription'),
       });
       router.push('/');
       router.refresh();
     } catch {
       toast({
-        title: 'Failed to sign out',
+        title: t('userButton.toast.signOutFailed'),
         variant: 'destructive',
       });
     }
   };
 
-  const displayName = memberContext?.member?.displayName || user.name || 'User';
+  const displayName = memberContext?.member?.displayName || user.name || t('userButton.defaultName');
 
   return (
     <DropdownMenu>
@@ -86,7 +88,7 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
               </div>
             </DropdownMenuTrigger>
           </TooltipTrigger>
-          <TooltipContent side="right">Manage account</TooltipContent>
+          <TooltipContent side="right">{t('userButton.manageAccount')}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <DropdownMenuContent className="w-64" align={align} forceMount>
@@ -117,7 +119,7 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
               className="py-2.5"
             >
               <Settings className="mr-3 size-4" />
-              <span>Settings</span>
+              <span>{t('userButton.settings')}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -160,14 +162,14 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
         >
           <DropdownMenuItem className="py-2.5">
             <HelpCircle className="mr-3 size-4" />
-            <span>Help & feedback</span>
+            <span>{t('userButton.helpFeedback')}</span>
           </DropdownMenuItem>
         </a>
 
         {/* Log out */}
         <DropdownMenuItem onClick={handleSignOut} className="py-2.5">
           <LogOut className="mr-3 size-4" />
-          <span>Log out</span>
+          <span>{t('userButton.logOut')}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

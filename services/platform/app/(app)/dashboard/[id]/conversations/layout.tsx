@@ -6,6 +6,7 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface ConversationsLayoutProps {
   children: ReactNode;
@@ -17,11 +18,12 @@ export default async function ConversationsLayout({
   params,
 }: ConversationsLayoutProps) {
   const { id: organizationId } = await params;
+  const { t } = await getT('conversations');
 
   return (
     <>
       <PageHeader>
-        <PageHeaderTitle>Conversations</PageHeaderTitle>
+        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
       </PageHeader>
       <ConversationsNavigation organizationId={organizationId} />
       <ErrorBoundaryWithParams>

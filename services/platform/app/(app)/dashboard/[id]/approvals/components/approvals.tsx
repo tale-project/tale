@@ -6,6 +6,7 @@ import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import ApprovalDetailModal from './approval-detail-modal';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export default function Approvals({
   organizationId,
   preloadedApprovals,
 }: ApprovalsProps) {
+  const { t } = useT('approvals');
   const locale = useLocale();
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export default function Approvals({
     async (approvalId: string) => {
       if (!memberContext?.member?._id) {
         toast({
-          title: 'You must be logged in to approve.',
+          title: t('toast.loginRequired'),
           variant: 'destructive',
         });
         return;
@@ -121,21 +123,21 @@ export default function Approvals({
       } catch (error) {
         console.error('Failed to approve:', error);
         toast({
-          title: 'Failed to approve. Please try again.',
+          title: t('toast.approveFailed'),
           variant: 'destructive',
         });
       } finally {
         setApproving(null);
       }
     },
-    [memberContext?.member?._id, updateApprovalStatus],
+    [memberContext?.member?._id, updateApprovalStatus, t],
   );
 
   const handleReject = useCallback(
     async (approvalId: string) => {
       if (!memberContext?.member?._id) {
         toast({
-          title: 'You must be logged in to reject.',
+          title: t('toast.loginRequired'),
           variant: 'destructive',
         });
         return;
@@ -152,21 +154,21 @@ export default function Approvals({
       } catch (error) {
         console.error('Failed to reject:', error);
         toast({
-          title: 'Failed to reject. Please try again.',
+          title: t('toast.rejectFailed'),
           variant: 'destructive',
         });
       } finally {
         setRejecting(null);
       }
     },
-    [memberContext?.member?._id, updateApprovalStatus],
+    [memberContext?.member?._id, updateApprovalStatus, t],
   );
 
   const handleRemoveRecommendation = useCallback(
     async (approvalId: string, productId: string) => {
       if (!memberContext?.member?._id) {
         toast({
-          title: 'You must be logged in to update recommendations.',
+          title: t('toast.loginRequired'),
           variant: 'destructive',
         });
         return;
@@ -181,14 +183,14 @@ export default function Approvals({
       } catch (error) {
         console.error('Failed to remove recommendation:', error);
         toast({
-          title: 'Failed to remove recommendation. Please try again.',
+          title: t('toast.removeRecommendationFailed'),
           variant: 'destructive',
         });
       } finally {
         setRemovingProductId(null);
       }
     },
-    [memberContext?.member?._id, removeRecommendedProduct],
+    [memberContext?.member?._id, removeRecommendedProduct, t],
   );
 
   const handleApprovalRowClick = useCallback((approvalId: string) => {
@@ -557,7 +559,7 @@ export default function Approvals({
       {
         id: 'confidence',
         header: () => (
-          <span className="text-right w-full block">Confidence</span>
+          <span className="text-right w-full block">{t('columns.confidence')}</span>
         ),
         size: 100,
         cell: ({ row }) => (
@@ -570,7 +572,7 @@ export default function Approvals({
       },
       {
         id: 'actions',
-        header: () => <span className="text-right w-full block">Approved</span>,
+        header: () => <span className="text-right w-full block">{t('columns.approved')}</span>,
         size: 100,
         cell: ({ row }) => (
           <div className="flex justify-end gap-1">
@@ -696,7 +698,7 @@ export default function Approvals({
           >;
           return (
             <div className="text-sm">
-              {(metadata['approverName'] as string) || 'Unknown'}
+              {(metadata['approverName'] as string) || t('columns.unknown')}
             </div>
           );
         },
@@ -704,7 +706,7 @@ export default function Approvals({
       {
         id: 'reviewedAt',
         header: () => (
-          <span className="text-right w-full block">Reviewed at</span>
+          <span className="text-right w-full block">{t('columns.reviewedAt')}</span>
         ),
         cell: ({ row }) => (
           <span className="text-sm text-right block">
@@ -719,7 +721,7 @@ export default function Approvals({
       },
       {
         id: 'status',
-        header: () => <span className="text-right w-full block">Approved</span>,
+        header: () => <span className="text-right w-full block">{t('columns.approved')}</span>,
         size: 100,
         cell: ({ row }) => (
           <div className="text-right">
@@ -806,7 +808,7 @@ export default function Approvals({
   // Default return with modal for other cases
   return (
     <>
-      <DataTableEmptyState icon={GitCompare} title="No approvals found" />
+      <DataTableEmptyState icon={GitCompare} title={t('noApprovalsFound')} />
       <ApprovalDetailModal
         open={approvalDetailModalOpen}
         onOpenChange={handleApprovalDetailOpenChange}

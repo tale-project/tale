@@ -31,6 +31,7 @@ import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useDateFormat } from '@/hooks/use-date-format';
+import { useT } from '@/lib/i18n';
 
 interface GmailIntegrationDialogProps extends DialogProps {
   organizationId: string;
@@ -40,6 +41,8 @@ export default function GmailIntegrationDialog({
   organizationId,
   ...props
 }: GmailIntegrationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { formatDate } = useDateFormat();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
@@ -70,8 +73,8 @@ export default function GmailIntegrationDialog({
     setTestingProviderId(providerId);
     try {
       toast({
-        title: 'Testing connection',
-        description: 'Validating SMTP and IMAP credentials...',
+        title: t('integrations.testingConnection'),
+        description: t('integrations.validatingCredentials'),
       });
 
       const result = await testExistingProvider({
@@ -80,8 +83,8 @@ export default function GmailIntegrationDialog({
 
       if (result.success) {
         toast({
-          title: 'Connection successful',
-          description: `All tests passed! SMTP: ${result.smtp.latencyMs}ms, IMAP: ${result.imap.latencyMs}ms`,
+          title: t('integrations.connectionSuccessful'),
+          description: t('integrations.allTestsPassed', { smtp: result.smtp.latencyMs, imap: result.imap.latencyMs }),
           variant: 'success',
         });
       } else {
@@ -93,7 +96,7 @@ export default function GmailIntegrationDialog({
           errors.push(`IMAP: ${result.imap.error}`);
         }
         toast({
-          title: 'Connection test failed',
+          title: t('integrations.connectionTestFailed'),
           description: errors.join('. '),
           variant: 'destructive',
         });
@@ -101,7 +104,7 @@ export default function GmailIntegrationDialog({
     } catch (error) {
       console.error('Failed to test connection:', error);
       toast({
-        title: 'Failed to test connection',
+        title: t('integrations.failedToTestConnection'),
         variant: 'destructive',
       });
     } finally {
@@ -117,7 +120,7 @@ export default function GmailIntegrationDialog({
     } catch (error) {
       console.error('Failed to delete provider:', error);
       toast({
-        title: 'Failed to delete provider',
+        title: t('integrations.failedToDeleteProvider'),
         variant: 'destructive',
       });
     }
@@ -138,7 +141,7 @@ export default function GmailIntegrationDialog({
     } catch (error) {
       console.error('Failed to generate auth URL:', error);
       toast({
-        title: 'Failed to start authorization',
+        title: t('integrations.failedToStartAuth'),
         variant: 'destructive',
       });
     }
@@ -151,7 +154,7 @@ export default function GmailIntegrationDialog({
         <div className="border-b border-border flex items-start justify-between px-4 py-6">
           <DialogHeader className="space-y-1">
             <div className="flex items-center gap-3">
-              <DialogTitle>Gmail integration</DialogTitle>
+              <DialogTitle>{t('integrations.gmailIntegration')}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -187,7 +190,7 @@ export default function GmailIntegrationDialog({
                             size="sm"
                             className="size-8 p-0"
                           >
-                            <span className="sr-only">More options</span>
+                            <span className="sr-only">{t('integrations.moreOptions')}</span>
                             <MoreVertical className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -199,7 +202,7 @@ export default function GmailIntegrationDialog({
                                 className="text-blue-600 focus:text-blue-600"
                               >
                                 <Shield className="mr-2 size-4" />
-                                Authorize
+                                {t('integrations.authorize')}
                               </DropdownMenuItem>
                             )}
                           <DropdownMenuItem
@@ -212,15 +215,15 @@ export default function GmailIntegrationDialog({
                           >
                             <TestTube className="mr-2 size-4" />
                             {testingProviderId === provider._id
-                              ? 'Testing...'
-                              : 'Test'}
+                              ? t('integrations.testing')
+                              : t('integrations.test')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleDeleteProvider(provider._id)}
                             className="text-red-600 focus:text-red-600"
                           >
                             <Trash2 className="mr-2 size-4" />
-                            Delete
+                            {tCommon('actions.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -235,23 +238,23 @@ export default function GmailIntegrationDialog({
                         className="[&>span]:flex [&>span]:items-center"
                       >
                         <Star className="size-3.5 mr-1" />
-                        Default
+                        {t('integrations.default')}
                       </Badge>
                     )}
                     {provider.authMethod === 'oauth2' ? (
                       <>
                         <Badge variant="outline" className="text-xs">
-                          OAuth2
+                          {t('integrations.oauth2')}
                         </Badge>
                         {!provider.oauth2Auth?.accessTokenEncrypted && (
                           <Badge variant="destructive" className="text-xs">
-                            Not Authorized
+                            {t('integrations.notAuthorized')}
                           </Badge>
                         )}
                       </>
                     ) : (
                       <Badge variant="outline" className="text-xs">
-                        Password
+                        {t('integrations.password')}
                       </Badge>
                     )}
                     {provider.smtpConfig && (
@@ -287,7 +290,7 @@ export default function GmailIntegrationDialog({
                   {/* Footer */}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
-                      Created:{' '}
+                      {t('integrations.created')}:{' '}
                       {formatDate(new Date(provider._creationTime), 'short')}
                     </span>
                   </div>
@@ -298,7 +301,7 @@ export default function GmailIntegrationDialog({
             <div className="text-center py-8">
               <GmailIcon className="size-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm text-muted-foreground mb-2">
-                No Gmail providers configured yet
+                {t('integrations.noGmailProviders')}
               </p>
             </div>
           )}
@@ -308,7 +311,7 @@ export default function GmailIntegrationDialog({
         <div className="border-t border-border p-4">
           <Button onClick={handleCreateProvider} className="w-full">
             <Plus className="size-4 mr-2" />
-            Add Gmail provider
+            {t('integrations.addGmailProvider')}
           </Button>
         </div>
 

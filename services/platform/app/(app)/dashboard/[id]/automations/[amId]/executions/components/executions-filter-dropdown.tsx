@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { FilterSection } from '@/components/filters/filter-section';
 import { FilterButton } from '@/components/filters/filter-button';
+import { useT } from '@/lib/i18n';
 
 export interface ExecutionsFilterState {
   status: string;
@@ -37,6 +38,8 @@ export default function ExecutionsFilterDropdown({
   triggeredByOptions,
   isLoading = false,
 }: ExecutionsFilterDropdownProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     dateRange: false,
@@ -81,21 +84,21 @@ export default function ExecutionsFilterDropdown({
       <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <div className="flex items-center justify-between p-2">
-          <h4 className="text-sm font-semibold text-foreground">Filters</h4>
+          <h4 className="text-sm font-semibold text-foreground">{t('executions.filters.title')}</h4>
           {hasActiveFilters && (
             <button
               type="button"
               onClick={handleClearAll}
               className="text-xs text-primary hover:text-primary/80 font-medium"
             >
-              Clear all
+              {tCommon('actions.clearAll')}
             </button>
           )}
         </div>
 
         {/* Date Range Section */}
         <FilterSection
-          title="Date Range"
+          title={t('executions.filters.dateRange')}
           isExpanded={expandedSections.dateRange}
           onToggle={() => toggleSection('dateRange')}
           active={filters.dateFrom !== null || filters.dateTo !== null}
@@ -131,7 +134,7 @@ export default function ExecutionsFilterDropdown({
 
         {/* Status Section */}
         <FilterSection
-          title="Status"
+          title={t('executions.filters.status')}
           isExpanded={expandedSections.status}
           onToggle={() => toggleSection('status')}
           active={filters.status !== 'All'}
@@ -143,23 +146,23 @@ export default function ExecutionsFilterDropdown({
             }
           >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t('executions.filters.status')} />
             </SelectTrigger>
             <SelectContent position="popper" sideOffset={4}>
               <SelectItem value="All" className="text-xs">
-                All status
+                {t('executions.filters.allStatus')}
               </SelectItem>
               <SelectItem value="running" className="text-xs">
-                Running
+                {tCommon('status.running')}
               </SelectItem>
               <SelectItem value="completed" className="text-xs">
-                Completed
+                {tCommon('status.completed')}
               </SelectItem>
               <SelectItem value="failed" className="text-xs">
-                Failed
+                {tCommon('status.failed')}
               </SelectItem>
               <SelectItem value="pending" className="text-xs">
-                Pending
+                {tCommon('status.pending')}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -167,7 +170,7 @@ export default function ExecutionsFilterDropdown({
 
         {/* Triggered By Section */}
         <FilterSection
-          title="Triggered By"
+          title={t('executions.filters.triggeredBy')}
           isExpanded={expandedSections.triggeredBy}
           onToggle={() => toggleSection('triggeredBy')}
           active={filters.triggeredBy !== 'All'}
@@ -179,11 +182,11 @@ export default function ExecutionsFilterDropdown({
             }
           >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Triggered By" />
+              <SelectValue placeholder={t('executions.filters.triggeredBy')} />
             </SelectTrigger>
             <SelectContent position="popper" sideOffset={4}>
               <SelectItem value="All" className="text-xs">
-                All triggers
+                {t('executions.filters.allTriggers')}
               </SelectItem>
               {triggeredByOptions.map((option) => (
                 <SelectItem key={option} value={option} className="text-xs">

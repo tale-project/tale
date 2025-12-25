@@ -17,6 +17,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
 import { OAuth2Banner } from '@/components/oauth2-banner';
+import { useT } from '@/lib/i18n';
 
 // Dynamically import dialog components to reduce initial bundle size
 const ShopifyIntegrationDialog = dynamic(
@@ -54,29 +55,6 @@ const EmailIntegrationDialog = dynamic(
   },
 );
 
-// Static integration definitions
-const integrations = [
-  {
-    id: 'shopify',
-    name: 'Shopify',
-    description:
-      'Sync products, orders, and customers from your Shopify store.',
-    icon: ShopifyIcon,
-  },
-  {
-    id: 'circuly',
-    name: 'Circuly',
-    description: 'Manage product subscriptions and rental workflows.',
-    icon: CirculyIcon,
-  },
-  {
-    id: 'email',
-    name: 'Email',
-    description: 'Send and receive emails via Gmail, Outlook, or custom SMTP.',
-    icon: Mail,
-  },
-];
-
 interface IntegrationsProps {
   organizationId: string;
   preloadedShopify: Preloaded<typeof api.integrations.getByName>;
@@ -90,7 +68,30 @@ export default function Integrations({
   preloadedCirculy,
   preloadedEmailProviders,
 }: IntegrationsProps) {
+  const { t } = useT('settings');
   const searchParams = useSearchParams();
+
+  // Integration definitions with translations
+  const integrations = [
+    {
+      id: 'shopify',
+      name: 'Shopify',
+      description: t('integrations.shopify.description'),
+      icon: ShopifyIcon,
+    },
+    {
+      id: 'circuly',
+      name: 'Circuly',
+      description: t('integrations.circuly.description'),
+      icon: CirculyIcon,
+    },
+    {
+      id: 'email',
+      name: t('integrations.email.name'),
+      description: t('integrations.email.description'),
+      icon: Mail,
+    },
+  ];
 
   // Use preloaded queries for SSR + real-time reactivity
   const shopifyIntegration = usePreloadedQuery(preloadedShopify);
@@ -219,11 +220,11 @@ export default function Integrations({
       setShopifyDisconnectModalOpen(false);
     } catch (error) {
       toast({
-        title: 'Disconnect failed',
+        title: t('integrations.toast.disconnectFailed'),
         description:
           error instanceof Error
             ? error.message
-            : 'Failed to disconnect Shopify',
+            : t('integrations.shopify.disconnectError'),
         variant: 'destructive',
       });
       throw error;
@@ -278,17 +279,17 @@ export default function Integrations({
         integrationId: circulyIntegration._id,
       });
       toast({
-        title: 'Disconnected',
-        description: 'Circuly integration has been disconnected.',
+        title: t('integrations.toast.disconnected'),
+        description: t('integrations.circuly.disconnectedDescription'),
       });
       setCirculyDisconnectModalOpen(false);
     } catch (error) {
       toast({
-        title: 'Disconnect failed',
+        title: t('integrations.toast.disconnectFailed'),
         description:
           error instanceof Error
             ? error.message
-            : 'Failed to disconnect Circuly',
+            : t('integrations.circuly.disconnectError'),
         variant: 'destructive',
       });
       throw error;
@@ -355,7 +356,7 @@ export default function Integrations({
                   className="flex items-center gap-1 text-sm h-6"
                 >
                   <Settings className="size-4" />
-                  Manage
+                  {t('integrations.manage')}
                 </Button>
                 <Switch
                   checked={

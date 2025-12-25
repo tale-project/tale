@@ -10,6 +10,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import DocumentIcon from '@/components/ui/document-icon';
 import { EnterKeyIcon } from '@/components/ui/icons';
 import { LoaderCircleIcon } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -36,15 +37,19 @@ export default function ChatInput({
   onChange,
   onSendMessage,
   isLoading = false,
-  placeholder = 'Type your message here…',
+  placeholder,
   ...restProps
 }: ChatInputProps) {
+  const { t: tChat } = useT('chat');
+  const { t: tDialogs } = useT('dialogs');
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
 
+  const defaultPlaceholder = placeholder || tChat('typeMessageHere');
   const generateUploadUrl = useMutation(api.file.generateUploadUrl);
 
   const handleSendMessage = () => {
@@ -83,8 +88,8 @@ export default function ChatInput({
 
     if (invalidFiles.length > 0) {
       toast({
-        title: 'Invalid files',
-        description: `Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.`,
+        title: tChat('invalidFiles'),
+        description: tChat('filesNotSupported'),
         variant: 'destructive',
       });
       return;
@@ -125,14 +130,14 @@ export default function ChatInput({
         setAttachments((prev) => [...prev, attachment]);
 
         toast({
-          title: 'File uploaded',
-          description: `${file.name} uploaded successfully`,
+          title: tChat('fileUploaded'),
+          description: tChat('uploadedSuccessfully', { filename: file.name }),
         });
       } catch (error) {
         console.error('Upload error:', error);
         toast({
-          title: 'Upload failed',
-          description: `Failed to upload ${file.name}`,
+          title: tChat('uploadFailed'),
+          description: tChat('failedToUpload', { filename: file.name }),
           variant: 'destructive',
         });
       } finally {
@@ -336,7 +341,7 @@ export default function ChatInput({
           {isDragOver && (
             <div className="absolute inset-0 bg-background/90 backdrop-blur-sm border border-dashed border-primary rounded-t-2xl flex items-center justify-center z-10 border-b-0">
               <div className="text-primary font-medium">
-                Drop files here to upload
+                {tDialogs('dropFilesHere')}
               </div>
             </div>
           )}
@@ -356,11 +361,11 @@ export default function ChatInput({
             {/* Placeholder and keyboard shortcuts */}
             {value.length === 0 && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground absolute top-0 left-0 pointer-events-none">
-                {placeholder}
+                {defaultPlaceholder}
                 <div className="flex items-center justify-center size-4 rounded border border-muted-foreground/30 text-muted-foreground">
                   <EnterKeyIcon />
                 </div>
-                to send
+                {tDialogs('toSend')}
               </div>
             )}
           </div>
@@ -373,10 +378,10 @@ export default function ChatInput({
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Attach files"
+              title={tDialogs('attach')}
             >
               <Paperclip className="size-4" />
-              <span className="text-xs">Attach</span>
+              <span className="text-xs">{tDialogs('attach')}</span>
             </button>
           </div>
         </div>

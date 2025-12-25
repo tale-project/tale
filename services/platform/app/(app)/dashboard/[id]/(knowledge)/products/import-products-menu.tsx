@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, Plus } from 'lucide-react';
 import ImportProductsDialog from './import-products-dialog';
+import { useT } from '@/lib/i18n';
 
 interface ImportProductsMenuProps {
   organizationId: string;
@@ -22,6 +23,7 @@ interface ImportProductsMenuProps {
 export default function ImportProductsMenu({
   organizationId,
 }: ImportProductsMenuProps) {
+  const { t } = useT('products');
   const router = useRouter();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
@@ -49,7 +51,7 @@ export default function ImportProductsMenu({
             <NavigationMenuTrigger asChild>
               <Button>
                 <Plus className="size-4 mr-2" />
-                Import products
+                {t('importMenu.importProducts')}
               </Button>
             </NavigationMenuTrigger>
             <NavigationMenuContent className="top-10 z-40 md:w-44 right-0">
@@ -63,7 +65,7 @@ export default function ImportProductsMenu({
                       className="w-full justify-start"
                     >
                       <HardDrive className="size-4 mr-2" />
-                      <span>From your device</span>
+                      <span>{t('importMenu.fromDevice')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -76,7 +78,7 @@ export default function ImportProductsMenu({
                       className="w-full justify-start"
                     >
                       <ShopifyIcon className="size-4 mr-2" />
-                      <span>From Shopify</span>
+                      <span>{t('importMenu.fromShopify')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -89,7 +91,7 @@ export default function ImportProductsMenu({
                       className="w-full justify-start"
                     >
                       <CirculyIcon className="size-4 mr-2" />
-                      <span>From Circuly</span>
+                      <span>{t('importMenu.fromCirculy')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>

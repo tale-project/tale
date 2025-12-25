@@ -252,7 +252,7 @@ function MilkdownEditorInner({
 
     if (!currentMarkdown.trim()) {
       toast({
-        title: 'No content to improve',
+        title: tConversations('editor.noContent'),
         variant: 'destructive',
       });
       return;
@@ -279,7 +279,7 @@ function MilkdownEditorInner({
       } catch (error) {
         console.error('Failed to improve content:', error);
         toast({
-          title: 'Failed to improve content. Please try again.',
+          title: tConversations('editor.improveFailed'),
           variant: 'destructive',
         });
       }
@@ -324,7 +324,7 @@ function MilkdownEditorInner({
         } catch (error) {
           console.error('Failed to send message:', error);
           toast({
-            title: 'Failed to send message. Please try again.',
+            title: tConversations('editor.sendFailed'),
             variant: 'destructive',
           });
         }
@@ -411,7 +411,7 @@ function MilkdownEditorInner({
                       <ChevronLeft className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Back to editor</TooltipContent>
+                  <TooltipContent>{tConversations('editor.backToEditor')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <Textarea
@@ -510,7 +510,7 @@ function MilkdownEditorInner({
             <div className="flex items-center justify-center h-full pt-12 pb-4">
               <LoaderIcon className="size-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-sm text-muted-foreground">
-                Improving...
+                {tConversations('editor.improving')}
               </span>
             </div>
           )}
@@ -586,7 +586,7 @@ function MilkdownEditorInner({
                       )}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Improve with AI</TooltipContent>
+                  <TooltipContent>{tConversations('editor.improveWithAi')}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
@@ -631,7 +631,7 @@ function MilkdownEditorInner({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isImproving ? 'Improving...' : 'Generate Improvement'}
+                  {isImproving ? tConversations('editor.improving') : tConversations('editor.generateImprovement')}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

@@ -3,6 +3,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n';
 
 interface ErrorFallbackProps {
   error: Error;
@@ -19,6 +20,8 @@ function DefaultErrorFallback({
   resetErrorBoundary,
   className,
 }: ErrorFallbackProps) {
+  const { t } = useT('common');
+
   return (
     <div
       className={cn(
@@ -30,9 +33,9 @@ function DefaultErrorFallback({
         <AlertCircle className="h-6 w-6 text-destructive" />
       </div>
       <div className="space-y-1">
-        <h3 className="font-medium text-foreground">Something went wrong</h3>
+        <h3 className="font-medium text-foreground">{t('errors.somethingWentWrong')}</h3>
         <p className="text-sm text-muted-foreground max-w-sm">
-          {error.message || 'An unexpected error occurred. Please try again.'}
+          {error.message || t('errors.unexpectedError')}
         </p>
       </div>
       <Button
@@ -42,7 +45,7 @@ function DefaultErrorFallback({
         className="gap-2"
       >
         <RefreshCw className="h-4 w-4" />
-        Try again
+        {t('errors.tryAgain')}
       </Button>
     </div>
   );

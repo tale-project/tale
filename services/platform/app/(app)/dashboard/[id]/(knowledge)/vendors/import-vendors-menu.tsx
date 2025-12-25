@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import ImportVendorsDialog from './import-vendors-dialog';
+import { useT } from '@/lib/i18n';
 
 interface ImportVendorsMenuProps {
   organizationId: string;
@@ -23,6 +24,7 @@ export type ImportMode = 'manual' | 'upload';
 export default function ImportVendorsMenu({
   organizationId,
 }: ImportVendorsMenuProps) {
+  const { t } = useT('vendors');
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
@@ -45,7 +47,7 @@ export default function ImportVendorsMenu({
             <NavigationMenuTrigger asChild>
               <Button>
                 <Plus className="size-4 mr-2" />
-                Import vendors
+                {t('importMenu.importVendors')}
               </Button>
             </NavigationMenuTrigger>
             <NavigationMenuContent className="top-10 z-40 md:w-44 right-0">
@@ -59,7 +61,7 @@ export default function ImportVendorsMenu({
                       className="w-full justify-start"
                     >
                       <HardDrive className="size-4 mr-2" />
-                      <span>From your device</span>
+                      <span>{t('importMenu.fromDevice')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -72,7 +74,7 @@ export default function ImportVendorsMenu({
                       className="w-full justify-start"
                     >
                       <NotepadText className="size-4 mr-2" />
-                      <span>Manual entry</span>
+                      <span>{t('importMenu.manualEntry')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>

@@ -51,7 +51,7 @@ export interface Message {
   fileParts?: FilePart[]; // File parts from server messages
 }
 
-function AutomationDetailsCollapse({ context }: { context: string }) {
+function AutomationDetailsCollapse({ context, title }: { context: string; title: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -61,7 +61,7 @@ function AutomationDetailsCollapse({ context }: { context: string }) {
         className="w-full flex items-center justify-between px-3 py-2 bg-muted/50 hover:bg-muted transition-colors text-left"
       >
         <span className="text-xs font-medium text-muted-foreground">
-          Automation Details
+          {title}
         </span>
         {isOpen ? (
           <ChevronDown className="size-3.5 text-muted-foreground" />
@@ -80,19 +80,13 @@ function AutomationDetailsCollapse({ context }: { context: string }) {
   );
 }
 
-function ThinkingAnimation() {
+function ThinkingAnimation({ steps }: { steps: string[] }) {
   const [currentStep, setCurrentStep] = useState(0);
-
-  const thinkingSteps = [
-    'Thinking',
-    'Analyzing workflow',
-    'Compiling an answer',
-  ];
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (currentStep < thinkingSteps.length - 1) {
+    if (currentStep < steps.length - 1) {
       interval = setInterval(() => {
         setCurrentStep((prev) => prev + 1);
       }, 2500);
@@ -101,7 +95,7 @@ function ThinkingAnimation() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentStep, thinkingSteps.length]);
+  }, [currentStep, steps.length]);
 
   return (
     <div className="flex justify-start">
@@ -127,7 +121,7 @@ function ThinkingAnimation() {
           }}
           className="inline-block"
         >
-          {thinkingSteps[currentStep]}
+          {steps[currentStep]}
         </motion.span>
         <div className="flex space-x-1">
           <div className="w-1 h-1 bg-muted-foreground rounded-full animate-bounce" />
@@ -271,8 +265,8 @@ export function AutomationAssistant({
 
     if (invalidFiles.length > 0) {
       toast({
-        title: 'Invalid files',
-        description: `Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.`,
+        title: t('assistant.upload.invalidFiles'),
+        description: t('assistant.upload.invalidFilesDescription'),
         variant: 'destructive',
       });
       return;
@@ -314,14 +308,14 @@ export function AutomationAssistant({
         setAttachments((prev) => [...prev, attachment]);
 
         toast({
-          title: 'File uploaded',
-          description: `${file.name} uploaded successfully`,
+          title: t('assistant.upload.success'),
+          description: t('assistant.upload.successDescription', { fileName: file.name }),
         });
       } catch (error) {
         console.error('Upload error:', error);
         toast({
-          title: 'Upload failed',
-          description: `Failed to upload ${file.name}`,
+          title: t('assistant.upload.failed'),
+          description: t('assistant.upload.failedDescription', { fileName: file.name }),
           variant: 'destructive',
         });
       } finally {
@@ -465,8 +459,7 @@ export function AutomationAssistant({
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content:
-          "I'm sorry, I encountered an error. Please try again or check the console for details.",
+        content: t('assistant.errorMessage'),
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -549,8 +542,8 @@ export function AutomationAssistant({
               <div className="rounded-lg px-3 py-2 bg-muted text-foreground max-w-[85%]">
                 <p className="text-xs">
                   {workflow?.status === 'draft'
-                    ? "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!"
-                    : "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?"}
+                    ? t('assistant.welcomeDraft')
+                    : t('assistant.welcomeActive')}
                 </p>
               </div>
             </div>
@@ -569,6 +562,7 @@ export function AutomationAssistant({
                   {message.automationContext && (
                     <AutomationDetailsCollapse
                       context={message.automationContext}
+                      title={t('assistant.automationDetails')}
                     />
                   )}
                   {/* Display file parts (images) */}
@@ -636,7 +630,15 @@ export function AutomationAssistant({
                 </div>
               </div>
             ))}
-            {isLoading && <ThinkingAnimation />}
+            {isLoading && (
+              <ThinkingAnimation
+                steps={[
+                  t('assistant.thinking.thinking'),
+                  t('assistant.thinking.analyzing'),
+                  t('assistant.thinking.compiling'),
+                ]}
+              />
+            )}
           </>
         )}
         <div ref={messagesEndRef} />
@@ -676,7 +678,7 @@ export function AutomationAssistant({
                 >
                   <LoaderCircle className="size-3 animate-spin" />
                   <span className="text-xs text-muted-foreground">
-                    Uploading...
+                    {t('assistant.upload.uploading')}
                   </span>
                 </div>
               ))}

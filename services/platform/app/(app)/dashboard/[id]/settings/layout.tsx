@@ -10,6 +10,7 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '@/components/layout';
+import { getT } from '@/lib/i18n/server';
 
 interface SettingsLayoutProps {
   children: ReactNode;
@@ -44,11 +45,12 @@ export default async function SettingsLayout({
 
   const userRole = userContext?.member?.role ?? 'Member';
   const canChangePassword = userContext?.canChangePassword ?? true;
+  const { t } = await getT('settings');
 
   return (
     <>
       <PageHeader>
-        <PageHeaderTitle>Settings</PageHeaderTitle>
+        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
       </PageHeader>
       <SettingsNavigation
         userRole={userRole}

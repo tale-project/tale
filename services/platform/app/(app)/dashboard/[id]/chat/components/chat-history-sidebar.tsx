@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import ChatActions from './chat-actions';
+import { useT } from '@/lib/i18n';
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   organizationId: string;
@@ -22,6 +23,7 @@ export default function ChatHistorySidebar({
   className,
   ...restProps
 }: ChatHistorySidebarProps) {
+  const { t } = useT('chat');
   const router = useRouter();
   const params = useParams();
   const currentThreadId = params.threadId as string | undefined;
@@ -54,10 +56,10 @@ export default function ChatHistorySidebar({
     () =>
       threadsData?.map((thread) => ({
         _id: thread._id,
-        title: thread.title ?? 'Untitled Chat',
+        title: thread.title ?? t('history.untitled'),
         createdAt: thread._creationTime,
       })),
-    [threadsData],
+    [threadsData, t],
   );
 
   // Auto-focus input when editing starts
@@ -115,7 +117,7 @@ export default function ChatHistorySidebar({
   const handleSaveRename = async (chatId: string) => {
     if (!editValue.trim()) {
       toast({
-        title: 'Chat title cannot be empty',
+        title: t('history.toast.titleEmpty'),
         variant: 'destructive',
       });
       return;
@@ -131,7 +133,7 @@ export default function ChatHistorySidebar({
     } catch (error) {
       console.error('Failed to rename chat:', error);
       toast({
-        title: 'Failed to rename chat',
+        title: t('history.toast.renameFailed'),
         variant: 'destructive',
       });
     }
@@ -158,16 +160,16 @@ export default function ChatHistorySidebar({
       {...restProps}
     >
       <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background z-10 pt-3">
-        Recent
+        {t('history.recent')}
       </div>
       <div className="flex flex-col gap-1">
         {!chats ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">
-            Loading chats...
+            {t('history.loading')}
           </div>
         ) : chats.length === 0 ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">
-            No chats yet
+            {t('history.empty')}
           </div>
         ) : (
           chats.map((chat) => {

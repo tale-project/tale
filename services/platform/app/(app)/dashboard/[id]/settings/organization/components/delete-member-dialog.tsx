@@ -13,6 +13,7 @@ import { AlertTriangle } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
 import { useMutation } from 'convex/react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 type MemberLite = {
   _id: string;
@@ -32,6 +33,10 @@ export default function DeleteMemberDialog({
   onOpenChange,
   member,
 }: DeleteMemberDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+  const { t: tDialogs } = useT('dialogs');
+
   const removeMember = useMutation(api.member.removeMember);
 
   const handleCancel = () => {
@@ -47,12 +52,12 @@ export default function DeleteMemberDialog({
       });
 
       toast({
-        title: 'Member removed',
+        title: t('organization.memberRemoved'),
       });
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Failed to remove member',
+        title: t('organization.memberRemoveFailed'),
         variant: 'destructive',
       });
     }
@@ -68,10 +73,10 @@ export default function DeleteMemberDialog({
             </div>
             <div>
               <DialogTitle className="font-semibold text-foreground">
-                Remove team member
+                {t('organization.removeTeamMember')}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground mt-1">
-                This action cannot be undone.
+                {tDialogs('cannotBeUndone')}
               </DialogDescription>
             </div>
           </div>
@@ -79,19 +84,12 @@ export default function DeleteMemberDialog({
 
         <div className="py-4">
           <p className="text-sm text-foreground">
-            Are you sure you want to remove{' '}
-            <span className="font-medium">
-              {member.displayName || member.email || 'this member'}
-            </span>{' '}
-            from the team? They will lose access to this organization and all
-            associated resources.
+            {tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
           </p>
           {member.role === 'admin' && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800">
-                <strong>Warning:</strong> Your organization must have at least 2
-                Admins for security. This action will be blocked if it would
-                leave fewer than 2 Admins.
+                {t('organization.adminSecurityWarning')}
               </p>
             </div>
           )}
@@ -99,14 +97,14 @@ export default function DeleteMemberDialog({
 
         <DialogFooter className="flex gap-3">
           <Button variant="outline" onClick={handleCancel} className="flex-1">
-            Cancel
+            {tCommon('actions.cancel')}
           </Button>
           <Button
             variant="destructive"
             onClick={() => handleConfirm(member._id)}
             className="flex-1"
           >
-            Remove member
+            {t('organization.removeMember')}
           </Button>
         </DialogFooter>
       </DialogContent>

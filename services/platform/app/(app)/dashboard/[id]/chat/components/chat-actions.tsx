@@ -77,7 +77,7 @@ export default function ChatActions({
     } catch (error) {
       console.error('Failed to delete chat:', error);
       toast({
-        title: 'Failed to delete chat',
+        title: tChat('deleteFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -100,7 +100,7 @@ export default function ChatActions({
                 <Pencil className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Rename</TooltipContent>
+            <TooltipContent side="bottom">{tCommon('actions.rename')}</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -114,7 +114,7 @@ export default function ChatActions({
                 <Trash2 className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Delete</TooltipContent>
+            <TooltipContent side="bottom">{tCommon('actions.delete')}</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>
@@ -127,12 +127,10 @@ export default function ChatActions({
           </DialogHeader>
           <div className="text-left space-y-2 py-2">
             <DialogDescription className="mb-2">
-              Are you sure you want to delete{' '}
-              <span className="font-medium text-foreground">{chat.title}</span>?
+              {tChat('deleteConfirmation', { title: chat.title })}
             </DialogDescription>
             <p className="text-sm text-muted-foreground">
-              This chat will be archived and won&apos;t appear in your chat
-              history.
+              {tChat('deleteArchiveMessage')}
             </p>
           </div>
           <DialogFooter>
@@ -143,7 +141,7 @@ export default function ChatActions({
               disabled={isLoading}
               className="flex-1"
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button
               type="button"

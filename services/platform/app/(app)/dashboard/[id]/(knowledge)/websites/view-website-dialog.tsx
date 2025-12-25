@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 
 interface ViewWebsiteDialogProps {
   isOpen: boolean;
@@ -16,38 +16,40 @@ interface ViewWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-const SCAN_INTERVALS: Record<string, string> = {
-  '60m': 'Every 1 hour',
-  '6h': 'Every 6 hours',
-  '12h': 'Every 12 hours',
-  '1d': 'Every 1 day',
-  '5d': 'Every 5 days',
-  '7d': 'Every 7 days',
-  '30d': 'Every 30 days',
-};
-
 export default function ViewWebsiteDialog({
   isOpen,
   onClose,
   website,
 }: ViewWebsiteDialogProps) {
   const locale = useLocale();
+  const { t } = useT('websites');
+
+  const SCAN_INTERVALS: Record<string, string> = {
+    '60m': t('scanIntervals.1hour'),
+    '6h': t('scanIntervals.6hours'),
+    '12h': t('scanIntervals.12hours'),
+    '1d': t('scanIntervals.1day'),
+    '5d': t('scanIntervals.5days'),
+    '7d': t('scanIntervals.7days'),
+    '30d': t('scanIntervals.30days'),
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="py-2">Website Details</DialogTitle>
+          <DialogTitle className="py-2">{t('viewDialog.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Domain</Label>
+              <Label>{t('viewDialog.domain')}</Label>
               <Value>{website.domain}</Value>
             </div>
 
             <div>
-              <Label>Status</Label>
+              <Label>{t('viewDialog.status')}</Label>
               <Value>
                 <div className="flex items-center gap-2">
                   <div
@@ -59,44 +61,44 @@ export default function ViewWebsiteDialog({
                           : 'bg-gray-500'
                     }`}
                   />
-                  {website.status || 'Unknown'}
+                  {website.status || t('viewDialog.unknown')}
                 </div>
               </Value>
             </div>
 
             <div>
-              <Label>Scan Interval</Label>
+              <Label>{t('viewDialog.scanInterval')}</Label>
               <Value>
                 {SCAN_INTERVALS[website.scanInterval] || website.scanInterval}
               </Value>
             </div>
 
             <div>
-              <Label>Last Scanned</Label>
+              <Label>{t('viewDialog.lastScanned')}</Label>
               <Value>
                 {website.lastScannedAt
                   ? formatDate(new Date(website.lastScannedAt), {
                       preset: 'long',
                       locale,
                     })
-                  : 'Not scanned yet'}
+                  : t('viewDialog.notScannedYet')}
               </Value>
             </div>
 
             <div className="col-span-2">
-              <Label>Title</Label>
+              <Label>{t('viewDialog.titleField')}</Label>
               <Value>{website.title || '-'}</Value>
             </div>
 
             <div className="col-span-2">
-              <Label>Description</Label>
+              <Label>{t('viewDialog.description')}</Label>
               <Value className="whitespace-pre-wrap">
                 {website.description || '-'}
               </Value>
             </div>
 
             <div>
-              <Label>Created</Label>
+              <Label>{t('viewDialog.created')}</Label>
               <Value>
                 {formatDate(new Date(website._creationTime), {
                   preset: 'long',

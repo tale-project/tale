@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Activity, RefreshCw } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface ExecutionStats {
   total: number;
@@ -31,6 +32,7 @@ export function AutomationMonitoringTab({
   pollingHandle,
   setPollingHandle,
 }: AutomationMonitoringTabProps) {
+  const { t } = useT('automations');
   // Queries
   const executionStats = useQuery(
     api.wf_executions.getWorkflowExecutionStats,
@@ -99,7 +101,7 @@ export function AutomationMonitoringTab({
               )
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Select a automation to view statistics
+                {t('monitoring.selectAutomation')}
               </div>
             )}
           </CardContent>
@@ -110,9 +112,9 @@ export function AutomationMonitoringTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <RefreshCw className="size-4" />
-              Real-time Status
+              {t('monitoring.realtimeStatus')}
             </CardTitle>
-            <CardDescription>Live execution monitoring</CardDescription>
+            <CardDescription>{t('monitoring.liveMonitoring')}</CardDescription>
           </CardHeader>
           <CardContent>
             {pollingHandle ? (
@@ -120,7 +122,7 @@ export function AutomationMonitoringTab({
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-sm">
-                    Monitoring execution: {pollingHandle}
+                    {t('monitoring.monitoringExecution', { handle: pollingHandle })}
                   </span>
                 </div>
                 <Button
@@ -128,12 +130,12 @@ export function AutomationMonitoringTab({
                   onClick={() => setPollingHandle(null)}
                   className="w-full"
                 >
-                  Stop Monitoring
+                  {t('monitoring.stopMonitoring')}
                 </Button>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Start a automation execution to see real-time status
+                {t('monitoring.startAutomation')}
               </div>
             )}
           </CardContent>

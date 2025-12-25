@@ -53,7 +53,7 @@ export default function DocumentActions({
       } catch (error) {
         console.error('Failed to delete folder:', error);
         toast({
-          title: 'Failed to delete folder',
+          title: tDocuments('actions.deleteFolderFailed'),
           variant: 'destructive',
         });
       }
@@ -71,7 +71,7 @@ export default function DocumentActions({
         });
       } catch (error) {
         toast({
-          title: 'An unexpected error occurred while deleting',
+          title: tDocuments('actions.deleteFileFailed'),
           variant: 'destructive',
         });
         console.error('Delete error:', error);

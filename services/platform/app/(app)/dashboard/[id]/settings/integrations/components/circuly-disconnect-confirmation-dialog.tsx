@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 interface CirculyDisconnectConfirmationDialogProps extends DialogProps {
   username?: string;
@@ -23,6 +24,8 @@ export default function CirculyDisconnectConfirmationDialog({
   onConfirm,
   ...props
 }: CirculyDisconnectConfirmationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleConfirm = async () => {
@@ -31,18 +34,18 @@ export default function CirculyDisconnectConfirmationDialog({
       await onConfirm();
 
       toast({
-        title: 'Circuly disconnected successfully.',
+        title: t('integrations.disconnectedSuccessfully', { provider: 'Circuly' }),
         variant: 'success',
       });
 
       // Dialog will be closed by parent component after successful disconnect
     } catch (error) {
       toast({
-        title: 'Disconnection failed',
+        title: t('integrations.disconnectionFailed'),
         description:
           error instanceof Error
             ? error.message
-            : 'Failed to disconnect Circuly. Please try again.',
+            : t('integrations.failedToDisconnect', { provider: 'Circuly' }),
         variant: 'destructive',
       });
 
@@ -62,7 +65,7 @@ export default function CirculyDisconnectConfirmationDialog({
           <DialogHeader className="space-y-1">
             <div className="flex items-center space-x-2">
               <AlertTriangle className="size-4 text-destructive" />
-              <DialogTitle>Disconnect Circuly?</DialogTitle>
+              <DialogTitle>{t('integrations.disconnectConfirm', { provider: 'Circuly' })}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -73,7 +76,7 @@ export default function CirculyDisconnectConfirmationDialog({
             {username && (
               <div className="space-y-1">
                 <p className="text-sm font-medium text-foreground">
-                  Connected Account:
+                  {t('integrations.circuly.connectedAccount')}
                 </p>
                 <p className="text-sm text-muted-foreground">{username}</p>
               </div>
@@ -81,14 +84,12 @@ export default function CirculyDisconnectConfirmationDialog({
 
             <div className="space-y-2">
               <p className="text-sm text-foreground">
-                Are you sure you want to disconnect the Circuly integration?
+                {t('integrations.circuly.disconnectQuestion')}
               </p>
 
               <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
                 <p className="text-sm text-destructive">
-                  <strong>Warning:</strong> Disconnecting Circuly will stop all
-                  data synchronization and product recommendations. You will
-                  need to reconnect to resume these features.
+                  {t('integrations.circuly.disconnectWarning')}
                 </p>
               </div>
             </div>
@@ -103,7 +104,7 @@ export default function CirculyDisconnectConfirmationDialog({
               className="flex-1"
               disabled={isDisconnecting}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
           </DialogClose>
 
@@ -113,7 +114,7 @@ export default function CirculyDisconnectConfirmationDialog({
             className="flex-1"
             disabled={isDisconnecting}
           >
-            {isDisconnecting ? 'Disconnecting...' : 'Yes, Disconnect'}
+            {isDisconnecting ? t('integrations.disconnecting') : t('integrations.circuly.yesDisconnect')}
           </Button>
         </div>
       </DialogContent>

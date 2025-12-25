@@ -31,6 +31,7 @@ import { useQuery, useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { useDateFormat } from '@/hooks/use-date-format';
+import { useT } from '@/lib/i18n';
 
 interface OutlookIntegrationDialogProps extends DialogProps {
   organizationId: string;
@@ -40,6 +41,8 @@ export default function OutlookIntegrationDialog({
   organizationId,
   ...props
 }: OutlookIntegrationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { formatDate } = useDateFormat();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
@@ -71,8 +74,8 @@ export default function OutlookIntegrationDialog({
     setTestingProviderId(providerId);
     try {
       toast({
-        title: 'Testing connection',
-        description: 'Validating SMTP and IMAP credentials...',
+        title: t('integrations.testingConnection'),
+        description: t('integrations.validatingCredentials'),
       });
 
       const result = await testExistingProvider({
@@ -81,8 +84,8 @@ export default function OutlookIntegrationDialog({
 
       if (result.success) {
         toast({
-          title: 'Connection successful',
-          description: `All tests passed! SMTP: ${result.smtp.latencyMs}ms, IMAP: ${result.imap.latencyMs}ms`,
+          title: t('integrations.connectionSuccessful'),
+          description: t('integrations.allTestsPassed', { smtp: result.smtp.latencyMs, imap: result.imap.latencyMs }),
           variant: 'success',
         });
       } else {
@@ -94,7 +97,7 @@ export default function OutlookIntegrationDialog({
           errors.push(`IMAP: ${result.imap.error}`);
         }
         toast({
-          title: 'Connection test failed',
+          title: t('integrations.connectionTestFailed'),
           description: errors.join('. '),
           variant: 'destructive',
         });
@@ -102,7 +105,7 @@ export default function OutlookIntegrationDialog({
     } catch (error) {
       console.error('Failed to test connection:', error);
       toast({
-        title: 'Failed to test connection',
+        title: t('integrations.failedToTestConnection'),
         variant: 'destructive',
       });
     } finally {
@@ -118,7 +121,7 @@ export default function OutlookIntegrationDialog({
     } catch (error) {
       console.error('Failed to delete provider:', error);
       toast({
-        title: 'Failed to delete provider',
+        title: t('integrations.failedToDeleteProvider'),
         variant: 'destructive',
       });
     }
@@ -139,7 +142,7 @@ export default function OutlookIntegrationDialog({
     } catch (error) {
       console.error('Failed to generate auth URL:', error);
       toast({
-        title: 'Failed to start authorization',
+        title: t('integrations.failedToStartAuth'),
         variant: 'destructive',
       });
     }
@@ -152,7 +155,7 @@ export default function OutlookIntegrationDialog({
         <div className="border-b border-border flex items-start justify-between px-4 py-6">
           <DialogHeader className="space-y-1">
             <div className="flex items-center gap-3">
-              <DialogTitle>Outlook integration</DialogTitle>
+              <DialogTitle>{t('integrations.outlookIntegration')}</DialogTitle>
             </div>
           </DialogHeader>
         </div>
@@ -188,7 +191,7 @@ export default function OutlookIntegrationDialog({
                             size="sm"
                             className="size-8 p-0"
                           >
-                            <span className="sr-only">More options</span>
+                            <span className="sr-only">{t('integrations.moreOptions')}</span>
                             <MoreVertical className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -200,7 +203,7 @@ export default function OutlookIntegrationDialog({
                                 className="text-blue-600 focus:text-blue-600"
                               >
                                 <Shield className="mr-2 size-4" />
-                                Authorize
+                                {t('integrations.authorize')}
                               </DropdownMenuItem>
                             )}
                           <DropdownMenuItem
@@ -213,15 +216,15 @@ export default function OutlookIntegrationDialog({
                           >
                             <TestTube className="mr-2 size-4" />
                             {testingProviderId === provider._id
-                              ? 'Testing...'
-                              : 'Test'}
+                              ? t('integrations.testing')
+                              : t('integrations.test')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleDeleteProvider(provider._id)}
                             className="text-red-600 focus:text-red-600"
                           >
                             <Trash2 className="mr-2 size-4" />
-                            Delete
+                            {tCommon('actions.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -236,23 +239,23 @@ export default function OutlookIntegrationDialog({
                         className="[&>span]:flex [&>span]:items-center"
                       >
                         <Star className="size-3.5 mr-1" />
-                        Default
+                        {t('integrations.default')}
                       </Badge>
                     )}
                     {provider.authMethod === 'oauth2' ? (
                       <>
                         <Badge variant="outline" className="text-xs">
-                          OAuth2
+                          {t('integrations.oauth2')}
                         </Badge>
                         {!provider.oauth2Auth?.accessTokenEncrypted && (
                           <Badge variant="destructive" className="text-xs">
-                            Not Authorized
+                            {t('integrations.notAuthorized')}
                           </Badge>
                         )}
                       </>
                     ) : (
                       <Badge variant="outline" className="text-xs">
-                        Password
+                        {t('integrations.password')}
                       </Badge>
                     )}
                     {provider.smtpConfig && (
@@ -288,7 +291,7 @@ export default function OutlookIntegrationDialog({
                   {/* Footer */}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
-                      Created:{' '}
+                      {t('integrations.created')}:{' '}
                       {formatDate(new Date(provider._creationTime), 'short')}
                     </span>
                   </div>
@@ -299,7 +302,7 @@ export default function OutlookIntegrationDialog({
             <div className="text-center py-8">
               <OutlookIcon className="size-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm text-muted-foreground mb-2">
-                No Outlook providers configured yet
+                {t('integrations.noOutlookProviders')}
               </p>
             </div>
           )}
@@ -309,7 +312,7 @@ export default function OutlookIntegrationDialog({
         <div className="border-t border-border p-4">
           <Button onClick={handleCreateProvider} className="w-full">
             <Plus className="size-4 mr-2" />
-            Add Outlook Provider
+            {t('integrations.addOutlookProvider')}
           </Button>
         </div>
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -34,6 +35,8 @@ export default function ProductActions({
   product,
   onActionComplete,
 }: ProductActionsProps) {
+  const { t: tProducts } = useT('products');
+  const { t: tCommon } = useT('common');
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -56,7 +59,7 @@ export default function ProductActions({
     } catch (err) {
       console.error('Deletion error:', err);
       toast({
-        title: 'Failed to delete product',
+        title: tProducts('actions.deleteFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -72,7 +75,7 @@ export default function ProductActions({
         className="flex items-center w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded"
       >
         <Eye className="size-4 mr-2" />
-        View
+        {tCommon('actions.view')}
       </button>
 
       {/* Edit action */}
@@ -81,7 +84,7 @@ export default function ProductActions({
         className="flex items-center w-full text-left px-2 py-1.5 text-sm hover:bg-muted rounded"
       >
         <Pencil className="size-4 mr-2" />
-        Edit
+        {tCommon('actions.edit')}
       </button>
 
       {/* Delete action */}
@@ -90,7 +93,7 @@ export default function ProductActions({
         className="flex items-center w-full text-left px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded"
       >
         <Trash2 className="size-4 mr-2" />
-        Delete
+        {tCommon('actions.delete')}
       </button>
 
       {/* Dialogs */}

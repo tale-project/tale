@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import ImportCustomersDialog from './import-customers-dialog';
+import { useT } from '@/lib/i18n';
 
 interface ImportCustomersMenuProps {
   organizationId: string;
@@ -24,6 +25,7 @@ export type ImportMode = 'manual' | 'upload';
 export default function ImportCustomersMenu({
   organizationId,
 }: ImportCustomersMenuProps) {
+  const { t } = useT('customers');
   const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
@@ -52,7 +54,7 @@ export default function ImportCustomersMenu({
             <NavigationMenuTrigger asChild>
               <Button>
                 <Plus className="size-4 mr-2" />
-                Import customers
+                {t('importMenu.importCustomers')}
               </Button>
             </NavigationMenuTrigger>
             <NavigationMenuContent className="top-10 z-40 md:w-48 right-0">
@@ -66,7 +68,7 @@ export default function ImportCustomersMenu({
                       className="w-full justify-start"
                     >
                       <HardDrive className="size-4 mr-2" />
-                      <span>From your device</span>
+                      <span>{t('importMenu.fromDevice')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -79,7 +81,7 @@ export default function ImportCustomersMenu({
                       className="w-full justify-start"
                     >
                       <CirculyIcon className="size-4 mr-2" />
-                      <span>From Circuly</span>
+                      <span>{t('importMenu.fromCirculy')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -92,7 +94,7 @@ export default function ImportCustomersMenu({
                       className="w-full justify-start"
                     >
                       <NotepadText className="size-4 mr-2" />
-                      <span>Manual entry</span>
+                      <span>{t('importMenu.manualEntry')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>

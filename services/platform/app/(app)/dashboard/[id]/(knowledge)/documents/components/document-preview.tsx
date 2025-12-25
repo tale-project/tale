@@ -10,6 +10,7 @@ import DocumentPreviewPDF from './document-preview-pdf';
 import DocumentPreviewDocx from './document-preview-docx';
 import DocumentPreviewXlsx from './document-preview-xlsx';
 import { useToast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 export interface DocumentPreviewProps {
   url: string;
@@ -22,6 +23,7 @@ export default function DocumentPreview({
 }: DocumentPreviewProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
+  const { t } = useT('documents');
 
   const extension = useMemo(() => {
     return getFileExtension(fileName || url);
@@ -50,14 +52,14 @@ export default function DocumentPreview({
       window.URL.revokeObjectURL(blobUrl);
 
       toast({
-        title: 'Download complete',
-        description: `${fileName || 'File'} has been downloaded`,
+        title: t('preview.downloadComplete'),
+        description: t('preview.fileDownloaded', { fileName: fileName || 'File' }),
         variant: 'success',
       });
     } catch (error) {
       console.error('Download error:', error);
       toast({
-        title: 'Failed to download the file',
+        title: t('preview.downloadFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -82,20 +84,19 @@ export default function DocumentPreview({
       <div className="text-center text-muted-foreground max-w-[24rem]">
         <Image className="size-16 mx-auto mb-2 p-2" />
         <div className="text-base font-medium text-foreground mb-1">
-          Preview not available
+          {t('preview.notAvailable')}
         </div>
         <div className="text-sm mb-6">
-          This file type cannot be previewed. <br /> Please download the file to
-          view its contents.
+          {t('preview.notAvailableDescription')}
         </div>
         <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
           {isDownloading ? (
             <>
-              <Loader2 className="mr-2 size-4 animate-spin" /> Downloading...
+              <Loader2 className="mr-2 size-4 animate-spin" /> {t('preview.downloading')}
             </>
           ) : (
             <>
-              <Download className="mr-2 size-4" /> Download
+              <Download className="mr-2 size-4" /> {t('preview.download')}
             </>
           )}
         </Button>

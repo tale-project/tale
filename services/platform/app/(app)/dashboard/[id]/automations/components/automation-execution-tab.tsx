@@ -18,7 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Play, Clock, Square, TestTube } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 
 interface AutomationTemplate {
   _id: Id<'wfDefinitions'>;
@@ -51,6 +51,7 @@ export function AutomationExecutionTab({
   setPollingHandle,
 }: AutomationExecutionTabProps) {
   const locale = useLocale();
+  const { t } = useT('automations');
   const [executionInput, setExecutionInput] = useState('{}');
 
   // Queries
@@ -88,7 +89,7 @@ export function AutomationExecutionTab({
         input = JSON.parse(executionInput);
       } catch {
         toast({
-          title: 'Invalid JSON input',
+          title: t('execution.toast.invalidJson'),
           variant: 'destructive',
         });
         return;
@@ -105,12 +106,12 @@ export function AutomationExecutionTab({
       setSelectedExecution(executionHandle);
 
       toast({
-        title: 'Automation started successfully',
+        title: t('execution.toast.startedSuccess'),
         variant: 'success',
       });
     } catch (error) {
       toast({
-        title: `Failed to start automation: ${error}`,
+        title: t('execution.toast.startFailed', { error: String(error) }),
         variant: 'destructive',
       });
     }
@@ -124,24 +125,24 @@ export function AutomationExecutionTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Play className="size-4" />
-              Execution Control
+              {t('execution.control.title')}
             </CardTitle>
             <CardDescription>
-              Start and control automation executions
+              {t('execution.control.description')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {selectedAutomation ? (
               <>
                 <div>
-                  <Label>Selected automation</Label>
+                  <Label>{t('execution.selectedAutomation')}</Label>
                   <div className="p-2 bg-muted rounded text-sm">
                     {selectedAutomationData?.name || selectedAutomation}
                   </div>
                 </div>
                 <JsonInput
                   id="execution-input"
-                  label="Input data (JSON)"
+                  label={t('execution.inputLabel')}
                   value={executionInput}
                   onChange={setExecutionInput}
                   placeholder='{"key": "value"}'
@@ -154,7 +155,7 @@ export function AutomationExecutionTab({
                     className="flex-1"
                   >
                     <Play className="size-4 mr-2" />
-                    Start Execution
+                    {t('execution.startButton')}
                   </Button>
                   <Button
                     variant="outline"
@@ -165,7 +166,7 @@ export function AutomationExecutionTab({
                           input = JSON.parse(executionInput);
                         } catch {
                           toast({
-                            title: 'Invalid JSON input',
+                            title: t('execution.toast.invalidJson'),
                             variant: 'destructive',
                           });
                           return;
@@ -184,14 +185,14 @@ export function AutomationExecutionTab({
                           },
                         });
                         toast({
-                          title: 'Test execution started',
-                          description: `Execution ID: ${result}`,
+                          title: t('execution.toast.testStarted'),
+                          description: t('execution.toast.executionId', { id: result }),
                         });
                         setSelectedExecution(result);
                         setPollingHandle(result);
                       } catch (error) {
                         toast({
-                          title: 'Test failed',
+                          title: t('execution.toast.testFailed'),
                           description: `${error}`,
                           variant: 'destructive',
                         });
@@ -199,18 +200,18 @@ export function AutomationExecutionTab({
                     }}
                   >
                     <TestTube className="size-4 mr-2" />
-                    Test
+                    {t('execution.testButton')}
                   </Button>
                 </div>
                 {selectedAutomationData?.status !== 'active' && (
                   <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                    ⚠️ Automation must be active to start execution
+                    ⚠️ {t('execution.mustBeActive')}
                   </div>
                 )}
               </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Select a automation from the Templates tab to start execution
+                {t('execution.selectToStart')}
               </div>
             )}
           </CardContent>
@@ -221,19 +222,19 @@ export function AutomationExecutionTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="size-4" />
-              Execution History
+              {t('execution.history.title')}
             </CardTitle>
             <CardDescription>
-              Recent executions for selected automation
+              {t('execution.history.description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {selectedAutomation ? (
               executions === undefined ? (
-                <div className="text-center py-4">Loading executions...</div>
+                <div className="text-center py-4">{t('execution.history.loading')}</div>
               ) : executions.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">
-                  No executions found for this automation
+                  {t('execution.history.noExecutions')}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -268,11 +269,11 @@ export function AutomationExecutionTab({
                             </span>
                           </div>
                           <p className="text-sm mt-1">
-                            Triggered by: {execution.triggeredBy}
+                            {t('execution.history.triggeredBy', { source: execution.triggeredBy })}
                           </p>
                           {execution.waitingFor && (
                             <p className="text-sm text-amber-600">
-                              Waiting for: {execution.waitingFor}
+                              {t('execution.history.waitingFor', { target: execution.waitingFor })}
                             </p>
                           )}
                         </div>
@@ -297,7 +298,7 @@ export function AutomationExecutionTab({
               )
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                Select a automation to view execution history
+                {t('execution.history.selectToView')}
               </div>
             )}
           </CardContent>

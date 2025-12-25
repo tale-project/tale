@@ -34,6 +34,7 @@ export default function ShopifyIntegrationDialog({
   ...props
 }: ShopifyIntegrationDialogProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [domain, setDomain] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,18 +61,17 @@ export default function ShopifyIntegrationDialog({
       props.onOpenChange?.(false);
 
       toast({
-        title: isConnected ? 'Update successful' : 'Connection successful',
+        title: isConnected ? t('integrations.updateSuccessful') : t('integrations.connectionSuccessful'),
         description: isConnected
-          ? 'Shopify integration has been updated successfully.'
-          : 'Shopify integration has been connected successfully.',
+          ? t('integrations.connectedTo', { provider: 'Shopify' })
+          : t('integrations.connectedTo', { provider: 'Shopify' }),
         variant: 'success',
       });
     } catch {
       // Keep dialog open and surface error without leaking credentials
       toast({
-        title: isConnected ? 'Update failed' : 'Connection failed',
-        description:
-          'Failed to connect to Shopify. Please check your credentials.',
+        title: isConnected ? t('integrations.updateFailed') : t('integrations.connectionTestFailed'),
+        description: t('integrations.failedToDisconnect', { provider: 'Shopify' }),
         variant: 'destructive',
       });
     } finally {
@@ -90,8 +90,8 @@ export default function ShopifyIntegrationDialog({
       props.onOpenChange?.(false);
     } catch {
       toast({
-        title: 'Disconnect failed',
-        description: 'Failed to disconnect Shopify, please try again.',
+        title: t('integrations.disconnectionFailed'),
+        description: t('integrations.failedToDisconnect', { provider: 'Shopify' }),
         variant: 'destructive',
       });
     } finally {
@@ -105,7 +105,7 @@ export default function ShopifyIntegrationDialog({
         {/* Header */}
         <div className="border-b border-border flex items-start justify-between px-4 py-6">
           <DialogHeader className="space-y-1">
-            <DialogTitle>Shopify integration</DialogTitle>
+            <DialogTitle>{t('integrations.shopifyIntegration')}</DialogTitle>
           </DialogHeader>
         </div>
 
@@ -114,7 +114,7 @@ export default function ShopifyIntegrationDialog({
           {isConnected && (
             <div className="flex items-center space-x-2 text-sm text-green-600">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>Connected to Shopify</span>
+              <span>{t('integrations.shopify.connectedToShopify')}</span>
             </div>
           )}
 
@@ -124,7 +124,7 @@ export default function ShopifyIntegrationDialog({
                 htmlFor="shopify-domain"
                 className="text-sm font-medium text-foreground/80"
               >
-                Domain
+                {t('integrations.domain')}
               </Label>
               <Input
                 id="shopify-domain"
@@ -136,10 +136,9 @@ export default function ShopifyIntegrationDialog({
               />
             </div>
             <p className="text-xs text-muted-foreground leading-[20px]">
-              Your shop&apos;s .myshopify.com address (e.g.,
-              mystore.myshopify.com).
+              {t('integrations.shopify.domainHelp')}
               <br />
-              Go to Shopify → Settings → Domains.
+              {t('integrations.shopify.domainHelpNav')}
             </p>
           </div>
 
@@ -149,7 +148,7 @@ export default function ShopifyIntegrationDialog({
                 htmlFor="shopify-access-token"
                 className="text-sm font-medium text-foreground/80"
               >
-                Access token
+                {t('integrations.accessToken')}
               </Label>
               <Input
                 id="shopify-access-token"
@@ -166,10 +165,9 @@ export default function ShopifyIntegrationDialog({
               />
             </div>
             <p className="text-xs text-muted-foreground leading-[20px]">
-              Your Shopify Admin API access token from your custom app.
+              {t('integrations.shopify.accessTokenHelp')}
               <br />
-              Go to Shopify → Apps → Develop apps → [Your app] → API credentials
-              → Admin API access token (Reveal).
+              {t('integrations.shopify.accessTokenHelpNav')}
             </p>
           </div>
         </div>
@@ -184,21 +182,21 @@ export default function ShopifyIntegrationDialog({
                 disabled={isSubmitting}
                 className="flex-1"
               >
-                {isSubmitting ? 'Disconnecting...' : 'Disconnect'}
+                {isSubmitting ? t('integrations.disconnecting') : t('integrations.disconnect')}
               </Button>
               <Button
                 onClick={handleConnect}
                 disabled={isSubmitting || !domain || !accessToken}
                 className="flex-1"
               >
-                {isSubmitting ? 'Updating...' : 'Update'}
+                {isSubmitting ? t('integrations.shopify.updating') : t('integrations.shopify.update')}
               </Button>
             </>
           ) : (
             <>
               <DialogClose asChild>
                 <Button variant="outline" className="flex-1">
-                  Cancel
+                  {tCommon('actions.cancel')}
                 </Button>
               </DialogClose>
               <Button
@@ -206,7 +204,7 @@ export default function ShopifyIntegrationDialog({
                 className="flex-1"
                 disabled={isSubmitting || !domain || !accessToken}
               >
-                {isSubmitting ? 'Connecting...' : 'Connect'}
+                {isSubmitting ? t('integrations.shopify.connecting') : t('integrations.shopify.connect')}
               </Button>
             </>
           )}

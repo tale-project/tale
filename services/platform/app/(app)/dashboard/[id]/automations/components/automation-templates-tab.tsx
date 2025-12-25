@@ -40,6 +40,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface AutomationTemplatesTabProps {
   organizationId: string;
@@ -52,6 +53,8 @@ export function AutomationTemplatesTab({
   selectedWorkflow,
   setSelectedWorkflow,
 }: AutomationTemplatesTabProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { user } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -102,7 +105,7 @@ export function AutomationTemplatesTab({
       });
 
       toast({
-        title: 'Automation created successfully',
+        title: t('toast.created'),
         variant: 'success',
       });
 
@@ -114,7 +117,7 @@ export function AutomationTemplatesTab({
       setSelectedWorkflow(wfDefinitionId);
     } catch (error) {
       toast({
-        title: `Failed to create automation: ${error}`,
+        title: t('toast.createFailed'),
         variant: 'destructive',
       });
     }
@@ -123,7 +126,7 @@ export function AutomationTemplatesTab({
   const handleActivateWorkflow = async (wfDefinitionId: string) => {
     if (!user?._id) {
       toast({
-        title: 'Authentication required',
+        title: t('toast.authRequired'),
         variant: 'destructive',
       });
       return;
@@ -136,12 +139,12 @@ export function AutomationTemplatesTab({
         updatedBy: user._id,
       });
       toast({
-        title: 'Automation activated successfully',
+        title: t('toast.activated'),
         variant: 'success',
       });
     } catch (error) {
       toast({
-        title: `Failed to activate automation: ${error}`,
+        title: t('toast.activateFailed'),
         variant: 'destructive',
       });
     }
@@ -150,7 +153,7 @@ export function AutomationTemplatesTab({
   const handleDeactivateAutomation = async (wfDefinitionId: string) => {
     if (!user?._id) {
       toast({
-        title: 'Authentication required',
+        title: t('toast.authRequired'),
         variant: 'destructive',
       });
       return;
@@ -163,12 +166,12 @@ export function AutomationTemplatesTab({
         updatedBy: user._id,
       });
       toast({
-        title: 'Automation deactivated successfully',
+        title: t('toast.deactivated'),
         variant: 'success',
       });
     } catch (error) {
       toast({
-        title: `Failed to deactivate automation: ${error}`,
+        title: t('toast.deactivateFailed'),
         variant: 'destructive',
       });
     }
@@ -192,7 +195,7 @@ export function AutomationTemplatesTab({
   const saveEditing = async (wfDefinitionId: string) => {
     if (!user?._id) {
       toast({
-        title: 'Authentication required',
+        title: t('toast.authRequired'),
         variant: 'destructive',
       });
       return;
@@ -203,7 +206,7 @@ export function AutomationTemplatesTab({
       parsedConfig = editForm.config ? JSON.parse(editForm.config) : {};
     } catch {
       toast({
-        title: 'Invalid JSON in config',
+        title: tCommon('validation.invalidJson'),
         variant: 'destructive',
       });
       return;
@@ -221,11 +224,11 @@ export function AutomationTemplatesTab({
         },
         updatedBy: user._id,
       });
-      toast({ title: 'Automation updated successfully.', variant: 'success' });
+      toast({ title: t('toast.updated'), variant: 'success' });
       setEditingId(null);
     } catch (error) {
       toast({
-        title: `Failed to update automation: ${error}`,
+        title: t('toast.updateFailed'),
         variant: 'destructive',
       });
     }
@@ -239,7 +242,7 @@ export function AutomationTemplatesTab({
       if (selectedWorkflow === wfDefinitionId) setSelectedWorkflow(null);
     } catch (error) {
       toast({
-        title: `Failed to delete automation: ${error}`,
+        title: t('toast.deleteFailed'),
         variant: 'destructive',
       });
     }
@@ -253,25 +256,25 @@ export function AutomationTemplatesTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plus className="size-4" />
-              New Automation
+              {t('templates.newAutomation')}
             </CardTitle>
-            <CardDescription>Create a new automation template</CardDescription>
+            <CardDescription>{t('templates.createNewTemplate')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full">Create automation</Button>
+                <Button className="w-full">{t('createButton')}</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Create automation</DialogTitle>
+                  <DialogTitle>{t('createDialog.title')}</DialogTitle>
                   <DialogDescription>
-                    Fill in the details for your new workflow.
+                    {t('templates.fillDetails')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="workflow-name">Name</Label>
+                    <Label htmlFor="workflow-name">{t('configuration.name')}</Label>
                     <Input
                       id="workflow-name"
                       value={newAutomationForm.name}
@@ -281,11 +284,11 @@ export function AutomationTemplatesTab({
                           name: e.target.value,
                         }))
                       }
-                      placeholder="Enter automation name"
+                      placeholder={t('configuration.namePlaceholder')}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="workflow-description">Description</Label>
+                    <Label htmlFor="workflow-description">{t('configuration.description')}</Label>
                     <Textarea
                       id="automation-description"
                       value={newAutomationForm.description}
@@ -295,7 +298,7 @@ export function AutomationTemplatesTab({
                           description: e.target.value,
                         }))
                       }
-                      placeholder="Enter automation description"
+                      placeholder={t('configuration.descriptionPlaceholder')}
                     />
                   </div>
                 </div>
@@ -307,7 +310,7 @@ export function AutomationTemplatesTab({
                     }}
                     disabled={!newAutomationForm.name}
                   >
-                    Create
+                    {tCommon('actions.create')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -320,18 +323,18 @@ export function AutomationTemplatesTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <List className="size-4" />
-              Automation Templates
+              {t('templates.automationTemplates')}
             </CardTitle>
             <CardDescription>
-              Manage existing automation templates
+              {t('templates.manageExisting')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {automations === undefined ? (
-              <div className="text-center py-4">Loading automations...</div>
+              <div className="text-center py-4">{t('templates.loading')}</div>
             ) : automations.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground">
-                No automations found. Create your first automation above.
+                {t('templates.noAutomationsFound')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -352,7 +355,7 @@ export function AutomationTemplatesTab({
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div>
-                              <Label>Name</Label>
+                              <Label>{t('configuration.name')}</Label>
                               <Input
                                 value={editForm.name}
                                 onChange={(e) =>
@@ -364,7 +367,7 @@ export function AutomationTemplatesTab({
                               />
                             </div>
                             <div>
-                              <Label>Description</Label>
+                              <Label>{t('configuration.description')}</Label>
                               <Textarea
                                 value={editForm.description}
                                 onChange={(e) =>
@@ -378,7 +381,7 @@ export function AutomationTemplatesTab({
                             <div>
                               <div>
                                 <Label className="text-base font-medium">
-                                  Config (JSON)
+                                  {t('templates.configJson')}
                                 </Label>
                                 <hr className="mt-2 mb-4 border-border" />
                               </div>
@@ -391,7 +394,7 @@ export function AutomationTemplatesTab({
                                   }))
                                 }
                                 rows={4}
-                                description="Automation configuration settings"
+                                description={t('templates.configDescription')}
                               />
                             </div>
                           </div>
@@ -399,7 +402,7 @@ export function AutomationTemplatesTab({
                           <>
                             <h4 className="font-medium">{workflow.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              {workflow.description || 'No description'}
+                              {workflow.description || t('templates.noDescription')}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
                               <Badge
@@ -504,15 +507,14 @@ export function AutomationTemplatesTab({
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete automation?</DialogTitle>
+            <DialogTitle>{t('templates.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. This will permanently delete the
-              automation template and its steps.
+              {t('templates.deleteDescription')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDeleteOpen(false)}>
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -523,7 +525,7 @@ export function AutomationTemplatesTab({
                 setDeleteTarget(null);
               }}
             >
-              Delete
+              {tCommon('actions.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,7 @@ import {
   PageHeaderTitle,
 } from '@/components/layout';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { getT } from '@/lib/i18n/server';
 
 interface ApprovalsLayoutProps {
   children: ReactNode;
@@ -17,11 +18,12 @@ export default async function ApprovalsLayout({
   params,
 }: ApprovalsLayoutProps) {
   const { id: organizationId } = await params;
+  const { t } = await getT('approvals');
 
   return (
     <>
       <PageHeader>
-        <PageHeaderTitle>Approvals</PageHeaderTitle>
+        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
       </PageHeader>
       <ApprovalsNavigation organizationId={organizationId} />
       <ErrorBoundaryWithParams>

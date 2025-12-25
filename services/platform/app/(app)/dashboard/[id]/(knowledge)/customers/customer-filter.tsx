@@ -141,9 +141,9 @@ export default function CustomerFilter() {
           active={sourceFilters.length > 0}
         >
           {[
-            { value: 'manual_import', label: 'Manual' },
-            { value: 'file_upload', label: 'Upload' },
-            { value: 'circuly', label: 'Circuly' },
+            { value: 'manual_import', label: tCustomers('filter.source.manual') },
+            { value: 'file_upload', label: tCustomers('filter.source.upload') },
+            { value: 'circuly', label: tCustomers('filter.source.circuly') },
           ].map((source) => (
             <label
               key={source.value}

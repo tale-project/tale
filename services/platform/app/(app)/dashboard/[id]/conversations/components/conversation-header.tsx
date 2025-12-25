@@ -17,6 +17,7 @@ import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialo
 import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 import { useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
@@ -36,6 +37,7 @@ export default function ConversationHeader({
   onResolve,
   onReopen,
 }: ConversationHeaderProps) {
+  const { t } = useT('conversations');
   const { customer } = conversation;
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
   const [isResolvingLoading, setIsResolvingLoading] = useState(false);
@@ -109,14 +111,14 @@ export default function ConversationHeader({
       });
 
       toast({
-        title: 'Conversation has been closed successfully.',
+        title: t('header.toast.closed'),
         variant: 'success',
       });
       onResolve?.();
     } catch (error) {
       console.error('Error closing conversation:', error);
       toast({
-        title: 'An unexpected error occurred while closing the conversation.',
+        title: t('header.toast.closeFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -132,14 +134,14 @@ export default function ConversationHeader({
       });
 
       toast({
-        title: 'Conversation has been reopened successfully.',
+        title: t('header.toast.reopened'),
         variant: 'success',
       });
       onReopen?.();
     } catch (error) {
       console.error('Error reopening conversation:', error);
       toast({
-        title: 'An unexpected error occurred while reopening the conversation.',
+        title: t('header.toast.reopenFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -155,15 +157,14 @@ export default function ConversationHeader({
       });
 
       toast({
-        title: 'Conversation has been marked as spam successfully.',
+        title: t('header.toast.markedAsSpam'),
         variant: 'success',
       });
       onResolve?.();
     } catch (error) {
       console.error('Error marking conversation as spam:', error);
       toast({
-        title:
-          'An unexpected error occurred while marking the conversation as spam.',
+        title: t('header.toast.markAsSpamFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -231,7 +232,7 @@ export default function ConversationHeader({
               >
                 <UserIcon className="size-5 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">
-                  Customer info
+                  {t('header.customerInfo')}
                 </span>
               </DropdownMenuItem>
               {conversation.status === 'open' && (
@@ -242,7 +243,7 @@ export default function ConversationHeader({
                 >
                   <MessageSquareOff className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isResolvingLoading ? 'Closing...' : 'Close conversation'}
+                    {isResolvingLoading ? t('header.closing') : t('header.closeConversation')}
                   </span>
                 </DropdownMenuItem>
               )}
@@ -254,9 +255,7 @@ export default function ConversationHeader({
                 >
                   <MessageSquare className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isReopeningLoading
-                      ? 'Reopening...'
-                      : 'Reopen conversation'}
+                    {isReopeningLoading ? t('header.reopening') : t('header.reopenConversation')}
                   </span>
                 </DropdownMenuItem>
               )}
@@ -268,9 +267,7 @@ export default function ConversationHeader({
                 >
                   <ShieldX className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isMarkingSpamLoading
-                      ? 'Marking as spam...'
-                      : 'Mark as spam'}
+                    {isMarkingSpamLoading ? t('header.markingAsSpam') : t('header.markAsSpam')}
                   </span>
                 </DropdownMenuItem>
               )}

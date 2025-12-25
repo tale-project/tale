@@ -76,7 +76,7 @@ export default function EditProductDialog({
 
     if (!formData.name.trim()) {
       toast({
-        title: 'Product name is required',
+        title: tProducts('edit.validation.nameRequired'),
         variant: 'destructive',
       });
       return;
@@ -97,7 +97,7 @@ export default function EditProductDialog({
       });
 
       toast({
-        title: 'Product updated successfully',
+        title: tProducts('edit.toast.success'),
         variant: 'success',
       });
 
@@ -106,7 +106,7 @@ export default function EditProductDialog({
     } catch (err) {
       console.error('Update error:', err);
       toast({
-        title: 'Failed to update product',
+        title: tProducts('edit.toast.error'),
         variant: 'destructive',
       });
     } finally {
@@ -119,10 +119,10 @@ export default function EditProductDialog({
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader className="space-y-2">
           <DialogTitle className="font-semibold text-foreground">
-            Edit Product
+            {tProducts('edit.title')}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Update product information. Required fields are marked with *
+            {tProducts('edit.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -130,7 +130,7 @@ export default function EditProductDialog({
           {/* Product Name */}
           <div className="space-y-2">
             <Label htmlFor="name" required>
-              Product Name
+              {tProducts('edit.labels.name')}
             </Label>
             <Input
               id="name"
@@ -146,7 +146,7 @@ export default function EditProductDialog({
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">{tProducts('edit.labels.description')}</Label>
             <Textarea
               id="description"
               value={formData.description}
@@ -161,7 +161,7 @@ export default function EditProductDialog({
 
           {/* Image URL */}
           <div className="space-y-2">
-            <Label htmlFor="imageUrl">Image URL</Label>
+            <Label htmlFor="imageUrl">{tProducts('edit.labels.imageUrl')}</Label>
             <Input
               id="imageUrl"
               type="url"
@@ -177,7 +177,7 @@ export default function EditProductDialog({
           {/* Price and Currency Row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Price</Label>
+              <Label htmlFor="price">{tProducts('edit.labels.price')}</Label>
               <Input
                 id="price"
                 type="number"
@@ -192,7 +192,7 @@ export default function EditProductDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
+              <Label htmlFor="currency">{tProducts('edit.labels.currency')}</Label>
               <Input
                 id="currency"
                 value={formData.currency}
@@ -209,7 +209,7 @@ export default function EditProductDialog({
           {/* Stock and Category Row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="stock">Stock</Label>
+              <Label htmlFor="stock">{tProducts('edit.labels.stock')}</Label>
               <Input
                 id="stock"
                 type="number"
@@ -223,7 +223,7 @@ export default function EditProductDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
+              <Label htmlFor="category">{tProducts('edit.labels.category')}</Label>
               <Input
                 id="category"
                 value={formData.category}
@@ -243,7 +243,7 @@ export default function EditProductDialog({
               onClick={onClose}
               disabled={isSubmitting}
             >
-              Cancel
+              {tCommon('actions.cancel')}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}

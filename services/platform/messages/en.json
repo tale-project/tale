@@ -39,12 +39,21 @@
       "hideSearch": "Hide search",
       "updating": "Updating...",
       "importing": "Importing...",
-      "openMenu": "Open menu"
+      "openMenu": "Open menu",
+      "rename": "Rename"
+    },
+    "labels": {
+      "name": "Name",
+      "description": "Description",
+      "email": "Email",
+      "status": "Status",
+      "type": "Type"
     },
     "status": {
       "active": "Active",
       "inactive": "Inactive",
       "pending": "Pending",
+      "running": "Running",
       "completed": "Completed",
       "failed": "Failed",
       "published": "Published",
@@ -71,13 +80,27 @@
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",
-      "failedToCopy": "Failed to copy to clipboard"
+      "failedToCopy": "Failed to copy to clipboard",
+      "somethingWentWrong": "Something went wrong",
+      "unexpectedError": "An unexpected error occurred. Please try again.",
+      "errorLoadingPage": "An error occurred while loading this page. You can try again or navigate to another section.",
+      "unexpectedErrorLoading": "An unexpected error occurred while loading this page. This might be a temporary issue.",
+      "persistsProblem": "If this problem persists, please",
+      "contactSupport": "contact support",
+      "forAssistance": "for assistance.",
+      "tryAgain": "Try again",
+      "organizationNotFound": "Organization ID not found"
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
     },
-    "unsavedChanges": "Unsaved changes"
+    "unsavedChanges": "Unsaved changes",
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you're looking for may have been moved or no longer exists.",
+      "goHome": "Go back home"
+    }
   },
   "navigation": {
     "chatWithAI": "Chat with AI",
@@ -92,6 +115,7 @@
     "logs": "Logs"
   },
   "knowledge": {
+    "title": "Knowledge",
     "toneOfVoice": "Tone of voice",
     "documents": "Documents",
     "websites": "Websites",
@@ -239,6 +263,19 @@
       "placeholder": "Search chat",
       "noResults": "No results",
       "untitledChat": "Untitled chat"
+    },
+    "cannotBeUndone": "This action cannot be undone.",
+    "thisMember": "this member",
+    "confirmRemoveMember": "Are you sure you want to remove {name} from the team? They will lose access to this organization and all associated resources.",
+    "dropFilesHere": "Drop files here to upload",
+    "toSend": "to send",
+    "attach": "Attach",
+    "selectConversation": "Select conversation",
+    "vendorInfo": {
+      "title": "Vendor information"
+    },
+    "customerInfo": {
+      "title": "Customer details"
     }
   },
   "auth": {
@@ -252,14 +289,22 @@
       "description": "Log in to your Tale account to analyze customer churn rate, and automate your customer retention workflow.",
       "loginTitle": "Log in",
       "signingIn": "Signing in...",
-      "loginButton": "Log in"
+      "loginButton": "Log in",
+      "wrongCredentials": "Wrong email or password",
+      "toast": {
+        "success": "Signed in successfully",
+        "microsoftFailed": "Microsoft sign-in failed. Please try again."
+      }
     },
     "signup": {
       "title": "Create account",
       "description": "Create a Tale account to analyze customer churn rate, and automate your customer retention workflow.",
       "signupTitle": "Create your account",
       "creating": "Creating...",
-      "createButton": "Create"
+      "createButton": "Create",
+      "accountCreated": "Account created successfully!",
+      "wrongCredentials": "Wrong email or password",
+      "microsoftSignInFailed": "Microsoft sign-in failed. Please try again."
     },
     "requirements": {
       "length": "At least 8 characters",
@@ -267,6 +312,18 @@
       "uppercase": "Uppercase letter",
       "number": "Number",
       "specialChar": "Special character"
+    },
+    "userButton": {
+      "defaultName": "User",
+      "manageAccount": "Manage account",
+      "settings": "Settings",
+      "helpFeedback": "Help & feedback",
+      "logOut": "Log out",
+      "toast": {
+        "signedOut": "Signed out",
+        "signedOutDescription": "You have been signed out successfully",
+        "signOutFailed": "Failed to sign out"
+      }
     },
     "changePassword": {
       "title": "Change password",
@@ -296,14 +353,86 @@
     }
   },
   "settings": {
+    "title": "Settings",
     "organization": {
       "title": "Organization (optional)",
       "teamMembers": "Team members",
       "manageAccess": "Manage access to the organization",
-      "searchMember": "Search member"
+      "searchMember": "Search member",
+      "createOrganization": "Create organization",
+      "organizationName": "Organization name",
+      "companyNameRequired": "Company name is required",
+      "enterCompanyName": "Enter your company name",
+      "organizationCreated": "Organization created successfully!",
+      "creating": "Creating...",
+      "editMember": "Edit member",
+      "removeMember": "Remove member",
+      "memberUpdated": "Member updated successfully",
+      "memberUpdateFailed": "Failed to update member",
+      "memberRemoved": "Member removed",
+      "memberRemoveFailed": "Failed to remove member",
+      "removeTeamMember": "Remove team member",
+      "emailCannotChange": "Email cannot be changed",
+      "cannotChangeOwnRole": "You cannot change your own role",
+      "updatePassword": "Update password",
+      "enterNewPassword": "Enter new password",
+      "userMustUpdatePassword": "User must update the password on login",
+      "adminWarning": "Warning: Your organization should have at least 2 admins for security. This change will be blocked if it would leave fewer than 2 admins.",
+      "adminSecurityWarning": "Warning: Your organization must have at least 2 Admins for security. You cannot remove the last admin.",
+      "leaveOrganization": "Leave organization",
+      "leaveConfirmation": "Are you sure you want to leave this organization? You will lose access to all resources.",
+      "leaving": "Leaving..."
     },
     "integrations": {
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
+      "manage": "Manage",
+      "toast": {
+        "disconnected": "Disconnected",
+        "disconnectFailed": "Disconnect failed"
+      },
+      "testingConnection": "Testing connection",
+      "validatingCredentials": "Validating SMTP and IMAP credentials...",
+      "connectionSuccessful": "Connection successful",
+      "allTestsPassed": "All tests passed! SMTP: {smtp}ms, IMAP: {imap}ms",
+      "connectionTestFailed": "Connection test failed",
+      "failedToTestConnection": "Failed to test connection",
+      "failedToDeleteProvider": "Failed to delete provider",
+      "defaultProviderUpdated": "Default provider updated",
+      "failedToSetDefault": "Failed to set default provider",
+      "email": {
+        "name": "Email",
+        "description": "Send and receive emails via Gmail, Outlook, or custom SMTP."
+      },
+      "emailIntegration": "Email Integration",
+      "chooseEmailProvider": "Choose Email Provider",
+      "connectOAuth": "Connect with OAuth2 (recommended) or app password",
+      "connectMicrosoft": "Connect Microsoft Outlook or Office 365 account",
+      "configureCustom": "Configure a custom SMTP/IMAP email server",
+      "creatingProvider": "Creating provider",
+      "settingUpOAuth": "Setting up OAuth2 configuration...",
+      "authorizeGmail": "Please authorize access to your Gmail account...",
+      "authorizeOutlook": "Please authorize access to your Outlook account...",
+      "failedToStartAuth": "Failed to start OAuth2 authorization",
+      "providerCreated": "{provider} provider created successfully (SMTP: {smtp}ms, IMAP: {imap}ms)",
+      "failedToCreateProvider": "Failed to create {provider} provider",
+      "addProvider": "Add {provider} provider",
+      "testingAndCreating": "Testing & Creating...",
+      "gmailIntegration": "Gmail integration",
+      "outlookIntegration": "Outlook integration",
+      "shopifyIntegration": "Shopify integration",
+      "circulyIntegration": "Circuly integration",
+      "connectedTo": "Connected to {provider}",
+      "domain": "Domain",
+      "accessToken": "Access token",
+      "disconnecting": "Disconnecting...",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect {provider}?",
+      "disconnectedSuccessfully": "{provider} disconnected successfully.",
+      "disconnectionFailed": "Disconnection failed",
+      "failedToDisconnect": "Failed to disconnect {provider}, please try again.",
+      "disconnectWarning": "Warning: Disconnecting {provider} will stop all automated syncing and data imports. You can reconnect at any time.",
+      "updateSuccessful": "Update successful",
+      "updateFailed": "Update failed",
       "gmail": {
         "namePlaceholder": "e.g., Gmail Work Account",
         "emailPlaceholder": "your-email@gmail.com",
@@ -315,14 +444,98 @@
         "passwordPlaceholder": "App password from Microsoft"
       },
       "circuly": {
+        "description": "Manage product subscriptions and rental workflows.",
+        "disconnectError": "Failed to disconnect Circuly",
+        "disconnectedDescription": "Circuly integration has been disconnected.",
         "usernamePlaceholder": "Enter your Circuly username",
-        "passwordPlaceholder": "Enter your Circuly password"
+        "passwordPlaceholder": "Enter your Circuly password",
+        "connectedToCirculy": "Connected to Circuly",
+        "connectedUsername": "Connected Username",
+        "connected": "Connected",
+        "syncingData": "Your Circuly account is connected and syncing subscription data.",
+        "username": "Circuly Username",
+        "password": "Circuly Password",
+        "enterCredentials": "Enter your Circuly credentials to sync subscription and customer data.",
+        "updating": "Updating...",
+        "update": "Update",
+        "connecting": "Connecting...",
+        "connect": "Connect",
+        "connectedAccount": "Connected Account:",
+        "disconnectQuestion": "Are you sure you want to disconnect the Circuly integration?",
+        "disconnectWarning": "Warning: Disconnecting Circuly will stop all data synchronization and product recommendations. You will need to reconnect to resume these features.",
+        "yesDisconnect": "Yes, Disconnect"
       },
       "shopify": {
-        "domainPlaceholder": "mystore.myshopify.com"
+        "description": "Sync products, orders, and customers from your Shopify store.",
+        "disconnectError": "Failed to disconnect Shopify",
+        "domainPlaceholder": "mystore.myshopify.com",
+        "connectedToShopify": "Connected to Shopify",
+        "domainHelp": "Your shop's .myshopify.com address (e.g., mystore.myshopify.com).",
+        "domainHelpNav": "Go to Shopify → Settings → Domains.",
+        "accessTokenHelp": "Your Shopify Admin API access token from your custom app.",
+        "accessTokenHelpNav": "Go to Shopify → Apps → Develop apps → [Your app] → API credentials → Admin API access token (Reveal).",
+        "updating": "Updating...",
+        "update": "Update",
+        "connecting": "Connecting...",
+        "connect": "Connect",
+        "connectedStore": "Connected Store:",
+        "disconnectQuestion": "Are you sure you want to disconnect the Shopify integration?",
+        "disconnectWarning": "Warning: Disconnecting Shopify will stop all data synchronization for products, orders, and customers. You will need to reconnect to resume these features.",
+        "yesDisconnect": "Yes, Disconnect"
       },
       "clickToCopy": "Click to copy",
-      "failedToCopy": "Failed to copy to clipboard"
+      "failedToCopy": "Failed to copy to clipboard",
+      "comingSoon": "(Coming Soon)",
+      "customSMTP": "Custom SMTP",
+      "moreOptions": "More options",
+      "testing": "Testing...",
+      "test": "Test",
+      "setAsDefault": "Set as Default",
+      "default": "Default",
+      "noProvidersYet": "No email providers configured yet",
+      "addProviderToStart": "Add Gmail, Outlook, or a custom SMTP provider to get started",
+      "addEmailProvider": "Add Email Provider",
+      "authorize": "Authorize",
+      "oauth2": "OAuth2",
+      "notAuthorized": "Not Authorized",
+      "password": "Password",
+      "created": "Created",
+      "noOutlookProviders": "No Outlook providers configured yet",
+      "noGmailProviders": "No Gmail providers configured yet",
+      "addOutlookProvider": "Add Outlook Provider",
+      "addGmailProvider": "Add Gmail provider",
+      "account": "Account",
+      "sendMethod": "Send Method",
+      "apiGmailGraph": "API (Gmail/Graph)",
+      "smtp": "SMTP",
+      "imap": "IMAP",
+      "user": "User",
+      "ssl": "SSL",
+      "tls": "TLS",
+      "providerName": "Provider name",
+      "oauth2Tab": "OAuth2",
+      "appPasswordTab": "App Password",
+      "setAsDefaultProvider": "Set as default email provider",
+      "continueWithGoogle": "Continue with Google",
+      "redirectingToGoogle": "Redirecting to Google...",
+      "continueWithMicrosoft": "Continue with Microsoft",
+      "redirectingToMicrosoft": "Redirecting to Microsoft...",
+      "testAndCreate": "Test & create provider",
+      "useApiSending": "Use API sending (recommended - no port blocking)",
+      "gmailAddress": "Gmail Address",
+      "emailAddress": "Email address",
+      "appPassword": "App password",
+      "oauth2Authentication": "OAuth2 Authentication",
+      "oauth2GoogleInfo": "You'll be redirected to Google to authorize access. This method works with Google security defaults and is more secure than password authentication.",
+      "oauth2MicrosoftInfo": "You'll be redirected to Microsoft to authorize access. This method works with Microsoft 365 security defaults and is more secure than password authentication.",
+      "googleOAuth2Guide": "Google OAuth2 Setup Guide",
+      "microsoftOAuth2Guide": "Microsoft OAuth2 Setup Guide",
+      "gmailAppPasswordInfo": "Use Gmail App Passwords for quick setup. Requires 2FA enabled on your Google account.",
+      "googleAppPasswordsGuide": "Google App Passwords Guide",
+      "outlookLimitedAvailability": "⚠️ Limited Availability",
+      "outlookSecurityWarning": "Microsoft 365 security defaults block password authentication. This may not work for your account.",
+      "microsoftAppPasswordsGuide": "Microsoft App Passwords Guide",
+      "recommended": "Recommended"
     },
     "form": {
       "name": "Name",
@@ -340,6 +553,12 @@
       "editor": "Editor",
       "member": "Member",
       "disabled": "Disabled"
+    },
+    "logs": {
+      "activityLogs": "Activity logs",
+      "errorLogs": "Error logs",
+      "activityDescription": "View system activity and audit logs.",
+      "errorDescription": "View system errors and warnings."
     }
   },
   "automations": {
@@ -348,6 +567,24 @@
     "createWithAI": "Create automation with AI",
     "searchPlaceholder": "Search automations...",
     "accessDenied": "You need Admin or Developer permissions to access automations.",
+    "navigation": {
+      "editor": "Editor",
+      "archived": "Archived",
+      "publish": "Publish",
+      "publishing": "Publishing...",
+      "rollback": "Rollback",
+      "rollingBack": "Rolling back...",
+      "toast": {
+        "unableToPublish": "Unable to publish automation",
+        "published": "Automation published successfully",
+        "rolledBack": "Automation rolled back successfully",
+        "publishFailed": "Failed to publish automation",
+        "unableToCreateDraft": "Unable to create draft",
+        "draftCreated": "Draft created for editing",
+        "navigatingToExisting": "Navigating to existing draft",
+        "draftFailed": "Failed to create draft"
+      }
+    },
     "configuration": {
       "title": "Configuration",
       "name": "Name",
@@ -376,7 +613,44 @@
       }
     },
     "executions": {
-      "title": "Executions"
+      "title": "Executions",
+      "filters": {
+        "title": "Filters",
+        "dateRange": "Date Range",
+        "status": "Status",
+        "allStatus": "All status",
+        "triggeredBy": "Triggered By",
+        "allTriggers": "All triggers"
+      }
+    },
+    "execution": {
+      "control": {
+        "title": "Execution Control",
+        "description": "Start and control automation executions"
+      },
+      "selectedAutomation": "Selected automation",
+      "inputLabel": "Input data (JSON)",
+      "startButton": "Start Execution",
+      "testButton": "Test",
+      "mustBeActive": "Automation must be active to start execution",
+      "selectToStart": "Select an automation from the Templates tab to start execution",
+      "history": {
+        "title": "Execution History",
+        "description": "Recent executions for selected automation",
+        "loading": "Loading executions...",
+        "noExecutions": "No executions found for this automation",
+        "triggeredBy": "Triggered by: {source}",
+        "waitingFor": "Waiting for: {target}",
+        "selectToView": "Select an automation to view execution history"
+      },
+      "toast": {
+        "invalidJson": "Invalid JSON input",
+        "startedSuccess": "Automation started successfully",
+        "startFailed": "Failed to start automation: {error}",
+        "testStarted": "Test execution started",
+        "testFailed": "Test failed",
+        "executionId": "Execution ID: {id}"
+      }
     },
     "createDialog": {
       "title": "Create automation",
@@ -397,16 +671,134 @@
       "updating": "Updating...",
       "updateButton": "Update automation"
     },
+    "steps": {
+      "toast": {
+        "editingNotAvailable": "Editing connections not yet available",
+        "apiNotWired": "Public APIs for editing workflow steps are not wired up yet.",
+        "stepCreationNotAvailable": "Step creation not yet available",
+        "createFailed": "Failed to create step"
+      }
+    },
     "createStep": {
       "title": "Create step",
       "description": "Add a new step to the selected workflow",
       "namePlaceholder": "analyze_data",
       "creating": "Creating...",
-      "createButton": "Create step"
+      "createButton": "Create step",
+      "type": "Type",
+      "types": {
+        "action": "Action",
+        "llm": "LLM",
+        "condition": "Condition"
+      },
+      "configLabel": "Config (JSON)",
+      "configDescription": "Configuration settings",
+      "nextStepsLabel": "Next steps (JSON)",
+      "nextStepsDescription": "Step transitions & flow control",
+      "validation": {
+        "nameRequired": "Step name is required",
+        "nameFormat": "Format: letters, numbers, \"_\", \"-\""
+      }
+    },
+    "deleteStep": {
+      "title": "Delete step",
+      "description": "This action cannot be undone",
+      "confirmMessage": "Are you sure you want to delete the step",
+      "warning": "Warning",
+      "warningMessage": "This may break your automation if other steps depend on this one. Make sure to update any references in other steps' \"Next Steps\" configuration.",
+      "stepSlug": "Step Slug:",
+      "type": "Type:",
+      "order": "Order:",
+      "deleting": "Deleting...",
+      "deleteButton": "Delete step"
+    },
+    "stepDetails": {
+      "configLabel": "Config (JSON)",
+      "stepTypeTooltip": "{type} step",
+      "validation": {
+        "nameRequired": "Step name is required",
+        "nameFormat": "Format: letters, numbers, \"_\", \"-\""
+      },
+      "toast": {
+        "editNotAvailable": "Step editing not yet available",
+        "deleteNotAvailable": "Step deletion not yet available",
+        "apiNotReady": "Public APIs for editing workflow steps are not wired up yet."
+      }
+    },
+    "toast": {
+      "created": "Automation created successfully",
+      "createFailed": "Failed to create automation",
+      "authRequired": "Authentication required",
+      "activated": "Automation activated successfully",
+      "activateFailed": "Failed to activate automation",
+      "deactivated": "Automation deactivated successfully",
+      "deactivateFailed": "Failed to deactivate automation",
+      "updated": "Automation updated successfully",
+      "updateFailed": "Failed to update automation",
+      "deleteFailed": "Failed to delete automation"
+    },
+    "templates": {
+      "newAutomation": "New Automation",
+      "createNewTemplate": "Create a new automation template",
+      "fillDetails": "Fill in the details for your new workflow.",
+      "automationTemplates": "Automation Templates",
+      "manageExisting": "Manage existing automation templates",
+      "loading": "Loading automations...",
+      "noAutomationsFound": "No automations found. Create your first automation above.",
+      "configJson": "Config (JSON)",
+      "configDescription": "Automation configuration settings",
+      "noDescription": "No description",
+      "deleteTitle": "Delete automation?",
+      "deleteDescription": "This action cannot be undone. This will permanently delete the automation template and its steps."
+    },
+    "deleteAutomation": {
+      "title": "Delete automation",
+      "description": "Are you sure you want to delete \"{name}\"? This action cannot be undone."
     },
     "assistant": {
       "messagePlaceholder": "Type your message...",
-      "attachFiles": "Attach files"
+      "attachFiles": "Attach files",
+      "automationDetails": "Automation Details",
+      "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
+      "welcomeActive": "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?",
+      "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
+      "thinking": {
+        "thinking": "Thinking",
+        "analyzing": "Analyzing workflow",
+        "compiling": "Compiling an answer"
+      },
+      "upload": {
+        "uploading": "Uploading...",
+        "invalidFiles": "Invalid files",
+        "invalidFilesDescription": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",
+        "success": "File uploaded",
+        "successDescription": "{fileName} uploaded successfully",
+        "failed": "Upload failed",
+        "failedDescription": "Failed to upload {fileName}"
+      }
+    },
+    "tester": {
+      "inputLabel": "Test input (JSON)",
+      "inputDescription": "Provide input data in JSON format for the automation execution",
+      "tip": "💡 Test executions create real automation runs. Monitor progress in the Executions tab.",
+      "runTest": "Run Test",
+      "runningTest": "Running Test...",
+      "toast": {
+        "invalidJson": "Invalid JSON",
+        "invalidJsonDescription": "Please provide valid JSON input",
+        "executionStarted": "Test execution started",
+        "executionId": "Execution ID: {id}",
+        "testFailed": "Test failed",
+        "startFailed": "Failed to start test execution"
+      }
+    },
+    "monitoring": {
+      "selectAutomation": "Select an automation to view statistics",
+      "realtimeStatus": "Real-time Status",
+      "liveMonitoring": "Live execution monitoring",
+      "monitoringExecution": "Monitoring execution: {handle}",
+      "stopMonitoring": "Stop Monitoring",
+      "startAutomation": "Start an automation execution to see real-time status"
     }
   },
   "conversations": {
@@ -418,10 +810,109 @@
       "closed": "Closed",
       "spam": "Spam",
       "archived": "Archived"
+    },
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "category": {
+      "productRecommendation": "Product recommendation",
+      "serviceRequest": "Service request",
+      "churnSurvey": "Churn survey"
+    },
+    "improvement": {
+      "title": "Message Improvement Preview",
+      "description": "Review the AI-improved version and accept or reject the changes",
+      "original": "Original",
+      "improved": "Improved",
+      "reject": "Reject",
+      "accept": "Accept Changes"
+    },
+    "bulkSend": {
+      "title": "Send {count} Messages",
+      "description": "You're about to send replies for {count, plural, one {# conversation} other {# conversations}}. This action can't be undone.",
+      "confirm": "Are you sure you want to continue?",
+      "sending": "Sending...",
+      "send": "Send"
+    },
+    "updating": "Updating conversations...",
+    "bulk": {
+      "sendMessages": "Send messages",
+      "close": "Close",
+      "reopen": "Reopen",
+      "messagesSent": "Messages sent",
+      "messagesSentDescription": "Successfully sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "sendFailed": "Failed to send messages",
+      "resolved": "Conversations resolved",
+      "resolvedDescription": "Successfully resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "resolveFailed": "Failed to resolve conversations",
+      "reopened": "Conversations reopened",
+      "reopenedDescription": "Successfully reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}",
+      "reopenFailed": "Failed to reopen conversations"
+    },
+    "header": {
+      "customerInfo": "Customer info",
+      "closeConversation": "Close conversation",
+      "closing": "Closing...",
+      "reopenConversation": "Reopen conversation",
+      "reopening": "Reopening...",
+      "markAsSpam": "Mark as spam",
+      "markingAsSpam": "Marking as spam...",
+      "toast": {
+        "closed": "Conversation has been closed successfully.",
+        "closeFailed": "An unexpected error occurred while closing the conversation.",
+        "reopened": "Conversation has been reopened successfully.",
+        "reopenFailed": "An unexpected error occurred while reopening the conversation.",
+        "markedAsSpam": "Conversation has been marked as spam successfully.",
+        "markAsSpamFailed": "An unexpected error occurred while marking the conversation as spam."
+      }
+    },
+    "editor": {
+      "noContent": "No content to improve",
+      "improveFailed": "Failed to improve content. Please try again.",
+      "sendFailed": "Failed to send message. Please try again.",
+      "backToEditor": "Back to editor",
+      "improving": "Improving...",
+      "improveWithAi": "Improve with AI",
+      "generateImprovement": "Generate Improvement"
+    },
+    "panel": {
+      "uploadFailed": "Failed to upload attachments. Please try again.",
+      "noSelected": "No conversation selected",
+      "selectToView": "Select a conversation to view details",
+      "notFound": "Conversation not found",
+      "noMessages": "No messages yet",
+      "markedAsSpam": "This conversation has been marked as spam.",
+      "markedAsClosed": "This conversation has been marked as closed."
+    },
+    "filters": {
+      "title": "Filters",
+      "type": "Type",
+      "priority": "Priority",
+      "typeOptions": {
+        "productRecommendation": "Product recommendation",
+        "serviceRequest": "Service request",
+        "churnSurvey": "Churn survey",
+        "general": "General",
+        "spam": "Spam"
+      },
+      "priorityOptions": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      }
     }
   },
   "approvals": {
     "title": "Approvals",
+    "noApprovalsFound": "No approvals found",
+    "columns": {
+      "reviewedAt": "Reviewed at",
+      "approved": "Approved",
+      "confidence": "Confidence",
+      "unknown": "Unknown"
+    },
     "status": {
       "pending": "Pending",
       "resolved": "Resolved"
@@ -434,17 +925,41 @@
       "resolved": {
         "title": "No resolved approvals"
       }
+    },
+    "toast": {
+      "loginRequired": "You must be logged in to perform this action.",
+      "approveFailed": "Failed to approve. Please try again.",
+      "rejectFailed": "Failed to reject. Please try again.",
+      "removeRecommendationFailed": "Failed to remove recommendation. Please try again."
     }
   },
   "chat": {
     "title": "Chat",
     "newChat": "New chat",
     "deleteChat": "Delete chat",
+    "deleteConfirmation": "Are you sure you want to delete {title}?",
+    "deleteArchiveMessage": "This chat will be archived and won't appear in your chat history.",
+    "deleteFailed": "Failed to delete chat",
+    "welcome": "How can I assist you?",
+    "toast": {
+      "generateFailed": "Failed to generate response",
+      "sendFailed": "Failed to send message"
+    },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
+    "showHistory": "Show history",
+    "hideHistory": "Hide history",
+    "chatHistory": "Chat history",
     "searchPlaceholder": "Search chats...",
     "messagePlaceholder": "Type a message...",
+    "typeMessageHere": "Type your message here…",
     "searchConversations": "Search conversations",
+    "invalidFiles": "Invalid files",
+    "filesNotSupported": "Some files are too large (>10MB) or not supported. Supported: images, PDF, Word docs, text files.",
+    "fileUploaded": "File uploaded",
+    "uploadedSuccessfully": "{filename} uploaded successfully",
+    "uploadFailed": "Upload failed",
+    "failedToUpload": "Failed to upload {filename}",
     "fileTypes": {
       "image": "IMG",
       "pdf": "PDF",
@@ -455,6 +970,30 @@
     "toolStatus": {
       "ragSearch": "Searching knowledge base",
       "contextSearch": "Searching for related topics"
+    },
+    "messageInfo": {
+      "title": "Message Information",
+      "description": "Details about this AI response",
+      "timestamp": "Timestamp",
+      "messageId": "Message ID",
+      "model": "Model",
+      "tokenUsage": "Token Usage",
+      "input": "Input",
+      "output": "Output",
+      "total": "Total",
+      "reasoning": "Reasoning",
+      "cached": "Cached",
+      "noMetadata": "Token usage and model information are not available for this message."
+    },
+    "history": {
+      "recent": "Recent",
+      "loading": "Loading chats...",
+      "empty": "No chats yet",
+      "untitled": "Untitled Chat",
+      "toast": {
+        "titleEmpty": "Chat title cannot be empty",
+        "renameFailed": "Failed to rename chat"
+      }
     }
   },
   "toneOfVoice": {
@@ -514,7 +1053,9 @@
     },
     "actions": {
       "deleteDocument": "Delete document",
-      "deleteSyncFolder": "Delete sync folder"
+      "deleteSyncFolder": "Delete sync folder",
+      "deleteFolderFailed": "Failed to delete folder",
+      "deleteFileFailed": "An unexpected error occurred while deleting"
     },
     "deleteFile": {
       "title": "Delete file",
@@ -527,7 +1068,86 @@
       "loading": "Loading…",
       "failedToLoad": "Failed to load document",
       "downloadComplete": "Download complete",
-      "downloadFile": "Download file"
+      "downloadFile": "Download file",
+      "fileDownloaded": "{fileName} has been downloaded",
+      "downloadFailed": "Failed to download the file",
+      "notAvailable": "Preview not available",
+      "notAvailableDescription": "This file type cannot be previewed. Please download the file to view its contents.",
+      "downloading": "Downloading...",
+      "download": "Download"
+    },
+    "upload": {
+      "fromComputer": "From computer",
+      "fromComputerDescription": "Upload directly from your device",
+      "uploading": "Uploading files...",
+      "cancelUpload": "Cancel upload"
+    },
+    "onedrive": {
+      "selectFiles": "Select files or folders",
+      "selectDescription": "Choose which OneDrive files or folders to import",
+      "importSettings": "Import settings",
+      "settingsDescription": "Choose how to import your {count} selected {count, plural, one {item} other {items}} from OneDrive.",
+      "microsoftNotConnected": "Microsoft Account Not Connected",
+      "microsoftNotConnectedDescription": "To access your OneDrive files, you need to link your Microsoft account with OneDrive permissions.",
+      "folderEmpty": "This folder is empty.",
+      "loadFailed": "Failed to load OneDrive items",
+      "oneTimeImport": "One-time Import",
+      "oneTimeDescription": "Import files once and store them in your workspace",
+      "syncImport": "Sync Import",
+      "syncDescription": "Keep files automatically synchronized",
+      "importCount": "Import ({count})",
+      "importItem": "{type, select, one-time {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
+      "importing": "Importing...",
+      "syncing": "Syncing...",
+      "importStarted": "Import started",
+      "syncStarted": "Sync started",
+      "importingItems": "Importing {count} items to storage...",
+      "syncingItems": "Syncing {count} items to storage...",
+      "importCompleted": "Import completed",
+      "syncCompleted": "Sync completed",
+      "filesImported": "Files imported successfully",
+      "filesSynced": "Files synced successfully",
+      "importFailed": "Import failed",
+      "syncFailed": "Sync failed",
+      "importCancelled": "Import cancelled",
+      "syncCancelled": "Sync cancelled",
+      "importCancelledDescription": "File import was cancelled",
+      "syncCancelledDescription": "File synchronization was cancelled",
+      "cancelledByUser": "{type, select, one-time {Import} other {Sync}} cancelled by user",
+      "failedToStart": "Failed to start {type, select, one-time {import} other {sync}}",
+      "failedToParseSSE": "Failed to parse SSE data",
+      "failedToProcessStream": "Failed to process stream"
+    },
+    "rag": {
+      "status": {
+        "stale": "Stale"
+      },
+      "index": "Index",
+      "indexing": "Indexing...",
+      "reindex": "Reindex",
+      "reindexing": "Reindexing...",
+      "retryIndexing": "Retry indexing",
+      "toast": {
+        "documentIdRequired": "Document ID is required for retry",
+        "indexingStarted": "Indexing started",
+        "indexingQueued": "Document indexing has been queued.",
+        "retryFailed": "Retry failed",
+        "retryFailedDescription": "Failed to retry RAG indexing",
+        "unexpectedError": "An unexpected error occurred"
+      },
+      "dialog": {
+        "indexed": {
+          "title": "Document Indexed",
+          "description": "This document has been successfully indexed and is available for RAG search.",
+          "indexedOn": "Indexed on:"
+        },
+        "failed": {
+          "title": "Indexing Failed",
+          "description": "The document could not be indexed for RAG search.",
+          "errorDetails": "Error Details:",
+          "unknownError": "Unknown error occurred"
+        }
+      }
     }
   },
   "products": {
@@ -536,6 +1156,12 @@
     "addButton": "Add product",
     "editProduct": "Edit product",
     "deleteProduct": "Delete product",
+    "importMenu": {
+      "importProducts": "Import products",
+      "fromDevice": "From your device",
+      "fromShopify": "From Shopify",
+      "fromCirculy": "From Circuly"
+    },
     "noValidData": "No valid product data found",
     "noneImported": "No products were imported",
     "noMatchingProducts": "No matching products found",
@@ -548,24 +1174,73 @@
       "description": "No products match your search criteria"
     },
     "edit": {
+      "title": "Edit Product",
+      "description": "Update product information. Required fields are marked with *",
       "namePlaceholder": "Enter product name",
       "descriptionPlaceholder": "Enter product description",
       "categoryPlaceholder": "Electronics, Clothing, etc.",
       "pricePlaceholder": "0.00",
       "stockPlaceholder": "0",
       "imageUrlPlaceholder": "https://example.com/image.jpg",
-      "currencyPlaceholder": "USD"
+      "currencyPlaceholder": "USD",
+      "labels": {
+        "name": "Product Name",
+        "description": "Description",
+        "imageUrl": "Image URL",
+        "price": "Price",
+        "currency": "Currency",
+        "stock": "Stock",
+        "category": "Category"
+      },
+      "validation": {
+        "nameRequired": "Product name is required"
+      },
+      "toast": {
+        "success": "Product updated successfully",
+        "error": "Failed to update product"
+      }
     },
     "translations": {
       "title": "Edit product translations",
-      "enterTranslation": "Enter {language} translation..."
+      "enterTranslation": "Enter {language} translation...",
+      "originalProductName": "Original Product Name",
+      "englishTranslation": "English Translation",
+      "germanTranslation": "German Translation",
+      "frenchTranslation": "French Translation",
+      "toast": {
+        "success": "Product translations updated",
+        "error": "Failed to update translations"
+      }
+    },
+    "import": {
+      "uploadProducts": "Upload products",
+      "uploadFile": "Please upload a file",
+      "success": "Import successful",
+      "successDescription": "Successfully imported {count} products{failed, select, 0 {} other {, {failed} failed}}",
+      "failed": "Import failed",
+      "error": "Failed to import products",
+      "dropzoneAriaLabel": "Upload file - click or press Enter to select a file, or drag and drop a file here",
+      "clickToUpload": "Click to upload",
+      "or": "or",
+      "dragAndDrop": "drag and drop",
+      "supportedFormats": ".xlsx, .xls or .csv",
+      "expectedColumns": "Expected columns: name, description, imageUrl, stock, price, currency, category, status",
+      "draftStatusNote": "Imported products are created with 'draft' status by default."
+    },
+    "actions": {
+      "deleteFailed": "Failed to delete product"
     }
   },
   "customers": {
     "title": "Customers",
     "searchPlaceholder": "Search customers",
     "filter": {
-      "title": "Filters"
+      "title": "Filters",
+      "source": {
+        "manual": "Manual",
+        "upload": "Upload",
+        "circuly": "Circuly"
+      }
     },
     "addButton": "Add customer",
     "addCustomers": "Add customers",
@@ -573,6 +1248,13 @@
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
     "viewDetails": "View Details",
+    "viewSubscriptions": "View Subscriptions",
+    "importMenu": {
+      "importCustomers": "Import customers",
+      "fromDevice": "From your device",
+      "fromCirculy": "From Circuly",
+      "manualEntry": "Manual entry"
+    },
     "noValidData": "No valid customer data found",
     "noneImported": "No customers were imported",
     "deleteError": "Failed to delete customer",
@@ -611,6 +1293,12 @@
     "uploadVendors": "Upload vendors",
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
+    "viewDetails": "View Vendor Details",
+    "importMenu": {
+      "importVendors": "Import vendors",
+      "fromDevice": "From your device",
+      "manualEntry": "Manual entry"
+    },
     "noValidData": "No valid vendor data found",
     "noneImported": "No vendors were imported",
     "name": "Name",
@@ -635,6 +1323,13 @@
     "localePlaceholder": "e.g., en-US",
     "filter": {
       "title": "Filters"
+    },
+    "import": {
+      "provideData": "Please provide vendor data",
+      "success": "Import successful",
+      "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
+      "failed": "Import failed",
+      "error": "Failed to import vendors"
     }
   },
   "websites": {
@@ -644,6 +1339,11 @@
     "addWebsite": "Add website",
     "editWebsite": "Edit website",
     "deleteWebsite": "Delete website",
+    "actions": {
+      "rescan": "Rescan",
+      "rescanTriggered": "Website rescan triggered",
+      "rescanFailed": "Failed to rescan website"
+    },
     "delete": {
       "title": "Delete website",
       "confirmation": "Are you sure you want to delete this website? This action cannot be undone."
@@ -674,7 +1374,19 @@
       "deleteError": "Failed to delete website"
     },
     "adding": "Adding...",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "viewDialog": {
+      "title": "Website Details",
+      "domain": "Domain",
+      "status": "Status",
+      "scanInterval": "Scan Interval",
+      "lastScanned": "Last Scanned",
+      "notScannedYet": "Not scanned yet",
+      "titleField": "Title",
+      "description": "Description",
+      "created": "Created",
+      "unknown": "Unknown"
+    }
   },
   "accessDenied": {
     "title": "Access denied",
