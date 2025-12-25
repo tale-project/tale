@@ -9,7 +9,6 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -243,35 +242,31 @@ export default function ConfigurationPage() {
     <div className="py-4 px-6 max-w-xl mx-auto w-full">
       <div className="space-y-4">
         {/* Name */}
-        <div className="space-y-2">
-          <Label htmlFor="name">{tAutomations('configuration.name')}</Label>
-          <Input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={tAutomations('configuration.namePlaceholder')}
-          />
-        </div>
+        <Input
+          id="name"
+          label={tAutomations('configuration.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={tAutomations('configuration.namePlaceholder')}
+        />
 
         {/* Description */}
-        <div className="space-y-2">
-          <Label htmlFor="description">{tAutomations('configuration.description')}</Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={tAutomations('configuration.descriptionPlaceholder')}
-            rows={4}
-          />
-        </div>
+        <Textarea
+          id="description"
+          label={tAutomations('configuration.description')}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={tAutomations('configuration.descriptionPlaceholder')}
+          rows={4}
+        />
 
         {/* Timeout and Max Retries */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="timeout">{tAutomations('configuration.timeout')}</Label>
             <Input
               id="timeout"
               type="number"
+              label={tAutomations('configuration.timeout')}
               value={timeout}
               onChange={(e) => setTimeout(parseInt(e.target.value) || 300000)}
               placeholder={tAutomations('configuration.timeoutPlaceholder')}
@@ -283,10 +278,10 @@ export default function ConfigurationPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="maxRetries">{tAutomations('configuration.maxRetries')}</Label>
             <Input
               id="maxRetries"
               type="number"
+              label={tAutomations('configuration.maxRetries')}
               value={maxRetries}
               onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
               placeholder={tAutomations('configuration.maxRetriesPlaceholder')}
@@ -301,10 +296,10 @@ export default function ConfigurationPage() {
 
         {/* Backoff */}
         <div className="space-y-2">
-          <Label htmlFor="backoffMs">{tAutomations('configuration.backoff')}</Label>
           <Input
             id="backoffMs"
             type="number"
+            label={tAutomations('configuration.backoff')}
             value={backoffMs}
             onChange={(e) => setBackoffMs(parseInt(e.target.value) || 1000)}
             placeholder={tAutomations('configuration.backoffPlaceholder')}

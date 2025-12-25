@@ -7,7 +7,6 @@ import * as z from 'zod';
 import { FormModal, ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -244,46 +243,32 @@ export default function AddMemberDialog({
         onSubmit={handleSubmit(onSubmit)}
       >
         {/* Name Field */}
-        <div className="space-y-2">
-          <Label htmlFor="displayName" className="text-sm font-medium">
-            {tSettings('form.name')}
-          </Label>
-          <Input
-            id="displayName"
-            placeholder={tSettings('form.namePlaceholder')}
-            {...register('displayName')}
-            className="w-full"
-          />
-        </div>
+        <Input
+          id="displayName"
+          label={tSettings('form.name')}
+          placeholder={tSettings('form.namePlaceholder')}
+          {...register('displayName')}
+          className="w-full"
+        />
 
         {/* Email Field */}
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium">
-            {tSettings('form.email')}
-          </Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder={tSettings('form.emailPlaceholder')}
-            {...register('email')}
-            className="w-full"
-            required
-          />
-          {formState.errors.email && (
-            <p className="text-sm text-red-500">
-              {formState.errors.email.message}
-            </p>
-          )}
-        </div>
+        <Input
+          id="email"
+          type="email"
+          label={tSettings('form.email')}
+          placeholder={tSettings('form.emailPlaceholder')}
+          {...register('email')}
+          className="w-full"
+          required
+          errorMessage={formState.errors.email?.message}
+        />
 
         {/* Password Field */}
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm font-medium">
-            {tSettings('form.password')}
-          </Label>
           <Input
             id="password"
             type="password"
+            label={tSettings('form.password')}
             placeholder={tSettings('form.passwordPlaceholder')}
             {...register('password')}
             className="w-full"
@@ -359,36 +344,31 @@ export default function AddMemberDialog({
         </div>
 
         {/* Role Field */}
-        <div className="space-y-2">
-          <Label htmlFor="role" className="text-sm font-medium">
-            {tSettings('form.role')}
-          </Label>
-          <Select
-            value={selectedRole}
-            onValueChange={(value) =>
-              setValue(
-                'role',
-                value as
-                  | 'disabled'
-                  | 'admin'
-                  | 'developer'
-                  | 'editor'
-                  | 'member',
-              )
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
-              <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
-              <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
-              <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
-              <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select
+          value={selectedRole}
+          onValueChange={(value) =>
+            setValue(
+              'role',
+              value as
+                | 'disabled'
+                | 'admin'
+                | 'developer'
+                | 'editor'
+                | 'member',
+            )
+          }
+        >
+          <SelectTrigger label={tSettings('form.role')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
+            <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
+            <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
+            <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
+            <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
+          </SelectContent>
+        </Select>
       </FormModal>
 
       {/* Credentials Display Dialog */}
@@ -405,53 +385,49 @@ export default function AddMemberDialog({
           {credentials && (
             <div className="space-y-4">
               {/* Email */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">{tSettings('form.email')}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={credentials.email}
-                    readOnly
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={() => handleCopy(credentials.email, 'email')}
-                  >
-                    {copiedEmail ? (
-                      <Check className="size-4 text-success p-0.5" />
-                    ) : (
-                      <Copy className="size-4 p-0.5" />
-                    )}
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={credentials.email}
+                  readOnly
+                  label={tSettings('form.email')}
+                  className="flex-1 font-mono text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="p-1 mt-6"
+                  onClick={() => handleCopy(credentials.email, 'email')}
+                >
+                  {copiedEmail ? (
+                    <Check className="size-4 text-success p-0.5" />
+                  ) : (
+                    <Copy className="size-4 p-0.5" />
+                  )}
+                </Button>
               </div>
 
               {/* Password */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">{tSettings('form.password')}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={credentials.password}
-                    readOnly
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-1"
-                    onClick={() =>
-                      handleCopy(credentials.password, 'password')
-                    }
-                  >
-                    {copiedPassword ? (
-                      <Check className="size-4 text-success p-0.5" />
-                    ) : (
-                      <Copy className="size-4 p-0.5" />
-                    )}
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={credentials.password}
+                  readOnly
+                  label={tSettings('form.password')}
+                  className="flex-1 font-mono text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="p-1 mt-6"
+                  onClick={() =>
+                    handleCopy(credentials.password, 'password')
+                  }
+                >
+                  {copiedPassword ? (
+                    <Check className="size-4 text-success p-0.5" />
+                  ) : (
+                    <Copy className="size-4 p-0.5" />
+                  )}
+                </Button>
               </div>
             </div>
           )}

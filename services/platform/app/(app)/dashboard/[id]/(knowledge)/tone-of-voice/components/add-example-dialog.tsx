@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { FormModal } from '@/components/ui/modals';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/lib/i18n';
 
@@ -70,19 +69,12 @@ export default function AddExampleDialog({
       onSubmit={handleSubmit(onSubmit)}
       className="max-w-lg"
     >
-      <div className="space-y-2">
-        <Label
-          htmlFor="content"
-          className="text-sm font-medium text-foreground tracking-[-0.21px]"
-        >
-          {tTables('headers.message')}
-        </Label>
-        <Textarea
-          {...register('content', { required: true })}
-          placeholder={tTone('exampleMessages.placeholder')}
-          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
-        />
-      </div>
+      <Textarea
+        {...register('content', { required: true })}
+        label={tTables('headers.message')}
+        placeholder={tTone('exampleMessages.placeholder')}
+        className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+      />
     </FormModal>
   );
 }

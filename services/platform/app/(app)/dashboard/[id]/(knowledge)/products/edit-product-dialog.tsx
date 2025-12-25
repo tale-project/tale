@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -115,112 +114,96 @@ export default function EditProductDialog({
       large
     >
       {/* Product Name */}
-      <div className="space-y-2">
-        <Label htmlFor="name" required>
-          {tProducts('edit.labels.name')}
-        </Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={(e) =>
-            setFormData({ ...formData, name: e.target.value })
-          }
-          placeholder={tProducts('edit.namePlaceholder')}
-          disabled={isSubmitting}
-          required
-        />
-      </div>
+      <Input
+        id="name"
+        label={tProducts('edit.labels.name')}
+        required
+        value={formData.name}
+        onChange={(e) =>
+          setFormData({ ...formData, name: e.target.value })
+        }
+        placeholder={tProducts('edit.namePlaceholder')}
+        disabled={isSubmitting}
+      />
 
       {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="description">{tProducts('edit.labels.description')}</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
-          }
-          placeholder={tProducts('edit.descriptionPlaceholder')}
-          disabled={isSubmitting}
-          rows={3}
-        />
-      </div>
+      <Textarea
+        id="description"
+        label={tProducts('edit.labels.description')}
+        value={formData.description}
+        onChange={(e) =>
+          setFormData({ ...formData, description: e.target.value })
+        }
+        placeholder={tProducts('edit.descriptionPlaceholder')}
+        disabled={isSubmitting}
+        rows={3}
+      />
 
       {/* Image URL */}
-      <div className="space-y-2">
-        <Label htmlFor="imageUrl">{tProducts('edit.labels.imageUrl')}</Label>
-        <Input
-          id="imageUrl"
-          type="url"
-          value={formData.imageUrl}
-          onChange={(e) =>
-            setFormData({ ...formData, imageUrl: e.target.value })
-          }
-          placeholder={tProducts('edit.imageUrlPlaceholder')}
-          disabled={isSubmitting}
-        />
-      </div>
+      <Input
+        id="imageUrl"
+        type="url"
+        label={tProducts('edit.labels.imageUrl')}
+        value={formData.imageUrl}
+        onChange={(e) =>
+          setFormData({ ...formData, imageUrl: e.target.value })
+        }
+        placeholder={tProducts('edit.imageUrlPlaceholder')}
+        disabled={isSubmitting}
+      />
 
       {/* Price and Currency Row */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="price">{tProducts('edit.labels.price')}</Label>
-          <Input
-            id="price"
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.price}
-            onChange={(e) =>
-              setFormData({ ...formData, price: e.target.value })
-            }
-            placeholder={tProducts('edit.pricePlaceholder')}
-            disabled={isSubmitting}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="currency">{tProducts('edit.labels.currency')}</Label>
-          <Input
-            id="currency"
-            value={formData.currency}
-            onChange={(e) =>
-              setFormData({ ...formData, currency: e.target.value })
-            }
-            placeholder={tProducts('edit.currencyPlaceholder')}
-            disabled={isSubmitting}
-            maxLength={3}
-          />
-        </div>
+        <Input
+          id="price"
+          type="number"
+          step="0.01"
+          min="0"
+          label={tProducts('edit.labels.price')}
+          value={formData.price}
+          onChange={(e) =>
+            setFormData({ ...formData, price: e.target.value })
+          }
+          placeholder={tProducts('edit.pricePlaceholder')}
+          disabled={isSubmitting}
+        />
+        <Input
+          id="currency"
+          label={tProducts('edit.labels.currency')}
+          value={formData.currency}
+          onChange={(e) =>
+            setFormData({ ...formData, currency: e.target.value })
+          }
+          placeholder={tProducts('edit.currencyPlaceholder')}
+          disabled={isSubmitting}
+          maxLength={3}
+        />
       </div>
 
       {/* Stock and Category Row */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="stock">{tProducts('edit.labels.stock')}</Label>
-          <Input
-            id="stock"
-            type="number"
-            min="0"
-            value={formData.stock}
-            onChange={(e) =>
-              setFormData({ ...formData, stock: e.target.value })
-            }
-            placeholder={tProducts('edit.stockPlaceholder')}
-            disabled={isSubmitting}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="category">{tProducts('edit.labels.category')}</Label>
-          <Input
-            id="category"
-            value={formData.category}
-            onChange={(e) =>
-              setFormData({ ...formData, category: e.target.value })
-            }
-            placeholder={tProducts('edit.categoryPlaceholder')}
-            disabled={isSubmitting}
-          />
-        </div>
+        <Input
+          id="stock"
+          type="number"
+          min="0"
+          label={tProducts('edit.labels.stock')}
+          value={formData.stock}
+          onChange={(e) =>
+            setFormData({ ...formData, stock: e.target.value })
+          }
+          placeholder={tProducts('edit.stockPlaceholder')}
+          disabled={isSubmitting}
+        />
+        <Input
+          id="category"
+          label={tProducts('edit.labels.category')}
+          value={formData.category}
+          onChange={(e) =>
+            setFormData({ ...formData, category: e.target.value })
+          }
+          placeholder={tProducts('edit.categoryPlaceholder')}
+          disabled={isSubmitting}
+        />
       </div>
     </FormModal>
   );

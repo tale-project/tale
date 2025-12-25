@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 
@@ -148,22 +147,15 @@ export default function ShopifyIntegrationDialog({
       )}
 
       <div className="space-y-3">
-        <div className="space-y-2">
-          <Label
-            htmlFor="shopify-domain"
-            className="text-sm font-medium text-foreground/80"
-          >
-            {t('integrations.domain')}
-          </Label>
-          <Input
-            id="shopify-domain"
-            placeholder={t('integrations.shopify.domainPlaceholder')}
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            disabled={isSubmitting}
-            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-          />
-        </div>
+        <Input
+          id="shopify-domain"
+          label={t('integrations.domain')}
+          placeholder={t('integrations.shopify.domainPlaceholder')}
+          value={domain}
+          onChange={(e) => setDomain(e.target.value)}
+          disabled={isSubmitting}
+          className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+        />
         <p className="text-xs text-muted-foreground leading-[20px]">
           {t('integrations.shopify.domainHelp')}
           <br />
@@ -172,27 +164,20 @@ export default function ShopifyIntegrationDialog({
       </div>
 
       <div className="space-y-3">
-        <div className="space-y-2">
-          <Label
-            htmlFor="shopify-access-token"
-            className="text-sm font-medium text-foreground/80"
-          >
-            {t('integrations.accessToken')}
-          </Label>
-          <Input
-            id="shopify-access-token"
-            type="password"
-            placeholder={
-              isConnected
-                ? '••••••••••••••••'
-                : 'shpat_1234567890abcdef1234567890abcdef'
-            }
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
-            disabled={isSubmitting}
-            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-          />
-        </div>
+        <Input
+          id="shopify-access-token"
+          type="password"
+          label={t('integrations.accessToken')}
+          placeholder={
+            isConnected
+              ? '••••••••••••••••'
+              : 'shpat_1234567890abcdef1234567890abcdef'
+          }
+          value={accessToken}
+          onChange={(e) => setAccessToken(e.target.value)}
+          disabled={isSubmitting}
+          className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+        />
         <p className="text-xs text-muted-foreground leading-[20px]">
           {t('integrations.shopify.accessTokenHelp')}
           <br />

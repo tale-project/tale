@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
@@ -136,97 +135,77 @@ export default function EditAutomationDialog({
       large
       className="max-h-[80vh]"
     >
-      <div className="space-y-2">
-        <Label htmlFor="edit-name">
-          {t('configuration.name')}{' '}
-          <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="edit-name"
-          value={formData.name}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, name: e.target.value }))
-          }
-          placeholder={t('editDialog.namePlaceholder')}
-          disabled={isLoading}
-        />
-      </div>
+      <Input
+        id="edit-name"
+        label={t('configuration.name')}
+        required
+        value={formData.name}
+        onChange={(e) =>
+          setFormData((prev) => ({ ...prev, name: e.target.value }))
+        }
+        placeholder={t('editDialog.namePlaceholder')}
+        disabled={isLoading}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="edit-description">
-          {t('configuration.description')}
-        </Label>
-        <Textarea
-          id="edit-description"
-          value={formData.description}
-          onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              description: e.target.value,
-            }))
-          }
-          placeholder={t('editDialog.descriptionPlaceholder')}
-          rows={3}
-          disabled={isLoading}
-        />
-      </div>
+      <Textarea
+        id="edit-description"
+        label={t('configuration.description')}
+        value={formData.description}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            description: e.target.value,
+          }))
+        }
+        placeholder={t('editDialog.descriptionPlaceholder')}
+        rows={3}
+        disabled={isLoading}
+      />
 
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-2">
-            <Label htmlFor="edit-timeout">
-              {t('configuration.timeout')}
-            </Label>
-            <Input
-              id="edit-timeout"
-              type="number"
-              value={formData.timeout}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  timeout: parseInt(e.target.value) || 300000,
-                }))
-              }
-              placeholder={t('editDialog.timeoutPlaceholder')}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-maxRetries">
-              {t('configuration.maxRetries')}
-            </Label>
-            <Input
-              id="edit-maxRetries"
-              type="number"
-              value={formData.maxRetries}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  maxRetries: parseInt(e.target.value) || 3,
-                }))
-              }
-              placeholder={t('editDialog.maxRetriesPlaceholder')}
-              disabled={isLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-backoffMs">
-              {t('configuration.backoff')}
-            </Label>
-            <Input
-              id="edit-backoffMs"
-              type="number"
-              value={formData.backoffMs}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  backoffMs: parseInt(e.target.value) || 1000,
-                }))
-              }
-              placeholder={t('editDialog.backoffPlaceholder')}
-              disabled={isLoading}
-            />
-          </div>
+          <Input
+            id="edit-timeout"
+            type="number"
+            label={t('configuration.timeout')}
+            value={formData.timeout}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                timeout: parseInt(e.target.value) || 300000,
+              }))
+            }
+            placeholder={t('editDialog.timeoutPlaceholder')}
+            disabled={isLoading}
+          />
+          <Input
+            id="edit-maxRetries"
+            type="number"
+            label={t('configuration.maxRetries')}
+            value={formData.maxRetries}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                maxRetries: parseInt(e.target.value) || 3,
+              }))
+            }
+            placeholder={t('editDialog.maxRetriesPlaceholder')}
+            disabled={isLoading}
+          />
+          <Input
+            id="edit-backoffMs"
+            type="number"
+            label={t('configuration.backoff')}
+            value={formData.backoffMs}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                backoffMs: parseInt(e.target.value) || 1000,
+              }))
+            }
+            placeholder={t('editDialog.backoffPlaceholder')}
+            disabled={isLoading}
+          />
         </div>
 
         <JsonInput

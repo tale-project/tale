@@ -22,7 +22,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { DeleteModal, FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
 import { Badge } from '@/components/ui/badge';
@@ -265,34 +264,30 @@ export function AutomationTemplatesTab({
               }}
               trigger={<Button className="w-full">{t('createButton')}</Button>}
             >
-              <div>
-                <Label htmlFor="workflow-name">{t('configuration.name')}</Label>
-                <Input
-                  id="workflow-name"
-                  value={newAutomationForm.name}
-                  onChange={(e) =>
-                    setNewAutomationForm((prev) => ({
-                      ...prev,
-                      name: e.target.value,
-                    }))
-                  }
-                  placeholder={t('configuration.namePlaceholder')}
-                />
-              </div>
-              <div>
-                <Label htmlFor="workflow-description">{t('configuration.description')}</Label>
-                <Textarea
-                  id="automation-description"
-                  value={newAutomationForm.description}
-                  onChange={(e) =>
-                    setNewAutomationForm((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  placeholder={t('configuration.descriptionPlaceholder')}
-                />
-              </div>
+              <Input
+                id="workflow-name"
+                label={t('configuration.name')}
+                value={newAutomationForm.name}
+                onChange={(e) =>
+                  setNewAutomationForm((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
+                placeholder={t('configuration.namePlaceholder')}
+              />
+              <Textarea
+                id="automation-description"
+                label={t('configuration.description')}
+                value={newAutomationForm.description}
+                onChange={(e) =>
+                  setNewAutomationForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder={t('configuration.descriptionPlaceholder')}
+              />
             </FormModal>
           </CardContent>
         </Card>
@@ -333,37 +328,31 @@ export function AutomationTemplatesTab({
                             className="space-y-2"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            <Input
+                              label={t('configuration.name')}
+                              value={editForm.name}
+                              onChange={(e) =>
+                                setEditForm((p) => ({
+                                  ...p,
+                                  name: e.target.value,
+                                }))
+                              }
+                            />
+                            <Textarea
+                              label={t('configuration.description')}
+                              value={editForm.description}
+                              onChange={(e) =>
+                                setEditForm((p) => ({
+                                  ...p,
+                                  description: e.target.value,
+                                }))
+                              }
+                            />
                             <div>
-                              <Label>{t('configuration.name')}</Label>
-                              <Input
-                                value={editForm.name}
-                                onChange={(e) =>
-                                  setEditForm((p) => ({
-                                    ...p,
-                                    name: e.target.value,
-                                  }))
-                                }
-                              />
-                            </div>
-                            <div>
-                              <Label>{t('configuration.description')}</Label>
-                              <Textarea
-                                value={editForm.description}
-                                onChange={(e) =>
-                                  setEditForm((p) => ({
-                                    ...p,
-                                    description: e.target.value,
-                                  }))
-                                }
-                              />
-                            </div>
-                            <div>
-                              <div>
-                                <Label className="text-base font-medium">
-                                  {t('templates.configJson')}
-                                </Label>
-                                <hr className="mt-2 mb-4 border-border" />
-                              </div>
+                              <span className="text-base font-medium">
+                                {t('templates.configJson')}
+                              </span>
+                              <hr className="mt-2 mb-4 border-border" />
                               <JsonInput
                                 value={editForm.config}
                                 onChange={(value) =>

@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useAction } from 'convex/react';
@@ -89,24 +88,16 @@ export default function OrganizationForm() {
           {t('organization.createOrganization')}
         </h1>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label required htmlFor="org-name">
-              {t('organization.organizationName')}
-            </Label>
-            <Input
-              id="org-name"
-              type="text"
-              className="mt-2"
-              {...form.register('name')}
-              placeholder={t('organization.enterCompanyName')}
-              disabled={form.formState.isSubmitting}
-            />
-            {form.formState.errors.name && (
-              <p className="text-sm text-destructive mt-1">
-                {form.formState.errors.name.message}
-              </p>
-            )}
-          </div>
+          <Input
+            id="org-name"
+            type="text"
+            label={t('organization.organizationName')}
+            required
+            {...form.register('name')}
+            placeholder={t('organization.enterCompanyName')}
+            disabled={form.formState.isSubmitting}
+            errorMessage={form.formState.errors.name?.message}
+          />
           <Button
             type="submit"
             className="w-full"

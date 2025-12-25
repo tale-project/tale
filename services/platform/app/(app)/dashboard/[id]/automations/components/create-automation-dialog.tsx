@@ -3,7 +3,6 @@
 import { useMemo } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -88,27 +87,20 @@ export default function CreateAutomationDialog({
       submitDisabled={!isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <div className="space-y-2">
-        <Label htmlFor="name">{t('configuration.name')}</Label>
-        <Input
-          id="name"
-          {...register('name')}
-          placeholder={t('createDialog.namePlaceholder')}
-        />
-      </div>
+      <Input
+        id="name"
+        label={t('configuration.name')}
+        {...register('name')}
+        placeholder={t('createDialog.namePlaceholder')}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="description">
-          {t('configuration.description')}{' '}
-          <span className="text-muted-foreground">(optional)</span>
-        </Label>
-        <Textarea
-          id="description"
-          {...register('description')}
-          placeholder={t('createDialog.descriptionPlaceholder')}
-          rows={3}
-        />
-      </div>
+      <Textarea
+        id="description"
+        label={t('configuration.description')}
+        {...register('description')}
+        placeholder={t('createDialog.descriptionPlaceholder')}
+        rows={3}
+      />
     </FormModal>
   );
 }

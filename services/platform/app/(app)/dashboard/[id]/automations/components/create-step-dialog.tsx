@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -215,42 +214,35 @@ export default function CreateStepDialog({
       onSubmit={handleSubmit}
       large
     >
-      <div className="space-y-2">
-        <Label htmlFor="step-name">
-          {t('configuration.name')} <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id="step-name"
-          value={formData.name}
-          onChange={(e) => {
-            setFormData((prev) => ({ ...prev, name: e.target.value }));
-            if (nameError) validateStepName(e.target.value);
-          }}
-          onBlur={(e) => validateStepName(e.target.value)}
-          placeholder={t('createStep.namePlaceholder')}
-          disabled={isLoading}
-          className={nameError ? 'border-red-500' : ''}
-        />
-        {nameError && <p className="text-xs text-red-500">{nameError}</p>}
-      </div>
+      <Input
+        id="step-name"
+        label={t('configuration.name')}
+        required
+        value={formData.name}
+        onChange={(e) => {
+          setFormData((prev) => ({ ...prev, name: e.target.value }));
+          if (nameError) validateStepName(e.target.value);
+        }}
+        onBlur={(e) => validateStepName(e.target.value)}
+        placeholder={t('createStep.namePlaceholder')}
+        disabled={isLoading}
+        errorMessage={nameError}
+      />
 
-      <div className="space-y-2">
-        <Label>{t('createStep.type')}</Label>
-        <Select
-          value={formData.stepType}
-          onValueChange={handleTypeChange}
-          disabled={isLoading}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
-            <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
-            <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Select
+        value={formData.stepType}
+        onValueChange={handleTypeChange}
+        disabled={isLoading}
+      >
+        <SelectTrigger label={t('createStep.type')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
+          <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
+          <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
+        </SelectContent>
+      </Select>
 
       <div className="space-y-4">
         <JsonInput

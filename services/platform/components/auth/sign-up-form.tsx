@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
@@ -128,37 +127,26 @@ export default function SignUpForm({
             autoComplete="on"
           >
             {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('email')}</Label>
-              <Input
-                id="email"
-                type="email"
-                size="lg"
-                placeholder={t('emailPlaceholder')}
-                disabled={isSubmitting}
-                autoComplete="email"
-                className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                {...form.register('email')}
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
+            <Input
+              id="email"
+              type="email"
+              size="lg"
+              label={t('email')}
+              placeholder={t('emailPlaceholder')}
+              disabled={isSubmitting}
+              autoComplete="email"
+              errorMessage={errors.email?.message}
+              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              {...form.register('email')}
+            />
 
             {/* Password Field */}
             <div className="space-y-2">
-              <Label
-                htmlFor="password"
-                error={Boolean(errors.password?.message)}
-              >
-                {t('password')}
-              </Label>
               <Input
                 id="password"
                 type="password"
                 size="lg"
+                label={t('password')}
                 placeholder={t('passwordPlaceholder')}
                 disabled={isSubmitting}
                 autoComplete="new-password"

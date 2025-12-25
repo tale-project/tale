@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -14,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Info } from 'lucide-react';
 import { useCreateWebsite } from './hooks';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
@@ -112,49 +110,36 @@ export default function AddWebsiteDialog({
       isSubmitting={isLoading}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <div className="space-y-2">
-        <Label htmlFor="domain">{tWebsites('domain')}</Label>
-        <Input
-          id="domain"
-          type="url"
-          placeholder={tWebsites('urlPlaceholder')}
-          {...register('domain')}
-          disabled={isLoading}
-        />
-        {errors.domain && (
-          <p className="text-sm text-destructive">
-            {errors.domain.message}
-          </p>
-        )}
-      </div>
+      <Input
+        id="domain"
+        type="url"
+        label={tWebsites('domain')}
+        placeholder={tWebsites('urlPlaceholder')}
+        {...register('domain')}
+        disabled={isLoading}
+        errorMessage={errors.domain?.message}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="scanInterval">
-          {tWebsites('scanInterval')}
-          <Info className="inline-block ml-1 w-3.5 h-3.5 text-muted-foreground" />
-        </Label>
-        <Select
-          value={scanInterval}
-          onValueChange={(value) => setValue('scanInterval', value)}
-          disabled={isLoading}
+      <Select
+        value={scanInterval}
+        onValueChange={(value) => setValue('scanInterval', value)}
+        disabled={isLoading}
+      >
+        <SelectTrigger
+          id="scanInterval"
+          label={tWebsites('scanInterval')}
+          error={!!errors.scanInterval}
         >
-          <SelectTrigger id="scanInterval">
-            <SelectValue placeholder={tWebsites('scanIntervalPlaceholder')} />
-          </SelectTrigger>
-          <SelectContent>
-            {SCAN_INTERVALS.map((interval) => (
-              <SelectItem key={interval.value} value={interval.value}>
-                {interval.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.scanInterval && (
-          <p className="text-sm text-destructive">
-            {errors.scanInterval.message}
-          </p>
-        )}
-      </div>
+          <SelectValue placeholder={tWebsites('scanIntervalPlaceholder')} />
+        </SelectTrigger>
+        <SelectContent>
+          {SCAN_INTERVALS.map((interval) => (
+            <SelectItem key={interval.value} value={interval.value}>
+              {interval.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </FormModal>
   );
 }
