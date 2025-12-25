@@ -34,6 +34,8 @@ export const integrationAction: ActionDefinition<{
   skipApprovalCheck?: boolean;
   // Thread ID for linking approvals to chat
   threadId?: string;
+  // Message ID for linking approvals to the specific assistant message
+  messageId?: string;
 }> = {
   type: 'integration',
   title: 'Integration',
@@ -45,10 +47,11 @@ export const integrationAction: ActionDefinition<{
     params: v.optional(v.any()),
     skipApprovalCheck: v.optional(v.boolean()),
     threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()),
   }),
 
   async execute(ctx, params, variables) {
-    const { name, operation, params: opParams = {}, skipApprovalCheck = false, threadId } = params;
+    const { name, operation, params: opParams = {}, skipApprovalCheck = false, threadId, messageId } = params;
 
     // Read organizationId from workflow context variables with proper type validation
     const organizationId = variables.organizationId;
@@ -75,7 +78,7 @@ export const integrationAction: ActionDefinition<{
 
     // Handle SQL integrations
     if (integrationType === 'sql') {
-      return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId);
+      return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId, messageId);
     }
 
     // Handle REST API integrations (existing logic)
@@ -127,6 +130,8 @@ export const integrationAction: ActionDefinition<{
           operationTitle: operationConfig.title || operation,
           operationType,
           parameters: opParams,
+          threadId,
+          messageId,
           estimatedImpact: `This ${operationType} operation will modify data via ${name} API`,
         },
       );

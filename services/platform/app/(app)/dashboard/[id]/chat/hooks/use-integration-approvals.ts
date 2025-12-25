@@ -28,7 +28,10 @@ export interface IntegrationApproval {
   _id: Id<'approvals'>;
   status: 'pending' | 'approved' | 'rejected';
   metadata: IntegrationOperationMetadata;
+  executedAt?: number;
+  executionError?: string;
   _creationTime: number;
+  messageId?: string; // The message ID where the approval was requested
 }
 
 /**
@@ -47,7 +50,10 @@ export function useIntegrationApprovals(threadId: string | undefined) {
       _id: a._id,
       status: a.status as 'pending' | 'approved' | 'rejected',
       metadata: a.metadata as IntegrationOperationMetadata,
+      executedAt: a.executedAt,
+      executionError: a.executionError,
       _creationTime: a._creationTime,
+      messageId: a.messageId,
     }));
 
   return {

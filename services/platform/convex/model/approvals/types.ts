@@ -54,6 +54,8 @@ export const approvalItemValidator = v.object({
   resourceId: v.string(),
   priority: approvalPriorityValidator,
   dueDate: v.optional(v.number()),
+  executedAt: v.optional(v.number()),
+  executionError: v.optional(v.string()),
   metadata: v.optional(v.any()),
   threadId: v.optional(v.string()),
   messageId: v.optional(v.string()),
@@ -135,6 +137,8 @@ export interface ApprovalItem {
   resourceId: string;
   priority: ApprovalPriority;
   dueDate?: number;
+  executedAt?: number;
+  executionError?: string;
   metadata?: unknown;
   threadId?: string;
   messageId?: string;

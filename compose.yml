@@ -82,10 +82,8 @@ services:
     # Container name
     container_name: tale-graph-db
 
-    # Port mapping: host:container
-    # - 8000: HTTP REST API (Cognee compatible)
-    ports:
-      - '7000:8000'
+    # No port mapping needed - only accessed by other services (rag)
+    # internally via http://graph-db:8000
 
     # Volume mounts
     # Persist graph database data
@@ -128,10 +126,8 @@ services:
     # Container name
     container_name: tale-crawler
 
-    # Port mapping: host:container
-    # Access the API at http://localhost:8002
-    ports:
-      - '8002:8002'
+    # No port mapping needed - only accessed by platform service
+    # internally via http://crawler:8002
 
     # Environment file
     # Create a .env file in the project root with your configuration
@@ -184,10 +180,8 @@ services:
     # Container name
     container_name: tale-rag
 
-    # Port mapping: host:container
-    # Access the API at http://localhost:8001
-    ports:
-      - '8001:8001'
+    # No port mapping needed - only accessed by platform service
+    # internally via http://rag:8001
 
     # Volume mounts
     # Persist cognee data
@@ -259,17 +253,10 @@ services:
     # Container name
     container_name: tale-platform
 
-    # Port mapping: host:container
-    # Note: When using the proxy service, all traffic should go through the proxy
-    # The proxy handles HTTPS and forwards to the platform service over HTTP
-    # With proxy: Access via https://yourdomain.com (configured in proxy service)
+    # Port mapping for local development (bypasses proxy for easier testing)
+    # Access via http://localhost:3000 (dev) or https://yourdomain.com via proxy (prod)
     ports:
-      # Uncomment for direct access during development/debugging:
       - '3000:3000'
-      # - '3210:3210'
-      # - '3211:3211'
-      # # Convex dashboard UI (direct access)
-      # - '6791:6791'
 
     # Volume mounts
     # Persist Convex local data
@@ -337,11 +324,8 @@ services:
     # Container name
     container_name: tale-search
 
-    # Port mapping: host:container
-    # Access the search API at http://localhost:8003
-    # Note: SearXNG internally listens on 8080, mapped to 8003 externally
-    ports:
-      - '8003:8080'
+    # No port mapping needed - only accessed by platform service
+    # internally via http://search:8080
 
     # Environment file
     env_file:
@@ -379,18 +363,17 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Proxy (Caddy) - OPTIONAL
+  # Tale Proxy (Caddy)
   # ============================================================================
-  # The proxy service is OPTIONAL and only needed for production HTTPS.
+  # Single entry point for all traffic (both local dev and production)
   #
   # For local development:
-  #   - Run: docker compose up (proxy will NOT start by default)
-  #   - Access: http://localhost:3000
+  #   - Run: docker compose up
+  #   - Access: http://localhost
   #
   # For production with HTTPS:
-  #   - Run: docker compose --profile production up
-  #   - Access: https://yourdomain.com (via proxy on ports 80/443)
   #   - Set DOMAIN=https://yourdomain.com in .env
+  #   - Access: https://yourdomain.com
   #
   proxy:
     # Build configuration
@@ -401,13 +384,8 @@ services:
     # Container name
     container_name: tale-proxy
 
-    # Profile: Only start when explicitly requested
-    profiles:
-      - production
-
     # Port mapping: host:container
     # Access the platform via HTTP (80) or HTTPS (443)
-    # HTTPS will be automatically configured when using a domain name
     ports:
       - '80:80'
       - '443:443'
@@ -446,10 +424,9 @@ services:
       retries: 3
       start_period: 10s
 
-    # Dependencies
-    # Wait for platform to be ready
-    depends_on:
-      - platform
+    # Note: We removed depends_on for platform to avoid circular dependency
+    # when platform uses links/extra_hosts to reach localhost via proxy.
+    # Caddy handles upstream unavailability gracefully.
 
     # Logging configuration
     logging:
@@ -464,8 +441,10 @@ services:
         # Hairpin NAT resolution via network alias
         # This allows containers to resolve DOMAIN_HOST to the proxy container
         # via Docker's internal DNS, solving the hairpin NAT issue.
+        # Use app.localhost (or another real hostname) instead of localhost
+        # because localhost is always in /etc/hosts and can't be overridden.
         aliases:
-          - ${DOMAIN_HOST:-localhost}
+          - ${DOMAIN_HOST:-tale.local}
 
 # ============================================================================
 # Volumes

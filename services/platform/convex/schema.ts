@@ -764,6 +764,10 @@ export default defineSchema({
     ),
     dueDate: v.optional(v.number()),
 
+    // Execution tracking (for integration operations and other executed approvals)
+    executedAt: v.optional(v.number()), // When the approved operation was executed
+    executionError: v.optional(v.string()), // Error message if execution failed
+
     metadata: v.optional(v.any()),
   })
     .index('by_organizationId', ['organizationId'])
@@ -779,6 +783,11 @@ export default defineSchema({
       'resourceType',
       'resourceId',
       'status',
+    ])
+    .index('by_threadId_status_resourceType', [
+      'threadId',
+      'status',
+      'resourceType',
     ]),
 
   // Tone of Voice - stores brand voice and example messages

@@ -39,6 +39,7 @@ import type * as agent_tools_integrations_execute_integration_internal from "../
 import type * as agent_tools_integrations_integration_introspect_tool from "../agent_tools/integrations/integration_introspect_tool.js";
 import type * as agent_tools_integrations_integration_tool from "../agent_tools/integrations/integration_tool.js";
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
+import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -128,6 +129,7 @@ import type * as model_approvals_create_approval from "../model/approvals/create
 import type * as model_approvals_get_approval from "../model/approvals/get_approval.js";
 import type * as model_approvals_get_approval_history from "../model/approvals/get_approval_history.js";
 import type * as model_approvals_index from "../model/approvals/index.js";
+import type * as model_approvals_link_approvals_to_message from "../model/approvals/link_approvals_to_message.js";
 import type * as model_approvals_list_approvals_by_organization from "../model/approvals/list_approvals_by_organization.js";
 import type * as model_approvals_list_approvals_for_execution from "../model/approvals/list_approvals_for_execution.js";
 import type * as model_approvals_list_pending_approvals from "../model/approvals/list_pending_approvals.js";
@@ -139,6 +141,13 @@ import type * as model_chat_agent_auto_summarize_if_needed from "../model/chat_a
 import type * as model_chat_agent_cancel_chat from "../model/chat_agent/cancel_chat.js";
 import type * as model_chat_agent_chat_with_agent from "../model/chat_agent/chat_with_agent.js";
 import type * as model_chat_agent_chat_with_agent_status from "../model/chat_agent/chat_with_agent_status.js";
+import type * as model_chat_agent_context_management_check_and_summarize from "../model/chat_agent/context_management/check_and_summarize.js";
+import type * as model_chat_agent_context_management_constants from "../model/chat_agent/context_management/constants.js";
+import type * as model_chat_agent_context_management_context_handler from "../model/chat_agent/context_management/context_handler.js";
+import type * as model_chat_agent_context_management_context_priority from "../model/chat_agent/context_management/context_priority.js";
+import type * as model_chat_agent_context_management_estimate_context_size from "../model/chat_agent/context_management/estimate_context_size.js";
+import type * as model_chat_agent_context_management_estimate_tokens from "../model/chat_agent/context_management/estimate_tokens.js";
+import type * as model_chat_agent_context_management_index from "../model/chat_agent/context_management/index.js";
 import type * as model_chat_agent_generate_agent_response from "../model/chat_agent/generate_agent_response.js";
 import type * as model_chat_agent_index from "../model/chat_agent/index.js";
 import type * as model_chat_agent_message_deduplication from "../model/chat_agent/message_deduplication.js";
@@ -523,6 +532,7 @@ import type * as workflow_actions_integration_helpers_get_introspect_columns_que
 import type * as workflow_actions_integration_helpers_get_introspect_tables_query from "../workflow/actions/integration/helpers/get_introspect_tables_query.js";
 import type * as workflow_actions_integration_helpers_get_introspection_operations from "../workflow/actions/integration/helpers/get_introspection_operations.js";
 import type * as workflow_actions_integration_helpers_is_introspection_operation from "../workflow/actions/integration/helpers/is_introspection_operation.js";
+import type * as workflow_actions_integration_helpers_validate_required_parameters from "../workflow/actions/integration/helpers/validate_required_parameters.js";
 import type * as workflow_actions_integration_integration_action from "../workflow/actions/integration/integration_action.js";
 import type * as workflow_actions_onedrive_onedrive_action from "../workflow/actions/onedrive/onedrive_action.js";
 import type * as workflow_actions_product_product_action from "../workflow/actions/product/product_action.js";
@@ -677,6 +687,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/integration_introspect_tool": typeof agent_tools_integrations_integration_introspect_tool;
   "agent_tools/integrations/integration_tool": typeof agent_tools_integrations_integration_tool;
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
+  "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
@@ -766,6 +777,7 @@ declare const fullApi: ApiFromModules<{
   "model/approvals/get_approval": typeof model_approvals_get_approval;
   "model/approvals/get_approval_history": typeof model_approvals_get_approval_history;
   "model/approvals/index": typeof model_approvals_index;
+  "model/approvals/link_approvals_to_message": typeof model_approvals_link_approvals_to_message;
   "model/approvals/list_approvals_by_organization": typeof model_approvals_list_approvals_by_organization;
   "model/approvals/list_approvals_for_execution": typeof model_approvals_list_approvals_for_execution;
   "model/approvals/list_pending_approvals": typeof model_approvals_list_pending_approvals;
@@ -777,6 +789,13 @@ declare const fullApi: ApiFromModules<{
   "model/chat_agent/cancel_chat": typeof model_chat_agent_cancel_chat;
   "model/chat_agent/chat_with_agent": typeof model_chat_agent_chat_with_agent;
   "model/chat_agent/chat_with_agent_status": typeof model_chat_agent_chat_with_agent_status;
+  "model/chat_agent/context_management/check_and_summarize": typeof model_chat_agent_context_management_check_and_summarize;
+  "model/chat_agent/context_management/constants": typeof model_chat_agent_context_management_constants;
+  "model/chat_agent/context_management/context_handler": typeof model_chat_agent_context_management_context_handler;
+  "model/chat_agent/context_management/context_priority": typeof model_chat_agent_context_management_context_priority;
+  "model/chat_agent/context_management/estimate_context_size": typeof model_chat_agent_context_management_estimate_context_size;
+  "model/chat_agent/context_management/estimate_tokens": typeof model_chat_agent_context_management_estimate_tokens;
+  "model/chat_agent/context_management/index": typeof model_chat_agent_context_management_index;
   "model/chat_agent/generate_agent_response": typeof model_chat_agent_generate_agent_response;
   "model/chat_agent/index": typeof model_chat_agent_index;
   "model/chat_agent/message_deduplication": typeof model_chat_agent_message_deduplication;
@@ -1161,6 +1180,7 @@ declare const fullApi: ApiFromModules<{
   "workflow/actions/integration/helpers/get_introspect_tables_query": typeof workflow_actions_integration_helpers_get_introspect_tables_query;
   "workflow/actions/integration/helpers/get_introspection_operations": typeof workflow_actions_integration_helpers_get_introspection_operations;
   "workflow/actions/integration/helpers/is_introspection_operation": typeof workflow_actions_integration_helpers_is_introspection_operation;
+  "workflow/actions/integration/helpers/validate_required_parameters": typeof workflow_actions_integration_helpers_validate_required_parameters;
   "workflow/actions/integration/integration_action": typeof workflow_actions_integration_integration_action;
   "workflow/actions/onedrive/onedrive_action": typeof workflow_actions_onedrive_onedrive_action;
   "workflow/actions/product/product_action": typeof workflow_actions_product_product_action;

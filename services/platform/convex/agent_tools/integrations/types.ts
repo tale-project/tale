@@ -22,6 +22,8 @@ export interface IntegrationExecutionResult {
   requiresApproval?: boolean;
   /** Approval ID if approval is required */
   approvalId?: string;
+  /** Explicit flag confirming an approval was successfully created (only true when approval actually exists) */
+  approvalCreated?: boolean;
   /** Message to show user about the approval */
   approvalMessage?: string;
 }

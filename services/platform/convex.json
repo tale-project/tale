@@ -1,0 +1,8 @@
+{
+  "node": {
+    "externalPackages": [
+      "mssql",
+      "tedious"
+    ]
+  }
+}

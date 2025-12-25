@@ -24,6 +24,7 @@ import { resourceCheckTool } from './files/resource_check_tool';
 import { contextSearchTool } from './threads/context_search_tool';
 import { integrationTool } from './integrations/integration_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
+import { verifyApprovalTool } from './integrations/verify_approval_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -50,6 +51,7 @@ export const TOOL_NAMES = [
   'context_search',
   'integration',
   'integration_introspect',
+  'verify_approval',
 ] as const;
 
 /**
@@ -74,6 +76,7 @@ export const TOOL_REGISTRY = [
   contextSearchTool,
   integrationTool,
   integrationIntrospectTool,
+  verifyApprovalTool,
 ] as const;
 
 /**

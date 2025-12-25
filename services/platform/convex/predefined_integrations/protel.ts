@@ -72,16 +72,19 @@ const protelSqlOperations: SqlOperation[] = [
           type: 'number',
           description:
             'Booking status filter: 0=Arrival (not checked in), 1=In-House, 2=Checked-Out',
+          required: false,
         },
         fromDate: {
           type: 'string',
           format: 'date',
           description: 'Filter by check-in date from (YYYY-MM-DD)',
+          required: false,
         },
         toDate: {
           type: 'string',
           format: 'date',
           description: 'Filter by check-in date to (YYYY-MM-DD)',
+          required: false,
         },
       },
     },
@@ -148,9 +151,9 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID (buchnr)',
+          required: true,
         },
       },
-      required: ['reservationId'],
     },
   },
   {
@@ -284,10 +287,12 @@ const protelSqlOperations: SqlOperation[] = [
         searchName: {
           type: 'string',
           description: 'Search by guest name (partial match)',
+          required: false,
         },
         email: {
           type: 'string',
           description: 'Search by email (partial match)',
+          required: false,
         },
       },
     },
@@ -354,9 +359,9 @@ const protelSqlOperations: SqlOperation[] = [
         guestId: {
           type: 'number',
           description: 'Guest ID (kdnr)',
+          required: true,
         },
       },
-      required: ['guestId'],
     },
   },
   {
@@ -491,14 +496,15 @@ const protelSqlOperations: SqlOperation[] = [
           type: 'string',
           format: 'date',
           description: 'Check-in date (YYYY-MM-DD)',
+          required: true,
         },
         checkOut: {
           type: 'string',
           format: 'date',
           description: 'Check-out date (YYYY-MM-DD)',
+          required: true,
         },
       },
-      required: ['checkIn', 'checkOut'],
     },
   },
 
@@ -538,9 +544,9 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID (buchnr)',
+          required: true,
         },
       },
-      required: ['reservationId'],
     },
   },
   {
@@ -572,9 +578,9 @@ const protelSqlOperations: SqlOperation[] = [
           type: 'string',
           format: 'date',
           description: 'Posting date (YYYY-MM-DD)',
+          required: true,
         },
       },
-      required: ['postingDate'],
     },
   },
 
@@ -619,9 +625,9 @@ const protelSqlOperations: SqlOperation[] = [
           type: 'string',
           format: 'date',
           description: 'Report date (YYYY-MM-DD)',
+          required: true,
         },
       },
-      required: ['reportDate'],
     },
   },
   {
@@ -651,14 +657,15 @@ const protelSqlOperations: SqlOperation[] = [
           type: 'string',
           format: 'date',
           description: 'Start date (YYYY-MM-DD)',
+          required: true,
         },
         toDate: {
           type: 'string',
           format: 'date',
           description: 'End date (YYYY-MM-DD)',
+          required: true,
         },
       },
-      required: ['fromDate', 'toDate'],
     },
   },
 
@@ -775,13 +782,13 @@ const protelSqlOperations: SqlOperation[] = [
         COALESCE(@totalGuests, 1),
         COALESCE(@adults, 1),
         COALESCE(@children, 0),
-        @rate,
-        @arrivalTime,
+        COALESCE(@rate, 0),
+        COALESCE(@arrivalTime, '14:00'),
         COALESCE(@marketCode, 0),
         COALESCE(@sourceCode, 0),
         GETDATE(),
-        @createdBy,
-        @notes
+        COALESCE(@createdBy, 'SYSTEM'),
+        COALESCE(@notes, '')
       );
       SELECT @reservationId AS reservation_id;
     `,
@@ -791,73 +798,87 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID (buchnr) - must be unique, use MAX(buchnr)+1 from buch table',
+          required: true,
         },
         guestId: {
           type: 'number',
           description: 'Guest profile ID (kdnr from kunden table)',
+          required: true,
         },
         categoryId: {
           type: 'number',
           description: 'Room category ID (katnr from kat table)',
+          required: true,
         },
         checkInDate: {
           type: 'string',
           format: 'date',
           description: 'Check-in date (YYYY-MM-DD)',
+          required: true,
         },
         checkOutDate: {
           type: 'string',
           format: 'date',
           description: 'Check-out date (YYYY-MM-DD)',
+          required: true,
         },
         reservationStatus: {
           type: 'number',
           description: 'Reservation status: 1=Confirmed, 2=Provisional, 3=Optional, 4=Waiting List',
           default: 1,
+          required: false,
         },
         totalGuests: {
           type: 'number',
           description: 'Total number of guests',
           default: 1,
+          required: false,
         },
         adults: {
           type: 'number',
           description: 'Number of adults',
           default: 1,
+          required: false,
         },
         children: {
           type: 'number',
           description: 'Number of children',
           default: 0,
+          required: false,
         },
         rate: {
           type: 'number',
           description: 'Daily rate amount',
+          required: false,
         },
         arrivalTime: {
           type: 'string',
           description: 'Expected arrival time (HH:MM)',
+          required: false,
         },
         marketCode: {
           type: 'number',
           description: 'Market segment code',
           default: 0,
+          required: false,
         },
         sourceCode: {
           type: 'number',
           description: 'Booking source code',
           default: 0,
+          required: false,
         },
         createdBy: {
           type: 'string',
           description: 'User creating the reservation',
+          required: false,
         },
         notes: {
           type: 'string',
           description: 'Reservation notes',
+          required: false,
         },
       },
-      required: ['reservationId', 'guestId', 'categoryId', 'checkInDate', 'checkOutDate'],
     },
   },
   {
@@ -890,63 +911,76 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID to update',
+          required: true,
         },
         categoryId: {
           type: 'number',
           description: 'New room category ID',
+          required: false,
         },
         checkInDate: {
           type: 'string',
           format: 'date',
           description: 'New check-in date (YYYY-MM-DD)',
+          required: false,
         },
         checkOutDate: {
           type: 'string',
           format: 'date',
           description: 'New check-out date (YYYY-MM-DD)',
+          required: false,
         },
         reservationStatus: {
           type: 'number',
           description: 'New reservation status',
+          required: false,
         },
         totalGuests: {
           type: 'number',
           description: 'New total number of guests',
+          required: false,
         },
         adults: {
           type: 'number',
           description: 'New number of adults',
+          required: false,
         },
         children: {
           type: 'number',
           description: 'New number of children',
+          required: false,
         },
         rate: {
           type: 'number',
           description: 'New daily rate',
+          required: false,
         },
         arrivalTime: {
           type: 'string',
           description: 'New arrival time (HH:MM)',
+          required: false,
         },
         departureTime: {
           type: 'string',
           description: 'New departure time (HH:MM)',
+          required: false,
         },
         marketCode: {
           type: 'number',
           description: 'New market segment code',
+          required: false,
         },
         sourceCode: {
           type: 'number',
           description: 'New booking source code',
+          required: false,
         },
         notes: {
           type: 'string',
           description: 'New reservation notes',
+          required: false,
         },
       },
-      required: ['reservationId'],
     },
   },
   {
@@ -958,7 +992,7 @@ const protelSqlOperations: SqlOperation[] = [
       UPDATE proteluser.buch
       SET
         resstatus = 5,
-        not1txt = CONCAT(COALESCE(not1txt, ''), ' [Cancelled: ', CONVERT(VARCHAR, GETDATE(), 120), ' by ', @cancelledBy, '. Reason: ', @cancellationReason, ']')
+        not1txt = CONCAT(COALESCE(not1txt, ''), ' [Cancelled: ', CONVERT(VARCHAR, GETDATE(), 120), ' by ', COALESCE(@cancelledBy, 'SYSTEM'), '. Reason: ', COALESCE(@cancellationReason, 'No reason provided'), ']')
       WHERE buchnr = @reservationId
         AND buchstatus = 0;
       SELECT @reservationId AS reservation_id, 'cancelled' AS status WHERE @@ROWCOUNT > 0;
@@ -969,17 +1003,19 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID to cancel',
+          required: true,
         },
         cancelledBy: {
           type: 'string',
           description: 'User cancelling the reservation',
+          required: false,
         },
         cancellationReason: {
           type: 'string',
           description: 'Reason for cancellation',
+          required: false,
         },
       },
-      required: ['reservationId'],
     },
   },
   {
@@ -1003,17 +1039,19 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID to check in',
+          required: true,
         },
         roomId: {
           type: 'number',
           description: 'Room ID to assign (zinr from zimmer table)',
+          required: true,
         },
         actualArrivalTime: {
           type: 'string',
           description: 'Actual arrival time (HH:MM), defaults to current time',
+          required: false,
         },
       },
-      required: ['reservationId', 'roomId'],
     },
   },
   {
@@ -1036,13 +1074,14 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID to check out',
+          required: true,
         },
         actualDepartureTime: {
           type: 'string',
           description: 'Actual departure time (HH:MM), defaults to current time',
+          required: false,
         },
       },
-      required: ['reservationId'],
     },
   },
   {
@@ -1062,13 +1101,14 @@ const protelSqlOperations: SqlOperation[] = [
         reservationId: {
           type: 'number',
           description: 'Reservation ID',
+          required: true,
         },
         roomId: {
           type: 'number',
           description: 'Room ID to assign (zinr from zimmer table)',
+          required: true,
         },
       },
-      required: ['reservationId', 'roomId'],
     },
   },
 
@@ -1119,7 +1159,7 @@ const protelSqlOperations: SqlOperation[] = [
         COALESCE(@countryCode, -1),
         COALESCE(@language, 4),
         COALESCE(@vipCode, 0),
-        @birthDate,
+        COALESCE(@birthDate, '1900-01-01'),
         COALESCE(@salutation, ''),
         COALESCE(@remarks, ''),
         GETDATE(),
@@ -1133,80 +1173,97 @@ const protelSqlOperations: SqlOperation[] = [
         guestId: {
           type: 'number',
           description: 'Guest ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+          required: true,
         },
         lastName: {
           type: 'string',
           description: 'Guest last name (name1)',
+          required: true,
         },
         name2: {
           type: 'string',
           description: 'Additional name field',
+          required: false,
         },
         firstName: {
           type: 'string',
           description: 'Guest first name',
+          required: false,
         },
         email: {
           type: 'string',
           description: 'Email address',
+          required: false,
         },
         phone: {
           type: 'string',
           description: 'Phone number',
+          required: false,
         },
         mobile: {
           type: 'string',
           description: 'Mobile phone number',
+          required: false,
         },
         street: {
           type: 'string',
           description: 'Street address',
+          required: false,
         },
         postalCode: {
           type: 'string',
           description: 'Postal/ZIP code',
+          required: false,
         },
         city: {
           type: 'string',
           description: 'City',
+          required: false,
         },
         country: {
           type: 'string',
           description: 'Country name',
+          required: false,
         },
         countryCode: {
           type: 'number',
           description: 'Country code ID (integer, use -1 for default)',
           default: -1,
+          required: false,
         },
         language: {
           type: 'number',
           description: 'Language ID (integer, use 4 for default)',
           default: 4,
+          required: false,
         },
         vipCode: {
           type: 'number',
           description: 'VIP classification code',
+          required: false,
         },
         birthDate: {
           type: 'string',
           format: 'date',
           description: 'Date of birth (YYYY-MM-DD)',
+          required: false,
         },
         salutation: {
           type: 'string',
           description: 'Salutation (Mr., Mrs., etc.)',
+          required: false,
         },
         remarks: {
           type: 'string',
           description: 'General remarks',
+          required: false,
         },
         createdBy: {
           type: 'string',
           description: 'User creating the profile',
+          required: false,
         },
       },
-      required: ['guestId', 'lastName'],
     },
   },
   {
@@ -1234,7 +1291,7 @@ const protelSqlOperations: SqlOperation[] = [
         anrede = COALESCE(@salutation, anrede),
         bemerkung = COALESCE(@remarks, bemerkung),
         changed = GETDATE(),
-        changedby = @updatedBy
+        changedby = COALESCE(@updatedBy, 'SYSTEM')
       WHERE kdnr = @guestId
         AND typ = 2;
       SELECT @guestId AS guest_id, 'updated' AS status WHERE @@ROWCOUNT > 0;
@@ -1245,78 +1302,95 @@ const protelSqlOperations: SqlOperation[] = [
         guestId: {
           type: 'number',
           description: 'Guest ID to update',
+          required: true,
         },
         lastName: {
           type: 'string',
           description: 'New last name',
+          required: false,
         },
         name2: {
           type: 'string',
           description: 'New additional name',
+          required: false,
         },
         firstName: {
           type: 'string',
           description: 'New first name',
+          required: false,
         },
         email: {
           type: 'string',
           description: 'New email address',
+          required: false,
         },
         phone: {
           type: 'string',
           description: 'New phone number',
+          required: false,
         },
         mobile: {
           type: 'string',
           description: 'New mobile number',
+          required: false,
         },
         street: {
           type: 'string',
           description: 'New street address',
+          required: false,
         },
         postalCode: {
           type: 'string',
           description: 'New postal code',
+          required: false,
         },
         city: {
           type: 'string',
           description: 'New city',
+          required: false,
         },
         country: {
           type: 'string',
           description: 'New country',
+          required: false,
         },
         countryCode: {
           type: 'string',
           description: 'New country code',
+          required: false,
         },
         language: {
           type: 'string',
           description: 'New language preference',
+          required: false,
         },
         vipCode: {
           type: 'number',
           description: 'New VIP code',
+          required: false,
         },
         birthDate: {
           type: 'string',
           format: 'date',
           description: 'New birth date',
+          required: false,
         },
         salutation: {
           type: 'string',
           description: 'New salutation',
+          required: false,
         },
         remarks: {
           type: 'string',
           description: 'New remarks',
+          required: false,
         },
         updatedBy: {
           type: 'string',
           description: 'User updating the profile',
+          required: false,
         },
       },
-      required: ['guestId'],
     },
   },
   {
@@ -1375,61 +1449,74 @@ const protelSqlOperations: SqlOperation[] = [
         companyId: {
           type: 'number',
           description: 'Company ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+          required: true,
         },
         companyName: {
           type: 'string',
           description: 'Company name',
+          required: true,
         },
         name2: {
           type: 'string',
           description: 'Additional name/department',
+          required: false,
         },
         email: {
           type: 'string',
           description: 'Company email',
+          required: false,
         },
         phone: {
           type: 'string',
           description: 'Company phone',
+          required: false,
         },
         street: {
           type: 'string',
           description: 'Street address',
+          required: false,
         },
         postalCode: {
           type: 'string',
           description: 'Postal code',
+          required: false,
         },
         city: {
           type: 'string',
           description: 'City',
+          required: false,
         },
         country: {
           type: 'string',
           description: 'Country',
+          required: false,
         },
         vatNumber: {
           type: 'string',
           description: 'VAT/Tax number',
+          required: false,
         },
         iataCode: {
           type: 'string',
           description: 'IATA code',
+          required: false,
         },
         contractCode: {
           type: 'string',
           description: 'Contract/Rate code',
+          required: false,
         },
         remarks: {
           type: 'string',
           description: 'Remarks',
+          required: false,
         },
         createdBy: {
           type: 'string',
           description: 'User creating the profile',
+          required: false,
         },
       },
-      required: ['companyId', 'companyName'],
     },
   },
 
@@ -1463,12 +1550,12 @@ const protelSqlOperations: SqlOperation[] = [
         COALESCE(@postingDate, CAST(GETDATE() AS DATE)),
         COALESCE(@postingTime, CONVERT(VARCHAR(5), GETDATE(), 108)),
         @description,
-        @additionalText,
+        COALESCE(@additionalText, ''),
         @unitPrice,
         COALESCE(@quantity, 1),
         @revenueCode,
-        @postedBy,
-        (SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId)
+        COALESCE(@postedBy, 'SYSTEM'),
+        COALESCE((SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId), '')
       );
       SELECT @postingId AS posting_id;
     `,
@@ -1478,47 +1565,56 @@ const protelSqlOperations: SqlOperation[] = [
         postingId: {
           type: 'number',
           description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          required: true,
         },
         reservationId: {
           type: 'number',
           description: 'Reservation ID to post charge to',
+          required: true,
         },
         description: {
           type: 'string',
           description: 'Charge description',
+          required: true,
         },
         additionalText: {
           type: 'string',
           description: 'Additional description text (max 40 chars)',
+          required: false,
         },
         unitPrice: {
           type: 'number',
           description: 'Unit price amount',
+          required: true,
         },
         quantity: {
           type: 'number',
           description: 'Quantity (default 1)',
           default: 1,
+          required: false,
         },
         revenueCode: {
           type: 'number',
           description: 'Revenue code (ktonr from ukto table)',
+          required: true,
         },
         postingDate: {
           type: 'string',
           format: 'date',
           description: 'Posting date (YYYY-MM-DD), defaults to today',
+          required: false,
         },
         postingTime: {
           type: 'string',
           description: 'Posting time (HH:MM), defaults to now',
+          required: false,
         },
         postedBy: {
           type: 'string',
           description: 'User posting the charge',
+          required: false,
         },
       },
-      required: ['postingId', 'reservationId', 'description', 'unitPrice', 'revenueCode'],
     },
   },
   {
@@ -1550,8 +1646,8 @@ const protelSqlOperations: SqlOperation[] = [
         -ABS(@amount),
         1,
         @paymentMethodCode,
-        @postedBy,
-        (SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId)
+        COALESCE(@postedBy, 'SYSTEM'),
+        COALESCE((SELECT z.ziname FROM proteluser.buch b LEFT JOIN proteluser.zimmer z ON b.zimmernr = z.zinr WHERE b.buchnr = @reservationId), '')
       );
       SELECT @postingId AS posting_id;
     `,
@@ -1561,38 +1657,45 @@ const protelSqlOperations: SqlOperation[] = [
         postingId: {
           type: 'number',
           description: 'Posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          required: true,
         },
         reservationId: {
           type: 'number',
           description: 'Reservation ID to post payment to',
+          required: true,
         },
         amount: {
           type: 'number',
           description: 'Payment amount (will be stored as negative)',
+          required: true,
         },
         description: {
           type: 'string',
           description: 'Payment description (e.g., "Cash Payment", "Credit Card")',
+          required: true,
         },
         paymentMethodCode: {
           type: 'number',
           description: 'Payment method code (from zahlart table)',
+          required: true,
         },
         paymentDate: {
           type: 'string',
           format: 'date',
           description: 'Payment date (YYYY-MM-DD), defaults to today',
+          required: false,
         },
         paymentTime: {
           type: 'string',
           description: 'Payment time (HH:MM), defaults to now',
+          required: false,
         },
         postedBy: {
           type: 'string',
           description: 'User posting the payment',
+          required: false,
         },
       },
-      required: ['postingId', 'reservationId', 'amount', 'description', 'paymentMethodCode'],
     },
   },
   {
@@ -1622,11 +1725,11 @@ const protelSqlOperations: SqlOperation[] = [
         CAST(GETDATE() AS DATE),
         CONVERT(VARCHAR(5), GETDATE(), 108),
         CONCAT('VOID: ', text),
-        LEFT(CONCAT('Rev TAN ', @postingId, ': ', @voidReason), 40),
+        LEFT(CONCAT('Rev TAN ', @postingId, ': ', COALESCE(@voidReason, 'Voided')), 40),
         -epreis,
         anzahl,
         ukto,
-        @voidedBy,
+        COALESCE(@voidedBy, 'SYSTEM'),
         zimmer
       FROM proteluser.leist
       WHERE tan = @postingId;
@@ -1638,21 +1741,24 @@ const protelSqlOperations: SqlOperation[] = [
         reversalId: {
           type: 'number',
           description: 'Reversal posting ID (tan) - must be unique, use MAX(tan)+1 from leist table',
+          required: true,
         },
         postingId: {
           type: 'number',
           description: 'Posting ID (tan) to void',
+          required: true,
         },
         voidReason: {
           type: 'string',
           description: 'Reason for voiding (will be truncated to fit)',
+          required: false,
         },
         voidedBy: {
           type: 'string',
           description: 'User voiding the posting',
+          required: false,
         },
       },
-      required: ['reversalId', 'postingId'],
     },
   },
 ];

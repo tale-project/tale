@@ -15,6 +15,7 @@ import { getIntrospectColumnsQuery } from './get_introspect_columns_query';
 import { getIntrospectionOperations } from './get_introspection_operations';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
+import { validateRequiredParameters } from './validate_required_parameters';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -41,7 +42,18 @@ export async function executeSqlIntegration(
   params: Record<string, unknown>,
   skipApprovalCheck: boolean = false,
   threadId?: string,
+  messageId?: string,
 ): Promise<any> {
+  // Debug: Log context received by SQL integration executor
+  console.log('[execute_sql_integration] Received context:', {
+    hasThreadId: threadId !== undefined,
+    hasMessageId: messageId !== undefined,
+    threadId: threadId,
+    messageId: messageId,
+    operation,
+    integrationName: integration.name,
+  });
+
   const sqlConnectionConfig = (integration as any).sqlConnectionConfig;
   const sqlOperations = (integration as any).sqlOperations || [];
 
@@ -100,6 +112,9 @@ export async function executeSqlIntegration(
 
     query = operationConfig.query;
 
+    // Validate required parameters before proceeding
+    validateRequiredParameters(operationConfig, params, operation);
+
     // Check if this operation requires approval
     if (!skipApprovalCheck && requiresApproval(operationConfig)) {
       const operationType = getOperationType(operationConfig);
@@ -121,6 +136,7 @@ export async function executeSqlIntegration(
           operationType,
           parameters: params,
           threadId,
+          messageId,
           estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
         },
       );

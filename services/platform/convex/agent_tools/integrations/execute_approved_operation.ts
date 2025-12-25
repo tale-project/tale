@@ -54,30 +54,49 @@ export const executeApprovedOperation = internalAction({
       );
     }
 
-    // Execute the integration operation
-    const result: unknown = await ctx.runAction(
-      internal.agent_tools.integrations.execute_integration_internal
-        .executeIntegrationInternal,
-      {
-        organizationId: approval.organizationId,
-        integrationName: metadata.integrationName,
-        operation: metadata.operationName,
-        params: metadata.parameters,
-        skipApprovalCheck: true, // Skip approval check since we're executing an approved operation
-      },
-    );
+    // Execute the integration operation with error handling
+    try {
+      const result: unknown = await ctx.runAction(
+        internal.agent_tools.integrations.execute_integration_internal
+          .executeIntegrationInternal,
+        {
+          organizationId: approval.organizationId,
+          integrationName: metadata.integrationName,
+          operation: metadata.operationName,
+          params: metadata.parameters,
+          skipApprovalCheck: true, // Skip approval check since we're executing an approved operation
+        },
+      );
 
-    // Update approval with execution result
-    await ctx.runMutation(
-      internal.agent_tools.integrations.execute_approved_operation
-        .updateApprovalWithResult,
-      {
-        approvalId: args.approvalId,
-        executionResult: result,
-      },
-    );
+      // Update approval with execution result
+      await ctx.runMutation(
+        internal.agent_tools.integrations.execute_approved_operation
+          .updateApprovalWithResult,
+        {
+          approvalId: args.approvalId,
+          executionResult: result,
+          executionError: null,
+        },
+      );
 
-    return result;
+      return result;
+    } catch (error) {
+      // Store the error in the approval record
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      await ctx.runMutation(
+        internal.agent_tools.integrations.execute_approved_operation
+          .updateApprovalWithResult,
+        {
+          approvalId: args.approvalId,
+          executionResult: null,
+          executionError: errorMessage,
+        },
+      );
+
+      // Re-throw the error so the caller knows execution failed
+      throw error;
+    }
   },
 });
 
@@ -88,6 +107,7 @@ export const updateApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
     executionResult: v.any(),
+    executionError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
     const approval = await ctx.db.get(args.approvalId);
@@ -96,10 +116,13 @@ export const updateApprovalWithResult = internalMutation({
     const metadata = (approval.metadata || {}) as IntegrationOperationMetadata;
 
     await ctx.db.patch(args.approvalId, {
+      executedAt: Date.now(),
+      executionError: args.executionError || undefined,
       metadata: {
         ...metadata,
         executedAt: Date.now(),
         executionResult: args.executionResult,
+        executionError: args.executionError || undefined,
       },
     });
   },

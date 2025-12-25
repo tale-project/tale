@@ -1,46 +1,44 @@
 # Caddy Configuration for Tale Platform
-# Automatically handles both localhost (HTTP) and production domains (HTTPS)
-
-# Main site configuration
-# Caddy's automatic HTTPS behavior:
-# - localhost: Uses HTTPS with self-signed certificates (requires trusting Caddy's root CA)
-# - Domain names: Uses HTTPS with automatic certificates from ACME (Let's Encrypt/ZeroSSL)
-# - IP addresses: Uses HTTP (Caddy automatically disables TLS for IP addresses)
+# Single entry point for both local development and production
 #
-# Note: To force HTTP for localhost, prefix with http:// in the site address
-{$DOMAIN:localhost} {
-# TLS/ACME configuration for obtaining certificates
-# This only applies to domain names; localhost uses self-signed certs, IPs use HTTP
-tls {
-issuer acme {
-dir {$ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
-disable_tlsalpn_challenge
-}
-}
+# Local dev: http://tale.test (add "127.0.0.1 tale.test" to /etc/hosts)
+# Production: https://yourdomain.com (automatic HTTPS via Let's Encrypt)
 
-log {
-output stdout
-format console
-level INFO
-}
+{$DOMAIN:http://tale.test} {
+	# TLS/ACME configuration - only applies to domains that qualify for ACME
+	# .test domains will use HTTP only
+	@needsTLS not host *.test *.local *.localhost localhost 127.0.0.1
+	tls {
+		issuer acme {
+			dir {$ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
+			disable_tlsalpn_challenge
+		}
+	}
 
-reverse_proxy platform:3000 {
-header_up Host {host}
-header_up X-Real-IP {remote_host}
+	log {
+		output stdout
+		format console
+		level INFO
+	}
 
-health_uri /api/health
-health_interval 30s
-health_timeout 10s
-}
+	reverse_proxy platform:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
 
-encode gzip zstd
+		health_uri /api/health
+		health_interval 30s
+		health_timeout 10s
+	}
 
-header {
--Server
-X-Content-Type-Options "nosniff"
-X-Frame-Options "SAMEORIGIN"
-Referrer-Policy "strict-origin-when-cross-origin"
-# Only set HSTS for HTTPS (Caddy handles this automatically)
-Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-}
+	encode gzip zstd
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Only set HSTS for HTTPS domains
+		@https protocol https
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" @https
+	}
 }

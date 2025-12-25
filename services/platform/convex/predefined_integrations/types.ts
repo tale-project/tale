@@ -9,6 +9,22 @@ import type {
 } from '../model/integrations/types';
 
 /**
+ * Schema definition for a single parameter in an SQL operation
+ */
+export interface SqlParameterSchema {
+  type: 'string' | 'number' | 'boolean' | 'integer';
+  description?: string;
+  format?: string;
+  default?: unknown;
+  /**
+   * Whether this parameter is required for the operation.
+   * When true, the agent/user must provide a value.
+   * When false or omitted, the parameter is optional.
+   */
+  required?: boolean;
+}
+
+/**
  * SQL operation definition for predefined SQL integrations
  */
 export interface SqlOperation {
@@ -28,7 +44,10 @@ export interface SqlOperation {
   requiresApproval?: boolean;
   parametersSchema?: {
     type?: string;
-    properties?: Record<string, unknown>;
+    properties?: Record<string, SqlParameterSchema>;
+    /**
+     * @deprecated Use the 'required' field on individual properties instead
+     */
     required?: string[];
   };
 }

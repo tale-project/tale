@@ -44,6 +44,8 @@ interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
   status: 'pending' | 'approved' | 'rejected';
   metadata: IntegrationOperationMetadata;
+  executedAt?: number;
+  executionError?: string;
   className?: string;
 }
 
@@ -54,6 +56,8 @@ function IntegrationApprovalCardComponent({
   approvalId,
   status,
   metadata,
+  executedAt,
+  executionError,
   className,
 }: IntegrationApprovalCardProps) {
   const [isApproving, setIsApproving] = useState(false);
@@ -188,14 +192,22 @@ function IntegrationApprovalCardComponent({
       </div>
 
       {/* Execution Result (if approved and executed) */}
-      {status === 'approved' && metadata.executedAt && (
+      {status === 'approved' && executedAt && !executionError && (
         <div className="text-xs text-green-600 flex items-center gap-1 mb-3">
           <CheckCircle className="size-3" />
           Executed successfully
         </div>
       )}
 
-      {/* Error Message */}
+      {/* Execution Error (persisted from backend) */}
+      {status === 'approved' && executionError && (
+        <div className="text-xs text-destructive mb-3 flex items-center gap-1">
+          <XCircle className="size-3" />
+          {executionError}
+        </div>
+      )}
+
+      {/* Error Message (temporary UI error) */}
       {error && (
         <div className="text-xs text-destructive mb-3 flex items-center gap-1">
           <XCircle className="size-3" />
@@ -253,9 +265,11 @@ function IntegrationApprovalCardComponent({
       {/* Status message for resolved approvals */}
       {!isPending && (
         <div className="text-xs text-muted-foreground">
-          {status === 'approved'
-            ? 'This operation was approved and executed.'
-            : 'This operation was rejected.'}
+          {status === 'approved' && executionError
+            ? 'This operation was approved but failed during execution.'
+            : status === 'approved'
+              ? 'This operation was approved and executed successfully.'
+              : 'This operation was rejected.'}
         </div>
       )}
     </div>

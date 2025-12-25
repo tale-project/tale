@@ -94,6 +94,21 @@ export const listPendingApprovals = internalQuery({
 });
 
 /**
+ * Link pending approvals in a thread to a message ID (internal operation)
+ * Called after agent stream completes to associate approvals with the message
+ */
+export const linkApprovalsToMessage = internalMutation({
+  args: {
+    threadId: v.string(),
+    messageId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    return await ApprovalsModel.linkApprovalsToMessage(ctx, args);
+  },
+});
+
+/**
  * List all approvals for a workflow execution (internal operation)
  */
 export const listApprovalsForExecution = internalQuery({
@@ -240,16 +255,23 @@ export const getPendingIntegrationApprovalsForThread = queryWithRLS({
   },
   returns: v.array(ApprovalsModel.approvalItemValidator),
   handler: async (ctx, args) => {
-    return await ctx.db
+    // Use the by_threadId_status_resourceType index for efficient querying
+    // This returns all approvals (pending, approved, rejected) for this thread
+    // so the UI can show both pending approvals and execution results
+    // Limit to 100 approvals per thread (reasonable upper bound for a single chat)
+    const query = ctx.db
       .query('approvals')
-      .withIndex('by_org_status_resourceType')
-      .filter((q) =>
-        q.and(
-          q.eq(q.field('threadId'), args.threadId),
-          q.eq(q.field('resourceType'), 'integration_operation'),
-        ),
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q.eq('threadId', args.threadId),
       )
-      .collect();
+      .filter((q) => q.eq(q.field('resourceType'), 'integration_operation'));
+
+    const approvals = [];
+    for await (const approval of query) {
+      approvals.push(approval);
+      if (approvals.length >= 100) break;
+    }
+    return approvals;
   },
 });
 

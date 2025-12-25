@@ -102,7 +102,17 @@ IMPORTANT NOTES:
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {
-      const { organizationId } = ctx;
+      const { organizationId, threadId, messageId } = ctx;
+
+      // Debug: Log context availability in tool context
+      console.log('[integration_tool] Tool context check:', {
+        hasOrganizationId: !!organizationId,
+        hasThreadId: !!threadId,
+        hasMessageId: !!messageId,
+        threadId: threadId,
+        messageId: messageId,
+        contextKeys: Object.keys(ctx).filter(k => !k.startsWith('run')),
+      });
 
       if (!organizationId) {
         throw new Error(
@@ -121,7 +131,8 @@ IMPORTANT NOTES:
             integrationName: args.integrationName,
             operation: args.operation,
             params: args.params || {},
-            threadId: ctx.threadId, // Pass threadId for approval card linking
+            threadId: threadId, // Pass threadId for approval card linking
+            messageId: messageId, // Pass messageId for approval card linking to the current message
           },
         );
 
@@ -139,13 +150,21 @@ IMPORTANT NOTES:
         };
 
         if (isApprovalResult(result)) {
+          // Log successful approval creation for debugging
+          console.log('[integration_tool] Approval created successfully:', {
+            approvalId: result.approvalId,
+            operation: args.operation,
+            integration: args.integrationName,
+          });
+
           return {
             success: true,
             integration: args.integrationName,
             operation: args.operation,
             requiresApproval: true,
             approvalId: result.approvalId,
-            approvalMessage: `This operation requires approval before execution. An approval card has been created for "${result.operationTitle || args.operation}" on ${args.integrationName}. The user can approve or reject this operation in the chat.`,
+            approvalCreated: true, // Explicit flag confirming approval was created
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created for "${result.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation in the chat UI before it will be executed.`,
             data: {
               approvalId: result.approvalId,
               operationName: result.operationName,

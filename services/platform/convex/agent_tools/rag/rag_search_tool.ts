@@ -43,9 +43,25 @@ function getRagServiceUrl(variables?: Record<string, unknown>): string {
 export const ragSearchTool = {
   name: 'rag_search' as const,
   tool: createTool({
-    description: `Search the RAG knowledge base for relevant context using semantic search.
-Returns the most relevant document chunks based on the query.
-Use this tool to find information from previously uploaded documents, websites, or other knowledge sources.`,
+    description: `Search the knowledge base using semantic/vector similarity search.
+
+IMPORTANT LIMITATIONS:
+• Returns only the TOP matching chunks (default 5, max 20)
+• NOT suitable for: counting records, listing all items, aggregate queries
+• For counting/listing/filtering, use database tools (customer_read, product_read, workflow_read) instead
+
+WHEN TO USE THIS TOOL:
+• Semantic/meaning-based search: "Find customers interested in sustainability"
+• Knowledge base lookups: policies, procedures, documentation
+• Finding information when you don't know exact field values
+• Complex contextual questions about stored documents
+
+WHEN NOT TO USE:
+• "How many customers?" → Use customer_read with operation='list'
+• "List all products" → Use product_read with operation='list'
+• "Show customers with status=churned" → Use customer_read with filtering
+
+Returns the most relevant document chunks based on semantic similarity to your query.`,
     args: z.object({
       query: z.string().describe('Search query text'),
       top_k: z
