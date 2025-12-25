@@ -8,36 +8,44 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical } from 'lucide-react';
 import {
+  ArrowLeft,
   MessageSquare,
   MessageSquareOff,
   ShieldX,
   UserIcon,
 } from 'lucide-react';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
-import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
 import { useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import type { ConversationWithMessages } from '../types';
 import DotIcon from './dot-icon';
+import {
+  useCloseConversation,
+  useReopenConversation,
+  useMarkAsSpam,
+} from '../hooks';
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;
   onResolve?: () => void;
   onReopen?: () => void;
+  onBack?: () => void;
 }
 
 export default function ConversationHeader({
   conversation,
   onResolve,
   onReopen,
+  onBack,
 }: ConversationHeaderProps) {
   const { t } = useT('conversations');
+  const { t: tCommon } = useT('common');
   const { customer } = conversation;
   const [isCustomerInfoOpen, setIsCustomerInfoOpen] = useState(false);
   const [isResolvingLoading, setIsResolvingLoading] = useState(false);
@@ -47,53 +55,9 @@ export default function ConversationHeader({
     isResolvingLoading || isReopeningLoading || isMarkingSpamLoading;
 
   // Convex mutations with optimistic updates for immediate UI feedback
-  const resolveConversationMutation = useMutation(
-    api.conversations.closeConversation,
-  ).withOptimisticUpdate((localStore, args) => {
-    const current = localStore.getQuery(
-      api.conversations.getConversationWithMessages,
-      { conversationId: args.conversationId },
-    );
-    if (current !== undefined && current !== null) {
-      localStore.setQuery(
-        api.conversations.getConversationWithMessages,
-        { conversationId: args.conversationId },
-        { ...current, status: 'closed' },
-      );
-    }
-  });
-
-  const reopenConversationMutation = useMutation(
-    api.conversations.reopenConversation,
-  ).withOptimisticUpdate((localStore, args) => {
-    const current = localStore.getQuery(
-      api.conversations.getConversationWithMessages,
-      { conversationId: args.conversationId },
-    );
-    if (current !== undefined && current !== null) {
-      localStore.setQuery(
-        api.conversations.getConversationWithMessages,
-        { conversationId: args.conversationId },
-        { ...current, status: 'open' },
-      );
-    }
-  });
-
-  const markAsSpamMutation = useMutation(
-    api.conversations.markConversationAsSpam,
-  ).withOptimisticUpdate((localStore, args) => {
-    const current = localStore.getQuery(
-      api.conversations.getConversationWithMessages,
-      { conversationId: args.conversationId },
-    );
-    if (current !== undefined && current !== null) {
-      localStore.setQuery(
-        api.conversations.getConversationWithMessages,
-        { conversationId: args.conversationId },
-        { ...current, status: 'spam' },
-      );
-    }
-  });
+  const closeConversation = useCloseConversation();
+  const reopenConversation = useReopenConversation();
+  const markAsSpamMutation = useMarkAsSpam();
 
   // Fetch full customer document when dialog is open
   const customerDoc = useQuery(
@@ -106,7 +70,7 @@ export default function ConversationHeader({
   const handleResolveConversation = async () => {
     setIsResolvingLoading(true);
     try {
-      await resolveConversationMutation({
+      await closeConversation({
         conversationId: conversation.id as Id<'conversations'>,
       });
 
@@ -129,7 +93,7 @@ export default function ConversationHeader({
   const handleReopenConversation = async () => {
     setIsReopeningLoading(true);
     try {
-      await reopenConversationMutation({
+      await reopenConversation({
         conversationId: conversation.id as Id<'conversations'>,
       });
 
@@ -175,6 +139,18 @@ export default function ConversationHeader({
   return (
     <>
       <div className="flex items-center justify-between gap-4 mx-4 w-full min-w-0">
+        {/* Back button - visible only on mobile */}
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden shrink-0"
+            onClick={onBack}
+            aria-label={tCommon('actions.back')}
+          >
+            <ArrowLeft className="size-5" />
+          </Button>
+        )}
         <div className="flex flex-col min-w-0 overflow-hidden">
           {/* Title */}
           <h2 className="flex items-center gap-2 text-base font-medium text-foreground tracking-tight whitespace-nowrap">
@@ -216,7 +192,7 @@ export default function ConversationHeader({
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Conversation actions menu"
+                aria-label={tCommon('aria.actionsMenu')}
               >
                 <MoreVertical className="size-5 text-muted-foreground" />
               </Button>
@@ -277,11 +253,13 @@ export default function ConversationHeader({
       </div>
 
       {/* Customer Info Modal */}
-      <Dialog open={isCustomerInfoOpen} onOpenChange={setIsCustomerInfoOpen}>
-        {customerDoc && (
-          <CustomerInfoDialog customer={customerDoc} className="rounded-2xl" />
-        )}
-      </Dialog>
+      {customerDoc && (
+        <CustomerInfoDialog
+          customer={customerDoc}
+          open={isCustomerInfoOpen}
+          onOpenChange={setIsCustomerInfoOpen}
+        />
+      )}
     </>
   );
 }

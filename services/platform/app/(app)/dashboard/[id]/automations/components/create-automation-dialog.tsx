@@ -1,13 +1,7 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useMemo } from 'react';
+import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,15 +9,14 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useCreateAutomation } from '../hooks';
 import { useT } from '@/lib/i18n';
 
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
-});
+type FormData = {
+  name: string;
+  description?: string;
+};
 
 interface CreateAutomationDialogProps {
   open: boolean;
@@ -38,21 +31,29 @@ export default function CreateAutomationDialog({
 }: CreateAutomationDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('form.name') })),
+        description: z.string().optional(),
+      }),
+    [t, tCommon],
+  );
+
   const {
     register,
     handleSubmit,
     formState: { isSubmitting, isValid },
-  } = useForm<z.infer<typeof formSchema>>({
+  } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: 'onChange',
   });
   const router = useRouter();
 
-  const createAutomation = useMutation(
-    api.wf_definitions.createWorkflowWithStepsPublic,
-  );
+  const createAutomation = useCreateAutomation();
 
-  const onSubmit = handleSubmit(async (data: z.infer<typeof formSchema>) => {
+  const onSubmit = async (data: FormData) => {
     try {
       const { workflowId: wfDefinitionId } = await createAutomation({
         organizationId,
@@ -74,61 +75,40 @@ export default function CreateAutomationDialog({
         variant: 'destructive',
       });
     }
-  });
-
-  const handleClose = () => {
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="!p-0 gap-0">
-        <form onSubmit={onSubmit}>
-          <DialogHeader className="px-4 py-6 border-b border-border">
-            <DialogTitle>{t('createDialog.title')}</DialogTitle>
-          </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('createDialog.title')}
+      submitText={t('createDialog.continue')}
+      submittingText={t('createDialog.creating')}
+      isSubmitting={isSubmitting}
+      submitDisabled={!isValid}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="name">{t('configuration.name')}</Label>
+        <Input
+          id="name"
+          {...register('name')}
+          placeholder={t('createDialog.namePlaceholder')}
+        />
+      </div>
 
-          <div className="space-y-6 px-4 py-4">
-            {/* Name */}
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('configuration.name')}</Label>
-              <Input
-                id="name"
-                {...register('name')}
-                placeholder={t('createDialog.namePlaceholder')}
-              />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">
-                {t('configuration.description')}{' '}
-                <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Textarea
-                id="description"
-                {...register('description')}
-                placeholder={t('createDialog.descriptionPlaceholder')}
-                rows={3}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !isValid}>
-              {isSubmitting ? t('createDialog.creating') : t('createDialog.continue')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <div className="space-y-2">
+        <Label htmlFor="description">
+          {t('configuration.description')}{' '}
+          <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <Textarea
+          id="description"
+          {...register('description')}
+          placeholder={t('createDialog.descriptionPlaceholder')}
+          rows={3}
+        />
+      </div>
+    </FormModal>
   );
 }

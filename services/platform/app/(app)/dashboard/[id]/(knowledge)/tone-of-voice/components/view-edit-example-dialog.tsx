@@ -2,12 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -95,88 +90,74 @@ export default function ViewEditExampleDialog({
 
   if (!example) return null;
 
+  const customFooter = mode === 'view' ? (
+    <div className="flex gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleClose}
+        className="flex-1"
+      >
+        {tCommon('actions.close')}
+      </Button>
+      <Button
+        type="button"
+        onClick={handleEditClick}
+        className="flex-1"
+      >
+        {tCommon('actions.edit')}
+      </Button>
+    </div>
+  ) : (
+    <div className="flex gap-3">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleCancelEdit}
+        className="flex-1"
+      >
+        {tCommon('actions.cancel')}
+      </Button>
+      <Button
+        type="submit"
+        disabled={!isValid || !isDirty || isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+      </Button>
+    </div>
+  );
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl">
-        {/* Header */}
-        <DialogHeader className="py-6 px-4 border-b border-border">
-          <DialogTitle className="font-semibold text-foreground tracking-[-0.3px]">
-            {mode === 'view' ? tTone('exampleMessages.viewExample') : tTone('exampleMessages.editExample')}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Form Content */}
-        <div className="p-4">
-          <form
-            id="view-edit-example-form"
-            onSubmit={handleSubmit(onSubmit)}
-            className="space-y-5"
-          >
-            {/* Message Field */}
-            <div className="space-y-2">
-              <Label
-                htmlFor="content"
-                className="text-sm font-medium text-foreground tracking-[-0.21px]"
-              >
-                {tTables('headers.message')}
-              </Label>
-              {mode === 'view' ? (
-                <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
-                  {example.content}
-                </div>
-              ) : (
-                <Textarea
-                  {...register('content', { required: true })}
-                  placeholder={tTone('exampleMessages.placeholder')}
-                  className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
-                />
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Button Footer */}
-        <div className="border-t border-border p-4">
-          {mode === 'view' ? (
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                className="flex-1"
-              >
-                {tCommon('actions.close')}
-              </Button>
-              <Button
-                type="button"
-                onClick={handleEditClick}
-                className="flex-1"
-              >
-                {tCommon('actions.edit')}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancelEdit}
-                className="flex-1"
-              >
-                {tCommon('actions.cancel')}
-              </Button>
-              <Button
-                type="submit"
-                form="view-edit-example-form"
-                disabled={!isValid || !isDirty || isSubmitting}
-                className="flex-1"
-              >
-                {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-              </Button>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={mode === 'view' ? tTone('exampleMessages.viewExample') : tTone('exampleMessages.editExample')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
+      customFooter={customFooter}
+      className="max-w-lg"
+    >
+      {/* Message Field */}
+      <div className="space-y-2">
+        <Label
+          htmlFor="content"
+          className="text-sm font-medium text-foreground tracking-[-0.21px]"
+        >
+          {tTables('headers.message')}
+        </Label>
+        {mode === 'view' ? (
+          <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
+            {example.content}
+          </div>
+        ) : (
+          <Textarea
+            {...register('content', { required: true })}
+            placeholder={tTone('exampleMessages.placeholder')}
+            className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+          />
+        )}
+      </div>
+    </FormModal>
   );
 }

@@ -87,6 +87,29 @@ export interface ListExecutionsArgs {
   dateTo?: string;
 }
 
+export interface ListExecutionsPaginatedArgs {
+  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
+  currentPage?: number;
+  pageSize?: number;
+  searchTerm?: string;
+  status?: string[];
+  triggeredBy?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+  sortField?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedExecutionsResult {
+  items: WorkflowExecution[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 // =============================================================================
 // Convex Validators
 // =============================================================================
@@ -152,4 +175,17 @@ export const listExecutionsArgsValidator = {
   triggeredBy: v.optional(v.string()),
   dateFrom: v.optional(v.string()),
   dateTo: v.optional(v.string()),
+};
+
+export const listExecutionsPaginatedArgsValidator = {
+  wfDefinitionId: v.id('wfDefinitions'),
+  currentPage: v.optional(v.number()),
+  pageSize: v.optional(v.number()),
+  searchTerm: v.optional(v.string()),
+  status: v.optional(v.array(v.string())),
+  triggeredBy: v.optional(v.array(v.string())),
+  dateFrom: v.optional(v.string()),
+  dateTo: v.optional(v.string()),
+  sortField: v.optional(v.string()),
+  sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
 };

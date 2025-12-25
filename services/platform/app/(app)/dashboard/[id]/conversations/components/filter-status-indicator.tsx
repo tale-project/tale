@@ -7,6 +7,7 @@ import {
   TypeFilter,
   PriorityFilter,
 } from '@/hooks/use-conversation-filters';
+import { useT } from '@/lib/i18n';
 
 interface FilterStatusIndicatorProps {
   searchQuery: string;
@@ -19,20 +20,6 @@ interface FilterStatusIndicatorProps {
   ) => void;
 }
 
-const typeLabels: Record<TypeFilter, string> = {
-  product_recommendation: 'Product Recommendation',
-  service_request: 'Service Request',
-  churn_survey: 'Churn Survey',
-  general: 'General',
-  spam: 'Spam',
-};
-
-const priorityLabels = {
-  low: 'Low Priority',
-  medium: 'Medium Priority',
-  high: 'High Priority',
-};
-
 export default function FilterStatusIndicator({
   searchQuery,
   filters,
@@ -40,6 +27,21 @@ export default function FilterStatusIndicator({
   onClearSearch,
   onClearFilter,
 }: FilterStatusIndicatorProps) {
+  const { t } = useT('conversations');
+
+  const typeLabels: Record<TypeFilter, string> = {
+    product_recommendation: t('filters.typeOptions.productRecommendation'),
+    service_request: t('filters.typeOptions.serviceRequest'),
+    churn_survey: t('filters.typeOptions.churnSurvey'),
+    general: t('filters.typeOptions.general'),
+    spam: t('filters.typeOptions.spam'),
+  };
+
+  const priorityLabels: Record<PriorityFilter, string> = {
+    low: t('filters.badges.lowPriority'),
+    medium: t('filters.badges.mediumPriority'),
+    high: t('filters.badges.highPriority'),
+  };
   const hasActiveFilters =
     searchQuery || filters.types.length > 0 || filters.priorities.length > 0;
 
@@ -52,7 +54,7 @@ export default function FilterStatusIndicator({
       <div className="flex items-center flex-wrap relative">
         {searchQuery && (
           <Badge>
-            Search: &quot;{searchQuery}&quot;
+            {t('filters.badges.search', { query: searchQuery })}
             <button
               onClick={onClearSearch}
               className="hover:bg-muted-foreground/20 rounded-full p-0.5 ml-1"
@@ -88,7 +90,7 @@ export default function FilterStatusIndicator({
 
         {isLoading && (
           <div className="text-xs text-muted-foreground absolute inset-0 flex items-center justify-center bg-muted/90 z-20">
-            Applying filters...
+            {t('filters.badges.applyingFilters')}
           </div>
         )}
       </div>

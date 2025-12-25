@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface BreadcrumbNavigationProps {
   currentFolderPath: string;
@@ -10,6 +11,8 @@ interface BreadcrumbNavigationProps {
 export default function BreadcrumbNavigation({
   currentFolderPath,
 }: BreadcrumbNavigationProps) {
+  const { t } = useT('documents');
+  const { t: tCommon } = useT('common');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -49,13 +52,13 @@ export default function BreadcrumbNavigation({
   const getSegmentInfo = (segment: string) => {
     if (segment === 'onedrive') {
       return {
-        displayName: 'OneDrive',
+        displayName: t('breadcrumb.oneDrive'),
       };
     }
 
     if (segment === 'uploads') {
       return {
-        displayName: 'Uploads',
+        displayName: t('breadcrumb.uploads'),
       };
     }
 
@@ -71,7 +74,7 @@ export default function BreadcrumbNavigation({
       <button
         onClick={() => navigateToPath('')}
         className="shrink-0 size-4 text-muted-foreground hover:text-foreground/90 transition-colors"
-        aria-label="Back to documents"
+        aria-label={tCommon('aria.backTo', { page: t('breadcrumb.documents') })}
       >
         <ChevronLeft className="size-4" />
       </button>
@@ -81,7 +84,7 @@ export default function BreadcrumbNavigation({
         onClick={() => navigateToPath('')}
         className="font-medium text-xs text-muted-foreground hover:text-foreground/90 transition-colors whitespace-nowrap"
       >
-        Documents
+        {t('breadcrumb.documents')}
       </button>
 
       {/* Path segments */}

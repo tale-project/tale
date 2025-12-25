@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { Dialog } from '@/components/ui/dialog';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
 import EditCustomerButton from './edit-customer-button';
 import DeleteCustomerButton from './delete-customer-button';
@@ -80,9 +79,11 @@ export default function CustomerRowActions({
       </DropdownMenu>
 
       {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <CustomerInfoDialog customer={customer} />
-      </Dialog>
+      <CustomerInfoDialog
+        customer={customer}
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+      />
 
       {/* Edit Dialog */}
       <EditCustomerButton

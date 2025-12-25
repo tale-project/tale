@@ -49,16 +49,16 @@ export function AutomationMonitoringTab({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="size-4" />
-              Execution Statistics
+              {t('monitoring.executionStatistics')}
             </CardTitle>
             <CardDescription>
-              Performance metrics for selected automation
+              {t('monitoring.performanceMetrics')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {selectedWorkflow ? (
               executionStats === undefined ? (
-                <div className="text-center py-4">Loading stats...</div>
+                <div className="text-center py-4">{t('monitoring.loadingStats')}</div>
               ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -67,7 +67,7 @@ export function AutomationMonitoringTab({
                         {executionStats.total || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Total Executions
+                        {t('monitoring.totalExecutions')}
                       </div>
                     </div>
                     <div className="text-center p-3 bg-muted rounded">
@@ -75,7 +75,7 @@ export function AutomationMonitoringTab({
                         {executionStats.successRate || 0}%
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Success Rate
+                        {t('monitoring.successRate')}
                       </div>
                     </div>
                   </div>
@@ -85,7 +85,7 @@ export function AutomationMonitoringTab({
                         {executionStats.avgExecutionTime || 0}ms
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Avg Duration
+                        {t('monitoring.avgDuration')}
                       </div>
                     </div>
                     <div className="text-center p-3 bg-muted rounded">
@@ -93,7 +93,7 @@ export function AutomationMonitoringTab({
                         {executionStats.failed || 0}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Failures
+                        {t('monitoring.failures')}
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { useState } from 'react';
 import { EyeIcon } from 'lucide-react';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -14,19 +14,23 @@ export default function ViewCustomerSubscriptionsButton({
   customer,
 }: ViewCustomerSubscriptionsButtonProps) {
   const { t } = useT('customers');
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button
-          className="p-1 hover:bg-muted rounded"
-          title={t('viewSubscriptions')}
-        >
-          <EyeIcon className="size-4 text-muted-foreground" />
-        </button>
-      </DialogTrigger>
+    <>
+      <button
+        className="p-1 hover:bg-muted rounded"
+        title={t('viewSubscriptions')}
+        onClick={() => setIsOpen(true)}
+      >
+        <EyeIcon className="size-4 text-muted-foreground" />
+      </button>
 
-      <CustomerInfoDialog customer={customer} />
-    </Dialog>
+      <CustomerInfoDialog
+        customer={customer}
+        open={isOpen}
+        onOpenChange={setIsOpen}
+      />
+    </>
   );
 }

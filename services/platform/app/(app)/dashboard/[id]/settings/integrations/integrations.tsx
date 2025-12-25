@@ -7,15 +7,16 @@ import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Settings, Mail, Loader2 } from 'lucide-react';
-import {
-  useMutation,
-  useAction,
-  usePreloadedQuery,
-  type Preloaded,
-} from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
+import {
+  useCreateIntegration,
+  useUpdateIntegration,
+  useTestIntegration,
+  useDeleteIntegration,
+} from './hooks';
 import { OAuth2Banner } from '@/components/oauth2-banner';
 import { useT } from '@/lib/i18n';
 
@@ -100,12 +101,11 @@ export default function Integrations({
   const emailProviderCount = emailProviders?.length || 0;
 
   // Mutations and Actions
-  const createIntegration = useAction(api.integrations.create);
-  const updateIntegration = useAction(api.integrations.update);
-  const testConnection = useAction(api.integrations.testConnection);
-  const deleteIntegrationMutation = useMutation(
-    api.integrations.deleteIntegration,
-  );
+  const createIntegration = useCreateIntegration();
+  const updateIntegration = useUpdateIntegration();
+  const testConnection = useTestIntegration();
+  const deleteShopifyIntegration = useDeleteIntegration({ integrationName: 'shopify' });
+  const deleteCirculyIntegration = useDeleteIntegration({ integrationName: 'circuly' });
 
   // Modal states
   const [shopifyModalOpen, setShopifyModalOpen] = useState(false);
@@ -163,7 +163,7 @@ export default function Integrations({
     accessToken: string;
   }) => {
     if (!organizationId) {
-      throw new Error('Organization ID is required');
+      throw new Error(t('integrations.errors.organizationRequired'));
     }
 
     try {
@@ -188,7 +188,7 @@ export default function Integrations({
         const payload = {
           organizationId: organizationId,
           name: 'shopify',
-          title: 'Shopify',
+          title: t('integrations.shopify.title'),
           authMethod: 'api_key' as const,
           apiKeyAuth: {
             key: data.accessToken,
@@ -214,7 +214,7 @@ export default function Integrations({
     if (!shopifyIntegration) return;
 
     try {
-      await deleteIntegrationMutation({
+      await deleteShopifyIntegration({
         integrationId: shopifyIntegration._id,
       });
       setShopifyDisconnectModalOpen(false);
@@ -236,7 +236,7 @@ export default function Integrations({
     password: string;
   }) => {
     if (!organizationId) {
-      throw new Error('Organization ID is required');
+      throw new Error(t('integrations.errors.organizationRequired'));
     }
 
     try {
@@ -256,7 +256,7 @@ export default function Integrations({
         const payload = {
           organizationId: organizationId,
           name: 'circuly',
-          title: 'Circuly',
+          title: t('integrations.circuly.title'),
           authMethod: 'basic_auth' as const,
           basicAuth: {
             username: data.username,
@@ -275,7 +275,7 @@ export default function Integrations({
     if (!circulyIntegration) return;
 
     try {
-      await deleteIntegrationMutation({
+      await deleteCirculyIntegration({
         integrationId: circulyIntegration._id,
       });
       toast({

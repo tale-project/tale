@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useUpdateAutomationMetadata } from '../../hooks';
 import { Id } from '@/convex/_generated/dataModel';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -54,7 +55,7 @@ export default function ConfigurationPage() {
   // Only metadata updates are allowed from the client today.
   // This mutation is currently unused but kept here as a placeholder
   // in case we later expose a public update endpoint.
-  const _updateWorkflow = useMutation(api.wf_definitions.updateWorkflowMetadata);
+  const _updateWorkflow = useUpdateAutomationMetadata();
 
   // Load workflow data into form
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useT } from '@/lib/i18n';
 
 // File size limits
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
@@ -28,6 +29,7 @@ interface UploadOptions {
 }
 
 export function useDocumentUpload(options: UploadOptions) {
+  const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const uploadFileAction = useAction(api.documents.uploadFile);
@@ -35,17 +37,17 @@ export function useDocumentUpload(options: UploadOptions) {
   const uploadFiles = async (files: File[]): Promise<UploadResult> => {
     if (isUploading) {
       toast({
-        title: 'Upload in progress',
-        description: 'Please wait for the current upload to complete',
+        title: t('upload.uploadInProgress'),
+        description: t('upload.pleaseWaitForUpload'),
       });
       return { success: false, error: 'Upload already in progress' };
     }
 
     // Validate files
     if (!files || files.length === 0) {
-      const error = 'No files selected';
+      const error = t('upload.noFilesSelected');
       toast({
-        title: 'Upload failed',
+        title: t('upload.uploadFailed'),
         description: error,
         variant: 'destructive',
       });
@@ -57,9 +59,9 @@ export function useDocumentUpload(options: UploadOptions) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
         const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        const error = `File ${file.name} exceeds ${maxSizeMB}MB limit. Current size: ${fileSizeMB}MB`;
+        const error = t('upload.fileSizeExceeded', { name: file.name, maxSize: maxSizeMB, currentSize: fileSizeMB });
         toast({
-          title: 'File too large',
+          title: t('upload.fileTooLarge'),
           description: error,
           variant: 'destructive',
         });
@@ -75,8 +77,8 @@ export function useDocumentUpload(options: UploadOptions) {
 
       // Show upload started toast
       toast({
-        title: 'Upload started',
-        description: `Uploading ${files.length} file${files.length > 1 ? 's' : ''}...`,
+        title: t('upload.uploadStarted'),
+        description: t('upload.uploadingCount', { count: files.length }),
       });
 
       // Upload files using Convex
@@ -98,15 +100,15 @@ export function useDocumentUpload(options: UploadOptions) {
       const results = await Promise.all(uploadPromises);
 
       // Check if all uploads were successful
-      const failedUploads = results.filter((result) => !result.success);
+      const failedUploads = results.filter((result: { success: boolean; error?: string }) => !result.success);
       if (failedUploads.length > 0) {
-        throw new Error(failedUploads[0].error || 'Upload failed');
+        throw new Error(failedUploads[0].error || t('upload.uploadFailed'));
       }
 
       // Show success toast
       toast({
-        title: 'Upload successful',
-        description: `${files.length} file${files.length > 1 ? 's' : ''} uploaded successfully`,
+        title: t('upload.uploadSuccessful'),
+        description: t('upload.filesUploadedSuccessfully', { count: files.length }),
         variant: 'success',
       });
 
@@ -131,7 +133,7 @@ export function useDocumentUpload(options: UploadOptions) {
       };
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Upload failed';
+        error instanceof Error ? error.message : t('upload.uploadFailed');
 
       // Check if the error is due to cancellation
       const isCancellationError =
@@ -145,13 +147,13 @@ export function useDocumentUpload(options: UploadOptions) {
         // Don't show error toast for user-initiated cancellations
         return {
           success: false,
-          error: 'Upload cancelled',
+          error: t('upload.uploadCancelled'),
         };
       }
 
       // Show error toast for actual failures
       toast({
-        title: 'Upload failed',
+        title: t('upload.uploadFailed'),
         description: errorMessage,
         variant: 'destructive',
       });

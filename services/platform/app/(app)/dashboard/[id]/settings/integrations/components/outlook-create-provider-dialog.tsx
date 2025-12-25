@@ -1,67 +1,88 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useState, useMemo } from 'react';
+import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OutlookIcon } from '@/components/ui/icons';
-import { DialogProps } from '@radix-ui/react-dialog';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAction } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import {
+  useCreateEmailProvider,
+  useCreateOAuth2Provider,
+  useTestEmailConnection,
+  useGenerateOAuthUrl,
+} from '../hooks';
 
-const passwordSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Valid email is required'),
-  password: z.string().min(1, 'App password is required'),
-  isDefault: z.boolean(),
-});
+// Type for the form data
+type PasswordFormData = {
+  name: string;
+  email: string;
+  password: string;
+  isDefault: boolean;
+};
 
-const oauth2Schema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  isDefault: z.boolean(),
-  useApiSending: z.boolean(),
-});
-
-type PasswordFormData = z.infer<typeof passwordSchema>;
-type OAuth2FormData = z.infer<typeof oauth2Schema>;
+type OAuth2FormData = {
+  name: string;
+  isDefault: boolean;
+  useApiSending: boolean;
+};
 
 type AuthMethod = 'oauth2' | 'password';
 
-interface OutlookCreateProviderDialogProps extends DialogProps {
+interface OutlookCreateProviderDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess: () => void;
 }
 
 export default function OutlookCreateProviderDialog({
+  open,
+  onOpenChange,
   organizationId,
   onSuccess,
-  ...props
 }: OutlookCreateProviderDialogProps) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
+
+  // Create Zod schemas with translated validation messages
+  const passwordSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        email: z.string().email(tCommon('validation.email')),
+        password: z.string().min(1, tCommon('validation.required', { field: t('integrations.appPassword') })),
+        isDefault: z.boolean(),
+      }),
+    [t, tCommon],
+  );
+
+  const oauth2Schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
+        isDefault: z.boolean(),
+        useApiSending: z.boolean(),
+      }),
+    [t, tCommon],
+  );
+
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convex actions
-  const createProvider = useAction(api.email_providers.create);
-  const createOAuth2Provider = useAction(
-    api.email_providers.createOAuth2Provider,
-  );
-  const testConnection = useAction(api.email_providers.testConnection);
-  const generateAuthUrl = useAction(api.email_providers.generateOAuth2AuthUrl);
+  // Convex actions (hooks)
+  const createProvider = useCreateEmailProvider();
+  const createOAuth2Provider = useCreateOAuth2Provider();
+  const testConnection = useTestEmailConnection();
+  const generateAuthUrl = useGenerateOAuthUrl();
 
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -239,24 +260,25 @@ export default function OutlookCreateProviderDialog({
     }
   };
 
-  return (
-    <Dialog {...props}>
-      <DialogContent className="p-0">
-        {/* Header */}
-        <div className="border-b border-border flex items-start justify-between px-4 py-6">
-          <DialogHeader className="space-y-1">
-            <div className="flex items-center gap-3">
-              <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
-                <OutlookIcon className="size-5" />
-              </div>
-              <DialogTitle>{t('integrations.addProvider', { provider: 'Outlook' })}</DialogTitle>
-            </div>
-          </DialogHeader>
-        </div>
+  const customHeader = (
+    <div className="flex items-center gap-3">
+      <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
+        <OutlookIcon className="size-5" />
+      </div>
+      <span className="font-semibold">{t('integrations.addProvider', { provider: 'Outlook' })}</span>
+    </div>
+  );
 
-        {/* Content */}
-        <div className="p-6 pt-4">
-          <Tabs
+  return (
+    <FormModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('integrations.addProvider', { provider: 'Outlook' })}
+      customHeader={customHeader}
+      customFooter={<></>}
+      isSubmitting={isLoading}
+    >
+      <Tabs
             value={authMethod}
             onValueChange={(value) => setAuthMethod(value as AuthMethod)}
           >
@@ -446,8 +468,6 @@ export default function OutlookCreateProviderDialog({
               </form>
             </TabsContent>
           </Tabs>
-        </div>
-      </DialogContent>
-    </Dialog>
+    </FormModal>
   );
 }

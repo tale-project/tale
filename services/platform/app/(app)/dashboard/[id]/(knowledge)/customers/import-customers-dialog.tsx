@@ -1,23 +1,15 @@
 'use client';
 
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
+import { FormModal } from '@/components/ui/modals';
 import CustomerImportForm from '@/components/customer-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
+import { useBulkCreateCustomers } from './hooks';
 // Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
 
 export interface ParsedCustomer {
@@ -27,42 +19,13 @@ export interface ParsedCustomer {
   source: Doc<'customers'>['source'];
 }
 
-// Validation schema for the form
-const formSchema = z
-  .object({
-    dataSource: z.enum(['circuly', 'manual_import', 'file_upload'], {
-      message: 'Please select a data source',
-    }),
-    customers: z.string().optional(),
-    file: z.instanceof(File).optional(),
-    syncSource: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.dataSource === 'manual_import') {
-        return !!data.customers;
-      }
-      return true;
-    },
-    {
-      message: 'Please provide customer data',
-      path: ['customers'],
-    },
-  )
-  .refine(
-    (data) => {
-      if (data.dataSource === 'file_upload') {
-        return !!data.file;
-      }
-      return true;
-    },
-    {
-      message: 'Please upload a file',
-      path: ['file'],
-    },
-  );
-
-type FormValues = z.infer<typeof formSchema>;
+// Type for the form data
+type FormValues = {
+  dataSource: 'circuly' | 'manual_import' | 'file_upload';
+  customers?: string;
+  file?: File;
+  syncSource?: string;
+};
 
 interface ImportCustomersDialogProps {
   isOpen: boolean;
@@ -81,6 +44,46 @@ export default function ImportCustomersDialog({
 }: ImportCustomersDialogProps) {
   const { t: tCommon } = useT('common');
   const { t: tCustomers } = useT('customers');
+
+  // Create Zod schema with translated validation messages
+  const formSchema = useMemo(
+    () =>
+      z
+        .object({
+          dataSource: z.enum(['circuly', 'manual_import', 'file_upload'], {
+            message: tCustomers('import.selectDataSource'),
+          }),
+          customers: z.string().optional(),
+          file: z.instanceof(File).optional(),
+          syncSource: z.string().optional(),
+        })
+        .refine(
+          (data) => {
+            if (data.dataSource === 'manual_import') {
+              return !!data.customers;
+            }
+            return true;
+          },
+          {
+            message: tCustomers('import.provideData'),
+            path: ['customers'],
+          },
+        )
+        .refine(
+          (data) => {
+            if (data.dataSource === 'file_upload') {
+              return !!data.file;
+            }
+            return true;
+          },
+          {
+            message: tCommon('validation.uploadFile'),
+            path: ['file'],
+          },
+        ),
+    [tCustomers, tCommon],
+  );
+
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -93,7 +96,7 @@ export default function ImportCustomersDialog({
     formState: { isSubmitting },
   } = formMethods;
 
-  const bulkCreateCustomers = useMutation(api.customers.bulkCreateCustomers);
+  const bulkCreateCustomers = useBulkCreateCustomers();
 
   const resetForm = () => {
     formMethods.reset();
@@ -275,27 +278,18 @@ export default function ImportCustomersDialog({
   const dialogTitle = mode === 'manual' ? tCustomers('import.addCustomers') : tCustomers('import.uploadCustomers');
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="p-0 gap-0">
-        <DialogHeader className="px-4 py-6 border-b border-border">
-          <DialogTitle>{dialogTitle}</DialogTitle>
-        </DialogHeader>
-        <FormProvider {...formMethods}>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <CustomerImportForm organizationId={organizationId} mode={mode} />
-            <DialogFooter className="grid grid-cols-2 justify-items-stretch p-4 border-t border-border">
-              <DialogClose asChild>
-                <Button variant="outline" disabled={isSubmitting}>
-                  {tCommon('actions.cancel')}
-                </Button>
-              </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? tCommon('actions.importing') : tCustomers('import.import')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </FormProvider>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={dialogTitle}
+      submitText={tCustomers('import.import')}
+      submittingText={tCommon('actions.importing')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      <FormProvider {...formMethods}>
+        <CustomerImportForm organizationId={organizationId} mode={mode} />
+      </FormProvider>
+    </FormModal>
   );
 }

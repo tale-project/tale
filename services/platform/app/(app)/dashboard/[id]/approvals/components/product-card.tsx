@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n';
 
 interface ProductCardProps {
   product?: RecommendedProduct;
@@ -63,6 +63,8 @@ export default function ProductCard({
   canRemove,
 }: ProductCardProps) {
   const locale = useLocale();
+  const { t } = useT('approvals');
+
   if (type === 'recommended' && product) {
     return (
       <div className="flex items-start gap-3 p-3 border-b border-border last:border-b-0">
@@ -98,7 +100,7 @@ export default function ProductCard({
               )}
               {product.confidence !== undefined && (
                 <Badge variant="outline">
-                  {Math.round(product.confidence * 100)}% confidence
+                  {t('confidenceBadge', { percent: Math.round(product.confidence * 100) })}
                 </Badge>
               )}
             </div>
@@ -111,6 +113,7 @@ export default function ProductCard({
             onClick={() => onRemove(product.id)}
             disabled={isRemoving}
             className="size-8 flex-shrink-0"
+            aria-label={t('actions.removeProduct', { name: product.name })}
           >
             {isRemoving ? (
               <div className="animate-spin rounded-full size-4 border-b border-foreground" />
@@ -151,7 +154,7 @@ export default function ProductCard({
           <Badge
             variant={purchase.status === 'active' ? 'green' : 'destructive'}
           >
-            {purchase.status === 'active' ? 'Active' : 'Cancelled'}
+            {purchase.status === 'active' ? t('productStatus.active') : t('productStatus.cancelled')}
           </Badge>
         )}
       </div>

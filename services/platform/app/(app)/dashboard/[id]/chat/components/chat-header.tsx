@@ -89,9 +89,9 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
       <motion.div
         initial={{ width: 0 }}
         animate={{ width: isHistoryOpen ? '18rem' : 0 }}
-        transition={{ duration: 0.275 }}
+        transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
         className={cn(
-          'flex flex-col sticky top-0 h-full w-[18rem] border-r border-border overflow-hidden bg-background rounded-tl-xl',
+          'flex flex-col sticky top-0 h-full w-[18rem] max-w-[calc(100vw-4rem)] border-r border-border overflow-hidden bg-background rounded-tl-xl',
           !isHistoryOpen && 'border-r-0',
         )}
       >
@@ -100,8 +100,8 @@ export default function ChatHeader({ organizationId }: ChatHeaderProps) {
       <motion.div
         initial={{ x: -284 }}
         animate={{ x: isHistoryOpen ? 0 : -284 }}
-        transition={{ duration: 0.275 }}
-        className="absolute top-0 left-[18rem] flex items-center px-5 py-2 bg-background rounded-br-xl"
+        transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+        className="absolute top-0 left-[18rem] max-sm:left-[calc(100vw-4rem)] flex items-center px-2 sm:px-5 py-2 bg-background rounded-br-xl"
       >
         <TooltipProvider>
           <Tooltip>

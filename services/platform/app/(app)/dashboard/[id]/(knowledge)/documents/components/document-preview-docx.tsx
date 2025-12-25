@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import * as mammoth from 'mammoth';
+import { useT } from '@/lib/i18n';
 
 interface DocumentPreviewDocxProps {
   url: string;
 }
 
 export default function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
+  const { t } = useT('documents');
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
         if (!isCancelled) setHtml(sanitized);
       } catch (e) {
         console.error('Error loading DOCX:', e);
-        if (!isCancelled) setError('Failed to load document.');
+        if (!isCancelled) setError(t('preview.failedToLoad'));
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -37,13 +39,13 @@ export default function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
     return () => {
       isCancelled = true;
     };
-  }, [url]);
+  }, [url, t]);
 
   return (
     <div className="p-6 mx-auto relative overflow-y-auto w-full flex-1 overflow-x-auto">
       {loading && (
         <div className="mt-4 text-gray-500 text-center">
-          Loading document...
+          {t('preview.loading')}
         </div>
       )}
       {!loading && error && (

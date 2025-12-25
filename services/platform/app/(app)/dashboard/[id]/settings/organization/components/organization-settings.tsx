@@ -144,7 +144,7 @@ export default function OrganizationSettings({
               className="bg-foreground text-background hover:bg-foreground/90"
             >
               <Plus className="size-4 mr-2" />
-              {tCommon('actions.add')} member
+              {tSettings('organization.addMember')}
             </Button>
           )}
         </div>

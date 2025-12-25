@@ -69,9 +69,10 @@ TableRow.displayName = 'TableRow';
 const TableHead = forwardRef<
   HTMLTableCellElement,
   ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
+>(({ className, scope = 'col', ...props }, ref) => (
   <th
     ref={ref}
+    scope={scope}
     className={cn(
       'h-8 px-3 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 last:rounded-rt-xl first:rounded-lt-xl text-nowrap',
       className,
@@ -87,7 +88,7 @@ const TableCell = forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn('p-2 align-middle [&:has([role=checkbox])]:pr-0', className)}
+    className={cn('px-3 py-2 align-middle [&:has([role=checkbox])]:pr-0', className)}
     {...props}
   />
 ));

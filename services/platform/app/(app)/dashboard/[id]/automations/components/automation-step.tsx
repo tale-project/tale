@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
 import { PickaxeIcon, Repeat } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useT } from '@/lib/i18n';
 
 interface AutomationStepProps {
   data: {
@@ -27,6 +28,7 @@ interface AutomationStepProps {
 }
 
 export default function AutomationStep({ data }: AutomationStepProps) {
+  const { t } = useT('automations');
   // Determine handle positions based on whether each edge (top/bottom) has bidirectional connections
   // Only offset if there are connections in both directions at that specific edge
   const topTargetLeft = data.hasBidirectionalTop ? '45%' : '50%';
@@ -63,27 +65,20 @@ export default function AutomationStep({ data }: AutomationStepProps) {
   };
 
   const getStepTypeLabel = (stepType: string) => {
-    switch (stepType) {
-      case 'trigger':
-        return 'Trigger';
-      case 'llm':
-        return 'LLM';
-      case 'condition':
-        return 'Condition';
-
-      case 'loop':
-        return 'Loop';
-      case 'action':
-        return 'Action';
-      default:
-        return stepType;
-    }
+    const labels: Record<string, string> = {
+      trigger: t('stepTypes.trigger'),
+      llm: t('stepTypes.llm'),
+      condition: t('stepTypes.condition'),
+      loop: t('stepTypes.loop'),
+      action: t('stepTypes.action'),
+    };
+    return labels[stepType] || stepType;
   };
 
   const cardContent = (
     <button
       type="button"
-      aria-label={data.label ? `Open ${data.label}` : 'Open step'}
+      aria-label={data.label ? t('step.openStep', { name: data.label }) : t('step.openStepDefault')}
       className={cn(
         'w-[18.75rem] rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none',
         data.isTerminalNode
@@ -105,7 +100,7 @@ export default function AutomationStep({ data }: AutomationStepProps) {
             {/* Terminal Node Indicator */}
             {data.isTerminalNode && (
               <span className="px-2 py-0.5 text-xs font-medium rounded bg-muted text-muted-foreground border border-muted-foreground/30">
-                End
+                {t('sidePanel.end')}
               </span>
             )}
           </div>

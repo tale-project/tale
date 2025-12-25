@@ -11,16 +11,12 @@ import { redirect } from 'next/navigation';
 import { Store } from 'lucide-react';
 import ImportVendorsMenu from './import-vendors-menu';
 import { getT } from '@/lib/i18n/server';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { vendorFilterDefinitions } from './filter-definitions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    query?: string;
-    size?: string;
-    source?: string;
-    locale?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** Skeleton for the vendors table with header and rows - matches vendors-table.tsx column sizes */
@@ -57,13 +53,7 @@ async function VendorsEmptyState({ organizationId }: { organizationId: string })
 
 interface VendorsContentProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    query?: string;
-    size?: string;
-    source?: string;
-    locale?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 async function VendorsContent({ params, searchParams }: VendorsContentProps) {
@@ -74,36 +64,27 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   }
 
   const { id: organizationId } = await params;
-  const resolvedSearchParams = await searchParams;
+  const rawSearchParams = await searchParams;
 
-  const currentPage = resolvedSearchParams.page
-    ? parseInt(resolvedSearchParams.page)
-    : 1;
-
-  // Get page size from search params (default to 10)
-  const pageSize = resolvedSearchParams.size
-    ? Number.parseInt(resolvedSearchParams.size)
-    : 10;
-
-  // Get search term from search params
-  const searchTerm = resolvedSearchParams.query;
-
-  // Get source and locale filters
-  const sourceFilters = resolvedSearchParams.source?.split(',').filter(Boolean);
-  const localeFilters = resolvedSearchParams.locale?.split(',').filter(Boolean);
+  // Parse filters, pagination, and sorting using unified system
+  const { filters, pagination, sorting } = parseSearchParams(
+    rawSearchParams,
+    vendorFilterDefinitions,
+    { defaultSort: '_creationTime', defaultDesc: true },
+  );
 
   // Preload vendors for SSR + real-time reactivity on client
   const preloadedVendors = await preloadQuery(
-    api.vendors.getVendors,
+    api.vendors.listVendors,
     {
       organizationId,
-      paginationOpts: {
-        numItems: pageSize,
-        cursor: null,
-      },
-      source: sourceFilters,
-      locale: localeFilters,
-      searchTerm,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchTerm: filters.query || undefined,
+      source: filters.source.length > 0 ? filters.source : undefined,
+      locale: filters.locale.length > 0 ? filters.locale : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
     },
     { token },
   );
@@ -111,9 +92,6 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   return (
     <VendorsTable
       organizationId={organizationId}
-      currentPage={currentPage}
-      pageSize={pageSize}
-      searchTerm={searchTerm}
       preloadedVendors={preloadedVendors}
     />
   );
@@ -129,13 +107,15 @@ export default async function VendorsPage({
   }
 
   const { id: organizationId } = await params;
-  const { query, source, locale } = await searchParams;
+  const rawSearchParams = await searchParams;
+
+  // Parse filters to check for active filters
+  const { filters } = parseSearchParams(rawSearchParams, vendorFilterDefinitions);
+  const hasFilters = hasActiveFilters(filters, vendorFilterDefinitions);
 
   // Two-phase loading: check if vendors exist before showing skeleton
   // If no vendors and no filters active, show empty state directly
-  const hasActiveFilters = query?.trim() || source || locale;
-
-  if (!hasActiveFilters) {
+  if (!hasFilters) {
     const hasVendors = await fetchQuery(
       api.vendors.hasVendors,
       { organizationId },

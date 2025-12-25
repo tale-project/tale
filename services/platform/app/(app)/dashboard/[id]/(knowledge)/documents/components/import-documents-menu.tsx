@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { OneDriveIcon } from '@/components/ui/icons';
 import { HardDrive, Plus } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
+import { useT } from '@/lib/i18n';
 
 // Lazy-load OneDrive dialog to avoid MGT bundle size impact and SSR issues
 const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog'), {
@@ -30,6 +31,7 @@ export default function ImportDocumentsMenu({
   organizationId,
   hasMicrosoftAccount,
 }: ImportDocumentsMenuProps) {
+  const { t } = useT('documents');
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOneDriveImportDialogOpen, setIsOneDriveImportDialogOpen] =
@@ -77,7 +79,7 @@ export default function ImportDocumentsMenu({
             <NavigationMenuTrigger asChild>
               <Button>
                 <Plus className="size-4 mr-2" />
-                Import documents
+                {t('upload.importDocuments')}
               </Button>
             </NavigationMenuTrigger>
             <NavigationMenuContent className="top-10 z-40 md:w-44 right-0">
@@ -92,7 +94,7 @@ export default function ImportDocumentsMenu({
                       className="w-full justify-start"
                     >
                       <HardDrive className="size-4 mr-2" />
-                      <span>From your device</span>
+                      <span>{t('upload.fromYourDevice')}</span>
                     </Button>
                   </NavigationMenuLink>
                 </li>
@@ -106,7 +108,7 @@ export default function ImportDocumentsMenu({
                         className="w-full justify-start"
                       >
                         <OneDriveIcon className="size-4 mr-2" />
-                        <span>From OneDrive</span>
+                        <span>{t('upload.fromOneDrive')}</span>
                       </Button>
                     </NavigationMenuLink>
                   </li>
@@ -120,7 +122,7 @@ export default function ImportDocumentsMenu({
       {isUploading && (
         <div className="fixed bottom-4 right-4 p-3 border rounded-lg bg-background shadow-lg">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-sm font-medium">Uploading files...</span>
+            <span className="text-sm font-medium">{t('upload.uploading')}</span>
           </div>
         </div>
       )}

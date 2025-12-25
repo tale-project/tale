@@ -1,7 +1,10 @@
+'use client';
+
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useT } from '@/lib/i18n';
 
 interface AutomationLoopContainerProps {
   data: {
@@ -18,6 +21,7 @@ interface AutomationLoopContainerProps {
 export default function AutomationLoopContainer({
   data,
 }: AutomationLoopContainerProps) {
+  const { t } = useT('automations');
   // Determine handle positions based on whether each edge (top/bottom) has bidirectional connections
   // Only offset if there are connections in both directions at that specific edge
   const topTargetLeft = data.hasBidirectionalTop ? '45%' : '50%';
@@ -70,7 +74,7 @@ export default function AutomationLoopContainer({
       {/* Main Card - matches regular automation step styling */}
       <button
         type="button"
-        aria-label={data.label ? `Open ${data.label}` : 'Open loop'}
+        aria-label={data.label ? t('aria.openNamed', { name: data.label }) : t('aria.openLoop')}
         className="w-full h-full rounded-lg border-2 border-border border-dashed bg-background shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none"
         onClick={() => data.onNodeClick?.(data.stepSlug)}
         style={{ overflow: 'visible', position: 'relative' }}
@@ -90,7 +94,7 @@ export default function AutomationLoopContainer({
 
             {/* Step type label on right */}
             <Badge variant="outline" className="text-xs text-muted-foreground">
-              Loop
+              {t('stepTypes.loop')}
             </Badge>
           </div>
 

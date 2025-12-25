@@ -94,10 +94,10 @@ export function JsonInput({
                 .map((e) => `${e.path.join('.')}: ${e.message}`)
                 .join(', ');
               setIsValid(false);
-              setError(`Schema validation failed: ${errorMessage}`);
+              setError(t('validation.schemaValidationFailed', { error: errorMessage }));
             } else {
               setIsValid(false);
-              setError('Schema validation failed');
+              setError(t('validation.schemaValidationFailed', { error: '' }));
             }
             return false;
           }
@@ -108,11 +108,11 @@ export function JsonInput({
         }
       } catch (err) {
         setIsValid(false);
-        setError(err instanceof Error ? err.message : 'Invalid JSON');
+        setError(err instanceof Error ? err.message : t('validation.invalidJson'));
         return false;
       }
     },
-    [schema],
+    [schema, t],
   );
 
   // Validate initial value and when schema changes
@@ -138,7 +138,7 @@ export function JsonInput({
         setIsEditing(false);
       } catch (err) {
         toast({
-          title: err instanceof Error ? err.message : 'Invalid JSON',
+          title: err instanceof Error ? err.message : t('validation.invalidJson'),
           variant: 'destructive',
         });
         // Stay in edit mode if invalid

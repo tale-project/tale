@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { FormModal } from '@/components/ui/modals';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/lib/i18n';
@@ -65,61 +59,30 @@ export default function AddExampleDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg p-0 gap-0 rounded-2xl">
-        {/* Header */}
-        <DialogHeader className="py-6 px-4 border-b border-border">
-          <DialogTitle className="font-semibold text-foreground tracking-[-0.3px]">
-            {tTone('exampleMessages.addButton')}
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Form Content */}
-        <div className="p-4">
-          <form
-            id="add-example-form"
-            onSubmit={handleSubmit(onSubmit)}
-            className="space-y-5"
-          >
-            {/* Message Field */}
-            <div className="space-y-2">
-              <Label
-                htmlFor="content"
-                className="text-sm font-medium text-foreground tracking-[-0.21px]"
-              >
-                {tTables('headers.message')}
-              </Label>
-              <Textarea
-                {...register('content', { required: true })}
-                placeholder={tTone('exampleMessages.placeholder')}
-                className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
-              />
-            </div>
-          </form>
-        </div>
-
-        {/* Button Footer */}
-        <div className="border-t border-border p-4">
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              className="flex-1"
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              form="add-example-form"
-              disabled={!isValid || isSubmitting}
-              className="flex-1"
-            >
-              {isSubmitting ? tTone('exampleMessages.adding') : tCommon('actions.add')}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={tTone('exampleMessages.addButton')}
+      submitText={tCommon('actions.add')}
+      submittingText={tTone('exampleMessages.adding')}
+      isSubmitting={isSubmitting}
+      submitDisabled={!isValid}
+      onSubmit={handleSubmit(onSubmit)}
+      className="max-w-lg"
+    >
+      <div className="space-y-2">
+        <Label
+          htmlFor="content"
+          className="text-sm font-medium text-foreground tracking-[-0.21px]"
+        >
+          {tTables('headers.message')}
+        </Label>
+        <Textarea
+          {...register('content', { required: true })}
+          placeholder={tTone('exampleMessages.placeholder')}
+          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
+        />
+      </div>
+    </FormModal>
   );
 }

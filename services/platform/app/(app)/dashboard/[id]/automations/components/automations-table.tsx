@@ -2,13 +2,16 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from 'convex/react';
-import { useDebounce } from '@/hooks/use-debounce';
+import { type Preloaded } from 'convex/react';
+import {
+  useCreateAutomation,
+  useDuplicateAutomation,
+  useDeleteAutomation,
+} from '../hooks';
 import {
   Copy,
   MoreVertical,
   Plus,
-  Search,
   Sparkles,
   Trash2,
   Workflow,
@@ -17,9 +20,9 @@ import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,19 +34,23 @@ import { useDateFormat } from '@/hooks/use-date-format';
 import CreateAutomationDialog from './create-automation-dialog';
 import DeleteAutomationDialog from './delete-automation-dialog';
 import { useT } from '@/lib/i18n';
+import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { automationFilterDefinitions } from '../filter-definitions';
 
 interface AutomationsTableProps {
   organizationId: string;
+  preloadedAutomations: Preloaded<typeof api.wf_definitions.listAutomations>;
 }
 
 export default function AutomationsTable({
   organizationId,
+  preloadedAutomations,
 }: AutomationsTableProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [automationToDelete, setAutomationToDelete] =
     useState<Doc<'wfDefinitions'> | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const router = useRouter();
   const { formatDate } = useDateFormat();
@@ -53,87 +60,59 @@ export default function AutomationsTable({
   const { t: tCommon } = useT('common');
   const { t: tEmpty } = useT('emptyStates');
 
-  // Debounce search query for server-side filtering
-  const debouncedSearch = useDebounce(searchQuery, 300);
-
-  // Fetch automations with server-side search filtering
-  const automationsData = useQuery(
-    api.wf_definitions.listWorkflowsWithBestVersionPublic,
-    {
-      organizationId,
-      search: debouncedSearch || undefined,
-    },
-  );
-
-  const automations = automationsData ?? [];
-
-  const createAutomation = useMutation(
-    api.wf_definitions.createWorkflowWithStepsPublic,
-  );
-
-  const duplicateAutomation = useMutation(
-    api.wf_definitions.duplicateWorkflowPublic,
-  );
-
-  // Delete automation with optimistic update for immediate UI feedback
-  const deleteAutomation = useMutation(
-    api.wf_definitions.deleteWorkflowPublic,
-  ).withOptimisticUpdate((localStore, args) => {
-    // Get the current query result
-    const currentAutomations = localStore.getQuery(
-      api.wf_definitions.listWorkflowsWithBestVersionPublic,
-      {
-        organizationId,
-        search: debouncedSearch || undefined,
-      },
-    );
-
-    if (currentAutomations !== undefined) {
-      // Remove the deleted automation from the list immediately
-      const updatedAutomations = currentAutomations.filter(
-        (automation) => automation._id !== args.wfDefinitionId,
-      );
-      localStore.setQuery(
-        api.wf_definitions.listWorkflowsWithBestVersionPublic,
-        {
-          organizationId,
-          search: debouncedSearch || undefined,
-        },
-        updatedAutomations,
-      );
-    }
+  // Use unified URL filters hook with sorting
+  const {
+    filters: filterValues,
+    sorting,
+    setSorting,
+    pagination,
+    setFilter,
+    setPage,
+    setPageSize,
+    clearAll,
+    hasActiveFilters,
+    isPending,
+  } = useUrlFilters({
+    filters: automationFilterDefinitions,
+    pagination: { defaultPageSize: 10 },
+    sorting: { defaultSort: '_creationTime', defaultDesc: true },
   });
+
+  // Use paginated query with SSR + real-time updates
+  const { data, isLoading } = useOffsetPaginatedQuery({
+    query: api.wf_definitions.listAutomations,
+    preloadedData: preloadedAutomations,
+    organizationId,
+    filters: {
+      filters: filterValues,
+      sorting,
+      pagination,
+      setFilter,
+      setSorting,
+      setPage,
+      setPageSize,
+      clearAll,
+      hasActiveFilters,
+      isPending,
+      definitions: automationFilterDefinitions,
+    },
+    transformFilters: (f) => ({
+      searchTerm: f.query || undefined,
+      status: f.status.length > 0 ? f.status : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+    }),
+  });
+
+  const automations = data?.items ?? [];
+  const emptyAutomations = automations.length === 0 && !hasActiveFilters;
+
+  const createAutomation = useCreateAutomation();
+  const duplicateAutomation = useDuplicateAutomation();
+  const deleteAutomation = useDeleteAutomation();
 
   const handleCreateAutomation = () => {
     setCreateDialogOpen(true);
-  };
-
-  const _handleCreateAutomationSubmit = async (data: {
-    name: string;
-    description?: string;
-    config?: Record<string, unknown>;
-  }) => {
-    try {
-      await createAutomation({
-        organizationId,
-        workflowConfig: {
-          name: data.name,
-          description: data.description,
-          config: data.config || {},
-        },
-        stepsConfig: [],
-      });
-      toast({
-        title: tToast('success.automationCreated'),
-        variant: 'success',
-      });
-    } catch (error) {
-      console.error('Failed to create automation:', error);
-      toast({
-        title: `${tToast('error.automationCreateFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
-        variant: 'destructive',
-      });
-    }
   };
 
   const handleDuplicateAutomation = useCallback(
@@ -245,42 +224,45 @@ export default function AutomationsTable({
         id: 'actions',
         size: 80,
         cell: ({ row }) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className="size-4 text-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDuplicateAutomation(row.original);
-                }}
-              >
-                <Copy className="size-4 mr-2 text-muted-foreground p-0.5" />
-                <span className="text-sm font-medium text-muted-foreground">
-                  {tCommon('actions.duplicate')}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteClick(row.original);
-                }}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="size-4 mr-2" />
-                <span className="text-sm font-medium">
-                  {tCommon('actions.delete')}
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="size-4 text-foreground" />
+                  <span className="sr-only">{tCommon('actions.openMenu')}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDuplicateAutomation(row.original);
+                  }}
+                >
+                  <Copy className="size-4 mr-2 text-muted-foreground p-0.5" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {tCommon('actions.duplicate')}
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(row.original);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  <span className="text-sm font-medium">
+                    {tCommon('actions.delete')}
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         ),
       },
     ],
@@ -294,7 +276,22 @@ export default function AutomationsTable({
     ],
   );
 
-  const emptyAutomations = automations.length === 0 && !debouncedSearch;
+  // Build filter configs for DataTableFilters component
+  const filterConfigs = useMemo(
+    () => [
+      {
+        key: 'status',
+        title: tTables('headers.status'),
+        options: [
+          { value: 'active', label: 'Published' },
+          { value: 'draft', label: 'Draft' },
+        ],
+        selectedValues: filterValues.status,
+        onChange: (values: string[]) => setFilter('status', values),
+      },
+    ],
+    [filterValues, setFilter, tTables],
+  );
 
   const createButton = (
     <Button onClick={handleCreateAutomation} className="gap-2">
@@ -303,9 +300,10 @@ export default function AutomationsTable({
     </Button>
   );
 
-  return (
-    <>
-      {emptyAutomations ? (
+  // Show empty state when no automations and no filters
+  if (emptyAutomations) {
+    return (
+      <>
         <DataTableEmptyState
           icon={Workflow}
           title={tEmpty('automations.title')}
@@ -317,33 +315,59 @@ export default function AutomationsTable({
             </Button>
           }
         />
-      ) : (
-        <DataTable
-          columns={columns}
-          data={automations}
-          getRowId={(row) => row._id}
-          onRowClick={handleRowClick}
-          header={
-            <div className="flex items-center justify-between">
-              <div className="relative w-full max-w-[18.75rem]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-                <Input
-                  placeholder={tAutomations('searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              {createButton}
-            </div>
-          }
-          emptyState={{
-            title: tCommon('search.noResults'),
-            description: tCommon('search.tryAdjusting'),
-            isFiltered: true,
-          }}
+        <CreateAutomationDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          organizationId={organizationId}
         />
-      )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <DataTable
+        columns={columns}
+        data={automations}
+        getRowId={(row) => row._id}
+        onRowClick={handleRowClick}
+        isLoading={isLoading}
+        stickyLayout
+        enableSorting
+        initialSorting={sorting}
+        onSortingChange={setSorting}
+        header={
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <DataTableFilters
+              search={{
+                value: filterValues.query,
+                onChange: (value) => setFilter('query', value),
+                placeholder: tAutomations('searchPlaceholder'),
+              }}
+              filters={filterConfigs}
+              isLoading={isPending}
+              onClearAll={clearAll}
+            />
+            {createButton}
+          </div>
+        }
+        emptyState={{
+          title: tCommon('search.noResults'),
+          description: tCommon('search.tryAdjusting'),
+          isFiltered: true,
+        }}
+        pagination={{
+          total: data?.total ?? 0,
+          pageSize: pagination.pageSize,
+          totalPages: data?.totalPages ?? 1,
+          hasNextPage: data?.hasNextPage ?? false,
+          hasPreviousPage: data?.hasPreviousPage ?? false,
+          onPageChange: setPage,
+          onPageSizeChange: setPageSize,
+          clientSide: false,
+        }}
+        currentPage={pagination.page}
+      />
       <CreateAutomationDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}

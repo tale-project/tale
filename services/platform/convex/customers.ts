@@ -296,3 +296,38 @@ export const getCustomerByEmail = queryWithRLS({
     );
   },
 });
+
+// =============================================================================
+// OFFSET-BASED PAGINATION (for tables)
+// =============================================================================
+
+/**
+ * List customers with offset-based pagination for table views
+ *
+ * Uses smart index selection and provides total counts for pagination.
+ */
+export const listCustomers = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    currentPage: v.optional(v.number()),
+    pageSize: v.optional(v.number()),
+    searchTerm: v.optional(v.string()),
+    status: v.optional(v.array(customerStatusValidator)),
+    source: v.optional(v.array(v.string())),
+    locale: v.optional(v.array(v.string())),
+    sortField: v.optional(v.string()),
+    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+  },
+  returns: v.object({
+    items: v.array(customerValidator),
+    total: v.number(),
+    page: v.number(),
+    pageSize: v.number(),
+    totalPages: v.number(),
+    hasNextPage: v.boolean(),
+    hasPreviousPage: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    return await CustomersModel.getCustomers(ctx, args);
+  },
+});

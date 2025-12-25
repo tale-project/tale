@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import {
-  useMutation,
-  useAction,
-  usePreloadedQuery,
-  type Preloaded,
-} from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import {
+  useAddExample,
+  useUpdateExample,
+  useDeleteExample,
+  useUpsertTone,
+  useGenerateTone,
+} from './hooks';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
@@ -43,14 +45,14 @@ export default function ToneOfVoiceForm({
   // Use preloaded query for SSR + real-time reactivity
   const toneOfVoiceData = usePreloadedQuery(preloadedToneOfVoice);
 
-  // Mutations
-  const addExample = useMutation(api.tone_of_voice.addExampleMessage);
-  const updateExample = useMutation(api.tone_of_voice.updateExampleMessage);
-  const deleteExample = useMutation(api.tone_of_voice.deleteExampleMessage);
-  const upsertTone = useMutation(api.tone_of_voice.upsertToneOfVoice);
+  // Mutations (hooks)
+  const addExample = useAddExample();
+  const updateExample = useUpdateExample();
+  const deleteExample = useDeleteExample();
+  const upsertTone = useUpsertTone();
 
-  // Actions
-  const generateTone = useAction(api.tone_of_voice.generateToneOfVoice);
+  // Actions (hooks)
+  const generateTone = useGenerateTone();
 
   // Form for tone of voice
   const form = useForm<ToneFormData>();

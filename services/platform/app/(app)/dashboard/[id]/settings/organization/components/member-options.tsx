@@ -58,7 +58,7 @@ export default function MemberOptions({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={openEditDialog}>
+              <Button variant="ghost" size="icon" onClick={openEditDialog} aria-label={t('organization.editMember')}>
                 <Pencil className="size-4 text-muted-foreground hover:text-foreground" />
               </Button>
             </TooltipTrigger>
@@ -70,7 +70,7 @@ export default function MemberOptions({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={openDeleteDialog}>
+              <Button variant="ghost" size="icon" onClick={openDeleteDialog} aria-label={t('organization.removeMember')}>
                 <Trash2 className="size-4 text-muted-foreground hover:text-foreground" />
               </Button>
             </TooltipTrigger>

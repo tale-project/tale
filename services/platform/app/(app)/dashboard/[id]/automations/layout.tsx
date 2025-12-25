@@ -5,14 +5,16 @@ import { Badge } from '@/components/ui/badge';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils/cn';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { useParams, useRouter } from 'next/navigation';
+import { useUpdateAutomation } from './hooks';
 import { ReactNode, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import AutomationNavigation from './automation-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { PageHeader } from '@/components/layout';
+import { useT } from '@/lib/i18n';
 
 interface AutomationsLayoutProps {
   children: ReactNode;
@@ -21,6 +23,8 @@ interface AutomationsLayoutProps {
 export default function AutomationsLayout({
   children,
 }: AutomationsLayoutProps) {
+  const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
@@ -34,7 +38,7 @@ export default function AutomationsLayout({
       }
       : 'skip',
   );
-  const updateWorkflow = useMutation(api.wf_definitions.updateWorkflowPublic);
+  const updateWorkflow = useUpdateAutomation();
   const [editMode, setEditMode] = useState(false);
   const { register, getValues } = useForm<{ name: string }>();
 
@@ -86,7 +90,7 @@ export default function AutomationsLayout({
               automation?.name && 'text-muted-foreground cursor-pointer',
             )}
           >
-            Automations&nbsp;&nbsp;
+            {t('title')}&nbsp;&nbsp;
           </span>
           {automation?.name && !editMode && (
             <span className="text-foreground" onClick={() => setEditMode(true)}>
@@ -112,13 +116,13 @@ export default function AutomationsLayout({
           />
         )}
         {automation?.status === 'draft' && (
-          <Badge variant="outline">Draft</Badge>
+          <Badge variant="outline">{tCommon('status.draft')}</Badge>
         )}
         {automation?.status === 'active' && (
-          <Badge variant="green">Active</Badge>
+          <Badge variant="green">{tCommon('status.active')}</Badge>
         )}
         {automation?.status === 'archived' && (
-          <Badge variant="outline">Archived</Badge>
+          <Badge variant="outline">{tCommon('status.archived')}</Badge>
         )}
       </PageHeader>
       {/* Navigation */}

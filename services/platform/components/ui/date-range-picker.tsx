@@ -14,6 +14,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 export interface DatePickerWithRangeProps
   extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
@@ -30,6 +31,7 @@ export default function DatePickerWithRange({
   calendarProps,
   isLoading = false,
 }: DatePickerWithRangeProps) {
+  const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>(defaultDate);
 
@@ -81,7 +83,7 @@ export default function DatePickerWithRange({
                 formatDate(date.from, { preset: 'medium' })
               )
             ) : (
-              <span>Pick a date</span>
+              <span>{t('upload.pickADate')}</span>
             )}
           </Button>
         </PopoverTrigger>

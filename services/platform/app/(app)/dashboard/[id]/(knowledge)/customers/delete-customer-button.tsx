@@ -5,10 +5,9 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import DeleteCustomerDialog from './delete-customer-dialog';
 import { useT } from '@/lib/i18n';
+import { useDeleteCustomer } from './hooks';
 
 interface DeleteCustomerButtonProps {
   customer: Doc<'customers'>;
@@ -26,7 +25,7 @@ export default function DeleteCustomerButton({
   const { t: tCustomers } = useT('customers');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteCustomer = useMutation(api.customers.deleteCustomer);
+  const deleteCustomer = useDeleteCustomer();
 
   // Use controlled state if provided, otherwise use internal state
   const isDialogOpen =
@@ -60,7 +59,7 @@ export default function DeleteCustomerButton({
           variant="ghost"
           size="icon"
           onClick={() => setIsDialogOpen(true)}
-          title={tCustomers('deleteCustomer')}
+          aria-label={tCustomers('deleteCustomer')}
         >
           <Trash2 className="size-4 text-muted-foreground" />
         </Button>

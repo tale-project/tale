@@ -50,6 +50,7 @@ export default function MemberTable({
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
+  const { t: tCommon } = useT('common');
   const locale = useLocale();
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -78,7 +79,7 @@ export default function MemberTable({
           return (
             <div className="flex flex-col">
               <span className="text-sm text-foreground font-medium">
-                {member.displayName || member.email || 'Unknown'}
+                {member.displayName || member.email || tTables('cells.unknown')}
               </span>
               {member.displayName && member.email && (
                 <span className="text-xs text-muted-foreground">

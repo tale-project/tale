@@ -1,14 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { FormModal } from '@/components/ui/modals';
 import {
   Form,
   FormControl,
@@ -22,19 +16,17 @@ import { Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
+import { useUpdateVendor } from './hooks';
 
-const editVendorSchema = z.object({
-  name: z.string(),
-  email: z.string().email('Invalid email address'),
-  locale: z.string(),
-});
-
-type EditVendorFormValues = z.infer<typeof editVendorSchema>;
+// Type for the form data
+type EditVendorFormValues = {
+  name: string;
+  email: string;
+  locale: string;
+};
 
 interface EditVendorButtonProps {
   vendor: Doc<'vendors'>;
@@ -53,13 +45,25 @@ export default function EditVendorButton({
 }: EditVendorButtonProps) {
   const { t: tCommon } = useT('common');
   const { t: tVendors } = useT('vendors');
+
+  // Create Zod schema with translated validation messages
+  const editVendorSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string(),
+        email: z.string().email(tCommon('validation.email')),
+        locale: z.string(),
+      }),
+    [tCommon],
+  );
+
   const [internalIsOpen, setInternalIsOpen] = useState(false);
 
   // Use controlled state if provided, otherwise use internal state
   const isOpen =
     controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
   const setIsOpen = controlledOnOpenChange || setInternalIsOpen;
-  const updateVendor = useMutation(api.vendors.updateVendor);
+  const updateVendor = useUpdateVendor();
 
   const form = useForm<EditVendorFormValues>({
     resolver: zodResolver(editVendorSchema),
@@ -102,89 +106,78 @@ export default function EditVendorButton({
     }
   };
 
+  const triggerElement = !asChild ? (
+    triggerButton || (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={tVendors('editVendor')}
+        className="hover:bg-transparent"
+      >
+        <Pencil className="size-4" />
+      </Button>
+    )
+  ) : undefined;
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      {!asChild && (
-        <DialogTrigger asChild>
-          {triggerButton || (
-            <Button
-              variant="ghost"
-              size="icon"
-              title={tVendors('editVendor')}
-              className="hover:bg-transparent"
-            >
-              <Pencil className="size-4" />
-            </Button>
+    <FormModal
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      title={tVendors('editVendor')}
+      submitText={tVendors('updateVendor')}
+      submittingText={tCommon('actions.updating')}
+      isSubmitting={form.formState.isSubmitting}
+      onSubmit={form.handleSubmit(onSubmit)}
+      trigger={triggerElement}
+    >
+      <Form {...form}>
+        <FormField
+          control={form.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{tVendors('name')}</FormLabel>
+              <FormControl>
+                <Input placeholder={tVendors('namePlaceholder')} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           )}
-        </DialogTrigger>
-      )}
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="py-2">{tVendors('editVendor')}</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tVendors('name')}</FormLabel>
-                  <FormControl>
-                    <Input placeholder={tVendors('namePlaceholder')} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tVendors('email')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder={tVendors('emailPlaceholder')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="locale"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{tVendors('locale')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={tVendors('localePlaceholder')}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsOpen(false)}
-              >
-                {tCommon('actions.cancel')}
-              </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? tCommon('actions.updating') : tVendors('updateVendor')}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+        />
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{tVendors('email')}</FormLabel>
+              <FormControl>
+                <Input
+                  type="email"
+                  placeholder={tVendors('emailPlaceholder')}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="locale"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{tVendors('locale')}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={tVendors('localePlaceholder')}
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </Form>
+    </FormModal>
   );
 }

@@ -16,6 +16,7 @@
       "deleting": "Deleting...",
       "edit": "Edit",
       "add": "Add",
+      "adding": "Adding...",
       "create": "Create",
       "close": "Close",
       "confirm": "Confirm",
@@ -42,12 +43,28 @@
       "openMenu": "Open menu",
       "rename": "Rename"
     },
+    "upload": {
+      "clickToUpload": "Click to upload",
+      "or": "or",
+      "dragAndDrop": "drag and drop",
+      "supportedFormats": ".xlsx, .xls or .csv",
+      "pickADate": "Pick a date"
+    },
     "labels": {
       "name": "Name",
       "description": "Description",
       "email": "Email",
       "status": "Status",
-      "type": "Type"
+      "type": "Type",
+      "phone": "Phone",
+      "source": "Source",
+      "locale": "Locale",
+      "address": "Address",
+      "tags": "Tags",
+      "notes": "Notes",
+      "created": "Created",
+      "filters": "Filters",
+      "notAvailable": "N/A"
     },
     "status": {
       "active": "Active",
@@ -59,14 +76,45 @@
       "published": "Published",
       "draft": "Draft",
       "enabled": "Enabled",
-      "disabled": "Disabled"
+      "disabled": "Disabled",
+      "archived": "Archived"
     },
     "validation": {
-      "required": "This field is required",
+      "required": "{field} is required",
       "email": "Please enter a valid email address",
-      "minLength": "Must be at least {min} characters",
+      "minLength": "{field} must be at least {min} characters",
+      "maxLength": "{field} must be at most {max} characters",
       "passwordMismatch": "Passwords do not match",
-      "invalidJson": "Invalid JSON format"
+      "invalidJson": "Invalid JSON format",
+      "uploadFile": "Please upload a file",
+      "schemaValidationFailed": "Schema validation failed{error, select, empty {} other {: {error}}}"
+    },
+    "aria": {
+      "close": "Close",
+      "hidePassword": "Hide password",
+      "showPassword": "Show password",
+      "dismiss": "Dismiss",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "selectAll": "Select all",
+      "backTo": "Back to {page}",
+      "dropzone": "Upload file - click or press Enter to select a file, or drag and drop a file here",
+      "tableCaption": "{entity} data table",
+      "messageHistory": "Message history",
+      "approve": "Approve {item}",
+      "reject": "Reject {item}",
+      "confidence": "{value} percent confidence",
+      "settingsNavigation": "Settings navigation",
+      "automationsNavigation": "Automations navigation",
+      "knowledgeNavigation": "Knowledge navigation",
+      "actionsMenu": "Actions menu",
+      "conversationsNavigation": "Conversations navigation",
+      "expandRow": "Expand row",
+      "collapseRow": "Collapse row",
+      "dropFilesHere": "Drop files here to attach",
+      "addStep": "Add step"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
@@ -89,17 +137,29 @@
       "contactSupport": "contact support",
       "forAssistance": "for assistance.",
       "tryAgain": "Try again",
-      "organizationNotFound": "Organization ID not found"
+      "organizationNotFound": "Organization ID not found",
+      "invalidOrganizationId": "Invalid organization ID"
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
       "escape": "Esc"
+    },
+    "fileSize": {
+      "bytes": "Bytes",
+      "kb": "KB",
+      "mb": "MB",
+      "gb": "GB"
     },
     "unsavedChanges": "Unsaved changes",
     "notFound": {
       "title": "Page not found",
       "description": "The page you're looking for may have been moved or no longer exists.",
       "goHome": "Go back home"
+    },
+    "deviceCompatibility": {
+      "title": "Device Not Supported",
+      "description": "Please use a device with a larger screen for the best experience.",
+      "signOut": "Sign Out"
     }
   },
   "navigation": {
@@ -189,13 +249,17 @@
       "stock": "Stock",
       "document": "Document",
       "size": "Size",
-      "ragStatus": "RAG status",
+      "ragStatus": "RAG Status",
       "locale": "Locale",
       "website": "Website",
       "title": "Title",
       "scanned": "Scanned",
       "interval": "Interval",
-      "message": "Message"
+      "message": "Message",
+      "executionId": "Execution ID",
+      "startedAt": "Started at",
+      "duration": "Duration",
+      "triggeredBy": "Triggered by"
     },
     "cells": {
       "noEmail": "No email",
@@ -245,7 +309,8 @@
   "dialogs": {
     "addMember": {
       "title": "Add member",
-      "description": "Add a new team member to your organization"
+      "description": "Add a new team member to your organization",
+      "passwordRequiredForNewUser": "Password is required to create a new user account. If the user already has an account, they will be added without needing a password."
     },
     "memberAdded": {
       "title": "Member added successfully",
@@ -313,6 +378,15 @@
       "number": "Number",
       "specialChar": "Special character"
     },
+    "validation": {
+      "passwordRequirements": "Password must be at least 8 characters with lowercase, uppercase, and number",
+      "emailRequired": "Email is required",
+      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordLowercase": "Password must contain a lowercase letter",
+      "passwordUppercase": "Password must contain an uppercase letter",
+      "passwordNumber": "Password must contain a number",
+      "passwordSpecial": "Password must contain a special character"
+    },
     "userButton": {
       "defaultName": "User",
       "manageAccount": "Manage account",
@@ -323,6 +397,29 @@
         "signedOut": "Signed out",
         "signedOutDescription": "You have been signed out successfully",
         "signOutFailed": "Failed to sign out"
+      }
+    },
+    "microsoft": {
+      "grantPermissions": "Grant Microsoft Permissions",
+      "reauthenticate": "Re-authenticate with Microsoft",
+      "signIn": "Sign in with Microsoft",
+      "redirecting": "Redirecting..."
+    },
+    "oauth2": {
+      "success": {
+        "providerAuthorized": "Email provider has been authorized and is ready to use.",
+        "completed": "OAuth2 authorization completed successfully."
+      },
+      "errors": {
+        "missingCode": "No authorization code received from the provider.",
+        "missingState": "Missing state parameter in callback.",
+        "invalidState": "Invalid state parameter. This may be a security issue.",
+        "missingProvider": "The email provider configuration could not be found.",
+        "missingOauth2Config": "OAuth2 configuration is missing for this provider.",
+        "tokenExchangeFailed": "Failed to exchange authorization code for access tokens.",
+        "callbackFailed": "An error occurred while processing the OAuth2 callback.",
+        "missingParameters": "Required parameters are missing from the callback.",
+        "unexpected": "An unexpected error occurred during authorization."
       }
     },
     "changePassword": {
@@ -359,6 +456,14 @@
       "teamMembers": "Team members",
       "manageAccess": "Manage access to the organization",
       "searchMember": "Search member",
+      "addMember": "Add member",
+      "members": {
+        "columns": {
+          "name": "Name",
+          "email": "Email",
+          "role": "Role"
+        }
+      },
       "createOrganization": "Create organization",
       "organizationName": "Organization name",
       "companyNameRequired": "Company name is required",
@@ -386,6 +491,9 @@
     "integrations": {
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
       "manage": "Manage",
+      "errors": {
+        "organizationRequired": "Organization ID is required"
+      },
       "toast": {
         "disconnected": "Disconnected",
         "disconnectFailed": "Disconnect failed"
@@ -444,6 +552,7 @@
         "passwordPlaceholder": "App password from Microsoft"
       },
       "circuly": {
+        "title": "Circuly",
         "description": "Manage product subscriptions and rental workflows.",
         "disconnectError": "Failed to disconnect Circuly",
         "disconnectedDescription": "Circuly integration has been disconnected.",
@@ -466,6 +575,7 @@
         "yesDisconnect": "Yes, Disconnect"
       },
       "shopify": {
+        "title": "Shopify",
         "description": "Sync products, orders, and customers from your Shopify store.",
         "disconnectError": "Failed to disconnect Shopify",
         "domainPlaceholder": "mystore.myshopify.com",
@@ -522,6 +632,9 @@
       "redirectingToMicrosoft": "Redirecting to Microsoft...",
       "testAndCreate": "Test & create provider",
       "useApiSending": "Use API sending (recommended - no port blocking)",
+      "apiSending": "API Sending",
+      "providerGmail": "Gmail",
+      "providerOutlook": "Outlook",
       "gmailAddress": "Gmail Address",
       "emailAddress": "Email address",
       "appPassword": "App password",
@@ -563,7 +676,25 @@
   },
   "automations": {
     "title": "Automations",
+    "aria": {
+      "openNamed": "Open {name}",
+      "openLoop": "Open loop"
+    },
     "createButton": "Create automation",
+    "emptyState": {
+      "noSteps": "No automation steps to display",
+      "createStepsHint": "Create steps to see the automation overview, or use the AI assistant to help you get started."
+    },
+    "columns": {
+      "automation": "Automation",
+      "status": "Status",
+      "version": "Version",
+      "created": "Created"
+    },
+    "publishDialog": {
+      "title": "Publish automation",
+      "description": "Once published, this automation will run automatically whenever its triggers occur, and it cannot be changed."
+    },
     "createWithAI": "Create automation with AI",
     "searchPlaceholder": "Search automations...",
     "accessDenied": "You need Admin or Developer permissions to access automations.",
@@ -584,6 +715,9 @@
         "navigatingToExisting": "Navigating to existing draft",
         "draftFailed": "Failed to create draft"
       }
+    },
+    "form": {
+      "name": "Name"
     },
     "configuration": {
       "title": "Configuration",
@@ -614,6 +748,13 @@
     },
     "executions": {
       "title": "Executions",
+      "columns": {
+        "executionId": "Execution ID",
+        "status": "Status",
+        "startedAt": "Started at",
+        "duration": "Duration",
+        "triggeredBy": "Triggered by"
+      },
       "filters": {
         "title": "Filters",
         "dateRange": "Date Range",
@@ -677,7 +818,33 @@
         "apiNotWired": "Public APIs for editing workflow steps are not wired up yet.",
         "stepCreationNotAvailable": "Step creation not yet available",
         "createFailed": "Failed to create step"
+      },
+      "banners": {
+        "draftNotPublished": "This automation is not yet published",
+        "activeCannotModify": "This automation is published and cannot be modified. Create a new version to make changes."
+      },
+      "toolbar": {
+        "focus": "Focus",
+        "aiAssistant": "AI assistant",
+        "testAutomation": "Test Automation"
       }
+    },
+    "stepTypes": {
+      "trigger": "Trigger",
+      "llm": "LLM",
+      "condition": "Condition",
+      "loop": "Loop",
+      "action": "Action"
+    },
+    "step": {
+      "openStep": "Open {name} step",
+      "openStepDefault": "Open step"
+    },
+    "sidePanel": {
+      "aiAssistant": "AI Assistant",
+      "testAutomation": "Test Automation",
+      "stepTooltip": "{stepType} step",
+      "end": "End"
     },
     "createStep": {
       "title": "Create step",
@@ -798,7 +965,14 @@
       "liveMonitoring": "Live execution monitoring",
       "monitoringExecution": "Monitoring execution: {handle}",
       "stopMonitoring": "Stop Monitoring",
-      "startAutomation": "Start an automation execution to see real-time status"
+      "startAutomation": "Start an automation execution to see real-time status",
+      "executionStatistics": "Execution Statistics",
+      "performanceMetrics": "Performance metrics for selected automation",
+      "loadingStats": "Loading stats...",
+      "totalExecutions": "Total Executions",
+      "successRate": "Success Rate",
+      "avgDuration": "Avg Duration",
+      "failures": "Failures"
     }
   },
   "conversations": {
@@ -884,7 +1058,11 @@
       "notFound": "Conversation not found",
       "noMessages": "No messages yet",
       "markedAsSpam": "This conversation has been marked as spam.",
-      "markedAsClosed": "This conversation has been marked as closed."
+      "markedAsClosed": "This conversation has been marked as closed.",
+      "invalidFileAttachment": "Invalid file attachment",
+      "defaultSubject": "Re: Conversation",
+      "customerEmailNotFound": "Cannot send email: customer email not found",
+      "replySubjectPrefix": "Re: {subject}"
     },
     "filters": {
       "title": "Filters",
@@ -901,17 +1079,54 @@
         "low": "Low",
         "medium": "Medium",
         "high": "High"
+      },
+      "badges": {
+        "search": "Search: \"{query}\"",
+        "applyingFilters": "Applying filters...",
+        "lowPriority": "Low Priority",
+        "mediumPriority": "Medium Priority",
+        "highPriority": "High Priority"
       }
+    },
+    "activate": {
+      "title": "Activate conversations",
+      "description": "Connect your email to get started with conversations",
+      "connectEmail": "Connect email"
     }
   },
   "approvals": {
     "title": "Approvals",
     "noApprovalsFound": "No approvals found",
     "columns": {
+      "approvalRecipient": "Approval / Recipient",
+      "event": "Event",
+      "action": "Action",
+      "reviewer": "Reviewer",
       "reviewedAt": "Reviewed at",
       "approved": "Approved",
       "confidence": "Confidence",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "unknownCustomer": "Unknown Customer"
+    },
+    "types": {
+      "reviewReply": "Review reply",
+      "recommendProduct": "Recommend product",
+      "review": "Review"
+    },
+    "labels": {
+      "purchase": "Purchase",
+      "recommendation": "Recommendation",
+      "otherProducts": "{count, plural, one {# other product} other {# other products}}"
+    },
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "removeProduct": "Remove {name} from recommendations"
+    },
+    "confidenceBadge": "{percent}% confidence",
+    "productStatus": {
+      "active": "Active",
+      "cancelled": "Cancelled"
     },
     "status": {
       "pending": "Pending",
@@ -931,10 +1146,26 @@
       "approveFailed": "Failed to approve. Please try again.",
       "rejectFailed": "Failed to reject. Please try again.",
       "removeRecommendationFailed": "Failed to remove recommendation. Please try again."
+    },
+    "detail": {
+      "title": "Approval details",
+      "status": "Status",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "type": "Type",
+      "typeProductRecommendation": "Product recommendation",
+      "createdAt": "Created at",
+      "confidence": "Confidence",
+      "recommendedProducts": "Recommended products",
+      "userPurchased": "User purchased",
+      "reject": "Reject",
+      "approve": "Approve"
     }
   },
   "chat": {
     "title": "Chat",
+    "imagePreview": "Image preview",
     "newChat": "New chat",
     "deleteChat": "Delete chat",
     "deleteConfirmation": "Are you sure you want to delete {title}?",
@@ -944,6 +1175,35 @@
     "toast": {
       "generateFailed": "Failed to generate response",
       "sendFailed": "Failed to send message"
+    },
+    "thinking": {
+      "default": "Thinking",
+      "searching": "Searching \"{query}\"",
+      "reading": "Reading {hostname}",
+      "searchingKnowledgeBase": "Searching knowledge base for \"{query}\"",
+      "searchingMultiple": "Searching {queries}",
+      "searchingMore": "Searching {first}, {second} and {count} more",
+      "multipleTools": "{first} and {second}",
+      "multipleToolsMore": "{first}, {second} and {count} more",
+      "and": "and"
+    },
+    "tools": {
+      "customerRead": "Reading customer data",
+      "productRead": "Reading product catalog",
+      "ragSearch": "Searching knowledge base",
+      "ragWrite": "Updating knowledge base",
+      "webRead": "Fetching web content",
+      "pdf": "Processing PDF",
+      "image": "Analyzing image",
+      "pptx": "Processing presentation",
+      "docx": "Processing document",
+      "resourceCheck": "Checking resources",
+      "workflowRead": "Reading workflow",
+      "updateWorkflowStep": "Updating workflow step",
+      "saveWorkflowDefinition": "Saving workflow",
+      "validateWorkflowDefinition": "Validating workflow",
+      "generateExcel": "Generating Excel file",
+      "contextSearch": "Searching for related topics"
     },
     "searchChat": "Search chat",
     "hideSearch": "Hide search",
@@ -994,6 +1254,10 @@
         "titleEmpty": "Chat title cannot be empty",
         "renameFailed": "Failed to rename chat"
       }
+    },
+    "aria": {
+      "messageHistory": "Message history",
+      "scrollToBottom": "Scroll to bottom"
     }
   },
   "toneOfVoice": {
@@ -1064,23 +1328,49 @@
       "warning": "This action cannot be undone.",
       "deleteButton": "Delete file"
     },
+    "breadcrumb": {
+      "documents": "Documents",
+      "oneDrive": "OneDrive",
+      "uploads": "Uploads"
+    },
     "preview": {
       "loading": "Loading…",
       "failedToLoad": "Failed to load document",
       "downloadComplete": "Download complete",
       "downloadFile": "Download file",
+      "closePreview": "Close preview",
       "fileDownloaded": "{fileName} has been downloaded",
+      "downloadedSuccessfully": "{filename} has been downloaded",
       "downloadFailed": "Failed to download the file",
       "notAvailable": "Preview not available",
       "notAvailableDescription": "This file type cannot be previewed. Please download the file to view its contents.",
       "downloading": "Downloading...",
-      "download": "Download"
+      "download": "Download",
+      "unknownError": "Unknown error",
+      "document": "Document"
     },
     "upload": {
       "fromComputer": "From computer",
       "fromComputerDescription": "Upload directly from your device",
       "uploading": "Uploading files...",
-      "cancelUpload": "Cancel upload"
+      "cancelUpload": "Cancel upload",
+      "importDocuments": "Import documents",
+      "fromYourDevice": "From your device",
+      "fromOneDrive": "From OneDrive",
+      "uploadInProgress": "Upload in progress",
+      "pleaseWaitForUpload": "Please wait for the current upload to complete",
+      "noFilesSelected": "No files selected",
+      "fileTooLarge": "File too large",
+      "fileSizeExceeded": "File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB",
+      "uploadStarted": "Upload started",
+      "uploadingCount": "Uploading {count} {count, plural, one {file} other {files}}...",
+      "uploadSuccessful": "Upload successful",
+      "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
+      "uploadCancelled": "Upload cancelled",
+      "uploadFailed": "Upload failed"
+    },
+    "import": {
+      "noResponseBody": "No response body received"
     },
     "onedrive": {
       "selectFiles": "Select files or folders",
@@ -1120,7 +1410,15 @@
     },
     "rag": {
       "status": {
-        "stale": "Stale"
+        "pending": "Pending",
+        "queued": "Queued",
+        "indexing": "Indexing",
+        "indexed": "Indexed",
+        "failed": "Failed",
+        "notIndexed": "Not indexed",
+        "needsReindex": "Needs reindex",
+        "stale": "Stale",
+        "unknown": "Unknown"
       },
       "index": "Index",
       "indexing": "Indexing...",
@@ -1148,6 +1446,22 @@
           "unknownError": "Unknown error occurred"
         }
       }
+    },
+    "sync": {
+      "title": "OneDrive to Storage Sync",
+      "syncingToStorage": "Syncing files to storage...",
+      "pleaseWait": "Please wait while files are being processed...",
+      "processingFiles": "Processing Files ({count} total):",
+      "error": "Error",
+      "syncCompleted": "Sync Completed",
+      "syncCompletedWithErrors": "Sync Completed with Errors",
+      "filesProcessed": "{count} files processed",
+      "successfullySynced": "Successfully Synced ({count})",
+      "failedToSync": "Failed to Sync ({count})",
+      "storageLocation": "Storage Location",
+      "storageDescription": "Files have been synced to your storage bucket. You can access them through the storage dashboard or API.",
+      "syncError": "Sync Error",
+      "retryFailedFiles": "Retry Failed Files"
     }
   },
   "products": {
@@ -1156,6 +1470,7 @@
     "addButton": "Add product",
     "editProduct": "Edit product",
     "deleteProduct": "Delete product",
+    "noImage": "No image",
     "importMenu": {
       "importProducts": "Import products",
       "fromDevice": "From your device",
@@ -1229,6 +1544,26 @@
     },
     "actions": {
       "deleteFailed": "Failed to delete product"
+    },
+    "delete": {
+      "title": "Delete product",
+      "confirmation": "Are you sure you want to delete {name}?",
+      "thisProduct": "this product",
+      "warning": "All related relationships and data will be permanently removed."
+    },
+    "view": {
+      "title": "Product details",
+      "description": "View all information about this product",
+      "labels": {
+        "price": "Price",
+        "stock": "Stock",
+        "category": "Category",
+        "lastUpdated": "Last Updated",
+        "tags": "Tags",
+        "fullDescription": "Full Description",
+        "source": "Source",
+        "productId": "Product ID"
+      }
     }
   },
   "customers": {
@@ -1240,11 +1575,26 @@
         "manual": "Manual",
         "upload": "Upload",
         "circuly": "Circuly"
+      },
+      "status": {
+        "active": "Active",
+        "potential": "Potential",
+        "churned": "Churned",
+        "lost": "Lost"
       }
     },
     "addButton": "Add customer",
     "addCustomers": "Add customers",
     "uploadCustomers": "Upload customers",
+    "importForm": {
+      "circuly": "Circuly",
+      "manualEntry": "Manual Entry",
+      "upload": "Upload",
+      "fromShopify": "From Shopify",
+      "syncBusinessData": "Sync business data",
+      "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH.",
+      "churnedNote": "Imported customers are tagged as (Churned)"
+    },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
     "viewDetails": "View Details",
@@ -1271,6 +1621,7 @@
     "locale": "Locale",
     "localePlaceholder": "e.g., en-US",
     "import": {
+      "selectDataSource": "Please select a data source",
       "syncFeature": "Sync feature",
       "syncNotImplemented": "Auto-sync is not yet implemented",
       "provideData": "Please provide data",
@@ -1291,6 +1642,11 @@
     "addButton": "Add vendor",
     "addVendors": "Add vendors",
     "uploadVendors": "Upload vendors",
+    "importForm": {
+      "manualEntry": "Manual Entry",
+      "upload": "Upload",
+      "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH."
+    },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
     "viewDetails": "View Vendor Details",
@@ -1322,9 +1678,15 @@
     "locale": "Locale",
     "localePlaceholder": "e.g., en-US",
     "filter": {
-      "title": "Filters"
+      "title": "Filters",
+      "source": {
+        "manual": "Manual Import",
+        "upload": "File Upload",
+        "circuly": "Circuly"
+      }
     },
     "import": {
+      "selectDataSource": "Please select a data source",
       "provideData": "Please provide vendor data",
       "success": "Import successful",
       "successDescription": "Successfully imported {success} vendors{failed, select, 0 {} other {, {failed} failed}}",
@@ -1386,11 +1748,19 @@
       "description": "Description",
       "created": "Created",
       "unknown": "Unknown"
+    },
+    "filter": {
+      "status": {
+        "active": "Active",
+        "scanning": "Scanning",
+        "error": "Error"
+      }
     }
   },
   "accessDenied": {
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",
-    "integrations": "You need Admin or Developer permissions to access integrations settings."
+    "integrations": "You need Admin or Developer permissions to access integrations settings.",
+    "organization": "You need Admin permissions to access organization settings."
   }
 }

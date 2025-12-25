@@ -467,6 +467,84 @@ export const listWorkflowsWithBestVersionPublic = query({
 });
 
 /**
+ * PUBLIC API: List automations with offset-based pagination
+ * Uses best version per name with search and status filtering.
+ */
+export const listAutomations = query({
+  args: {
+    organizationId: v.string(),
+    currentPage: v.optional(v.number()),
+    pageSize: v.optional(v.number()),
+    searchTerm: v.optional(v.string()),
+    status: v.optional(v.array(v.string())),
+    sortField: v.optional(v.string()),
+    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+  },
+  returns: v.object({
+    items: v.array(v.any()),
+    total: v.number(),
+    page: v.number(),
+    pageSize: v.number(),
+    totalPages: v.number(),
+    hasNextPage: v.boolean(),
+    hasPreviousPage: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const { normalizePaginationOptions, calculatePaginationMeta } = await import('./lib/pagination');
+    const { page: currentPage, pageSize } = normalizePaginationOptions({
+      page: args.currentPage,
+      pageSize: args.pageSize,
+    });
+
+    // Get all workflows with best version (filtered by search if provided)
+    const allWorkflows = await WfDefinitionsModel.listWorkflowsWithBestVersion(ctx, {
+      organizationId: args.organizationId,
+      search: args.searchTerm,
+    });
+
+    // Apply status filter if provided
+    const statusSet = args.status && args.status.length > 0 ? new Set(args.status) : null;
+    const filteredWorkflows = statusSet
+      ? allWorkflows.filter((wf) => statusSet.has(wf.status))
+      : allWorkflows;
+
+    const total = filteredWorkflows.length;
+    const { totalPages, hasNextPage, hasPreviousPage } = calculatePaginationMeta(
+      total,
+      currentPage,
+      pageSize,
+    );
+
+    // Apply sorting
+    const sortField = args.sortField || '_creationTime';
+    const sortOrder = args.sortOrder || 'desc';
+    filteredWorkflows.sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[sortField];
+      const bVal = (b as Record<string, unknown>)[sortField];
+      if (aVal === bVal) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      const comparison = aVal < bVal ? -1 : 1;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    // Paginate
+    const startIndex = (currentPage - 1) * pageSize;
+    const items = filteredWorkflows.slice(startIndex, startIndex + pageSize);
+
+    return {
+      items,
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+      hasNextPage,
+      hasPreviousPage,
+    };
+  },
+});
+
+/**
  * PUBLIC API: Create draft workflow
  */
 export const createWorkflowDraftPublic = mutation({

@@ -96,9 +96,9 @@ export function DataTablePagination({
   };
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center justify-between sm:justify-start gap-2 flex-wrap', className)}>
       {showPageSizeSelector && onPageSizeChange && (
-        <div className="flex items-center gap-2 mr-4">
+        <div className="hidden sm:flex items-center gap-2 mr-4">
           <span className="text-xs text-muted-foreground">{t('pagination.rowsPerPage')}</span>
           <Select
             value={pageSize.toString()}
@@ -124,6 +124,7 @@ export function DataTablePagination({
         onClick={handlePrevious}
         disabled={isPrevDisabled}
         className="p-1.5"
+        aria-label={t('aria.previousPage')}
       >
         {isLoading ? (
           <Loader2 className="size-4 animate-spin" />
@@ -155,6 +156,7 @@ export function DataTablePagination({
         onClick={handleNext}
         disabled={isNextDisabled}
         className="p-1.5"
+        aria-label={t('aria.nextPage')}
       >
         {isLoading ? (
           <Loader2 className="size-4 animate-spin" />
@@ -164,8 +166,8 @@ export function DataTablePagination({
       </Button>
 
       {total > 0 && (
-        <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-          {`${startIdx}-${endIdx} of ${total}`}
+        <span className="hidden sm:inline text-xs font-semibold text-muted-foreground whitespace-nowrap">
+          {t('pagination.showing', { start: startIdx, end: endIdx, total })}
         </span>
       )}
     </div>

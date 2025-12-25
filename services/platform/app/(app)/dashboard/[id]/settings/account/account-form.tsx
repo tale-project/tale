@@ -1,8 +1,9 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
-import { useMutation, usePreloadedQuery, type Preloaded } from 'convex/react';
+import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useUpdatePassword } from './hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +28,7 @@ export default function AccountForm({
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const memberContext = usePreloadedQuery(preloadedMemberContext);
-  const updatePassword = useMutation(api.users.updateUserPassword);
+  const updatePassword = useUpdatePassword();
   const { toast } = useToast();
 
   const {

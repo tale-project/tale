@@ -11,25 +11,17 @@ import ApprovalDetailModal from './approval-detail-modal';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
-import { useMutation, usePreloadedQuery, useQuery } from 'convex/react';
+import { usePreloadedQuery, useQuery } from 'convex/react';
 import { useLocale } from '@/lib/i18n';
 import { api } from '@/convex/_generated/api';
 import type { Id, Doc } from '@/convex/_generated/dataModel';
+import {
+  useUpdateApprovalStatus,
+  useRemoveRecommendedProduct,
+} from '../hooks';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 type ApprovalDoc = Doc<'approvals'>;
-
-// Pure function moved outside component - no dependencies, never changes
-function getApprovalTypeLabel(resourceType: string): string {
-  switch (resourceType) {
-    case 'conversations':
-      return 'Review reply';
-    case 'product_recommendation':
-      return 'Recommend product';
-    default:
-      return 'Review';
-  }
-}
 
 interface ApprovalsProps {
   status?: 'pending' | 'resolved';
@@ -44,6 +36,21 @@ export default function Approvals({
 }: ApprovalsProps) {
   const { t } = useT('approvals');
   const locale = useLocale();
+
+  // Get localized approval type label
+  const getApprovalTypeLabel = useCallback(
+    (resourceType: string): string => {
+      switch (resourceType) {
+        case 'conversations':
+          return t('types.reviewReply');
+        case 'product_recommendation':
+          return t('types.recommendProduct');
+        default:
+          return t('types.review');
+      }
+    },
+    [t],
+  );
   const [approving, setApproving] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(
@@ -64,43 +71,9 @@ export default function Approvals({
     organizationId: organizationId as string,
   });
 
-  // Mutation: update approval status with optimistic update
-  // When status changes, the approval is removed from the current list immediately
-  const updateApprovalStatus = useMutation(
-    api.approvals.updateApprovalStatusPublic,
-  ).withOptimisticUpdate((localStore, args) => {
-    // Get the current query result
-    const currentApprovals = localStore.getQuery(
-      api.approvals.getApprovalsByOrganization,
-      {
-        organizationId,
-        status: status === 'pending' ? 'pending' : 'resolved',
-        resourceType: ['product_recommendation'],
-        limit: 500,
-      },
-    );
-
-    if (currentApprovals !== undefined) {
-      // Remove the approval from the list (it will move to the other status)
-      const updatedApprovals = currentApprovals.filter(
-        (approval) => approval._id !== args.approvalId,
-      );
-      localStore.setQuery(
-        api.approvals.getApprovalsByOrganization,
-        {
-          organizationId,
-          status: status === 'pending' ? 'pending' : 'resolved',
-          resourceType: ['product_recommendation'],
-          limit: 500,
-        },
-        updatedApprovals,
-      );
-    }
-  });
-
-  const removeRecommendedProduct = useMutation(
-    api.approvals.removeRecommendedProduct,
-  );
+  // Mutation: update approval status
+  const updateApprovalStatus = useUpdateApprovalStatus();
+  const removeRecommendedProduct = useRemoveRecommendedProduct();
 
   const handleApprove = useCallback(
     async (approvalId: string) => {
@@ -408,7 +381,7 @@ export default function Approvals({
                 />
               </div>
               <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
-                {remainingCount} other product{remainingCount !== 1 ? 's' : ''}
+                {t('labels.otherProducts', { count: remainingCount })}
               </span>
             </div>
           )}
@@ -456,7 +429,7 @@ export default function Approvals({
         })}
       </div>
     );
-  }, []);
+  }, [t]);
 
   // Helper to get customer label
   const getCustomerLabel = useCallback((approval: ApprovalDoc) => {
@@ -466,9 +439,9 @@ export default function Approvals({
         (metadata['customerName'] as string).trim()) ||
       (typeof metadata['customerEmail'] === 'string' &&
         (metadata['customerEmail'] as string).trim()) ||
-      'Unknown Customer'
+      t('columns.unknownCustomer')
     );
-  }, []);
+  }, [t]);
 
   // Helper to get confidence percentage
   const getConfidencePercent = useCallback((approval: ApprovalDoc) => {
@@ -497,7 +470,7 @@ export default function Approvals({
     () => [
       {
         id: 'approval',
-        header: 'Approval / Recipient',
+        header: t('columns.approvalRecipient'),
         size: 256,
         cell: ({ row }) => (
           <div className="flex flex-col gap-1.5 min-h-[41px]">
@@ -515,7 +488,7 @@ export default function Approvals({
       },
       {
         id: 'event',
-        header: 'Event',
+        header: t('columns.event'),
         size: 256,
         cell: ({ row }) => {
           const metadata = (row.original.metadata || {}) as Record<
@@ -525,7 +498,7 @@ export default function Approvals({
           return (
             <div className="flex flex-col gap-1.5">
               <div className="text-xs font-medium text-foreground">
-                Purchase
+                {t('labels.purchase')}
               </div>
               {renderProductList(
                 (metadata['eventProducts'] as Array<unknown>) || [],
@@ -536,7 +509,7 @@ export default function Approvals({
       },
       {
         id: 'action',
-        header: 'Action',
+        header: t('columns.action'),
         size: 256,
         cell: ({ row }) => {
           const metadata = (row.original.metadata || {}) as Record<
@@ -546,7 +519,7 @@ export default function Approvals({
           return (
             <div className="flex flex-col gap-1.5">
               <div className="text-xs font-medium text-foreground">
-                Recommendation
+                {t('labels.recommendation')}
               </div>
               {renderProductList(
                 (metadata['recommendedProducts'] as Array<unknown>) || [],
@@ -585,6 +558,7 @@ export default function Approvals({
               disabled={
                 approving === row.original._id || rejecting === row.original._id
               }
+              aria-label={t('actions.approve')}
             >
               {approving === row.original._id ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -602,6 +576,7 @@ export default function Approvals({
               disabled={
                 approving === row.original._id || rejecting === row.original._id
               }
+              aria-label={t('actions.reject')}
             >
               {rejecting === row.original._id ? (
                 <div className="animate-spin rounded-full size-3 border-b border-foreground" />
@@ -621,6 +596,8 @@ export default function Approvals({
       handleApprove,
       handleReject,
       renderProductList,
+      t,
+      getApprovalTypeLabel,
     ],
   );
 
@@ -629,13 +606,13 @@ export default function Approvals({
     () => [
       {
         id: 'approval',
-        header: 'Approval / Recipient',
+        header: t('columns.approvalRecipient'),
         size: 256,
         cell: ({ row }) => (
           <div className="flex flex-col gap-1.5 min-h-[41px]">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium text-foreground tracking-tight">
-                Recommend product
+                {t('types.recommendProduct')}
               </span>
               <Info className="size-4 text-muted-foreground flex-shrink-0 flex-grow-0" />
             </div>
@@ -647,7 +624,7 @@ export default function Approvals({
       },
       {
         id: 'event',
-        header: 'Event',
+        header: t('columns.event'),
         size: 256,
         cell: ({ row }) => {
           const metadata = (row.original.metadata || {}) as Record<
@@ -657,7 +634,7 @@ export default function Approvals({
           return (
             <div className="flex flex-col gap-1.5">
               <div className="text-xs font-medium text-foreground">
-                Purchase
+                {t('labels.purchase')}
               </div>
               {renderProductList(
                 (metadata['eventProducts'] as Array<unknown>) || [],
@@ -668,7 +645,7 @@ export default function Approvals({
       },
       {
         id: 'action',
-        header: 'Action',
+        header: t('columns.action'),
         size: 256,
         cell: ({ row }) => {
           const metadata = (row.original.metadata || {}) as Record<
@@ -678,7 +655,7 @@ export default function Approvals({
           return (
             <div className="flex flex-col gap-1.5">
               <div className="text-xs font-medium text-foreground">
-                Recommendation
+                {t('labels.recommendation')}
               </div>
               {renderProductList(
                 (metadata['recommendedProducts'] as Array<unknown>) || [],
@@ -690,7 +667,7 @@ export default function Approvals({
       },
       {
         id: 'reviewer',
-        header: 'Reviewer',
+        header: t('columns.reviewer'),
         cell: ({ row }) => {
           const metadata = (row.original.metadata || {}) as Record<
             string,
@@ -734,17 +711,21 @@ export default function Approvals({
         ),
       },
     ],
-    [getCustomerLabel, renderProductList],
+    [getCustomerLabel, renderProductList, t, locale],
   );
 
   if (approvals.length === 0) {
     return (
       <DataTableEmptyState
         icon={GitCompare}
-        title={`No ${status || ''} approvals`}
+        title={
+          status === 'pending'
+            ? t('emptyState.pending.title')
+            : t('emptyState.resolved.title')
+        }
         description={
           status === 'pending'
-            ? 'When human input is needed, your AI will request it here'
+            ? t('emptyState.pending.description')
             : undefined
         }
       />

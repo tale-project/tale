@@ -1,16 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -22,20 +16,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { useMutation } from 'convex/react';
-import { api } from '@/convex/_generated/api';
 import { toast } from '@/hooks/use-toast';
+import { useUpdateMemberRole } from '../hooks';
 import { useT } from '@/lib/i18n';
 
-const editMemberSchema = z.object({
-  displayName: z.string().min(1, 'Name is required'),
-  role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
-  email: z.string().email('Please enter a valid email address'),
-  updatePassword: z.boolean().optional(),
-  password: z.string().optional(),
-});
-
-type EditMemberFormData = z.infer<typeof editMemberSchema>;
+// Type for the form data
+type EditMemberFormData = {
+  displayName: string;
+  role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
+  email: string;
+  updatePassword?: boolean;
+  password?: string;
+};
 
 type MemberLite = {
   _id: string;
@@ -60,6 +52,19 @@ export default function EditMemberDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
+  // Create Zod schema with translated validation messages
+  const editMemberSchema = useMemo(
+    () =>
+      z.object({
+        displayName: z.string().min(1, tCommon('validation.required', { field: t('form.name') })),
+        role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
+        email: z.string().email(tCommon('validation.email')),
+        updatePassword: z.boolean().optional(),
+        password: z.string().optional(),
+      }),
+    [t, tCommon],
+  );
+
   const form = useForm<EditMemberFormData>({
     resolver: zodResolver(editMemberSchema),
     defaultValues: {
@@ -77,7 +82,7 @@ export default function EditMemberDialog({
     },
   });
 
-  const updateMemberRole = useMutation(api.member.updateMemberRole);
+  const updateMemberRole = useUpdateMemberRole();
 
   const handleUpdateMember = async (
     memberId: string,
@@ -125,150 +130,130 @@ export default function EditMemberDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t('organization.editMember')}</DialogTitle>
-        </DialogHeader>
+    <FormModal
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={t('organization.editMember')}
+      isSubmitting={isSubmitting}
+      submitDisabled={!isDirty}
+      onSubmit={handleSubmit(onSubmit)}
+    >
+      {/* Name Field */}
+      <div className="space-y-2">
+        <Label htmlFor="displayName" className="text-sm font-medium">
+          {t('form.name')}
+        </Label>
+        <Input
+          id="displayName"
+          placeholder={t('form.namePlaceholder')}
+          {...register('displayName')}
+          className="w-full"
+          required
+        />
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-          {/* Name Field */}
+      {/* Email Field - Read-only */}
+      <div className="space-y-2">
+        <Label htmlFor="email" className="text-sm font-medium">
+          {t('form.email')}
+        </Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder={t('form.emailPlaceholder')}
+          {...register('email')}
+          className="w-full bg-muted"
+          disabled
+          required
+        />
+        <p className="text-xs text-muted-foreground">
+          {t('organization.emailCannotChange')}
+        </p>
+      </div>
+
+      {/* Role Field */}
+      <div className="space-y-2">
+        <Label htmlFor="role" className="text-sm font-medium">
+          {t('form.role')}
+        </Label>
+        <Controller
+          control={form.control}
+          name="role"
+          render={({ field }) => (
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              disabled={isEditingSelf}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">{t('roles.admin')}</SelectItem>
+                <SelectItem value="developer">{t('roles.developer')}</SelectItem>
+                <SelectItem value="editor">{t('roles.editor')}</SelectItem>
+                <SelectItem value="member">{t('roles.member')}</SelectItem>
+                <SelectItem value="disabled">{t('roles.disabled')}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
+        {isEditingSelf && (
+          <p className="text-sm text-muted-foreground">
+            {t('organization.cannotChangeOwnRole')}
+          </p>
+        )}
+        {!isEditingSelf &&
+          member?.role === 'admin' &&
+          watch('role') !== 'admin' && (
+            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+              <p className="text-sm text-amber-800">
+                {t('organization.adminWarning')}
+              </p>
+            </div>
+          )}
+      </div>
+
+      {/* Password Update Section */}
+      <div className="space-y-4 pt-4 border-t">
+        <div className="flex items-center space-x-2">
+          <Controller
+            control={form.control}
+            name="updatePassword"
+            render={({ field }) => (
+              <Checkbox
+                id="updatePassword"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label
+            htmlFor="updatePassword"
+            className="text-sm font-medium cursor-pointer"
+          >
+            {t('organization.updatePassword')}
+          </Label>
+        </div>
+
+        {watch('updatePassword') && (
           <div className="space-y-2">
-            <Label htmlFor="displayName" className="text-sm font-medium">
-              {t('form.name')}
+            <Label htmlFor="password" className="text-sm font-medium">
+              {t('form.password')}
             </Label>
             <Input
-              id="displayName"
-              placeholder={t('form.namePlaceholder')}
-              {...register('displayName')}
+              id="password"
+              type="password"
+              placeholder={t('organization.enterNewPassword')}
+              {...register('password')}
               className="w-full"
-              required
-            />
-          </div>
-
-          {/* Email Field - Read-only */}
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">
-              {t('form.email')}
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder={t('form.emailPlaceholder')}
-              {...register('email')}
-              className="w-full bg-muted"
-              disabled
-              required
             />
             <p className="text-xs text-muted-foreground">
-              {t('organization.emailCannotChange')}
+              {t('organization.userMustUpdatePassword')}
             </p>
           </div>
-
-          {/* Role Field */}
-          <div className="space-y-2">
-            <Label htmlFor="role" className="text-sm font-medium">
-              {t('form.role')}
-            </Label>
-            <Controller
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={isEditingSelf}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">{t('roles.admin')}</SelectItem>
-                    <SelectItem value="developer">{t('roles.developer')}</SelectItem>
-                    <SelectItem value="editor">{t('roles.editor')}</SelectItem>
-                    <SelectItem value="member">{t('roles.member')}</SelectItem>
-                    <SelectItem value="disabled">{t('roles.disabled')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {isEditingSelf && (
-              <p className="text-sm text-muted-foreground">
-                {t('organization.cannotChangeOwnRole')}
-              </p>
-            )}
-            {!isEditingSelf &&
-              member?.role === 'admin' &&
-              watch('role') !== 'admin' && (
-                <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                  <p className="text-sm text-amber-800">
-                    {t('organization.adminWarning')}
-                  </p>
-                </div>
-              )}
-          </div>
-
-          {/* Password Update Section */}
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center space-x-2">
-              <Controller
-                control={form.control}
-                name="updatePassword"
-                render={({ field }) => (
-                  <Checkbox
-                    id="updatePassword"
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-              <Label
-                htmlFor="updatePassword"
-                className="text-sm font-medium cursor-pointer"
-              >
-                {t('organization.updatePassword')}
-              </Label>
-            </div>
-
-            {watch('updatePassword') && (
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  {t('form.password')}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder={t('organization.enterNewPassword')}
-                  {...register('password')}
-                  className="w-full"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('organization.userMustUpdatePassword')}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              {tCommon('actions.cancel')}
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || !isDirty}
-              className="flex-1"
-            >
-              {isSubmitting ? tCommon('actions.updating') : tCommon('actions.save')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        )}
+      </div>
+    </FormModal>
   );
 }

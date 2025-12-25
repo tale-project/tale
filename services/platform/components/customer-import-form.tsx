@@ -17,6 +17,7 @@ import DocumentIcon from './ui/document-icon';
 import { Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useT } from '@/lib/i18n';
 
 interface CustomerImportFormProps {
   hideTabs?: boolean;
@@ -31,6 +32,8 @@ export default function CustomerImportForm({
   organizationId,
   mode,
 }: CustomerImportFormProps) {
+  const { t } = useT('customers');
+  const { t: tCommon } = useT('common');
   const { setValue, control, watch } = useFormContext();
   const dataSource: DataSource = mode
     ? mode === 'manual'
@@ -99,9 +102,9 @@ export default function CustomerImportForm({
               className="w-full"
             >
               <TabsList className="grid w-auto grid-cols-3">
-                <TabsTrigger value="circuly">Circuly</TabsTrigger>
-                <TabsTrigger value="manual_import">Manual Entry</TabsTrigger>
-                <TabsTrigger value="file_upload">Upload</TabsTrigger>
+                <TabsTrigger value="circuly">{t('importForm.circuly')}</TabsTrigger>
+                <TabsTrigger value="manual_import">{t('importForm.manualEntry')}</TabsTrigger>
+                <TabsTrigger value="file_upload">{t('importForm.upload')}</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -137,10 +140,10 @@ export default function CustomerImportForm({
                     </div>
                     <div className="items-start justify-start not-italic relative shrink-0">
                       <div className="font-medium relative shrink-0 text-base text-foreground w-full">
-                        <p>From Shopify</p>
+                        <p>{t('importForm.fromShopify')}</p>
                       </div>
                       <div className="relative shrink-0 text-sm text-muted-foreground w-full">
-                        <p>Sync business data</p>
+                        <p>{t('importForm.syncBusinessData')}</p>
                       </div>
                     </div>
                   </Link>
@@ -168,12 +171,10 @@ export default function CustomerImportForm({
                   />
                   <ul className="min-w-full not-italic relative shrink-0 text-muted-foreground tracking-tight text-xs space-y-2 list-disc list-outside pl-4">
                     <li>
-                      You can use the following supported locales: en, fr, de,
-                      zh, as well as extended formats like en-US, de-DE, and
-                      de-CH.
+                      {t('importForm.localeHint')}
                     </li>
                     <li className="text-yellow-600">
-                      Imported customers are tagged as (Churned)
+                      {t('importForm.churnedNote')}
                     </li>
                   </ul>
                 </div>
@@ -194,7 +195,7 @@ export default function CustomerImportForm({
                   <div
                     role="button"
                     tabIndex={0}
-                    aria-label="Upload file - click or press Enter to select a file, or drag and drop a file here"
+                    aria-label={tCommon('aria.dropzone')}
                     className={cn(
                       'bg-background box-border content-stretch flex flex-col gap-[16px] h-[160px] items-center justify-center px-[16px] py-[12px] relative rounded-[12px] shrink-0 w-full cursor-pointer transition-colors group',
                       isDragOver
@@ -230,18 +231,18 @@ export default function CustomerImportForm({
                       <div className="content-stretch flex font-['Inter:Medium',_sans-serif] font-medium gap-[4px] items-center justify-start relative shrink-0 text-[16px] text-foreground text-nowrap">
                         <div className="relative shrink-0">
                           <p className="leading-[1.5] text-nowrap whitespace-pre">
-                            Click to upload
+                            {tCommon('upload.clickToUpload')}
                           </p>
                         </div>
                         <div className="relative shrink-0">
-                          <p className="leading-[1.5] text-nowrap whitespace-pre">{`or `}</p>
+                          <p className="leading-[1.5] text-nowrap whitespace-pre">{`${tCommon('upload.or')} `}</p>
                         </div>
                         <div className="relative shrink-0">
-                          <p className="leading-[1.5] text-nowrap whitespace-pre">{`drag and drop `}</p>
+                          <p className="leading-[1.5] text-nowrap whitespace-pre">{`${tCommon('upload.dragAndDrop')} `}</p>
                         </div>
                       </div>
                       <div className="min-w-full relative shrink-0 text-[14px] text-center text-muted-foreground">
-                        <p className="leading-[1.5]">.xlsx, .xls or .csv</p>
+                        <p className="leading-[1.5]">{tCommon('upload.supportedFormats')}</p>
                       </div>
                     </div>
                     <Input
@@ -258,12 +259,10 @@ export default function CustomerImportForm({
                   </div>
                   <ul className="min-w-full not-italic relative shrink-0 text-muted-foreground tracking-[-0.21px] text-xs space-y-2 list-disc list-outside pl-4">
                     <li>
-                      You can use the following supported locales: en, fr, de,
-                      zh, as well as extended formats like en-US, de-DE, and
-                      de-CH.
+                      {t('importForm.localeHint')}
                     </li>
                     <li className="text-yellow-600">
-                      Imported customers are tagged as (Churned)
+                      {t('importForm.churnedNote')}
                     </li>
                   </ul>
                   {value && (

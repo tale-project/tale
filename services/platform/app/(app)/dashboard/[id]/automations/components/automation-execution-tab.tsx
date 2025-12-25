@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation, useAction } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useStartWorkflow, useCancelExecution } from '../hooks';
 import { Id } from '@/convex/_generated/dataModel';
 import {
   Card,
@@ -73,12 +74,10 @@ export function AutomationExecutionTab({
   ) as ExecutionRecord[] | undefined;
 
   // Mutations
-  const startAutomation = useMutation(
-    api.workflow.engine.startWorkflow,
-  );
+  const startAutomation = useStartWorkflow();
 
   // Actions
-  const cancelExecution = useAction(api.wf_executions.cancelExecution);
+  const cancelExecution = useCancelExecution();
 
   const handleStartAutomation = async () => {
     if (!selectedAutomation) return;

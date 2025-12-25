@@ -1,15 +1,22 @@
 import WebsitesTable from './websites-table';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import {
+  DataTableSkeleton,
+  DataTableEmptyState,
+} from '@/components/ui/data-table';
+import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
+import { api } from '@/convex/_generated/api';
+import { getAuthToken } from '@/lib/auth/auth-server';
+import { redirect } from 'next/navigation';
+import { Globe } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { websiteFilterDefinitions } from './filter-definitions';
+import AddWebsiteButton from './add-website-button';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    size?: string;
-    status?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /** Skeleton for the websites table with header and rows - matches websites-table.tsx column sizes */
@@ -33,34 +40,60 @@ async function WebsitesSkeleton() {
   );
 }
 
+/** Empty state shown when org has no websites - avoids unnecessary skeleton */
+async function WebsitesEmptyState({ organizationId }: { organizationId: string }) {
+  const { t } = await getT('emptyStates');
+  return (
+    <DataTableEmptyState
+      icon={Globe}
+      title={t('websites.title')}
+      description={t('websites.description')}
+      action={<AddWebsiteButton organizationId={organizationId} />}
+    />
+  );
+}
+
 interface WebsitesContentProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{
-    page: string;
-    size?: string;
-    status?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 async function WebsitesContent({ params, searchParams }: WebsitesContentProps) {
   // All dynamic data access inside Suspense boundary for proper streaming
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
   const { id: organizationId } = await params;
-  const resolvedSearchParams = await searchParams;
+  const rawSearchParams = await searchParams;
 
-  const currentPage = resolvedSearchParams.page
-    ? parseInt(resolvedSearchParams.page)
-    : 1;
+  // Parse filters, pagination, and sorting using unified system
+  const { filters, pagination, sorting } = parseSearchParams(
+    rawSearchParams,
+    websiteFilterDefinitions,
+    { defaultSort: '_creationTime', defaultDesc: true },
+  );
 
-  // Get page size from search params (default to 10)
-  const pageSize = resolvedSearchParams.size
-    ? Number.parseInt(resolvedSearchParams.size)
-    : 10;
+  // Preload websites for SSR + real-time reactivity on client
+  const preloadedWebsites = await preloadQuery(
+    api.websites.listWebsites,
+    {
+      organizationId,
+      currentPage: pagination.page,
+      pageSize: pagination.pageSize,
+      searchTerm: filters.query || undefined,
+      status: filters.status.length > 0 ? filters.status : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+    },
+    { token },
+  );
 
   return (
     <WebsitesTable
       organizationId={organizationId}
-      currentPage={currentPage}
-      pageSize={pageSize}
+      preloadedWebsites={preloadedWebsites}
     />
   );
 }
@@ -69,6 +102,32 @@ export default async function WebsitesPage({
   params,
   searchParams,
 }: PageProps) {
+  const token = await getAuthToken();
+  if (!token) {
+    redirect('/log-in');
+  }
+
+  const { id: organizationId } = await params;
+  const rawSearchParams = await searchParams;
+
+  // Parse filters to check for active filters
+  const { filters } = parseSearchParams(rawSearchParams, websiteFilterDefinitions);
+  const hasFilters = hasActiveFilters(filters, websiteFilterDefinitions);
+
+  // Two-phase loading: check if websites exist before showing skeleton
+  // If no websites and no filters active, show empty state directly
+  if (!hasFilters) {
+    const hasWebsites = await fetchQuery(
+      api.websites.hasWebsites,
+      { organizationId },
+      { token },
+    );
+
+    if (!hasWebsites) {
+      return <WebsitesEmptyState organizationId={organizationId} />;
+    }
+  }
+
   const skeletonFallback = await Promise.resolve(<WebsitesSkeleton />);
 
   return (

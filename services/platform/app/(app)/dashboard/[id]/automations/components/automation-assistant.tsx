@@ -16,8 +16,17 @@ import { cn } from '@/lib/utils/cn';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
 import { useState, useRef, useEffect } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
-import { useAction, useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import {
+  useChatWithWorkflowAssistant,
+  useUpdateAutomationMetadata,
+} from '../hooks';
+import {
+  useCreateThread,
+  useDeleteThread,
+  useGenerateUploadUrl,
+} from '../../chat/hooks';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -101,12 +110,12 @@ function ThinkingAnimation({ steps }: { steps: string[] }) {
     <div className="flex justify-start">
       <motion.div
         key={currentStep}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
         transition={{
-          duration: 0.2,
-          ease: 'easeInOut',
+          duration: 0.3,
+          ease: [0.25, 0.1, 0.25, 1],
         }}
         className="text-xs text-muted-foreground flex items-center gap-2 px-3"
       >
@@ -116,8 +125,8 @@ function ThinkingAnimation({ steps }: { steps: string[] }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{
-            duration: 0.2,
-            ease: 'easeInOut',
+            duration: 0.25,
+            ease: [0.25, 0.1, 0.25, 1],
           }}
           className="inline-block"
         >
@@ -151,6 +160,7 @@ export function AutomationAssistant({
   onClearChat,
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -166,17 +176,13 @@ export function AutomationAssistant({
     delay: 16,
   });
 
-  const generateUploadUrl = useMutation(api.file.generateUploadUrl);
+  const generateUploadUrl = useGenerateUploadUrl();
 
   // Connect to workflow assistant agent
-  const chatWithWorkflowAssistant = useAction(
-    api.workflow_assistant_agent.chatWithWorkflowAssistant,
-  );
-  const createChatThread = useMutation(api.threads.createChatThread);
-  const deleteChatThread = useMutation(api.threads.deleteChatThread);
-  const updateWorkflowMetadata = useMutation(
-    api.wf_definitions.updateWorkflowMetadata,
-  );
+  const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
+  const createChatThread = useCreateThread();
+  const deleteChatThread = useDeleteThread();
+  const updateWorkflowMetadata = useUpdateAutomationMetadata();
 
   // Load workflow to get threadId from metadata (use public API)
   const workflow = useQuery(
@@ -661,7 +667,7 @@ export function AutomationAssistant({
           isDragOver && 'ring-2 ring-primary ring-offset-2',
         )}
         role="region"
-        aria-label="Drop files here to attach"
+        aria-label={tCommon('aria.dropFilesHere')}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

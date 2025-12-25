@@ -12,7 +12,10 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterButton } from '@/components/filters/filter-button';
 import { FilterSection } from '@/components/filters/filter-section';
+import DatePickerWithRange from '@/components/ui/date-range-picker';
+import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n';
 
 export interface FilterOption {
   value: string;
@@ -48,6 +51,15 @@ export interface DataTableFiltersProps {
   };
   /** Filter configurations */
   filters?: FilterConfig[];
+  /** Date range filter configuration */
+  dateRange?: {
+    /** Start date */
+    from?: Date;
+    /** End date */
+    to?: Date;
+    /** Callback when date range changes */
+    onChange: (range: DateRange | undefined) => void;
+  };
   /** Whether filters are loading */
   isLoading?: boolean;
   /** Callback to clear all filters */
@@ -69,11 +81,13 @@ export interface DataTableFiltersProps {
 export function DataTableFilters({
   search,
   filters = [],
+  dateRange,
   isLoading = false,
   onClearAll,
   children,
   className,
 }: DataTableFiltersProps) {
+  const { t } = useT('common');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
@@ -82,7 +96,8 @@ export function DataTableFilters({
     0,
   );
 
-  const hasActiveFilters = totalActiveFilters > 0 || (search?.value && search.value.length > 0);
+  const hasDateRange = dateRange?.from || dateRange?.to;
+  const hasActiveFilters = totalActiveFilters > 0 || (search?.value && search.value.length > 0) || hasDateRange;
 
   const handleFilterChange = (
     filter: FilterConfig,
@@ -100,15 +115,18 @@ export function DataTableFilters({
       search.onChange('');
     }
     filters.forEach((filter) => filter.onChange([]));
+    if (dateRange?.onChange) {
+      dateRange.onChange(undefined);
+    }
     onClearAll?.();
     setIsFilterOpen(false);
   };
 
   return (
-    <div className={cn('flex items-center justify-between gap-4', className)}>
-      <div className="flex items-center gap-3">
+    <div className={cn('flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4', className)}>
+      <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
         {search && (
-          <div className={cn('relative', search.className ?? 'w-[18.75rem]')}>
+          <div className={cn('relative flex-1 sm:flex-none', search.className ?? 'w-full sm:w-[18.75rem]')}>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
             <Input
               placeholder={search.placeholder ?? 'Search...'}
@@ -128,14 +146,14 @@ export function DataTableFilters({
             </PopoverTrigger>
             <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
               <div className="flex items-center justify-between p-2">
-                <h4 className="text-sm font-semibold text-foreground">Filters</h4>
+                <h4 className="text-sm font-semibold text-foreground">{t('labels.filters')}</h4>
                 {totalActiveFilters > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAll}
                     className="text-xs text-primary hover:text-primary/80 font-medium"
                   >
-                    Clear all
+                    {t('actions.clearAll')}
                   </button>
                 )}
               </div>
@@ -177,13 +195,20 @@ export function DataTableFilters({
           </Popover>
         )}
 
+        {dateRange && (
+          <DatePickerWithRange
+            defaultDate={{ from: dateRange.from, to: dateRange.to }}
+            onChange={dateRange.onChange}
+          />
+        )}
+
         {children}
       </div>
 
       {hasActiveFilters && onClearAll && (
         <Button variant="ghost" onClick={handleClearAll} className="gap-2">
           <X className="size-4" />
-          Clear all
+          {t('actions.clearAll')}
         </Button>
       )}
     </div>

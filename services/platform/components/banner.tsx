@@ -1,9 +1,12 @@
+'use client';
+
 import { X } from 'lucide-react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ComponentPropsWithoutRef, FC } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 import { Button } from './ui/button';
+import { useT } from '@/lib/i18n';
 
 const bannerVariants = cva(
   'flex items-center gap-2 rounded-lg border p-3 transition-all',
@@ -88,6 +91,8 @@ export default function Banner({
   className,
   ...restProps
 }: BannerProps) {
+  const { t } = useT('common');
+
   if (isHidden) {
     return null;
   }
@@ -106,7 +111,7 @@ export default function Banner({
           size="icon"
           onClick={onClose}
           className={bannerCloseVariants({ variant })}
-          aria-label="Dismiss"
+          aria-label={t('aria.dismiss')}
         >
           <X className="size-full" />
         </Button>

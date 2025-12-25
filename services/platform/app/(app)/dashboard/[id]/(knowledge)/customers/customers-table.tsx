@@ -1,63 +1,86 @@
 'use client';
 
 import { useMemo } from 'react';
-import { usePreloadedQuery, type Preloaded } from 'convex/react';
-import { useSearchParams } from 'next/navigation';
+import { type Preloaded } from 'convex/react';
 import { Users } from 'lucide-react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { LocaleIcon } from '@/components/ui/icons';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
 import { formatDate } from '@/lib/utils/date/format';
 import CustomerRowActions from './customer-row-actions';
-import CustomerFilter from './customer-filter';
-import CustomerSearch from './customer-search';
 import ImportCustomersMenu from './import-customers-menu';
 import { useT, useLocale } from '@/lib/i18n';
+import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { customerFilterDefinitions } from './filter-definitions';
 
 export interface CustomersTableProps {
   organizationId: string;
-  currentPage?: number;
-  pageSize?: number;
-  searchTerm?: string;
-  preloadedCustomers: Preloaded<typeof api.customers.getCustomers>;
+  preloadedCustomers: Preloaded<typeof api.customers.listCustomers>;
 }
 
 export default function CustomersTable({
   organizationId,
-  currentPage = 1,
-  pageSize = 10,
-  searchTerm,
   preloadedCustomers,
 }: CustomersTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
+  const { t: tCustomers } = useT('customers');
   const locale = useLocale();
 
-  const searchParams = useSearchParams();
+  // Use unified URL filters hook with sorting
+  const {
+    filters: filterValues,
+    sorting,
+    setSorting,
+    pagination,
+    setFilter,
+    setPage,
+    setPageSize,
+    clearAll,
+    hasActiveFilters,
+    isPending,
+  } = useUrlFilters({
+    filters: customerFilterDefinitions,
+    pagination: { defaultPageSize: 10 },
+    sorting: { defaultSort: '_creationTime', defaultDesc: true },
+  });
 
-  // Memoize filter parsing to avoid string operations on every render
-  const { hasActiveFilters } =
-    useMemo(() => {
-      const status = searchParams.get('status')?.split(',').filter(Boolean);
-      const source = searchParams.get('source')?.split(',').filter(Boolean);
-      const locale = searchParams.get('locale')?.split(',').filter(Boolean);
+  // Use paginated query with SSR + real-time updates
+  const { data, isLoading } = useOffsetPaginatedQuery({
+    query: api.customers.listCustomers,
+    preloadedData: preloadedCustomers,
+    organizationId,
+    filters: {
+      filters: filterValues,
+      sorting,
+      pagination,
+      setFilter,
+      setSorting,
+      setPage,
+      setPageSize,
+      clearAll,
+      hasActiveFilters,
+      isPending,
+      definitions: customerFilterDefinitions,
+    },
+    transformFilters: (f) => ({
+      searchTerm: f.query || undefined,
+      // Cast status to the expected type
+      status: f.status.length > 0 ? (f.status as Array<'active' | 'churned' | 'potential'>) : undefined,
+      source: f.source.length > 0 ? f.source : undefined,
+      locale: f.locale.length > 0 ? f.locale : undefined,
+      sortField: sorting[0]?.id,
+      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+    }),
+  });
 
-      return {
-        hasActiveFilters:
-          searchTerm ||
-          (status && status.length > 0) ||
-          (source && source.length > 0) ||
-          (locale && locale.length > 0),
-      };
-    }, [searchParams, searchTerm]);
-
-  // Use preloaded query for SSR + real-time reactivity
-  const result = usePreloadedQuery(preloadedCustomers);
-  const customers = result.page;
+  const customers = data?.items ?? [];
   const emptyCustomers = customers.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
@@ -130,7 +153,55 @@ export default function CustomersTable({
         ),
       },
     ],
-    [tTables],
+    [tTables, locale],
+  );
+
+  // Build filter configs for DataTableFilters component
+  // Note: Status labels are capitalized directly (matching original behavior)
+  const filterConfigs = useMemo(
+    () => [
+      {
+        key: 'status',
+        title: tTables('headers.status'),
+        options: [
+          { value: 'active', label: tCustomers('filter.status.active') },
+          { value: 'potential', label: tCustomers('filter.status.potential') },
+          { value: 'churned', label: tCustomers('filter.status.churned') },
+          { value: 'lost', label: tCustomers('filter.status.lost') },
+        ],
+        selectedValues: filterValues.status,
+        onChange: (values: string[]) => setFilter('status', values),
+      },
+      {
+        key: 'source',
+        title: tTables('headers.source'),
+        options: [
+          { value: 'manual_import', label: tCustomers('filter.source.manual') },
+          { value: 'file_upload', label: tCustomers('filter.source.upload') },
+          { value: 'circuly', label: tCustomers('filter.source.circuly') },
+        ],
+        selectedValues: filterValues.source,
+        onChange: (values: string[]) => setFilter('source', values),
+      },
+      {
+        key: 'locale',
+        title: tTables('headers.locale'),
+        options: [
+          { value: 'en', label: 'EN' },
+          { value: 'es', label: 'ES' },
+          { value: 'fr', label: 'FR' },
+          { value: 'de', label: 'DE' },
+          { value: 'it', label: 'IT' },
+          { value: 'pt', label: 'PT' },
+          { value: 'nl', label: 'NL' },
+          { value: 'zh', label: 'ZH' },
+        ],
+        selectedValues: filterValues.locale,
+        onChange: (values: string[]) => setFilter('locale', values),
+        grid: true,
+      },
+    ],
+    [filterValues, setFilter, tTables, tCustomers],
   );
 
   // Show empty state when no customers and no filters
@@ -150,22 +221,37 @@ export default function CustomersTable({
       columns={columns}
       data={customers}
       getRowId={(row) => row._id}
+      isLoading={isLoading}
+      stickyLayout
+      enableSorting
+      initialSorting={sorting}
+      onSortingChange={setSorting}
       header={
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <CustomerSearch currentSearch={searchTerm} />
-            <CustomerFilter />
-          </div>
+          <DataTableFilters
+            search={{
+              value: filterValues.query,
+              onChange: (value) => setFilter('query', value),
+              placeholder: tCustomers('searchPlaceholder'),
+            }}
+            filters={filterConfigs}
+            isLoading={isPending}
+            onClearAll={clearAll}
+          />
           <ImportCustomersMenu organizationId={organizationId} />
         </div>
       }
       pagination={{
-        total: customers.length,
-        pageSize,
-        totalPages: Math.ceil(customers.length / pageSize),
-        clientSide: true,
+        total: data?.total ?? 0,
+        pageSize: pagination.pageSize,
+        totalPages: data?.totalPages ?? 1,
+        hasNextPage: data?.hasNextPage ?? false,
+        hasPreviousPage: data?.hasPreviousPage ?? false,
+        onPageChange: setPage,
+        onPageSizeChange: setPageSize,
+        clientSide: false,
       }}
-      currentPage={currentPage}
+      currentPage={pagination.page}
     />
   );
 }
