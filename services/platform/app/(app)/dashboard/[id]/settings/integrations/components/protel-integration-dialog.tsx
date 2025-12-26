@@ -10,14 +10,6 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Form,
-} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
@@ -65,7 +57,12 @@ export default function ProtelIntegrationDialog({
 }: ProtelIntegrationDialogProps) {
   const isConnected = !!credentials?.server;
 
-  const form = useForm<ProtelFormValues>({
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting, errors },
+    reset,
+  } = useForm<ProtelFormValues>({
     resolver: zodResolver(protelSchema),
     defaultValues: {
       server: credentials?.server || '',
@@ -75,12 +72,6 @@ export default function ProtelIntegrationDialog({
       password: '',
     },
   });
-
-  const {
-    handleSubmit,
-    formState: { isSubmitting },
-    reset,
-  } = form;
 
   const handleConnect = async (values: ProtelFormValues) => {
     try {
@@ -153,105 +144,55 @@ export default function ProtelIntegrationDialog({
               </div>
             </div>
           ) : (
-            <Form {...form}>
-              <form
-                onSubmit={handleSubmit(handleConnect)}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-3 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="server"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel>Server Address</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="192.168.1.100 or hostname"
-                            {...field}
-                            disabled={isSubmitting}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="port"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Port</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="1433"
-                            {...field}
-                            disabled={isSubmitting}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+            <form
+              onSubmit={handleSubmit(handleConnect)}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <Input
+                    label="Server Address"
+                    placeholder="192.168.1.100 or hostname"
+                    {...register('server')}
+                    disabled={isSubmitting}
+                    errorMessage={errors.server?.message}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="database"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Database Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Protel"
-                          {...field}
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <Input
+                  label="Port"
+                  type="number"
+                  placeholder="1433"
+                  {...register('port')}
+                  disabled={isSubmitting}
+                  errorMessage={errors.port?.message}
                 />
+              </div>
 
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="SQL Server username"
-                          {...field}
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <Input
+                label="Database Name"
+                placeholder="Protel"
+                {...register('database')}
+                disabled={isSubmitting}
+                errorMessage={errors.database?.message}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="SQL Server password"
-                          {...field}
-                          disabled={isSubmitting}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </form>
-            </Form>
+              <Input
+                label="Username"
+                placeholder="SQL Server username"
+                {...register('username')}
+                disabled={isSubmitting}
+                errorMessage={errors.username?.message}
+              />
+
+              <Input
+                label="Password"
+                type="password"
+                placeholder="SQL Server password"
+                {...register('password')}
+                disabled={isSubmitting}
+                errorMessage={errors.password?.message}
+              />
+            </form>
           )}
         </div>
 
@@ -296,4 +237,3 @@ export default function ProtelIntegrationDialog({
     </Dialog>
   );
 }
-
