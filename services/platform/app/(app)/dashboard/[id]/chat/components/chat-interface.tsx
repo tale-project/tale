@@ -363,8 +363,9 @@ export default function ChatInterface({
   // Fetch integration approvals for this thread
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
 
-  // Create a merged list of messages and approvals, sorted by creation time
-  // This allows approvals to appear inline with messages in chronological order
+  // Create a merged list of messages and approvals
+  // Approvals are positioned right after their associated message (by messageId)
+  // Only show approvals whose associated message is currently loaded (handles pagination)
   type ChatItem =
     | { type: 'message'; data: ChatMessage }
     | { type: 'approval'; data: IntegrationApproval };
@@ -372,20 +373,29 @@ export default function ChatInterface({
   const mergedChatItems = useMemo((): ChatItem[] => {
     const items: ChatItem[] = [];
 
+    // Build a set of currently loaded message IDs for filtering approvals
+    const loadedMessageIds = new Set<string>();
+    // Build a map of message id -> creation time for positioning approvals
+    const messageTimeMap = new Map<string, number>();
+    for (const message of threadMessages || []) {
+      loadedMessageIds.add(message.id);
+      const time = message._creationTime || message.timestamp.getTime();
+      messageTimeMap.set(message.id, time);
+    }
+
     // Add messages
     for (const message of threadMessages || []) {
       items.push({ type: 'message', data: message });
     }
 
-    // Filter approvals: hide pending approvals that don't have a messageId yet
-    // The messageId is linked after the stream completes in generateAgentResponse
-    // This ensures approval cards only appear after the assistant message is fully rendered
+    // Filter approvals:
+    // 1. Must have a messageId (pending approvals without messageId are hidden until stream completes)
+    // 2. The associated message must be currently loaded (handles pagination)
     const filteredApprovals = (integrationApprovals || []).filter((approval) => {
-      // Always show resolved approvals (approved/rejected)
-      if (approval.status !== 'pending') return true;
-      // For pending approvals, only show if they have a messageId
-      // (meaning the stream that created them has completed)
-      return !!approval.messageId;
+      // Must have a messageId to be displayed
+      if (!approval.messageId) return false;
+      // Only show if the associated message is currently loaded
+      return loadedMessageIds.has(approval.messageId);
     });
 
     // Add filtered approvals
@@ -393,17 +403,26 @@ export default function ChatInterface({
       items.push({ type: 'approval', data: approval });
     }
 
-    // Sort by creation time (approvals have _creationTime, messages have _creationTime or timestamp)
+    // Sort items:
+    // - Messages are sorted by their creation time
+    // - Approvals are positioned right after their associated message (by messageId)
     items.sort((a, b) => {
-      const timeA =
-        a.type === 'message'
-          ? a.data._creationTime || a.data.timestamp.getTime()
-          : a.data._creationTime;
-      const timeB =
-        b.type === 'message'
-          ? b.data._creationTime || b.data.timestamp.getTime()
-          : b.data._creationTime;
-      return timeA - timeB;
+      const getItemSortKey = (item: ChatItem): number => {
+        if (item.type === 'message') {
+          return item.data._creationTime || item.data.timestamp.getTime();
+        }
+        // For approvals, position after the associated message
+        const approval = item.data;
+        const messageTime = messageTimeMap.get(approval.messageId!);
+        if (messageTime !== undefined) {
+          // Add 0.1ms offset to ensure approval appears after its message
+          return messageTime + 0.1;
+        }
+        // Fallback (should not happen since we filtered above)
+        return approval._creationTime;
+      };
+
+      return getItemSortKey(a) - getItemSortKey(b);
     });
 
     return items;

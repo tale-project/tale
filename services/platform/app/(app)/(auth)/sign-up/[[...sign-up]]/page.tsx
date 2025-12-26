@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import AuthLayout from '@/components/auth-layout';
 import SignUpForm from '@/components/auth/sign-up-form';
 import { FormSkeleton } from '@/components/skeletons';
 import { getT } from '@/lib/i18n/server';
@@ -34,21 +33,15 @@ async function SignUpContent() {
 
   const microsoftEnabled = isMicrosoftAuthEnabled();
 
-  return (
-    <AuthLayout>
-      <SignUpForm microsoftEnabled={microsoftEnabled} />
-    </AuthLayout>
-  );
+  return <SignUpForm microsoftEnabled={microsoftEnabled} />;
 }
 
 /** Skeleton for the sign-up form */
 function SignUpSkeleton() {
   return (
-    <AuthLayout>
-      <div className="max-w-md mx-auto">
-        <FormSkeleton fields={3} />
-      </div>
-    </AuthLayout>
+    <div className="max-w-md mx-auto">
+      <FormSkeleton fields={3} />
+    </div>
   );
 }
 

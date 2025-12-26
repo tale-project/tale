@@ -453,29 +453,46 @@ export async function generateAgentResponse(
 
     // After stream completes, link any pending approvals to the assistant message
     // The message ID wasn't available during tool execution, so we link it now
+    //
+    // IMPORTANT: We need to find the FIRST message in the current "order" group,
+    // because useUIMessages/listUIMessages includes ALL messages (including tool messages)
+    // and combines them by order. The UIMessage.id is set to firstMessage._id.
     try {
-      // Get the latest assistant message from the thread
+      // Get the latest messages from the thread (include ALL messages to match UIMessage grouping)
       const messagesResult = await listMessages(ctx, components.agent, {
         threadId,
-        paginationOpts: { cursor: null, numItems: 5 },
-        excludeToolMessages: true,
+        paginationOpts: { cursor: null, numItems: 50 },
+        excludeToolMessages: false, // Include all messages to find the correct first message
       });
 
-      // Find the latest assistant message (should be the one just created)
+      // Find the latest assistant message to get its order
       const latestAssistantMessage = messagesResult.page.find(
         (m: MessageDoc) => m.message?.role === 'assistant'
       );
 
       if (latestAssistantMessage) {
+        // Find ALL messages with the same order (this is how UIMessages groups them)
+        // But EXCLUDE user messages since they are separate UIMessages
+        const currentOrder = latestAssistantMessage.order;
+        const messagesInSameOrder = messagesResult.page.filter(
+          (m: MessageDoc) => m.order === currentOrder && m.message?.role !== 'user'
+        );
+
+        // Sort by stepOrder to find the first one (UIMessage uses firstMessage._id)
+        messagesInSameOrder.sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder);
+        const firstMessageInOrder = messagesInSameOrder[0] || latestAssistantMessage;
+
+        debugLog(`Linking approvals: order=${currentOrder}, firstInOrder._id=${firstMessageInOrder._id}, role=${firstMessageInOrder.message?.role || 'tool'}`);
+
         const linkedCount = await ctx.runMutation(
           internal.approvals.linkApprovalsToMessage,
           {
             threadId,
-            messageId: latestAssistantMessage._id,
+            messageId: firstMessageInOrder._id,
           }
         );
         if (linkedCount > 0) {
-          debugLog(`Linked ${linkedCount} pending approvals to message ${latestAssistantMessage._id}`);
+          debugLog(`Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`);
         }
       }
     } catch (error) {
