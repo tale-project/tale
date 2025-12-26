@@ -4,15 +4,11 @@ import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
-import { Package } from 'lucide-react';
-import ImportProductsMenu from './import-products-menu';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { productFilterDefinitions } from './filter-definitions';
+import { ProductsEmptyState } from './products-empty-state';
 import type { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -46,18 +42,6 @@ async function ProductsSkeleton() {
   );
 }
 
-/** Empty state shown when org has no products - avoids unnecessary skeleton */
-async function ProductsEmptyState({ organizationId }: { organizationId: string }) {
-  const { t } = await getT('emptyStates');
-  return (
-    <DataTableEmptyState
-      icon={Package}
-      title={t('products.title')}
-      description={t('products.description')}
-      action={<ImportProductsMenu organizationId={organizationId} />}
-    />
-  );
-}
 
 interface ProductsContentProps {
   params: Promise<{ id: string }>;

@@ -1,4 +1,4 @@
- 
+/* eslint-disable */
 /**
  * Generated `api` utility.
  *
@@ -33,6 +33,13 @@ import type * as agent_tools_files_image_tool from "../agent_tools/files/image_t
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
+import type * as agent_tools_integrations_create_integration_approval from "../agent_tools/integrations/create_integration_approval.js";
+import type * as agent_tools_integrations_execute_approved_operation from "../agent_tools/integrations/execute_approved_operation.js";
+import type * as agent_tools_integrations_execute_integration_internal from "../agent_tools/integrations/execute_integration_internal.js";
+import type * as agent_tools_integrations_integration_introspect_tool from "../agent_tools/integrations/integration_introspect_tool.js";
+import type * as agent_tools_integrations_integration_tool from "../agent_tools/integrations/integration_tool.js";
+import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
+import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
@@ -73,7 +80,6 @@ import type * as lib_attachments_format_markdown from "../lib/attachments/format
 import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
-import type * as lib_chat_agent_retrier from "../lib/chat_agent_retrier.js";
 import type * as lib_create_agent_config from "../lib/create_agent_config.js";
 import type * as lib_create_chat_agent from "../lib/create_chat_agent.js";
 import type * as lib_create_workflow_agent from "../lib/create_workflow_agent.js";
@@ -85,7 +91,15 @@ import type * as lib_crypto_generate_secure_state from "../lib/crypto/generate_s
 import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js";
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
+import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
+import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
+import type * as lib_pagination_index from "../lib/pagination/index.js";
+import type * as lib_pagination_types from "../lib/pagination/types.js";
+import type * as lib_query_builder_build_query from "../lib/query_builder/build_query.js";
+import type * as lib_query_builder_index from "../lib/query_builder/index.js";
+import type * as lib_query_builder_select_index from "../lib/query_builder/select_index.js";
+import type * as lib_query_builder_types from "../lib/query_builder/types.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
@@ -122,6 +136,7 @@ import type * as model_approvals_create_approval from "../model/approvals/create
 import type * as model_approvals_get_approval from "../model/approvals/get_approval.js";
 import type * as model_approvals_get_approval_history from "../model/approvals/get_approval_history.js";
 import type * as model_approvals_index from "../model/approvals/index.js";
+import type * as model_approvals_link_approvals_to_message from "../model/approvals/link_approvals_to_message.js";
 import type * as model_approvals_list_approvals_by_organization from "../model/approvals/list_approvals_by_organization.js";
 import type * as model_approvals_list_approvals_for_execution from "../model/approvals/list_approvals_for_execution.js";
 import type * as model_approvals_list_pending_approvals from "../model/approvals/list_pending_approvals.js";
@@ -130,9 +145,14 @@ import type * as model_approvals_remove_recommended_product from "../model/appro
 import type * as model_approvals_types from "../model/approvals/types.js";
 import type * as model_approvals_update_approval_status from "../model/approvals/update_approval_status.js";
 import type * as model_chat_agent_auto_summarize_if_needed from "../model/chat_agent/auto_summarize_if_needed.js";
-import type * as model_chat_agent_cancel_chat from "../model/chat_agent/cancel_chat.js";
 import type * as model_chat_agent_chat_with_agent from "../model/chat_agent/chat_with_agent.js";
-import type * as model_chat_agent_chat_with_agent_status from "../model/chat_agent/chat_with_agent_status.js";
+import type * as model_chat_agent_context_management_check_and_summarize from "../model/chat_agent/context_management/check_and_summarize.js";
+import type * as model_chat_agent_context_management_constants from "../model/chat_agent/context_management/constants.js";
+import type * as model_chat_agent_context_management_context_handler from "../model/chat_agent/context_management/context_handler.js";
+import type * as model_chat_agent_context_management_context_priority from "../model/chat_agent/context_management/context_priority.js";
+import type * as model_chat_agent_context_management_estimate_context_size from "../model/chat_agent/context_management/estimate_context_size.js";
+import type * as model_chat_agent_context_management_estimate_tokens from "../model/chat_agent/context_management/estimate_tokens.js";
+import type * as model_chat_agent_context_management_index from "../model/chat_agent/context_management/index.js";
 import type * as model_chat_agent_generate_agent_response from "../model/chat_agent/generate_agent_response.js";
 import type * as model_chat_agent_index from "../model/chat_agent/index.js";
 import type * as model_chat_agent_message_deduplication from "../model/chat_agent/message_deduplication.js";
@@ -174,6 +194,7 @@ import type * as model_customers_get_customer from "../model/customers/get_custo
 import type * as model_customers_get_customer_by_email from "../model/customers/get_customer_by_email.js";
 import type * as model_customers_get_customer_by_external_id from "../model/customers/get_customer_by_external_id.js";
 import type * as model_customers_get_customer_by_id from "../model/customers/get_customer_by_id.js";
+import type * as model_customers_get_customers from "../model/customers/get_customers.js";
 import type * as model_customers_index from "../model/customers/index.js";
 import type * as model_customers_query_customers from "../model/customers/query_customers.js";
 import type * as model_customers_search_customers from "../model/customers/search_customers.js";
@@ -287,7 +308,6 @@ import type * as model_products_update_products from "../model/products/update_p
 import type * as model_products_upsert_product_translation from "../model/products/upsert_product_translation.js";
 import type * as model_threads_create_chat_thread from "../model/threads/create_chat_thread.js";
 import type * as model_threads_delete_chat_thread from "../model/threads/delete_chat_thread.js";
-import type * as model_threads_get_active_run_id from "../model/threads/get_active_run_id.js";
 import type * as model_threads_get_latest_thread_with_message_count from "../model/threads/get_latest_thread_with_message_count.js";
 import type * as model_threads_get_latest_tool_message from "../model/threads/get_latest_tool_message.js";
 import type * as model_threads_get_thread_messages from "../model/threads/get_thread_messages.js";
@@ -367,6 +387,7 @@ import type * as model_wf_executions_get_raw_execution from "../model/wf_executi
 import type * as model_wf_executions_get_workflow_execution_stats from "../model/wf_executions/get_workflow_execution_stats.js";
 import type * as model_wf_executions_index from "../model/wf_executions/index.js";
 import type * as model_wf_executions_list_executions from "../model/wf_executions/list_executions.js";
+import type * as model_wf_executions_list_executions_paginated from "../model/wf_executions/list_executions_paginated.js";
 import type * as model_wf_executions_patch_execution from "../model/wf_executions/patch_execution.js";
 import type * as model_wf_executions_resume_execution from "../model/wf_executions/resume_execution.js";
 import type * as model_wf_executions_set_component_workflow from "../model/wf_executions/set_component_workflow.js";
@@ -433,11 +454,19 @@ import type * as node_only_integration_sandbox_helpers_index from "../node_only/
 import type * as node_only_integration_sandbox_types from "../node_only/integration_sandbox/types.js";
 import type * as node_only_microsoft_graph_send_email from "../node_only/microsoft_graph/send_email.js";
 import type * as node_only_smtp_send_email from "../node_only/smtp/send_email.js";
+import type * as node_only_sql_execute_query_internal from "../node_only/sql/execute_query_internal.js";
+import type * as node_only_sql_helpers_execute_mssql_query from "../node_only/sql/helpers/execute_mssql_query.js";
+import type * as node_only_sql_helpers_execute_mysql_query from "../node_only/sql/helpers/execute_mysql_query.js";
+import type * as node_only_sql_helpers_execute_postgres_query from "../node_only/sql/helpers/execute_postgres_query.js";
+import type * as node_only_sql_helpers_execute_query from "../node_only/sql/helpers/execute_query.js";
+import type * as node_only_sql_helpers_validate_query from "../node_only/sql/helpers/validate_query.js";
+import type * as node_only_sql_types from "../node_only/sql/types.js";
 import type * as oauth2 from "../oauth2.js";
 import type * as onedrive from "../onedrive.js";
 import type * as organizations from "../organizations.js";
 import type * as predefined_integrations_circuly from "../predefined_integrations/circuly.js";
 import type * as predefined_integrations_index from "../predefined_integrations/index.js";
+import type * as predefined_integrations_protel from "../predefined_integrations/protel.js";
 import type * as predefined_integrations_shopify from "../predefined_integrations/shopify.js";
 import type * as predefined_integrations_types from "../predefined_integrations/types.js";
 import type * as predefined_workflows_circuly_sync_customers from "../predefined_workflows/circuly_sync_customers.js";
@@ -502,6 +531,14 @@ import type * as workflow_actions_imap_helpers_get_imap_credentials from "../wor
 import type * as workflow_actions_imap_helpers_types from "../workflow/actions/imap/helpers/types.js";
 import type * as workflow_actions_imap_imap_action from "../workflow/actions/imap/imap_action.js";
 import type * as workflow_actions_integration_helpers_build_secrets_from_integration from "../workflow/actions/integration/helpers/build_secrets_from_integration.js";
+import type * as workflow_actions_integration_helpers_decrypt_sql_credentials from "../workflow/actions/integration/helpers/decrypt_sql_credentials.js";
+import type * as workflow_actions_integration_helpers_detect_write_operation from "../workflow/actions/integration/helpers/detect_write_operation.js";
+import type * as workflow_actions_integration_helpers_execute_sql_integration from "../workflow/actions/integration/helpers/execute_sql_integration.js";
+import type * as workflow_actions_integration_helpers_get_introspect_columns_query from "../workflow/actions/integration/helpers/get_introspect_columns_query.js";
+import type * as workflow_actions_integration_helpers_get_introspect_tables_query from "../workflow/actions/integration/helpers/get_introspect_tables_query.js";
+import type * as workflow_actions_integration_helpers_get_introspection_operations from "../workflow/actions/integration/helpers/get_introspection_operations.js";
+import type * as workflow_actions_integration_helpers_is_introspection_operation from "../workflow/actions/integration/helpers/is_introspection_operation.js";
+import type * as workflow_actions_integration_helpers_validate_required_parameters from "../workflow/actions/integration/helpers/validate_required_parameters.js";
 import type * as workflow_actions_integration_integration_action from "../workflow/actions/integration/integration_action.js";
 import type * as workflow_actions_onedrive_onedrive_action from "../workflow/actions/onedrive/onedrive_action.js";
 import type * as workflow_actions_product_product_action from "../workflow/actions/product/product_action.js";
@@ -650,6 +687,13 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
+  "agent_tools/integrations/create_integration_approval": typeof agent_tools_integrations_create_integration_approval;
+  "agent_tools/integrations/execute_approved_operation": typeof agent_tools_integrations_execute_approved_operation;
+  "agent_tools/integrations/execute_integration_internal": typeof agent_tools_integrations_execute_integration_internal;
+  "agent_tools/integrations/integration_introspect_tool": typeof agent_tools_integrations_integration_introspect_tool;
+  "agent_tools/integrations/integration_tool": typeof agent_tools_integrations_integration_tool;
+  "agent_tools/integrations/types": typeof agent_tools_integrations_types;
+  "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
@@ -690,7 +734,6 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/index": typeof lib_attachments_index;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
-  "lib/chat_agent_retrier": typeof lib_chat_agent_retrier;
   "lib/create_agent_config": typeof lib_create_agent_config;
   "lib/create_chat_agent": typeof lib_create_chat_agent;
   "lib/create_workflow_agent": typeof lib_create_workflow_agent;
@@ -702,7 +745,15 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/get_secret_key": typeof lib_crypto_get_secret_key;
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/debug_log": typeof lib_debug_log;
+  "lib/error_classification": typeof lib_error_classification;
   "lib/openai_provider": typeof lib_openai_provider;
+  "lib/pagination/helpers": typeof lib_pagination_helpers;
+  "lib/pagination/index": typeof lib_pagination_index;
+  "lib/pagination/types": typeof lib_pagination_types;
+  "lib/query_builder/build_query": typeof lib_query_builder_build_query;
+  "lib/query_builder/index": typeof lib_query_builder_index;
+  "lib/query_builder/select_index": typeof lib_query_builder_select_index;
+  "lib/query_builder/types": typeof lib_query_builder_types;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
@@ -739,6 +790,7 @@ declare const fullApi: ApiFromModules<{
   "model/approvals/get_approval": typeof model_approvals_get_approval;
   "model/approvals/get_approval_history": typeof model_approvals_get_approval_history;
   "model/approvals/index": typeof model_approvals_index;
+  "model/approvals/link_approvals_to_message": typeof model_approvals_link_approvals_to_message;
   "model/approvals/list_approvals_by_organization": typeof model_approvals_list_approvals_by_organization;
   "model/approvals/list_approvals_for_execution": typeof model_approvals_list_approvals_for_execution;
   "model/approvals/list_pending_approvals": typeof model_approvals_list_pending_approvals;
@@ -747,9 +799,14 @@ declare const fullApi: ApiFromModules<{
   "model/approvals/types": typeof model_approvals_types;
   "model/approvals/update_approval_status": typeof model_approvals_update_approval_status;
   "model/chat_agent/auto_summarize_if_needed": typeof model_chat_agent_auto_summarize_if_needed;
-  "model/chat_agent/cancel_chat": typeof model_chat_agent_cancel_chat;
   "model/chat_agent/chat_with_agent": typeof model_chat_agent_chat_with_agent;
-  "model/chat_agent/chat_with_agent_status": typeof model_chat_agent_chat_with_agent_status;
+  "model/chat_agent/context_management/check_and_summarize": typeof model_chat_agent_context_management_check_and_summarize;
+  "model/chat_agent/context_management/constants": typeof model_chat_agent_context_management_constants;
+  "model/chat_agent/context_management/context_handler": typeof model_chat_agent_context_management_context_handler;
+  "model/chat_agent/context_management/context_priority": typeof model_chat_agent_context_management_context_priority;
+  "model/chat_agent/context_management/estimate_context_size": typeof model_chat_agent_context_management_estimate_context_size;
+  "model/chat_agent/context_management/estimate_tokens": typeof model_chat_agent_context_management_estimate_tokens;
+  "model/chat_agent/context_management/index": typeof model_chat_agent_context_management_index;
   "model/chat_agent/generate_agent_response": typeof model_chat_agent_generate_agent_response;
   "model/chat_agent/index": typeof model_chat_agent_index;
   "model/chat_agent/message_deduplication": typeof model_chat_agent_message_deduplication;
@@ -791,6 +848,7 @@ declare const fullApi: ApiFromModules<{
   "model/customers/get_customer_by_email": typeof model_customers_get_customer_by_email;
   "model/customers/get_customer_by_external_id": typeof model_customers_get_customer_by_external_id;
   "model/customers/get_customer_by_id": typeof model_customers_get_customer_by_id;
+  "model/customers/get_customers": typeof model_customers_get_customers;
   "model/customers/index": typeof model_customers_index;
   "model/customers/query_customers": typeof model_customers_query_customers;
   "model/customers/search_customers": typeof model_customers_search_customers;
@@ -904,7 +962,6 @@ declare const fullApi: ApiFromModules<{
   "model/products/upsert_product_translation": typeof model_products_upsert_product_translation;
   "model/threads/create_chat_thread": typeof model_threads_create_chat_thread;
   "model/threads/delete_chat_thread": typeof model_threads_delete_chat_thread;
-  "model/threads/get_active_run_id": typeof model_threads_get_active_run_id;
   "model/threads/get_latest_thread_with_message_count": typeof model_threads_get_latest_thread_with_message_count;
   "model/threads/get_latest_tool_message": typeof model_threads_get_latest_tool_message;
   "model/threads/get_thread_messages": typeof model_threads_get_thread_messages;
@@ -984,6 +1041,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_executions/get_workflow_execution_stats": typeof model_wf_executions_get_workflow_execution_stats;
   "model/wf_executions/index": typeof model_wf_executions_index;
   "model/wf_executions/list_executions": typeof model_wf_executions_list_executions;
+  "model/wf_executions/list_executions_paginated": typeof model_wf_executions_list_executions_paginated;
   "model/wf_executions/patch_execution": typeof model_wf_executions_patch_execution;
   "model/wf_executions/resume_execution": typeof model_wf_executions_resume_execution;
   "model/wf_executions/set_component_workflow": typeof model_wf_executions_set_component_workflow;
@@ -1050,11 +1108,19 @@ declare const fullApi: ApiFromModules<{
   "node_only/integration_sandbox/types": typeof node_only_integration_sandbox_types;
   "node_only/microsoft_graph/send_email": typeof node_only_microsoft_graph_send_email;
   "node_only/smtp/send_email": typeof node_only_smtp_send_email;
+  "node_only/sql/execute_query_internal": typeof node_only_sql_execute_query_internal;
+  "node_only/sql/helpers/execute_mssql_query": typeof node_only_sql_helpers_execute_mssql_query;
+  "node_only/sql/helpers/execute_mysql_query": typeof node_only_sql_helpers_execute_mysql_query;
+  "node_only/sql/helpers/execute_postgres_query": typeof node_only_sql_helpers_execute_postgres_query;
+  "node_only/sql/helpers/execute_query": typeof node_only_sql_helpers_execute_query;
+  "node_only/sql/helpers/validate_query": typeof node_only_sql_helpers_validate_query;
+  "node_only/sql/types": typeof node_only_sql_types;
   oauth2: typeof oauth2;
   onedrive: typeof onedrive;
   organizations: typeof organizations;
   "predefined_integrations/circuly": typeof predefined_integrations_circuly;
   "predefined_integrations/index": typeof predefined_integrations_index;
+  "predefined_integrations/protel": typeof predefined_integrations_protel;
   "predefined_integrations/shopify": typeof predefined_integrations_shopify;
   "predefined_integrations/types": typeof predefined_integrations_types;
   "predefined_workflows/circuly_sync_customers": typeof predefined_workflows_circuly_sync_customers;
@@ -1119,6 +1185,14 @@ declare const fullApi: ApiFromModules<{
   "workflow/actions/imap/helpers/types": typeof workflow_actions_imap_helpers_types;
   "workflow/actions/imap/imap_action": typeof workflow_actions_imap_imap_action;
   "workflow/actions/integration/helpers/build_secrets_from_integration": typeof workflow_actions_integration_helpers_build_secrets_from_integration;
+  "workflow/actions/integration/helpers/decrypt_sql_credentials": typeof workflow_actions_integration_helpers_decrypt_sql_credentials;
+  "workflow/actions/integration/helpers/detect_write_operation": typeof workflow_actions_integration_helpers_detect_write_operation;
+  "workflow/actions/integration/helpers/execute_sql_integration": typeof workflow_actions_integration_helpers_execute_sql_integration;
+  "workflow/actions/integration/helpers/get_introspect_columns_query": typeof workflow_actions_integration_helpers_get_introspect_columns_query;
+  "workflow/actions/integration/helpers/get_introspect_tables_query": typeof workflow_actions_integration_helpers_get_introspect_tables_query;
+  "workflow/actions/integration/helpers/get_introspection_operations": typeof workflow_actions_integration_helpers_get_introspection_operations;
+  "workflow/actions/integration/helpers/is_introspection_operation": typeof workflow_actions_integration_helpers_is_introspection_operation;
+  "workflow/actions/integration/helpers/validate_required_parameters": typeof workflow_actions_integration_helpers_validate_required_parameters;
   "workflow/actions/integration/integration_action": typeof workflow_actions_integration_integration_action;
   "workflow/actions/onedrive/onedrive_action": typeof workflow_actions_onedrive_onedrive_action;
   "workflow/actions/product/product_action": typeof workflow_actions_product_product_action;
@@ -5929,53 +6003,6 @@ export declare const components: {
           null
         >;
       };
-    };
-  };
-  actionRetrier: {
-    public: {
-      cancel: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        boolean
-      >;
-      cleanup: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        any
-      >;
-      start: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          functionArgs: any;
-          functionHandle: string;
-          options: {
-            base: number;
-            initialBackoffMs: number;
-            logLevel: "DEBUG" | "INFO" | "WARN" | "ERROR";
-            maxFailures: number;
-            onComplete?: string;
-            runAfter?: number;
-            runAt?: number;
-          };
-        },
-        string
-      >;
-      status: FunctionReference<
-        "query",
-        "internal",
-        { runId: string },
-        | { type: "inProgress" }
-        | {
-            result:
-              | { returnValue: any; type: "success" }
-              | { error: string; type: "failed" }
-              | { type: "canceled" };
-            type: "completed";
-          }
-      >;
     };
   };
 };

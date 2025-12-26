@@ -5,10 +5,11 @@ import {
   Children,
   isValidElement,
   cloneElement,
+  createElement,
   type ReactNode,
   type ReactElement,
 } from 'react';
-import { TableBody } from '@/components/ui/table';
+import { TableBody, TableCell } from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -61,11 +62,47 @@ export default function PaginatedMarkdownTable({
     }
   });
 
-  const totalRows = tbodyRows.length;
+  // Count columns in header to normalize rows
+  let headerColumnCount = 0;
+  if (thead) {
+    const theadProps = (thead as ReactElement).props as { children?: ReactNode };
+    Children.forEach(theadProps.children, (headerRow) => {
+      if (isValidElement(headerRow)) {
+        const rowProps = headerRow.props as { children?: ReactNode };
+        headerColumnCount = Children.count(rowProps.children);
+      }
+    });
+  }
+
+  // Helper function to normalize a row to have the expected number of columns
+  const normalizeRow = (row: ReactElement, expectedColumns: number): ReactElement => {
+    const rowProps = row.props as { children?: ReactNode };
+    const cells = Children.toArray(rowProps.children);
+    const currentCount = cells.length;
+
+    if (currentCount >= expectedColumns) {
+      return row;
+    }
+
+    // Add empty cells to match expected column count
+    const emptyCells = Array.from(
+      { length: expectedColumns - currentCount },
+      (_, i) => createElement(TableCell, { key: `empty-${i}` }, '-')
+    );
+
+    return cloneElement(row, {}, [...cells, ...emptyCells]);
+  };
+
+  // Normalize all rows to have consistent column counts
+  const normalizedRows = headerColumnCount > 0
+    ? tbodyRows.map((row) => normalizeRow(row, headerColumnCount))
+    : tbodyRows;
+
+  const totalRows = normalizedRows.length;
   const totalPages = Math.ceil(totalRows / pageSize);
   const startIdx = (currentPage - 1) * pageSize;
   const endIdx = Math.min(startIdx + pageSize, totalRows);
-  const paginatedRows = tbodyRows.slice(startIdx, endIdx);
+  const paginatedRows = normalizedRows.slice(startIdx, endIdx);
 
   // Only show pagination if there are more rows than pageSize
   const showPagination = totalRows > pageSize;

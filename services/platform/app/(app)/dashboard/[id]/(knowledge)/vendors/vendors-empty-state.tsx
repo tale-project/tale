@@ -1,0 +1,22 @@
+'use client';
+
+import { Store } from 'lucide-react';
+import { DataTableEmptyState } from '@/components/ui/data-table';
+import ImportVendorsMenu from './import-vendors-menu';
+import { useT } from '@/lib/i18n';
+
+interface VendorsEmptyStateProps {
+  organizationId: string;
+}
+
+export function VendorsEmptyState({ organizationId }: VendorsEmptyStateProps) {
+  const { t } = useT('emptyStates');
+  return (
+    <DataTableEmptyState
+      icon={Store}
+      title={t('vendors.title')}
+      description={t('vendors.description')}
+      action={<ImportVendorsMenu organizationId={organizationId} />}
+    />
+  );
+}

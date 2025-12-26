@@ -56,6 +56,30 @@ export const CirculyIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+export const ProtelIcon = ({ className }: { className?: string }) => (
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-label="Protel PMS icon"
+  >
+    {/* Hotel building icon */}
+    <rect x="3" y="6" width="18" height="16" rx="1" fill="#1E3A5F" />
+    <rect x="5" y="2" width="14" height="6" rx="1" fill="#2563EB" />
+    {/* Windows */}
+    <rect x="6" y="9" width="3" height="3" rx="0.5" fill="#60A5FA" />
+    <rect x="10.5" y="9" width="3" height="3" rx="0.5" fill="#60A5FA" />
+    <rect x="15" y="9" width="3" height="3" rx="0.5" fill="#60A5FA" />
+    <rect x="6" y="14" width="3" height="3" rx="0.5" fill="#60A5FA" />
+    <rect x="15" y="14" width="3" height="3" rx="0.5" fill="#60A5FA" />
+    {/* Door */}
+    <rect x="10" y="16" width="4" height="6" rx="0.5" fill="#93C5FD" />
+  </svg>
+);
+
 export const GmailIcon = ({ className }: { className?: string }) => (
   <svg
     width="24"

@@ -64,12 +64,26 @@ export const getByNameInternal = internalQuery({
   },
 });
 
+/**
+ * Internal: List all integrations for an organization (no RLS)
+ */
+export const listInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await IntegrationsModel.listIntegrations(ctx, args);
+  },
+});
+
 // ============================================================================
 // Public Actions (with Encryption)
 // ============================================================================
 
 /**
  * Create a new integration with encryption for credentials
+ * Supports both REST API and SQL integrations
  */
 export const create = action({
   args: {
@@ -83,6 +97,12 @@ export const create = action({
     oauth2Auth: v.optional(IntegrationsModel.oauth2AuthValidator),
     connectionConfig: v.optional(IntegrationsModel.connectionConfigValidator),
     capabilities: v.optional(IntegrationsModel.capabilitiesValidator),
+    // SQL integration fields
+    type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
+    sqlConnectionConfig: v.optional(
+      IntegrationsModel.sqlConnectionConfigValidator,
+    ),
+    sqlOperations: v.optional(v.array(IntegrationsModel.sqlOperationValidator)),
     metadata: v.optional(v.any()),
   },
   returns: v.id('integrations'),
@@ -150,6 +170,7 @@ export const testConnection = action({
 
 /**
  * Internal mutation to create integration
+ * Supports both REST API and SQL integrations
  */
 export const createIntegrationInternal = internalMutation({
   args: {
@@ -166,6 +187,12 @@ export const createIntegrationInternal = internalMutation({
     connectionConfig: v.optional(IntegrationsModel.connectionConfigValidator),
     capabilities: v.optional(IntegrationsModel.capabilitiesValidator),
     connector: v.optional(IntegrationsModel.connectorConfigValidator),
+    // SQL integration fields
+    type: v.optional(v.union(v.literal('rest_api'), v.literal('sql'))),
+    sqlConnectionConfig: v.optional(
+      IntegrationsModel.sqlConnectionConfigValidator,
+    ),
+    sqlOperations: v.optional(v.array(IntegrationsModel.sqlOperationValidator)),
     metadata: v.optional(v.any()),
   },
   returns: v.id('integrations'),

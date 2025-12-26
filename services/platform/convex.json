@@ -1,0 +1,10 @@
+{
+  "node": {
+    "externalPackages": [
+      "mssql",
+      "tedious",
+      "mysql2",
+      "pg"
+    ]
+  }
+}

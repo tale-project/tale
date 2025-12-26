@@ -1,18 +1,14 @@
 import VendorsTable from './vendors-table';
 import { Suspense } from 'react';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { Store } from 'lucide-react';
-import ImportVendorsMenu from './import-vendors-menu';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { vendorFilterDefinitions } from './filter-definitions';
+import { VendorsEmptyState } from './vendors-empty-state';
 import type { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -47,18 +43,6 @@ async function VendorsSkeleton() {
   );
 }
 
-/** Empty state shown when org has no vendors - avoids unnecessary skeleton */
-async function VendorsEmptyState({ organizationId }: { organizationId: string }) {
-  const { t } = await getT('emptyStates');
-  return (
-    <DataTableEmptyState
-      icon={Store}
-      title={t('vendors.title')}
-      description={t('vendors.description')}
-      action={<ImportVendorsMenu organizationId={organizationId} />}
-    />
-  );
-}
 
 interface VendorsContentProps {
   params: Promise<{ id: string }>;

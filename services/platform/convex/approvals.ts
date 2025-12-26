@@ -1,9 +1,11 @@
 /**
  * Approvals API - Thin wrappers around model functions
+ * @updated for threadId support in validators
  */
 
 import { v } from 'convex/values';
-import { internalQuery, internalMutation } from './_generated/server';
+import { action, internalQuery, internalMutation } from './_generated/server';
+import { internal } from './_generated/api';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as ApprovalsModel from './model/approvals';
 
@@ -47,6 +49,19 @@ export const getApprovalById = internalQuery({
 });
 
 /**
+ * Get an approval by ID (alias for use in internal actions)
+ */
+export const getApprovalInternal = internalQuery({
+  args: {
+    approvalId: v.id('approvals'),
+  },
+  returns: v.union(ApprovalsModel.approvalItemValidator, v.null()),
+  handler: async (ctx, args) => {
+    return await ApprovalsModel.getApproval(ctx, args.approvalId);
+  },
+});
+
+/**
  * Update approval status (internal operation)
  */
 export const updateApprovalStatus = internalMutation({
@@ -75,6 +90,21 @@ export const listPendingApprovals = internalQuery({
   returns: v.array(ApprovalsModel.approvalItemValidator),
   handler: async (ctx, args) => {
     return await ApprovalsModel.listPendingApprovals(ctx, args);
+  },
+});
+
+/**
+ * Link pending approvals in a thread to a message ID (internal operation)
+ * Called after agent stream completes to associate approvals with the message
+ */
+export const linkApprovalsToMessage = internalMutation({
+  args: {
+    threadId: v.string(),
+    messageId: v.string(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    return await ApprovalsModel.linkApprovalsToMessage(ctx, args);
   },
 });
 
@@ -213,5 +243,96 @@ export const removeRecommendedProduct = mutationWithRLS({
   handler: async (ctx, args) => {
     await ApprovalsModel.removeRecommendedProduct(ctx, args);
     return null;
+  },
+});
+
+/**
+ * Get pending integration approvals for a thread (public)
+ */
+export const getPendingIntegrationApprovalsForThread = queryWithRLS({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.array(ApprovalsModel.approvalItemValidator),
+  handler: async (ctx, args) => {
+    // Use the by_threadId_status_resourceType index for efficient querying
+    // This returns all approvals (pending, approved, rejected) for this thread
+    // so the UI can show both pending approvals and execution results
+    // Limit to 100 approvals per thread (reasonable upper bound for a single chat)
+    const query = ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q.eq('threadId', args.threadId),
+      )
+      .filter((q) => q.eq(q.field('resourceType'), 'integration_operation'));
+
+    const approvals = [];
+    for await (const approval of query) {
+      approvals.push(approval);
+      if (approvals.length >= 100) break;
+    }
+    return approvals;
+  },
+});
+
+// =============================================================================
+// PUBLIC ACTIONS (for integration approvals)
+// =============================================================================
+
+/**
+ * Execute an approved integration operation (public action)
+ *
+ * This action is called from the frontend when a user approves an integration
+ * operation. It first updates the approval status to 'approved' and then
+ * executes the operation.
+ */
+export const executeApprovedIntegrationOperation = action({
+  args: {
+    approvalId: v.id('approvals'),
+    approvedBy: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args): Promise<unknown> => {
+    const { approvalId, approvedBy } = args;
+
+    // Get the approval to validate it's for an integration operation
+    const approval = await ctx.runQuery(internal.approvals.getApprovalInternal, {
+      approvalId,
+    });
+
+    if (!approval) {
+      throw new Error('Approval not found');
+    }
+
+    if (approval.status !== 'pending') {
+      throw new Error(
+        `Cannot execute operation: approval status is "${approval.status}", expected "pending"`,
+      );
+    }
+
+    if (approval.resourceType !== 'integration_operation') {
+      throw new Error(
+        `Invalid approval type: expected "integration_operation", got "${approval.resourceType}"`,
+      );
+    }
+
+    // Update the approval status to approved
+    await ctx.runMutation(internal.approvals.updateApprovalStatus, {
+      approvalId,
+      status: 'approved',
+      approvedBy,
+    });
+
+    // Execute the operation via internal action
+    const result: unknown = await ctx.runAction(
+      internal.agent_tools.integrations.execute_approved_operation
+        .executeApprovedOperation,
+      {
+        approvalId,
+        approvedBy,
+      },
+    );
+
+    return result;
   },
 });
