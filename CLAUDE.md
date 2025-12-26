@@ -11,3 +11,7 @@
 - CONSIDER ALWAYS TO use reusable components.
 - USE `useMemo`, `useCallback` and `memo` the right moment.
 - DO NOT overuse `useEffect`.
+
+## Convex
+
+- CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.

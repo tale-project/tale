@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
 import { Stack } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
@@ -84,7 +85,7 @@ export function FormModal({
     <Dialog open={open} onOpenChange={handleClose}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className={cn(large && 'max-h-[90vh] overflow-y-auto', className)}>
-        <form onSubmit={onSubmit ?? ((e) => e.preventDefault())}>
+        <Form onSubmit={onSubmit ?? ((e) => e.preventDefault())} className="space-y-0">
           <DialogHeader>
             {customHeader ?? (
               <>
@@ -118,7 +119,7 @@ export function FormModal({
               </>
             )}
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

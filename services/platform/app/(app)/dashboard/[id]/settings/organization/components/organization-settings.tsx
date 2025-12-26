@@ -6,6 +6,7 @@ import { useQuery } from 'convex/react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { api } from '@/convex/_generated/api';
 import { Search, Plus } from 'lucide-react';
@@ -86,7 +87,7 @@ export default function OrganizationSettings({
 
   return (
     <Stack>
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <Form onSubmit={handleSubmit(onSubmit)} className="space-y-0">
         <HStack gap={3} align="end" justify="between">
           <Input
             id="org-name"
@@ -102,7 +103,7 @@ export default function OrganizationSettings({
             {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
           </Button>
         </HStack>
-      </form>
+      </Form>
 
       <Stack className="pt-4">
         <Stack gap={1}>

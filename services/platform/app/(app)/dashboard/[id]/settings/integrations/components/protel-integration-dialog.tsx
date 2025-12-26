@@ -10,6 +10,8 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
+import { Form } from '@/components/ui/form';
+import { HStack } from '@/components/ui/layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
@@ -144,55 +146,57 @@ export default function ProtelIntegrationDialog({
               </div>
             </div>
           ) : (
-            <form
-              onSubmit={handleSubmit(handleConnect)}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <Input
-                    label="Server Address"
-                    placeholder="192.168.1.100 or hostname"
-                    {...register('server')}
-                    disabled={isSubmitting}
-                    errorMessage={errors.server?.message}
-                  />
-                </div>
+            <Form onSubmit={handleSubmit(handleConnect)}>
+              <HStack gap={3}>
                 <Input
-                  label="Port"
+                  id="server"
+                  label="Server Address"
+                  placeholder="192.168.1.100 or hostname"
+                  disabled={isSubmitting}
+                  errorMessage={errors.server?.message}
+                  className="flex-[2]"
+                  {...register('server')}
+                />
+                <Input
+                  id="port"
                   type="number"
+                  label="Port"
                   placeholder="1433"
-                  {...register('port')}
                   disabled={isSubmitting}
                   errorMessage={errors.port?.message}
+                  className="flex-1"
+                  {...register('port')}
                 />
-              </div>
+              </HStack>
 
               <Input
+                id="database"
                 label="Database Name"
                 placeholder="Protel"
-                {...register('database')}
                 disabled={isSubmitting}
                 errorMessage={errors.database?.message}
+                {...register('database')}
               />
 
               <Input
+                id="username"
                 label="Username"
                 placeholder="SQL Server username"
-                {...register('username')}
                 disabled={isSubmitting}
                 errorMessage={errors.username?.message}
+                {...register('username')}
               />
 
               <Input
-                label="Password"
+                id="password"
                 type="password"
+                label="Password"
                 placeholder="SQL Server password"
-                {...register('password')}
                 disabled={isSubmitting}
                 errorMessage={errors.password?.message}
+                {...register('password')}
               />
-            </form>
+            </Form>
           )}
         </div>
 

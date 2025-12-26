@@ -169,7 +169,7 @@ export default function CirculyIntegrationDialog({
     >
       {isConnected ? (
         // Connected state - show current connection info
-        <Form>
+        <Stack gap={5}>
           <StatusIndicator variant="success">
             {t('integrations.circuly.connectedToCirculy')}
           </StatusIndicator>
@@ -186,35 +186,33 @@ export default function CirculyIntegrationDialog({
           <Description className="text-xs">
             {t('integrations.circuly.syncingData')}
           </Description>
-        </Form>
+        </Stack>
       ) : (
         // Not connected state - show connection form
-        <form onSubmit={handleSubmit(handleConnect)}>
-          <Form>
-            <Input
-              label={t('integrations.circuly.username')}
-              placeholder={t('integrations.circuly.usernamePlaceholder')}
-              disabled={isSubmitting}
-              errorMessage={form.formState.errors.username?.message}
-              className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-              {...form.register('username')}
-            />
+        <Form onSubmit={handleSubmit(handleConnect)}>
+          <Input
+            label={t('integrations.circuly.username')}
+            placeholder={t('integrations.circuly.usernamePlaceholder')}
+            disabled={isSubmitting}
+            errorMessage={form.formState.errors.username?.message}
+            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            {...form.register('username')}
+          />
 
-            <Input
-              type="password"
-              label={t('integrations.circuly.password')}
-              placeholder={t('integrations.circuly.passwordPlaceholder')}
-              disabled={isSubmitting}
-              errorMessage={form.formState.errors.password?.message}
-              className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-              {...form.register('password')}
-            />
+          <Input
+            type="password"
+            label={t('integrations.circuly.password')}
+            placeholder={t('integrations.circuly.passwordPlaceholder')}
+            disabled={isSubmitting}
+            errorMessage={form.formState.errors.password?.message}
+            className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+            {...form.register('password')}
+          />
 
-            <Description className="text-xs">
-              {t('integrations.circuly.enterCredentials')}
-            </Description>
-          </Form>
-        </form>
+          <Description className="text-xs">
+            {t('integrations.circuly.enterCredentials')}
+          </Description>
+        </Form>
       )}
     </FormModal>
   );
