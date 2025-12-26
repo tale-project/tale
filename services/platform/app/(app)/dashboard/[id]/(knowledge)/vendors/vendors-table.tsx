@@ -8,6 +8,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { Stack, HStack } from '@/components/ui/layout';
 import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { LocaleIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
@@ -87,14 +88,14 @@ export default function VendorsTable({
         header: tTables('headers.name'),
         size: 408,
         cell: ({ row }) => (
-          <div className="flex flex-col gap-1">
+          <Stack gap={1}>
             <span className="font-medium text-sm text-foreground">
               {row.original.name || ''}
             </span>
             <span className="text-xs text-muted-foreground">
               {row.original.email || tTables('cells.noEmail')}
             </span>
-          </div>
+          </Stack>
         ),
       },
       {
@@ -139,9 +140,9 @@ export default function VendorsTable({
         header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
         size: 140,
         cell: ({ row }) => (
-          <div className="flex items-center justify-end">
+          <HStack justify="end">
             <VendorRowActions vendor={row.original} />
-          </div>
+          </HStack>
         ),
       },
     ],

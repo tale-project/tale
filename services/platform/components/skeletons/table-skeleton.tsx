@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Stack, HStack } from '@/components/ui/layout';
 
 interface TableRowSkeletonProps {
   columns?: number;
@@ -83,15 +84,15 @@ export function TableSkeleton({
                 <TableCell key={colIndex}>
                   {colIndex === 0 ? (
                     // First column often has name + subtitle
-                    <div className="flex flex-col gap-1">
+                    <Stack gap={1}>
                       <Skeleton className="h-4 w-32" />
                       <Skeleton className="h-3 w-24" />
-                    </div>
+                    </Stack>
                   ) : colIndex === effectiveColumns - 1 ? (
                     // Last column often has actions
-                    <div className="flex justify-end">
+                    <HStack justify="end">
                       <Skeleton className="h-8 w-8 rounded-md" />
-                    </div>
+                    </HStack>
                   ) : (
                     <Skeleton className="h-4 w-full max-w-[120px]" />
                   )}

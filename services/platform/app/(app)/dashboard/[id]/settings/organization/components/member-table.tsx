@@ -3,6 +3,7 @@
 import { useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
+import { Stack, HStack } from '@/components/ui/layout';
 import { ChevronDownIcon } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
 import MemberOptions from './member-options';
@@ -77,7 +78,7 @@ export default function MemberTable({
         cell: ({ row }) => {
           const member = row.original;
           return (
-            <div className="flex flex-col">
+            <Stack>
               <span className="text-sm text-foreground font-medium">
                 {member.displayName || member.email || tTables('cells.unknown')}
               </span>
@@ -86,7 +87,7 @@ export default function MemberTable({
                   {member.email}
                 </span>
               )}
-            </div>
+            </Stack>
           );
         },
         size: 348,
@@ -124,12 +125,12 @@ export default function MemberTable({
         id: 'actions',
         header: '',
         cell: ({ row }) => (
-          <div className="flex items-center justify-end gap-1">
+          <HStack gap={1} justify="end">
             <MemberOptions
               member={row.original}
               memberContext={memberContext}
             />
-          </div>
+          </HStack>
         ),
         size: 140,
       },

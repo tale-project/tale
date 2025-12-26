@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import ApprovalDetailModal from './approval-detail-modal';
@@ -328,9 +329,9 @@ export default function Approvals({
         '/assets/placeholder-image.png';
 
       return (
-        <div className="flex flex-col gap-1">
+        <Stack gap={1}>
           {/* First product with full name */}
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
               <Image
                 src={firstImage}
@@ -349,10 +350,10 @@ export default function Approvals({
             <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
               {firstName}
             </span>
-          </div>
+          </HStack>
           {/* Second product with count if there are more products */}
           {remainingCount > 0 && secondProduct && (
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
                 <Image
                   src={
@@ -383,15 +384,15 @@ export default function Approvals({
               <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
                 {t('labels.otherProducts', { count: remainingCount })}
               </span>
-            </div>
+            </HStack>
           )}
-        </div>
+        </Stack>
       );
     }
 
     // For non-recommendations, show all products as before
     return (
-      <div className="flex flex-col gap-1">
+      <Stack gap={1}>
         {list.map((p, index) => {
           const name =
             (typeof p['name'] === 'string' && (p['name'] as string)) ||
@@ -404,7 +405,7 @@ export default function Approvals({
             '/assets/placeholder-image.png';
 
           return (
-            <div key={index} className="flex items-center gap-2">
+            <HStack key={index} gap={2}>
               <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
                 <Image
                   src={image}
@@ -424,10 +425,10 @@ export default function Approvals({
               <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
                 {name}
               </span>
-            </div>
+            </HStack>
           );
         })}
-      </div>
+      </Stack>
     );
   }, [t]);
 

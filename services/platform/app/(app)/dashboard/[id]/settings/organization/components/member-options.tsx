@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   Tooltip,
   TooltipContent,
@@ -58,9 +58,12 @@ export default function MemberOptions({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={openEditDialog} aria-label={t('organization.editMember')}>
-                <Pencil className="size-4 text-muted-foreground hover:text-foreground" />
-              </Button>
+              <IconButton
+                icon={Pencil}
+                onClick={openEditDialog}
+                aria-label={t('organization.editMember')}
+                iconClassName="text-muted-foreground hover:text-foreground"
+              />
             </TooltipTrigger>
             <TooltipContent>{t('organization.editMember')}</TooltipContent>
           </Tooltip>
@@ -70,9 +73,12 @@ export default function MemberOptions({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={openDeleteDialog} aria-label={t('organization.removeMember')}>
-                <Trash2 className="size-4 text-muted-foreground hover:text-foreground" />
-              </Button>
+              <IconButton
+                icon={Trash2}
+                onClick={openDeleteDialog}
+                aria-label={t('organization.removeMember')}
+                iconClassName="text-muted-foreground hover:text-foreground"
+              />
             </TooltipTrigger>
             <TooltipContent>{t('organization.removeMember')}</TooltipContent>
           </Tooltip>

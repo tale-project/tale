@@ -7,6 +7,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { HStack } from '@/components/ui/layout';
 import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { WebsiteIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
@@ -89,14 +90,14 @@ export default function WebsitesTable({
         header: tTables('headers.website'),
         size: 256,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <div className="flex-shrink-0 size-5 rounded flex items-center justify-center bg-muted">
               <WebsiteIcon className="size-3 text-muted-foreground" />
             </div>
             <span className="font-medium text-sm text-foreground truncate">
               {row.original.domain}
             </span>
-          </div>
+          </HStack>
         ),
       },
       {
@@ -151,9 +152,9 @@ export default function WebsitesTable({
         header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
         size: 128,
         cell: ({ row }) => (
-          <div className="flex items-center justify-end">
+          <HStack justify="end">
             <WebsiteRowActions website={row.original} />
-          </div>
+          </HStack>
         ),
       },
     ],

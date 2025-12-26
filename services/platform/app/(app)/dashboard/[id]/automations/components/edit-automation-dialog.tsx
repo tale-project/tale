@@ -5,6 +5,7 @@ import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
+import { Stack, Grid } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -162,8 +163,8 @@ export default function EditAutomationDialog({
         disabled={isLoading}
       />
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+      <Stack gap={4}>
+        <Grid cols={3} gap={2}>
           <Input
             id="edit-timeout"
             type="number"
@@ -206,7 +207,7 @@ export default function EditAutomationDialog({
             placeholder={t('editDialog.backoffPlaceholder')}
             disabled={isLoading}
           />
-        </div>
+        </Grid>
 
         <JsonInput
           id="edit-variables"
@@ -223,7 +224,7 @@ export default function EditAutomationDialog({
           disabled={isLoading}
           description={t('editDialog.variablesDescription')}
         />
-      </div>
+      </Stack>
     </FormModal>
   );
 }

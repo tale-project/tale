@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack } from '@/components/ui/layout';
 import ProductCard from './product-card';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
@@ -107,27 +108,28 @@ export default function ApprovalDetailModal({
         </DialogHeader>
 
         {/* Content */}
-        <div
+        <Stack
+          gap={10}
           className={cn(
-            'p-4 space-y-10 max-h-[calc(90vh-88px)] overflow-y-auto',
+            'p-4 max-h-[calc(90vh-88px)] overflow-y-auto',
             approvalDetail.status === 'pending' && 'pb-20',
           )}
         >
           {/* Customer Info */}
-          <div className="space-y-8">
-            <div className="space-y-1">
+          <Stack gap={8}>
+            <Stack gap={1}>
               <h3 className="text-base font-medium text-foreground">
                 {approvalDetail.customer.name}
               </h3>
               <p className="text-sm text-muted-foreground">
                 {approvalDetail.customer.email}
               </p>
-            </div>
+            </Stack>
 
             {/* Approval Details */}
-            <div className="space-y-3">
+            <Stack gap={3}>
               {/* Status */}
-              <div className="flex items-center">
+              <HStack>
                 <div className="w-[90px] text-xs text-muted-foreground">
                   {t('detail.status')}
                 </div>
@@ -145,43 +147,43 @@ export default function ApprovalDetailModal({
                     (approvalDetail.status === 'rejected' && t('detail.statusRejected')) ||
                     t('detail.statusPending')}
                 </Badge>
-              </div>
+              </HStack>
 
               {/* Type */}
-              <div className="flex items-center">
+              <HStack>
                 <div className="w-[90px] text-xs text-muted-foreground">
                   {t('detail.type')}
                 </div>
                 <Badge variant="outline" icon={RecommendationIcon}>
                   {t('detail.typeProductRecommendation')}
                 </Badge>
-              </div>
+              </HStack>
 
               {/* Created at */}
-              <div className="flex items-center">
+              <HStack>
                 <div className="w-[90px] text-xs text-muted-foreground">
                   {t('detail.createdAt')}
                 </div>
                 <div className="text-sm font-medium text-muted-foreground">
                   {formatDate(approvalDetail.createdAt)}
                 </div>
-              </div>
+              </HStack>
 
               {/* Confidence */}
               {approvalDetail.confidence !== undefined && (
-                <div className="flex items-center">
+                <HStack>
                   <div className="w-[90px] text-xs text-muted-foreground">
                     {t('detail.confidence')}
                   </div>
                   <Badge variant="outline">{approvalDetail.confidence}%</Badge>
-                </div>
+                </HStack>
               )}
-            </div>
-          </div>
+            </Stack>
+          </Stack>
 
           {/* Recommended Products */}
           {visibleProducts.length > 0 && (
-            <div className="space-y-4">
+            <Stack gap={4}>
               <h4 className="text-lg font-semibold text-foreground">
                 {t('detail.recommendedProducts')}
               </h4>
@@ -197,12 +199,12 @@ export default function ApprovalDetailModal({
                   />
                 ))}
               </div>
-            </div>
+            </Stack>
           )}
 
           {/* Previous Purchases */}
           {approvalDetail.previousPurchases.length > 0 && (
-            <div className="space-y-4">
+            <Stack gap={4}>
               <h4 className="text-lg font-semibold text-foreground">
                 {t('detail.userPurchased')}
               </h4>
@@ -215,9 +217,9 @@ export default function ApprovalDetailModal({
                   />
                 ))}
               </div>
-            </div>
+            </Stack>
           )}
-        </div>
+        </Stack>
 
         {/* Action Buttons - Only show for pending approvals */}
         {approvalDetail.status === 'pending' && (

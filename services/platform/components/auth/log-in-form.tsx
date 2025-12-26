@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
@@ -111,42 +112,41 @@ export default function LogInForm({
 
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
-      <div className="space-y-8">
-        <div className="space-y-5">
+      <Stack gap={8}>
+        <Stack gap={5}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-5"
             autoComplete="on"
           >
-            {/* Email Field */}
-            <Input
-              id="email"
-              type="email"
-              size="lg"
-              label={t('email')}
-              placeholder={t('emailPlaceholder')}
-              disabled={isSubmitting}
-              autoComplete="email"
-              errorMessage={errors.email?.message}
-              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-              {...form.register('email')}
-            />
+            <Stack gap={5}>
+              {/* Email Field */}
+              <Input
+                id="email"
+                type="email"
+                size="lg"
+                label={t('email')}
+                placeholder={t('emailPlaceholder')}
+                disabled={isSubmitting}
+                autoComplete="email"
+                errorMessage={errors.email?.message}
+                className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                {...form.register('email')}
+              />
 
-            {/* Password Field */}
-            <Input
-              id="password"
-              type="password"
-              size="lg"
-              label={t('password')}
-              placeholder={t('passwordPlaceholder')}
-              disabled={isSubmitting}
-              autoComplete="current-password"
-              errorMessage={errors.password?.message}
-              className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-              {...form.register('password')}
-            />
+              {/* Password Field */}
+              <Input
+                id="password"
+                type="password"
+                size="lg"
+                label={t('password')}
+                placeholder={t('passwordPlaceholder')}
+                disabled={isSubmitting}
+                autoComplete="current-password"
+                errorMessage={errors.password?.message}
+                className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                {...form.register('password')}
+              />
 
-            <div>
               <Button
                 type="submit"
                 size="lg"
@@ -161,16 +161,16 @@ export default function LogInForm({
               >
                 {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
               </Button>
-            </div>
+            </Stack>
           </form>
-        </div>
+        </Stack>
 
         {/* Microsoft Login - only shown if Microsoft Entra ID is configured */}
         {microsoftEnabled && (
           <>
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <div className="flex-1 h-px bg-muted" />
-            </div>
+            </HStack>
 
             <Button
               onClick={handleMicrosoftLogIn}
@@ -186,7 +186,7 @@ export default function LogInForm({
             </Button>
           </>
         )}
-      </div>
+      </Stack>
     </AuthFormLayout>
   );
 }

@@ -7,11 +7,13 @@ import { z } from 'zod';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, VStack, Center } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import { useMemo } from 'react';
 
 type FormData = { name: string };
 
@@ -21,9 +23,13 @@ export default function OrganizationForm() {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  const formSchema = z.object({
-    name: z.string().min(1, t('organization.companyNameRequired')),
-  });
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, t('organization.companyNameRequired')),
+      }),
+    [t],
+  );
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -82,31 +88,35 @@ export default function OrganizationForm() {
   });
 
   return (
-    <div className="flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[24rem]">
+    <Center className="p-4">
+      <VStack className="w-full max-w-[24rem]">
         <h1 className="text-base text-center font-semibold mb-8">
           {t('organization.createOrganization')}
         </h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            id="org-name"
-            type="text"
-            label={t('organization.organizationName')}
-            required
-            {...form.register('name')}
-            placeholder={t('organization.enterCompanyName')}
-            disabled={form.formState.isSubmitting}
-            errorMessage={form.formState.errors.name?.message}
-          />
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={form.formState.isSubmitting || !form.formState.isValid}
-          >
-            {form.formState.isSubmitting ? t('organization.creating') : tCommon('actions.create')}
-          </Button>
+        <form onSubmit={handleSubmit}>
+          <Stack gap={4}>
+            <Input
+              id="org-name"
+              type="text"
+              label={t('organization.organizationName')}
+              required
+              {...form.register('name')}
+              placeholder={t('organization.enterCompanyName')}
+              disabled={form.formState.isSubmitting}
+              errorMessage={form.formState.errors.name?.message}
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
+            >
+              {form.formState.isSubmitting
+                ? t('organization.creating')
+                : tCommon('actions.create')}
+            </Button>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </VStack>
+    </Center>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack } from '@/components/ui/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,14 +12,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { GmailIcon } from '@/components/ui/icons';
-import {
-  Plus,
-  Trash2,
-  MoreVertical,
-  TestTube,
-  Star,
-  Shield,
-} from 'lucide-react';
+import { Plus, Trash2, MoreVertical, TestTube, Star, Shield } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/hooks/use-toast';
 import GmailCreateProviderDialog from './gmail-create-provider-dialog';
 import { useQuery } from 'convex/react';
@@ -163,37 +158,34 @@ export default function GmailIntegrationDialog({
         customFooter={footer}
       >
         {isLoading ? (
-          <div className="space-y-3">
+          <Stack gap={3}>
             {[1, 2].map((i) => (
               <div
                 key={i}
                 className="h-16 bg-secondary/20 rounded-lg animate-pulse"
               />
             ))}
-          </div>
+          </Stack>
         ) : providers && providers.length > 0 ? (
-          <div className="space-y-3">
+          <Stack gap={3}>
             {providers.map((provider) => (
               <div
                 key={provider._id}
                 className="bg-card border border-border rounded-lg p-4"
               >
                 {/* Header Row */}
-                <div className="flex items-start justify-between mb-3">
+                <HStack align="start" justify="between" className="mb-3">
                   <h3 className="font-medium text-base text-foreground mb-1">
                     {provider.name}
                   </h3>
-                  <div className="flex items-center gap-3">
+                  <HStack gap={3}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 p-0"
-                        >
-                          <span className="sr-only">{t('integrations.moreOptions')}</span>
-                          <MoreVertical className="size-4" />
-                        </Button>
+                        <IconButton
+                          icon={MoreVertical}
+                          aria-label={t('integrations.moreOptions')}
+                          className="size-8"
+                        />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {provider.authMethod === 'oauth2' &&
@@ -228,11 +220,11 @@ export default function GmailIntegrationDialog({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-                </div>
+                  </HStack>
+                </HStack>
 
                 {/* Badges Row */}
-                <div className="flex items-center gap-2 mb-3">
+                <HStack gap={2} className="mb-3">
                   {provider.isDefault && (
                     <Badge
                       variant="orange"
@@ -268,10 +260,10 @@ export default function GmailIntegrationDialog({
                       {t('integrations.imap')}
                     </Badge>
                   )}
-                </div>
+                </HStack>
 
                 {/* Technical Details */}
-                <div className="space-y-1 mb-3 text-xs text-muted-foreground">
+                <Stack gap={1} className="mb-3 text-xs text-muted-foreground">
                   {provider.smtpConfig && (
                     <div>
                       {t('integrations.smtp')}: {provider.smtpConfig.host}:
@@ -286,18 +278,18 @@ export default function GmailIntegrationDialog({
                       {provider.imapConfig.secure ? t('integrations.ssl') : t('integrations.tls')})
                     </div>
                   )}
-                </div>
+                </Stack>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <HStack justify="between" className="text-xs text-muted-foreground">
                   <span>
                     {t('integrations.created')}:{' '}
                     {formatDate(new Date(provider._creationTime), 'short')}
                   </span>
-                </div>
+                </HStack>
               </div>
             ))}
-          </div>
+          </Stack>
         ) : (
           <div className="text-center py-8">
             <GmailIcon className="size-8 mx-auto mb-2 opacity-50" />

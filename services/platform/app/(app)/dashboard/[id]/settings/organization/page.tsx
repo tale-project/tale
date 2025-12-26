@@ -5,6 +5,7 @@ import OrganizationSettings from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Stack, HStack } from '@/components/ui/layout';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { AccessDenied } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
@@ -29,31 +30,26 @@ interface OrganizationSettingsPageProps {
 async function OrganizationSettingsSkeleton() {
   const { t } = await getT('settings');
   return (
-    <div className="space-y-4">
-      {/* Organization name form */}
-      <div className="space-y-2">
+    <Stack>
+      <Stack gap={2}>
         <Skeleton className="h-4 w-36" />
-        <div className="flex items-center gap-3 justify-between">
+        <HStack gap={3} justify="between">
           <Skeleton className="h-10 flex-1 max-w-sm" />
           <Skeleton className="h-10 w-28" />
-        </div>
-      </div>
+        </HStack>
+      </Stack>
 
-      {/* Team members section */}
-      <div className="space-y-4 pt-4">
-        {/* Title and description */}
-        <div className="space-y-1">
+      <Stack className="pt-4">
+        <Stack gap={1}>
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-4 w-56" />
-        </div>
+        </Stack>
 
-        {/* Search and add member */}
-        <div className="flex items-center justify-between gap-4">
+        <HStack justify="between">
           <Skeleton className="h-9 w-full max-w-md" />
           <Skeleton className="h-9 w-32" />
-        </div>
+        </HStack>
 
-        {/* Members table */}
         <DataTableSkeleton
           rows={5}
           columns={[
@@ -64,8 +60,8 @@ async function OrganizationSettingsSkeleton() {
           ]}
           showHeader
         />
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   );
 }
 

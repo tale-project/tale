@@ -14,6 +14,7 @@ import {
 } from './hooks';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import ExampleMessagesTable from './components/example-messages-table';
 import AddExampleDialog from './components/add-example-dialog';
@@ -212,7 +213,7 @@ export default function ToneOfVoiceForm({
   };
 
   return (
-    <div className="space-y-8">
+    <Stack gap={8}>
       {/* Example Messages Section */}
       <ExampleMessagesTable
         examples={examples}
@@ -223,23 +224,23 @@ export default function ToneOfVoiceForm({
       />
 
       {/* Tone of Voice Section */}
-      <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-        <div className="flex items-end justify-between">
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
-              {tTone('form.title')}
-              <span className="text-xs text-muted-foreground ml-2">
-                {tTone('form.optional')}
-              </span>
-            </h3>
-            <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-              {tTone('form.description')}
-            </p>
-          </div>
-        </div>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Stack gap={5}>
+          <HStack align="end" justify="between">
+            <Stack gap={1}>
+              <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
+                {tTone('form.title')}
+                <span className="text-xs text-muted-foreground ml-2">
+                  {tTone('form.optional')}
+                </span>
+              </h3>
+              <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+                {tTone('form.description')}
+              </p>
+            </Stack>
+          </HStack>
 
-        {/* Tone Textarea */}
-        <div>
+          {/* Tone Textarea */}
           <Textarea
             {...register('tone')}
             defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
@@ -247,19 +248,19 @@ export default function ToneOfVoiceForm({
             placeholder={tTone('form.placeholder')}
             className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-base text-foreground resize-none"
           />
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={handleGenerateTone}
-            disabled={isGenerating}
-          >
-            {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
-          </Button>
-          <Button disabled={!isDirty} type="submit">
-            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-          </Button>
-        </div>
+          <HStack gap={2} justify="end">
+            <Button
+              variant="outline"
+              onClick={handleGenerateTone}
+              disabled={isGenerating}
+            >
+              {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
+            </Button>
+            <Button disabled={!isDirty} type="submit">
+              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+            </Button>
+          </HStack>
+        </Stack>
       </form>
 
       {/* Add Example Dialog */}
@@ -279,6 +280,6 @@ export default function ToneOfVoiceForm({
         example={viewEditDialog.example}
         onUpdate={handleUpdateExample}
       />
-    </div>
+    </Stack>
   );
 }

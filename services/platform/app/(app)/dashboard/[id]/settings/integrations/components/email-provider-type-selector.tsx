@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ViewModal } from '@/components/ui/modals';
+import { Stack } from '@/components/ui/layout';
 import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
 import { Mail, ChevronRight } from 'lucide-react';
 import GmailCreateProviderDialog from './gmail-create-provider-dialog';
@@ -64,7 +65,7 @@ export default function EmailProviderTypeSelector({
         onOpenChange={onOpenChange}
         title={t('integrations.chooseEmailProvider')}
       >
-        <div className="space-y-2">
+        <Stack gap={2}>
           {providerTypes.map((provider) => {
             const IconComponent = provider.icon;
             return (
@@ -98,7 +99,7 @@ export default function EmailProviderTypeSelector({
               </button>
             );
           })}
-        </div>
+        </Stack>
       </ViewModal>
 
       {/* Gmail Create Dialog */}

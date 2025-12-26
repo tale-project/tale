@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { MoreVertical, Eye, Pencil, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,10 +36,7 @@ export default function CustomerRowActions({
     <>
       <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="size-4" />
-            <span className="sr-only">{tCommon('actions.openMenu')}</span>
-          </Button>
+          <IconButton icon={MoreVertical} aria-label={tCommon('actions.openMenu')} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[10rem]">
           <DropdownMenuItem

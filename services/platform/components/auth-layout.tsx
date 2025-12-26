@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { TaleLogoText } from './tale-logo-text';
+import { HStack } from '@/components/ui/layout';
 
 export default function AuthLayout({
   children,
@@ -19,11 +20,11 @@ export default function AuthLayout({
         {children}
       </div>
       <footer className="mt-auto py-6 px-4 sm:px-8">
-        <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
+        <HStack gap={4} justify="center" className="text-xs text-muted-foreground">
+          <HStack gap={1}>
             <span>© {new Date().getFullYear()} Tale</span>
-          </div>
-          <div className="flex items-center gap-6">
+          </HStack>
+          <HStack gap={6}>
             <Link
               href="https://tale.dev/privacy"
               target="_blank"
@@ -32,8 +33,8 @@ export default function AuthLayout({
             >
               Privacy | Terms
             </Link>
-          </div>
-        </div>
+          </HStack>
+        </HStack>
       </footer>
     </div>
   );

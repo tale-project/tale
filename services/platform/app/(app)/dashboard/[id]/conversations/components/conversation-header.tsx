@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
 import { Button } from '@/components/ui/button';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -138,7 +139,7 @@ export default function ConversationHeader({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-4 mx-4 w-full min-w-0">
+      <HStack gap={4} justify="between" className="mx-4 w-full min-w-0">
         {/* Back button - visible only on mobile */}
         {onBack && (
           <Button
@@ -151,7 +152,7 @@ export default function ConversationHeader({
             <ArrowLeft className="size-5" />
           </Button>
         )}
-        <div className="flex flex-col min-w-0 overflow-hidden">
+        <Stack className="min-w-0 overflow-hidden">
           {/* Title */}
           <h2 className="flex items-center gap-2 text-base font-medium text-foreground tracking-tight whitespace-nowrap">
             {customer.name && (
@@ -169,7 +170,7 @@ export default function ConversationHeader({
           </h2>
 
           {/* Metadata */}
-          <div className="flex items-center gap-1 text-sm font-normal text-muted-foreground tracking-tight whitespace-nowrap">
+          <HStack gap={1} className="text-sm font-normal text-muted-foreground tracking-tight whitespace-nowrap">
             <button
               className="hover:underline cursor-pointer"
               onClick={() => setIsCustomerInfoOpen(true)}
@@ -182,8 +183,8 @@ export default function ConversationHeader({
                 <span>{customer.locale}</span>
               </>
             )}
-          </div>
-        </div>
+          </HStack>
+        </Stack>
 
         {/* Options Menu */}
         <div>
@@ -250,7 +251,7 @@ export default function ConversationHeader({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </HStack>
 
       {/* Customer Info Modal */}
       {customerDoc && (

@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { TabsContent } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -238,8 +239,9 @@ export function AutomationTemplatesTab({
   };
 
   return (
-    <TabsContent value="templates" className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <TabsContent value="templates" asChild>
+      <Stack gap={4}>
+      <Grid cols={1} lg={2} gap={6}>
         {/* Create New Automation (Dialog) */}
         <Card>
           <CardHeader>
@@ -311,7 +313,7 @@ export function AutomationTemplatesTab({
                 {t('templates.noAutomationsFound')}
               </div>
             ) : (
-              <div className="space-y-3">
+              <Stack gap={3}>
                 {automations.map((workflow) => (
                   <div
                     key={workflow._id}
@@ -324,8 +326,8 @@ export function AutomationTemplatesTab({
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         {editingId === workflow._id ? (
-                          <div
-                            className="space-y-2"
+                          <Stack
+                            gap={2}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Input
@@ -365,14 +367,14 @@ export function AutomationTemplatesTab({
                                 description={t('templates.configDescription')}
                               />
                             </div>
-                          </div>
+                          </Stack>
                         ) : (
                           <>
                             <h4 className="font-medium">{workflow.name}</h4>
                             <p className="text-sm text-muted-foreground">
                               {workflow.description || t('templates.noDescription')}
                             </p>
-                            <div className="flex items-center gap-2 mt-2">
+                            <HStack gap={2} className="mt-2">
                               <Badge
                                 variant={
                                   workflow.status === 'active'
@@ -383,11 +385,11 @@ export function AutomationTemplatesTab({
                               >
                                 {workflow.status}
                               </Badge>
-                            </div>
+                            </HStack>
                           </>
                         )}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <HStack gap={1}>
                         {editingId === workflow._id ? (
                           <>
                             <Button
@@ -462,15 +464,15 @@ export function AutomationTemplatesTab({
                             <Power className="size-4" />
                           </Button>
                         )}
-                      </div>
+                      </HStack>
                     </div>
                   </div>
                 ))}
-              </div>
+              </Stack>
             )}
           </CardContent>
         </Card>
-      </div>
+      </Grid>
       {/* Delete confirmation dialog */}
       <DeleteModal
         open={deleteOpen}
@@ -484,6 +486,7 @@ export function AutomationTemplatesTab({
           setDeleteTarget(null);
         }}
       />
+      </Stack>
     </TabsContent>
   );
 }

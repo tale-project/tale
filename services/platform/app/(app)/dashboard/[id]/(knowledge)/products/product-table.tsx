@@ -6,8 +6,9 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { HStack } from '@/components/ui/layout';
 import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,11 +88,22 @@ export default function ProductTable({
     transformFilters: (f) => ({
       searchQuery: f.query || undefined,
       // The backend currently only supports a single status filter
-      status: f.status.length === 1
-        ? (f.status[0] as 'active' | 'inactive' | 'draft' | 'archived')
+      status:
+        f.status.length === 1
+          ? (f.status[0] as 'active' | 'inactive' | 'draft' | 'archived')
+          : undefined,
+      sortBy: sorting[0]?.id as
+        | 'name'
+        | 'createdAt'
+        | 'lastUpdated'
+        | 'stock'
+        | 'price'
+        | undefined,
+      sortOrder: sorting[0]
+        ? sorting[0].desc
+          ? ('desc' as const)
+          : ('asc' as const)
         : undefined,
-      sortBy: sorting[0]?.id as 'name' | 'createdAt' | 'lastUpdated' | 'stock' | 'price' | undefined,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
     }),
   });
 
@@ -106,7 +118,7 @@ export default function ProductTable({
         header: tTables('headers.product'),
         size: 400,
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
+          <HStack gap={3}>
             <ProductImage
               images={row.original.imageUrl ? [row.original.imageUrl] : []}
               productName={row.original.name}
@@ -115,7 +127,7 @@ export default function ProductTable({
             <span className="font-medium text-sm text-foreground">
               {row.original.name}
             </span>
-          </div>
+          </HStack>
         ),
       },
       {
@@ -145,7 +157,11 @@ export default function ProductTable({
       },
       {
         accessorKey: 'lastUpdated',
-        header: () => <span className="text-right w-full block">{tTables('headers.updated')}</span>,
+        header: () => (
+          <span className="text-right w-full block">
+            {tTables('headers.updated')}
+          </span>
+        ),
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground text-right block">
@@ -160,12 +176,13 @@ export default function ProductTable({
         id: 'actions',
         size: 80,
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <HStack justify="end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="size-4 text-muted-foreground" />
-                </Button>
+                <IconButton
+                  icon={MoreVertical}
+                  aria-label={tCommon('actions.openMenu')}
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[160px]">
                 <ProductActions product={row.original} />
@@ -184,7 +201,7 @@ export default function ProductTable({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </HStack>
         ),
       },
     ],

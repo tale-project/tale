@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 
 interface CardSkeletonProps {
@@ -30,9 +31,10 @@ export function CardSkeleton({
   className,
 }: CardSkeletonProps) {
   return (
-    <div
+    <Stack
+      gap={4}
       className={cn(
-        'rounded-xl border border-border bg-card p-4 space-y-4',
+        'rounded-xl border border-border bg-card p-4',
         className
       )}
     >
@@ -40,7 +42,7 @@ export function CardSkeleton({
         <Skeleton className={cn('w-full rounded-lg', imageHeight)} />
       )}
 
-      <div className="space-y-2">
+      <Stack gap={2}>
         {/* Title */}
         <Skeleton className="h-5 w-3/4" />
 
@@ -54,15 +56,15 @@ export function CardSkeleton({
             )}
           />
         ))}
-      </div>
+      </Stack>
 
       {showActions && (
-        <div className="flex gap-2 pt-2">
+        <HStack gap={2} className="pt-2">
           <Skeleton className="h-9 flex-1 rounded-md" />
           <Skeleton className="h-9 w-9 rounded-md" />
-        </div>
+        </HStack>
       )}
-    </div>
+    </Stack>
   );
 }
 
@@ -91,19 +93,24 @@ export function CardGridSkeleton({
   cardProps,
   className,
 }: CardGridSkeletonProps) {
-  const gridCols = {
-    1: 'grid-cols-1',
-    2: 'grid-cols-1 sm:grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-  };
+  const colsMap: Record<number, 1 | 2 | 3 | 4> = { 1: 1, 2: 2, 3: 3, 4: 4 };
+  const smMap: Record<number, 1 | 2 | undefined> = { 1: undefined, 2: 2, 3: 2, 4: 2 };
+  const lgMap: Record<number, 1 | 2 | 3 | undefined> = { 1: undefined, 2: undefined, 3: 3, 4: 3 };
+  const xlMap: Record<number, 1 | 2 | 3 | 4 | undefined> = { 1: undefined, 2: undefined, 3: undefined, 4: 4 };
 
   return (
-    <div className={cn('grid gap-4', gridCols[columns], className)}>
+    <Grid
+      cols={colsMap[columns]}
+      sm={smMap[columns]}
+      lg={lgMap[columns]}
+      xl={xlMap[columns]}
+      gap={4}
+      className={className}
+    >
       {Array.from({ length: count }).map((_, i) => (
         <CardSkeleton key={i} {...cardProps} />
       ))}
-    </div>
+    </Grid>
   );
 }
 

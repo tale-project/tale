@@ -11,6 +11,7 @@ import type { DocumentItemResponse } from '@/convex/model/documents/types';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DocumentsEmptyState } from './components/documents-empty-state';
+import { HStack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
@@ -40,10 +41,10 @@ async function DocumentsSkeleton() {
       ]}
       showHeader
       customHeader={
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <HStack justify="between" className="flex-col sm:flex-row sm:items-center">
           <Skeleton className="h-10 w-full sm:w-[300px]" />
           <Skeleton className="h-10 w-40" />
-        </div>
+        </HStack>
       }
     />
   );

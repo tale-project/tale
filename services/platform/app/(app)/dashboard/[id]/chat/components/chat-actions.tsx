@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { DeleteModal } from '@/components/ui/modals';
+import { HStack } from '@/components/ui/layout';
 import {
   Tooltip,
   TooltipContent,
@@ -69,7 +70,7 @@ export default function ChatActions({
   return (
     <>
       <TooltipProvider>
-        <div className="flex items-center gap-1">
+        <HStack gap={1}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -99,7 +100,7 @@ export default function ChatActions({
             </TooltipTrigger>
             <TooltipContent side="bottom">{tCommon('actions.delete')}</TooltipContent>
           </Tooltip>
-        </div>
+        </HStack>
       </TooltipProvider>
 
       {/* Delete Confirmation Dialog */}

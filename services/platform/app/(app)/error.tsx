@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { UserButton } from '@/components/auth/user-button';
 import { TaleLogoText } from '@/components/tale-logo-text';
+import { HStack, Spacer } from '@/components/ui/layout';
 import { DashboardErrorBoundary } from '@/components/error-boundary';
 
 interface AppErrorProps {
@@ -12,20 +13,17 @@ interface AppErrorProps {
 
 export default function AppError({ error, reset: _reset }: AppErrorProps) {
   return (
-    <section>
-      <DashboardErrorBoundary
-        error={error}
-        header={
-          <div className="pt-8 px-20 flex items-center">
-            <Link href="/dashboard" className="hover:opacity-70">
-              <TaleLogoText />
-            </Link>
-            <span className="ml-auto">
-              <UserButton align="end" />
-            </span>
-          </div>
-        }
-      />
-    </section>
+    <DashboardErrorBoundary
+      error={error}
+      header={
+        <HStack className="pt-8 px-20">
+          <Link href="/dashboard" className="hover:opacity-70">
+            <TaleLogoText />
+          </Link>
+          <Spacer />
+          <UserButton align="end" />
+        </HStack>
+      }
+    />
   );
 }

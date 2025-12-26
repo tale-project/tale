@@ -8,6 +8,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { DataTable } from '@/components/ui/data-table';
+import { HStack } from '@/components/ui/layout';
 import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -277,7 +278,7 @@ export function ExecutionsTable({
         header: tTables('headers.executionId'),
         size: 160,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <span
               className="font-mono text-xs truncate"
               title={row.original._id}
@@ -299,7 +300,7 @@ export function ExecutionsTable({
                 <Copy className="size-4 p-0.5" />
               )}
             </Button>
-          </div>
+          </HStack>
         ),
       },
       {

@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Stack, HStack } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 
 export interface DataTableSkeletonColumn {
@@ -53,14 +54,14 @@ export function DataTableSkeleton({
   className,
 }: DataTableSkeletonProps) {
   return (
-    <div className={cn('w-full space-y-4', className)}>
+    <Stack gap={4} className={cn('w-full', className)}>
       {customHeader
         ? customHeader
         : showFilters && (
-            <div className="flex items-center gap-3">
+            <HStack gap={3}>
               <Skeleton className="h-10 w-full max-w-[18.75rem]" />
               <Skeleton className="h-10 w-24" />
-            </div>
+            </HStack>
           )}
 
       <Table>
@@ -89,17 +90,17 @@ export function DataTableSkeleton({
                   className="h-[52px]"
                 >
                   {col.isAction ? (
-                    <div className="flex justify-end">
+                    <HStack justify="end">
                       <Skeleton className="h-8 w-8 rounded-md" />
-                    </div>
+                    </HStack>
                   ) : colIndex === 0 ? (
-                    <div className="flex items-center gap-3">
+                    <HStack gap={3}>
                       <Skeleton className="size-8 rounded-md shrink-0" />
-                      <div className="flex flex-col gap-1 flex-1">
+                      <Stack gap={1} className="flex-1">
                         <Skeleton className="h-4 w-full max-w-48" />
                         <Skeleton className="h-3 w-2/3 max-w-24" />
-                      </div>
-                    </div>
+                      </Stack>
+                    </HStack>
                   ) : (
                     <Skeleton className="h-4 w-full" />
                   )}
@@ -111,13 +112,13 @@ export function DataTableSkeleton({
       </Table>
 
       {showPagination && (
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-8 w-16" />
           <Skeleton className="h-8 w-8" />
           <Skeleton className="h-4 w-24" />
-        </div>
+        </HStack>
       )}
-    </div>
+    </Stack>
   );
 }

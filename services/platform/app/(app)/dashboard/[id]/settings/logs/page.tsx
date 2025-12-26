@@ -2,13 +2,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Stack } from '@/components/ui/layout';
 import { useT } from '@/lib/i18n';
 
 export default function LogsPage() {
   const { t } = useT('settings');
 
   return (
-    <div className="space-y-4">
+    <Stack gap={4}>
       <Tabs defaultValue="activity" className="space-y-4">
         <TabsList>
           <TabsTrigger value="activity">{t('logs.activityLogs')}</TabsTrigger>
@@ -41,6 +42,6 @@ export default function LogsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </Stack>
   );
 }

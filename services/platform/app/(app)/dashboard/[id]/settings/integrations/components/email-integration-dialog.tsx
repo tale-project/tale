@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack, Center } from '@/components/ui/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Mail } from 'lucide-react';
+import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/hooks/use-toast';
 import EmailProviderTypeSelector from './email-provider-type-selector';
 import { useQuery } from 'convex/react';
@@ -175,40 +177,37 @@ export default function EmailIntegrationDialog({
         customFooter={footer}
       >
         {isLoading ? (
-          <div className="space-y-3">
+          <Stack gap={3}>
             {[1, 2].map((i) => (
               <div
                 key={i}
                 className="h-32 bg-secondary/20 rounded-lg animate-pulse"
               />
             ))}
-          </div>
+          </Stack>
         ) : providers && providers.length > 0 ? (
-          <div className="space-y-3">
+          <Stack gap={3}>
             {providers.map((provider) => (
               <div
                 key={provider._id}
                 className="bg-card border border-border rounded-lg p-4"
               >
                 {/* Header Row */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <HStack align="start" justify="between" className="mb-3">
+                  <HStack gap={2}>
                     {getVendorIcon(provider.vendor)}
                     <h3 className="font-medium text-base text-foreground">
                       {provider.name}
                     </h3>
-                  </div>
-                  <div className="flex items-center gap-3">
+                  </HStack>
+                  <HStack gap={3}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 p-0"
-                        >
-                          <span className="sr-only">{t('integrations.moreOptions')}</span>
-                          <MoreVertical className="size-4" />
-                        </Button>
+                        <IconButton
+                          icon={MoreVertical}
+                          aria-label={t('integrations.moreOptions')}
+                          className="size-8"
+                        />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
@@ -237,11 +236,11 @@ export default function EmailIntegrationDialog({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </div>
-                </div>
+                  </HStack>
+                </HStack>
 
                 {/* Badges Row */}
-                <div className="flex items-center gap-2 mb-3">
+                <HStack gap={2} className="mb-3">
                   {provider.isDefault && (
                     <Badge
                       variant="orange"
@@ -257,10 +256,10 @@ export default function EmailIntegrationDialog({
                   {provider.sendMethod === 'api' && (
                     <Badge variant="blue">{t('integrations.apiSending')}</Badge>
                   )}
-                </div>
+                </HStack>
 
                 {/* Technical Details */}
-                <div className="space-y-1 text-xs text-muted-foreground">
+                <Stack gap={1} className="text-xs text-muted-foreground">
                   {provider.authMethod === 'oauth2' &&
                     provider.metadata?.oauth2_user && (
                       <div>
@@ -296,10 +295,10 @@ export default function EmailIntegrationDialog({
                       {provider.passwordAuth.user}
                     </div>
                   )}
-                </div>
+                </Stack>
               </div>
             ))}
-          </div>
+          </Stack>
         ) : (
           <div className="text-center py-8">
             <Mail className="size-8 mx-auto mb-2 opacity-50" />

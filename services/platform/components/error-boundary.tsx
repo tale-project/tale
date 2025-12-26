@@ -2,6 +2,7 @@
 
 import React, { Component, ReactNode, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Stack, Center, HStack } from '@/components/ui/layout';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useParams, usePathname } from 'next/navigation';
 import { useT } from '@/lib/i18n';
@@ -51,62 +52,63 @@ function ErrorDisplay({
   return (
     <>
       {header}
-      <div className="flex-1 flex flex-col items-center px-4 py-[10rem]">
-        <div
-          className={`space-y-4 w-full ${isCompact ? 'max-w-md text-center' : 'max-w-[28rem]'}`}
+      <Center className={`flex-col px-4 ${isCompact ? 'py-16' : 'py-[10rem]'}`}>
+        <Stack
+          gap={4}
+          className={`w-full text-center ${isCompact ? 'max-w-md' : 'max-w-[28rem]'}`}
         >
-          {/* Error icon and title */}
-          <div className="text-center space-y-4">
+          {/* Error icon */}
+          <Center>
             <div
-              className={`mx-auto bg-red-100 rounded-full flex items-center justify-center ${isCompact ? 'w-12 h-12' : 'w-16 h-16'}`}
+              className={`bg-red-100 rounded-full grid place-items-center ${isCompact ? 'size-12' : 'size-16'}`}
             >
               <AlertTriangle
                 className={`text-red-600 ${isCompact ? 'size-6' : 'size-8'}`}
               />
             </div>
-            <h2
-              className={`text-foreground ${isCompact ? 'text-lg font-semibold' : 'text-3xl font-extrabold tracking-tight'}`}
-            >
-              {t('errors.somethingWentWrong')}
-            </h2>
-            <p
-              className={`text-muted-foreground ${isCompact ? 'text-sm' : ''}`}
-            >
-              {isCompact
-                ? t('errors.errorLoadingPage')
-                : t('errors.unexpectedErrorLoading')}
-            </p>
-          </div>
+          </Center>
+
+          {/* Title */}
+          <h2
+            className={`text-foreground ${isCompact ? 'text-lg font-semibold' : 'text-3xl font-extrabold tracking-tight'}`}
+          >
+            {t('errors.somethingWentWrong')}
+          </h2>
+
+          {/* Description */}
+          <p className={`text-muted-foreground ${isCompact ? 'text-sm' : ''}`}>
+            {isCompact
+              ? t('errors.errorLoadingPage')
+              : t('errors.unexpectedErrorLoading')}
+          </p>
 
           {/* Action buttons */}
-          <div className={`flex ${isCompact ? 'gap-2' : 'gap-3'}`}>
+          <HStack gap={isCompact ? 2 : 3} className="justify-center">
             <Button onClick={reset} className="flex-1">
               <RefreshCw className="size-4 mr-2" />
               {t('errors.tryAgain')}
             </Button>
-          </div>
+          </HStack>
 
           {/* Support message */}
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              {t('errors.persistsProblem')}{' '}
-              <a
-                href={
-                  organizationId
-                    ? `https://tale.dev/contact?organizationId=${organizationId}`
-                    : 'https://tale.dev/contact'
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                {t('errors.contactSupport')}
-              </a>
-              {isCompact ? '.' : ` ${t('errors.forAssistance')}`}
-            </p>
-          </div>
-        </div>
-      </div>
+          <p className="text-sm text-muted-foreground">
+            {t('errors.persistsProblem')}{' '}
+            <a
+              href={
+                organizationId
+                  ? `https://tale.dev/contact?organizationId=${organizationId}`
+                  : 'https://tale.dev/contact'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {t('errors.contactSupport')}
+            </a>
+            {isCompact ? '.' : ` ${t('errors.forAssistance')}`}
+          </p>
+        </Stack>
+      </Center>
     </>
   );
 }

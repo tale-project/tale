@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import Message from './message';
 import ConversationHeader from './conversation-header';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
+import { Stack, VStack, Center } from '@/components/ui/layout';
 import { useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -240,35 +241,35 @@ export default function ConversationPanel({
 
   if (!selectedConversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="flex flex-col items-center gap-6 w-full max-w-[316px]">
+      <Center className="flex-1 px-4">
+        <VStack gap={6} align="center" className="w-full max-w-[316px]">
           <MessageSquareMoreIcon className="size-5 text-muted-foreground" />
-          <div className="flex flex-col gap-3 h-14 items-center justify-start text-center w-full">
+          <VStack gap={3} align="center" className="h-14 text-center w-full">
             <h2 className="font-semibold text-lg text-foreground tracking-[-0.12px]">
               {tConversations('panel.noSelected')}
             </h2>
             <p className="font-normal text-sm text-muted-foreground tracking-[-0.084px] leading-[20px]">
               {tConversations('panel.selectToView')}
             </p>
-          </div>
-        </div>
-      </div>
+          </VStack>
+        </VStack>
+      </Center>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <Center className="flex-1">
         <Loader2Icon className="size-10 animate-spin" />
-      </div>
+      </Center>
     );
   }
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <Center className="flex-1">
         <p>{tConversations('panel.notFound')}</p>
-      </div>
+      </Center>
     );
   }
 
@@ -332,11 +333,11 @@ export default function ConversationPanel({
               </div>
 
               {/* Messages for this date */}
-              <div className="space-y-4 mb-8">
+              <Stack gap={4} className="mb-8">
                 {group.messages.map((message) => (
                   <Message key={message.id} message={message} />
                 ))}
-              </div>
+              </Stack>
             </div>
           ))
         )}

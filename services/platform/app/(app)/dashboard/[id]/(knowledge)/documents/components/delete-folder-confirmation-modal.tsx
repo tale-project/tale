@@ -1,6 +1,7 @@
 'use client';
 
 import { DeleteModal } from '@/components/ui/modals';
+import { Stack } from '@/components/ui/layout';
 import { useT } from '@/lib/i18n';
 
 interface DeleteSyncFolderConfirmationModalProps {
@@ -30,23 +31,23 @@ export default function DeleteSyncFolderConfirmationModal({
       isDeleting={isLoading}
       onDelete={onConfirmDelete}
     >
-      <div className="space-y-4">
-        <div className="space-y-2">
+      <Stack gap={4}>
+        <Stack gap={2}>
           <p className="text-sm text-muted-foreground">{tDocuments('deleteSyncFolder.thisWillDelete')}</p>
           <ul className="text-sm text-muted-foreground ml-4 space-y-1 list-disc">
             <li>{tDocuments('deleteSyncFolder.willDelete.filesAndSubfolders')}</li>
             <li>{tDocuments('deleteSyncFolder.willDelete.autoSyncConfig')}</li>
             <li>{tDocuments('deleteSyncFolder.willDelete.syncHistory')}</li>
           </ul>
-        </div>
-        <div className="space-y-2">
+        </Stack>
+        <Stack gap={2}>
           <p className="text-sm text-muted-foreground">
             {tDocuments('deleteSyncFolder.willNotDelete.prefix')}{' '}
             <strong className="text-foreground">{tDocuments('deleteSyncFolder.willNotDelete.not')}</strong>{' '}
             {tDocuments('deleteSyncFolder.willNotDelete.suffix')}
           </p>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
     </DeleteModal>
   );
 }

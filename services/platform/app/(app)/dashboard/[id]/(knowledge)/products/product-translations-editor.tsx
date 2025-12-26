@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import { Edit, Save, X, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
@@ -98,12 +100,10 @@ export default function ProductTranslationsEditor({
       onOpenChange={setOpen}
       title={tProducts('translations.title')}
       trigger={
-        <Button variant="ghost" size="icon">
-          <Edit className="size-4" />
-        </Button>
+        <IconButton icon={Edit} aria-label={tProducts('translations.title')} />
       }
       customFooter={
-        <div className="flex justify-end space-x-2">
+        <HStack justify="end" gap={2}>
           <Button
             variant="outline"
             onClick={handleCancel}
@@ -120,18 +120,18 @@ export default function ProductTranslationsEditor({
             )}
             {tCommon('actions.save')}
           </Button>
-        </div>
+        </HStack>
       }
     >
       {/* Original Product Name */}
-      <div className="space-y-2">
+      <Stack gap={2}>
         <span className="text-sm font-medium text-muted-foreground">
           {tProducts('translations.originalProductName')}
         </span>
         <div className="p-3 bg-muted rounded-md">
           <span className="text-sm">{productName}</span>
         </div>
-      </div>
+      </Stack>
 
       {/* English Translation */}
       <Input

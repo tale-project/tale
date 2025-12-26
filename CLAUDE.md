@@ -8,3 +8,6 @@
 
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
 - CONSIDER ALWAYS TO add optimistic updates with `withOptimisticUpdate` for `useMutation`. If you decide to NOT add a optimistic update you need to provide a good reason why and comment the hook.
+- CONSIDER ALWAYS TO use reusable components.
+- USE `useMemo`, `useCallback` and `memo` the right moment.
+- DO NOT overuse `useEffect`.

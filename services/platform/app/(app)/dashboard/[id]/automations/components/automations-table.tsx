@@ -20,6 +20,7 @@ import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { HStack } from '@/components/ui/layout';
 import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -224,7 +225,7 @@ export default function AutomationsTable({
         id: 'actions',
         size: 80,
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <HStack justify="end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -262,7 +263,7 @@ export default function AutomationsTable({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </HStack>
         ),
       },
     ],

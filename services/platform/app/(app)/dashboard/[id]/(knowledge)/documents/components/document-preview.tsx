@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Center, VStack } from '@/components/ui/layout';
 import { getFileExtension } from '@/lib/utils/document-helpers';
 import { Image } from 'lucide-react';
 import { Download, Loader2 } from 'lucide-react';
@@ -80,8 +81,8 @@ export default function DocumentPreview({
   }
 
   return (
-    <div className="flex-1 grid place-items-center p-6">
-      <div className="text-center text-muted-foreground max-w-[24rem]">
+    <Center className="flex-1 p-6">
+      <VStack align="center" className="text-center text-muted-foreground max-w-[24rem]">
         <Image className="size-16 mx-auto mb-2 p-2" />
         <div className="text-base font-medium text-foreground mb-1">
           {t('preview.notAvailable')}
@@ -100,7 +101,7 @@ export default function DocumentPreview({
             </>
           )}
         </Button>
-      </div>
-    </div>
+      </VStack>
+    </Center>
   );
 }

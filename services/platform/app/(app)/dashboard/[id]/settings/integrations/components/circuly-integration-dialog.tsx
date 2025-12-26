@@ -5,14 +5,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { FormModal } from '@/components/ui/modals';
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Form,
-} from '@/components/ui/form';
+import { Form } from '@/components/ui/form';
+import { Description } from '@/components/ui/description';
+import { StatusIndicator } from '@/components/ui/status-indicator';
+import { Stack } from '@/components/ui/layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -173,78 +169,52 @@ export default function CirculyIntegrationDialog({
     >
       {isConnected ? (
         // Connected state - show current connection info
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2 text-sm text-green-600">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span>{t('integrations.circuly.connectedToCirculy')}</span>
-          </div>
+        <Form>
+          <StatusIndicator variant="success">
+            {t('integrations.circuly.connectedToCirculy')}
+          </StatusIndicator>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground/80">
+          <Stack gap={2}>
+            <span className="text-sm font-medium text-foreground/80">
               {t('integrations.circuly.connectedUsername')}
-            </label>
+            </span>
             <div className="p-3 bg-muted rounded-md text-sm">
               {existingUsername || t('integrations.circuly.connected')}
             </div>
-          </div>
+          </Stack>
 
-          <p className="text-xs text-muted-foreground">
+          <Description className="text-xs">
             {t('integrations.circuly.syncingData')}
-          </p>
-        </div>
+          </Description>
+        </Form>
       ) : (
         // Not connected state - show connection form
-        <Form {...form}>
-          <form
-            onSubmit={handleSubmit(handleConnect)}
-            className="space-y-4"
-          >
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('integrations.circuly.username')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('integrations.circuly.usernamePlaceholder')}
-                      {...field}
-                      disabled={isSubmitting}
-                      className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+        <form onSubmit={handleSubmit(handleConnect)}>
+          <Form>
+            <Input
+              label={t('integrations.circuly.username')}
+              placeholder={t('integrations.circuly.usernamePlaceholder')}
+              disabled={isSubmitting}
+              errorMessage={form.formState.errors.username?.message}
+              className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              {...form.register('username')}
             />
 
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('integrations.circuly.password')}</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        type="password"
-                        placeholder={t('integrations.circuly.passwordPlaceholder')}
-                        {...field}
-                        disabled={isSubmitting}
-                        className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pr-10"
-                      />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+            <Input
+              type="password"
+              label={t('integrations.circuly.password')}
+              placeholder={t('integrations.circuly.passwordPlaceholder')}
+              disabled={isSubmitting}
+              errorMessage={form.formState.errors.password?.message}
+              className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              {...form.register('password')}
             />
 
-            <p className="text-xs text-muted-foreground">
+            <Description className="text-xs">
               {t('integrations.circuly.enterCredentials')}
-            </p>
-          </form>
-        </Form>
+            </Description>
+          </Form>
+        </form>
       )}
     </FormModal>
   );

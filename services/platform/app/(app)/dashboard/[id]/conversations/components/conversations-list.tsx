@@ -3,6 +3,7 @@
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/components/ui/badge';
+import { HStack, Stack } from '@/components/ui/layout';
 import striptags from 'striptags';
 import { decode } from 'he';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -239,7 +240,7 @@ export default function ConversationsList({
               </div>
 
               {/* Badges */}
-              <div className="flex items-center space-x-2">
+              <HStack gap={2}>
                 {/* Priority badge */}
                 {conversation.priority &&
                   conversation.status === 'open' &&
@@ -279,7 +280,7 @@ export default function ConversationsList({
                     )}
                   </Badge>
                 )}
-              </div>
+              </HStack>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Stack, HStack } from '@/components/ui/layout';
 import { GmailIcon } from '@/components/ui/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -259,12 +260,12 @@ export default function GmailCreateProviderDialog({
   };
 
   const customHeader = (
-    <div className="flex items-center gap-3">
-      <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
+    <HStack gap={3}>
+      <div className="size-8 bg-background border border-border rounded-md grid place-items-center">
         <GmailIcon className="size-5" />
       </div>
       <span className="font-semibold">{t('integrations.addProvider', { provider: 'Gmail' })}</span>
-    </div>
+    </HStack>
   );
 
   return (
@@ -301,17 +302,15 @@ export default function GmailCreateProviderDialog({
               href="https://support.google.com/cloud/answer/6158849"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
             >
               <ExternalLink className="w-3 h-3" />
               {t('integrations.googleOAuth2Guide')}
             </a>
           </div>
 
-          <form
-            onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
-            className="space-y-4"
-          >
+          <form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}>
+            <Stack gap={4}>
             <Input
               id="oauth2-name"
               label={t('integrations.providerName')}
@@ -334,6 +333,7 @@ export default function GmailCreateProviderDialog({
                 ? t('integrations.redirectingToGoogle')
                 : t('integrations.continueWithGoogle')}
             </Button>
+            </Stack>
           </form>
         </TabsContent>
 
@@ -347,17 +347,15 @@ export default function GmailCreateProviderDialog({
               href="https://support.google.com/accounts/answer/185833"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
             >
               <ExternalLink className="w-3 h-3" />
               {t('integrations.googleAppPasswordsGuide')}
             </a>
           </div>
 
-          <form
-            onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
-            className="space-y-4"
-          >
+          <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}>
+            <Stack gap={4}>
             <Input
               id="name"
               label={t('integrations.providerName')}
@@ -398,6 +396,7 @@ export default function GmailCreateProviderDialog({
                 ? t('integrations.testingAndCreating')
                 : t('integrations.testAndCreate')}
             </Button>
+            </Stack>
           </form>
         </TabsContent>
       </Tabs>

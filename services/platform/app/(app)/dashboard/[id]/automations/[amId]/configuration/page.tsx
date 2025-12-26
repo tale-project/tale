@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
+import { Stack, Grid } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-convex-auth';
@@ -193,54 +194,54 @@ export default function ConfigurationPage() {
   if (!workflow) {
     return (
       <div className="py-4 px-6 max-w-xl mx-auto w-full">
-        <div className="space-y-4">
+        <Stack gap={4}>
           {/* Name */}
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Skeleton className="h-4 w-12" />
             <Skeleton className="h-10 w-full" />
-          </div>
+          </Stack>
           {/* Description */}
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-24 w-full" />
-          </div>
+          </Stack>
           {/* Grid fields */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <Grid cols={2} gap={4}>
+            <Stack gap={2}>
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-3 w-48" />
-            </div>
-            <div className="space-y-2">
+            </Stack>
+            <Stack gap={2}>
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-3 w-40" />
-            </div>
-          </div>
+            </Stack>
+          </Grid>
           {/* Backoff */}
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Skeleton className="h-4 w-20" />
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-3 w-56" />
-          </div>
+          </Stack>
           {/* Variables JSON */}
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-3 w-72" />
-          </div>
+          </Stack>
           {/* Button */}
           <div className="pt-4">
             <Skeleton className="h-10 w-36" />
           </div>
-        </div>
+        </Stack>
       </div>
     );
   }
 
   return (
     <div className="py-4 px-6 max-w-xl mx-auto w-full">
-      <div className="space-y-4">
+      <Stack gap={4}>
         {/* Name */}
         <Input
           id="name"
@@ -261,8 +262,8 @@ export default function ConfigurationPage() {
         />
 
         {/* Timeout and Max Retries */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
+        <Grid cols={2} gap={4}>
+          <Stack gap={2}>
             <Input
               id="timeout"
               type="number"
@@ -275,9 +276,9 @@ export default function ConfigurationPage() {
             <p className="text-xs text-muted-foreground">
               {tAutomations('configuration.timeoutHelp')}
             </p>
-          </div>
+          </Stack>
 
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Input
               id="maxRetries"
               type="number"
@@ -291,11 +292,11 @@ export default function ConfigurationPage() {
             <p className="text-xs text-muted-foreground">
               {tAutomations('configuration.maxRetriesHelp')}
             </p>
-          </div>
-        </div>
+          </Stack>
+        </Grid>
 
         {/* Backoff */}
-        <div className="space-y-2">
+        <Stack gap={2}>
           <Input
             id="backoffMs"
             type="number"
@@ -308,7 +309,7 @@ export default function ConfigurationPage() {
           <p className="text-xs text-muted-foreground">
             {tAutomations('configuration.backoffHelp')}
           </p>
-        </div>
+        </Stack>
 
         {/* Variables */}
         <JsonInput
@@ -332,7 +333,7 @@ export default function ConfigurationPage() {
             )}
           </Button>
         </div>
-      </div>
+      </Stack>
     </div>
   );
 }
