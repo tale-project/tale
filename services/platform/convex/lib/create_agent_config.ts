@@ -61,10 +61,16 @@ export function createAgentConfig(opts: {
     );
   }
 
-  const callSettings =
-    typeof opts.temperature === 'number'
-      ? { temperature: opts.temperature }
-      : undefined;
+  // Build call settings with temperature and frequency_penalty
+  // frequency_penalty helps prevent the model from repeating the same text in loops
+  const callSettings: Record<string, number> = {
+    // Add frequency_penalty to discourage repetition loops
+    // This penalizes tokens based on their frequency in the generated text so far
+    frequencyPenalty: 0.3,
+  };
+  if (typeof opts.temperature === 'number') {
+    callSettings.temperature = opts.temperature;
+  }
 
   // Build text embedding model for vector search if enabled
   // Requires OPENAI_EMBEDDING_MODEL env var to be set
@@ -85,7 +91,7 @@ export function createAgentConfig(opts: {
     name: opts.name,
     instructions: finalInstructions,
     languageModel: openai.chat(model),
-    ...(callSettings ? { callSettings } : {}),
+    callSettings,
     ...(hasMaxTokens
       ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
       : {}),

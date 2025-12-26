@@ -1,5 +1,9 @@
 /**
  * Internal mutation to create integration
+ *
+ * Supports both REST API and SQL integrations.
+ * For predefined integrations (like Protel), automatically populates
+ * connector code (REST API) or SQL operations from the predefined definitions.
  */
 
 import { MutationCtx } from '../../_generated/server';
@@ -13,6 +17,8 @@ import {
   ConnectionConfig,
   Capabilities,
   ConnectorConfig,
+  SqlConnectionConfig,
+  SqlOperation,
 } from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 
@@ -30,6 +36,10 @@ export interface CreateIntegrationInternalArgs {
   connectionConfig?: ConnectionConfig;
   capabilities?: Capabilities;
   connector?: ConnectorConfig;
+  // SQL integration fields
+  type?: 'rest_api' | 'sql';
+  sqlConnectionConfig?: SqlConnectionConfig;
+  sqlOperations?: SqlOperation[];
   metadata?: unknown;
 }
 
@@ -41,13 +51,52 @@ export async function createIntegrationInternal(
   let connector = args.connector;
   let title = args.title;
   let description = args.description;
+  let type = args.type;
+  let sqlConnectionConfig = args.sqlConnectionConfig;
+  let sqlOperations = args.sqlOperations;
 
-  // For predefined integrations, auto-populate connector and metadata
+  // For predefined integrations, auto-populate from predefined definitions
   const predefined = getPredefinedIntegration(args.name);
-  if (!connector && predefined) {
-    connector = predefined.connector;
+  if (predefined) {
     title = title ?? predefined.title;
     description = description ?? predefined.description;
+
+    // Check if this is a SQL integration
+    if (predefined.type === 'sql') {
+      type = 'sql';
+
+      // Validate required SQL connection fields
+      if (sqlConnectionConfig) {
+        if (!sqlConnectionConfig.server || sqlConnectionConfig.server.trim() === '') {
+          throw new Error('SQL integration requires a server address');
+        }
+        if (!sqlConnectionConfig.database || sqlConnectionConfig.database.trim() === '') {
+          throw new Error('SQL integration requires a database name');
+        }
+      }
+
+      // Merge SQL connection config: user-provided values override predefined defaults
+      // User MUST provide server and database at setup time
+      if (predefined.sqlConnectionConfig && sqlConnectionConfig) {
+        sqlConnectionConfig = {
+          ...predefined.sqlConnectionConfig,
+          ...sqlConnectionConfig,
+          // Ensure required fields from user config take precedence
+          server: sqlConnectionConfig.server,
+          database: sqlConnectionConfig.database,
+        };
+      }
+
+      // Use predefined SQL operations if not provided
+      if (!sqlOperations && predefined.sqlOperations) {
+        sqlOperations = predefined.sqlOperations as SqlOperation[];
+      }
+    } else {
+      // REST API integration - use predefined connector
+      if (!connector && predefined.connector) {
+        connector = predefined.connector;
+      }
+    }
   }
 
   const integrationId = await ctx.db.insert('integrations', {
@@ -55,6 +104,7 @@ export async function createIntegrationInternal(
     name: args.name,
     title,
     description,
+    type,
     status: args.status,
     isActive: args.isActive,
     authMethod: args.authMethod,
@@ -64,6 +114,8 @@ export async function createIntegrationInternal(
     connectionConfig: args.connectionConfig,
     capabilities: args.capabilities,
     connector,
+    sqlConnectionConfig,
+    sqlOperations,
     lastTestedAt: Date.now(),
     metadata: args.metadata,
   });

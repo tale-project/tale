@@ -1,5 +1,8 @@
 /**
  * Business logic for creating an integration with encryption and health checks
+ *
+ * Supports both REST API and SQL integrations.
+ * For SQL integrations, pass sqlConnectionConfig with the database connection details.
  */
 
 import { ActionCtx } from '../../_generated/server';
@@ -12,6 +15,8 @@ import {
   OAuth2Auth,
   ConnectionConfig,
   Capabilities,
+  SqlConnectionConfig,
+  SqlOperation,
 } from './types';
 import { saveRelatedWorkflows } from './save_related_workflows';
 import { encryptCredentials } from './encrypt_credentials';
@@ -32,6 +37,10 @@ export interface CreateIntegrationLogicArgs {
   oauth2Auth?: OAuth2Auth;
   connectionConfig?: ConnectionConfig;
   capabilities?: Capabilities;
+  // SQL integration fields
+  type?: 'rest_api' | 'sql';
+  sqlConnectionConfig?: SqlConnectionConfig;
+  sqlOperations?: SqlOperation[];
   metadata?: unknown;
 }
 
@@ -47,14 +56,32 @@ export async function createIntegrationLogic(
     organizationId: args.organizationId,
   });
 
+  // Validate SQL connection config for SQL integrations
+  if (args.type === 'sql') {
+    if (!args.sqlConnectionConfig) {
+      throw new Error('SQL integration requires sqlConnectionConfig');
+    }
+    if (!args.sqlConnectionConfig.server || args.sqlConnectionConfig.server.trim() === '') {
+      throw new Error('SQL integration requires a server address');
+    }
+    if (!args.sqlConnectionConfig.database || args.sqlConnectionConfig.database.trim() === '') {
+      throw new Error('SQL integration requires a database name');
+    }
+    if (!args.sqlConnectionConfig.engine) {
+      throw new Error('SQL integration requires an engine type (mssql, postgres, or mysql)');
+    }
+  }
+
   // Encrypt credentials
   const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(
     ctx,
     args,
   );
 
-  // Run health check
-  await runHealthCheck(args);
+  // Run health check (skip for SQL integrations - connection test happens at create time)
+  if (args.type !== 'sql') {
+    await runHealthCheck(args);
+  }
 
   // Create integration
   const integrationId: Id<'integrations'> = await ctx.runMutation(
@@ -64,7 +91,7 @@ export async function createIntegrationLogic(
       name: args.name,
       title: args.title,
       description: args.description,
-      // Set to 'active' since health check passed
+      // Set to 'active' since health check passed (or SQL integration)
       status: 'active',
       isActive: true,
       authMethod: args.authMethod,
@@ -73,6 +100,10 @@ export async function createIntegrationLogic(
       oauth2Auth,
       connectionConfig: args.connectionConfig,
       capabilities: args.capabilities,
+      // SQL integration fields
+      type: args.type,
+      sqlConnectionConfig: args.sqlConnectionConfig,
+      sqlOperations: args.sqlOperations,
       metadata: args.metadata,
     },
   );

@@ -1,18 +1,14 @@
 import CustomersTable from './customers-table';
 import { Suspense } from 'react';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { Users } from 'lucide-react';
-import ImportCustomersMenu from './import-customers-menu';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { customerFilterDefinitions } from './filter-definitions';
+import { CustomersEmptyState } from './customers-empty-state';
 import type { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -48,18 +44,6 @@ async function CustomersSkeleton() {
   );
 }
 
-/** Empty state shown when org has no customers - avoids unnecessary skeleton */
-async function CustomersEmptyState({ organizationId }: { organizationId: string }) {
-  const { t } = await getT('emptyStates');
-  return (
-    <DataTableEmptyState
-      icon={Users}
-      title={t('customers.title')}
-      description={t('customers.description')}
-      action={<ImportCustomersMenu organizationId={organizationId} />}
-    />
-  );
-}
 
 interface CustomersContentProps {
   params: Promise<{ id: string }>;

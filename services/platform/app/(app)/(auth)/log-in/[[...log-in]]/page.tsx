@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
-import AuthLayout from '@/components/auth-layout';
 import LogInForm from '@/components/auth/log-in-form';
 import { FormSkeleton } from '@/components/skeletons';
 import { api } from '@/convex/_generated/api';
@@ -41,23 +40,19 @@ async function LogInContent() {
   const microsoftEnabled = isMicrosoftAuthEnabled();
 
   return (
-    <AuthLayout>
-      <LogInForm
-        userId={user?.userId || undefined}
-        microsoftEnabled={microsoftEnabled}
-      />
-    </AuthLayout>
+    <LogInForm
+      userId={user?.userId || undefined}
+      microsoftEnabled={microsoftEnabled}
+    />
   );
 }
 
 /** Skeleton for the log-in form */
 function LogInSkeleton() {
   return (
-    <AuthLayout>
-      <div className="max-w-md mx-auto">
-        <FormSkeleton fields={2} />
-      </div>
-    </AuthLayout>
+    <div className="max-w-md mx-auto">
+      <FormSkeleton fields={2} />
+    </div>
   );
 }
 

@@ -137,36 +137,6 @@ export const updateChatThread = mutation({
 });
 
 /**
- * Get the active runId for a thread (if any).
- * This is used to recover the chat polling state after a page refresh.
- * The runId is stored in the thread's summary field as JSON: { chatType, activeRunId }.
- */
-export const getActiveRunId = query({
-  args: {
-    threadId: v.string(),
-  },
-  returns: v.union(v.string(), v.null()),
-  handler: async (ctx, args) => {
-    return await ThreadsModel.getActiveRunId(ctx, args.threadId);
-  },
-});
-
-/**
- * Clear the active runId from a thread's summary.
- * Called when chat generation fails or is canceled.
- */
-export const clearActiveRunId = mutation({
-  args: {
-    threadId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ThreadsModel.clearActiveRunId(ctx, args.threadId);
-    return null;
-  },
-});
-
-/**
  * Get the latest tool message for a thread.
  * Used to display dynamic loading status in the UI when the agent is running tools.
  * Supports multiple tool calls in a single message.

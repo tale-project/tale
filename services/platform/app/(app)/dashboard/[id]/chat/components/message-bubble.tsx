@@ -457,6 +457,13 @@ function MessageBubbleComponent({
   // react-markdown safely parses markdown without XSS risks
   // DOMPurify would encode special chars like > as &gt; breaking code blocks
 
+  // Sanitize markdown tables to fix malformed syntax (e.g., double pipes ||)
+  const sanitizedContent = message.content
+    ? message.content
+        // Fix double pipes in table rows (e.g., "||value" -> "| value" or "value||" -> "value |")
+        .replace(/\|\|+/g, '|')
+    : '';
+
   // State for copy button
   const [isCopied, setIsCopied] = useState(false);
   // State for info modal
@@ -530,10 +537,10 @@ function MessageBubbleComponent({
         )}
 
         {/* Message content */}
-        {message.content && (
+        {sanitizedContent && (
           <div className="text-sm leading-5">
             {isAssistantStreaming ? (
-              <TypewriterText text={message.content} isStreaming={true} />
+              <TypewriterText text={sanitizedContent} isStreaming={true} />
             ) : (
               <div className={markdownWrapperStyles}>
                 <Markdown
@@ -541,7 +548,7 @@ function MessageBubbleComponent({
                   rehypePlugins={[rehypeRaw]}
                   components={markdownComponents}
                 >
-                  {message.content}
+                  {sanitizedContent}
                 </Markdown>
               </div>
             )}

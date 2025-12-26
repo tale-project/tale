@@ -19,6 +19,8 @@ export async function createApproval(
     resourceId: args.resourceId,
     priority: args.priority,
     dueDate: args.dueDate,
+    threadId: args.threadId,
+    messageId: args.messageId,
     metadata: {
       requestedBy: args.requestedBy,
       createdAt: Date.now(),

@@ -3,27 +3,30 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Loader2 } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import MessageBubble from './message-bubble';
 import ChatInput from './chat-input';
+import { IntegrationApprovalCard } from './integration-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
-import { useQuery } from 'convex/react';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import {
   useCreateThread,
   useUpdateThread,
   useChatWithAgent,
-  useClearActiveRunId,
 } from '../hooks';
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
+import {
+  useIntegrationApprovals,
+  type IntegrationApproval,
+} from '../hooks/use-integration-approvals';
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -46,6 +49,7 @@ interface ChatMessage {
   timestamp: Date;
   attachments?: FileAttachment[];
   fileParts?: FilePart[]; // File parts from server messages
+  _creationTime?: number; // For chronological ordering with approvals
 }
 
 /**
@@ -289,11 +293,8 @@ export default function ChatInterface({
   const {
     optimisticMessage,
     setOptimisticMessage,
-    currentRunId,
-    setCurrentRunId,
-    isPending: _isPending,
+    isPending,
     setIsPending,
-    isLoading,
     clearChatState,
   } = useChatLayout();
 
@@ -304,11 +305,20 @@ export default function ChatInterface({
   const userDraftMessage = optimisticMessage?.content || '';
 
   // Fetch thread messages with streaming support
-  const { results: uiMessages } = useUIMessages(
+  // Use pagination to handle large threads (50+ messages)
+  const {
+    results: uiMessages,
+    loadMore,
+    status: paginationStatus,
+  } = useUIMessages(
     api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 50, stream: true },
   );
+
+  // Track pagination state for loading more messages
+  const canLoadMore = paginationStatus === 'CanLoadMore';
+  const isLoadingMore = paginationStatus === 'LoadingMore';
 
   // Convert UIMessage to ChatMessage format for compatibility
   // Memoize to prevent unnecessary re-renders when typing
@@ -335,6 +345,7 @@ export default function ChatInterface({
           role: m.role as 'user' | 'assistant',
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
+          _creationTime: m._creationTime,
         };
       });
   }, [uiMessages]);
@@ -344,65 +355,90 @@ export default function ChatInterface({
     (m) => m.role === 'assistant' && m.status === 'streaming',
   );
 
-  // Query for active runId from thread (for recovery on page refresh)
-  const activeRunIdFromThread = useQuery(
-    api.threads.getActiveRunId,
-    threadId ? { threadId } : 'skip',
-  );
+  // Fetch integration approvals for this thread
+  const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
 
-  // Poll chat status when we have an active runId
-  const chatStatus = useQuery(
-    api.chat_agent.chatWithAgentStatus,
-    currentRunId ? { runId: currentRunId } : 'skip',
-  );
+  // Create a merged list of messages and approvals
+  // Approvals are positioned right after their associated message (by messageId)
+  // Only show approvals whose associated message is currently loaded (handles pagination)
+  type ChatItem =
+    | { type: 'message'; data: ChatMessage }
+    | { type: 'approval'; data: IntegrationApproval };
+
+  const mergedChatItems = useMemo((): ChatItem[] => {
+    const items: ChatItem[] = [];
+
+    // Build a set of currently loaded message IDs for filtering approvals
+    const loadedMessageIds = new Set<string>();
+    // Build a map of message id -> creation time for positioning approvals
+    const messageTimeMap = new Map<string, number>();
+    for (const message of threadMessages || []) {
+      loadedMessageIds.add(message.id);
+      const time = message._creationTime || message.timestamp.getTime();
+      messageTimeMap.set(message.id, time);
+    }
+
+    // Add messages
+    for (const message of threadMessages || []) {
+      items.push({ type: 'message', data: message });
+    }
+
+    // Filter approvals:
+    // 1. Must have a messageId (pending approvals without messageId are hidden until stream completes)
+    // 2. The associated message must be currently loaded (handles pagination)
+    const filteredApprovals = (integrationApprovals || []).filter((approval) => {
+      // Must have a messageId to be displayed
+      if (!approval.messageId) return false;
+      // Only show if the associated message is currently loaded
+      return loadedMessageIds.has(approval.messageId);
+    });
+
+    // Add filtered approvals
+    for (const approval of filteredApprovals) {
+      items.push({ type: 'approval', data: approval });
+    }
+
+    // Sort items:
+    // - Messages are sorted by their creation time
+    // - Approvals are positioned right after their associated message (by messageId)
+    items.sort((a, b) => {
+      const getItemSortKey = (item: ChatItem): number => {
+        if (item.type === 'message') {
+          return item.data._creationTime || item.data.timestamp.getTime();
+        }
+        // For approvals, position after the associated message
+        const approval = item.data;
+        const messageTime = messageTimeMap.get(approval.messageId!);
+        if (messageTime !== undefined) {
+          // Add 0.1ms offset to ensure approval appears after its message
+          return messageTime + 0.1;
+        }
+        // Fallback (should not happen since we filtered above)
+        return approval._creationTime;
+      };
+
+      return getItemSortKey(a) - getItemSortKey(b);
+    });
+
+    return items;
+  }, [threadMessages, integrationApprovals]);
 
   // Convex mutations
   const createThread = useCreateThread();
   const updateThread = useUpdateThread();
   const chatWithAgent = useChatWithAgent();
-  const clearActiveRunIdMutation = useClearActiveRunId();
 
-  // Sync loading state with server and handle chat completion
+  // Derive loading state from streaming message or pending state
+  // isPending = immediately after user clicks send, before mutation completes
+  // streamingMessage = when AI is actively streaming a response
+  const isLoading = isPending || !!streamingMessage;
+
+  // Clear pending state when streaming starts (message is now tracked by stream)
   useEffect(() => {
-    // 1. Recover runId from thread (page refresh/navigation)
-    if (!currentRunId && activeRunIdFromThread) {
-      setCurrentRunId(activeRunIdFromThread);
-      return;
+    if (streamingMessage && isPending) {
+      setIsPending(false);
     }
-
-    // 2. Clear stale loading state (AI completed before we could recover)
-    if (threadId && activeRunIdFromThread === null && isLoading) {
-      clearChatState();
-      return;
-    }
-
-    // 3. Handle chat status changes
-    if (!chatStatus || !currentRunId) return;
-
-    if (chatStatus.status === 'success') {
-      clearChatState();
-    } else if (chatStatus.status === 'failed') {
-      toast({
-        title: t('toast.generateFailed'),
-        description: chatStatus.error,
-        variant: 'destructive',
-      });
-      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
-      clearChatState();
-    } else if (chatStatus.status === 'canceled') {
-      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
-      clearChatState();
-    }
-  }, [
-    activeRunIdFromThread,
-    chatStatus,
-    currentRunId,
-    threadId,
-    isLoading,
-    setCurrentRunId,
-    clearChatState,
-    clearActiveRunIdMutation,
-  ]);
+  }, [streamingMessage, isPending, setIsPending]);
 
   // Clear optimistic message when it appears in actual messages
   useEffect(() => {
@@ -560,16 +596,14 @@ export default function ChatInterface({
         fileSize: a.fileSize,
       }));
 
-      const result = await chatWithAgent({
+      await chatWithAgent({
         threadId: currentThreadId,
         organizationId,
         message: userMessage.content,
         attachments: mutationAttachments,
       });
 
-      // Clear pending now that we have a run ID
-      setIsPending(false);
-      setCurrentRunId(result.runId);
+      // Pending state will be cleared when streaming starts (see useEffect above)
     } catch (error) {
       clearChatState();
       setInputValue('');
@@ -608,27 +642,69 @@ export default function ChatInterface({
               </div>
             )}
           {(threadId || threadMessages?.length > 0 || userDraftMessage) && (
-            // Chat messages - show when we have a threadId OR messages OR draft
+            // Chat messages and approvals - show when we have a threadId OR messages OR draft
             <div
               className="max-w-[var(--chat-max-width)] mx-auto space-y-4"
               role="log"
               aria-live="polite"
               aria-label={t('aria.messageHistory')}
             >
-              {threadMessages?.map((message: ChatMessage) => {
-                // Show user messages always, and assistant messages even if empty (for streaming)
-                const shouldShow =
-                  message.role === 'user' || message.content !== '';
+              {/* Load More button for pagination - shows when more messages exist */}
+              {(canLoadMore || isLoadingMore) && (
+                <div className="flex justify-center py-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => loadMore(50)}
+                    disabled={isLoadingMore}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      'Load older messages'
+                    )}
+                  </Button>
+                </div>
+              )}
+              {/* Render merged messages and approvals in chronological order */}
+              {mergedChatItems.map((item) => {
+                if (item.type === 'message') {
+                  const message = item.data;
+                  // Show user messages always, and assistant messages even if empty (for streaming)
+                  const shouldShow =
+                    message.role === 'user' || message.content !== '';
 
-                return shouldShow ? (
-                  <MessageBubble
-                    key={message.key}
-                    message={{
-                      ...message,
-                      threadId: threadId,
-                    }}
-                  />
-                ) : null;
+                  return shouldShow ? (
+                    <MessageBubble
+                      key={message.key}
+                      message={{
+                        ...message,
+                        threadId: threadId,
+                      }}
+                    />
+                  ) : null;
+                } else {
+                  // Render approval card
+                  const approval = item.data;
+                  return (
+                    <div
+                      key={`approval-${approval._id}`}
+                      className="flex justify-start"
+                    >
+                      <IntegrationApprovalCard
+                        approvalId={approval._id}
+                        status={approval.status}
+                        metadata={approval.metadata}
+                        executedAt={approval.executedAt}
+                        executionError={approval.executionError}
+                      />
+                    </div>
+                  );
+                }
               })}
               {userDraftMessage && (
                 <MessageBubble
@@ -643,6 +719,7 @@ export default function ChatInterface({
                   }}
                 />
               )}
+
               {/* AI Response area - ref used for scroll positioning */}
               <div ref={aiResponseAreaRef}>
                 {isLoading && (

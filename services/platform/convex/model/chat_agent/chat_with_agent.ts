@@ -4,15 +4,12 @@
  * Contains the core logic previously in convex/chat_agent.ts:
  * - Deduplicate the last user message
  * - Save the user message if it's new
- * - Kick off the retried internal action
- * - Store activeRunId on the thread summary
+ * - Schedule the agent response action
  */
 
 import type { MutationCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
-import type { RunId } from '@convex-dev/action-retrier';
-import { chatAgentRetrier } from '../../lib/chat_agent_retrier';
 import { computeDeduplicationState } from './message_deduplication';
 
 import { createDebugLog } from '../../lib/debug_log';
@@ -32,7 +29,6 @@ export interface ChatWithAgentArgs {
 }
 
 export interface ChatWithAgentResult {
-  runId: string;
   messageAlreadyExists: boolean;
 }
 
@@ -159,7 +155,7 @@ export async function chatWithAgent(
     promptMessageId = lastUserMessage!._id;
   }
 
-  // Kick off the retried internal action
+  // Schedule the agent response action
   // Serialize attachments for the action (only pass if not a duplicate message)
   const actionAttachments = !messageAlreadyExists && hasAttachments
     ? attachments.map((a) => ({
@@ -170,48 +166,17 @@ export async function chatWithAgent(
       }))
     : undefined;
 
-  const runId: RunId = await chatAgentRetrier.run(
-    ctx,
-    internal.chat_agent.generateAgentResponse,
-    {
-      threadId,
-      organizationId,
-      maxSteps,
-      promptMessageId,
-      attachments: actionAttachments,
-      // Pass the original message text so the action can build multi-modal prompts
-      messageText: trimmedMessage,
-    },
-    {
-      onComplete: internal.chat_agent.onChatComplete,
-    },
-  );
-
-  // Store activeRunId on thread summary so UI can recover in-progress runs
-  const thread = await ctx.runQuery(components.agent.threads.getThread, {
+  // Schedule the action to run immediately
+  // The agent component handles streaming status via syncStreams
+  await ctx.scheduler.runAfter(0, internal.chat_agent.generateAgentResponse, {
     threadId,
+    organizationId,
+    maxSteps,
+    promptMessageId,
+    attachments: actionAttachments,
+    // Pass the original message text so the action can build multi-modal prompts
+    messageText: trimmedMessage,
   });
 
-  if (thread) {
-    let summaryData: Record<string, unknown> = { chatType: 'general' };
-    if (thread.summary) {
-      try {
-        summaryData = { chatType: 'general', ...JSON.parse(thread.summary) };
-      } catch {
-        // Ignore malformed summary and fall back to default
-      }
-    }
-
-    const updatedSummary = JSON.stringify({
-      ...summaryData,
-      activeRunId: runId as string,
-    });
-
-    await ctx.runMutation(components.agent.threads.updateThread, {
-      threadId,
-      patch: { summary: updatedSummary },
-    });
-  }
-
-  return { runId: runId as string, messageAlreadyExists };
+  return { messageAlreadyExists };
 }

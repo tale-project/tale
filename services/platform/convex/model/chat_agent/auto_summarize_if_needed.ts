@@ -1,8 +1,17 @@
 /**
  * Model helper for automatic incremental summarization of a chat thread.
  *
- * This contains the core logic previously in convex/summarize_thread.ts
- * so that Convex entrypoints can remain thin wrappers.
+ * UNIFIED TOOL MESSAGE STRATEGY (P0 Fix):
+ * Previously, this module only summarized tool messages, while the context
+ * loading in generate_agent_response excluded tool messages. This caused
+ * context discontinuity - summaries contained tool results but the recent
+ * message history didn't include the tool calls that produced them.
+ *
+ * Now both systems are aligned:
+ * - Context loading: includes all message types (excludeToolMessages: false)
+ * - Summarization: summarizes all message types for complete context
+ *
+ * This ensures the model always has a coherent view of the conversation.
  */
 
 import type { ActionCtx } from '../../_generated/server';
@@ -16,13 +25,19 @@ import {
 
 import { createDebugLog } from '../../lib/debug_log';
 
-const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[Summarization]');
 
 /**
  * Minimum number of messages required before summarization.
  * We need at least a couple of messages to make summarization worthwhile.
  */
-const MIN_MESSAGES_FOR_SUMMARIZATION = 2;
+const MIN_MESSAGES_FOR_SUMMARIZATION = 4;
+
+/**
+ * Maximum number of recent messages to keep unsummarized.
+ * These remain in full detail while older messages are summarized.
+ */
+const RECENT_MESSAGES_TO_PRESERVE = 10;
 
 /**
  * Thread summary data structure for tracking summarization state.
@@ -109,16 +124,18 @@ export async function autoSummarizeIfNeededModel(
     newMessages = allMessages;
   }
 
-  // Count tool messages in new messages for the check
-  const newToolMessagesCount = newMessages.filter(
-    (m) => m.message?.role === 'tool',
-  ).length;
+  // Count messages by type for logging
+  const messageCounts = {
+    user: newMessages.filter((m) => m.message?.role === 'user').length,
+    assistant: newMessages.filter((m) => m.message?.role === 'assistant').length,
+    tool: newMessages.filter((m) => m.message?.role === 'tool').length,
+  };
 
   debugLog('autoSummarizeIfNeeded check', {
     threadId: args.threadId,
     totalMessages: allMessages.length,
     newMessages: newMessages.length,
-    newToolMessages: newToolMessagesCount,
+    messageCounts,
     minRequired: MIN_MESSAGES_FOR_SUMMARIZATION,
     hasExistingSummary: !!existingSummary,
     lastSummarizedMessageId,
@@ -134,35 +151,69 @@ export async function autoSummarizeIfNeededModel(
     };
   }
 
-  // Filter to only tool messages for summarization
-  const newToolMessages = newMessages.filter((m) => m.message?.role === 'tool');
+  // Determine which messages to summarize vs keep in recent context
+  // We preserve the most recent messages and summarize older ones
+  const messagesToSummarize = newMessages.length > RECENT_MESSAGES_TO_PRESERVE
+    ? newMessages.slice(0, newMessages.length - RECENT_MESSAGES_TO_PRESERVE)
+    : [];
 
-  // Skip if no tool messages to summarize
-  if (newToolMessages.length === 0) {
-    debugLog('autoSummarizeIfNeeded no tool messages to summarize');
+  // Skip if no messages to summarize (all are recent)
+  if (messagesToSummarize.length === 0) {
+    debugLog('autoSummarizeIfNeeded all messages are recent, skipping', {
+      newMessagesCount: newMessages.length,
+      preserveCount: RECENT_MESSAGES_TO_PRESERVE,
+    });
     return {
       summarized: false,
       existingSummary,
-      newMessageCount: 0,
+      newMessageCount: newMessages.length,
       totalMessagesSummarized: summaryData.totalMessagesSummarized || 0,
     };
   }
 
-  // Convert tool messages to MessageForSummary format
-  const newMessagesForSummary: MessageForSummary[] = newToolMessages
+  // Convert all message types to MessageForSummary format
+  // This ensures we capture user decisions, assistant conclusions, AND tool results
+  const newMessagesForSummary: MessageForSummary[] = messagesToSummarize
     .filter((m) => m.message?.content)
-    .map((m) => ({
-      role: 'tool' as const,
-      content:
-        typeof m.message!.content === 'string'
-          ? m.message!.content
-          : JSON.stringify(m.message!.content),
-      toolName: 'tool_result',
-    }));
+    .map((m) => {
+      const role = m.message!.role as 'user' | 'assistant' | 'tool' | 'system';
+      const content = typeof m.message!.content === 'string'
+        ? m.message!.content
+        : JSON.stringify(m.message!.content);
 
-  debugLog('autoSummarizeIfNeeded summarizing tool messages incrementally', {
+      // For tool messages, try to extract the tool name from content
+      let toolName: string | undefined;
+      if (role === 'tool' && Array.isArray(m.message!.content)) {
+        const toolPart = m.message!.content.find(
+          (p: any) => p.type === 'tool-result' && p.toolName
+        );
+        if (toolPart) {
+          toolName = (toolPart as any).toolName;
+        }
+      }
+
+      return {
+        role,
+        content,
+        ...(toolName ? { toolName } : {}),
+      };
+    });
+
+  // Skip if no meaningful content to summarize
+  if (newMessagesForSummary.length === 0) {
+    debugLog('autoSummarizeIfNeeded no content to summarize');
+    return {
+      summarized: false,
+      existingSummary,
+      newMessageCount: newMessages.length,
+      totalMessagesSummarized: summaryData.totalMessagesSummarized || 0,
+    };
+  }
+
+  debugLog('autoSummarizeIfNeeded summarizing messages incrementally', {
     threadId: args.threadId,
-    newToolMessagesCount: newMessagesForSummary.length,
+    messagesToSummarize: newMessagesForSummary.length,
+    preservingRecent: newMessages.length - messagesToSummarize.length,
     existingSummaryLength: existingSummary?.length || 0,
   });
 
@@ -181,7 +232,8 @@ export async function autoSummarizeIfNeededModel(
   }
 
   // Update thread metadata
-  const lastMessage = newMessages[newMessages.length - 1];
+  // Use the last message that was summarized, not the last new message overall
+  const lastSummarizedMessage = messagesToSummarize[messagesToSummarize.length - 1];
   const newTotalSummarized =
     (summaryData.totalMessagesSummarized || 0) + newMessagesForSummary.length;
 
@@ -201,7 +253,7 @@ export async function autoSummarizeIfNeededModel(
     ...freshSummaryData,
     contextSummary: newSummary,
     summarizedAt: Date.now(),
-    lastSummarizedMessageId: lastMessage._id,
+    lastSummarizedMessageId: lastSummarizedMessage._id,
     totalMessagesSummarized: newTotalSummarized,
   };
 
@@ -215,7 +267,8 @@ export async function autoSummarizeIfNeededModel(
     newSummaryLength: newSummary.length,
     messagesSummarized: newMessagesForSummary.length,
     totalMessagesSummarized: newTotalSummarized,
-    lastSummarizedMessageId: lastMessage._id,
+    lastSummarizedMessageId: lastSummarizedMessage._id,
+    recentMessagesPreserved: newMessages.length - messagesToSummarize.length,
   });
 
   return {

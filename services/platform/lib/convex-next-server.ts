@@ -24,12 +24,8 @@ let cachedConvexHttpUrl: string | null = null;
 function getConvexHttpUrl(): string {
   if (cachedConvexHttpUrl) return cachedConvexHttpUrl;
 
-  // SITE_URL is the single source of truth. We derive the Convex deployment
-  // URL from it and avoid any additional Convex-specific env vars.
-  //
-  // Convex clients (both browser and server) talk to the "Convex origin",
-  // which in this app is always exposed at `${SITE_URL}/ws_api` and
-  // proxied to the Convex backend port by Next.js rewrites.
+  // Use SITE_URL for all API calls. When using a custom hostname like tale.local,
+  // Docker's internal DNS resolves it to the proxy container via network alias.
   const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
   const trimmed = rawSiteUrl.replace(/\/+$/, '');
   const url = `${trimmed}/ws_api`;

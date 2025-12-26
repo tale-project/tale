@@ -593,6 +593,11 @@
         "disconnectWarning": "Warning: Disconnecting Shopify will stop all data synchronization for products, orders, and customers. You will need to reconnect to resume these features.",
         "yesDisconnect": "Yes, Disconnect"
       },
+      "protel": {
+        "title": "Protel PMS",
+        "description": "Connect to your Protel hotel management system for reservations, guests, and room data.",
+        "disconnectError": "Failed to disconnect Protel PMS"
+      },
       "clickToCopy": "Click to copy",
       "failedToCopy": "Failed to copy to clipboard",
       "comingSoon": "(Coming Soon)",

@@ -101,26 +101,36 @@ async function IntegrationsPageContent({ params }: IntegrationsContentProps) {
   }
 
   // Preload integrations data for SSR + real-time reactivity on client
-  const [preloadedShopify, preloadedCirculy, preloadedEmailProviders] =
-    await Promise.all([
-      preloadQuery(
-        api.integrations.getByName,
-        { organizationId, name: 'shopify' },
-        { token },
-      ),
-      preloadQuery(
-        api.integrations.getByName,
-        { organizationId, name: 'circuly' },
-        { token },
-      ),
-      preloadQuery(api.email_providers.list, { organizationId }, { token }),
-    ]);
+  const [
+    preloadedShopify,
+    preloadedCirculy,
+    preloadedProtel,
+    preloadedEmailProviders,
+  ] = await Promise.all([
+    preloadQuery(
+      api.integrations.getByName,
+      { organizationId, name: 'shopify' },
+      { token },
+    ),
+    preloadQuery(
+      api.integrations.getByName,
+      { organizationId, name: 'circuly' },
+      { token },
+    ),
+    preloadQuery(
+      api.integrations.getByName,
+      { organizationId, name: 'protel' },
+      { token },
+    ),
+    preloadQuery(api.email_providers.list, { organizationId }, { token }),
+  ]);
 
   return (
     <Integrations
       organizationId={organizationId}
       preloadedShopify={preloadedShopify}
       preloadedCirculy={preloadedCirculy}
+      preloadedProtel={preloadedProtel}
       preloadedEmailProviders={preloadedEmailProviders}
     />
   );

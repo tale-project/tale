@@ -17,9 +17,32 @@ import {
   type MessageContentPart,
 } from '../../lib/attachments/index';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
-import { queryRagContext } from '../../agent_tools/rag/query_rag_context';
+import {
+  queryRagContext,
+  type RecentMessage,
+} from '../../agent_tools/rag/query_rag_context';
+import { listMessages, type MessageDoc } from '@convex-dev/agent';
+
+// Context management
+import {
+  createContextHandler,
+  checkAndSummarizeIfNeeded,
+  estimateTokens,
+  buildPrioritizedContexts,
+  trimContextsByPriority,
+  prioritizedContextsToMessages,
+  DEFAULT_MODEL_CONTEXT_LIMIT,
+  CONTEXT_SAFETY_MARGIN,
+  SYSTEM_INSTRUCTIONS_TOKENS,
+  OUTPUT_RESERVE,
+  RECENT_MESSAGES_TOKEN_ESTIMATE,
+} from './context_management';
 
 import { createDebugLog } from '../../lib/debug_log';
+import {
+  classifyError,
+  NonRetryableError,
+} from '../../lib/error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
@@ -93,43 +116,137 @@ export async function generateAgentResponse(
 ): Promise<GenerateAgentResponseResult> {
   const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText } = args;
 
-  const TIMEOUT_MS = 9 * 60 * 1000;
   const startTime = Date.now();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => {
-    debugLog(`Aborting request after ${TIMEOUT_MS / 1000}s timeout`);
-    abortController.abort();
-  }, TIMEOUT_MS);
 
   try {
-    // Load context summary and RAG context in parallel for faster startup
-    // Both operations are independent and can run concurrently
     const userQuery = messageText || '';
-    const [contextSummary, ragContext] = await Promise.all([
-      // Load any existing incremental summary for this thread without blocking
-      // on a fresh summarization run. Summarization itself is handled
-      // asynchronously in onChatComplete and on-demand in the
-      // context_overflow_retry flow.
+
+    // First, fetch recent messages for RAG context expansion (P1 improvement)
+    // This enables context-aware query that resolves pronouns and references
+    const recentMessagesResult = await listMessages(ctx, components.agent, {
+      threadId,
+      paginationOpts: { cursor: null, numItems: 6 }, // Get recent messages for context
+      excludeToolMessages: true, // Only user/assistant messages for context
+    });
+
+    // Convert to RecentMessage format for RAG query expansion
+    const recentMessages: RecentMessage[] = recentMessagesResult.page
+      .filter((m: MessageDoc) => m.message?.role === 'user' || m.message?.role === 'assistant')
+      .map((m: MessageDoc) => ({
+        role: m.message!.role as 'user' | 'assistant',
+        content: typeof m.message!.content === 'string'
+          ? m.message!.content
+          : Array.isArray(m.message!.content)
+            ? m.message!.content
+                .filter((p: unknown) => p && typeof p === 'object' && 'text' in p)
+                .map((p: unknown) => (p as { text: string }).text)
+                .join(' ')
+            : '',
+      }))
+      .filter((m: RecentMessage) => m.content.trim().length > 0)
+      .reverse(); // Chronological order (oldest first)
+
+    // Load context summary, RAG context, and integrations in parallel for faster startup
+    // All operations are independent and can run concurrently
+    const [initialContextSummary, ragContext, integrationsList] = await Promise.all([
+      // Load any existing incremental summary for this thread
       loadContextSummary(ctx, threadId),
-      // Always query RAG service first to get relevant context for the user's message
-      // This ensures the agent has access to knowledge base information before responding
+      // Query RAG service for relevant context (only if there's a meaningful query)
+      // Now includes recent conversation context for better query expansion
       userQuery.trim()
         ? queryRagContext(
             userQuery,
             RAG_TOP_K,
             RAG_SIMILARITY_THRESHOLD,
-            abortController.signal,
+            undefined, // No abort signal - rely on platform timeouts
+            recentMessages, // Pass recent messages for context-aware expansion
           )
         : Promise.resolve(undefined),
+      // Load available integrations for this organization
+      ctx.runQuery(internal.integrations.listInternal, { organizationId }),
     ]);
 
-    debugLog('Context loaded', {
+    debugLog('Initial context loaded', {
       threadId,
-      hasSummary: !!contextSummary,
+      hasSummary: !!initialContextSummary,
       hasRagContext: !!ragContext,
       ragContextLength: ragContext?.length ?? 0,
       attachmentCount: attachments?.length ?? 0,
+      integrationsCount: integrationsList?.length ?? 0,
     });
+
+    // Build system context messages using priority management (P1)
+    // This ensures critical context is preserved when approaching token limits
+    type MessageContent = string | MessageContentPart[];
+    const contextSummary = initialContextSummary;
+
+    // Format integrations info if available
+    let integrationsInfo: string | undefined;
+    if (integrationsList && integrationsList.length > 0) {
+      integrationsInfo = integrationsList
+        .map((integration: any) => {
+          const type = integration.type || 'rest_api';
+          const status = integration.status || 'active';
+          const title = integration.title || integration.name;
+          const desc = integration.description ? ` - ${integration.description}` : '';
+          return `• ${integration.name} (${type}, ${status}): ${title}${desc}`;
+        })
+        .join('\n');
+    }
+
+    // P1: Proactive context overflow detection
+    // Check if we're approaching context limits and summarize if needed
+    const currentPromptTokens = estimateTokens(userQuery);
+
+    // Build prioritized contexts for estimation and trimming
+    const prioritizedContexts = buildPrioritizedContexts({
+      threadId,
+      contextSummary,
+      ragContext,
+      integrationsInfo,
+    });
+
+    const initialContextTokens = prioritizedContexts.reduce((sum, c) => sum + c.tokens, 0);
+
+    // P2: Async summarization - triggers in background, doesn't block
+    const overflowCheck = await checkAndSummarizeIfNeeded(ctx, {
+      threadId,
+      contextMessagesTokens: initialContextTokens,
+      currentPromptTokens,
+      existingSummary: contextSummary,
+    });
+
+    if (overflowCheck.summarizationTriggered) {
+      debugLog('Async summarization triggered (will be available next request)', {
+        threadId,
+        currentUsagePercent: overflowCheck.estimate.usagePercent.toFixed(1) + '%',
+      });
+    }
+
+    // Calculate available token budget for system context
+    // Reserve space for: system instructions, recent messages, current prompt, and output
+    const contextBudget =
+      DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
+      SYSTEM_INSTRUCTIONS_TOKENS -
+      RECENT_MESSAGES_TOKEN_ESTIMATE -
+      currentPromptTokens -
+      OUTPUT_RESERVE;
+
+    // Trim contexts by priority if needed
+    const trimResult = trimContextsByPriority(prioritizedContexts, contextBudget);
+
+    if (trimResult.wasTrimmed) {
+      debugLog('Context trimmed due to token budget', {
+        threadId,
+        budget: contextBudget,
+        keptTokens: trimResult.totalTokens,
+        trimmedCount: trimResult.trimmed.length,
+        trimmedIds: trimResult.trimmed.map((t) => t.id),
+      });
+    }
+
+    // Convert prioritized contexts to system messages
+    const systemContextMessages = prioritizedContextsToMessages(trimResult.kept);
 
     const agent = createChatAgent({
       withTools: true,
@@ -142,31 +259,6 @@ export async function generateAgentResponse(
       threadId,
       variables: {},
     };
-
-    // Build context messages - lightweight text-only context
-    type MessageContent = string | MessageContentPart[];
-    const contextMessages: Array<{ role: 'user'; content: string }> = [];
-
-    // Always inject threadId so the AI knows which thread to use for context_search
-    contextMessages.push({
-      role: 'user',
-      content: `[SYSTEM] Current thread ID: ${threadId}`,
-    });
-
-    if (contextSummary) {
-      contextMessages.push({
-        role: 'user',
-        content: `[CONTEXT] Previous Conversation Summary:\n\n${contextSummary}`,
-      });
-    }
-
-    // Inject RAG context if available - this provides knowledge base context before the agent responds
-    if (ragContext) {
-      contextMessages.push({
-        role: 'user',
-        content: `[KNOWLEDGE BASE] Relevant information from your knowledge base:\n\n${ragContext}`,
-      });
-    }
 
     // Build the prompt content - this may include multi-modal content for attachments
     let promptContent: Array<{ role: 'user'; content: MessageContent }> | undefined;
@@ -318,13 +410,21 @@ export async function generateAgentResponse(
 
     // Use streamText with saveStreamDeltas for real-time UI updates
     // This allows the UI to show tool calls as they happen
+    //
+    // IMPORTANT: When saveStreamDeltas is true, the SDK internally calls:
+    // 1. streamer.consumeStream(result.toUIMessageStream())
+    // 2. await result.consumeStream()
+    // So we must NOT manually consume the stream again (e.g., via fullStream iteration),
+    // as streams can only be consumed once. Double consumption causes race conditions
+    // and may result in UI showing stale/duplicate stream data.
     const streamResult = await agent.streamText(
       contextWithOrg,
       { threadId },
       {
         promptMessageId,
-        abortSignal: abortController.signal,
-        messages: contextMessages,
+        // SDK calls this `messages` but it's our system context injection
+        // (becomes `inputMessages` in contextHandler, we rename to `systemContext` there)
+        messages: systemContextMessages,
         // If we have attachments, use prompt to override the stored message content
         // This allows multi-modal content without storing the large base64 data
         ...(promptContent ? { prompt: promptContent } : {}),
@@ -332,9 +432,17 @@ export async function generateAgentResponse(
       {
         contextOptions: {
           recentMessages: 20,
-          excludeToolMessages: true,
+          // P0: Include tool messages in context for consistency with summarization
+          // Previously we excluded tool messages here but summarized them,
+          // causing context discontinuity
+          excludeToolMessages: false,
           searchOtherThreads: false,
         },
+        // P0: Use contextHandler to fix message ordering
+        // Default SDK order: search -> recent -> inputMessages -> inputPrompt
+        // Our order: systemContext -> search -> conversationHistory -> currentUserMessage
+        // This ensures [SYSTEM], [CONTEXT], [KNOWLEDGE BASE] appear before history
+        contextHandler: createContextHandler(),
         // Save stream deltas so UI can show real-time progress
         saveStreamDeltas: true,
         // User message was already saved in the mutation with promptMessageId.
@@ -342,10 +450,54 @@ export async function generateAgentResponse(
       },
     );
 
-    // Consume the stream to completion and ensure all deltas are written to the database.
-    // This is critical for multi-step responses (text -> tool call -> text) to ensure
-    // the final text after tool calls is properly persisted before the action completes.
-    await streamResult.consumeStream();
+    // After stream completes, link any pending approvals to the assistant message
+    // The message ID wasn't available during tool execution, so we link it now
+    //
+    // IMPORTANT: We need to find the FIRST message in the current "order" group,
+    // because useUIMessages/listUIMessages includes ALL messages (including tool messages)
+    // and combines them by order. The UIMessage.id is set to firstMessage._id.
+    try {
+      // Get the latest messages from the thread (include ALL messages to match UIMessage grouping)
+      const messagesResult = await listMessages(ctx, components.agent, {
+        threadId,
+        paginationOpts: { cursor: null, numItems: 50 },
+        excludeToolMessages: false, // Include all messages to find the correct first message
+      });
+
+      // Find the latest assistant message to get its order
+      const latestAssistantMessage = messagesResult.page.find(
+        (m: MessageDoc) => m.message?.role === 'assistant'
+      );
+
+      if (latestAssistantMessage) {
+        // Find ALL messages with the same order (this is how UIMessages groups them)
+        // But EXCLUDE user messages since they are separate UIMessages
+        const currentOrder = latestAssistantMessage.order;
+        const messagesInSameOrder = messagesResult.page.filter(
+          (m: MessageDoc) => m.order === currentOrder && m.message?.role !== 'user'
+        );
+
+        // Sort by stepOrder to find the first one (UIMessage uses firstMessage._id)
+        messagesInSameOrder.sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder);
+        const firstMessageInOrder = messagesInSameOrder[0] || latestAssistantMessage;
+
+        debugLog(`Linking approvals: order=${currentOrder}, firstInOrder._id=${firstMessageInOrder._id}, role=${firstMessageInOrder.message?.role || 'tool'}`);
+
+        const linkedCount = await ctx.runMutation(
+          internal.approvals.linkApprovalsToMessage,
+          {
+            threadId,
+            messageId: firstMessageInOrder._id,
+          }
+        );
+        if (linkedCount > 0) {
+          debugLog(`Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`);
+        }
+      }
+    } catch (error) {
+      // Non-fatal: log and continue - approvals will still work, just without messageId
+      console.error('[generateAgentResponse] Failed to link approvals to message:', error);
+    }
 
     // Get the final result after stream completes
     const result: {
@@ -362,7 +514,6 @@ export async function generateAgentResponse(
       warnings: await streamResult.warnings,
     };
 
-    clearTimeout(timeoutId);
     const elapsedMs = Date.now() - startTime;
     debugLog(
       `generateAgentResponse completed in ${(elapsedMs / 1000).toFixed(1)}s for thread ${threadId}`,
@@ -443,7 +594,7 @@ export async function generateAgentResponse(
       );
     }
 
-    return {
+    const chatResult = {
       threadId,
       text: responseText,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -452,12 +603,15 @@ export async function generateAgentResponse(
       usage: result.usage,
       reasoning: (result as { reasoningText?: string }).reasoningText,
     };
-  } catch (error) {
-    clearTimeout(timeoutId);
 
-    // Trigger summarization before retry to reduce context for next attempt.
-    // This runs synchronously so the retrier waits for it to complete before
-    // scheduling the retry.
+    // Call completion handler to save metadata and schedule summarization
+    await ctx.runMutation(internal.chat_agent.onChatComplete, {
+      result: chatResult,
+    });
+
+    return chatResult;
+  } catch (error) {
+    // Trigger summarization on error to reduce context for potential follow-up
     await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
       threadId,
     });
@@ -471,7 +625,6 @@ export async function generateAgentResponse(
     console.error('[chat_agent] generateAgentResponse error', {
       threadId,
       elapsedMs,
-      aborted: abortController.signal.aborted,
       name: err?.name,
       message: err?.message,
       status: err?.status ?? err?.statusCode,
@@ -482,14 +635,19 @@ export async function generateAgentResponse(
       cause: err?.cause?.message,
     });
 
-    if (abortController.signal.aborted) {
-      throw new Error(
-        `generateAgentResponse timed out after ${(elapsedMs / 1000).toFixed(
-          1,
-        )} seconds (limit: ${TIMEOUT_MS / 1000}s)`,
-      );
-    }
+    // Classify the error for logging purposes
+    const classification = classifyError(error);
+    console.error('[chat_agent] Error classification', {
+      threadId,
+      reason: classification.reason,
+      description: classification.description,
+    });
 
-    throw error;
+    // Wrap error with classification info for better debugging
+    throw new NonRetryableError(
+      `${classification.description}: ${err?.message || 'Unknown error'}`,
+      error,
+      classification.reason,
+    );
   }
 }

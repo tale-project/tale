@@ -183,6 +183,11 @@ export default defineSchema({
     title: v.string(), // Display name (e.g., 'Shopify', 'My Shopify Store')
     description: v.optional(v.string()),
 
+    // Integration type (rest_api or sql)
+    type: v.optional(
+      v.union(v.literal('rest_api'), v.literal('sql')),
+    ), // Default: rest_api for backward compatibility
+
     // Connection status
     status: v.union(
       v.literal('active'),
@@ -268,6 +273,7 @@ export default defineSchema({
 
     // Connector configuration (for executing operations)
     // Contains the JavaScript code and operation definitions
+    // Used when type = 'rest_api'
     connector: v.optional(
       v.object({
         // The connector code (JavaScript for QuickJS sandbox)
@@ -296,6 +302,51 @@ export default defineSchema({
         // Execution limits
         timeoutMs: v.optional(v.number()), // Default: 30000
       }),
+    ),
+
+    // SQL-specific configuration (used when type = 'sql')
+    sqlConnectionConfig: v.optional(
+      v.object({
+        engine: v.union(
+          v.literal('mssql'),
+          v.literal('postgres'),
+          v.literal('mysql'),
+        ),
+        server: v.string(),
+        port: v.optional(v.number()),
+        database: v.string(),
+        readOnly: v.optional(v.boolean()), // Default: true
+        options: v.optional(
+          v.object({
+            encrypt: v.optional(v.boolean()),
+            trustServerCertificate: v.optional(v.boolean()),
+            connectionTimeout: v.optional(v.number()),
+            requestTimeout: v.optional(v.number()),
+          }),
+        ),
+        security: v.optional(
+          v.object({
+            maxResultRows: v.optional(v.number()), // Default: 10000
+            queryTimeoutMs: v.optional(v.number()), // Default: 30000
+            maxConnectionPoolSize: v.optional(v.number()), // Default: 5
+          }),
+        ),
+      }),
+    ),
+
+    // SQL operations (used when type = 'sql')
+    sqlOperations: v.optional(
+      v.array(
+        v.object({
+          name: v.string(), // e.g., 'get_reservations', 'get_guest_profile'
+          title: v.optional(v.string()),
+          description: v.optional(v.string()),
+          query: v.string(), // SQL query with native placeholders
+          parametersSchema: v.optional(v.any()), // JSON Schema for parameters
+          operationType: v.optional(v.union(v.literal('read'), v.literal('write'))), // Operation type for approval workflow
+          requiresApproval: v.optional(v.boolean()), // Whether operation requires user approval
+        }),
+      ),
     ),
 
     // Only truly unstructured data here
@@ -696,8 +747,13 @@ export default defineSchema({
     resourceType: v.union(
       v.literal('conversations'),
       v.literal('product_recommendation'),
+      v.literal('integration_operation'),
     ),
     resourceId: v.string(),
+
+    // Thread context for chat-based approvals (Agent Component thread ID)
+    threadId: v.optional(v.string()),
+    messageId: v.optional(v.string()), // The message ID where approval was requested
 
     // Priority and timing
     priority: v.union(
@@ -707,6 +763,10 @@ export default defineSchema({
       v.literal('urgent'),
     ),
     dueDate: v.optional(v.number()),
+
+    // Execution tracking (for integration operations and other executed approvals)
+    executedAt: v.optional(v.number()), // When the approved operation was executed
+    executionError: v.optional(v.string()), // Error message if execution failed
 
     metadata: v.optional(v.any()),
   })
@@ -723,6 +783,11 @@ export default defineSchema({
       'resourceType',
       'resourceId',
       'status',
+    ])
+    .index('by_threadId_status_resourceType', [
+      'threadId',
+      'status',
+      'resourceType',
     ]),
 
   // Tone of Voice - stores brand voice and example messages

@@ -5,17 +5,13 @@
  */
 
 import {
-  query,
   mutation,
   internalAction,
   internalMutation,
 } from './_generated/server';
 import { v } from 'convex/values';
-import { runIdValidator, runResultValidator } from '@convex-dev/action-retrier';
 import {
   chatWithAgent as chatWithAgentModel,
-  chatWithAgentStatus as chatWithAgentStatusModel,
-  cancelChat as cancelChatModel,
   generateAgentResponse as generateAgentResponseModel,
   onChatComplete as onChatCompleteModel,
 } from './model/chat_agent';
@@ -39,69 +35,10 @@ export const chatWithAgent = mutation({
     ),
   },
   returns: v.object({
-    runId: v.string(),
     messageAlreadyExists: v.boolean(),
   }),
   handler: async (ctx, args) => {
     return await chatWithAgentModel(ctx, args);
-  },
-});
-
-export const chatWithAgentStatus = query({
-  args: {
-    runId: v.string(),
-  },
-  returns: v.union(
-    v.object({
-      status: v.literal('inProgress'),
-    }),
-    v.object({
-      status: v.literal('success'),
-      result: v.object({
-        threadId: v.string(),
-        text: v.string(),
-        toolCalls: v.optional(
-          v.array(
-            v.object({
-              toolName: v.string(),
-              status: v.string(),
-            }),
-          ),
-        ),
-        model: v.string(),
-        provider: v.string(),
-        usage: v.optional(
-          v.object({
-            inputTokens: v.optional(v.number()),
-            outputTokens: v.optional(v.number()),
-            totalTokens: v.optional(v.number()),
-            reasoningTokens: v.optional(v.number()),
-            cachedInputTokens: v.optional(v.number()),
-          }),
-        ),
-        reasoning: v.optional(v.string()),
-      }),
-    }),
-    v.object({
-      status: v.literal('failed'),
-      error: v.string(),
-    }),
-    v.object({
-      status: v.literal('canceled'),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    return await chatWithAgentStatusModel(ctx, args);
-  },
-});
-
-export const cancelChat = mutation({
-  args: {
-    runId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    return await cancelChatModel(ctx, args);
   },
 });
 
@@ -154,12 +91,34 @@ export const generateAgentResponse = internalAction({
 
 export const onChatComplete = internalMutation({
   args: {
-    runId: runIdValidator,
-    result: runResultValidator,
+    result: v.object({
+      threadId: v.string(),
+      text: v.string(),
+      toolCalls: v.optional(
+        v.array(
+          v.object({
+            toolName: v.string(),
+            status: v.string(),
+          }),
+        ),
+      ),
+      model: v.string(),
+      provider: v.string(),
+      usage: v.optional(
+        v.object({
+          inputTokens: v.optional(v.number()),
+          outputTokens: v.optional(v.number()),
+          totalTokens: v.optional(v.number()),
+          reasoningTokens: v.optional(v.number()),
+          cachedInputTokens: v.optional(v.number()),
+        }),
+      ),
+      reasoning: v.optional(v.string()),
+    }),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await onChatCompleteModel(ctx, args as any);
+    await onChatCompleteModel(ctx, args);
     return null;
   },
 });

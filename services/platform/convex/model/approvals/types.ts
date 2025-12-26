@@ -1,5 +1,6 @@
 /**
  * Type definitions for approval operations
+ * @updated for threadId support
  */
 
 import { v } from 'convex/values';
@@ -34,6 +35,7 @@ export const approvalPriorityValidator = v.union(
 export const approvalResourceTypeValidator = v.union(
   v.literal('conversations'),
   v.literal('product_recommendation'),
+  v.literal('integration_operation'),
 );
 
 /**
@@ -52,7 +54,11 @@ export const approvalItemValidator = v.object({
   resourceId: v.string(),
   priority: approvalPriorityValidator,
   dueDate: v.optional(v.number()),
+  executedAt: v.optional(v.number()),
+  executionError: v.optional(v.string()),
   metadata: v.optional(v.any()),
+  threadId: v.optional(v.string()),
+  messageId: v.optional(v.string()),
 });
 
 // =============================================================================
@@ -61,7 +67,28 @@ export const approvalItemValidator = v.object({
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';
-export type ApprovalResourceType = 'conversations' | 'product_recommendation';
+export type ApprovalResourceType =
+  | 'conversations'
+  | 'product_recommendation'
+  | 'integration_operation';
+
+/**
+ * Metadata for integration operation approvals
+ */
+export interface IntegrationOperationMetadata {
+  integrationId: string;
+  integrationName: string;
+  integrationType: 'sql' | 'rest_api';
+  operationName: string;
+  operationTitle: string;
+  operationType: 'read' | 'write';
+  parameters: Record<string, unknown>;
+  previewData?: unknown[];
+  estimatedImpact?: string;
+  requestedAt: number;
+  executedAt?: number;
+  executionResult?: unknown;
+}
 
 export interface CreateApprovalArgs {
   organizationId: string;
@@ -74,6 +101,8 @@ export interface CreateApprovalArgs {
   wfExecutionId?: Id<'wfExecutions'>;
   stepSlug?: string;
   metadata?: unknown;
+  threadId?: string;
+  messageId?: string;
 }
 
 export interface UpdateApprovalStatusArgs {
@@ -108,5 +137,9 @@ export interface ApprovalItem {
   resourceId: string;
   priority: ApprovalPriority;
   dueDate?: number;
+  executedAt?: number;
+  executionError?: string;
   metadata?: unknown;
+  threadId?: string;
+  messageId?: string;
 }

@@ -13,16 +13,10 @@ env_normalize_common() {
   # Domain configuration - auto-derive URLs
   # DOMAIN should include the protocol (e.g., "http://localhost", "https://demo.tale.dev")
   local base_url="${DOMAIN:-http://localhost}"
-  local port="${PORT:-3000}"
 
   # Ensure DOMAIN includes a protocol, if not, add http:// as default
   if [[ ! "$base_url" =~ ^https?:// ]]; then
     base_url="http://${base_url}"
-  fi
-
-  # Add port for localhost if not already present
-  if [[ "$base_url" == "http://localhost" ]]; then
-    base_url="${base_url}:${port}"
   fi
 
 	  # Database configuration

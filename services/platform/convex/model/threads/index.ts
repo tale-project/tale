@@ -4,7 +4,6 @@
 
 export { createChatThread } from './create_chat_thread';
 export { deleteChatThread } from './delete_chat_thread';
-export { getActiveRunId, clearActiveRunId } from './get_active_run_id';
 export { getThreadMessages } from './get_thread_messages';
 export { listThreads } from './list_threads';
 export { updateChatThread } from './update_chat_thread';

@@ -1,18 +1,14 @@
 import WebsitesTable from './websites-table';
 import { Suspense } from 'react';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { Globe } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { websiteFilterDefinitions } from './filter-definitions';
-import AddWebsiteButton from './add-website-button';
+import { WebsitesEmptyState } from './websites-empty-state';
 import type { Metadata } from 'next';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -49,18 +45,6 @@ async function WebsitesSkeleton() {
   );
 }
 
-/** Empty state shown when org has no websites - avoids unnecessary skeleton */
-async function WebsitesEmptyState({ organizationId }: { organizationId: string }) {
-  const { t } = await getT('emptyStates');
-  return (
-    <DataTableEmptyState
-      icon={Globe}
-      title={t('websites.title')}
-      description={t('websites.description')}
-      action={<AddWebsiteButton organizationId={organizationId} />}
-    />
-  );
-}
 
 interface WebsitesContentProps {
   params: Promise<{ id: string }>;

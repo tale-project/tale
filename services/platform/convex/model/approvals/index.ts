@@ -15,3 +15,4 @@ export * from './list_approvals_for_execution';
 export * from './get_approval_history';
 export * from './list_approvals_by_organization';
 export * from './remove_recommended_product';
+export * from './link_approvals_to_message';
