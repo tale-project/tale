@@ -34,6 +34,8 @@ import {
   DEFAULT_MODEL_CONTEXT_LIMIT,
   CONTEXT_SAFETY_MARGIN,
   SYSTEM_INSTRUCTIONS_TOKENS,
+  OUTPUT_RESERVE,
+  RECENT_MESSAGES_TOKEN_ESTIMATE,
 } from './context_management';
 
 import { createDebugLog } from '../../lib/debug_log';
@@ -225,14 +227,12 @@ export async function generateAgentResponse(
 
     // Calculate available token budget for system context
     // Reserve space for: system instructions, recent messages, current prompt, and output
-    const outputReserve = 4096; // Reserve tokens for model output
-    const recentMessagesEstimate = 10000; // Estimate for recent conversation history
     const contextBudget =
       DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
       SYSTEM_INSTRUCTIONS_TOKENS -
-      recentMessagesEstimate -
+      RECENT_MESSAGES_TOKEN_ESTIMATE -
       currentPromptTokens -
-      outputReserve;
+      OUTPUT_RESERVE;
 
     // Trim contexts by priority if needed
     const trimResult = trimContextsByPriority(prioritizedContexts, contextBudget);

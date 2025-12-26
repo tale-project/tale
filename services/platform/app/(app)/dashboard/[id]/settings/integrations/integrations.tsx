@@ -348,18 +348,13 @@ export default function Integrations({
 
     try {
       if (protelIntegration) {
-        // Update existing integration - include SQL connection config changes
+        // Update existing integration - only credentials can be updated
+        // To change connection config (server/port/database), disconnect and reconnect
         await updateIntegration({
           integrationId: protelIntegration._id,
           basicAuth: {
             username: data.username,
             password: data.password,
-          },
-          sqlConnectionConfig: {
-            engine: 'mssql',
-            server: data.server,
-            port: data.port,
-            database: data.database,
           },
           status: 'active',
           isActive: true,

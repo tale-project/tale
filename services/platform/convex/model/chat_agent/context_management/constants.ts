@@ -27,3 +27,15 @@ export const DEFAULT_MODEL_CONTEXT_LIMIT = 128000;
  * This balances context quality with token efficiency.
  */
 export const DEFAULT_RECENT_MESSAGES = 20;
+
+/**
+ * Reserve tokens for model output generation.
+ * This ensures the model has room to generate a complete response.
+ */
+export const OUTPUT_RESERVE = 4096;
+
+/**
+ * Estimate for recent conversation history tokens.
+ * Used for budget calculations when loading context.
+ */
+export const RECENT_MESSAGES_TOKEN_ESTIMATE = 10000;

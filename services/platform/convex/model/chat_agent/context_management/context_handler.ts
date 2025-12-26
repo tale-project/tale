@@ -35,7 +35,7 @@
 
 import type { ModelMessage } from '@ai-sdk/provider-utils';
 import { estimateMessagesTokens, estimateMessageTokens } from './estimate_tokens';
-import { DEFAULT_MODEL_CONTEXT_LIMIT, CONTEXT_SAFETY_MARGIN, SYSTEM_INSTRUCTIONS_TOKENS } from './constants';
+import { DEFAULT_MODEL_CONTEXT_LIMIT, CONTEXT_SAFETY_MARGIN, SYSTEM_INSTRUCTIONS_TOKENS, OUTPUT_RESERVE } from './constants';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ContextHandler]');
@@ -68,11 +68,6 @@ export type ContextHandler = (
  * Large messages may be skipped when budget is tight.
  */
 const LARGE_MESSAGE_THRESHOLD = 2000;
-
-/**
- * Reserve tokens for model output.
- */
-const OUTPUT_RESERVE = 4096;
 
 /**
  * Apply smart filtering to conversation history based on token budget (P3).
