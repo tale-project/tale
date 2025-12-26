@@ -35,7 +35,7 @@
 
 import type { ModelMessage } from '@ai-sdk/provider-utils';
 import { estimateMessagesTokens, estimateMessageTokens } from './estimate_tokens';
-import { DEFAULT_MODEL_CONTEXT_LIMIT, CONTEXT_SAFETY_MARGIN } from './constants';
+import { DEFAULT_MODEL_CONTEXT_LIMIT, CONTEXT_SAFETY_MARGIN, SYSTEM_INSTRUCTIONS_TOKENS } from './constants';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ContextHandler]');
@@ -70,11 +70,6 @@ export type ContextHandler = (
 const LARGE_MESSAGE_THRESHOLD = 2000;
 
 /**
- * System instructions token estimate (should match SYSTEM_INSTRUCTIONS_TOKENS).
- */
-const SYSTEM_INSTRUCTIONS_ESTIMATE = 800;
-
-/**
  * Reserve tokens for model output.
  */
 const OUTPUT_RESERVE = 4096;
@@ -94,7 +89,7 @@ function filterHistoryByBudget(
 ): { filtered: ModelMessage[]; skippedCount: number } {
   // Calculate budget for history
   const totalBudget = DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN;
-  const historyBudget = totalBudget - otherTokens - SYSTEM_INSTRUCTIONS_ESTIMATE - OUTPUT_RESERVE;
+  const historyBudget = totalBudget - otherTokens - SYSTEM_INSTRUCTIONS_TOKENS - OUTPUT_RESERVE;
 
   if (historyBudget <= 0) {
     debugLog('No budget for history, keeping minimal', { otherTokens, historyBudget });

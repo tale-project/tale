@@ -348,12 +348,18 @@ export default function Integrations({
 
     try {
       if (protelIntegration) {
-        // Update existing integration
+        // Update existing integration - include SQL connection config changes
         await updateIntegration({
           integrationId: protelIntegration._id,
           basicAuth: {
             username: data.username,
             password: data.password,
+          },
+          sqlConnectionConfig: {
+            engine: 'mssql',
+            server: data.server,
+            port: data.port,
+            database: data.database,
           },
           status: 'active',
           isActive: true,

@@ -107,9 +107,9 @@ function IntegrationApprovalCardComponent({
     <div
       className={cn(
         'border rounded-lg p-4 bg-card shadow-sm max-w-md',
-        status === 'approved' && 'border-green-200 bg-green-50/50',
-        status === 'rejected' && 'border-red-200 bg-red-50/50',
-        status === 'pending' && 'border-orange-200 bg-orange-50/50',
+        status === 'approved' && 'border-success/30 bg-success/5',
+        status === 'rejected' && 'border-destructive/30 bg-destructive/5',
+        status === 'pending' && 'border-warning/30 bg-warning/5',
         className
       )}
     >

@@ -56,6 +56,22 @@ export async function createIntegrationLogic(
     organizationId: args.organizationId,
   });
 
+  // Validate SQL connection config for SQL integrations
+  if (args.type === 'sql') {
+    if (!args.sqlConnectionConfig) {
+      throw new Error('SQL integration requires sqlConnectionConfig');
+    }
+    if (!args.sqlConnectionConfig.server || args.sqlConnectionConfig.server.trim() === '') {
+      throw new Error('SQL integration requires a server address');
+    }
+    if (!args.sqlConnectionConfig.database || args.sqlConnectionConfig.database.trim() === '') {
+      throw new Error('SQL integration requires a database name');
+    }
+    if (!args.sqlConnectionConfig.engine) {
+      throw new Error('SQL integration requires an engine type (mssql, postgres, or mysql)');
+    }
+  }
+
   // Encrypt credentials
   const { apiKeyAuth, basicAuth, oauth2Auth } = await encryptCredentials(
     ctx,

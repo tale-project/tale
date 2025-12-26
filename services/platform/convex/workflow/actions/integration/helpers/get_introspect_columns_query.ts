@@ -60,5 +60,10 @@ export function getIntrospectColumnsQuery(
         `,
         params: { schemaName, tableName },
       };
+
+    default: {
+      const _exhaustiveCheck: never = engine;
+      throw new Error(`Unsupported SQL engine: ${_exhaustiveCheck}`);
+    }
   }
 }

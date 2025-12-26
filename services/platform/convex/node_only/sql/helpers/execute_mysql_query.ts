@@ -11,6 +11,10 @@ export async function executeMySqlQuery(
   params: SqlExecutionParams,
 ): Promise<SqlExecutionResult> {
 
+  // Apply row limit via SQL LIMIT clause for efficiency
+  const maxRows = params.security?.maxResultRows ?? 10000;
+  const queryTimeoutMs = params.security?.queryTimeoutMs ?? 30000;
+
   const pool = mysql.createPool({
     host: params.credentials.server,
     port: params.credentials.port || 3306,
@@ -41,18 +45,26 @@ export async function executeMySqlQuery(
       }
     }
 
-    // Execute query
-    const [rows] = await pool.query(processedQuery, values);
+    // Get a connection to set session timeout
+    const connection = await pool.getConnection();
+    try {
+      // Set query timeout at session level (in milliseconds for MySQL 8.0.28+)
+      await connection.query(`SET SESSION MAX_EXECUTION_TIME = ${queryTimeoutMs}`);
 
-    // Apply row limit if specified
-    const maxRows = params.security?.maxResultRows ?? 10000;
-    const data = Array.isArray(rows) ? rows.slice(0, maxRows) : [];
+      // Execute query with timeout
+      const [rows] = await connection.query(processedQuery, values);
 
-    return {
-      success: true,
-      data,
-      rowCount: data.length,
-    };
+      // Apply row limit (data is already limited by the database if query includes LIMIT)
+      const data = Array.isArray(rows) ? rows.slice(0, maxRows) : [];
+
+      return {
+        success: true,
+        data,
+        rowCount: data.length,
+      };
+    } finally {
+      connection.release();
+    }
   } finally {
     // Close pool
     await pool.end();

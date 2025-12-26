@@ -45,7 +45,7 @@ export async function executeSqlIntegration(
   messageId?: string,
 ): Promise<any> {
   // Debug: Log context received by SQL integration executor
-  console.log('[execute_sql_integration] Received context:', {
+  debugLog('Received context:', {
     hasThreadId: threadId !== undefined,
     hasMessageId: messageId !== undefined,
     threadId: threadId,

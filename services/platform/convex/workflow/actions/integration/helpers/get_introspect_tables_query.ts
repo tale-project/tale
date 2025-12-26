@@ -39,5 +39,10 @@ export function getIntrospectTablesQuery(engine: SqlEngine): string {
         WHERE TABLE_TYPE = 'BASE TABLE'
         ORDER BY TABLE_SCHEMA, TABLE_NAME
       `;
+
+    default: {
+      const _exhaustiveCheck: never = engine;
+      throw new Error(`Unsupported SQL engine: ${_exhaustiveCheck}`);
+    }
   }
 }

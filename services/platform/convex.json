@@ -2,7 +2,9 @@
   "node": {
     "externalPackages": [
       "mssql",
-      "tedious"
+      "tedious",
+      "mysql2",
+      "pg"
     ]
   }
 }

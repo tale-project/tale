@@ -65,6 +65,16 @@ export async function createIntegrationInternal(
     if (predefined.type === 'sql') {
       type = 'sql';
 
+      // Validate required SQL connection fields
+      if (sqlConnectionConfig) {
+        if (!sqlConnectionConfig.server || sqlConnectionConfig.server.trim() === '') {
+          throw new Error('SQL integration requires a server address');
+        }
+        if (!sqlConnectionConfig.database || sqlConnectionConfig.database.trim() === '') {
+          throw new Error('SQL integration requires a database name');
+        }
+      }
+
       // Merge SQL connection config: user-provided values override predefined defaults
       // User MUST provide server and database at setup time
       if (predefined.sqlConnectionConfig && sqlConnectionConfig) {

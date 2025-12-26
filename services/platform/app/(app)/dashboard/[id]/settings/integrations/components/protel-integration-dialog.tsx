@@ -143,11 +143,11 @@ export default function ProtelIntegrationDialog({
         <div className="p-4">
           {isConnected ? (
             <div className="space-y-4">
-              <div className="rounded-md bg-green-50 p-4 dark:bg-green-950">
-                <p className="text-sm font-medium text-green-800 dark:text-green-200">
+              <div className="rounded-md bg-success/10 p-4">
+                <p className="text-sm font-medium text-success">
                   Connected to {credentials?.server}
                 </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                <p className="text-xs text-success/80 mt-1">
                   Database: {credentials?.database}
                 </p>
               </div>

@@ -35,10 +35,10 @@ const sql = require('mssql');
 
 async function cleanupTestData() {
   const config = {
-    server: '57.129.112.252',
-    database: 'Protel',
-    user: 'sa',
-    password: 'Pr0tel915930!#',
+    server: process.env.PROTO_SERVER_ADDRESS,
+    database: process.env.PROTO_DATABASE,
+    user: process.env.PROTO_USER_NAME,
+    password: process.env.PROTO_USER_PASSWORD,
     options: {
       encrypt: false,
       trustServerCertificate: true,
@@ -140,10 +140,10 @@ const sql = require('mssql');
 
 async function cleanupTestData() {
   const config = {
-    server: '57.129.112.252',
-    database: 'Protel',
-    user: 'sa',
-    password: 'Pr0tel915930!#',
+    server: process.env.PROTO_SERVER_ADDRESS,
+    database: process.env.PROTO_DATABASE,
+    user: process.env.PROTO_USER_NAME,
+    password: process.env.PROTO_USER_PASSWORD,
     options: {
       encrypt: false,
       trustServerCertificate: true,
@@ -295,14 +295,14 @@ cd /home/larry/Documents/tale/services/platform && npm install mssql
 
 **Protel Test Credentials (from `.test.env` at project root):**
 
-| Environment Variable   | Value            | Description        |
-| ---------------------- | ---------------- | ------------------ |
-| `PROTO_SERVER_ADDRESS` | `57.129.112.252` | SQL Server address |
-| `PROTO_DATABASE`       | `Protel`         | Database name      |
-| `PROTO_USER_NAME`      | `sa`             | SQL username       |
-| `PROTO_USER_PASSWORD`  | `Pr0tel915930!#` | SQL password       |
+| Environment Variable   | Description        |
+| ---------------------- | ------------------ |
+| `PROTO_SERVER_ADDRESS` | SQL Server address |
+| `PROTO_DATABASE`       | Database name      |
+| `PROTO_USER_NAME`      | SQL username       |
+| `PROTO_USER_PASSWORD`  | SQL password       |
 
-> **Note:** These credentials are read from `/home/larry/Documents/tale/.test.env` and are used both for the cleanup script and for configuring the Protel integration in the UI.
+> **Note:** These credentials must be configured in `/home/larry/Documents/tale/.test.env` before running tests. Never commit actual credential values to the repository.
 
 ---
 

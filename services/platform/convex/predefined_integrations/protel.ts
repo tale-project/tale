@@ -277,8 +277,8 @@ const protelSqlOperations: SqlOperation[] = [
         changed AS modified_date
       FROM proteluser.kunden
       WHERE typ = 2
-        AND (@searchName IS NULL OR name1 LIKE '%' + @searchName + '%' OR vorname LIKE '%' + @searchName + '%')
-        AND (@email IS NULL OR email LIKE '%' + @email + '%')
+        AND (@searchName IS NULL OR name1 LIKE '%' + REPLACE(REPLACE(REPLACE(@searchName, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%' OR vorname LIKE '%' + REPLACE(REPLACE(REPLACE(@searchName, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%')
+        AND (@email IS NULL OR email LIKE '%' + REPLACE(REPLACE(REPLACE(@email, '[', '[[]'), '%', '[%]'), '_', '[_]') + '%')
       ORDER BY kdnr DESC
     `,
     parametersSchema: {
@@ -1355,13 +1355,13 @@ const protelSqlOperations: SqlOperation[] = [
           required: false,
         },
         countryCode: {
-          type: 'string',
-          description: 'New country code',
+          type: 'number',
+          description: 'New country code ID (integer)',
           required: false,
         },
         language: {
-          type: 'string',
-          description: 'New language preference',
+          type: 'number',
+          description: 'New language ID (integer)',
           required: false,
         },
         vipCode: {

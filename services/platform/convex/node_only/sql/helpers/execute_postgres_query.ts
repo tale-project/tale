@@ -28,19 +28,26 @@ export async function executePostgresQuery(
     const values: unknown[] = [];
 
     if (params.params) {
-      // Extract parameter names from query (looking for $paramName or :paramName patterns)
+      // Extract unique parameter names and build a mapping to positional indices
       const paramPattern = /\$(\w+)|:(\w+)/g;
-      const matches = [...params.query.matchAll(paramPattern)];
-      const paramNames = matches.map((m) => m[1] || m[2]);
-
-      // Replace with positional parameters
+      const paramToIndex = new Map<string, number>();
       let index = 1;
-      processedQuery = params.query.replace(paramPattern, () => `$${index++}`);
 
-      // Build values array in order
-      for (const name of paramNames) {
-        values.push(params.params![name]);
+      // First pass: assign positional index to each unique parameter name
+      const matches = [...params.query.matchAll(paramPattern)];
+      for (const match of matches) {
+        const name = match[1] || match[2];
+        if (!paramToIndex.has(name)) {
+          paramToIndex.set(name, index++);
+          values.push(params.params![name]);
+        }
       }
+
+      // Second pass: replace named parameters with their positional indices
+      processedQuery = params.query.replace(paramPattern, (_, p1, p2) => {
+        const name = p1 || p2;
+        return `$${paramToIndex.get(name)}`;
+      });
     }
 
     // Execute query
