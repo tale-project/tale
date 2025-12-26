@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Loader2 } from 'lucide-react';
+import { Loader2, type LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 
 import { cn } from '@/lib/utils/cn';
 
@@ -41,9 +42,13 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-  VariantProps<typeof buttonVariants> {
+    VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   isLoading?: boolean;
+  /** Icon to display before the button text */
+  icon?: LucideIcon;
+  /** Additional className for the icon */
+  iconClassName?: string;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -54,12 +59,16 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       isLoading = false,
+      icon: Icon,
+      iconClassName,
       children,
       ...props
     },
     ref,
   ) => {
     const Comp = asChild ? Slot : 'button';
+    const iconClass = cn('size-4', children && 'mr-2', iconClassName);
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
@@ -69,11 +78,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading ? (
           <>
-            <Loader2 className="mr-2 size-4 animate-spin text-current" />
+            <Loader2 className={cn(iconClass, 'animate-spin')} />
             {children}
           </>
         ) : (
-          children
+          <>
+            {Icon && <Icon className={iconClass} />}
+            {children}
+          </>
         )}
       </Comp>
     );
@@ -81,4 +93,48 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
-export { Button, buttonVariants };
+export interface LinkButtonProps
+  extends Omit<React.ComponentProps<typeof Link>, 'className'>,
+    VariantProps<typeof buttonVariants> {
+  /** Icon to display before the button text */
+  icon?: LucideIcon;
+  /** Additional className for the icon */
+  iconClassName?: string;
+  /** Additional className */
+  className?: string;
+}
+
+/**
+ * A Link component styled as a button.
+ * Use this instead of wrapping Button with asChild around Link.
+ */
+const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
+  (
+    {
+      className,
+      variant,
+      size,
+      icon: Icon,
+      iconClassName,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
+    const iconClass = cn('size-4', children && 'mr-2', iconClassName);
+
+    return (
+      <Link
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      >
+        {Icon && <Icon className={iconClass} />}
+        {children}
+      </Link>
+    );
+  },
+);
+LinkButton.displayName = 'LinkButton';
+
+export { Button, LinkButton, buttonVariants };

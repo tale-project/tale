@@ -1,17 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Stack } from '@/components/ui/layout';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { JsonInput } from '@/components/ui/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
@@ -28,6 +25,13 @@ interface CreateStepDialogProps {
     nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
   }) => Promise<void>;
 }
+
+type FormData = {
+  name: string;
+  stepType: Doc<'wfStepDefs'>['stepType'];
+  config: string;
+  nextSteps: string;
+};
 
 const getDefaultTemplates = (
   stepType: Doc<'wfStepDefs'>['stepType'],
@@ -87,119 +91,115 @@ export default function CreateStepDialog({
   const { t } = useT('automations');
   const initialDefaults = getDefaultTemplates('action');
 
-  const [formData, setFormData] = useState({
-    name: '',
-    stepType: 'action' as Doc<'wfStepDefs'>['stepType'],
-    config: initialDefaults.config,
-    nextSteps: '{}',
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        name: z
+          .string()
+          .min(1, t('createStep.validation.nameRequired'))
+          .regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/, t('createStep.validation.nameFormat')),
+        stepType: z.enum(['trigger', 'llm', 'condition', 'action', 'loop']),
+        config: z.string(),
+        nextSteps: z.string(),
+      }),
+    [t],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    reset,
+    setValue,
+    watch,
+  } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      stepType: 'action',
+      config: initialDefaults.config,
+      nextSteps: '{}',
+    },
   });
-  const [nameError, setNameError] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Validate step name
-  const validateStepName = (name: string) => {
-    if (!name.trim()) {
-      setNameError(t('createStep.validation.nameRequired'));
-      return false;
+  const stepType = watch('stepType');
+  const config = watch('config');
+  const nextSteps = watch('nextSteps');
+
+  // Update config template when step type changes
+  useEffect(() => {
+    const defaults = getDefaultTemplates(stepType);
+    setValue('config', defaults.config);
+  }, [stepType, setValue]);
+
+  const onSubmit = async (data: FormData) => {
+    // Parse JSON fields
+    let parsedConfig: Doc<'wfStepDefs'>['config'] = {};
+    let parsedNextSteps: Doc<'wfStepDefs'>['nextSteps'] = {};
+
+    if (data.config.trim()) {
+      try {
+        parsedConfig = JSON.parse(data.config);
+      } catch {
+        toast({
+          title: t('configuration.validation.invalidJson'),
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
-    const stepNamePattern = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
-    if (!stepNamePattern.test(name.trim())) {
-      setNameError(t('createStep.validation.nameFormat'));
-      return false;
-    }
-
-    setNameError('');
-    return true;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate step name
-    if (!validateStepName(formData.name)) {
-      return;
+    if (data.nextSteps.trim()) {
+      try {
+        parsedNextSteps = JSON.parse(data.nextSteps);
+      } catch {
+        toast({
+          title: t('configuration.validation.invalidJson'),
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     try {
-      setIsLoading(true);
-
-      // Parse JSON fields
-      let parsedConfig: Doc<'wfStepDefs'>['config'] = {};
-      let parsedNextSteps: Doc<'wfStepDefs'>['nextSteps'] = {};
-
-      if (formData.config.trim()) {
-        try {
-          parsedConfig = JSON.parse(formData.config);
-        } catch {
-          toast({
-            title: t('configuration.validation.invalidJson'),
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
-      if (formData.nextSteps.trim()) {
-        try {
-          parsedNextSteps = JSON.parse(formData.nextSteps);
-        } catch {
-          toast({
-            title: t('configuration.validation.invalidJson'),
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
       await onCreateStep({
-        name: formData.name.trim(),
-        stepType: formData.stepType,
+        name: data.name.trim(),
+        stepType: data.stepType,
         config: parsedConfig,
         nextSteps: parsedNextSteps,
       });
 
       // Reset form
       const defaults = getDefaultTemplates('action');
-      setFormData({
+      reset({
         name: '',
         stepType: 'action',
         config: defaults.config,
         nextSteps: '{}',
       });
-      setNameError('');
 
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to create step:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleClose = () => {
-    if (!isLoading) {
+    if (!isSubmitting) {
       onOpenChange(false);
       // Reset form when closing
       const defaults = getDefaultTemplates('action');
-      setFormData({
+      reset({
         name: '',
         stepType: 'action',
         config: defaults.config,
         nextSteps: '{}',
       });
-      setNameError('');
     }
   };
 
   const handleTypeChange = (value: string) => {
-    const type = value as Doc<'wfStepDefs'>['stepType'];
-    const defaults = getDefaultTemplates(type);
-    setFormData((prev) => ({
-      ...prev,
-      stepType: type,
-      config: defaults.config,
-    }));
+    setValue('stepType', value as Doc<'wfStepDefs'>['stepType']);
   };
 
   return (
@@ -210,65 +210,53 @@ export default function CreateStepDialog({
       description={t('createStep.description')}
       submitText={t('createStep.createButton')}
       submittingText={t('createStep.creating')}
-      isSubmitting={isLoading}
-      submitDisabled={!formData.name.trim()}
-      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      submitDisabled={!watch('name')?.trim()}
+      onSubmit={handleSubmit(onSubmit)}
       large
     >
       <Input
         id="step-name"
         label={t('configuration.name')}
         required
-        value={formData.name}
-        onChange={(e) => {
-          setFormData((prev) => ({ ...prev, name: e.target.value }));
-          if (nameError) validateStepName(e.target.value);
-        }}
-        onBlur={(e) => validateStepName(e.target.value)}
+        {...register('name')}
         placeholder={t('createStep.namePlaceholder')}
-        disabled={isLoading}
-        errorMessage={nameError}
+        disabled={isSubmitting}
+        errorMessage={errors.name?.message}
       />
 
       <Select
-        value={formData.stepType}
+        value={stepType}
         onValueChange={handleTypeChange}
-        disabled={isLoading}
-      >
-        <SelectTrigger label={t('createStep.type')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="action">{t('createStep.types.action')}</SelectItem>
-          <SelectItem value="llm">{t('createStep.types.llm')}</SelectItem>
-          <SelectItem value="condition">{t('createStep.types.condition')}</SelectItem>
-        </SelectContent>
-      </Select>
+        disabled={isSubmitting}
+        label={t('createStep.type')}
+        options={[
+          { value: 'action', label: t('createStep.types.action') },
+          { value: 'llm', label: t('createStep.types.llm') },
+          { value: 'condition', label: t('createStep.types.condition') },
+        ]}
+      />
 
       <Stack gap={4}>
         <JsonInput
           id="step-config"
           label={t('createStep.configLabel')}
-          value={formData.config}
-          onChange={(value) =>
-            setFormData((prev) => ({ ...prev, config: value }))
-          }
+          value={config}
+          onChange={(value) => setValue('config', value)}
           placeholder='{"key":"value"}'
           rows={4}
-          disabled={isLoading}
+          disabled={isSubmitting}
           description={t('createStep.configDescription')}
         />
 
         <JsonInput
           id="step-next"
           label={t('createStep.nextStepsLabel')}
-          value={formData.nextSteps}
-          onChange={(value) =>
-            setFormData((prev) => ({ ...prev, nextSteps: value }))
-          }
+          value={nextSteps}
+          onChange={(value) => setValue('nextSteps', value)}
           placeholder='{"onSuccess":"step-2","onFailure":"step-x"}'
           rows={3}
-          disabled={isLoading}
+          disabled={isSubmitting}
           description={t('createStep.nextStepsDescription')}
         />
       </Stack>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,28 +18,13 @@ import { Button } from '@/components/ui/button';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
 
-// Validation schema for Protel SQL credentials
-const protelSchema = z.object({
-  server: z
-    .string()
-    .min(1, 'Server address is required')
-    .max(255, 'Server address must be less than 255 characters'),
-  port: z.coerce.number().min(1).max(65535),
-  database: z
-    .string()
-    .min(1, 'Database name is required')
-    .max(128, 'Database name must be less than 128 characters'),
-  username: z
-    .string()
-    .min(1, 'Username is required')
-    .max(128, 'Username must be less than 128 characters'),
-  password: z
-    .string()
-    .min(1, 'Password is required')
-    .max(128, 'Password must be less than 128 characters'),
-});
-
-type ProtelFormValues = z.infer<typeof protelSchema>;
+type ProtelFormValues = {
+  server: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+};
 
 interface ProtelIntegrationDialogProps extends DialogProps {
   credentials?: {
@@ -58,6 +44,18 @@ export default function ProtelIntegrationDialog({
   ...props
 }: ProtelIntegrationDialogProps) {
   const isConnected = !!credentials?.server;
+
+  const protelSchema = useMemo(
+    () =>
+      z.object({
+        server: z.string().min(1).max(255),
+        port: z.coerce.number().min(1).max(65535),
+        database: z.string().min(1).max(128),
+        username: z.string().min(1).max(128),
+        password: z.string().min(1).max(128),
+      }),
+    [],
+  );
 
   const {
     register,

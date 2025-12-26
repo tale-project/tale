@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,13 +36,17 @@ export default function LogInForm({
   const { t: tCommon } = useT('common');
 
   // Zod validation schema with translated messages
-  const logInSchema = z.object({
-    email: z
-      .string()
-      .min(1, tCommon('validation.required'))
-      .email(tCommon('validation.email')),
-    password: z.string().min(1, tCommon('validation.required')),
-  });
+  const logInSchema = useMemo(
+    () =>
+      z.object({
+        email: z
+          .string()
+          .min(1, tCommon('validation.required'))
+          .email(tCommon('validation.email')),
+        password: z.string().min(1, tCommon('validation.required')),
+      }),
+    [tCommon],
+  );
 
   const form = useForm<LogInFormData>({
     resolver: zodResolver(logInSchema),

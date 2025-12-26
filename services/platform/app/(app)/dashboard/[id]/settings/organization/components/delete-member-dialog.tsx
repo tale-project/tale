@@ -54,20 +54,10 @@ export default function DeleteMemberDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t('organization.removeTeamMember')}
-      description={tDialogs('cannotBeUndone')}
+      description={tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
       deleteText={t('organization.removeMember')}
       onDelete={handleConfirm}
-    >
-      <p className="text-sm text-foreground">
-        {tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
-      </p>
-      {member.role === 'admin' && (
-        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
-          <p className="text-sm text-amber-800">
-            {t('organization.adminSecurityWarning')}
-          </p>
-        </div>
-      )}
-    </DeleteModal>
+      warning={member.role === 'admin' ? t('organization.adminSecurityWarning') : undefined}
+    />
   );
 }

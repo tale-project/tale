@@ -1,31 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { useCreateWebsite } from './hooks';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
-const getFormSchema = (t: (key: string) => string) => z.object({
-  domain: z.string().min(1, t('validation.domainRequired')).url(t('validation.validUrl')),
-  scanInterval: z.string().min(1, t('validation.scanIntervalRequired')),
-});
-
-const asSchemaTranslator = (t: ReturnType<typeof useT>['t']): ((key: string) => string) =>
-  t as unknown as (key: string) => string;
-
-type FormData = z.infer<ReturnType<typeof getFormSchema>>;
+type FormData = {
+  domain: string;
+  scanInterval: string;
+};
 
 interface AddWebsiteDialogProps {
   isOpen: boolean;
@@ -41,6 +30,15 @@ export default function AddWebsiteDialog({
   const { t: tWebsites } = useT('websites');
   const [isLoading, setIsLoading] = useState(false);
   const createWebsite = useCreateWebsite();
+
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        domain: z.string().min(1, tWebsites('validation.domainRequired')).url(tWebsites('validation.validUrl')),
+        scanInterval: z.string().min(1, tWebsites('validation.scanIntervalRequired')),
+      }),
+    [tWebsites],
+  );
 
   const SCAN_INTERVALS = [
     { value: '60m', label: tWebsites('scanIntervals.1hour') },
@@ -60,7 +58,7 @@ export default function AddWebsiteDialog({
     setValue,
     watch,
   } = useForm<FormData>({
-    resolver: zodResolver(getFormSchema(asSchemaTranslator(tWebsites))),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       domain: '',
       scanInterval: '6h',
@@ -124,22 +122,12 @@ export default function AddWebsiteDialog({
         value={scanInterval}
         onValueChange={(value) => setValue('scanInterval', value)}
         disabled={isLoading}
-      >
-        <SelectTrigger
-          id="scanInterval"
-          label={tWebsites('scanInterval')}
-          error={!!errors.scanInterval}
-        >
-          <SelectValue placeholder={tWebsites('scanIntervalPlaceholder')} />
-        </SelectTrigger>
-        <SelectContent>
-          {SCAN_INTERVALS.map((interval) => (
-            <SelectItem key={interval.value} value={interval.value}>
-              {interval.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        id="scanInterval"
+        label={tWebsites('scanInterval')}
+        error={!!errors.scanInterval}
+        placeholder={tWebsites('scanIntervalPlaceholder')}
+        options={SCAN_INTERVALS}
+      />
     </FormModal>
   );
 }

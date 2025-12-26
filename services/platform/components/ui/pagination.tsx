@@ -1,13 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useTransition } from 'react';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -134,20 +128,15 @@ export default function Pagination({
         )}
       </Button>
 
-      <Select value={currentPage.toString()} onValueChange={handlePageSelect}>
-        <SelectTrigger className="w-auto min-w-16 h-8">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="w-auto min-w-20">
-          {Array.from({ length: totalPageCount }, (_, i) => i + 1).map(
-            (page) => (
-              <SelectItem key={page} value={page.toString()}>
-                {page}
-              </SelectItem>
-            ),
-          )}
-        </SelectContent>
-      </Select>
+      <Select
+        value={currentPage.toString()}
+        onValueChange={handlePageSelect}
+        className="w-auto min-w-16 h-8"
+        options={Array.from({ length: totalPageCount }, (_, i) => ({
+          value: (i + 1).toString(),
+          label: (i + 1).toString(),
+        }))}
+      />
 
       <Button
         variant="ghost"

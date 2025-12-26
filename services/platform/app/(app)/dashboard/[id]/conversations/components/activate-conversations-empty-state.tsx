@@ -1,8 +1,7 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { LinkButton } from '@/components/ui/button';
 import { MessageSquare, Plus } from 'lucide-react';
-import Link from 'next/link';
 import { useT } from '@/lib/i18n';
 
 interface ActivateConversationsEmptyStateProps {
@@ -24,14 +23,12 @@ export default function ActivateConversationsEmptyState({
         <p className="text-sm text-muted-foreground mb-5">
           {t('activate.description')}
         </p>
-        <Button asChild>
-          <Link
-            href={`/dashboard/${organizationId}/settings/integrations?tab=email`}
-          >
-            <Plus className="size-4 mr-2" />
-            {t('activate.connectEmail')}
-          </Link>
-        </Button>
+        <LinkButton
+          href={`/dashboard/${organizationId}/settings/integrations?tab=email`}
+          icon={Plus}
+        >
+          {t('activate.connectEmail')}
+        </LinkButton>
       </div>
     </div>
   );

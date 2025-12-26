@@ -34,8 +34,8 @@ export default function AutomationsLayout({
     api.wf_definitions.getWorkflowPublic,
     params.amId
       ? {
-        wfDefinitionId: params.amId as Id<'wfDefinitions'>,
-      }
+          wfDefinitionId: params.amId as Id<'wfDefinitions'>,
+        }
       : 'skip',
   );
   const updateWorkflow = useUpdateAutomation();
@@ -46,15 +46,26 @@ export default function AutomationsLayout({
     organizationId: params.id as string,
   });
 
+  // Check user authorization
+  const userRole = (userContext?.role ?? '').toLowerCase();
+  const isAuthorized = userRole === 'admin' || userRole === 'developer';
+
   // Redirect non-admin/non-developer users
   useEffect(() => {
-    if (userContext) {
-      const userRole = (userContext.role ?? '').toLowerCase();
-      if (userRole !== 'admin' && userRole !== 'developer') {
-        router.push(`/dashboard/${params.id}`);
-      }
+    if (userContext && !isAuthorized) {
+      router.push(`/dashboard/${params.id}`);
     }
-  }, [userContext, router, params.id]);
+  }, [userContext, isAuthorized, router, params.id]);
+
+  // Show nothing while loading authorization
+  if (!userContext) {
+    return null;
+  }
+
+  // Prevent flash while redirecting
+  if (!isAuthorized) {
+    return null;
+  }
 
   const handleClickAutomation = () => {
     router.push(`/dashboard/${params.id}/automations`);
@@ -77,6 +88,7 @@ export default function AutomationsLayout({
     });
     setEditMode(false);
   };
+
   return (
     <>
       <PageHeader showBorder className="gap-2">

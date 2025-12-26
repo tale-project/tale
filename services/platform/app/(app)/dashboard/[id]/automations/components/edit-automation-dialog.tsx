@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,6 +18,15 @@ interface AutomationConfig {
   retryPolicy?: { maxRetries?: number; backoffMs?: number };
   variables?: Record<string, unknown>;
 }
+
+type FormData = {
+  name: string;
+  description: string;
+  timeout: number;
+  maxRetries: number;
+  backoffMs: number;
+  variables: string;
+};
 
 interface EditAutomationDialogProps {
   open: boolean;
@@ -44,20 +56,46 @@ export default function EditAutomationDialog({
   onUpdateAutomation,
 }: EditAutomationDialogProps) {
   const { t } = useT('automations');
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    timeout: 300000,
-    maxRetries: 3,
-    backoffMs: 1000,
-    variables: '{\n "environment": "test" \n}',
+  const { t: tCommon } = useT('common');
+
+  const formSchema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(1, tCommon('validation.required', { field: t('configuration.name') })),
+        description: z.string(),
+        timeout: z.number().min(1000).max(3600000),
+        maxRetries: z.number().min(0).max(10),
+        backoffMs: z.number().min(100).max(60000),
+        variables: z.string(),
+      }),
+    [t, tCommon],
+  );
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { isSubmitting, errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      timeout: 300000,
+      maxRetries: 3,
+      backoffMs: 1000,
+      variables: '{\n  "environment": "test"\n}',
+    },
   });
-  const [isLoading, setIsLoading] = useState(false);
+
+  const variables = watch('variables');
 
   useEffect(() => {
     if (workflow) {
       const config = workflow.config as AutomationConfig;
-      setFormData({
+      reset({
         name: workflow.name,
         description: workflow.description || '',
         timeout: config?.timeout || 300000,
@@ -70,55 +108,41 @@ export default function EditAutomationDialog({
         ),
       });
     }
-  }, [workflow]);
+  }, [workflow, reset]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const onSubmit = async (data: FormData) => {
     if (!workflow) return;
 
-    if (!formData.name.trim()) {
-      toast({
-        title: t('configuration.validation.nameRequired'),
-        variant: 'destructive',
-      });
-      return;
+    let parsedVariables: Record<string, unknown> = {};
+    if (data.variables.trim()) {
+      try {
+        parsedVariables = JSON.parse(data.variables);
+      } catch {
+        toast({
+          title: t('configuration.validation.invalidJson'),
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     try {
-      setIsLoading(true);
-
-      let variables: Record<string, unknown> = {};
-      if (formData.variables.trim()) {
-        try {
-          variables = JSON.parse(formData.variables);
-        } catch {
-          toast({
-            title: t('configuration.validation.invalidJson'),
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
-
       await onUpdateAutomation(workflow._id, {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
+        name: data.name.trim(),
+        description: data.description.trim() || undefined,
         config: {
-          timeout: formData.timeout,
+          timeout: data.timeout,
           retryPolicy: {
-            maxRetries: formData.maxRetries,
-            backoffMs: formData.backoffMs,
+            maxRetries: data.maxRetries,
+            backoffMs: data.backoffMs,
           },
-          variables,
+          variables: parsedVariables,
         },
       });
 
       onOpenChange(false);
     } catch (error) {
       console.error('Failed to update automation:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -131,8 +155,8 @@ export default function EditAutomationDialog({
       title={t('editDialog.title')}
       submitText={t('editDialog.updateButton')}
       submittingText={t('editDialog.updating')}
-      isSubmitting={isLoading}
-      onSubmit={handleSubmit}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(onSubmit)}
       large
       className="max-h-[80vh]"
     >
@@ -140,27 +164,19 @@ export default function EditAutomationDialog({
         id="edit-name"
         label={t('configuration.name')}
         required
-        value={formData.name}
-        onChange={(e) =>
-          setFormData((prev) => ({ ...prev, name: e.target.value }))
-        }
+        {...register('name')}
         placeholder={t('editDialog.namePlaceholder')}
-        disabled={isLoading}
+        disabled={isSubmitting}
+        errorMessage={errors.name?.message}
       />
 
       <Textarea
         id="edit-description"
         label={t('configuration.description')}
-        value={formData.description}
-        onChange={(e) =>
-          setFormData((prev) => ({
-            ...prev,
-            description: e.target.value,
-          }))
-        }
+        {...register('description')}
         placeholder={t('editDialog.descriptionPlaceholder')}
         rows={3}
-        disabled={isLoading}
+        disabled={isSubmitting}
       />
 
       <Stack gap={4}>
@@ -169,59 +185,39 @@ export default function EditAutomationDialog({
             id="edit-timeout"
             type="number"
             label={t('configuration.timeout')}
-            value={formData.timeout}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                timeout: parseInt(e.target.value) || 300000,
-              }))
-            }
+            {...register('timeout', { valueAsNumber: true })}
             placeholder={t('editDialog.timeoutPlaceholder')}
-            disabled={isLoading}
+            disabled={isSubmitting}
+            errorMessage={errors.timeout?.message}
           />
           <Input
             id="edit-maxRetries"
             type="number"
             label={t('configuration.maxRetries')}
-            value={formData.maxRetries}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                maxRetries: parseInt(e.target.value) || 3,
-              }))
-            }
+            {...register('maxRetries', { valueAsNumber: true })}
             placeholder={t('editDialog.maxRetriesPlaceholder')}
-            disabled={isLoading}
+            disabled={isSubmitting}
+            errorMessage={errors.maxRetries?.message}
           />
           <Input
             id="edit-backoffMs"
             type="number"
             label={t('configuration.backoff')}
-            value={formData.backoffMs}
-            onChange={(e) =>
-              setFormData((prev) => ({
-                ...prev,
-                backoffMs: parseInt(e.target.value) || 1000,
-              }))
-            }
+            {...register('backoffMs', { valueAsNumber: true })}
             placeholder={t('editDialog.backoffPlaceholder')}
-            disabled={isLoading}
+            disabled={isSubmitting}
+            errorMessage={errors.backoffMs?.message}
           />
         </Grid>
 
         <JsonInput
           id="edit-variables"
           label={t('configuration.variables')}
-          value={formData.variables}
-          onChange={(value) =>
-            setFormData((prev) => ({
-              ...prev,
-              variables: value,
-            }))
-          }
+          value={variables}
+          onChange={(value) => setValue('variables', value)}
           placeholder={t('editDialog.variablesPlaceholder')}
           rows={4}
-          disabled={isLoading}
+          disabled={isSubmitting}
           description={t('editDialog.variablesDescription')}
         />
       </Stack>

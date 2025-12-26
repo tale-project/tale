@@ -10,13 +10,7 @@ import {
   type ReactElement,
 } from 'react';
 import { TableBody, TableCell } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
@@ -157,20 +151,12 @@ export default function PaginatedMarkdownTable({
             <Select
               value={currentPage.toString()}
               onValueChange={handlePageSelect}
-            >
-              <SelectTrigger className="h-7 w-auto min-w-[2.5rem] px-2 py-1.5 gap-1 text-sm font-medium text-muted-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="min-w-[3rem]">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <SelectItem key={page} value={page.toString()}>
-                      {page}
-                    </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
+              className="h-7 w-auto min-w-[2.5rem] px-2 py-1.5 gap-1 text-sm font-medium text-muted-foreground"
+              options={Array.from({ length: totalPages }, (_, i) => ({
+                value: (i + 1).toString(),
+                label: (i + 1).toString(),
+              }))}
+            />
 
             {/* Next button */}
             <button

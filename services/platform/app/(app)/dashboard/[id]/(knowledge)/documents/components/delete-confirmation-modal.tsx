@@ -25,22 +25,11 @@ export default function DeleteConfirmationModal({
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteFile.title')}
-      description={
-        <>
-          {tDocuments('deleteFile.confirmation')}{' '}
-          <span className="font-medium text-foreground">
-            {fileName ?? tDocuments('deleteFile.thisFile')}
-          </span>
-          ?
-        </>
-      }
+      description={tDocuments('deleteFile.confirmation', { name: fileName ?? tDocuments('deleteFile.thisFile') })}
       deleteText={tDocuments('deleteFile.deleteButton')}
       isDeleting={isLoading}
       onDelete={onConfirmDelete}
-    >
-      <p className="text-sm text-muted-foreground">
-        {tDocuments('deleteFile.warning')}
-      </p>
-    </DeleteModal>
+      warning={tDocuments('deleteFile.warning')}
+    />
   );
 }
