@@ -6,16 +6,22 @@ import { useRouter } from 'next/navigation';
 import { ArrowDown, Loader2 } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 import MessageBubble from './message-bubble';
 import ChatInput from './chat-input';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import {
+  useCreateThread,
+  useUpdateThread,
+  useChatWithAgent,
+  useClearActiveRunId,
+} from '../hooks';
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
@@ -76,78 +82,85 @@ function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 1) + '…';
 }
 
-/**
- * Formats a tool invocation into a human-readable display text with context.
- * Extracts relevant details from the tool's input arguments.
- */
-function formatToolDetail(
-  toolName: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  input?: Record<string, any>,
-): ToolDetail {
-  // Handle web_read tool with operation-specific display
-  if (toolName === 'web_read' && input) {
-    if (input.operation === 'search' && input.query) {
-      return {
-        toolName,
-        displayText: `Searching "${truncate(input.query, 30)}"`,
-      };
-    }
-    if (input.operation === 'fetch_url' && input.url) {
-      return {
-        toolName,
-        displayText: `Reading ${extractHostname(input.url)}`,
-      };
-    }
-  }
-
-  // Handle rag_search with query
-  if (toolName === 'rag_search' && input?.query) {
-    return {
-      toolName,
-      displayText: `Searching knowledge base for "${truncate(input.query, 25)}"`,
-    };
-  }
-
-  // Default fallback display names for tools without detailed input
-  const defaultDisplayNames: Record<string, string> = {
-    customer_read: 'Reading customer data',
-    product_read: 'Reading product catalog',
-    rag_search: 'Searching knowledge base',
-    rag_write: 'Updating knowledge base',
-    web_read: 'Fetching web content',
-    pdf: 'Processing PDF',
-    image: 'Analyzing image',
-    pptx: 'Processing presentation',
-    docx: 'Processing document',
-    resource_check: 'Checking resources',
-    workflow_read: 'Reading workflow',
-    update_workflow_step: 'Updating workflow step',
-    save_workflow_definition: 'Saving workflow',
-    validate_workflow_definition: 'Validating workflow',
-    generate_excel: 'Generating Excel file',
-    context_search: 'Searching for related topics',
-  };
-
-  const displayText =
-    defaultDisplayNames[toolName] ||
-    toolName
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-
-  return { toolName, displayText };
-}
-
 interface ThinkingAnimationProps {
   threadId?: string;
   streamingMessage?: UIMessage;
 }
 
 function ThinkingAnimation({
-  threadId,
+  threadId: _threadId,
   streamingMessage,
 }: ThinkingAnimationProps) {
+  const { t } = useT('chat');
+
+  /**
+   * Formats a tool invocation into a human-readable display text with context.
+   * Extracts relevant details from the tool's input arguments.
+   */
+  const formatToolDetail = (
+    toolName: string,
+    input?: Record<string, unknown>,
+  ): ToolDetail => {
+    // Handle web_read tool with operation-specific display
+    if (toolName === 'web_read' && input) {
+      if (input.operation === 'search' && input.query) {
+        return {
+          toolName,
+          displayText: t('thinking.searching', {
+            query: truncate(String(input.query), 30),
+          }),
+        };
+      }
+      if (input.operation === 'fetch_url' && input.url) {
+        return {
+          toolName,
+          displayText: t('thinking.reading', {
+            hostname: extractHostname(String(input.url)),
+          }),
+        };
+      }
+    }
+
+    // Handle rag_search with query
+    if (toolName === 'rag_search' && input?.query) {
+      return {
+        toolName,
+        displayText: t('thinking.searchingKnowledgeBase', {
+          query: truncate(String(input.query), 25),
+        }),
+      };
+    }
+
+    // Default fallback display names for tools without detailed input
+    const toolDisplayNames: Record<string, string> = {
+      customer_read: t('tools.customerRead'),
+      product_read: t('tools.productRead'),
+      rag_search: t('tools.ragSearch'),
+      rag_write: t('tools.ragWrite'),
+      web_read: t('tools.webRead'),
+      pdf: t('tools.pdf'),
+      image: t('tools.image'),
+      pptx: t('tools.pptx'),
+      docx: t('tools.docx'),
+      resource_check: t('tools.resourceCheck'),
+      workflow_read: t('tools.workflowRead'),
+      update_workflow_step: t('tools.updateWorkflowStep'),
+      save_workflow_definition: t('tools.saveWorkflowDefinition'),
+      validate_workflow_definition: t('tools.validateWorkflowDefinition'),
+      generate_excel: t('tools.generateExcel'),
+      context_search: t('tools.contextSearch'),
+    };
+
+    const displayText =
+      toolDisplayNames[toolName] ||
+      toolName
+        .split('_')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+    return { toolName, displayText };
+  };
+
   // Extract tool details from streaming message parts
   // Parts with tool info have type format 'tool-{toolName}' (e.g., 'tool-web_read')
   // and may contain 'input' with the tool's arguments
@@ -170,7 +183,7 @@ function ThinkingAnimation({
   }
 
   // Determine what text to display - show tool details or default "Thinking"
-  let displayText = 'Thinking';
+  let displayText = t('thinking.default');
 
   if (toolDetails.length === 1) {
     // Single tool - show its detailed display text
@@ -183,26 +196,45 @@ function ThinkingAnimation({
 
     // Check if all display texts start with the same verb (e.g., "Searching", "Reading")
     // to create a more natural grouped message
-    const searchPrefix = 'Searching "';
-    const allSearches = uniqueDisplayTexts.every((t) =>
-      t.startsWith(searchPrefix),
+    const searchingPrefix = t('thinking.searching', { query: '' }).replace(
+      '""',
+      '',
+    );
+    const allSearches = uniqueDisplayTexts.every((text) =>
+      text.startsWith(searchingPrefix),
     );
 
     if (allSearches && uniqueDisplayTexts.length > 1) {
       // Extract just the query parts (remove "Searching " prefix and closing quote)
-      const queries = uniqueDisplayTexts.map((t) =>
-        t.slice(searchPrefix.length - 1, t.endsWith('"') ? t.length : t.length),
+      const queries = uniqueDisplayTexts.map((text) =>
+        text.slice(
+          searchingPrefix.length,
+          text.endsWith('"') ? text.length : text.length,
+        ),
       );
       if (queries.length <= 2) {
-        displayText = `Searching ${queries.join(' and ')}`;
+        displayText = t('thinking.searchingMultiple', {
+          queries: queries.join(` ${t('thinking.and')} `),
+        });
       } else {
-        displayText = `Searching ${queries[0]}, ${queries[1]} and ${queries.length - 2} more`;
+        displayText = t('thinking.searchingMore', {
+          first: queries[0],
+          second: queries[1],
+          count: queries.length - 2,
+        });
       }
     } else if (uniqueDisplayTexts.length <= 2) {
-      displayText = uniqueDisplayTexts.join(' and ');
+      displayText = t('thinking.multipleTools', {
+        first: uniqueDisplayTexts[0],
+        second: uniqueDisplayTexts[1],
+      });
     } else {
       // For 3+ different tool calls, show first two and count
-      displayText = `${uniqueDisplayTexts[0]}, ${uniqueDisplayTexts[1]} and ${uniqueDisplayTexts.length - 2} more`;
+      displayText = t('thinking.multipleToolsMore', {
+        first: uniqueDisplayTexts[0],
+        second: uniqueDisplayTexts[1],
+        count: uniqueDisplayTexts.length - 2,
+      });
     }
   }
 
@@ -216,12 +248,12 @@ function ThinkingAnimation({
     <div className="flex justify-start">
       <motion.div
         key={animationKey}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
         transition={{
-          duration: 0.2,
-          ease: 'easeInOut',
+          duration: 0.3,
+          ease: [0.25, 0.1, 0.25, 1],
         }}
         className="text-sm text-muted-foreground flex items-center gap-2 px-4 py-3"
       >
@@ -231,8 +263,8 @@ function ThinkingAnimation({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{
-            duration: 0.2,
-            ease: 'easeInOut',
+            duration: 0.25,
+            ease: [0.25, 0.1, 0.25, 1],
           }}
           className="inline-block"
         >
@@ -258,13 +290,14 @@ export default function ChatInterface({
   organizationId,
   threadId,
 }: ChatInterfaceProps) {
+  const { t } = useT('chat');
   const router = useRouter();
   const {
     optimisticMessage,
     setOptimisticMessage,
     currentRunId,
     setCurrentRunId,
-    isPending,
+    isPending: _isPending,
     setIsPending,
     isLoading,
     clearChatState,
@@ -389,10 +422,10 @@ export default function ChatInterface({
   );
 
   // Convex mutations
-  const createThread = useMutation(api.threads.createChatThread);
-  const updateThread = useMutation(api.threads.updateChatThread);
-  const chatWithAgent = useMutation(api.chat_agent.chatWithAgent);
-  const clearActiveRunIdMutation = useMutation(api.threads.clearActiveRunId);
+  const createThread = useCreateThread();
+  const updateThread = useUpdateThread();
+  const chatWithAgent = useChatWithAgent();
+  const clearActiveRunIdMutation = useClearActiveRunId();
 
   // Sync loading state with server and handle chat completion
   useEffect(() => {
@@ -415,7 +448,7 @@ export default function ChatInterface({
       clearChatState();
     } else if (chatStatus.status === 'failed') {
       toast({
-        title: 'Failed to generate response',
+        title: t('toast.generateFailed'),
         description: chatStatus.error,
         variant: 'destructive',
       });
@@ -466,7 +499,7 @@ export default function ChatInterface({
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
-  const messageCount = threadMessages?.length ?? 0;
+  const _messageCount = threadMessages?.length ?? 0;
 
   // Track when we should scroll to position AI response at top
   const shouldScrollToAIRef = useRef(false);
@@ -607,7 +640,7 @@ export default function ChatInterface({
       setInputValue('');
       toast({
         title:
-          error instanceof Error ? error.message : 'Failed to send message',
+          error instanceof Error ? error.message : t('toast.sendFailed'),
         variant: 'destructive',
       });
     }
@@ -635,13 +668,18 @@ export default function ChatInterface({
             threadMessages?.length === 0 && (
               <div className="flex-1 flex items-center justify-center size-full">
                 <h1 className="text-[2rem] font-semibold text-center">
-                  How can I assist you?
+                  {t('welcome')}
                 </h1>
               </div>
             )}
           {(threadId || threadMessages?.length > 0 || userDraftMessage) && (
             // Chat messages and approvals - show when we have a threadId OR messages OR draft
-            <div className="max-w-[var(--chat-max-width)] mx-auto space-y-4">
+            <div
+              className="max-w-[var(--chat-max-width)] mx-auto space-y-4"
+              role="log"
+              aria-live="polite"
+              aria-label={t('aria.messageHistory')}
+            >
               {/* Load More button for pagination - shows when more messages exist */}
               {(canLoadMore || isLoadingMore) && (
                 <div className="flex justify-center py-2">
@@ -740,10 +778,10 @@ export default function ChatInterface({
       <AnimatePresence>
         {showScrollButton && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10"
           >
             <Button
@@ -751,6 +789,7 @@ export default function ChatInterface({
               size="icon"
               variant="secondary"
               className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
+              aria-label={t('aria.scrollToBottom')}
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
