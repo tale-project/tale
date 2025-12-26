@@ -80,7 +80,6 @@ import type * as lib_attachments_format_markdown from "../lib/attachments/format
 import type * as lib_attachments_index from "../lib/attachments/index.js";
 import type * as lib_attachments_register_files from "../lib/attachments/register_files.js";
 import type * as lib_attachments_types from "../lib/attachments/types.js";
-import type * as lib_chat_agent_retrier from "../lib/chat_agent_retrier.js";
 import type * as lib_create_agent_config from "../lib/create_agent_config.js";
 import type * as lib_create_chat_agent from "../lib/create_chat_agent.js";
 import type * as lib_create_workflow_agent from "../lib/create_workflow_agent.js";
@@ -92,6 +91,7 @@ import type * as lib_crypto_generate_secure_state from "../lib/crypto/generate_s
 import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js";
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
+import type * as lib_error_classification from "../lib/error_classification.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
 import type * as lib_pagination_index from "../lib/pagination/index.js";
@@ -145,9 +145,7 @@ import type * as model_approvals_remove_recommended_product from "../model/appro
 import type * as model_approvals_types from "../model/approvals/types.js";
 import type * as model_approvals_update_approval_status from "../model/approvals/update_approval_status.js";
 import type * as model_chat_agent_auto_summarize_if_needed from "../model/chat_agent/auto_summarize_if_needed.js";
-import type * as model_chat_agent_cancel_chat from "../model/chat_agent/cancel_chat.js";
 import type * as model_chat_agent_chat_with_agent from "../model/chat_agent/chat_with_agent.js";
-import type * as model_chat_agent_chat_with_agent_status from "../model/chat_agent/chat_with_agent_status.js";
 import type * as model_chat_agent_context_management_check_and_summarize from "../model/chat_agent/context_management/check_and_summarize.js";
 import type * as model_chat_agent_context_management_constants from "../model/chat_agent/context_management/constants.js";
 import type * as model_chat_agent_context_management_context_handler from "../model/chat_agent/context_management/context_handler.js";
@@ -310,7 +308,6 @@ import type * as model_products_update_products from "../model/products/update_p
 import type * as model_products_upsert_product_translation from "../model/products/upsert_product_translation.js";
 import type * as model_threads_create_chat_thread from "../model/threads/create_chat_thread.js";
 import type * as model_threads_delete_chat_thread from "../model/threads/delete_chat_thread.js";
-import type * as model_threads_get_active_run_id from "../model/threads/get_active_run_id.js";
 import type * as model_threads_get_latest_thread_with_message_count from "../model/threads/get_latest_thread_with_message_count.js";
 import type * as model_threads_get_latest_tool_message from "../model/threads/get_latest_tool_message.js";
 import type * as model_threads_get_thread_messages from "../model/threads/get_thread_messages.js";
@@ -737,7 +734,6 @@ declare const fullApi: ApiFromModules<{
   "lib/attachments/index": typeof lib_attachments_index;
   "lib/attachments/register_files": typeof lib_attachments_register_files;
   "lib/attachments/types": typeof lib_attachments_types;
-  "lib/chat_agent_retrier": typeof lib_chat_agent_retrier;
   "lib/create_agent_config": typeof lib_create_agent_config;
   "lib/create_chat_agent": typeof lib_create_chat_agent;
   "lib/create_workflow_agent": typeof lib_create_workflow_agent;
@@ -749,6 +745,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/get_secret_key": typeof lib_crypto_get_secret_key;
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/debug_log": typeof lib_debug_log;
+  "lib/error_classification": typeof lib_error_classification;
   "lib/openai_provider": typeof lib_openai_provider;
   "lib/pagination/helpers": typeof lib_pagination_helpers;
   "lib/pagination/index": typeof lib_pagination_index;
@@ -802,9 +799,7 @@ declare const fullApi: ApiFromModules<{
   "model/approvals/types": typeof model_approvals_types;
   "model/approvals/update_approval_status": typeof model_approvals_update_approval_status;
   "model/chat_agent/auto_summarize_if_needed": typeof model_chat_agent_auto_summarize_if_needed;
-  "model/chat_agent/cancel_chat": typeof model_chat_agent_cancel_chat;
   "model/chat_agent/chat_with_agent": typeof model_chat_agent_chat_with_agent;
-  "model/chat_agent/chat_with_agent_status": typeof model_chat_agent_chat_with_agent_status;
   "model/chat_agent/context_management/check_and_summarize": typeof model_chat_agent_context_management_check_and_summarize;
   "model/chat_agent/context_management/constants": typeof model_chat_agent_context_management_constants;
   "model/chat_agent/context_management/context_handler": typeof model_chat_agent_context_management_context_handler;
@@ -967,7 +962,6 @@ declare const fullApi: ApiFromModules<{
   "model/products/upsert_product_translation": typeof model_products_upsert_product_translation;
   "model/threads/create_chat_thread": typeof model_threads_create_chat_thread;
   "model/threads/delete_chat_thread": typeof model_threads_delete_chat_thread;
-  "model/threads/get_active_run_id": typeof model_threads_get_active_run_id;
   "model/threads/get_latest_thread_with_message_count": typeof model_threads_get_latest_thread_with_message_count;
   "model/threads/get_latest_tool_message": typeof model_threads_get_latest_tool_message;
   "model/threads/get_thread_messages": typeof model_threads_get_thread_messages;
@@ -6009,53 +6003,6 @@ export declare const components: {
           null
         >;
       };
-    };
-  };
-  actionRetrier: {
-    public: {
-      cancel: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        boolean
-      >;
-      cleanup: FunctionReference<
-        "mutation",
-        "internal",
-        { runId: string },
-        any
-      >;
-      start: FunctionReference<
-        "mutation",
-        "internal",
-        {
-          functionArgs: any;
-          functionHandle: string;
-          options: {
-            base: number;
-            initialBackoffMs: number;
-            logLevel: "DEBUG" | "INFO" | "WARN" | "ERROR";
-            maxFailures: number;
-            onComplete?: string;
-            runAfter?: number;
-            runAt?: number;
-          };
-        },
-        string
-      >;
-      status: FunctionReference<
-        "query",
-        "internal",
-        { runId: string },
-        | { type: "inProgress" }
-        | {
-            result:
-              | { returnValue: any; type: "success" }
-              | { error: string; type: "failed" }
-              | { type: "canceled" };
-            type: "completed";
-          }
-      >;
     };
   };
 };

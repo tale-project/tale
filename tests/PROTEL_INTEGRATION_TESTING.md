@@ -1,6 +1,8 @@
 # Protel PMS Integration Testing Guide (AI-Directed)
 
-> **AI AGENT INSTRUCTIONS**: Execute automated testing of the Protel PMS SQL integration. Follow steps sequentially, take screenshots at designated points, and store evidence in `.playwright-mcp/`.
+> **AI AGENT INSTRUCTIONS**: Execute automated testing of the Protel PMS SQL integration. Follow steps sequentially, take screenshots at designated points, and store evidence in `.playwright-mcp/tests/`.
+
+> **Tip:** For best results, execute all chat-based operations (Steps 5-6) within the same browser session and chat thread. This preserves conversational context, allowing natural references like "the guest we just created" or "our test reservation" without re-querying entity IDs.
 
 ## Overview
 
@@ -43,7 +45,7 @@ cd /home/larry/Documents/tale/services/platform && npm ci
 **Action:** Remove previous test screenshots.
 
 ```bash
-rm -rf /home/larry/Documents/tale/tests/.playwright-mcp && mkdir -p /home/larry/Documents/tale/tests/.playwright-mcp
+rm -rf /home/larry/Documents/tale/.playwright-mcp/tests && mkdir -p /home/larry/Documents/tale/.playwright-mcp/tests
 ```
 
 ### 2. Database Cleanup

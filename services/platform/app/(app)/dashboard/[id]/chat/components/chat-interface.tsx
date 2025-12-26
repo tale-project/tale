@@ -13,14 +13,12 @@ import { IntegrationApprovalCard } from './integration-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
-import { useQuery } from 'convex/react';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import {
   useCreateThread,
   useUpdateThread,
   useChatWithAgent,
-  useClearActiveRunId,
 } from '../hooks';
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
@@ -295,11 +293,8 @@ export default function ChatInterface({
   const {
     optimisticMessage,
     setOptimisticMessage,
-    currentRunId,
-    setCurrentRunId,
-    isPending: _isPending,
+    isPending,
     setIsPending,
-    isLoading,
     clearChatState,
   } = useChatLayout();
 
@@ -428,65 +423,22 @@ export default function ChatInterface({
     return items;
   }, [threadMessages, integrationApprovals]);
 
-  // Query for active runId from thread (for recovery on page refresh)
-  const activeRunIdFromThread = useQuery(
-    api.threads.getActiveRunId,
-    threadId ? { threadId } : 'skip',
-  );
-
-  // Poll chat status when we have an active runId
-  const chatStatus = useQuery(
-    api.chat_agent.chatWithAgentStatus,
-    currentRunId ? { runId: currentRunId } : 'skip',
-  );
-
   // Convex mutations
   const createThread = useCreateThread();
   const updateThread = useUpdateThread();
   const chatWithAgent = useChatWithAgent();
-  const clearActiveRunIdMutation = useClearActiveRunId();
 
-  // Sync loading state with server and handle chat completion
+  // Derive loading state from streaming message or pending state
+  // isPending = immediately after user clicks send, before mutation completes
+  // streamingMessage = when AI is actively streaming a response
+  const isLoading = isPending || !!streamingMessage;
+
+  // Clear pending state when streaming starts (message is now tracked by stream)
   useEffect(() => {
-    // 1. Recover runId from thread (page refresh/navigation)
-    if (!currentRunId && activeRunIdFromThread) {
-      setCurrentRunId(activeRunIdFromThread);
-      return;
+    if (streamingMessage && isPending) {
+      setIsPending(false);
     }
-
-    // 2. Clear stale loading state (AI completed before we could recover)
-    if (threadId && activeRunIdFromThread === null && isLoading) {
-      clearChatState();
-      return;
-    }
-
-    // 3. Handle chat status changes
-    if (!chatStatus || !currentRunId) return;
-
-    if (chatStatus.status === 'success') {
-      clearChatState();
-    } else if (chatStatus.status === 'failed') {
-      toast({
-        title: t('toast.generateFailed'),
-        description: chatStatus.error,
-        variant: 'destructive',
-      });
-      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
-      clearChatState();
-    } else if (chatStatus.status === 'canceled') {
-      clearActiveRunIdMutation({ threadId: threadId! }).catch(console.error);
-      clearChatState();
-    }
-  }, [
-    activeRunIdFromThread,
-    chatStatus,
-    currentRunId,
-    threadId,
-    isLoading,
-    setCurrentRunId,
-    clearChatState,
-    clearActiveRunIdMutation,
-  ]);
+  }, [streamingMessage, isPending, setIsPending]);
 
   // Clear optimistic message when it appears in actual messages
   useEffect(() => {
@@ -644,16 +596,14 @@ export default function ChatInterface({
         fileSize: a.fileSize,
       }));
 
-      const result = await chatWithAgent({
+      await chatWithAgent({
         threadId: currentThreadId,
         organizationId,
         message: userMessage.content,
         attachments: mutationAttachments,
       });
 
-      // Clear pending now that we have a run ID
-      setIsPending(false);
-      setCurrentRunId(result.runId);
+      // Pending state will be cleared when streaming starts (see useEffect above)
     } catch (error) {
       clearChatState();
       setInputValue('');

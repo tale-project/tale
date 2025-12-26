@@ -39,6 +39,10 @@ import {
 } from './context_management';
 
 import { createDebugLog } from '../../lib/debug_log';
+import {
+  classifyError,
+  NonRetryableError,
+} from '../../lib/error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
@@ -112,13 +116,7 @@ export async function generateAgentResponse(
 ): Promise<GenerateAgentResponseResult> {
   const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText } = args;
 
-  const TIMEOUT_MS = 9 * 60 * 1000;
   const startTime = Date.now();
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => {
-    debugLog(`Aborting request after ${TIMEOUT_MS / 1000}s timeout`);
-    abortController.abort();
-  }, TIMEOUT_MS);
 
   try {
     const userQuery = messageText || '';
@@ -160,7 +158,7 @@ export async function generateAgentResponse(
             userQuery,
             RAG_TOP_K,
             RAG_SIMILARITY_THRESHOLD,
-            abortController.signal,
+            undefined, // No abort signal - rely on platform timeouts
             recentMessages, // Pass recent messages for context-aware expansion
           )
         : Promise.resolve(undefined),
@@ -412,12 +410,18 @@ export async function generateAgentResponse(
 
     // Use streamText with saveStreamDeltas for real-time UI updates
     // This allows the UI to show tool calls as they happen
+    //
+    // IMPORTANT: When saveStreamDeltas is true, the SDK internally calls:
+    // 1. streamer.consumeStream(result.toUIMessageStream())
+    // 2. await result.consumeStream()
+    // So we must NOT manually consume the stream again (e.g., via fullStream iteration),
+    // as streams can only be consumed once. Double consumption causes race conditions
+    // and may result in UI showing stale/duplicate stream data.
     const streamResult = await agent.streamText(
       contextWithOrg,
       { threadId },
       {
         promptMessageId,
-        abortSignal: abortController.signal,
         // SDK calls this `messages` but it's our system context injection
         // (becomes `inputMessages` in contextHandler, we rename to `systemContext` there)
         messages: systemContextMessages,
@@ -445,11 +449,6 @@ export async function generateAgentResponse(
         // The library only saves the assistant response when promptMessageId is provided.
       },
     );
-
-    // Consume the stream to completion and ensure all deltas are written to the database.
-    // This is critical for multi-step responses (text -> tool call -> text) to ensure
-    // the final text after tool calls is properly persisted before the action completes.
-    await streamResult.consumeStream();
 
     // After stream completes, link any pending approvals to the assistant message
     // The message ID wasn't available during tool execution, so we link it now
@@ -515,7 +514,6 @@ export async function generateAgentResponse(
       warnings: await streamResult.warnings,
     };
 
-    clearTimeout(timeoutId);
     const elapsedMs = Date.now() - startTime;
     debugLog(
       `generateAgentResponse completed in ${(elapsedMs / 1000).toFixed(1)}s for thread ${threadId}`,
@@ -596,7 +594,7 @@ export async function generateAgentResponse(
       );
     }
 
-    return {
+    const chatResult = {
       threadId,
       text: responseText,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -605,12 +603,15 @@ export async function generateAgentResponse(
       usage: result.usage,
       reasoning: (result as { reasoningText?: string }).reasoningText,
     };
-  } catch (error) {
-    clearTimeout(timeoutId);
 
-    // Trigger summarization before retry to reduce context for next attempt.
-    // This runs synchronously so the retrier waits for it to complete before
-    // scheduling the retry.
+    // Call completion handler to save metadata and schedule summarization
+    await ctx.runMutation(internal.chat_agent.onChatComplete, {
+      result: chatResult,
+    });
+
+    return chatResult;
+  } catch (error) {
+    // Trigger summarization on error to reduce context for potential follow-up
     await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
       threadId,
     });
@@ -624,7 +625,6 @@ export async function generateAgentResponse(
     console.error('[chat_agent] generateAgentResponse error', {
       threadId,
       elapsedMs,
-      aborted: abortController.signal.aborted,
       name: err?.name,
       message: err?.message,
       status: err?.status ?? err?.statusCode,
@@ -635,14 +635,19 @@ export async function generateAgentResponse(
       cause: err?.cause?.message,
     });
 
-    if (abortController.signal.aborted) {
-      throw new Error(
-        `generateAgentResponse timed out after ${(elapsedMs / 1000).toFixed(
-          1,
-        )} seconds (limit: ${TIMEOUT_MS / 1000}s)`,
-      );
-    }
+    // Classify the error for logging purposes
+    const classification = classifyError(error);
+    console.error('[chat_agent] Error classification', {
+      threadId,
+      reason: classification.reason,
+      description: classification.description,
+    });
 
-    throw error;
+    // Wrap error with classification info for better debugging
+    throw new NonRetryableError(
+      `${classification.description}: ${err?.message || 'Unknown error'}`,
+      error,
+      classification.reason,
+    );
   }
 }
