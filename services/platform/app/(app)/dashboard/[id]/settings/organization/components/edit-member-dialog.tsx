@@ -8,13 +8,7 @@ import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stack } from '@/components/ui/layout';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 
 import { toast } from '@/hooks/use-toast';
 import { useUpdateMemberRole } from '../hooks';
@@ -175,18 +169,15 @@ export default function EditMemberDialog({
               value={field.value}
               onValueChange={field.onChange}
               disabled={isEditingSelf}
-            >
-              <SelectTrigger label={t('form.role')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">{t('roles.admin')}</SelectItem>
-                <SelectItem value="developer">{t('roles.developer')}</SelectItem>
-                <SelectItem value="editor">{t('roles.editor')}</SelectItem>
-                <SelectItem value="member">{t('roles.member')}</SelectItem>
-                <SelectItem value="disabled">{t('roles.disabled')}</SelectItem>
-              </SelectContent>
-            </Select>
+              label={t('form.role')}
+              options={[
+                { value: 'admin', label: t('roles.admin') },
+                { value: 'developer', label: t('roles.developer') },
+                { value: 'editor', label: t('roles.editor') },
+                { value: 'member', label: t('roles.member') },
+                { value: 'disabled', label: t('roles.disabled') },
+              ]}
+            />
           )}
         />
         {isEditingSelf && (

@@ -17,7 +17,8 @@ import {
   NavigationMenuViewport,
 } from '@/components/ui/navigation-menu';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useResizeObserver } from '@/hooks/use-resize-observer';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-convex-auth';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { ChevronDown } from 'lucide-react';
@@ -129,37 +130,17 @@ export default function AutomationNavigation({
     updateIndicator();
   }, [updateIndicator, accessibleItems.length]);
 
-  // Re-measure on window resize
-  useEffect(() => {
-    const handleResize = () => {
-      updateIndicator();
-    };
+  // Combine navRef and itemRefs for observation
+  const allRefs = useMemo(() => {
+    const refs: (HTMLElement | null)[] = [navRef.current, ...itemRefs.current];
+    return { current: refs };
+  }, [accessibleItems.length]);
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [updateIndicator]);
-
-  // Re-measure on layout changes using ResizeObserver
-  useEffect(() => {
-    if (!navRef.current) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateIndicator();
-    });
-
-    resizeObserver.observe(navRef.current);
-
-    // Also observe all navigation items for size changes
-    itemRefs.current.forEach((ref) => {
-      if (ref) {
-        resizeObserver.observe(ref);
-      }
-    });
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [updateIndicator, accessibleItems.length]);
+  // Re-measure on window resize and element size changes
+  useResizeObserver(allRefs, updateIndicator, {
+    listenToWindow: true,
+    deps: [accessibleItems.length],
+  });
 
   if (!automationId) {
     return null;

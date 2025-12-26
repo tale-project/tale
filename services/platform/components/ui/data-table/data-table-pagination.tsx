@@ -1,13 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
@@ -103,18 +97,12 @@ export function DataTablePagination({
           <Select
             value={pageSize.toString()}
             onValueChange={(value) => onPageSizeChange(parseInt(value, 10))}
-          >
-            <SelectTrigger className="w-auto min-w-16 h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizeOptions.map((size) => (
-                <SelectItem key={size} value={size.toString()}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="w-auto min-w-16 h-8"
+            options={pageSizeOptions.map((size) => ({
+              value: size.toString(),
+              label: size.toString(),
+            }))}
+          />
         </div>
       )}
 
@@ -134,20 +122,15 @@ export function DataTablePagination({
       </Button>
 
       {totalPageCount > 0 && (
-        <Select value={currentPage.toString()} onValueChange={handlePageSelect}>
-          <SelectTrigger className="w-auto min-w-16 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="w-auto min-w-20">
-            {Array.from({ length: totalPageCount }, (_, i) => i + 1).map(
-              (page) => (
-                <SelectItem key={page} value={page.toString()}>
-                  {page}
-                </SelectItem>
-              ),
-            )}
-          </SelectContent>
-        </Select>
+        <Select
+          value={currentPage.toString()}
+          onValueChange={handlePageSelect}
+          className="w-auto min-w-16 h-8"
+          options={Array.from({ length: totalPageCount }, (_, i) => ({
+            value: (i + 1).toString(),
+            label: (i + 1).toString(),
+          }))}
+        />
       )}
 
       <Button

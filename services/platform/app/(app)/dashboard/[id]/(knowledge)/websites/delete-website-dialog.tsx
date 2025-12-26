@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DeleteModal, ItemPreview } from '@/components/ui/modals';
+import { DeleteModal } from '@/components/ui/modals';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useDeleteWebsite } from './hooks';
 import { toast } from '@/hooks/use-toast';
@@ -46,12 +46,7 @@ export default function DeleteWebsiteDialog({
       description={tWebsites('delete.confirmation')}
       isDeleting={isLoading}
       onDelete={handleDelete}
-    >
-      <ItemPreview
-        primary={website.domain}
-        secondary={website.title}
-        className="my-4"
-      />
-    </DeleteModal>
+      preview={{ primary: website.domain, secondary: website.title }}
+    />
   );
 }

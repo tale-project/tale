@@ -6,13 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { FilterSection } from '@/components/filters/filter-section';
 import { FilterButton } from '@/components/filters/filter-button';
@@ -144,28 +138,18 @@ export default function ExecutionsFilterDropdown({
             onValueChange={(value) =>
               onFiltersChange({ ...filters, status: value })
             }
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={t('executions.filters.status')} />
-            </SelectTrigger>
-            <SelectContent position="popper" sideOffset={4}>
-              <SelectItem value="All" className="text-xs">
-                {t('executions.filters.allStatus')}
-              </SelectItem>
-              <SelectItem value="running" className="text-xs">
-                {tCommon('status.running')}
-              </SelectItem>
-              <SelectItem value="completed" className="text-xs">
-                {tCommon('status.completed')}
-              </SelectItem>
-              <SelectItem value="failed" className="text-xs">
-                {tCommon('status.failed')}
-              </SelectItem>
-              <SelectItem value="pending" className="text-xs">
-                {tCommon('status.pending')}
-              </SelectItem>
-            </SelectContent>
-          </Select>
+            className="h-8 text-xs"
+            placeholder={t('executions.filters.status')}
+            position="popper"
+            sideOffset={4}
+            options={[
+              { value: 'All', label: t('executions.filters.allStatus') },
+              { value: 'running', label: tCommon('status.running') },
+              { value: 'completed', label: tCommon('status.completed') },
+              { value: 'failed', label: tCommon('status.failed') },
+              { value: 'pending', label: tCommon('status.pending') },
+            ]}
+          />
         </FilterSection>
 
         {/* Triggered By Section */}
@@ -180,21 +164,18 @@ export default function ExecutionsFilterDropdown({
             onValueChange={(value) =>
               onFiltersChange({ ...filters, triggeredBy: value })
             }
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={t('executions.filters.triggeredBy')} />
-            </SelectTrigger>
-            <SelectContent position="popper" sideOffset={4}>
-              <SelectItem value="All" className="text-xs">
-                {t('executions.filters.allTriggers')}
-              </SelectItem>
-              {triggeredByOptions.map((option) => (
-                <SelectItem key={option} value={option} className="text-xs">
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            className="h-8 text-xs"
+            placeholder={t('executions.filters.triggeredBy')}
+            position="popper"
+            sideOffset={4}
+            options={[
+              { value: 'All', label: t('executions.filters.allTriggers') },
+              ...triggeredByOptions.map((option) => ({
+                value: option,
+                label: option,
+              })),
+            ]}
+          />
         </FilterSection>
       </PopoverContent>
     </Popover>

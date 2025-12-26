@@ -10,8 +10,7 @@ import {
   DataTableEmptyState,
 } from '@/components/ui/data-table';
 import { Workflow, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import { LinkButton } from '@/components/ui/button';
 import { AccessDenied, ContentWrapper } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
@@ -67,12 +66,9 @@ async function AutomationsEmptyState({
         title={tEmpty('automations.title')}
         description={tEmpty('automations.description')}
         action={
-          <Button asChild>
-            <Link href={`/dashboard/${organizationId}/chat`}>
-              <Sparkles className="size-4 mr-2" />
-              {tAutomations('createWithAI')}
-            </Link>
-          </Button>
+          <LinkButton href={`/dashboard/${organizationId}/chat`} icon={Sparkles}>
+            {tAutomations('createWithAI')}
+          </LinkButton>
         }
       />
     </ContentWrapper>

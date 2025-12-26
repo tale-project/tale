@@ -112,7 +112,14 @@ export interface DeleteModalProps {
   title: string;
   /** Confirmation message - can be string or JSX */
   description?: React.ReactNode;
-  /** Optional preview of the item being deleted */
+  /** Item preview data - shown as a preview box */
+  preview?: {
+    primary: string;
+    secondary?: string;
+  };
+  /** Warning message to display in an amber warning box */
+  warning?: string;
+  /** Optional additional content for complex cases */
   children?: React.ReactNode;
   /** Text for the cancel button (defaults to common.actions.cancel) */
   cancelText?: string;
@@ -137,6 +144,8 @@ export function DeleteModal({
   onOpenChange,
   title,
   description,
+  preview,
+  warning,
   children,
   cancelText,
   deleteText,
@@ -146,6 +155,8 @@ export function DeleteModal({
   className,
 }: DeleteModalProps) {
   const { t: tCommon } = useT('common');
+
+  const hasContent = preview || warning || children;
 
   return (
     <ConfirmModal
@@ -161,7 +172,19 @@ export function DeleteModal({
       variant="destructive"
       className={className}
     >
-      {children}
+      {hasContent && (
+        <Stack gap={4}>
+          {preview && (
+            <ItemPreview primary={preview.primary} secondary={preview.secondary} />
+          )}
+          {warning && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="text-sm text-amber-800 dark:text-amber-200">{warning}</p>
+            </div>
+          )}
+          {children}
+        </Stack>
+      )}
     </ConfirmModal>
   );
 }

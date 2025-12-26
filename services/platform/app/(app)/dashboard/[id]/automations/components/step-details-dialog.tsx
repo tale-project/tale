@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FormModal } from '@/components/ui/modals';
 import DeleteStepDialog from './delete-step-dialog';
 import { Button } from '@/components/ui/button';
@@ -18,176 +18,13 @@ import { useT } from '@/lib/i18n';
 import { z } from 'zod';
 import { Play, Cpu, HelpCircle, CheckCircle2, Zap, Trash2 } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
+
 interface StepDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   step: Doc<'wfStepDefs'> | null;
   onStepUpdated?: () => void;
 }
-
-const getConfigSchema = (stepType: string) => {
-  switch (stepType) {
-    case 'action':
-      return z.object({
-        type: z.string().min(1, 'Action type is required'),
-        parameters: z.record(z.string(), z.any()).optional().default({}),
-        retryPolicy: z
-          .object({
-            maxRetries: z
-              .number()
-              .min(0, 'Max retries must be non-negative')
-              .max(10, 'Max retries cannot exceed 10'),
-            backoffMs: z
-              .number()
-              .min(100, 'Backoff must be at least 100ms')
-              .max(60000, 'Backoff cannot exceed 60 seconds'),
-          })
-          .optional(),
-      });
-
-    case 'llm':
-      return z.object({
-        name: z.string().min(1, 'LLM step name is required'),
-        description: z.string().optional(),
-        model: z.enum(
-          [
-            'gpt-4o',
-            'gpt-4o-mini',
-            'gpt-3.5-turbo',
-            'claude-3-sonnet',
-            'claude-3-haiku',
-          ],
-          {
-            message:
-              'Model must be one of: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, claude-3-sonnet, claude-3-haiku',
-          },
-        ),
-        temperature: z
-          .number()
-          .min(0, 'Temperature must be between 0 and 1')
-          .max(1, 'Temperature must be between 0 and 1')
-          .optional(),
-        maxTokens: z
-          .number()
-          .min(1, 'Max tokens must be positive')
-          .max(8192, 'Max tokens cannot exceed 8192')
-          .optional(),
-        systemPrompt: z.string().min(1, 'System prompt is required'),
-        userPrompt: z.string().optional(),
-        tools: z.array(z.string()).optional().default([]),
-        outputFormat: z
-          .enum(['text', 'json'], {
-            message: 'Output format must be either "text" or "json"',
-          })
-          .optional()
-          .default('text'),
-        contextVariables: z
-          .record(
-            z.string(),
-            z.union([z.string(), z.number(), z.boolean(), z.null()]),
-          )
-          .optional()
-          .default({}),
-      });
-
-    case 'condition':
-      return z
-        .object({
-          expression: z.string().optional(),
-          rule: z.record(z.string(), z.any()).optional(),
-          description: z.string().optional(),
-          variables: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-        })
-        .refine((data) => data.expression || data.rule, {
-          message: 'Either expression or rule must be provided',
-          path: ['expression'],
-        });
-
-    case 'trigger':
-      return z.discriminatedUnion('type', [
-        z.object({
-          type: z.literal('manual'),
-          data: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-          context: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-        }),
-        z.object({
-          type: z.literal('schedule'),
-          schedule: z.string().min(1, 'Schedule (cron expression) is required'),
-          timezone: z.string().optional(),
-          context: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-        }),
-        z.object({
-          type: z.literal('webhook'),
-          webhookData: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-          headers: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-          context: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-        }),
-        z.object({
-          type: z.literal('event'),
-          eventType: z.string().min(1, 'Event type is required'),
-          eventData: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-          context: z
-            .record(
-              z.string(),
-              z.union([z.string(), z.number(), z.boolean(), z.null()]),
-            )
-            .optional()
-            .default({}),
-        }),
-      ]);
-
-    default:
-      return z.object({});
-  }
-};
 
 export default function StepDetailsDialog({
   open,
@@ -197,6 +34,115 @@ export default function StepDetailsDialog({
 }: StepDetailsDialogProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+
+  // Memoized schema factory - validation messages are technical, not user-facing
+  const getConfigSchema = useCallback((stepType: string) => {
+    switch (stepType) {
+      case 'action':
+        return z.object({
+          type: z.string().min(1),
+          parameters: z.record(z.string(), z.any()).optional().default({}),
+          retryPolicy: z
+            .object({
+              maxRetries: z.number().min(0).max(10),
+              backoffMs: z.number().min(100).max(60000),
+            })
+            .optional(),
+        });
+
+      case 'llm':
+        return z.object({
+          name: z.string().min(1),
+          description: z.string().optional(),
+          model: z.enum([
+            'gpt-4o',
+            'gpt-4o-mini',
+            'gpt-3.5-turbo',
+            'claude-3-sonnet',
+            'claude-3-haiku',
+          ]),
+          temperature: z.number().min(0).max(1).optional(),
+          maxTokens: z.number().min(1).max(8192).optional(),
+          systemPrompt: z.string().min(1),
+          userPrompt: z.string().optional(),
+          tools: z.array(z.string()).optional().default([]),
+          outputFormat: z.enum(['text', 'json']).optional().default('text'),
+          contextVariables: z
+            .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+            .optional()
+            .default({}),
+        });
+
+      case 'condition':
+        return z
+          .object({
+            expression: z.string().optional(),
+            rule: z.record(z.string(), z.any()).optional(),
+            description: z.string().optional(),
+            variables: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+          })
+          .refine((data) => data.expression || data.rule, {
+            path: ['expression'],
+          });
+
+      case 'trigger':
+        return z.discriminatedUnion('type', [
+          z.object({
+            type: z.literal('manual'),
+            data: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+            context: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+          }),
+          z.object({
+            type: z.literal('schedule'),
+            schedule: z.string().min(1),
+            timezone: z.string().optional(),
+            context: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+          }),
+          z.object({
+            type: z.literal('webhook'),
+            webhookData: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+            headers: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+            context: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+          }),
+          z.object({
+            type: z.literal('event'),
+            eventType: z.string().min(1),
+            eventData: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+            context: z
+              .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+              .optional()
+              .default({}),
+          }),
+        ]);
+
+      default:
+        return z.object({});
+    }
+  }, []);
   const [editedName, setEditedName] = useState('');
   const [config, setConfig] = useState<string>('{}');
   const [nameError, setNameError] = useState<string>('');

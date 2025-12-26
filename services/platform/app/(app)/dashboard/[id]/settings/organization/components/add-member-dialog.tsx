@@ -8,13 +8,7 @@ import { FormModal, ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack, HStack } from '@/components/ui/layout';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Check, X, Copy } from 'lucide-react';
 import { useAddMember, useCreateMember } from '../hooks';
@@ -358,18 +352,15 @@ export default function AddMemberDialog({
                 | 'member',
             )
           }
-        >
-          <SelectTrigger label={tSettings('form.role')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">{tSettings('roles.admin')}</SelectItem>
-            <SelectItem value="developer">{tSettings('roles.developer')}</SelectItem>
-            <SelectItem value="editor">{tSettings('roles.editor')}</SelectItem>
-            <SelectItem value="member">{tSettings('roles.member')}</SelectItem>
-            <SelectItem value="disabled">{tSettings('roles.disabled')}</SelectItem>
-          </SelectContent>
-        </Select>
+          label={tSettings('form.role')}
+          options={[
+            { value: 'admin', label: tSettings('roles.admin') },
+            { value: 'developer', label: tSettings('roles.developer') },
+            { value: 'editor', label: tSettings('roles.editor') },
+            { value: 'member', label: tSettings('roles.member') },
+            { value: 'disabled', label: tSettings('roles.disabled') },
+          ]}
+        />
       </FormModal>
 
       {/* Credentials Display Dialog */}
