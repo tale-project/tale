@@ -24,7 +24,7 @@ export {
   createInMemoryFilter,
   createSearchFilter,
   combineFilters,
-} from './select-index';
+} from './select_index';
 
 // Query builders
 export {
@@ -32,4 +32,4 @@ export {
   buildCursorPaginatedQuery,
   createIndexConfigs,
   type BuildPaginatedQueryOptions,
-} from './build-query';
+} from './build_query';

@@ -14,7 +14,7 @@ import {
   createInMemoryFilter,
   createSearchFilter,
   combineFilters,
-} from './select-index';
+} from './select_index';
 import type {
   IndexConfig,
   QueryFilters,

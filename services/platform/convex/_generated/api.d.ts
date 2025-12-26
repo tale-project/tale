@@ -1,4 +1,4 @@
- 
+/* eslint-disable */
 /**
  * Generated `api` utility.
  *
@@ -93,6 +93,13 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
+import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
+import type * as lib_pagination_index from "../lib/pagination/index.js";
+import type * as lib_pagination_types from "../lib/pagination/types.js";
+import type * as lib_query_builder_build_query from "../lib/query_builder/build_query.js";
+import type * as lib_query_builder_index from "../lib/query_builder/index.js";
+import type * as lib_query_builder_select_index from "../lib/query_builder/select_index.js";
+import type * as lib_query_builder_types from "../lib/query_builder/types.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
@@ -189,6 +196,7 @@ import type * as model_customers_get_customer from "../model/customers/get_custo
 import type * as model_customers_get_customer_by_email from "../model/customers/get_customer_by_email.js";
 import type * as model_customers_get_customer_by_external_id from "../model/customers/get_customer_by_external_id.js";
 import type * as model_customers_get_customer_by_id from "../model/customers/get_customer_by_id.js";
+import type * as model_customers_get_customers from "../model/customers/get_customers.js";
 import type * as model_customers_index from "../model/customers/index.js";
 import type * as model_customers_query_customers from "../model/customers/query_customers.js";
 import type * as model_customers_search_customers from "../model/customers/search_customers.js";
@@ -382,6 +390,7 @@ import type * as model_wf_executions_get_raw_execution from "../model/wf_executi
 import type * as model_wf_executions_get_workflow_execution_stats from "../model/wf_executions/get_workflow_execution_stats.js";
 import type * as model_wf_executions_index from "../model/wf_executions/index.js";
 import type * as model_wf_executions_list_executions from "../model/wf_executions/list_executions.js";
+import type * as model_wf_executions_list_executions_paginated from "../model/wf_executions/list_executions_paginated.js";
 import type * as model_wf_executions_patch_execution from "../model/wf_executions/patch_execution.js";
 import type * as model_wf_executions_resume_execution from "../model/wf_executions/resume_execution.js";
 import type * as model_wf_executions_set_component_workflow from "../model/wf_executions/set_component_workflow.js";
@@ -741,6 +750,13 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/debug_log": typeof lib_debug_log;
   "lib/openai_provider": typeof lib_openai_provider;
+  "lib/pagination/helpers": typeof lib_pagination_helpers;
+  "lib/pagination/index": typeof lib_pagination_index;
+  "lib/pagination/types": typeof lib_pagination_types;
+  "lib/query_builder/build_query": typeof lib_query_builder_build_query;
+  "lib/query_builder/index": typeof lib_query_builder_index;
+  "lib/query_builder/select_index": typeof lib_query_builder_select_index;
+  "lib/query_builder/types": typeof lib_query_builder_types;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
@@ -837,6 +853,7 @@ declare const fullApi: ApiFromModules<{
   "model/customers/get_customer_by_email": typeof model_customers_get_customer_by_email;
   "model/customers/get_customer_by_external_id": typeof model_customers_get_customer_by_external_id;
   "model/customers/get_customer_by_id": typeof model_customers_get_customer_by_id;
+  "model/customers/get_customers": typeof model_customers_get_customers;
   "model/customers/index": typeof model_customers_index;
   "model/customers/query_customers": typeof model_customers_query_customers;
   "model/customers/search_customers": typeof model_customers_search_customers;
@@ -1030,6 +1047,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_executions/get_workflow_execution_stats": typeof model_wf_executions_get_workflow_execution_stats;
   "model/wf_executions/index": typeof model_wf_executions_index;
   "model/wf_executions/list_executions": typeof model_wf_executions_list_executions;
+  "model/wf_executions/list_executions_paginated": typeof model_wf_executions_list_executions_paginated;
   "model/wf_executions/patch_execution": typeof model_wf_executions_patch_execution;
   "model/wf_executions/resume_execution": typeof model_wf_executions_resume_execution;
   "model/wf_executions/set_component_workflow": typeof model_wf_executions_set_component_workflow;

@@ -11,7 +11,7 @@ import {
   buildOffsetPaginatedQuery,
   type IndexConfig,
   type OffsetPaginatedResult,
-} from '../../lib/query-builder';
+} from '../../lib/query_builder';
 
 type CustomerStatus = 'active' | 'churned' | 'potential' | 'lost';
 type CustomerSource = 'manual_import' | 'file_upload' | 'circuly';
