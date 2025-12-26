@@ -8,13 +8,9 @@ import { redirect } from 'next/navigation';
 import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
 import type { DocumentItemResponse } from '@/convex/model/documents/types';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ClipboardList } from 'lucide-react';
-import ImportDocumentsMenu from './components/import-documents-menu';
+import { DocumentsEmptyState } from './components/documents-empty-state';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
@@ -53,29 +49,6 @@ async function DocumentsSkeleton() {
   );
 }
 
-/** Empty state shown when org has no documents - avoids unnecessary skeleton */
-async function DocumentsEmptyState({
-  organizationId,
-  hasMsAccount,
-}: {
-  organizationId: string;
-  hasMsAccount: boolean;
-}) {
-  const { t } = await getT('emptyStates');
-  return (
-    <DataTableEmptyState
-      icon={ClipboardList}
-      title={t('documents.title')}
-      description={t('documents.description')}
-      action={
-        <ImportDocumentsMenu
-          organizationId={organizationId}
-          hasMicrosoftAccount={hasMsAccount}
-        />
-      }
-    />
-  );
-}
 
 interface DocumentsPageProps {
   params: Promise<{ id: string }>;
