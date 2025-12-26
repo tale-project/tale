@@ -4,6 +4,7 @@ import { memo, useState } from 'react';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
+import { IntegrationOperationMetadata } from '@/convex/model/approvals/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,24 +22,6 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-
-/**
- * Metadata for an integration operation approval
- */
-interface IntegrationOperationMetadata {
-  integrationId: string;
-  integrationName: string;
-  integrationType: 'sql' | 'rest_api';
-  operationName: string;
-  operationTitle: string;
-  operationType: 'read' | 'write';
-  parameters: Record<string, unknown>;
-  previewData?: unknown[];
-  estimatedImpact?: string;
-  requestedAt: number;
-  executedAt?: number;
-  executionResult?: unknown;
-}
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -283,7 +266,9 @@ export const IntegrationApprovalCard = memo(
     return (
       prevProps.approvalId === nextProps.approvalId &&
       prevProps.status === nextProps.status &&
-      prevProps.className === nextProps.className
+      prevProps.className === nextProps.className &&
+      prevProps.executedAt === nextProps.executedAt &&
+      prevProps.executionError === nextProps.executionError
     );
   }
 );
