@@ -3,6 +3,7 @@
 import { type LucideIcon } from 'lucide-react';
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/utils/cn';
+import { Stack, VStack, Center } from '@/components/ui/layout';
 
 export interface DataTableEmptyStateProps {
   /** Icon to display */
@@ -52,39 +53,34 @@ export function DataTableEmptyState({
 
   if (isFiltered) {
     return (
-      <div
-        className={cn(
-          'flex items-center justify-center py-16 px-4 text-center',
-          className,
-        )}
-      >
-        <div className="space-y-2">
+      <Center className={cn('py-16 px-4 text-center', className)}>
+        <Stack gap={2}>
           <h4 className="text-base font-semibold text-foreground">{title}</h4>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}
           {action}
-        </div>
-      </div>
+        </Stack>
+      </Center>
     );
   }
 
   return (
-    <div
+    <Center
       className={cn(
-        'grid place-items-center flex-[1_1_0] ring-1 ring-border rounded-xl p-4',
+        'flex-[1_1_0] ring-1 ring-border rounded-xl p-4',
         className,
       )}
     >
-      <div className="text-center max-w-[24rem] flex flex-col items-center">
+      <VStack align="center" className="text-center max-w-[24rem]">
         {Icon && <Icon className="size-6 text-secondary mb-5" />}
         <div className="text-lg font-semibold leading-tight mb-2">{title}</div>
         {description && (
           <p className="text-sm text-muted-foreground mb-5">{description}</p>
         )}
         {action}
-      </div>
-    </div>
+      </VStack>
+    </Center>
   );
 }
 

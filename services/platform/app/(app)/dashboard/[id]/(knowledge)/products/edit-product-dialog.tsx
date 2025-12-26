@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Grid } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -153,7 +154,7 @@ export default function EditProductDialog({
       />
 
       {/* Price and Currency Row */}
-      <div className="grid grid-cols-2 gap-4">
+      <Grid cols={2} gap={4}>
         <Input
           id="price"
           type="number"
@@ -178,10 +179,10 @@ export default function EditProductDialog({
           disabled={isSubmitting}
           maxLength={3}
         />
-      </div>
+      </Grid>
 
       {/* Stock and Category Row */}
-      <div className="grid grid-cols-2 gap-4">
+      <Grid cols={2} gap={4}>
         <Input
           id="stock"
           type="number"
@@ -204,7 +205,7 @@ export default function EditProductDialog({
           placeholder={tProducts('edit.categoryPlaceholder')}
           disabled={isSubmitting}
         />
-      </div>
+      </Grid>
     </FormModal>
   );
 }

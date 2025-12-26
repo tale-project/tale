@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Stack, HStack } from '@/components/ui/layout';
 import { OutlookIcon } from '@/components/ui/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -260,12 +261,12 @@ export default function OutlookCreateProviderDialog({
   };
 
   const customHeader = (
-    <div className="flex items-center gap-3">
-      <div className="size-8 bg-background border border-border rounded-md flex items-center justify-center">
+    <HStack gap={3}>
+      <div className="size-8 bg-background border border-border rounded-md grid place-items-center">
         <OutlookIcon className="size-5" />
       </div>
       <span className="font-semibold">{t('integrations.addProvider', { provider: 'Outlook' })}</span>
-    </div>
+    </HStack>
   );
 
   return (
@@ -308,17 +309,15 @@ export default function OutlookCreateProviderDialog({
                   href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                  className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" />
                   {t('integrations.microsoftOAuth2Guide')}
                 </a>
               </div>
 
-              <form
-                onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}
-                className="space-y-4"
-              >
+              <form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}>
+                <Stack gap={4}>
                 <Input
                   id="oauth2-name"
                   label={t('integrations.providerName')}
@@ -327,7 +326,7 @@ export default function OutlookCreateProviderDialog({
                   errorMessage={oauth2Form.formState.errors.name?.message}
                 />
 
-                <div className="space-y-3">
+                <Stack gap={3}>
                   <Checkbox
                     id="oauth2-api-sending"
                     checked={oauth2Form.watch('useApiSending')}
@@ -345,13 +344,14 @@ export default function OutlookCreateProviderDialog({
                     }
                     label={t('integrations.setAsDefaultProvider')}
                   />
-                </div>
+                </Stack>
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading
                     ? t('integrations.redirectingToMicrosoft')
                     : t('integrations.continueWithMicrosoft')}
                 </Button>
+                </Stack>
               </form>
             </TabsContent>
 
@@ -368,17 +368,15 @@ export default function OutlookCreateProviderDialog({
                   href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4851-ad95-6d07799387e9"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-orange-600 hover:underline flex items-center gap-1"
+                  className="text-sm text-orange-600 hover:underline inline-flex items-center gap-1"
                 >
                   <ExternalLink className="size-3" />
                   {t('integrations.microsoftAppPasswordsGuide')}
                 </a>
               </div>
 
-              <form
-                onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}
-                className="space-y-4"
-              >
+              <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}>
+                <Stack gap={4}>
                 <Input
                   id="name"
                   label={t('integrations.providerName')}
@@ -419,6 +417,7 @@ export default function OutlookCreateProviderDialog({
                     ? t('integrations.testingAndCreating')
                     : t('integrations.testAndCreate')}
                 </Button>
+                </Stack>
               </form>
             </TabsContent>
           </Tabs>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Stack, HStack } from '@/components/ui/layout';
 import { X } from 'lucide-react';
 import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
 import { formatDate } from '@/lib/utils/date/format';
@@ -67,7 +68,7 @@ export default function ProductCard({
 
   if (type === 'recommended' && product) {
     return (
-      <div className="flex items-start gap-3 p-3 border-b border-border last:border-b-0">
+      <HStack gap={3} align="start" className="p-3 border-b border-border last:border-b-0">
         <div className="w-[72px] h-[72px] bg-muted rounded-lg overflow-hidden flex-shrink-0">
           <ImageWithFallback
             src={product.image}
@@ -78,8 +79,8 @@ export default function ProductCard({
           />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="space-y-3">
-            <div className="space-y-1">
+          <Stack gap={3}>
+            <Stack gap={1}>
               <h4 className="text-sm font-medium text-foreground leading-normal">
                 {product.name}
               </h4>
@@ -93,8 +94,8 @@ export default function ProductCard({
                   {product.reasoning}
                 </p>
               )}
-            </div>
-            <div className="flex items-center gap-2">
+            </Stack>
+            <HStack gap={2}>
               {product.relationshipType && (
                 <Badge variant="outline">{product.relationshipType}</Badge>
               )}
@@ -103,8 +104,8 @@ export default function ProductCard({
                   {t('confidenceBadge', { percent: Math.round(product.confidence * 100) })}
                 </Badge>
               )}
-            </div>
-          </div>
+            </HStack>
+          </Stack>
         </div>
         {canRemove && onRemove && (
           <Button
@@ -122,14 +123,14 @@ export default function ProductCard({
             )}
           </Button>
         )}
-      </div>
+      </HStack>
     );
   }
 
   if (type === 'purchase' && purchase) {
     return (
-      <div className="flex items-center gap-3 p-3 border-b border-border last:border-b-0">
-        <div className="flex-1 flex items-center gap-2">
+      <HStack gap={3} className="p-3 border-b border-border last:border-b-0">
+        <HStack gap={2} className="flex-1">
           <div className="size-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
             <ImageWithFallback
               src={purchase.image}
@@ -139,7 +140,7 @@ export default function ProductCard({
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="space-y-1">
+          <Stack gap={1}>
             <h4 className="text-sm font-medium text-foreground">
               {purchase.productName}
             </h4>
@@ -148,8 +149,8 @@ export default function ProductCard({
                 {formatDate(purchase.purchaseDate, { locale })}
               </p>
             )}
-          </div>
-        </div>
+          </Stack>
+        </HStack>
         {purchase.status && (
           <Badge
             variant={purchase.status === 'active' ? 'green' : 'destructive'}
@@ -157,7 +158,7 @@ export default function ProductCard({
             {purchase.status === 'active' ? t('productStatus.active') : t('productStatus.cancelled')}
           </Badge>
         )}
-      </div>
+      </HStack>
     );
   }
 

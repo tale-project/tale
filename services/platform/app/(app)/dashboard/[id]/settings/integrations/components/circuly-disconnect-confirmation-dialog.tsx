@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/modals';
+import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -55,17 +56,17 @@ export default function CirculyDisconnectConfirmationDialog({
       onConfirm={handleConfirm}
       variant="destructive"
     >
-      <div className="space-y-3">
+      <Stack gap={3}>
         {username && (
-          <div className="space-y-1">
+          <Stack gap={1}>
             <p className="text-sm font-medium text-foreground">
               {t('integrations.circuly.connectedAccount')}
             </p>
             <p className="text-sm text-muted-foreground">{username}</p>
-          </div>
+          </Stack>
         )}
 
-        <div className="space-y-2">
+        <Stack gap={2}>
           <p className="text-sm text-foreground">
             {t('integrations.circuly.disconnectQuestion')}
           </p>
@@ -75,8 +76,8 @@ export default function CirculyDisconnectConfirmationDialog({
               {t('integrations.circuly.disconnectWarning')}
             </p>
           </div>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
     </ConfirmModal>
   );
 }

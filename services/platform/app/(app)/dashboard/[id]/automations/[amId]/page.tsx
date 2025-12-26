@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Stack, Center } from '@/components/ui/layout';
 
 // Dynamically import AutomationSteps to code-split ReactFlow (~200KB)
 const AutomationSteps = dynamic(
@@ -26,12 +27,12 @@ const AutomationSteps = dynamic(
             }}
           />
           {/* Center loading placeholder */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="space-y-4 w-full max-w-sm text-center">
+          <Center className="absolute inset-0">
+            <Stack gap={4} className="w-full max-w-sm text-center">
               <Skeleton className="h-20 w-72 mx-auto rounded-lg" />
               <Skeleton className="h-4 w-48 mx-auto" />
-            </div>
-          </div>
+            </Stack>
+          </Center>
           {/* MiniMap placeholder */}
           <div className="absolute bottom-4 right-4">
             <Skeleton className="h-32 w-48 rounded-lg" />

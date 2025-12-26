@@ -6,6 +6,7 @@ import DeleteStepDialog from './delete-step-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { JsonInput } from '@/components/ui/json-input';
+import { HStack } from '@/components/ui/layout';
 import {
   Tooltip,
   TooltipContent,
@@ -321,7 +322,7 @@ export default function StepDetailsDialog({
   if (!step) return null;
 
   const customHeader = (
-    <div className="flex items-center gap-3">
+    <HStack gap={3}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -339,7 +340,7 @@ export default function StepDetailsDialog({
       <div className="flex-1">
         <span className="text-lg font-semibold">{step.name}</span>
       </div>
-    </div>
+    </HStack>
   );
 
   const customFooter = (

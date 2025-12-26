@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api';
 import { useUpdatePassword } from './hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, Center } from '@/components/ui/layout';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -70,71 +71,73 @@ export default function AccountForm({
 
   if (memberContext && !memberContext.canChangePassword) {
     return (
-      <div className="flex justify-center py-6">
+      <Center className="py-6">
         <div className="w-full max-w-md text-sm text-muted-foreground">
           {tAuth('changePassword.ssoMessage')}
         </div>
-      </div>
+      </Center>
     );
   }
 
   return (
-    <div className="flex justify-center py-6">
-      <div className="w-full max-w-md">
+    <Center className="py-6">
+      <Stack className="w-full max-w-md">
         <h2 className="text-lg font-semibold mb-6">{tAuth('changePassword.title')}</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Current Password */}
-          <Input
-            id="current-password"
-            type="password"
-            label={tAuth('changePassword.currentPassword')}
-            placeholder={tAuth('changePassword.placeholder.current')}
-            disabled={isSubmitting}
-            errorMessage={errors.currentPassword?.message}
-            {...register('currentPassword', {
-              required: tAuth('changePassword.validation.currentRequired'),
-            })}
-          />
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <Stack gap={4}>
+            {/* Current Password */}
+            <Input
+              id="current-password"
+              type="password"
+              label={tAuth('changePassword.currentPassword')}
+              placeholder={tAuth('changePassword.placeholder.current')}
+              disabled={isSubmitting}
+              errorMessage={errors.currentPassword?.message}
+              {...register('currentPassword', {
+                required: tAuth('changePassword.validation.currentRequired'),
+              })}
+            />
 
-          {/* New Password */}
-          <Input
-            id="new-password"
-            type="password"
-            label={tAuth('changePassword.newPassword')}
-            placeholder={tAuth('changePassword.placeholder.new')}
-            disabled={isSubmitting}
-            errorMessage={errors.newPassword?.message}
-            {...register('newPassword', {
-              required: tAuth('changePassword.validation.newRequired'),
-              minLength: {
-                value: 8,
-                message: tAuth('changePassword.validation.minLength'),
-              },
-            })}
-          />
+            {/* New Password */}
+            <Input
+              id="new-password"
+              type="password"
+              label={tAuth('changePassword.newPassword')}
+              placeholder={tAuth('changePassword.placeholder.new')}
+              disabled={isSubmitting}
+              errorMessage={errors.newPassword?.message}
+              {...register('newPassword', {
+                required: tAuth('changePassword.validation.newRequired'),
+                minLength: {
+                  value: 8,
+                  message: tAuth('changePassword.validation.minLength'),
+                },
+              })}
+            />
 
-          {/* Confirm New Password */}
-          <Input
-            id="confirm-password"
-            type="password"
-            label={tAuth('changePassword.confirmPassword')}
-            placeholder={tAuth('changePassword.placeholder.confirm')}
-            disabled={isSubmitting}
-            errorMessage={errors.confirmPassword?.message}
-            {...register('confirmPassword', {
-              required: tAuth('changePassword.validation.confirmRequired'),
-              validate: (value) =>
-                value === newPassword || tAuth('changePassword.validation.mismatch'),
-            })}
-          />
+            {/* Confirm New Password */}
+            <Input
+              id="confirm-password"
+              type="password"
+              label={tAuth('changePassword.confirmPassword')}
+              placeholder={tAuth('changePassword.placeholder.confirm')}
+              disabled={isSubmitting}
+              errorMessage={errors.confirmPassword?.message}
+              {...register('confirmPassword', {
+                required: tAuth('changePassword.validation.confirmRequired'),
+                validate: (value) =>
+                  value === newPassword || tAuth('changePassword.validation.mismatch'),
+              })}
+            />
 
-          {/* Submit Button */}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-          </Button>
+            {/* Submit Button */}
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+            </Button>
+          </Stack>
         </form>
-      </div>
-    </div>
+      </Stack>
+    </Center>
   );
 }
 

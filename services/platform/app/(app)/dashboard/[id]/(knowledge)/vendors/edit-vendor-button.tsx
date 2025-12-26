@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import { FormModal } from '@/components/ui/modals';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { IconButton } from '@/components/ui/icon-button';
 import { Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -108,14 +101,11 @@ export default function EditVendorButton({
 
   const triggerElement = !asChild ? (
     triggerButton || (
-      <Button
-        variant="ghost"
-        size="icon"
+      <IconButton
+        icon={Pencil}
         aria-label={tVendors('editVendor')}
         className="hover:bg-transparent"
-      >
-        <Pencil className="size-4" />
-      </Button>
+      />
     )
   ) : undefined;
 
@@ -130,52 +120,25 @@ export default function EditVendorButton({
       onSubmit={form.handleSubmit(onSubmit)}
       trigger={triggerElement}
     >
-      <Form {...form}>
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tVendors('name')}</FormLabel>
-              <FormControl>
-                <Input placeholder={tVendors('namePlaceholder')} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+      <Form>
+        <Input
+          label={tVendors('name')}
+          placeholder={tVendors('namePlaceholder')}
+          errorMessage={form.formState.errors.name?.message}
+          {...form.register('name')}
         />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tVendors('email')}</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  placeholder={tVendors('emailPlaceholder')}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        <Input
+          type="email"
+          label={tVendors('email')}
+          placeholder={tVendors('emailPlaceholder')}
+          errorMessage={form.formState.errors.email?.message}
+          {...form.register('email')}
         />
-        <FormField
-          control={form.control}
-          name="locale"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tVendors('locale')}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder={tVendors('localePlaceholder')}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        <Input
+          label={tVendors('locale')}
+          placeholder={tVendors('localePlaceholder')}
+          errorMessage={form.formState.errors.locale?.message}
+          {...form.register('locale')}
         />
       </Form>
     </FormModal>

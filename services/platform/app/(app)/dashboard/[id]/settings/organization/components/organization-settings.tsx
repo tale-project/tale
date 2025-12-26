@@ -6,7 +6,7 @@ import { useQuery } from 'convex/react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
+import { Stack, HStack } from '@/components/ui/layout';
 import { api } from '@/convex/_generated/api';
 import { Search, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -85,10 +85,9 @@ export default function OrganizationSettings({
   };
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Organization Name */}
-        <div className="flex items-end gap-3 justify-between">
+    <Stack>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <HStack gap={3} align="end" justify="between">
           <Input
             id="org-name"
             label={tSettings('organization.title')}
@@ -102,23 +101,20 @@ export default function OrganizationSettings({
           >
             {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
           </Button>
-        </div>
+        </HStack>
       </form>
 
-      {/* Team Members Section */}
-      <div className="space-y-4 pt-4">
-        {/* Team Header */}
-        <div className="space-y-1">
+      <Stack className="pt-4">
+        <Stack gap={1}>
           <h2 className="text-base font-semibold text-foreground">
             {tSettings('organization.teamMembers')}
           </h2>
           <p className="text-sm text-muted-foreground tracking-[-0.084px]">
             {tSettings('organization.manageAccess')}
           </p>
-        </div>
+        </Stack>
 
-        {/* Search and Invite Section */}
-        <div className="flex items-center justify-between gap-4">
+        <HStack justify="between">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
@@ -139,9 +135,8 @@ export default function OrganizationSettings({
               {tSettings('organization.addMember')}
             </Button>
           )}
-        </div>
+        </HStack>
 
-        {/* Members Table */}
         <MemberTable
           members={members || []}
           sortOrder={sortOrder}
@@ -150,14 +145,13 @@ export default function OrganizationSettings({
             setSortOrder(newSortOrder);
           }}
         />
-      </div>
+      </Stack>
 
-      {/* Add Member Dialog */}
       <AddMemberDialog
         organizationId={organization?._id as string}
         open={isAddMemberDialogOpen}
         onOpenChange={setIsAddMemberDialogOpen}
       />
-    </div>
+    </Stack>
   );
 }

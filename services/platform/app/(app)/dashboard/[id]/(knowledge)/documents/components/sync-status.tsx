@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack } from '@/components/ui/layout';
 import { useT } from '@/lib/i18n';
 import {
   CheckCircle,
@@ -57,25 +58,28 @@ export default function SyncStatus({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <Card className="w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <Cloud className="size-4 text-blue-600" />
-              <span>→</span>
-              <Database className="size-4 text-green-600" />
-            </div>
-            {t('sync.title')}
+          <CardTitle>
+            <HStack gap={2}>
+              <HStack gap={2}>
+                <Cloud className="size-4 text-blue-600" />
+                <span>→</span>
+                <Database className="size-4 text-green-600" />
+              </HStack>
+              {t('sync.title')}
+            </HStack>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
+          <Stack gap={4}>
           {/* Progress Section */}
           {isLoading && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
+            <Stack gap={3}>
+              <HStack gap={2}>
                 <Loader2 className="size-4 animate-spin" />
                 <span className="text-sm">
                   {currentFile || t('sync.syncingToStorage')}
                 </span>
-              </div>
+              </HStack>
               {/* Indeterminate progress bar */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
@@ -86,20 +90,21 @@ export default function SyncStatus({
               <p className="text-xs text-muted-foreground">
                 {t('sync.pleaseWait')}
               </p>
-            </div>
+            </Stack>
           )}
 
           {/* File Processing List */}
           {isLoading && fileStatuses.length > 0 && (
-            <div className="space-y-2">
+            <Stack gap={2}>
               <h4 className="text-sm font-medium">
                 {t('sync.processingFiles', { count: fileStatuses.length })}
               </h4>
               <div className="max-h-64 overflow-y-auto space-y-1">
                 {fileStatuses.map((file) => (
-                  <div
+                  <HStack
                     key={file.id}
-                    className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm"
+                    gap={2}
+                    className="p-2 bg-gray-50 rounded text-sm"
                   >
                     {file.status === 'pending' && (
                       <div className="size-4 rounded-full border-2 border-gray-300 flex-shrink-0"></div>
@@ -130,18 +135,18 @@ export default function SyncStatus({
                         {t('sync.error')}
                       </span>
                     )}
-                  </div>
+                  </HStack>
                 ))}
               </div>
-            </div>
+            </Stack>
           )}
 
           {/* Results Section */}
           {hasResult && (
-            <div className="space-y-4">
+            <Stack gap={4}>
               {/* Summary */}
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
+              <HStack gap={4} className="p-4 bg-gray-50 rounded-lg">
+                <HStack gap={2}>
                   {isSuccess ? (
                     <CheckCircle className="size-4 text-green-600" />
                   ) : (
@@ -152,100 +157,101 @@ export default function SyncStatus({
                       ? t('sync.syncCompleted')
                       : t('sync.syncCompletedWithErrors')}
                   </span>
-                </div>
-                <div className="flex gap-4 text-sm text-muted-foreground">
+                </HStack>
+                <HStack gap={4} className="text-sm text-muted-foreground">
                   <span>{t('sync.filesProcessed', { count: result.totalFiles })}</span>
-                </div>
-              </div>
+                </HStack>
+              </HStack>
 
               {/* Success Stats */}
               {result.syncedFiles.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <Stack gap={2}>
+                  <HStack gap={2}>
                     <CheckCircle className="size-4 text-green-600" />
                     <span className="font-medium text-green-700">
                       {t('sync.successfullySynced', { count: result.syncedFiles.length })}
                     </span>
-                  </div>
+                  </HStack>
                   <div className="max-h-32 overflow-y-auto space-y-1">
                     {result.syncedFiles.map((file, index) => (
-                      <div
+                      <HStack
                         key={index}
-                        className="flex items-center justify-between text-sm p-2 bg-green-50 rounded"
+                        justify="between"
+                        className="text-sm p-2 bg-green-50 rounded"
                       >
-                        <div className="flex items-center gap-2">
+                        <HStack gap={2}>
                           <FileText className="size-3 text-green-600" />
                           <span className="truncate">{file.name}</span>
-                        </div>
+                        </HStack>
                         <Badge variant="outline" className="text-xs">
                           {formatFileSize(file.size)}
                         </Badge>
-                      </div>
+                      </HStack>
                     ))}
                   </div>
-                </div>
+                </Stack>
               )}
 
               {/* Error Stats */}
               {result.failedFiles.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
+                <Stack gap={2}>
+                  <HStack gap={2}>
                     <XCircle className="size-4 text-red-600" />
                     <span className="font-medium text-red-700">
                       {t('sync.failedToSync', { count: result.failedFiles.length })}
                     </span>
-                  </div>
+                  </HStack>
                   <div className="max-h-32 overflow-y-auto space-y-1">
                     {result.failedFiles.map((file, index) => (
                       <div
                         key={index}
                         className="text-sm p-2 bg-red-50 rounded space-y-1"
                       >
-                        <div className="flex items-center gap-2">
+                        <HStack gap={2}>
                           <FileText className="size-3 text-red-600" />
                           <span className="truncate font-medium">
                             {file.name}
                           </span>
-                        </div>
+                        </HStack>
                         <p className="text-xs text-red-600 ml-5">
                           {file.error}
                         </p>
                       </div>
                     ))}
                   </div>
-                </div>
+                </Stack>
               )}
 
               {/* Storage Info */}
               <div className="p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
+                <HStack gap={2} className="mb-2">
                   <Database className="size-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-700">
                     {t('sync.storageLocation')}
                   </span>
-                </div>
+                </HStack>
                 <p className="text-xs text-blue-600">
                   {t('sync.storageDescription')}
                 </p>
               </div>
-            </div>
+            </Stack>
           )}
 
           {/* Error Message */}
           {result && !result.success && result.error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-1">
+              <HStack gap={2} className="mb-1">
                 <XCircle className="size-4 text-red-600" />
                 <span className="text-sm font-medium text-red-700">
                   {t('sync.syncError')}
                 </span>
-              </div>
+              </HStack>
               <p className="text-xs text-red-600">{result.error}</p>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex gap-2 pt-2">
+          <HStack gap={2} className="pt-2">
             <Button variant="outline" onClick={onClose}>
               {tCommon('actions.close')}
             </Button>
@@ -254,7 +260,8 @@ export default function SyncStatus({
                 {t('sync.retryFailedFiles')}
               </Button>
             )}
-          </div>
+          </HStack>
+          </Stack>
         </CardContent>
       </Card>
     </div>

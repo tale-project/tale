@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
 import { AuthFormLayout } from '@/components/layout';
@@ -119,64 +120,63 @@ export default function SignUpForm({
 
   return (
     <AuthFormLayout title={t('signup.signupTitle')}>
-      <div className="space-y-8">
-        <div className="space-y-5">
+      <Stack gap={8}>
+        <Stack gap={5}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-5"
             autoComplete="on"
           >
-            {/* Email Field */}
-            <Input
-              id="email"
-              type="email"
-              size="lg"
-              label={t('email')}
-              placeholder={t('emailPlaceholder')}
-              disabled={isSubmitting}
-              autoComplete="email"
-              errorMessage={errors.email?.message}
-              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-              {...form.register('email')}
-            />
-
-            {/* Password Field */}
-            <div className="space-y-2">
+            <Stack gap={5}>
+              {/* Email Field */}
               <Input
-                id="password"
-                type="password"
+                id="email"
+                type="email"
                 size="lg"
-                label={t('password')}
-                placeholder={t('passwordPlaceholder')}
+                label={t('email')}
+                placeholder={t('emailPlaceholder')}
                 disabled={isSubmitting}
-                autoComplete="new-password"
-                errorMessage={errors.password?.message}
-                className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                {...form.register('password')}
+                autoComplete="email"
+                errorMessage={errors.email?.message}
+                className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                {...form.register('email')}
               />
-              {password && (
-                <ul className="text-xs space-y-1 text-muted-foreground list-none">
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    {t('requirements.length')}
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    {t('requirements.lowercase')}
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    {t('requirements.uppercase')}
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    {t('requirements.number')}
-                  </li>
-                  <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
-                    {t('requirements.specialChar')}
-                  </li>
-                </ul>
-              )}
-            </div>
 
-            {/* Sign Up Button */}
-            <div>
+              {/* Password Field */}
+              <Stack gap={2}>
+                <Input
+                  id="password"
+                  type="password"
+                  size="lg"
+                  label={t('password')}
+                  placeholder={t('passwordPlaceholder')}
+                  disabled={isSubmitting}
+                  autoComplete="new-password"
+                  errorMessage={errors.password?.message}
+                  className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+                  {...form.register('password')}
+                />
+                {password && (
+                  <Stack gap={1} className="text-xs text-muted-foreground list-none">
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      {t('requirements.length')}
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      {t('requirements.lowercase')}
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      {t('requirements.uppercase')}
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      {t('requirements.number')}
+                    </li>
+                    <li className="relative pl-4 before:content-['-'] before:absolute before:left-0">
+                      {t('requirements.specialChar')}
+                    </li>
+                  </Stack>
+                )}
+              </Stack>
+
+              {/* Sign Up Button */}
               <Button
                 type="submit"
                 size="lg"
@@ -191,16 +191,16 @@ export default function SignUpForm({
               >
                 {isSubmitting ? t('signup.creating') : t('signup.createButton')}
               </Button>
-            </div>
+            </Stack>
           </form>
-        </div>
+        </Stack>
 
         {/* Microsoft Login - only shown if Microsoft Entra ID is configured */}
         {microsoftEnabled && (
           <>
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <div className="flex-1 h-px bg-muted" />
-            </div>
+            </HStack>
 
             <Button
               onClick={handleMicrosoftSignUp}
@@ -216,7 +216,7 @@ export default function SignUpForm({
             </Button>
           </>
         )}
-      </div>
+      </Stack>
     </AuthFormLayout>
   );
 }

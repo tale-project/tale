@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { Stack, HStack } from '@/components/ui/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -93,13 +95,14 @@ export default function ExampleMessagesTable({
         id: 'actions',
         size: 60,
         cell: ({ row }) => (
-          <div className="flex items-center justify-end">
+          <HStack justify="end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-8">
-                  <MoreVertical className="size-4 text-muted-foreground" />
-                  <span className="sr-only">{tTables('headers.actions')}</span>
-                </Button>
+                <IconButton
+                  icon={MoreVertical}
+                  aria-label={tTables('headers.actions')}
+                  className="size-8"
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onViewExample(row.original)}>
@@ -119,7 +122,7 @@ export default function ExampleMessagesTable({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </HStack>
         ),
       },
     ],
@@ -128,28 +131,28 @@ export default function ExampleMessagesTable({
 
   // Header component
   const header = (
-    <div className="flex items-center justify-between">
-      <div className="space-y-1">
+    <HStack justify="between">
+      <Stack gap={1}>
         <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
           {tTone('exampleMessages.title')}
         </h3>
         <p className="text-sm text-muted-foreground tracking-[-0.084px]">
           {tTone('exampleMessages.description')}
         </p>
-      </div>
+      </Stack>
       {examples.length > 0 && (
         <Button onClick={onAddExample}>
           <Plus className="size-4 mr-2" />
           {tTone('exampleMessages.addButton')}
         </Button>
       )}
-    </div>
+    </HStack>
   );
 
   // Empty state
   if (examples.length === 0) {
     return (
-      <div className="space-y-5">
+      <Stack gap={5}>
         {header}
         <DataTableEmptyState
           icon={Sparkles}
@@ -162,12 +165,12 @@ export default function ExampleMessagesTable({
             </Button>
           }
         />
-      </div>
+      </Stack>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <Stack gap={5}>
       {header}
       <DataTable
         columns={columns}
@@ -185,6 +188,6 @@ export default function ExampleMessagesTable({
           ) : undefined
         }
       />
-    </div>
+    </Stack>
   );
 }

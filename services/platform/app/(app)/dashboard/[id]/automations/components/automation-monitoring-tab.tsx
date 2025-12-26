@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { Activity, RefreshCw } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
@@ -42,14 +43,16 @@ export function AutomationMonitoringTab({
   ) as ExecutionStats | undefined;
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <Stack gap={4}>
+      <Grid cols={1} lg={2} gap={6}>
         {/* Execution Stats */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="size-4" />
-              {t('monitoring.executionStatistics')}
+            <CardTitle>
+              <HStack gap={2}>
+                <Activity className="size-4" />
+                {t('monitoring.executionStatistics')}
+              </HStack>
             </CardTitle>
             <CardDescription>
               {t('monitoring.performanceMetrics')}
@@ -60,8 +63,8 @@ export function AutomationMonitoringTab({
               executionStats === undefined ? (
                 <div className="text-center py-4">{t('monitoring.loadingStats')}</div>
               ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <Stack gap={4}>
+                  <Grid cols={2} gap={4}>
                     <div className="text-center p-3 bg-muted rounded">
                       <div className="text-2xl font-bold text-foreground">
                         {executionStats.total || 0}
@@ -78,8 +81,8 @@ export function AutomationMonitoringTab({
                         {t('monitoring.successRate')}
                       </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  </Grid>
+                  <Grid cols={2} gap={4}>
                     <div className="text-center p-3 bg-muted rounded">
                       <div className="text-2xl font-bold text-foreground">
                         {executionStats.avgExecutionTime || 0}ms
@@ -96,8 +99,8 @@ export function AutomationMonitoringTab({
                         {t('monitoring.failures')}
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </Grid>
+                </Stack>
               )
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -110,21 +113,23 @@ export function AutomationMonitoringTab({
         {/* Real-time Status */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="size-4" />
-              {t('monitoring.realtimeStatus')}
+            <CardTitle>
+              <HStack gap={2}>
+                <RefreshCw className="size-4" />
+                {t('monitoring.realtimeStatus')}
+              </HStack>
             </CardTitle>
             <CardDescription>{t('monitoring.liveMonitoring')}</CardDescription>
           </CardHeader>
           <CardContent>
             {pollingHandle ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
+              <Stack gap={4}>
+                <HStack gap={2}>
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-sm">
                     {t('monitoring.monitoringExecution', { handle: pollingHandle })}
                   </span>
-                </div>
+                </HStack>
                 <Button
                   variant="outline"
                   onClick={() => setPollingHandle(null)}
@@ -132,7 +137,7 @@ export function AutomationMonitoringTab({
                 >
                   {t('monitoring.stopMonitoring')}
                 </Button>
-              </div>
+              </Stack>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 {t('monitoring.startAutomation')}
@@ -140,7 +145,7 @@ export function AutomationMonitoringTab({
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </Grid>
+    </Stack>
   );
 }

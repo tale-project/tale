@@ -1,5 +1,7 @@
 import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
+import { Stack, HStack } from '@/components/ui/layout';
+import { Field, FieldGroup } from '@/components/ui/field';
 import { useT } from '@/lib/i18n';
 
 interface VendorInformationProps {
@@ -12,54 +14,30 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
   if (!vendor) return null;
 
   return (
-    <div className="space-y-4">
-      {/* Vendor Details */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-1">{t('labels.name')}</h4>
-        <p>{vendor.name || t('labels.notAvailable')}</p>
-      </div>
+    <FieldGroup gap={4}>
+      <Field label={t('labels.name')}>
+        {vendor.name || t('labels.notAvailable')}
+      </Field>
 
-      {/* Vendor Email */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-1">
-          {t('labels.email')}
-        </h4>
-        <p>{vendor.email || t('labels.notAvailable')}</p>
-      </div>
+      <Field label={t('labels.email')}>
+        {vendor.email || t('labels.notAvailable')}
+      </Field>
 
-      {/* Vendor Phone */}
       {vendor.phone && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-1">
-            {t('labels.phone')}
-          </h4>
-          <p>{vendor.phone}</p>
-        </div>
+        <Field label={t('labels.phone')}>{vendor.phone}</Field>
       )}
 
-      {/* Vendor Source */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-1">
-          {t('labels.source')}
-        </h4>
-        <p>{vendor.source || t('labels.notAvailable')}</p>
-      </div>
+      <Field label={t('labels.source')}>
+        {vendor.source || t('labels.notAvailable')}
+      </Field>
 
-      {/* Vendor Locale */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-1">
-          {t('labels.locale')}
-        </h4>
-        <p>{vendor.locale || t('labels.notAvailable')}</p>
-      </div>
+      <Field label={t('labels.locale')}>
+        {vendor.locale || t('labels.notAvailable')}
+      </Field>
 
-      {/* Vendor Address */}
       {vendor.address && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-1">
-            {t('labels.address')}
-          </h4>
-          <div className="text-sm space-y-1">
+        <Field label={t('labels.address')}>
+          <Stack gap={1} className="text-sm">
             {vendor.address.street && <p>{vendor.address.street}</p>}
             {(vendor.address.city || vendor.address.state) && (
               <p>
@@ -70,43 +48,31 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
             )}
             {vendor.address.postalCode && <p>{vendor.address.postalCode}</p>}
             {vendor.address.country && <p>{vendor.address.country}</p>}
-          </div>
-        </div>
+          </Stack>
+        </Field>
       )}
 
-      {/* Vendor Tags */}
       {vendor.tags && vendor.tags.length > 0 && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-1">
-            {t('labels.tags')}
-          </h4>
-          <div className="flex flex-wrap gap-2">
+        <Field label={t('labels.tags')}>
+          <HStack gap={2} className="flex-wrap">
             {vendor.tags.map((tag) => (
               <span key={tag} className="px-2 py-1 text-xs rounded-md bg-muted">
                 {tag}
               </span>
             ))}
-          </div>
-        </div>
+          </HStack>
+        </Field>
       )}
 
-      {/* Vendor Notes */}
       {vendor.notes && (
-        <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-1">
-            {t('labels.notes')}
-          </h4>
+        <Field label={t('labels.notes')}>
           <p className="text-sm">{vendor.notes}</p>
-        </div>
+        </Field>
       )}
 
-      {/* Created Date */}
-      <div>
-        <h4 className="text-sm font-medium text-muted-foreground mb-1">
-          {t('labels.created')}
-        </h4>
-        <p>{formatDate(new Date(vendor._creationTime), { preset: 'long' })}</p>
-      </div>
-    </div>
+      <Field label={t('labels.created')}>
+        {formatDate(new Date(vendor._creationTime), { preset: 'long' })}
+      </Field>
+    </FieldGroup>
   );
 }

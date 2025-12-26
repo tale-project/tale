@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 
 interface FormFieldSkeletonProps {
@@ -13,12 +14,12 @@ function FormFieldSkeleton({
   className,
 }: FormFieldSkeletonProps) {
   return (
-    <div className={cn('space-y-2', className)}>
+    <Stack gap={2} className={className}>
       {/* Label */}
       <Skeleton className="h-4 w-24" />
       {/* Input */}
       <Skeleton className={cn('w-full rounded-md', isTextarea ? 'h-24' : 'h-10')} />
-    </div>
+    </Stack>
   );
 }
 
@@ -51,26 +52,30 @@ export function FormSkeleton({
   className,
 }: FormSkeletonProps) {
   return (
-    <div className={cn('space-y-6', className)}>
-      <div
-        className={cn(
-          'space-y-4',
-          layout === 'two-column' && 'grid grid-cols-1 sm:grid-cols-2 gap-4 space-y-0'
-        )}
-      >
-        {Array.from({ length: fields }).map((_, i) => (
-          <FormFieldSkeleton key={i} />
-        ))}
-        {hasTextarea && <FormFieldSkeleton isTextarea className="sm:col-span-2" />}
-      </div>
+    <Stack gap={6} className={className}>
+      {layout === 'two-column' ? (
+        <Grid cols={1} sm={2} gap={4}>
+          {Array.from({ length: fields }).map((_, i) => (
+            <FormFieldSkeleton key={i} />
+          ))}
+          {hasTextarea && <FormFieldSkeleton isTextarea className="sm:col-span-2" />}
+        </Grid>
+      ) : (
+        <Stack gap={4}>
+          {Array.from({ length: fields }).map((_, i) => (
+            <FormFieldSkeleton key={i} />
+          ))}
+          {hasTextarea && <FormFieldSkeleton isTextarea />}
+        </Stack>
+      )}
 
       {showActions && (
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <HStack gap={2} justify="end" className="pt-4 border-t">
           <Skeleton className="h-10 w-24 rounded-md" />
           <Skeleton className="h-10 w-32 rounded-md" />
-        </div>
+        </HStack>
       )}
-    </div>
+    </Stack>
   );
 }
 

@@ -5,17 +5,13 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
-import { Button } from './button';
+import { IconButton } from './icon-button';
 import { useT } from '@/lib/i18n';
 
 // Internal close button component to use hook
 function DialogCloseButton() {
   const { t } = useT('common');
-  return (
-    <Button variant="ghost" size="icon" aria-label={t('aria.close')}>
-      <X className="size-4" />
-    </Button>
-  );
+  return <IconButton icon={X} aria-label={t('aria.close')} />;
 }
 
 const Dialog = DialogPrimitive.Root;

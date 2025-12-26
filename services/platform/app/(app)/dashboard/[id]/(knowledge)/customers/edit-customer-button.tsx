@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
 import { FormModal } from '@/components/ui/modals';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Form } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { IconButton } from '@/components/ui/icon-button';
 import { Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -108,9 +101,11 @@ export default function EditCustomerButton({
 
   const triggerElement = !asChild ? (
     triggerButton || (
-      <Button variant="ghost" size="icon" aria-label={tCustomers('editCustomer')}>
-        <Pencil className="size-4 text-muted-foreground" />
-      </Button>
+      <IconButton
+        icon={Pencil}
+        aria-label={tCustomers('editCustomer')}
+        className="text-muted-foreground"
+      />
     )
   ) : undefined;
 
@@ -125,52 +120,25 @@ export default function EditCustomerButton({
       onSubmit={form.handleSubmit(onSubmit)}
       trigger={triggerElement}
     >
-      <Form {...form}>
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tCustomers('name')}</FormLabel>
-              <FormControl>
-                <Input placeholder={tCustomers('namePlaceholder')} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+      <Form>
+        <Input
+          label={tCustomers('name')}
+          placeholder={tCustomers('namePlaceholder')}
+          errorMessage={form.formState.errors.name?.message}
+          {...form.register('name')}
         />
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tCustomers('email')}</FormLabel>
-              <FormControl>
-                <Input
-                  type="email"
-                  placeholder={tCustomers('emailPlaceholder')}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        <Input
+          type="email"
+          label={tCustomers('email')}
+          placeholder={tCustomers('emailPlaceholder')}
+          errorMessage={form.formState.errors.email?.message}
+          {...form.register('email')}
         />
-        <FormField
-          control={form.control}
-          name="locale"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{tCustomers('locale')}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder={tCustomers('localePlaceholder')}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+        <Input
+          label={tCustomers('locale')}
+          placeholder={tCustomers('localePlaceholder')}
+          errorMessage={form.formState.errors.locale?.message}
+          {...form.register('locale')}
         />
       </Form>
     </FormModal>

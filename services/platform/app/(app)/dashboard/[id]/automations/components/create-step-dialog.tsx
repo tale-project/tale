@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
+import { Stack } from '@/components/ui/layout';
 import {
   Select,
   SelectContent,
@@ -244,7 +245,7 @@ export default function CreateStepDialog({
         </SelectContent>
       </Select>
 
-      <div className="space-y-4">
+      <Stack gap={4}>
         <JsonInput
           id="step-config"
           label={t('createStep.configLabel')}
@@ -270,7 +271,7 @@ export default function CreateStepDialog({
           disabled={isLoading}
           description={t('createStep.nextStepsDescription')}
         />
-      </div>
+      </Stack>
     </FormModal>
   );
 }

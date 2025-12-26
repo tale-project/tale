@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Stack } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
 
@@ -179,11 +180,11 @@ export interface ItemPreviewProps {
  */
 export function ItemPreview({ primary, secondary, className }: ItemPreviewProps) {
   return (
-    <div className={cn('bg-secondary/20 rounded-lg p-4', className)}>
+    <Stack gap={1} className={cn('bg-secondary/20 rounded-lg p-4', className)}>
       <div className="text-sm font-medium text-foreground">{primary}</div>
       {secondary && (
-        <div className="text-xs text-muted-foreground mt-1">{secondary}</div>
+        <div className="text-xs text-muted-foreground">{secondary}</div>
       )}
-    </div>
+    </Stack>
   );
 }

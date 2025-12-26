@@ -7,6 +7,7 @@ import * as z from 'zod';
 import { FormModal, ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import {
   Select,
   SelectContent,
@@ -264,7 +265,7 @@ export default function AddMemberDialog({
         />
 
         {/* Password Field */}
-        <div className="space-y-2">
+        <Stack gap={2}>
           <Input
             id="password"
             type="password"
@@ -274,8 +275,8 @@ export default function AddMemberDialog({
             className="w-full"
           />
           {password && (
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center gap-1.5">
+            <Stack gap={1} className="text-xs">
+              <HStack gap={1}>
                 {passwordChecks.length ? (
                   <Check className="h-3.5 w-3.5 text-green-600" />
                 ) : (
@@ -290,8 +291,8 @@ export default function AddMemberDialog({
                 >
                   {tAuth('changePassword.requirements.length')}
                 </span>
-              </div>
-              <div className="flex items-center gap-1.5">
+              </HStack>
+              <HStack gap={1}>
                 {passwordChecks.lowercase ? (
                   <Check className="h-3.5 w-3.5 text-green-600" />
                 ) : (
@@ -306,8 +307,8 @@ export default function AddMemberDialog({
                 >
                   {tAuth('changePassword.requirements.lowercase')}
                 </span>
-              </div>
-              <div className="flex items-center gap-1.5">
+              </HStack>
+              <HStack gap={1}>
                 {passwordChecks.uppercase ? (
                   <Check className="h-3.5 w-3.5 text-green-600" />
                 ) : (
@@ -322,8 +323,8 @@ export default function AddMemberDialog({
                 >
                   {tAuth('changePassword.requirements.uppercase')}
                 </span>
-              </div>
-              <div className="flex items-center gap-1.5">
+              </HStack>
+              <HStack gap={1}>
                 {passwordChecks.number ? (
                   <Check className="h-3.5 w-3.5 text-green-600" />
                 ) : (
@@ -338,10 +339,10 @@ export default function AddMemberDialog({
                 >
                   {tAuth('changePassword.requirements.number')}
                 </span>
-              </div>
-            </div>
+              </HStack>
+            </Stack>
           )}
-        </div>
+        </Stack>
 
         {/* Role Field */}
         <Select
@@ -377,15 +378,15 @@ export default function AddMemberDialog({
         onOpenChange={handleClose}
         title={tDialogs('memberAdded.title')}
       >
-        <div className="space-y-4">
+        <Stack gap={4}>
           <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 border border-yellow-200">
             {tDialogs('memberAdded.credentialsWarning')}
           </div>
 
           {credentials && (
-            <div className="space-y-4">
+            <Stack gap={4}>
               {/* Email */}
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <Input
                   value={credentials.email}
                   readOnly
@@ -404,10 +405,10 @@ export default function AddMemberDialog({
                     <Copy className="size-4 p-0.5" />
                   )}
                 </Button>
-              </div>
+              </HStack>
 
               {/* Password */}
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <Input
                   value={credentials.password}
                   readOnly
@@ -428,14 +429,14 @@ export default function AddMemberDialog({
                     <Copy className="size-4 p-0.5" />
                   )}
                 </Button>
-              </div>
-            </div>
+              </HStack>
+            </Stack>
           )}
 
           <Button onClick={handleClose} className="w-full">
             {tCommon('actions.done')}
           </Button>
-        </div>
+        </Stack>
       </ViewModal>
     </>
   );

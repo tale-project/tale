@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/ui/data-table';
+import { Stack, HStack } from '@/components/ui/layout';
 import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Search, Home, Loader2, Database, X } from 'lucide-react';
@@ -113,7 +114,7 @@ function OneDriveFileTable({
         cell: ({ row }) => {
           const item = row.original;
           return (
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <DocumentIcon fileName={item.name} />
               <div
                 title={item.name}
@@ -131,7 +132,7 @@ function OneDriveFileTable({
               >
                 {item.name}
               </div>
-            </div>
+            </HStack>
           );
         },
       },
@@ -746,26 +747,26 @@ export default function OneDriveImportDialog({
       <Dialog {...props}>
         <DialogContent className="max-w-5xl p-0">
           {/* Header */}
-          <div className="border-b border-border flex items-start justify-between px-6 py-6">
-            <div className="flex flex-col gap-1">
+          <HStack align="start" justify="between" className="border-b border-border px-6 py-6">
+            <Stack gap={1}>
               <DialogTitle className="font-semibold text-foreground">
                 {t('onedrive.selectFiles')}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground">
                 {t('onedrive.selectDescription')}
               </DialogDescription>
-            </div>
-          </div>
+            </Stack>
+          </HStack>
 
           {/* Content */}
-          <div className="px-6 py-2 space-y-4">
+          <Stack gap={4} className="px-6 py-2">
             {/* Breadcrumb Navigation */}
             {folderPath.length > 1 && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <HStack gap={2} className="text-sm text-muted-foreground">
                 {folderPath.map((folder, index) => (
-                  <div
+                  <HStack
                     key={folder.id || 'root'}
-                    className="flex items-center gap-2"
+                    gap={2}
                   >
                     <button
                       type="button"
@@ -777,13 +778,13 @@ export default function OneDriveImportDialog({
                     {index < folderPath.length - 1 && (
                       <span className="text-muted-foreground">/</span>
                     )}
-                  </div>
+                  </HStack>
                 ))}
-              </div>
+              </HStack>
             )}
 
             {/* Search Input and Import Button */}
-            <div className="flex gap-3">
+            <HStack gap={3}>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
                 <Input
@@ -802,7 +803,7 @@ export default function OneDriveImportDialog({
               >
                 {t('onedrive.importCount', { count: selectedItems.size })}
               </Button>
-            </div>
+            </HStack>
 
             {/* Items List */}
             <div className="h-[500px] overflow-y-auto">
@@ -820,7 +821,7 @@ export default function OneDriveImportDialog({
                 buildItemPath={buildItemPath}
               />
             </div>
-          </div>
+          </Stack>
         </DialogContent>
       </Dialog>
     );
@@ -890,7 +891,7 @@ export default function OneDriveImportDialog({
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border flex items-center justify-stretch p-4 gap-4">
+          <HStack gap={4} className="border-t border-border p-4 justify-stretch">
             <Button
               variant="outline"
               onClick={() => {
@@ -937,7 +938,7 @@ export default function OneDriveImportDialog({
                 </>
               )}
             </Button>
-          </div>
+          </HStack>
         </DialogContent>
       </Dialog>
     );

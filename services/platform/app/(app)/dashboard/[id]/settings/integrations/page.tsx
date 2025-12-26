@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Stack, Grid, HStack } from '@/components/ui/layout';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { AccessDenied } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
@@ -26,44 +28,39 @@ interface IntegrationsPageProps {
  */
 function IntegrationCardSkeleton() {
   return (
-    <div className="bg-background rounded-xl border border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col justify-between">
-      {/* Main content area */}
-      <div className="p-5">
-        <div className="flex flex-col gap-3">
-          {/* Icon */}
+    <Card>
+      <CardContent className="p-5">
+        <Stack gap={3}>
           <Skeleton className="w-11 h-11 rounded-md" />
-          <div className="space-y-1">
-            {/* Title */}
+          <Stack gap={1}>
             <Skeleton className="h-5 w-20" />
-            {/* Description */}
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
-          </div>
-        </div>
-      </div>
-      {/* Footer */}
-      <div className="border-t border-border px-5 py-4 flex items-center justify-between">
-        <Skeleton className="h-6 w-20" />
-        <Skeleton className="h-5 w-9 rounded-full" />
-      </div>
-    </div>
+          </Stack>
+        </Stack>
+      </CardContent>
+      <CardFooter className="border-t border-border px-5 py-4">
+        <HStack justify="between" className="w-full">
+          <Skeleton className="h-6 w-20" />
+          <Skeleton className="h-5 w-9 rounded-full" />
+        </HStack>
+      </CardFooter>
+    </Card>
   );
 }
 
 /**
  * Skeleton for the integrations page that matches the actual layout.
- * Includes space-y-4 wrapper to match Integrations component structure.
  */
 function IntegrationsSkeleton() {
   return (
-    <div className="space-y-4">
-      {/* Integrations Grid - matches Integrations component layout */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+    <Stack>
+      <Grid cols={1} md={2} lg={3}>
         {Array.from({ length: 3 }).map((_, i) => (
           <IntegrationCardSkeleton key={i} />
         ))}
-      </div>
-    </div>
+      </Grid>
+    </Stack>
   );
 }
 

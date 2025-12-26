@@ -5,6 +5,7 @@ import { ExecutionsTable } from './components/executions-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HStack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams } from '@/lib/pagination/parse-search-params';
 import { executionFilterDefinitions } from './filter-definitions';
@@ -34,12 +35,12 @@ async function ExecutionsSkeleton() {
         ]}
         showHeader
         customHeader={
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <HStack gap={4} className="justify-between">
+            <HStack gap={3}>
               <Skeleton className="h-10 w-[18.75rem]" />
               <Skeleton className="h-10 w-24" />
-            </div>
-          </div>
+            </HStack>
+          </HStack>
         }
       />
     </div>

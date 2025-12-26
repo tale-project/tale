@@ -6,6 +6,7 @@ import { Search, Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import Pagination from '@/components/ui/pagination';
 import ImportDocumentsMenu from './import-documents-menu';
 import BreadcrumbNavigation from './breadcrumb-navigation';
@@ -165,7 +166,7 @@ export default function DocumentTable({
         accessorKey: 'name',
         header: tTables('headers.document'),
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
+          <HStack gap={3}>
             <DocumentIcon
               fileName={
                 row.original.type === 'folder'
@@ -183,7 +184,7 @@ export default function DocumentTable({
                 {row.original.name ?? ''}
               </div>
             </button>
-          </div>
+          </HStack>
         ),
       },
       {
@@ -200,7 +201,7 @@ export default function DocumentTable({
         header: tTables('headers.source'),
         size: 96,
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'auto' && (
                 <div className="relative">
@@ -215,7 +216,7 @@ export default function DocumentTable({
             {row.original.sourceProvider === 'upload' && (
               <Monitor className="size-6" />
             )}
-          </div>
+          </HStack>
         ),
       },
       {
@@ -285,7 +286,7 @@ export default function DocumentTable({
   }
 
   return (
-    <div className="space-y-4">
+    <Stack gap={4}>
       {/* Breadcrumb Navigation */}
       {currentFolderPath && (
         <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
@@ -311,12 +312,12 @@ export default function DocumentTable({
                 className="pl-8"
               />
             </div>
-            <div className="flex items-center gap-3">
+            <HStack gap={3}>
               <ImportDocumentsMenu
                 organizationId={organizationId}
                 hasMicrosoftAccount={hasMicrosoftAccount}
               />
-            </div>
+            </HStack>
           </div>
         }
         emptyState={{
@@ -343,6 +344,6 @@ export default function DocumentTable({
         documentId={previewDocumentId ?? undefined}
         fileName={previewFileName ?? undefined}
       />
-    </div>
+    </Stack>
   );
 }

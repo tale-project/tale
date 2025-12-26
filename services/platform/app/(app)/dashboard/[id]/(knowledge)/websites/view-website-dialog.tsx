@@ -1,6 +1,7 @@
 'use client';
 
 import { ViewModal } from '@/components/ui/modals';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
 import { useLocale, useT } from '@/lib/i18n';
@@ -36,8 +37,8 @@ export default function ViewWebsiteDialog({
       title={t('viewDialog.title')}
       className="max-w-2xl"
     >
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <Stack gap={4}>
+        <Grid cols={2} gap={4}>
           <div>
             <Label>{t('viewDialog.domain')}</Label>
             <Value>{website.domain}</Value>
@@ -46,7 +47,7 @@ export default function ViewWebsiteDialog({
           <div>
             <Label>{t('viewDialog.status')}</Label>
             <Value>
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <div
                   className={`w-2 h-2 rounded-full ${
                     website.status === 'active'
@@ -57,7 +58,7 @@ export default function ViewWebsiteDialog({
                   }`}
                 />
                 {website.status || t('viewDialog.unknown')}
-              </div>
+              </HStack>
             </Value>
           </div>
 
@@ -101,8 +102,8 @@ export default function ViewWebsiteDialog({
               })}
             </Value>
           </div>
-        </div>
-      </div>
+        </Grid>
+      </Stack>
     </ViewModal>
   );
 }

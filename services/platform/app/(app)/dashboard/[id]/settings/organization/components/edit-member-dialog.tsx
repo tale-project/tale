@@ -7,6 +7,7 @@ import * as z from 'zod';
 import { FormModal } from '@/components/ui/modals';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Stack } from '@/components/ui/layout';
 import {
   Select,
   SelectContent,
@@ -148,7 +149,7 @@ export default function EditMemberDialog({
       />
 
       {/* Email Field - Read-only */}
-      <div className="space-y-2">
+      <Stack gap={2}>
         <Input
           id="email"
           type="email"
@@ -162,10 +163,10 @@ export default function EditMemberDialog({
         <p className="text-xs text-muted-foreground">
           {t('organization.emailCannotChange')}
         </p>
-      </div>
+      </Stack>
 
       {/* Role Field */}
-      <div className="space-y-2">
+      <Stack gap={2}>
         <Controller
           control={form.control}
           name="role"
@@ -202,10 +203,10 @@ export default function EditMemberDialog({
               </p>
             </div>
           )}
-      </div>
+      </Stack>
 
       {/* Password Update Section */}
-      <div className="space-y-4 pt-4 border-t">
+      <Stack gap={4} className="pt-4 border-t">
         <Controller
           control={form.control}
           name="updatePassword"
@@ -220,7 +221,7 @@ export default function EditMemberDialog({
         />
 
         {watch('updatePassword') && (
-          <div className="space-y-2">
+          <Stack gap={2}>
             <Input
               id="password"
               type="password"
@@ -232,9 +233,9 @@ export default function EditMemberDialog({
             <p className="text-xs text-muted-foreground">
               {t('organization.userMustUpdatePassword')}
             </p>
-          </div>
+          </Stack>
         )}
-      </div>
+      </Stack>
     </FormModal>
   );
 }

@@ -5,6 +5,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { useStartWorkflow } from '../hooks';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
+import { Stack, VStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import { TestTubeDiagonal, Loader2 } from 'lucide-react';
@@ -83,8 +84,8 @@ export function AutomationTester({
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden justify-between">
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+    <VStack justify="between" className="flex-1 overflow-hidden">
+      <Stack gap={3} className="flex-1 overflow-y-auto p-3">
         <JsonInput
           className="px-2"
           value={testInput}
@@ -99,7 +100,7 @@ export function AutomationTester({
             {t('tester.tip')}
           </p>
         </div>
-      </div>
+      </Stack>
 
       <div className="p-3 border-t border-border">
         <Button onClick={handleTest} disabled={isExecuting} className="w-full">
@@ -116,6 +117,6 @@ export function AutomationTester({
           )}
         </Button>
       </div>
-    </div>
+    </VStack>
   );
 }

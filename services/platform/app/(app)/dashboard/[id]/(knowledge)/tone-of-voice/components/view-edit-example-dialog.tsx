@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { FormModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Stack, HStack } from '@/components/ui/layout';
 import { useT } from '@/lib/i18n';
 
 interface ViewEditExampleDialogProps {
@@ -90,7 +91,7 @@ export default function ViewEditExampleDialog({
   if (!example) return null;
 
   const customFooter = mode === 'view' ? (
-    <div className="flex gap-3">
+    <HStack gap={3}>
       <Button
         type="button"
         variant="outline"
@@ -106,9 +107,9 @@ export default function ViewEditExampleDialog({
       >
         {tCommon('actions.edit')}
       </Button>
-    </div>
+    </HStack>
   ) : (
-    <div className="flex gap-3">
+    <HStack gap={3}>
       <Button
         type="button"
         variant="outline"
@@ -124,7 +125,7 @@ export default function ViewEditExampleDialog({
       >
         {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
       </Button>
-    </div>
+    </HStack>
   );
 
   return (
@@ -139,14 +140,14 @@ export default function ViewEditExampleDialog({
     >
       {/* Message Field */}
       {mode === 'view' ? (
-        <div className="space-y-2">
+        <Stack gap={2}>
           <span className="text-sm font-medium text-foreground tracking-[-0.21px]">
             {tTables('headers.message')}
           </span>
           <div className="min-h-[10rem] px-4 py-3 bg-muted border border-border rounded-lg text-sm text-foreground whitespace-pre-wrap">
             {example.content}
           </div>
-        </div>
+        </Stack>
       ) : (
         <Textarea
           {...register('content', { required: true })}

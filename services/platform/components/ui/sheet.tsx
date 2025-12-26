@@ -6,7 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 
 import { cn } from '@/lib/utils/cn';
-import { Button } from './button';
+import { IconButton } from './icon-button';
 import { useT } from '@/lib/i18n';
 
 const Sheet = DialogPrimitive.Root;
@@ -59,11 +59,7 @@ interface SheetContentProps
 
 function SheetCloseButton() {
   const { t } = useT('common');
-  return (
-    <Button variant="ghost" size="icon" aria-label={t('aria.close')}>
-      <X className="size-4" />
-    </Button>
-  );
+  return <IconButton icon={X} aria-label={t('aria.close')} />;
 }
 
 const SheetContent = React.forwardRef<

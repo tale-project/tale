@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic';
 import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/ui/icons';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/card';
+import { Stack, HStack, Grid, Center } from '@/components/ui/layout';
 import { Settings, Mail, Loader2 } from 'lucide-react';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -412,87 +414,81 @@ export default function Integrations({
     protelIntegration === undefined
   ) {
     return (
-      <div className="flex items-center justify-center">
+      <Center>
         <Loader2 className="size-4 animate-spin" />
-      </div>
+      </Center>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* OAuth2 Banner Notifications */}
+    <Stack>
       <OAuth2Banner />
 
-      {/* Integrations Grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      <Grid cols={1} md={2} lg={3}>
         {integrations.map((integration) => {
           const IconComponent = integration.icon;
           return (
-            <div
-              key={integration.id}
-              className="bg-background rounded-xl border border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] flex flex-col justify-between"
-            >
-              {/* Main content area */}
-              <div className="p-5">
-                <div className="flex flex-col gap-3">
-                  <div className="w-11 h-11 bg-background border border-border rounded-md flex items-center justify-center">
+            <Card key={integration.id} className="flex flex-col justify-between">
+              <CardContent className="p-5">
+                <Stack gap={3}>
+                  <Center className="w-11 h-11 border border-border rounded-md">
                     <IconComponent className="size-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-base tracking-[-0.24px]">
+                  </Center>
+                  <Stack gap={1}>
+                    <HStack gap={2}>
+                      <CardTitle className="text-base">
                         {integration.name}
-                      </h3>
-                      {/* Show provider count for email integrations - disabled until Convex integration is implemented */}
-                    </div>
-                    <p className="text-sm tracking-[-0.21px] leading-normal text-muted-foreground">
+                      </CardTitle>
+                    </HStack>
+                    <CardDescription>
                       {integration.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
+                    </CardDescription>
+                  </Stack>
+                </Stack>
+              </CardContent>
 
-              {/* Footer with manage button and switch */}
-              <div className="border-t border-border px-5 py-4 flex items-center justify-between">
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={() => {
-                    if (integration.id === 'circuly') {
-                      setCirculyModalOpen(true);
-                    } else if (integration.id === 'shopify') {
-                      setShopifyModalOpen(true);
-                    } else if (integration.id === 'protel') {
-                      setProtelModalOpen(true);
-                    } else {
-                      handleManageClick(integration.id);
+              <CardFooter className="border-t border-border px-5 py-4">
+                <HStack justify="between" className="w-full">
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => {
+                      if (integration.id === 'circuly') {
+                        setCirculyModalOpen(true);
+                      } else if (integration.id === 'shopify') {
+                        setShopifyModalOpen(true);
+                      } else if (integration.id === 'protel') {
+                        setProtelModalOpen(true);
+                      } else {
+                        handleManageClick(integration.id);
+                      }
+                    }}
+                    className="flex items-center gap-1 text-sm h-6"
+                  >
+                    <Settings className="size-4" />
+                    {t('integrations.manage')}
+                  </Button>
+                  <Switch
+                    checked={
+                      (integration.id === 'circuly' &&
+                        typeof circulyIntegration?._id === 'string') ||
+                      (integration.id === 'shopify' &&
+                        typeof shopifyIntegration?._id === 'string') ||
+                      (integration.id === 'protel' &&
+                        typeof protelIntegration?._id === 'string') ||
+                      (integration.id === 'email' && emailProviderCount > 0) ||
+                      false
                     }
-                  }}
-                  className="flex items-center gap-1 text-sm h-6"
-                >
-                  <Settings className="size-4" />
-                  {t('integrations.manage')}
-                </Button>
-                <Switch
-                  checked={
-                    (integration.id === 'circuly' &&
-                      typeof circulyIntegration?._id === 'string') ||
-                    (integration.id === 'shopify' &&
-                      typeof shopifyIntegration?._id === 'string') ||
-                    (integration.id === 'protel' &&
-                      typeof protelIntegration?._id === 'string') ||
-                    (integration.id === 'email' && emailProviderCount > 0) ||
-                    false
-                  }
-                  onCheckedChange={(checked) => {
-                    handleSwitchToggle(integration.id, checked);
-                  }}
-                />
-              </div>
-            </div>
+                    onCheckedChange={(checked) => {
+                      handleSwitchToggle(integration.id, checked);
+                    }}
+                  />
+                </HStack>
+              </CardFooter>
+            </Card>
           );
         })}
-      </div>
+      </Grid>
 
       {/* Integration Modals */}
       <ShopifyIntegrationDialog
@@ -567,6 +563,6 @@ export default function Integrations({
         onOpenChange={setEmailModalOpen}
         organizationId={organizationId}
       />
-    </div>
+    </Stack>
   );
 }

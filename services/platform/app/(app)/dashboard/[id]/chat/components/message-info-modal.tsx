@@ -1,6 +1,8 @@
 'use client';
 
 import { ViewModal } from '@/components/ui/modals';
+import { Stack, Grid } from '@/components/ui/layout';
+import { Field, FieldGroup } from '@/components/ui/field';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format';
 import { useLocale, useT } from '@/lib/i18n';
@@ -42,120 +44,98 @@ export default function MessageInfoModal({
       description={t('messageInfo.description')}
       className="sm:max-w-[500px]"
     >
-      <div className="space-y-4">
-          {/* Timestamp */}
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-muted-foreground">
-              {t('messageInfo.timestamp')}
-            </div>
-            <div className="text-sm">{formatDate(timestamp, { preset: 'long' })}</div>
+      <FieldGroup gap={4}>
+        <Field label={t('messageInfo.timestamp')}>
+          <div className="text-sm">{formatDate(timestamp, { preset: 'long' })}</div>
+        </Field>
+
+        <Field label={t('messageInfo.messageId')}>
+          <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
+            {messageId}
           </div>
+        </Field>
 
-          {/* Message ID */}
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-muted-foreground">
-              {t('messageInfo.messageId')}
-            </div>
-            <div className="text-xs font-mono bg-muted px-2 py-1 rounded">
-              {messageId}
-            </div>
+        {metadata ? (
+          <>
+            <Field label={t('messageInfo.model')}>
+              <div className="text-sm">
+                {metadata.model} ({metadata.provider})
+              </div>
+            </Field>
+
+            {metadata.totalTokens !== undefined && (
+              <Field label={t('messageInfo.tokenUsage')}>
+                <Grid cols={2} gap={2} className="text-sm">
+                  {metadata.inputTokens !== undefined && (
+                    <Stack gap={0}>
+                      <div className="text-xs text-muted-foreground">
+                        {t('messageInfo.input')}
+                      </div>
+                      <div className="font-medium">
+                        {formatNumber(metadata.inputTokens, locale)}
+                      </div>
+                    </Stack>
+                  )}
+                  {metadata.outputTokens !== undefined && (
+                    <Stack gap={0}>
+                      <div className="text-xs text-muted-foreground">
+                        {t('messageInfo.output')}
+                      </div>
+                      <div className="font-medium">
+                        {formatNumber(metadata.outputTokens, locale)}
+                      </div>
+                    </Stack>
+                  )}
+                  {metadata.totalTokens !== undefined && (
+                    <Stack gap={0}>
+                      <div className="text-xs text-muted-foreground">
+                        {t('messageInfo.total')}
+                      </div>
+                      <div className="font-medium">
+                        {formatNumber(metadata.totalTokens, locale)}
+                      </div>
+                    </Stack>
+                  )}
+                  {metadata.reasoningTokens !== undefined &&
+                    metadata.reasoningTokens > 0 && (
+                      <Stack gap={0}>
+                        <div className="text-xs text-muted-foreground">
+                          {t('messageInfo.reasoning')}
+                        </div>
+                        <div className="font-medium">
+                          {formatNumber(metadata.reasoningTokens, locale)}
+                        </div>
+                      </Stack>
+                    )}
+                  {metadata.cachedInputTokens !== undefined &&
+                    metadata.cachedInputTokens > 0 && (
+                      <Stack gap={0}>
+                        <div className="text-xs text-muted-foreground">
+                          {t('messageInfo.cached')}
+                        </div>
+                        <div className="font-medium">
+                          {formatNumber(metadata.cachedInputTokens, locale)}
+                        </div>
+                      </Stack>
+                    )}
+                </Grid>
+              </Field>
+            )}
+
+            {metadata.reasoning && (
+              <Field label={t('messageInfo.reasoning')}>
+                <div className="text-sm bg-muted px-3 py-2 rounded max-h-40 overflow-y-auto">
+                  {metadata.reasoning}
+                </div>
+              </Field>
+            )}
+          </>
+        ) : (
+          <div className="text-sm text-muted-foreground">
+            {t('messageInfo.noMetadata')}
           </div>
-
-          {metadata ? (
-            <>
-              {/* Model */}
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-muted-foreground">
-                  {t('messageInfo.model')}
-                </div>
-                <div className="text-sm">
-                  {metadata.model} ({metadata.provider})
-                </div>
-              </div>
-
-              {/* Token Usage */}
-              {metadata.totalTokens !== undefined && (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    {t('messageInfo.tokenUsage')}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {metadata.inputTokens !== undefined && (
-                      <div className="space-y-0.5">
-                        <div className="text-xs text-muted-foreground">
-                          {t('messageInfo.input')}
-                        </div>
-                        <div className="font-medium">
-                          {formatNumber(metadata.inputTokens, locale)}
-                        </div>
-                      </div>
-                    )}
-                    {metadata.outputTokens !== undefined && (
-                      <div className="space-y-0.5">
-                        <div className="text-xs text-muted-foreground">
-                          {t('messageInfo.output')}
-                        </div>
-                        <div className="font-medium">
-                          {formatNumber(metadata.outputTokens, locale)}
-                        </div>
-                      </div>
-                    )}
-                    {metadata.totalTokens !== undefined && (
-                      <div className="space-y-0.5">
-                        <div className="text-xs text-muted-foreground">
-                          {t('messageInfo.total')}
-                        </div>
-                        <div className="font-medium">
-                          {formatNumber(metadata.totalTokens, locale)}
-                        </div>
-                      </div>
-                    )}
-                    {metadata.reasoningTokens !== undefined &&
-                      metadata.reasoningTokens > 0 && (
-                        <div className="space-y-0.5">
-                          <div className="text-xs text-muted-foreground">
-                            {t('messageInfo.reasoning')}
-                          </div>
-                          <div className="font-medium">
-                            {formatNumber(metadata.reasoningTokens, locale)}
-                          </div>
-                        </div>
-                      )}
-                    {metadata.cachedInputTokens !== undefined &&
-                      metadata.cachedInputTokens > 0 && (
-                        <div className="space-y-0.5">
-                          <div className="text-xs text-muted-foreground">
-                            {t('messageInfo.cached')}
-                          </div>
-                          <div className="font-medium">
-                            {formatNumber(metadata.cachedInputTokens, locale)}
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                </div>
-              )}
-
-              {/* Reasoning */}
-              {metadata.reasoning && (
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    {t('messageInfo.reasoning')}
-                  </div>
-                  <div className="text-sm bg-muted px-3 py-2 rounded max-h-40 overflow-y-auto">
-                    {metadata.reasoning}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">
-                {t('messageInfo.noMetadata')}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
+      </FieldGroup>
     </ViewModal>
   );
 }

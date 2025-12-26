@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Stack, Center } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
 
@@ -23,21 +24,21 @@ function DefaultErrorFallback({
   const { t } = useT('common');
 
   return (
-    <div
+    <Center
       className={cn(
-        'flex flex-col items-center justify-center gap-4 p-8 text-center',
+        'flex-col gap-4 p-8 text-center',
         className,
       )}
     >
       <div className="rounded-full bg-destructive/10 p-3">
         <AlertCircle className="h-6 w-6 text-destructive" />
       </div>
-      <div className="space-y-1">
+      <Stack gap={1}>
         <h3 className="font-medium text-foreground">{t('errors.somethingWentWrong')}</h3>
         <p className="text-sm text-muted-foreground max-w-sm">
           {error.message || t('errors.unexpectedError')}
         </p>
-      </div>
+      </Stack>
       <Button
         variant="outline"
         size="sm"
@@ -47,7 +48,7 @@ function DefaultErrorFallback({
         <RefreshCw className="h-4 w-4" />
         {t('errors.tryAgain')}
       </Button>
-    </div>
+    </Center>
   );
 }
 

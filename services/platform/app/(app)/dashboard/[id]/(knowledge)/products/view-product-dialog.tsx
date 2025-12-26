@@ -3,6 +3,7 @@
 import { ViewModal } from '@/components/ui/modals';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import ProductImage from './product-image';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatCurrency } from '@/lib/utils/format';
@@ -44,9 +45,9 @@ export default function ViewProductDialog({
       description={tProducts('view.description')}
       className="sm:max-w-[600px]"
     >
-      <div className="space-y-4">
+      <Stack gap={4}>
         {/* Product Image and Basic Info */}
-        <div className="flex items-start gap-4">
+        <HStack gap={4} className="items-start">
           <ProductImage
             images={product.imageUrl ? [product.imageUrl] : []}
             productName={product.name}
@@ -70,12 +71,12 @@ export default function ViewProductDialog({
               </Badge>
             )}
           </div>
-        </div>
+        </HStack>
 
         <Separator />
 
         {/* Product Details Grid */}
-        <div className="grid grid-cols-2 gap-4">
+        <Grid cols={2} gap={4}>
           {/* Price */}
           {product.price !== undefined && (
             <div>
@@ -129,7 +130,7 @@ export default function ViewProductDialog({
               })}
             </p>
           </div>
-        </div>
+        </Grid>
 
         {/* Tags */}
         {product.tags && product.tags.length > 0 && (
@@ -137,13 +138,13 @@ export default function ViewProductDialog({
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
               {tProducts('view.labels.tags')}
             </label>
-            <div className="flex flex-wrap gap-2">
+            <HStack gap={2} className="flex-wrap">
               {product.tags.map((tag, index) => (
                 <Badge key={index} variant="outline">
                   {tag}
                 </Badge>
               ))}
-            </div>
+            </HStack>
           </div>
         )}
 
@@ -185,7 +186,7 @@ export default function ViewProductDialog({
             {product.id}
           </code>
         </div>
-      </div>
+      </Stack>
     </ViewModal>
   );
 }

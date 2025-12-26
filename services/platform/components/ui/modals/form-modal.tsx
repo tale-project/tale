@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Stack } from '@/components/ui/layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
 
@@ -93,9 +94,9 @@ export function FormModal({
             )}
           </DialogHeader>
 
-          <div className="space-y-4">
+          <Stack>
             {children}
-          </div>
+          </Stack>
 
           <DialogFooter>
             {customFooter ?? (

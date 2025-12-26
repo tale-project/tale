@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ConfirmModal } from '@/components/ui/modals';
+import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -55,17 +56,17 @@ export default function ShopifyDisconnectConfirmationDialog({
       onConfirm={handleConfirm}
       variant="destructive"
     >
-      <div className="space-y-3">
+      <Stack gap={3}>
         {domain && (
-          <div className="space-y-1">
+          <Stack gap={1}>
             <p className="text-sm font-medium text-foreground">
               {t('integrations.shopify.connectedStore')}
             </p>
             <p className="text-sm text-muted-foreground">{domain}</p>
-          </div>
+          </Stack>
         )}
 
-        <div className="space-y-2">
+        <Stack gap={2}>
           <p className="text-sm text-foreground">
             {t('integrations.shopify.disconnectQuestion')}
           </p>
@@ -75,8 +76,8 @@ export default function ShopifyDisconnectConfirmationDialog({
               {t('integrations.shopify.disconnectWarning')}
             </p>
           </div>
-        </div>
-      </div>
+        </Stack>
+      </Stack>
     </ConfirmModal>
   );
 }

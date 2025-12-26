@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Grid, HStack } from '@/components/ui/layout';
 import { FilterSection } from '@/components/filters/filter-section';
 import { FilterButton } from '@/components/filters/filter-button';
 import { useT } from '@/lib/i18n';
@@ -85,7 +86,7 @@ export default function CustomerFilter() {
       </PopoverTrigger>
       <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-2">
+        <HStack className="justify-between p-2">
           <h4 className="text-sm font-semibold text-foreground">{tCustomers('filter.title')}</h4>
           {totalFilters > 0 && (
             <button
@@ -96,7 +97,7 @@ export default function CustomerFilter() {
               {tCommon('actions.clearAll')}
             </button>
           )}
-        </div>
+        </HStack>
 
         {/* Status Filter */}
         <FilterSection
@@ -111,19 +112,18 @@ export default function CustomerFilter() {
           active={statusFilters.length > 0}
         >
           {['active', 'potential', 'churned', 'lost'].map((status) => (
-            <label
-              key={status}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <Checkbox
-                checked={statusFilters.includes(status)}
-                onCheckedChange={(checked) =>
-                  handleFilterChange('status', status, !!checked)
-                }
-              />
-              <span className="text-sm text-muted-foreground capitalize">
-                {status}
-              </span>
+            <label key={status} className="cursor-pointer">
+              <HStack gap={2}>
+                <Checkbox
+                  checked={statusFilters.includes(status)}
+                  onCheckedChange={(checked) =>
+                    handleFilterChange('status', status, !!checked)
+                  }
+                />
+                <span className="text-sm text-muted-foreground capitalize">
+                  {status}
+                </span>
+              </HStack>
             </label>
           ))}
         </FilterSection>
@@ -145,19 +145,18 @@ export default function CustomerFilter() {
             { value: 'file_upload', label: tCustomers('filter.source.upload') },
             { value: 'circuly', label: tCustomers('filter.source.circuly') },
           ].map((source) => (
-            <label
-              key={source.value}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <Checkbox
-                checked={sourceFilters.includes(source.value)}
-                onCheckedChange={(checked) =>
-                  handleFilterChange('source', source.value, !!checked)
-                }
-              />
-              <span className="text-sm text-muted-foreground">
-                {source.label}
-              </span>
+            <label key={source.value} className="cursor-pointer">
+              <HStack gap={2}>
+                <Checkbox
+                  checked={sourceFilters.includes(source.value)}
+                  onCheckedChange={(checked) =>
+                    handleFilterChange('source', source.value, !!checked)
+                  }
+                />
+                <span className="text-sm text-muted-foreground">
+                  {source.label}
+                </span>
+              </HStack>
             </label>
           ))}
         </FilterSection>
@@ -174,24 +173,23 @@ export default function CustomerFilter() {
           }
           active={localeFilters.length > 0}
         >
-          <div className="grid grid-cols-2 gap-2">
+          <Grid cols={2} gap={2}>
             {['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'zh'].map((locale) => (
-              <label
-                key={locale}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <Checkbox
-                  checked={localeFilters.includes(locale)}
-                  onCheckedChange={(checked) =>
-                    handleFilterChange('locale', locale, !!checked)
-                  }
-                />
-                <span className="text-sm text-muted-foreground uppercase">
-                  {locale}
-                </span>
+              <label key={locale} className="cursor-pointer">
+                <HStack gap={2}>
+                  <Checkbox
+                    checked={localeFilters.includes(locale)}
+                    onCheckedChange={(checked) =>
+                      handleFilterChange('locale', locale, !!checked)
+                    }
+                  />
+                  <span className="text-sm text-muted-foreground uppercase">
+                    {locale}
+                  </span>
+                </HStack>
               </label>
             ))}
-          </div>
+          </Grid>
         </FilterSection>
       </PopoverContent>
     </Popover>

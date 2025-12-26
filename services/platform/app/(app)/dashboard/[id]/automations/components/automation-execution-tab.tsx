@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
 import { Badge } from '@/components/ui/badge';
+import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Play, Clock, Square, TestTube } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
@@ -116,28 +117,30 @@ export function AutomationExecutionTab({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <Stack gap={4}>
+      <Grid cols={1} lg={2} gap={6}>
         {/* Execution Control */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Play className="size-4" />
-              {t('execution.control.title')}
+            <CardTitle>
+              <HStack gap={2}>
+                <Play className="size-4" />
+                {t('execution.control.title')}
+              </HStack>
             </CardTitle>
             <CardDescription>
               {t('execution.control.description')}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             {selectedAutomation ? (
-              <>
-                <div className="space-y-2">
+              <Stack gap={4}>
+                <Stack gap={2}>
                   <span className="text-sm font-medium">{t('execution.selectedAutomation')}</span>
                   <div className="p-2 bg-muted rounded text-sm">
                     {selectedAutomationData?.name || selectedAutomation}
                   </div>
-                </div>
+                </Stack>
                 <JsonInput
                   id="execution-input"
                   label={t('execution.inputLabel')}
@@ -146,7 +149,7 @@ export function AutomationExecutionTab({
                   placeholder='{"key": "value"}'
                   rows={4}
                 />
-                <div className="flex gap-2">
+                <HStack gap={2}>
                   <Button
                     onClick={handleStartAutomation}
                     disabled={selectedAutomationData?.status !== 'active'}
@@ -200,13 +203,13 @@ export function AutomationExecutionTab({
                     <TestTube className="size-4 mr-2" />
                     {t('execution.testButton')}
                   </Button>
-                </div>
+                </HStack>
                 {selectedAutomationData?.status !== 'active' && (
                   <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                    ⚠️ {t('execution.mustBeActive')}
+                    {t('execution.mustBeActive')}
                   </div>
                 )}
-              </>
+              </Stack>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 {t('execution.selectToStart')}
@@ -218,9 +221,11 @@ export function AutomationExecutionTab({
         {/* Execution History */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="size-4" />
-              {t('execution.history.title')}
+            <CardTitle>
+              <HStack gap={2}>
+                <Clock className="size-4" />
+                {t('execution.history.title')}
+              </HStack>
             </CardTitle>
             <CardDescription>
               {t('execution.history.description')}
@@ -235,7 +240,7 @@ export function AutomationExecutionTab({
                   {t('execution.history.noExecutions')}
                 </div>
               ) : (
-                <div className="space-y-3">
+                <Stack gap={3}>
                   {executions.map((execution) => (
                     <div
                       key={execution._id}
@@ -245,9 +250,9 @@ export function AutomationExecutionTab({
                         }`}
                       onClick={() => setSelectedExecution(execution._id)}
                     >
-                      <div className="flex items-center justify-between">
+                      <HStack justify="between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
+                          <HStack gap={2}>
                             <Badge
                               variant={
                                 execution.status === 'completed'
@@ -265,7 +270,7 @@ export function AutomationExecutionTab({
                             <span className="text-sm text-muted-foreground">
                               {formatDate(new Date(execution.startedAt), { preset: 'long', locale })}
                             </span>
-                          </div>
+                          </HStack>
                           <p className="text-sm mt-1">
                             {t('execution.history.triggeredBy', { source: execution.triggeredBy })}
                           </p>
@@ -275,7 +280,7 @@ export function AutomationExecutionTab({
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <HStack gap={1}>
                           {execution.status === 'running' && (
                             <Button
                               size="sm"
@@ -288,11 +293,11 @@ export function AutomationExecutionTab({
                               <Square className="size-4" />
                             </Button>
                           )}
-                        </div>
-                      </div>
+                        </HStack>
+                      </HStack>
                     </div>
                   ))}
-                </div>
+                </Stack>
               )
             ) : (
               <div className="text-center py-8 text-muted-foreground">
@@ -301,7 +306,7 @@ export function AutomationExecutionTab({
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </Grid>
+    </Stack>
   );
 }

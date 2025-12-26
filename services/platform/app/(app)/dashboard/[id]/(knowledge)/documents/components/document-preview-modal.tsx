@@ -10,6 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
+import { HStack } from '@/components/ui/layout';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import DocumentIcon from '@/components/ui/document-icon';
@@ -127,16 +129,16 @@ export default function DocumentPreviewModal({
       >
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between p-5 border-b max-h-[4.5rem]">
-          <div className="flex items-center gap-3 min-w-0">
+          <HStack gap={3} className="min-w-0">
             <div className="shrink-0">
               <DocumentIcon fileName={displayName} />
             </div>
             <div className="min-w-0">
               <DialogTitle className="truncate">{displayName}</DialogTitle>
             </div>
-          </div>
+          </HStack>
 
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             {doc?.url && (
               <Button
                 variant="ghost"
@@ -154,11 +156,9 @@ export default function DocumentPreviewModal({
             )}
             <Separator className="h-6" orientation="vertical" />
             <DialogClose asChild>
-              <Button variant="ghost" size="icon" aria-label={t('preview.closePreview')}>
-                <X className="size-4" />
-              </Button>
+              <IconButton icon={X} aria-label={t('preview.closePreview')} />
             </DialogClose>
-          </div>
+          </HStack>
         </DialogHeader>
 
         {/* Body */}

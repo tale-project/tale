@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { FormModal } from '@/components/ui/modals';
+import { StatusIndicator } from '@/components/ui/status-indicator';
+import { Description } from '@/components/ui/description';
+import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -140,13 +143,12 @@ export default function ShopifyIntegrationDialog({
       isSubmitting={isSubmitting}
     >
       {isConnected && (
-        <div className="flex items-center space-x-2 text-sm text-green-600">
-          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span>{t('integrations.shopify.connectedToShopify')}</span>
-        </div>
+        <StatusIndicator variant="success">
+          {t('integrations.shopify.connectedToShopify')}
+        </StatusIndicator>
       )}
 
-      <div className="space-y-3">
+      <Stack gap={3}>
         <Input
           id="shopify-domain"
           label={t('integrations.domain')}
@@ -156,14 +158,14 @@ export default function ShopifyIntegrationDialog({
           disabled={isSubmitting}
           className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
         />
-        <p className="text-xs text-muted-foreground leading-[20px]">
+        <Description className="text-xs leading-[20px]">
           {t('integrations.shopify.domainHelp')}
           <br />
           {t('integrations.shopify.domainHelpNav')}
-        </p>
-      </div>
+        </Description>
+      </Stack>
 
-      <div className="space-y-3">
+      <Stack gap={3}>
         <Input
           id="shopify-access-token"
           type="password"
@@ -178,12 +180,12 @@ export default function ShopifyIntegrationDialog({
           disabled={isSubmitting}
           className="border-gray-300 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
         />
-        <p className="text-xs text-muted-foreground leading-[20px]">
+        <Description className="text-xs leading-[20px]">
           {t('integrations.shopify.accessTokenHelp')}
           <br />
           {t('integrations.shopify.accessTokenHelpNav')}
-        </p>
-      </div>
+        </Description>
+      </Stack>
     </FormModal>
   );
 }

@@ -7,6 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { useUpdateThread } from '../hooks';
 import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
+import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import ChatActions from './chat-actions';
 import { useT } from '@/lib/i18n';
@@ -140,9 +141,10 @@ export default function ChatHistorySidebar({
   };
 
   return (
-    <div
+    <Stack
+      gap={4}
       className={cn(
-        'flex-[1_1_0] pb-4 px-2 overflow-y-auto space-y-4',
+        'flex-[1_1_0] pb-4 px-2 overflow-y-auto',
         className,
       )}
       {...restProps}
@@ -150,7 +152,7 @@ export default function ChatHistorySidebar({
       <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background z-10 pt-3">
         {t('history.recent')}
       </div>
-      <div className="flex flex-col gap-1">
+      <Stack gap={1}>
         {!chats ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">
             {t('history.loading')}
@@ -213,7 +215,7 @@ export default function ChatHistorySidebar({
             );
           })
         )}
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   );
 }
