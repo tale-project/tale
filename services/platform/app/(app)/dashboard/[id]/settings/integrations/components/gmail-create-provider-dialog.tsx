@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { GmailIcon } from '@/components/ui/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
@@ -309,8 +310,7 @@ export default function GmailCreateProviderDialog({
             </a>
           </div>
 
-          <form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)}>
-            <Stack gap={4}>
+          <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} >
             <Input
               id="oauth2-name"
               label={t('integrations.providerName')}
@@ -333,8 +333,7 @@ export default function GmailCreateProviderDialog({
                 ? t('integrations.redirectingToGoogle')
                 : t('integrations.continueWithGoogle')}
             </Button>
-            </Stack>
-          </form>
+          </Form>
         </TabsContent>
 
         {/* Password Form */}
@@ -354,8 +353,7 @@ export default function GmailCreateProviderDialog({
             </a>
           </div>
 
-          <form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)}>
-            <Stack gap={4}>
+          <Form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} >
             <Input
               id="name"
               label={t('integrations.providerName')}
@@ -396,8 +394,7 @@ export default function GmailCreateProviderDialog({
                 ? t('integrations.testingAndCreating')
                 : t('integrations.testAndCreate')}
             </Button>
-            </Stack>
-          </form>
+          </Form>
         </TabsContent>
       </Tabs>
     </FormModal>

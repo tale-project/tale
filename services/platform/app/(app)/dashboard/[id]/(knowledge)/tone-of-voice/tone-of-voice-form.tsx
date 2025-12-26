@@ -14,6 +14,7 @@ import {
 } from './hooks';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import ExampleMessagesTable from './components/example-messages-table';
@@ -224,44 +225,42 @@ export default function ToneOfVoiceForm({
       />
 
       {/* Tone of Voice Section */}
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Stack gap={5}>
-          <HStack align="end" justify="between">
-            <Stack gap={1}>
-              <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
-                {tTone('form.title')}
-                <span className="text-xs text-muted-foreground ml-2">
-                  {tTone('form.optional')}
-                </span>
-              </h3>
-              <p className="text-sm text-muted-foreground tracking-[-0.084px]">
-                {tTone('form.description')}
-              </p>
-            </Stack>
-          </HStack>
+      <Form onSubmit={handleSubmit(onSubmit)}>
+        <HStack align="end" justify="between">
+          <Stack gap={1}>
+            <h3 className="text-lg font-semibold text-foreground tracking-[-0.096px]">
+              {tTone('form.title')}
+              <span className="text-xs text-muted-foreground ml-2">
+                {tTone('form.optional')}
+              </span>
+            </h3>
+            <p className="text-sm text-muted-foreground tracking-[-0.084px]">
+              {tTone('form.description')}
+            </p>
+          </Stack>
+        </HStack>
 
-          {/* Tone Textarea */}
-          <Textarea
-            {...register('tone')}
-            defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
-            disabled={isSubmitting}
-            placeholder={tTone('form.placeholder')}
-            className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-base text-foreground resize-none"
-          />
-          <HStack gap={2} justify="end">
-            <Button
-              variant="outline"
-              onClick={handleGenerateTone}
-              disabled={isGenerating}
-            >
-              {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
-            </Button>
-            <Button disabled={!isDirty} type="submit">
-              {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
-            </Button>
-          </HStack>
-        </Stack>
-      </form>
+        {/* Tone Textarea */}
+        <Textarea
+          {...register('tone')}
+          defaultValue={toneOfVoiceData?.toneOfVoice?.generatedTone || ''}
+          disabled={isSubmitting}
+          placeholder={tTone('form.placeholder')}
+          className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-base text-foreground resize-none"
+        />
+        <HStack gap={2} justify="end">
+          <Button
+            variant="outline"
+            onClick={handleGenerateTone}
+            disabled={isGenerating}
+          >
+            {isGenerating ? tTone('form.generating') : tTone('form.generateTone')}
+          </Button>
+          <Button disabled={!isDirty} type="submit">
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+          </Button>
+        </HStack>
+      </Form>
 
       {/* Add Example Dialog */}
       <AddExampleDialog

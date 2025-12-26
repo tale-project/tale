@@ -1,15 +1,15 @@
 'use client';
 
-import { forwardRef, HTMLAttributes } from 'react';
+import { forwardRef, FormHTMLAttributes, HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /**
- * Form - Groups form fields vertically with consistent 20px spacing
- * Use for organizing form fields with proper layout
+ * Form - Semantic form element with consistent vertical spacing
+ * Use for wrapping form fields with proper layout and accessibility
  */
-const Form = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+const Form = forwardRef<HTMLFormElement, FormHTMLAttributes<HTMLFormElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('space-y-5', className)} {...props} />
+    <form ref={ref} className={cn('space-y-5', className)} {...props} />
   ),
 );
 Form.displayName = 'Form';

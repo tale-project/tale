@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
@@ -114,55 +115,53 @@ export default function LogInForm({
     <AuthFormLayout title={t('login.loginTitle')}>
       <Stack gap={8}>
         <Stack gap={5}>
-          <form
+          <Form
             onSubmit={form.handleSubmit(handleSubmit)}
             autoComplete="on"
           >
-            <Stack gap={5}>
-              {/* Email Field */}
-              <Input
-                id="email"
-                type="email"
-                size="lg"
-                label={t('email')}
-                placeholder={t('emailPlaceholder')}
-                disabled={isSubmitting}
-                autoComplete="email"
-                errorMessage={errors.email?.message}
-                className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                {...form.register('email')}
-              />
+            {/* Email Field */}
+            <Input
+              id="email"
+              type="email"
+              size="lg"
+              label={t('email')}
+              placeholder={t('emailPlaceholder')}
+              disabled={isSubmitting}
+              autoComplete="email"
+              errorMessage={errors.email?.message}
+              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              {...form.register('email')}
+            />
 
-              {/* Password Field */}
-              <Input
-                id="password"
-                type="password"
-                size="lg"
-                label={t('password')}
-                placeholder={t('passwordPlaceholder')}
-                disabled={isSubmitting}
-                autoComplete="current-password"
-                errorMessage={errors.password?.message}
-                className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
-                {...form.register('password')}
-              />
+            {/* Password Field */}
+            <Input
+              id="password"
+              type="password"
+              size="lg"
+              label={t('password')}
+              placeholder={t('passwordPlaceholder')}
+              disabled={isSubmitting}
+              autoComplete="current-password"
+              errorMessage={errors.password?.message}
+              className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              {...form.register('password')}
+            />
 
-              <Button
-                type="submit"
-                size="lg"
-                className="w-full"
-                disabled={
-                  isSubmitting ||
-                  !form.watch('email')?.trim() ||
-                  !form.watch('password')?.trim() ||
-                  !!errors.password ||
-                  !!errors.email
-                }
-              >
-                {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
-              </Button>
-            </Stack>
-          </form>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={
+                isSubmitting ||
+                !form.watch('email')?.trim() ||
+                !form.watch('password')?.trim() ||
+                !!errors.password ||
+                !!errors.email
+              }
+            >
+              {isSubmitting ? t('login.signingIn') : t('login.loginButton')}
+            </Button>
+          </Form>
         </Stack>
 
         {/* Microsoft Login - only shown if Microsoft Entra ID is configured */}

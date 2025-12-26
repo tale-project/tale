@@ -59,14 +59,18 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
   }
 
   const handleSignOut = async () => {
+    // Optimistic logout - immediately redirect and show toast
+    // since logout will almost always succeed
+    toast({
+      title: t('userButton.toast.signedOut'),
+      description: t('userButton.toast.signedOutDescription'),
+    });
+    router.push('/');
+    router.refresh();
+
+    // Sign out in background with error handling
     try {
       await signOut();
-      toast({
-        title: t('userButton.toast.signedOut'),
-        description: t('userButton.toast.signedOutDescription'),
-      });
-      router.push('/');
-      router.refresh();
     } catch {
       toast({
         title: t('userButton.toast.signOutFailed'),
