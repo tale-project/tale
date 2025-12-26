@@ -4,6 +4,7 @@
 
 ## Prerequisites
 
+- Kill any processes using port 3000: `lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true`
 - Docker services running (`docker compose up -d`)
 - Application accessible at `http://localhost:3000`
 

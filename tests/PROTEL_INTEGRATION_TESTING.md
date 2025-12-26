@@ -14,6 +14,7 @@ Tests the Protel PMS SQL integration covering:
 
 ## Prerequisites
 
+- Kill any processes using port 3000: `lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true`
 - Docker and Docker Compose installed
 - Access to `.test.env` file with Protel test credentials (project root)
 - Browser automation capability (Playwright MCP tools)
