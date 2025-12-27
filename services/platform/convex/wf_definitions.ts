@@ -11,6 +11,7 @@ import {
 } from './_generated/server';
 import * as WfDefinitionsModel from './model/wf_definitions';
 import * as WfStepDefsModel from './model/wf_step_defs';
+import { normalizePaginationOptions, calculatePaginationMeta } from './lib/pagination';
 
 // =============================================================================
 // INTERNAL OPERATIONS
@@ -490,7 +491,6 @@ export const listAutomations = query({
     hasPreviousPage: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { normalizePaginationOptions, calculatePaginationMeta } = await import('./lib/pagination');
     const { page: currentPage, pageSize } = normalizePaginationOptions({
       page: args.currentPage,
       pageSize: args.pageSize,
