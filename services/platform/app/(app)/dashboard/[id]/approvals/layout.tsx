@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { connection } from 'next/server';
 import ApprovalsNavigation from './approvals-navigation';
 import {
   ContentWrapper,
@@ -17,6 +18,7 @@ export default async function ApprovalsLayout({
   children,
   params,
 }: ApprovalsLayoutProps) {
+  await connection();
   const { id: organizationId } = await params;
   const { t } = await getT('approvals');
 

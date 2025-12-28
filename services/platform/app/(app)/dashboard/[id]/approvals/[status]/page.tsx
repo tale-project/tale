@@ -1,19 +1,18 @@
 import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
+import { connection } from 'next/server';
 import ApprovalsWrapper from '../components/approvals-wrapper';
 import { preloadApprovalsData } from '../utils/get-approvals-data';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
-import { GitCompare } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
+import { ApprovalsEmptyState } from '../components/approvals-empty-state';
 
 export async function generateMetadata(): Promise<Metadata> {
+  await connection();
   const { t } = await getT('metadata');
   return {
     title: `${t('approvals.title')} | ${t('suffix')}`,
@@ -91,27 +90,12 @@ async function ApprovalsSkeleton() {
   );
 }
 
-/** Empty state shown when org has no approvals - avoids unnecessary skeleton */
-async function ApprovalsEmptyState({ status }: { status: string }) {
-  const { t } = await getT('approvals');
-
-  return (
-    <DataTableEmptyState
-      icon={GitCompare}
-      title={t(`emptyState.${status}.title` as any)}
-      description={
-        status === 'pending'
-          ? t('emptyState.pending.description' as any)
-          : undefined
-      }
-    />
-  );
-}
 
 export default async function ApprovalsStatusPage({
   params,
   searchParams,
 }: ApprovalsPageProps) {
+  await connection();
   const token = await getAuthToken();
   if (!token) {
     redirect('/log-in');
@@ -146,7 +130,3 @@ export default async function ApprovalsStatusPage({
   );
 }
 
-// Enable static generation for all valid status pages
-export function generateStaticParams() {
-  return VALID_STATUSES.map((status) => ({ status }));
-}

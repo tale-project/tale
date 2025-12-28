@@ -17,6 +17,9 @@ import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
 import { automationFilterDefinitions } from './filter-definitions';
 import type { Metadata } from 'next';
 
+// This page requires authentication (cookies/connection), so it must be dynamic
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
