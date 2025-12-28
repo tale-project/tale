@@ -26,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils/cn';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   DataTableEmptyState,
@@ -322,11 +322,12 @@ export function DataTable<TData>({
                     >
                       {enableExpanding && (
                         <TableCell className="w-[3rem]">
-                          {isExpanded ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
+                          <ChevronRight
+                            className={cn(
+                              'size-4 text-muted-foreground transition-transform duration-200',
+                              isExpanded && 'rotate-90',
+                            )}
+                          />
                         </TableCell>
                       )}
                       {row.getVisibleCells().map((cell) => (
@@ -339,12 +340,16 @@ export function DataTable<TData>({
                       ))}
                     </TableRow>
                     {enableExpanding && isExpanded && renderExpandedRow && (
-                      <TableRow>
+                      <TableRow className="hover:bg-transparent border-0">
                         <TableCell
                           colSpan={columns.length + 1}
-                          className="bg-muted/20 pt-0 px-4"
+                          className="p-0"
                         >
-                          {renderExpandedRow(row)}
+                          <div className="grid animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                            <div className="bg-muted/20 px-4 pb-2">
+                              {renderExpandedRow(row)}
+                            </div>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
