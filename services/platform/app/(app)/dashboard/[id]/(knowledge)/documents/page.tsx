@@ -15,6 +15,9 @@ import { HStack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
+// This page requires authentication (cookies/connection), so it must be dynamic
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {

@@ -4,9 +4,67 @@
 
 ## Prerequisites
 
-- Kill any processes using port 3000: `lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true`
-- Docker services running (`docker compose up -d`)
-- Application accessible at `http://localhost:3000`
+> **AI Instructions**: Execute the following steps sequentially. Each step must complete successfully before proceeding to the next. If any step fails, stop and report the error.
+
+### Step 1: Kill processes on port 3000
+
+Run this command to free up port 3000:
+
+```bash
+lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true
+```
+
+**Expected**: Command completes (exit code 0). No output means no process was running.
+
+### Step 2: Stop and clean Docker containers
+
+```bash
+docker compose down -v
+```
+
+**Expected**: Containers stop and volumes are removed. Output shows "Removed" messages or "No resource found" if nothing was running.
+
+### Step 3: Rebuild and start containers
+
+```bash
+docker compose up --build -d
+```
+
+**Expected**: All services start successfully. Look for "Started" or "Running" status messages.
+
+**Note**: This may take 5-10 minutes on first run.
+
+### Step 4: Wait for services to be ready
+
+Check that services are healthy:
+
+```bash
+docker compose ps
+```
+
+**Expected**: All services show "Up" or "healthy" status.
+
+### Step 5: Verify application is accessible
+
+Navigate to `http://localhost:3000` using the browser tool and verify:
+
+- Page loads without connection errors
+- No 500/502/503 errors
+- Login or homepage content is visible
+
+**If verification fails**: Wait 30 seconds and retry up to 3 times before reporting failure.
+
+### Prerequisites Checklist
+
+| Step | Command/Action                     | Status |
+| ---- | ---------------------------------- | ------ |
+| 1    | Kill port 3000 processes           | ☐      |
+| 2    | `docker compose down -v`           | ☐      |
+| 3    | `docker compose up --build -d`     | ☐      |
+| 4    | Verify containers healthy          | ☐      |
+| 5    | Verify `localhost:3000` accessible | ☐      |
+
+**Proceed to testing only when all prerequisites are ☑**
 
 ## Screenshot Setup
 
@@ -27,7 +85,6 @@ Screenshot naming: `{page_name}.png` (e.g., `homepage.png`, `chat.png`)
 | -------------- | ---------- | ----------------------------- |
 | Homepage/Login | `/`        | Page loads, no console errors |
 | Sign Up        | `/sign-up` | Form displays correctly       |
-| Sign In        | `/sign-in` | Form displays correctly       |
 
 **Action**: Create a test account if needed:
 
@@ -73,10 +130,8 @@ After login, visit each page and verify it loads without errors:
 | ---------------- | --------------------------------------- | ------------------------- |
 | General Settings | `/dashboard/[id]/settings`              | Settings form loads       |
 | Integrations     | `/dashboard/[id]/settings/integrations` | Integration list displays |
-| Team             | `/dashboard/[id]/settings/team`         | Team members list loads   |
-| Billing          | `/dashboard/[id]/settings/billing`      | Billing info displays     |
 
-📸 Screenshots: `settings.png`, `integrations.png`, `team.png`, `billing.png`
+📸 Screenshots: `settings.png`, `integrations.png`
 
 ---
 
@@ -113,7 +168,7 @@ For each page:
 After completing all checks:
 
 ```
-Pages Tested: ___/17
+Pages Tested: ___/14
 Pages with Errors: ___
 Screenshots Captured: ___
 
@@ -133,7 +188,6 @@ Status: PASS / FAIL
 ```
 /
 /sign-up
-/sign-in
 /dashboard/[id]
 /dashboard/[id]/chat
 /dashboard/[id]/conversations
@@ -145,6 +199,4 @@ Status: PASS / FAIL
 /dashboard/[id]/websites
 /dashboard/[id]/settings
 /dashboard/[id]/settings/integrations
-/dashboard/[id]/settings/team
-/dashboard/[id]/settings/billing
 ```
