@@ -194,7 +194,7 @@ export default async function DocumentsPage({
       return (
         <DocumentsEmptyState
           organizationId={organizationId}
-          hasMsAccount={hasMsAccount}
+          hasMicrosoftAccount={hasMsAccount}
         />
       );
     }

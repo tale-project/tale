@@ -1,14 +1,13 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { Package, MoreVertical, ExternalLink, Plus } from 'lucide-react';
+import { useMemo } from 'react';
+import { Package, MoreVertical, ExternalLink } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import {
   DataTable,
   DataTableEmptyState,
-  DataTableActionMenu,
 } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { IconButton } from '@/components/ui/icon-button';
@@ -20,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { formatDate } from '@/lib/utils/date/format';
 import ProductImage from './product-image';
-import ImportProductsDialog from './import-products-dialog';
+import { ProductsActionMenu } from './products-action-menu';
 import ProductActions from './product-actions';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
@@ -51,10 +50,6 @@ export default function ProductTable({
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
-
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-
-  const handleImportClick = useCallback(() => setIsImportDialogOpen(true), []);
 
   // Use unified URL filters hook with sorting
   const {
@@ -237,81 +232,55 @@ export default function ProductTable({
   // Show empty state when no products and no filters
   if (emptyProducts) {
     return (
-      <>
-        <DataTableEmptyState
-          icon={Package}
-          title={tProducts('emptyState.title')}
-          description={tProducts('emptyState.description')}
-          actionMenu={
-            <DataTableActionMenu
-              label={tProducts('importMenu.importProducts')}
-              icon={Plus}
-              onClick={handleImportClick}
-            />
-          }
-        />
-        <ImportProductsDialog
-          isOpen={isImportDialogOpen}
-          onClose={() => setIsImportDialogOpen(false)}
-          organizationId={organizationId}
-        />
-      </>
+      <DataTableEmptyState
+        icon={Package}
+        title={tProducts('emptyState.title')}
+        description={tProducts('emptyState.description')}
+        actionMenu={<ProductsActionMenu organizationId={organizationId} />}
+      />
     );
   }
 
   return (
-    <>
-      <ImportProductsDialog
-        isOpen={isImportDialogOpen}
-        onClose={() => setIsImportDialogOpen(false)}
-        organizationId={organizationId}
-      />
-      <DataTable
-        columns={columns}
-        data={products}
-        getRowId={(row) => row.id}
-        isLoading={isLoading}
-        stickyLayout
-        sorting={{
-          initialSorting: sorting,
-          onSortingChange: setSorting,
-        }}
-        search={{
-          value: filterValues.query,
-          onChange: (value) => setFilter('query', value),
-          placeholder: tProducts('searchPlaceholder'),
-        }}
-        filters={filterConfigs}
-        isFiltersLoading={isPending}
-        onClearFilters={clearAll}
-        actionMenu={
-          <DataTableActionMenu
-            label={tProducts('importMenu.importProducts')}
-            icon={Plus}
-            onClick={handleImportClick}
-          />
-        }
-        emptyState={
-          hasActiveFilters
-            ? {
-                title: tProducts('searchEmptyState.title'),
-                description: tProducts('searchEmptyState.description'),
-                isFiltered: true,
-              }
-            : undefined
-        }
-        pagination={{
-          total: data?.total ?? 0,
-          pageSize: pagination.pageSize,
-          totalPages: Math.ceil((data?.total ?? 0) / pagination.pageSize),
-          hasNextPage: data?.hasNextPage ?? false,
-          hasPreviousPage: pagination.page > 1,
-          onPageChange: setPage,
-          onPageSizeChange: setPageSize,
-          clientSide: false,
-        }}
-        currentPage={pagination.page}
-      />
-    </>
+    <DataTable
+      columns={columns}
+      data={products}
+      getRowId={(row) => row.id}
+      isLoading={isLoading}
+      stickyLayout
+      sorting={{
+        initialSorting: sorting,
+        onSortingChange: setSorting,
+      }}
+      search={{
+        value: filterValues.query,
+        onChange: (value) => setFilter('query', value),
+        placeholder: tProducts('searchPlaceholder'),
+      }}
+      filters={filterConfigs}
+      isFiltersLoading={isPending}
+      onClearFilters={clearAll}
+      actionMenu={<ProductsActionMenu organizationId={organizationId} />}
+      emptyState={
+        hasActiveFilters
+          ? {
+              title: tProducts('searchEmptyState.title'),
+              description: tProducts('searchEmptyState.description'),
+              isFiltered: true,
+            }
+          : undefined
+      }
+      pagination={{
+        total: data?.total ?? 0,
+        pageSize: pagination.pageSize,
+        totalPages: Math.ceil((data?.total ?? 0) / pagination.pageSize),
+        hasNextPage: data?.hasNextPage ?? false,
+        hasPreviousPage: pagination.page > 1,
+        onPageChange: setPage,
+        onPageSizeChange: setPageSize,
+        clientSide: false,
+      }}
+      currentPage={pagination.page}
+    />
   );
 }

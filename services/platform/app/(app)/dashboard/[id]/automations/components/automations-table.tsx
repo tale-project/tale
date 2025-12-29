@@ -4,22 +4,19 @@ import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { type Preloaded } from 'convex/react';
 import {
-  useCreateAutomation,
   useDuplicateAutomation,
   useDeleteAutomation,
 } from '../hooks';
 import {
   Copy,
   MoreVertical,
-  Plus,
-  Sparkles,
   Trash2,
   Workflow,
 } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
+import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from '@/hooks/use-toast';
 import { useDateFormat } from '@/hooks/use-date-format';
-import CreateAutomationDialog from './create-automation-dialog';
+import { AutomationsActionMenu } from './automations-action-menu';
 import DeleteAutomationDialog from './delete-automation-dialog';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
@@ -47,7 +44,6 @@ export default function AutomationsTable({
   organizationId,
   preloadedAutomations,
 }: AutomationsTableProps) {
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [automationToDelete, setAutomationToDelete] =
     useState<Doc<'wfDefinitions'> | null>(null);
@@ -107,13 +103,8 @@ export default function AutomationsTable({
   const automations = data?.items ?? [];
   const emptyAutomations = automations.length === 0 && !hasActiveFilters;
 
-  const createAutomation = useCreateAutomation();
   const duplicateAutomation = useDuplicateAutomation();
   const deleteAutomation = useDeleteAutomation();
-
-  const handleCreateAutomation = () => {
-    setCreateDialogOpen(true);
-  };
 
   const handleDuplicateAutomation = useCallback(
     async (workflow: Doc<'wfDefinitions'>) => {
@@ -283,38 +274,27 @@ export default function AutomationsTable({
         key: 'status',
         title: tTables('headers.status'),
         options: [
-          { value: 'active', label: 'Published' },
-          { value: 'draft', label: 'Draft' },
+          { value: 'active', label: tCommon('status.published') },
+          { value: 'draft', label: tCommon('status.draft') },
         ],
         selectedValues: filterValues.status,
         onChange: (values: string[]) => setFilter('status', values),
       },
     ],
-    [filterValues, setFilter, tTables],
+    [filterValues, setFilter, tTables, tCommon],
   );
 
   // Show empty state when no automations and no filters
   if (emptyAutomations) {
     return (
-      <>
-        <DataTableEmptyState
-          icon={Workflow}
-          title={tEmpty('automations.title')}
-          description={tEmpty('automations.description')}
-          actionMenu={
-            <DataTableActionMenu
-              label={tAutomations('createWithAI')}
-              icon={Sparkles}
-              onClick={handleCreateAutomation}
-            />
-          }
-        />
-        <CreateAutomationDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          organizationId={organizationId}
-        />
-      </>
+      <DataTableEmptyState
+        icon={Workflow}
+        title={tEmpty('automations.title')}
+        description={tEmpty('automations.description')}
+        actionMenu={
+          <AutomationsActionMenu organizationId={organizationId} variant="ai" />
+        }
+      />
     );
   }
 
@@ -339,13 +319,7 @@ export default function AutomationsTable({
         filters={filterConfigs}
         isFiltersLoading={isPending}
         onClearFilters={clearAll}
-        actionMenu={
-          <DataTableActionMenu
-            label={tAutomations('createButton')}
-            icon={Plus}
-            onClick={handleCreateAutomation}
-          />
-        }
+        actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
         emptyState={{
           title: tCommon('search.noResults'),
           description: tCommon('search.tryAdjusting'),
@@ -362,11 +336,6 @@ export default function AutomationsTable({
           clientSide: false,
         }}
         currentPage={pagination.page}
-      />
-      <CreateAutomationDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        organizationId={organizationId}
       />
       <DeleteAutomationDialog
         open={deleteDialogOpen}

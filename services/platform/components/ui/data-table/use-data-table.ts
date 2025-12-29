@@ -6,10 +6,8 @@ import type {
   FilterDefinitions,
   ParsedFilters,
   UseUrlFiltersReturn,
-  MultiSelectFilterDefinition,
   SortingState,
 } from '@/lib/pagination/types';
-import type { FilterConfig } from './data-table-filters';
 
 export interface DataTableSearchConfig {
   /** Current search value */
@@ -32,8 +30,6 @@ export interface DataTableSortingConfig {
 export interface UseDataTableOptions<T extends FilterDefinitions> {
   /** URL filters return object from useUrlFilters */
   urlFilters: UseUrlFiltersReturn<T>;
-  /** Translation function for label keys */
-  t: (key: string) => string;
   /** Search configuration */
   search?: {
     /** Filter key for search (defaults to 'query') */
@@ -43,15 +39,11 @@ export interface UseDataTableOptions<T extends FilterDefinitions> {
     /** Width class for search input */
     className?: string;
   };
-  /** Override options or labels for specific filters */
-  filterOverrides?: Partial<Record<string, Partial<FilterConfig>>>;
 }
 
 export interface UseDataTableReturn {
   /** Search configuration for DataTable (undefined if no search filter) */
   searchConfig: DataTableSearchConfig | undefined;
-  /** Filter configurations for DataTable */
-  filterConfigs: FilterConfig[];
   /** Sorting configuration for DataTable (spread into DataTable props) */
   sortingConfig: DataTableSortingConfig;
   /** Whether any filters are active */
@@ -63,11 +55,11 @@ export interface UseDataTableReturn {
 }
 
 /**
- * Combined hook for DataTable search, filter, and sorting configuration.
+ * Hook for DataTable search and sorting configuration.
  *
- * Converts filter definitions from useUrlFilters into the format
- * expected by DataTable's props. Handles translations, state management,
- * and URL synchronization automatically.
+ * Extracts search and sorting state from useUrlFilters into the format
+ * expected by DataTable's props. Filter configs should be built
+ * manually by the consuming component with proper translations.
  *
  * @example
  * ```tsx
@@ -78,17 +70,24 @@ export interface UseDataTableReturn {
  *     sorting: { defaultSort: 'createdAt', defaultDesc: true },
  *   });
  *
- *   const {
- *     searchConfig,
- *     filterConfigs,
- *     sortingConfig,
- *     clearAll,
- *     isPending,
- *   } = useDataTable({
+ *   const { searchConfig, sortingConfig, clearAll, isPending, hasActiveFilters } = useDataTable({
  *     urlFilters,
- *     t,
  *     search: { placeholder: t('searchPlaceholder') },
  *   });
+ *
+ *   // Build filter configs manually with translations
+ *   const filterConfigs = useMemo(() => [
+ *     {
+ *       key: 'status',
+ *       title: t('headers.status'),
+ *       options: [
+ *         { value: 'active', label: t('status.active') },
+ *         { value: 'inactive', label: t('status.inactive') },
+ *       ],
+ *       selectedValues: urlFilters.filters.status,
+ *       onChange: (values) => urlFilters.setFilter('status', values),
+ *     },
+ *   ], [t, urlFilters]);
  *
  *   return (
  *     <DataTable
@@ -107,7 +106,7 @@ export interface UseDataTableReturn {
 export function useDataTable<T extends FilterDefinitions>(
   options: UseDataTableOptions<T>,
 ): UseDataTableReturn {
-  const { urlFilters, t, search, filterOverrides = {} } = options;
+  const { urlFilters, search } = options;
 
   // Build search config
   const searchConfig = useMemo((): DataTableSearchConfig | undefined => {
@@ -131,41 +130,6 @@ export function useDataTable<T extends FilterDefinitions>(
     };
   }, [urlFilters, search]);
 
-  // Build filter configs
-  const filterConfigs = useMemo((): FilterConfig[] => {
-    const result: FilterConfig[] = [];
-
-    for (const [key, definition] of Object.entries(urlFilters.definitions)) {
-      // Only process multiSelect filters (search is handled separately)
-      if (definition.type !== 'multiSelect') continue;
-
-      const multiSelectDef = definition as MultiSelectFilterDefinition;
-      const filters = urlFilters.filters as ParsedFilters<T>;
-      const selectedValues = (filters[key as keyof T] as string[]) || [];
-      const override = filterOverrides[key];
-
-      const config: FilterConfig = {
-        key,
-        title: override?.title ?? t(multiSelectDef.titleKey),
-        options:
-          override?.options ??
-          multiSelectDef.options.map((opt) => ({
-            value: opt.value,
-            label: t(opt.labelKey),
-          })),
-        selectedValues,
-        onChange: (values: string[]) => {
-          urlFilters.setFilter(key as keyof T, values as ParsedFilters<T>[keyof T]);
-        },
-        grid: override?.grid ?? multiSelectDef.grid,
-      };
-
-      result.push(config);
-    }
-
-    return result;
-  }, [urlFilters, t, filterOverrides]);
-
   // Build sorting config
   const sortingConfig = useMemo(
     (): DataTableSortingConfig => ({
@@ -177,7 +141,6 @@ export function useDataTable<T extends FilterDefinitions>(
 
   return {
     searchConfig,
-    filterConfigs,
     sortingConfig,
     hasActiveFilters: urlFilters.hasActiveFilters,
     clearAll: urlFilters.clearAll,

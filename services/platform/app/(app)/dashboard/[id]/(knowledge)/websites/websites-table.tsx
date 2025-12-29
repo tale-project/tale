@@ -1,21 +1,20 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Loader, Globe, Plus } from 'lucide-react';
+import { Loader, Globe } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import {
   DataTable,
   DataTableEmptyState,
-  DataTableActionMenu,
 } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { WebsiteIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
 import WebsiteRowActions from './website-row-actions';
-import AddWebsiteDialog from './add-website-dialog';
+import { WebsitesActionMenu } from './websites-action-menu';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -34,10 +33,6 @@ export default function WebsitesTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
   const locale = useLocale();
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-
-  const handleAddClick = useCallback(() => setIsAddDialogOpen(true), []);
 
   // Use unified URL filters hook with sorting
   const {
@@ -186,72 +181,46 @@ export default function WebsitesTable({
   // Show empty state when no websites and no filters
   if (emptyWebsites) {
     return (
-      <>
-        <DataTableEmptyState
-          icon={Globe}
-          title={tEmpty('websites.title')}
-          description={tEmpty('websites.description')}
-          actionMenu={
-            <DataTableActionMenu
-              label={tWebsites('addButton')}
-              icon={Plus}
-              onClick={handleAddClick}
-            />
-          }
-        />
-        <AddWebsiteDialog
-          isOpen={isAddDialogOpen}
-          onClose={() => setIsAddDialogOpen(false)}
-          organizationId={organizationId}
-        />
-      </>
+      <DataTableEmptyState
+        icon={Globe}
+        title={tEmpty('websites.title')}
+        description={tEmpty('websites.description')}
+        actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+      />
     );
   }
 
   return (
-    <>
-      <AddWebsiteDialog
-        isOpen={isAddDialogOpen}
-        onClose={() => setIsAddDialogOpen(false)}
-        organizationId={organizationId}
-      />
-      <DataTable
-        columns={columns}
-        data={websites}
-        getRowId={(row) => row._id}
-        isLoading={isLoading}
-        stickyLayout
-        sorting={{
-          initialSorting: sorting,
-          onSortingChange: setSorting,
-        }}
-        search={{
-          value: filterValues.query,
-          onChange: (value) => setFilter('query', value),
-          placeholder: tWebsites('searchPlaceholder'),
-        }}
-        filters={filterConfigs}
-        isFiltersLoading={isPending}
-        onClearFilters={clearAll}
-        actionMenu={
-          <DataTableActionMenu
-            label={tWebsites('addButton')}
-            icon={Plus}
-            onClick={handleAddClick}
-          />
-        }
-        pagination={{
-          total: data?.total ?? 0,
-          pageSize: pagination.pageSize,
-          totalPages: data?.totalPages ?? 1,
-          hasNextPage: data?.hasNextPage ?? false,
-          hasPreviousPage: data?.hasPreviousPage ?? false,
-          onPageChange: setPage,
-          onPageSizeChange: setPageSize,
-          clientSide: false,
-        }}
-        currentPage={pagination.page}
-      />
-    </>
+    <DataTable
+      columns={columns}
+      data={websites}
+      getRowId={(row) => row._id}
+      isLoading={isLoading}
+      stickyLayout
+      sorting={{
+        initialSorting: sorting,
+        onSortingChange: setSorting,
+      }}
+      search={{
+        value: filterValues.query,
+        onChange: (value) => setFilter('query', value),
+        placeholder: tWebsites('searchPlaceholder'),
+      }}
+      filters={filterConfigs}
+      isFiltersLoading={isPending}
+      onClearFilters={clearAll}
+      actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+      pagination={{
+        total: data?.total ?? 0,
+        pageSize: pagination.pageSize,
+        totalPages: data?.totalPages ?? 1,
+        hasNextPage: data?.hasNextPage ?? false,
+        hasPreviousPage: data?.hasPreviousPage ?? false,
+        onPageChange: setPage,
+        onPageSizeChange: setPageSize,
+        clientSide: false,
+      }}
+      currentPage={pagination.page}
+    />
   );
 }
