@@ -3,11 +3,11 @@
  * status, priority, category, and search (business logic)
  *
  * Optimization notes:
- * - Pre-filters conversations BEFORE calling transformConversation (which is expensive)
- * - Priority and type filters are applied on raw conversation data
- * - Search filter requires transformed data (title/description are computed)
- * - Sorting by last_message_at requires all matching conversations to be transformed
- *   (this is a limitation since last_message_at is computed from messages)
+ * - Uses compound index `by_org_status_lastMessageAt` for efficient sorted pagination
+ * - Pre-filters on raw data (priority, type, search) BEFORE transformation
+ * - Paginates BEFORE calling transformConversation (which is expensive)
+ * - Only transforms the paginated subset of conversations
+ * - Search filter works on raw data (subject + metadata.description)
  */
 
 import type { QueryCtx } from '../../_generated/server';
@@ -52,30 +52,49 @@ export async function getConversationsPage(
 
   const searchLower = args.search?.toLowerCase();
 
-  // Use index query with organizationId and status (default: 'open')
+  // Use compound index for sorted results (by lastMessageAt descending)
+  // This allows efficient pagination without loading all conversations
   const baseQuery = ctx.db
     .query('conversations')
-    .withIndex('by_organizationId_and_status', (q) =>
+    .withIndex('by_org_status_lastMessageAt', (q) =>
       q
         .eq('organizationId', args.organizationId)
         .eq('status', args.status ?? 'open'),
-    );
+    )
+    .order('desc'); // Sort by lastMessageAt descending (latest first)
 
-  // Phase 1: Pre-filter conversations BEFORE expensive transformation
-  // Priority and type are stored on the conversation, so we can filter early
+  // Phase 1: Pre-filter on raw data and collect for pagination
+  // All filters work on raw conversation data, no transformation needed
   const preFilteredConversations: Array<Doc<'conversations'>> = [];
 
   for await (const row of baseQuery) {
-    // Priority filter: apply on raw data (priority is stored on conversation)
+    // Priority filter: apply on raw data
     if (allowedPriorities && allowedPriorities.size > 0) {
       if (!row.priority || !allowedPriorities.has(row.priority)) {
         continue;
       }
     }
 
-    // Category/Type filter: apply on raw data (type is stored on conversation)
+    // Category/Type filter: apply on raw data
     if (allowedTypes && allowedTypes.size > 0) {
       if (!row.type || !allowedTypes.has(row.type)) {
+        continue;
+      }
+    }
+
+    // Search filter: apply on raw data (subject + metadata.description)
+    // title = conversation.subject || 'Untitled Conversation'
+    // description = metadata.description || conversation.subject || 'No description'
+    if (searchLower) {
+      const subject = row.subject?.toLowerCase() ?? '';
+      const metadataDescription = (
+        (row.metadata as { description?: string })?.description ?? ''
+      ).toLowerCase();
+
+      if (
+        !subject.includes(searchLower) &&
+        !metadataDescription.includes(searchLower)
+      ) {
         continue;
       }
     }
@@ -83,42 +102,20 @@ export async function getConversationsPage(
     preFilteredConversations.push(row);
   }
 
-  // Phase 2: Transform conversations (expensive - fetches messages, customer, etc.)
-  // Only transform conversations that passed the pre-filter
-  const allConversations: Array<
-    Awaited<ReturnType<typeof transformConversation>>
-  > = [];
-
-  for (const row of preFilteredConversations) {
-    const conversation = await transformConversation(ctx, row);
-
-    // Search filter: requires transformed data (title/description are computed)
-    if (searchLower) {
-      const title =
-        (conversation.title as string | undefined)?.toLowerCase() ?? '';
-      const description =
-        (conversation.description as string | undefined)?.toLowerCase() ?? '';
-
-      if (!title.includes(searchLower) && !description.includes(searchLower)) {
-        continue;
-      }
-    }
-
-    allConversations.push(conversation);
-  }
-
-  // Sort by last_message_at in descending order (latest first)
-  allConversations.sort((a, b) => {
-    const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-    const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-    return timeB - timeA; // descending order
-  });
-
-  const total = allConversations.length;
+  // Calculate pagination on pre-filtered results
+  const total = preFilteredConversations.length;
   const totalPages = Math.ceil(total / limit);
 
-  // Apply pagination after sorting
-  const results = allConversations.slice(offset, offset + limit);
+  // Apply pagination BEFORE transformation (key optimization)
+  const paginatedConversations = preFilteredConversations.slice(
+    offset,
+    offset + limit,
+  );
+
+  // Phase 2: Transform only the paginated conversations (expensive operation)
+  const results = await Promise.all(
+    paginatedConversations.map((conv) => transformConversation(ctx, conv)),
+  );
 
   return {
     conversations: results,

@@ -77,6 +77,9 @@ export default defineSchema({
     .index('by_organizationId_and_status', ['organizationId', 'status'])
     .index('by_organizationId_and_category', ['organizationId', 'category'])
     .index('by_organizationId_and_externalId', ['organizationId', 'externalId'])
+    // Compound indexes for efficient sorted pagination
+    .index('by_org_status_lastUpdated', ['organizationId', 'status', 'lastUpdated'])
+    .index('by_org_lastUpdated', ['organizationId', 'lastUpdated'])
     .searchIndex('search_products', {
       searchField: 'name',
       filterFields: ['organizationId', 'status', 'category'],
@@ -127,7 +130,11 @@ export default defineSchema({
     .index('by_organizationId_and_externalId', ['organizationId', 'externalId'])
     .index('by_organizationId_and_status', ['organizationId', 'status'])
     .index('by_organizationId_and_source', ['organizationId', 'source'])
-    .index('by_organizationId_and_locale', ['organizationId', 'locale']),
+    .index('by_organizationId_and_locale', ['organizationId', 'locale'])
+    .searchIndex('search_customers', {
+      searchField: 'name',
+      filterFields: ['organizationId', 'status'],
+    }),
 
   // Vendors
   vendors: defineTable({
@@ -474,6 +481,10 @@ export default defineSchema({
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))), // 'inbound' | 'outbound'
     providerId: v.optional(v.id('emailProviders')), // Email provider ID for this conversation
 
+    // Denormalized field for efficient sorting by last message time
+    // Updated when messages are added to the conversation
+    lastMessageAt: v.optional(v.number()),
+
     metadata: v.optional(v.any()), // Additional flexible data (to/from, timestamps, etc.)
   })
     .index('by_organizationId', ['organizationId'])
@@ -490,6 +501,12 @@ export default defineSchema({
     .index('by_organizationId_and_providerId', [
       'organizationId',
       'providerId',
+    ])
+    // Compound index for efficient sorted pagination by status and lastMessageAt
+    .index('by_org_status_lastMessageAt', [
+      'organizationId',
+      'status',
+      'lastMessageAt',
     ]),
 
   // Conversation Messages (one row per message in a conversation)

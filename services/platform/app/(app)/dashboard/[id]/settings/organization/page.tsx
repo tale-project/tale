@@ -1,5 +1,9 @@
 import { Suspense } from 'react';
-import { fetchQuery } from '@/lib/convex-next-server';
+import {
+  preloadQuery,
+  preloadedQueryResult,
+  type Preloaded,
+} from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import OrganizationSettings from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
@@ -9,6 +13,12 @@ import { Stack, HStack } from '@/components/ui/layout';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { AccessDenied } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
+
+// Export preloaded types for use in client components
+export type PreloadedMemberContext = Preloaded<
+  typeof api.member.getCurrentMemberContext
+>;
+export type PreloadedMembers = Preloaded<typeof api.member.listByOrganization>;
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic
@@ -17,7 +27,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('organization.title')} | ${t('suffix')}`,
+    title: t('organization.title'),
     description: t('organization.description'),
   };
 }
@@ -82,36 +92,49 @@ async function OrganizationSettingsPageContent({
     redirect('/log-in');
   }
 
-  // Check user's role in the organization
-  const memberContext = await fetchQuery(
+  // Preload member context for SSR + real-time reactivity on client
+  const preloadedMemberContext = await preloadQuery(
     api.member.getCurrentMemberContext,
-    {
-      organizationId,
-    },
+    { organizationId },
     { token },
   );
+
+  // Extract result on server to check permissions
+  const memberContext = preloadedQueryResult(preloadedMemberContext);
 
   // Only Admin can access organization settings
   if (!memberContext.isAdmin) {
     const { t } = await getT('accessDenied');
-    return (
-      <AccessDenied message={t('organization')} />
-    );
+    return <AccessDenied message={t('organization')} />;
   }
 
-  const organization = await fetchQuery(
-    api.organizations.getOrganization,
-    {
-      id: organizationId,
-    },
-    { token },
-  );
+  // Preload organization and members in parallel for SSR + real-time reactivity
+  const [preloadedOrganization, preloadedMembers] = await Promise.all([
+    preloadQuery(
+      api.organizations.getOrganization,
+      { id: organizationId },
+      { token },
+    ),
+    preloadQuery(
+      api.member.listByOrganization,
+      { organizationId, sortOrder: 'asc' },
+      { token },
+    ),
+  ]);
+
+  const organization = preloadedQueryResult(preloadedOrganization);
 
   if (!organization) {
     return notFound();
   }
 
-  return <OrganizationSettings organization={organization} />;
+  return (
+    <OrganizationSettings
+      organization={organization}
+      preloadedMemberContext={preloadedMemberContext}
+      preloadedMembers={preloadedMembers}
+    />
+  );
 }
 
 export default function OrganizationSettingsPage({

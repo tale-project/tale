@@ -1,12 +1,19 @@
 /**
  * Get products with offset-based pagination, search, and filtering (public API)
  *
- * Uses offset-based pagination for traditional page navigation with total counts.
+ * Optimization notes:
+ * - Uses search index for name/description queries (most efficient)
+ * - Uses sorted indexes for lastUpdated sorting (default sort)
+ * - Falls back to async iteration with filter for other cases
+ * - Paginates BEFORE collecting all data when possible
  */
 
 import { QueryCtx } from '../../_generated/server';
 import { Doc } from '../../_generated/dataModel';
-import { normalizePaginationOptions, calculatePaginationMeta } from '../../lib/pagination';
+import {
+  normalizePaginationOptions,
+  calculatePaginationMeta,
+} from '../../lib/pagination';
 import {
   ProductListResponse,
   ProductStatus,
@@ -86,32 +93,6 @@ function mapProduct(product: Doc<'products'>) {
   };
 }
 
-function buildQuery(ctx: QueryCtx, args: GetProductsArgs) {
-  const { organizationId, status, category } = args;
-
-  if (status !== undefined) {
-    return ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_status', (q) =>
-        q.eq('organizationId', organizationId).eq('status', status),
-      );
-  }
-
-  if (category !== undefined) {
-    return ctx.db
-      .query('products')
-      .withIndex('by_organizationId_and_category', (q) =>
-        q.eq('organizationId', organizationId).eq('category', category),
-      );
-  }
-
-  return ctx.db
-    .query('products')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', organizationId),
-    );
-}
-
 export async function getProducts(
   ctx: QueryCtx,
   args: GetProductsArgs,
@@ -124,15 +105,236 @@ export async function getProducts(
   const sortBy = args.sortBy ?? 'lastUpdated';
   const sortOrder = args.sortOrder ?? 'desc';
 
-  const query = buildQuery(ctx, args);
+  // Fast path: Use search index when searchQuery is provided
+  if (searchQuery) {
+    return getProductsWithSearch(ctx, {
+      ...args,
+      searchQuery,
+      currentPage,
+      pageSize,
+      sortBy,
+      sortOrder,
+    });
+  }
+
+  // Fast path: Use sorted index when sorting by lastUpdated (default)
+  if (sortBy === 'lastUpdated' && !args.category) {
+    return getProductsWithSortedIndex(ctx, {
+      ...args,
+      currentPage,
+      pageSize,
+      sortOrder,
+    });
+  }
+
+  // Fallback: Use async iteration for other cases
+  return getProductsWithIteration(ctx, {
+    ...args,
+    searchQuery,
+    currentPage,
+    pageSize,
+    sortBy,
+    sortOrder,
+  });
+}
+
+/**
+ * Use search index for name queries - most efficient for text search
+ */
+async function getProductsWithSearch(
+  ctx: QueryCtx,
+  args: GetProductsArgs & {
+    searchQuery: string;
+    currentPage: number;
+    pageSize: number;
+    sortBy: ProductSortBy;
+    sortOrder: SortOrder;
+  },
+): Promise<ProductListResponse> {
+  const { organizationId, status, category, searchQuery, currentPage, pageSize, sortBy, sortOrder } =
+    args;
+
+  // Use search index with optional filters
+  let searchResults: Array<Doc<'products'>>;
+
+  if (status !== undefined) {
+    searchResults = await ctx.db
+      .query('products')
+      .withSearchIndex('search_products', (q) =>
+        q
+          .search('name', searchQuery)
+          .eq('organizationId', organizationId)
+          .eq('status', status),
+      )
+      .collect();
+  } else {
+    searchResults = await ctx.db
+      .query('products')
+      .withSearchIndex('search_products', (q) =>
+        q.search('name', searchQuery).eq('organizationId', organizationId),
+      )
+      .collect();
+  }
+
+  // Apply category filter if specified (not in search index)
+  let filtered = searchResults;
+  if (category !== undefined) {
+    filtered = searchResults.filter((p) => p.category === category);
+  }
+
+  // Also include description matches (search index only searches name)
+  // Get products matching description that weren't found by name search
+  const nameMatchIds = new Set(searchResults.map((p) => p._id));
+  const descriptionMatches: Array<Doc<'products'>> = [];
+
+  // Query for description matches using async iteration
+  const baseQuery =
+    status !== undefined
+      ? ctx.db
+          .query('products')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', organizationId).eq('status', status),
+          )
+      : ctx.db
+          .query('products')
+          .withIndex('by_organizationId', (q) =>
+            q.eq('organizationId', organizationId),
+          );
+
+  for await (const product of baseQuery) {
+    if (nameMatchIds.has(product._id)) continue;
+    if (category !== undefined && product.category !== category) continue;
+    if (product.description?.toLowerCase().includes(searchQuery)) {
+      descriptionMatches.push(product);
+    }
+  }
+
+  // Merge results
+  filtered = [...filtered, ...descriptionMatches];
+
+  const total = filtered.length;
+  const { hasNextPage } = calculatePaginationMeta(total, currentPage, pageSize);
+
+  // Sort and paginate
+  filtered.sort((a, b) => compareProducts(a, b, sortBy, sortOrder));
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedProducts = filtered.slice(startIndex, startIndex + pageSize);
+
+  return {
+    products: paginatedProducts.map(mapProduct),
+    total,
+    hasNextPage,
+    currentPage,
+    pageSize,
+  };
+}
+
+/**
+ * Use sorted index for lastUpdated sorting - efficient for default sort
+ */
+async function getProductsWithSortedIndex(
+  ctx: QueryCtx,
+  args: GetProductsArgs & {
+    currentPage: number;
+    pageSize: number;
+    sortOrder: SortOrder;
+  },
+): Promise<ProductListResponse> {
+  const { organizationId, status, currentPage, pageSize, sortOrder } = args;
+
+  // Use sorted index based on status filter
+  const query =
+    status !== undefined
+      ? ctx.db
+          .query('products')
+          .withIndex('by_org_status_lastUpdated', (q) =>
+            q.eq('organizationId', organizationId).eq('status', status),
+          )
+          .order(sortOrder)
+      : ctx.db
+          .query('products')
+          .withIndex('by_org_lastUpdated', (q) =>
+            q.eq('organizationId', organizationId),
+          )
+          .order(sortOrder);
+
+  // Collect all for accurate total count (needed for pagination UI)
+  // This is a tradeoff: accurate counts require reading all documents
+  const allProducts: Array<Doc<'products'>> = [];
+  for await (const product of query) {
+    allProducts.push(product);
+  }
+
+  const total = allProducts.length;
+  const { hasNextPage } = calculatePaginationMeta(total, currentPage, pageSize);
+
+  // Apply pagination (already sorted by index)
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedProducts = allProducts.slice(startIndex, startIndex + pageSize);
+
+  return {
+    products: paginatedProducts.map(mapProduct),
+    total,
+    hasNextPage,
+    currentPage,
+    pageSize,
+  };
+}
+
+/**
+ * Fallback to async iteration for complex filters/sorts
+ */
+async function getProductsWithIteration(
+  ctx: QueryCtx,
+  args: GetProductsArgs & {
+    searchQuery: string;
+    currentPage: number;
+    pageSize: number;
+    sortBy: ProductSortBy;
+    sortOrder: SortOrder;
+  },
+): Promise<ProductListResponse> {
+  const {
+    organizationId,
+    status,
+    category,
+    searchQuery,
+    currentPage,
+    pageSize,
+    sortBy,
+    sortOrder,
+  } = args;
+
+  // Build base query with best available index
+  let query;
+  if (status !== undefined) {
+    query = ctx.db
+      .query('products')
+      .withIndex('by_organizationId_and_status', (q) =>
+        q.eq('organizationId', organizationId).eq('status', status),
+      );
+  } else if (category !== undefined) {
+    query = ctx.db
+      .query('products')
+      .withIndex('by_organizationId_and_category', (q) =>
+        q.eq('organizationId', organizationId).eq('category', category),
+      );
+  } else {
+    query = ctx.db
+      .query('products')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', organizationId),
+      );
+  }
+
   const matchingProducts: Array<Doc<'products'>> = [];
 
   for await (const product of query) {
     // Apply category filter if both status and category are specified
     if (
-      args.status !== undefined &&
-      args.category !== undefined &&
-      product.category !== args.category
+      status !== undefined &&
+      category !== undefined &&
+      product.category !== category
     ) {
       continue;
     }
@@ -150,7 +352,10 @@ export async function getProducts(
   // Sort and paginate
   matchingProducts.sort((a, b) => compareProducts(a, b, sortBy, sortOrder));
   const startIndex = (currentPage - 1) * pageSize;
-  const paginatedProducts = matchingProducts.slice(startIndex, startIndex + pageSize);
+  const paginatedProducts = matchingProducts.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
 
   return {
     products: paginatedProducts.map(mapProduct),

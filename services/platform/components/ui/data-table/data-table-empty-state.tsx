@@ -1,30 +1,30 @@
 'use client';
 
-import { type LucideIcon } from 'lucide-react';
-import { type ReactNode } from 'react';
+import type { ReactNode, ComponentType } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { Stack, VStack, Center } from '@/components/ui/layout';
 
+/** Icon component type that accepts className prop */
+export type IconComponent = ComponentType<{ className?: string }>;
+
 export interface DataTableEmptyStateProps {
   /** Icon to display */
-  icon?: LucideIcon;
+  icon?: IconComponent;
   /** Title text */
   title: string;
   /** Description text */
   description?: string;
-  /** Action button or element */
-  action?: ReactNode;
+  /** Action menu element (use DataTableActionMenu component) */
+  actionMenu?: ReactNode;
   /** Additional class name */
   className?: string;
   /** Whether this is a "no results" state (filters applied but no matches) */
   isFiltered?: boolean;
-  /** Custom content to render instead of default layout */
-  children?: ReactNode;
 }
 
 /**
  * Unified empty state component for DataTable.
- * 
+ *
  * Supports two modes:
  * 1. Initial empty state - when there's no data at all (shows icon + CTA)
  * 2. Filtered empty state - when filters are applied but no results match
@@ -33,24 +33,10 @@ export function DataTableEmptyState({
   icon: Icon,
   title,
   description,
-  action,
+  actionMenu,
   className,
   isFiltered = false,
-  children,
 }: DataTableEmptyStateProps) {
-  if (children) {
-    return (
-      <div
-        className={cn(
-          'grid place-items-center flex-[1_1_0] ring-1 ring-border rounded-xl p-4',
-          className,
-        )}
-      >
-        {children}
-      </div>
-    );
-  }
-
   if (isFiltered) {
     return (
       <Center className={cn('py-16 px-4 text-center', className)}>
@@ -59,7 +45,7 @@ export function DataTableEmptyState({
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}
-          {action}
+          {actionMenu}
         </Stack>
       </Center>
     );
@@ -78,9 +64,8 @@ export function DataTableEmptyState({
         {description && (
           <p className="text-sm text-muted-foreground mb-5">{description}</p>
         )}
-        {action}
+        {actionMenu}
       </VStack>
     </Center>
   );
 }
-

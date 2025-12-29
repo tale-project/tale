@@ -7,6 +7,7 @@
 
 import { v } from 'convex/values';
 import { internalQuery, internalMutation } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import { cursorPaginationOptsValidator } from './lib/pagination';
 
@@ -623,5 +624,84 @@ export const bulkReopenConversations = mutationWithRLS({
       ctx,
       args.conversationIds,
     );
+  },
+});
+
+// =============================================================================
+// MIGRATION: Backfill lastMessageAt field for existing conversations
+// =============================================================================
+
+/**
+ * Backfill lastMessageAt for conversations that don't have it set.
+ * This migration should be run once after deploying the schema change.
+ * It processes conversations in batches to avoid timeout.
+ *
+ * Usage: Run via Convex dashboard or CLI:
+ * npx convex run conversations:backfillLastMessageAt
+ */
+export const backfillLastMessageAt = internalMutation({
+  args: {
+    batchSize: v.optional(v.number()),
+    cursor: v.optional(v.id('conversations')),
+  },
+  returns: v.object({
+    processed: v.number(),
+    nextCursor: v.union(v.id('conversations'), v.null()),
+    done: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const batchSize = args.batchSize ?? 100;
+
+    // Query conversations, optionally starting from cursor
+    const conversations = args.cursor
+      ? await ctx.db
+          .query('conversations')
+          .filter((q) => q.gt(q.field('_id'), args.cursor!))
+          .take(batchSize)
+      : await ctx.db.query('conversations').take(batchSize);
+
+    let processed = 0;
+    let lastId: string | null = null;
+
+    for (const conv of conversations) {
+      lastId = conv._id;
+
+      // Skip if already has lastMessageAt
+      if (conv.lastMessageAt !== undefined) {
+        continue;
+      }
+
+      // Find the latest message for this conversation
+      const latestMessage = await ctx.db
+        .query('conversationMessages')
+        .withIndex('by_conversationId_and_deliveredAt', (q) =>
+          q.eq('conversationId', conv._id),
+        )
+        .order('desc')
+        .first();
+
+      // Determine lastMessageAt from messages or fallback to creation time
+      let lastMessageAt: number;
+      if (latestMessage) {
+        // Use deliveredAt, sentAt, or _creationTime
+        lastMessageAt =
+          latestMessage.deliveredAt ??
+          latestMessage.sentAt ??
+          latestMessage._creationTime;
+      } else {
+        // No messages - use conversation creation time
+        lastMessageAt = conv._creationTime;
+      }
+
+      // Update the conversation
+      await ctx.db.patch(conv._id, { lastMessageAt });
+      processed++;
+    }
+
+    return {
+      processed,
+      nextCursor: lastId as Id<'conversations'> | null,
+      done: conversations.length < batchSize,
+    };
   },
 });

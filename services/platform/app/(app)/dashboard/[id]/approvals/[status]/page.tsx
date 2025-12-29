@@ -15,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   await connection();
   const { t } = await getT('metadata');
   return {
-    title: `${t('approvals.title')} | ${t('suffix')}`,
+    title: t('approvals.title'),
     description: t('approvals.description'),
   };
 }

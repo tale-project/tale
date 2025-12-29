@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo, useState, useCallback, ChangeEvent } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Search, Monitor, ClipboardList, RefreshCw } from 'lucide-react';
+import { Monitor, ClipboardList, RefreshCw, Plus } from 'lucide-react';
 import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
+import {
+  DataTable,
+  DataTableEmptyState,
+  DataTableActionMenu,
+} from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import Pagination from '@/components/ui/pagination';
-import ImportDocumentsMenu from './import-documents-menu';
 import BreadcrumbNavigation from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/ui/icons';
@@ -19,6 +21,8 @@ import DocumentIcon from '@/components/ui/document-icon';
 import RagStatusBadge from './rag-status-badge';
 import { useT } from '@/lib/i18n';
 import { useDateFormat } from '@/hooks/use-date-format';
+import { useDebounce } from '@/hooks/use-debounce';
+import { useDocumentUpload } from '../hooks/use-document-upload';
 
 export interface DocumentTableProps {
   items: DocumentItem[];
@@ -60,11 +64,56 @@ export default function DocumentTable({
     null,
   );
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploadFiles, isUploading } = useDocumentUpload({
+    organizationId,
+    onSuccess: () => router.refresh(),
+  });
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []) as File[];
+      if (files.length === 0) return;
+      await uploadFiles(files);
+      if (event.target) event.target.value = '';
+    },
+    [uploadFiles],
+  );
+
+  // Debounce search query for URL updates
+  const debouncedQuery = useDebounce(query, 300);
 
   // Initialize sorting state from props
   const initialSorting: SortingState = useMemo(() => [
     { id: initialSortField, desc: initialSortOrder === 'desc' }
   ], [initialSortField, initialSortOrder]);
+
+  const baseParams = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
+    return params;
+  }, [searchParams]);
+
+  // Update URL when debounced search changes
+  useEffect(() => {
+    // Skip URL update if the debounced query matches the initial search query
+    if (debouncedQuery === searchQuery) return;
+
+    const params = new URLSearchParams(baseParams.toString());
+    if (debouncedQuery.trim().length > 0) {
+      params.set('query', debouncedQuery.trim());
+    } else {
+      params.delete('query');
+    }
+    params.delete('page'); // Reset to first page when searching
+    const url = params.toString() ? `${pathname}?${params}` : pathname;
+    router.push(url);
+  }, [debouncedQuery, baseParams, pathname, router, searchQuery]);
 
   const handleSortingChange = useCallback(
     (sorting: SortingState | ((prev: SortingState) => SortingState)) => {
@@ -84,28 +133,9 @@ export default function DocumentTable({
     [searchParams, pathname, router, initialSorting],
   );
 
-  const baseParams = useMemo(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
-    return params;
-  }, [searchParams]);
-
-  const handleSearchChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setQuery(value);
-      const params = new URLSearchParams(baseParams.toString());
-      if (value.trim().length > 0) {
-        params.set('query', value.trim());
-      } else {
-        params.delete('query');
-      }
-      params.delete('page'); // Reset to first page when searching
-      const url = params.toString() ? `${pathname}?${params}` : pathname;
-      router.push(url);
-    },
-    [baseParams, pathname, router],
-  );
+  const handleSearchChange = useCallback((value: string) => {
+    setQuery(value);
+  }, []);
 
   // Memoize row className function to avoid recreation on every render
   const getRowClassName = useCallback(
@@ -271,17 +301,29 @@ export default function DocumentTable({
 
   if (emptyDocuments) {
     return (
-      <DataTableEmptyState
-        icon={ClipboardList}
-        title={tDocuments('emptyState.title')}
-        description={tDocuments('emptyState.description')}
-        action={
-          <ImportDocumentsMenu
-            organizationId={organizationId}
-            hasMicrosoftAccount={hasMicrosoftAccount}
-          />
-        }
-      />
+      <>
+        <DataTableEmptyState
+          icon={ClipboardList}
+          title={tDocuments('emptyState.title')}
+          description={tDocuments('emptyState.description')}
+          actionMenu={
+            <DataTableActionMenu
+              label={tDocuments('upload.importDocuments')}
+              icon={Plus}
+              onClick={handleUploadClick}
+            />
+          }
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          disabled={isUploading}
+          accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+      </>
     );
   }
 
@@ -298,27 +340,22 @@ export default function DocumentTable({
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
-        enableSorting
-        initialSorting={initialSorting}
-        onSortingChange={handleSortingChange}
-        header={
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="relative w-full sm:w-[300px]">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={handleSearchChange}
-                placeholder={tDocuments('searchPlaceholder')}
-                className="pl-8"
-              />
-            </div>
-            <HStack gap={3}>
-              <ImportDocumentsMenu
-                organizationId={organizationId}
-                hasMicrosoftAccount={hasMicrosoftAccount}
-              />
-            </HStack>
-          </div>
+        sorting={{
+          initialSorting: initialSorting,
+          onSortingChange: handleSortingChange,
+        }}
+        search={{
+          value: query,
+          onChange: handleSearchChange,
+          placeholder: tDocuments('searchPlaceholder'),
+          className: 'w-full sm:w-[300px]',
+        }}
+        actionMenu={
+          <DataTableActionMenu
+            label={tDocuments('upload.importDocuments')}
+            icon={Plus}
+            onClick={handleUploadClick}
+          />
         }
         emptyState={{
           title: tDocuments('searchEmptyState.title'),
@@ -343,6 +380,17 @@ export default function DocumentTable({
         storagePath={previewPath ?? undefined}
         documentId={previewDocumentId ?? undefined}
         fileName={previewFileName ?? undefined}
+      />
+
+      {/* Hidden file input for upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        disabled={isUploading}
+        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
+        onChange={handleFileChange}
+        className="hidden"
       />
     </Stack>
   );

@@ -9,7 +9,6 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
-import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { JsonViewer } from '@/components/ui/json-viewer';
@@ -395,32 +394,27 @@ export function ExecutionsTable({
       renderExpandedRow={renderExpandedRow}
       isLoading={isLoading}
       stickyLayout
-      enableSorting
-      initialSorting={sorting}
-      onSortingChange={setSorting}
-      header={
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <DataTableFilters
-            search={{
-              value: filterValues.query,
-              onChange: (value) => setFilter('query', value),
-              placeholder: tCommon('search.placeholder'),
-            }}
-            filters={filterConfigs}
-            isLoading={isPending}
-            onClearAll={clearAll}
-            dateRange={{
-              from: filterValues.dateRange?.from
-                ? new Date(filterValues.dateRange.from)
-                : undefined,
-              to: filterValues.dateRange?.to
-                ? new Date(filterValues.dateRange.to)
-                : undefined,
-              onChange: handleDateRangeChange,
-            }}
-          />
-        </div>
-      }
+      sorting={{
+        initialSorting: sorting,
+        onSortingChange: setSorting,
+      }}
+      search={{
+        value: filterValues.query,
+        onChange: (value) => setFilter('query', value),
+        placeholder: tCommon('search.placeholder'),
+      }}
+      filters={filterConfigs}
+      isFiltersLoading={isPending}
+      onClearFilters={clearAll}
+      dateRange={{
+        from: filterValues.dateRange?.from
+          ? new Date(filterValues.dateRange.from)
+          : undefined,
+        to: filterValues.dateRange?.to
+          ? new Date(filterValues.dateRange.to)
+          : undefined,
+        onChange: handleDateRangeChange,
+      }}
       emptyState={{
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),

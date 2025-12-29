@@ -1,19 +1,22 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Store } from 'lucide-react';
+import { Store, Plus } from 'lucide-react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableEmptyState,
+  DataTableActionMenu,
+} from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
-import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { LocaleIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
 import VendorRowActions from './vendor-row-actions';
-import ImportVendorsMenu from './import-vendors-menu';
+import ImportVendorsDialog from './import-vendors-dialog';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -31,6 +34,10 @@ export default function VendorsTable({
   const { t: tVendors } = useT('vendors');
   const { t: tTables } = useT('tables');
   const locale = useLocale();
+
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+
+  const handleImportClick = useCallback(() => setIsImportDialogOpen(true), []);
 
   // Use unified URL filters hook with sorting
   const {
@@ -187,51 +194,72 @@ export default function VendorsTable({
   // Show empty state when no vendors and no filters
   if (emptyVendors) {
     return (
-      <DataTableEmptyState
-        icon={Store}
-        title={tVendors('noVendorsYet')}
-        description={tVendors('uploadFirstVendor')}
-        action={<ImportVendorsMenu organizationId={organizationId} />}
-      />
+      <>
+        <DataTableEmptyState
+          icon={Store}
+          title={tVendors('noVendorsYet')}
+          description={tVendors('uploadFirstVendor')}
+          actionMenu={
+            <DataTableActionMenu
+              label={tVendors('importMenu.importVendors')}
+              icon={Plus}
+              onClick={handleImportClick}
+            />
+          }
+        />
+        <ImportVendorsDialog
+          isOpen={isImportDialogOpen}
+          onClose={() => setIsImportDialogOpen(false)}
+          organizationId={organizationId}
+        />
+      </>
     );
   }
 
   return (
-    <DataTable
-      columns={columns}
-      data={vendors}
-      getRowId={(row) => row._id}
-      isLoading={isLoading}
-      stickyLayout
-      enableSorting
-      initialSorting={sorting}
-      onSortingChange={setSorting}
-      header={
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <DataTableFilters
-            search={{
-              value: filterValues.query,
-              onChange: (value) => setFilter('query', value),
-              placeholder: tVendors('searchPlaceholder'),
-            }}
-            filters={filterConfigs}
-            isLoading={isPending}
-            onClearAll={clearAll}
+    <>
+      <ImportVendorsDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        organizationId={organizationId}
+      />
+      <DataTable
+        columns={columns}
+        data={vendors}
+        getRowId={(row) => row._id}
+        isLoading={isLoading}
+        stickyLayout
+        sorting={{
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
+        search={{
+          value: filterValues.query,
+          onChange: (value) => setFilter('query', value),
+          placeholder: tVendors('searchPlaceholder'),
+        }}
+        filters={filterConfigs}
+        isFiltersLoading={isPending}
+        onClearFilters={clearAll}
+        actionMenu={
+          <DataTableActionMenu
+            label={tVendors('importMenu.importVendors')}
+            icon={Plus}
+            onClick={handleImportClick}
           />
-          <ImportVendorsMenu organizationId={organizationId} />
-        </div>
-      }
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
-      }}
-      currentPage={pagination.page}
-    />
+        }
+        pagination={{
+          total: data?.total ?? 0,
+          pageSize: pagination.pageSize,
+          totalPages: data?.totalPages ?? 1,
+          hasNextPage: data?.hasNextPage ?? false,
+          hasPreviousPage: data?.hasPreviousPage ?? false,
+          onPageChange: setPage,
+          onPageSizeChange: setPageSize,
+          clientSide: false,
+        }}
+        currentPage={pagination.page}
+      />
+    </>
   );
 }

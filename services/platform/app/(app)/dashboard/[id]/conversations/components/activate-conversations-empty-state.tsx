@@ -14,7 +14,7 @@ export default function ActivateConversationsEmptyState({
   const { t } = useT('conversations');
 
   return (
-    <div className="flex items-center justify-center flex-1 ring-1 ring-border rounded-xl my-6 mx-4 px-4">
+    <div className="flex items-center justify-center flex-1 ring-1 ring-border rounded-xl py-12 px-4">
       <div className="flex flex-col items-center text-center max-w-md">
         <MessageSquare className="size-6 text-muted-foreground mb-5" />
         <h2 className="text-lg font-semibold text-foreground mb-2">

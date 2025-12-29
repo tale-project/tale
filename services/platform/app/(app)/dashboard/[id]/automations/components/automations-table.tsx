@@ -19,9 +19,8 @@ import {
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTable, DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
-import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -294,13 +293,6 @@ export default function AutomationsTable({
     [filterValues, setFilter, tTables],
   );
 
-  const createButton = (
-    <Button onClick={handleCreateAutomation} className="gap-2">
-      <Plus className="size-4" />
-      {tAutomations('createButton')}
-    </Button>
-  );
-
   // Show empty state when no automations and no filters
   if (emptyAutomations) {
     return (
@@ -309,11 +301,12 @@ export default function AutomationsTable({
           icon={Workflow}
           title={tEmpty('automations.title')}
           description={tEmpty('automations.description')}
-          action={
-            <Button onClick={handleCreateAutomation}>
-              <Sparkles className="size-4 mr-2" />
-              {tAutomations('createWithAI')}
-            </Button>
+          actionMenu={
+            <DataTableActionMenu
+              label={tAutomations('createWithAI')}
+              icon={Sparkles}
+              onClick={handleCreateAutomation}
+            />
           }
         />
         <CreateAutomationDialog
@@ -334,23 +327,24 @@ export default function AutomationsTable({
         onRowClick={handleRowClick}
         isLoading={isLoading}
         stickyLayout
-        enableSorting
-        initialSorting={sorting}
-        onSortingChange={setSorting}
-        header={
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <DataTableFilters
-              search={{
-                value: filterValues.query,
-                onChange: (value) => setFilter('query', value),
-                placeholder: tAutomations('searchPlaceholder'),
-              }}
-              filters={filterConfigs}
-              isLoading={isPending}
-              onClearAll={clearAll}
-            />
-            {createButton}
-          </div>
+        sorting={{
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
+        search={{
+          value: filterValues.query,
+          onChange: (value) => setFilter('query', value),
+          placeholder: tAutomations('searchPlaceholder'),
+        }}
+        filters={filterConfigs}
+        isFiltersLoading={isPending}
+        onClearFilters={clearAll}
+        actionMenu={
+          <DataTableActionMenu
+            label={tAutomations('createButton')}
+            icon={Plus}
+            onClick={handleCreateAutomation}
+          />
         }
         emptyState={{
           title: tCommon('search.noResults'),

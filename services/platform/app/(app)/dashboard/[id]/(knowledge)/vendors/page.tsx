@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('vendors.title')} | ${t('suffix')}`,
+    title: t('vendors.title'),
     description: t('vendors.description'),
   };
 }

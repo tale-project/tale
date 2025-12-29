@@ -8,9 +8,9 @@ import { redirect } from 'next/navigation';
 import {
   DataTableSkeleton,
   DataTableEmptyState,
+  DataTableActionMenu,
 } from '@/components/ui/data-table';
 import { Workflow, Sparkles } from 'lucide-react';
-import { LinkButton } from '@/components/ui/button';
 import { AccessDenied, ContentWrapper } from '@/components/layout';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('automations.title')} | ${t('suffix')}`,
+    title: t('automations.title'),
     description: t('automations.description'),
   };
 }
@@ -68,10 +68,12 @@ async function AutomationsEmptyState({
         icon={Workflow}
         title={tEmpty('automations.title')}
         description={tEmpty('automations.description')}
-        action={
-          <LinkButton href={`/dashboard/${organizationId}/chat`} icon={Sparkles}>
-            {tAutomations('createWithAI')}
-          </LinkButton>
+        actionMenu={
+          <DataTableActionMenu
+            label={tAutomations('createWithAI')}
+            icon={Sparkles}
+            href={`/dashboard/${organizationId}/chat`}
+          />
         }
       />
     </ContentWrapper>

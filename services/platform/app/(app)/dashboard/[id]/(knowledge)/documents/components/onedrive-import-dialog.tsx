@@ -171,7 +171,7 @@ function OneDriveFileTable({
     ? {
         title: t('onedrive.microsoftNotConnected'),
         description: t('onedrive.microsoftNotConnectedDescription'),
-        action: <MicrosoftReauthButton className="mx-auto" />,
+        customAction: <MicrosoftReauthButton className="mx-auto" />,
       }
     : searchQuery
       ? {
