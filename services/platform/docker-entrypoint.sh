@@ -57,6 +57,12 @@ export ENCRYPTION_SECRET_HEX="${ENCRYPTION_SECRET_HEX}"
 export OPENAI_API_KEY="${OPENAI_API_KEY}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL}"
 
+# RAG database configuration
+# RAG_DATABASE_URL needs the full URL with database name (unlike POSTGRES_URL for Convex)
+if [ -z "${RAG_DATABASE_URL:-}" ]; then
+  export RAG_DATABASE_URL="${POSTGRES_URL_WITH_DB}"
+fi
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
