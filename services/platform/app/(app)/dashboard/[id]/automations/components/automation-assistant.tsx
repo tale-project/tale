@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -204,36 +204,47 @@ export function AutomationAssistant({
     }
   }, [workflow, threadId, automationId]);
 
-  // Sync messages from thread - always use thread as source of truth when available
-  useEffect(() => {
-    if (uiMessages && uiMessages.length > 0) {
-      const threadMsgs: Message[] = uiMessages
-        .filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
-          m.role === 'user' || m.role === 'assistant',
-        )
-        .map((m) => {
-          // Extract file parts (images) from UIMessage.parts
-          const fileParts = ((m.parts || []) as Array<{ type: string; mediaType?: string; filename?: string; url?: string }>)
-            .filter((p): p is FilePart => p.type === 'file' && typeof p.url === 'string' && typeof p.mediaType === 'string')
-            .map((p) => ({
-              type: 'file' as const,
-              mediaType: p.mediaType,
-              filename: p.filename,
-              url: p.url,
-            }));
+  // Transform uiMessages to Message[] format using useMemo to avoid recreating on every render
+  const transformedMessages = useMemo(() => {
+    if (!uiMessages || uiMessages.length === 0) return [];
 
-          return {
-            id: m.key,
-            role: m.role,
-            content:
-              m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
-            timestamp: new Date(m._creationTime),
-            fileParts: fileParts.length > 0 ? fileParts : undefined,
-          };
-        });
-      setMessages(threadMsgs);
-    }
+    return uiMessages
+      .filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
+        m.role === 'user' || m.role === 'assistant',
+      )
+      .map((m) => {
+        // Extract file parts (images) from UIMessage.parts
+        const fileParts = ((m.parts || []) as Array<{ type: string; mediaType?: string; filename?: string; url?: string }>)
+          .filter((p): p is FilePart => p.type === 'file' && typeof p.url === 'string' && typeof p.mediaType === 'string')
+          .map((p) => ({
+            type: 'file' as const,
+            mediaType: p.mediaType,
+            filename: p.filename,
+            url: p.url,
+          }));
+
+        return {
+          id: m.key,
+          role: m.role,
+          content:
+            m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
+          timestamp: new Date(m._creationTime),
+          fileParts: fileParts.length > 0 ? fileParts : undefined,
+        };
+      });
   }, [uiMessages]);
+
+  // Create a stable key for comparison to detect actual content changes
+  const messagesKey = useMemo(() => {
+    return transformedMessages.map(m => `${m.id}:${m.content.length}`).join('|');
+  }, [transformedMessages]);
+
+  // Sync messages from thread - only update when content actually changes
+  useEffect(() => {
+    if (transformedMessages.length > 0) {
+      setMessages(transformedMessages);
+    }
+  }, [messagesKey]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally using messagesKey for stable comparison
 
   // Scroll to bottom when new messages arrive using throttled scroll
   useEffect(() => {

@@ -225,4 +225,72 @@ jexlInstance.addTransform(
   },
 );
 
+// =============================================================================
+// Date/Time Transforms for Filtering
+// =============================================================================
+
+/**
+ * Helper to safely parse a date value (string, number, or Date)
+ * Returns timestamp in milliseconds, or NaN if invalid
+ */
+function parseDateValue(val: unknown): number {
+  if (val === null || val === undefined) return NaN;
+  if (typeof val === 'number') return val;
+  if (val instanceof Date) return val.getTime();
+  if (typeof val === 'string') {
+    const timestamp = new Date(val).getTime();
+    return timestamp;
+  }
+  return NaN;
+}
+
+// Calculate days since a given date
+jexlInstance.addTransform('daysAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1; // Return -1 for invalid dates
+  return Math.floor((Date.now() - timestamp) / (24 * 60 * 60 * 1000));
+});
+
+// Calculate hours since a given date
+jexlInstance.addTransform('hoursAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1;
+  return Math.floor((Date.now() - timestamp) / (60 * 60 * 1000));
+});
+
+// Calculate minutes since a given date
+jexlInstance.addTransform('minutesAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1;
+  return Math.floor((Date.now() - timestamp) / (60 * 1000));
+});
+
+// Parse date string to timestamp (milliseconds)
+jexlInstance.addTransform('parseDate', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  return isNaN(timestamp) ? null : timestamp;
+});
+
+// Check if a date is before another date (or days ago)
+jexlInstance.addTransform(
+  'isBefore',
+  (dateVal: unknown, compareVal: unknown) => {
+    const timestamp = parseDateValue(dateVal);
+    const compareTimestamp = parseDateValue(compareVal);
+    if (isNaN(timestamp) || isNaN(compareTimestamp)) return false;
+    return timestamp < compareTimestamp;
+  },
+);
+
+// Check if a date is after another date
+jexlInstance.addTransform(
+  'isAfter',
+  (dateVal: unknown, compareVal: unknown) => {
+    const timestamp = parseDateValue(dateVal);
+    const compareTimestamp = parseDateValue(compareVal);
+    if (isNaN(timestamp) || isNaN(compareTimestamp)) return false;
+    return timestamp > compareTimestamp;
+  },
+);
+
 export { jexlInstance };

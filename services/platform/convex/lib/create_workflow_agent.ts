@@ -38,6 +38,7 @@ export function createWorkflowAgent(options?: {
       'workflow_examples', // list_predefined, get_predefined - access predefined workflow templates
       'update_workflow_step', // Update single step with built-in validation
       'save_workflow_definition', // Save or update entire workflow atomically with built-in validation
+      'database_schema', // Introspect table schemas for writing filterExpressions
     ];
 
     // Combine with any additional tools requested
@@ -75,6 +76,12 @@ ${WORKFLOW_SYNTAX_COMPACT}
    - Use for modifying specific step configuration, name, or connections
    - Requires stepRecordId
    - **Built-in validation**: Automatically validates step config before saving
+
+5. **database_schema** - Introspect table schemas for filterExpressions
+   - operation='list_tables': List all tables available for workflow_processing_records
+   - operation='get_table_schema': Get filterable fields, types, enum values for a specific table
+   - **USE THIS** when writing filterExpression for find_unprocessed operations
+   - Returns field names, valid enum values, and example filterExpressions
 
 **CRITICAL COMMUNICATION RULES:**
 - ALWAYS be brief and concise
@@ -290,21 +297,30 @@ REMINDER: All of these are action steps with stepType: "action". The "type" fiel
   type: 'workflow_processing_records',
   parameters: {
     operation: 'find_unprocessed',
-    tableName: 'customers', // or 'products', 'conversations'
-    workflowId: '{{workflowId}}',
+    tableName: 'conversations', // or 'customers', 'products', 'approvals'
     backoffHours: 168, // Don't reprocess for 7 days
+    // Optional: filterExpression for JEXL-based filtering
+    filterExpression: 'status == "open"', // Filter by field values
   }
 }
+
+// Examples of filterExpression:
+// - Simple: 'status == "open"'
+// - Multiple conditions: 'status == "closed" && priority == "high"'
+// - With time check: 'status == "closed" && daysAgo(metadata.resolved_at) > 30'
+// - For approvals: 'status == "approved" && resourceType == "product_recommendation"'
+//
+// Available JEXL transforms: daysAgo(), hoursAgo(), minutesAgo(), parseDate(), isBefore(), isAfter()
+// TIP: Use the database_schema tool to see available fields and valid values for each table
 
 // Record as processed
 {
   type: 'workflow_processing_records',
   parameters: {
     operation: 'record_processed',
-    tableName: 'customers',
-    wfDefinitionId: '{{wfDefinitionId}}',
-    recordId: '{{entityId}}',
-    recordCreationTime: '{{entity._creationTime}}',
+    tableName: 'conversations',
+    recordId: '{{steps.find_step.output.data._id}}',
+    recordCreationTime: '{{steps.find_step.output.data._creationTime}}',
     metadata: { processedAt: '{{now}}' }
   }
 }

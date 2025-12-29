@@ -56,6 +56,7 @@ export const conversationAutoReplyWorkflow = {
     },
 
     // Step 2: Find Unprocessed Open Conversation
+    // Uses filterExpression with smart index selection
     {
       stepSlug: 'find_unprocessed_conversation',
       name: 'Find Unprocessed Open Conversation',
@@ -64,8 +65,10 @@ export const conversationAutoReplyWorkflow = {
       config: {
         type: 'workflow_processing_records',
         parameters: {
-          operation: 'find_unprocessed_open_conversation',
+          operation: 'find_unprocessed',
+          tableName: 'conversations',
           backoffHours: '{{backoffHours}}',
+          filterExpression: 'status == "open"',
         },
       },
       nextSteps: {
