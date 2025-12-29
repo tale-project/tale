@@ -56,6 +56,10 @@ WORKDIR /app
 # Copy FastAPI application
 COPY services/rag/app /app/app
 
+# Copy and set up entrypoint script
+COPY services/rag/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 # Create data directory for cognee
 RUN mkdir -p /app/data \
     && mkdir -p /usr/local/lib/python3.11/site-packages/cognee/.data_storage
@@ -85,6 +89,6 @@ EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${RAG_PORT:-8001}/health || exit 1
 
-# Run FastAPI application with worker recycling (--limit-max-requests)
-CMD ["sh", "-c", "python -m uvicorn app.main:app --host ${RAG_HOST} --port ${RAG_PORT} --workers ${RAG_WORKERS} --limit-max-requests ${RAG_MAX_REQUESTS_PER_WORKER}"]
+# Use entrypoint script for environment setup and application startup
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 

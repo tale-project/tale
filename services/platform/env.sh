@@ -20,7 +20,24 @@ env_normalize_common() {
   fi
 
 	  # Database configuration
-	  export POSTGRES_URL="${POSTGRES_URL}"
+	  # Auto-construct POSTGRES_URL from DB_PASSWORD if not explicitly set
+	  # This allows the platform to work with self-hosted PostgreSQL by default
+	  if [ -z "${POSTGRES_URL:-}" ]; then
+	    local db_user="${DB_USER:-tale}"
+	    local db_password="${DB_PASSWORD:-tale_password_change_me}"
+	    local db_host="${DB_HOST:-db}"
+	    local db_port="${DB_PORT:-5432}"
+	    local db_name="${DB_NAME:-tale}"
+	    # Convex backend for postgres-v5 expects URL without database name in path
+	    # The database name is managed internally by Convex
+	    export POSTGRES_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}"
+	    # Export the full URL with database name for services that need it (like RAG)
+	    export POSTGRES_URL_WITH_DB="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/${db_name}"
+	  else
+	    export POSTGRES_URL="${POSTGRES_URL}"
+	    # If POSTGRES_URL is set explicitly, also set WITH_DB version
+	    export POSTGRES_URL_WITH_DB="${POSTGRES_URL}"
+	  fi
 
 	  # Cross-service URLs (inside Docker)
 	  # These defaults use Docker service names for inter-service communication.
