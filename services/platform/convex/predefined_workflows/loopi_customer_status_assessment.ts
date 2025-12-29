@@ -172,6 +172,28 @@ Analyze the subscription data and provide your determination strictly as JSON wi
           userPrompt:
             'Analyze the subscription data and determine the customer status (active/churned/potential)',
           outputFormat: 'json',
+          outputSchema: {
+            type: 'object',
+            properties: {
+              status: {
+                type: 'string',
+                enum: ['active', 'churned', 'potential'],
+                description: 'Customer lifecycle status',
+              },
+              churnReason: {
+                type: ['string', 'null'],
+                description:
+                  'Reason for churn if status is churned, otherwise null',
+              },
+              churnedAt: {
+                type: ['number', 'null'],
+                description:
+                  'Timestamp when customer churned if status is churned, otherwise null',
+              },
+            },
+            required: ['status', 'churnReason', 'churnedAt'],
+            additionalProperties: false,
+          },
           temperature: 0.3,
           tools: ['rag_search'],
         },

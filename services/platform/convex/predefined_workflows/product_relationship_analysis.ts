@@ -322,6 +322,54 @@ BIDIRECTIONAL RELATIONSHIPS:
         systemPrompt:
           'You are an expert product analyst specializing in subscription-based product relationships. Analyze product relationships based on actual customer subscription patterns. Always return valid JSON format as specified. Focus on practical business relationships that would be useful for recommendations and cross-selling. CRITICAL: For Complementary, Substitute, and Bundle relationships, you MUST create bidirectional relationships (both A→B and B→A). For Upgrade relationships, only create unidirectional relationships (lower→higher tier). DO NOT include products with no meaningful relationship - simply omit them from the results.',
         outputFormat: 'json',
+        outputSchema: {
+          type: 'object',
+          properties: {
+            relationships: {
+              type: 'array',
+              description:
+                'List of product relationships (empty array if no meaningful relationships)',
+              items: {
+                type: 'object',
+                properties: {
+                  source_product_id: {
+                    type: 'string',
+                    description: 'Convex ID of the source product',
+                  },
+                  target_product_id: {
+                    type: 'string',
+                    description: 'Convex ID of the target product',
+                  },
+                  relationship_type: {
+                    type: 'string',
+                    enum: ['Complementary', 'Substitute', 'Bundle', 'Upgrade'],
+                    description: 'Type of relationship between products',
+                  },
+                  confidence: {
+                    type: 'number',
+                    minimum: 0,
+                    maximum: 1,
+                    description: 'Confidence score for the relationship',
+                  },
+                  reasoning: {
+                    type: 'string',
+                    description:
+                      'Brief explanation of why these products are related',
+                  },
+                },
+                required: [
+                  'source_product_id',
+                  'target_product_id',
+                  'relationship_type',
+                  'confidence',
+                  'reasoning',
+                ],
+              },
+            },
+          },
+          required: ['relationships'],
+          additionalProperties: false,
+        },
       },
       nextSteps: {
         success: 'check_has_relationships',
