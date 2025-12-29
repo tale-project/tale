@@ -28,12 +28,29 @@ export async function handleMarkExecutionCompleted(
     try {
       const parsed = JSON.parse(execution.variables);
       // If variables are in storage, use a reference object
-      finalOutput = parsed._storageRef
-        ? {
-            _note: 'Variables stored in Convex storage',
-            _storageRef: parsed._storageRef,
-          }
-        : parsed;
+      if (parsed._storageRef) {
+        finalOutput = {
+          _note: 'Variables stored in Convex storage',
+          _storageRef: parsed._storageRef,
+        };
+      } else {
+        // Check size before storing inline
+        const outputJson = JSON.stringify(parsed);
+        const sizeInBytes = new Blob([outputJson]).size;
+        const SIZE_LIMIT = 900 * 1024; // 900KB to stay safely under 1MB
+
+        if (sizeInBytes > SIZE_LIMIT) {
+          // Output is too large - store a summary instead
+          finalOutput = {
+            _note: 'Output too large for inline storage',
+            _size: `${(sizeInBytes / 1024 / 1024).toFixed(2)} MiB`,
+            _warning: 'Full output exceeded size limit and was truncated',
+            _storageRef: parsed._storageRef || null,
+          };
+        } else {
+          finalOutput = parsed;
+        }
+      }
     } catch {
       finalOutput = {};
     }
