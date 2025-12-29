@@ -56,19 +56,13 @@ const config: NextConfig = {
   },
   skipTrailingSlashRedirect: true,
 
-  // Cache Components (PPR) is currently disabled due to incompatibility with
-  // the betterAuth library which uses Math.random() internally during auth
-  // token generation. This causes prerender failures because Math.random()
-  // is non-deterministic and can't be used during static prerendering.
+  // Cache Components (PPR) is disabled.
+  // The 'use cache' directive and PPR are not working as expected in production.
   //
-  // TODO: Re-enable once betterAuth is updated to be PPR-compatible, or
-  // when we migrate to a different auth solution that doesn't use Math.random().
-  //
-  // When enabled, Cache Components provides:
-  // - Static shell prerendered at build time (navigation, layout chrome)
-  // - Dynamic content streams in at request time via Suspense boundaries
-  // - Use 'use cache' directive on components/functions for cached dynamic data
-  // - All cookie/header access must be wrapped in Suspense or use 'use cache'
+  // Alternative caching strategy:
+  // - Use Convex's built-in real-time subscriptions via preloadQuery
+  // - Rely on browser caching for static assets
+  // - Consider ISR for pages that don't need real-time data
   cacheComponents: false,
 
   // Define cache profiles for different data freshness needs

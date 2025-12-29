@@ -14,7 +14,7 @@ import type { Metadata } from 'next';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('automationExecutions.title')} | ${t('suffix')}`,
+    title: t('automationExecutions.title'),
     description: t('automationExecutions.description'),
   };
 }

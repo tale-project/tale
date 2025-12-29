@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useQuery } from 'convex/react';
+import { useQuery, usePreloadedQuery } from 'convex/react';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,9 +15,15 @@ import AddMemberDialog from './add-member-dialog';
 import MemberTable from './member-table';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useT } from '@/lib/i18n';
+import type {
+  PreloadedMemberContext,
+  PreloadedMembers,
+} from '../page';
 
 export interface OrganizationSettingsProps {
   organization: { _id: string; name: string } | null;
+  preloadedMemberContext: PreloadedMemberContext;
+  preloadedMembers: PreloadedMembers;
 }
 
 interface OrganizationFormData {
@@ -26,6 +32,8 @@ interface OrganizationFormData {
 
 export default function OrganizationSettings({
   organization,
+  preloadedMemberContext,
+  preloadedMembers,
 }: OrganizationSettingsProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -47,18 +55,27 @@ export default function OrganizationSettings({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  // Updates are handled through Better Auth client-side API
+  // Use preloaded member context for SSR + real-time reactivity
+  const memberContext = usePreloadedQuery(preloadedMemberContext);
 
-  // Search filtering is now done server-side in the Convex query
-  const members = useQuery(api.member.listByOrganization, {
-    organizationId: organization?._id as string,
-    sortOrder,
-    search: debouncedSearch || undefined,
-  });
+  // Use preloaded members for initial render, switch to useQuery for dynamic filtering
+  const hasFilters = sortOrder !== 'asc' || !!debouncedSearch;
+  const preloadedMembersData = usePreloadedQuery(preloadedMembers);
 
-  const memberContext = useQuery(api.member.getCurrentMemberContext, {
-    organizationId: organization?._id as string,
-  });
+  // Use useQuery only when filters are applied for dynamic updates
+  const filteredMembers = useQuery(
+    api.member.listByOrganization,
+    hasFilters
+      ? {
+          organizationId: organization?._id as string,
+          sortOrder,
+          search: debouncedSearch || undefined,
+        }
+      : 'skip',
+  );
+
+  // Use filtered results when available, otherwise use preloaded data
+  const members = hasFilters ? filteredMembers : preloadedMembersData;
 
   const onSubmit = async (data: OrganizationFormData) => {
     if (!organization) return;

@@ -37,6 +37,9 @@ import {
   type DataTablePaginationProps,
 } from './data-table-pagination';
 import { DataTableSkeleton } from './data-table-skeleton';
+import { DataTableFilters, type FilterConfig } from './data-table-filters';
+import type { DataTableSearchConfig, DataTableSortingConfig } from './use-data-table';
+import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
@@ -56,12 +59,8 @@ export interface DataTableProps<TData> {
   };
   /** Current page (1-based, for server-side pagination) */
   currentPage?: number;
-  /** Enable sorting */
-  enableSorting?: boolean;
-  /** Initial sorting state */
-  initialSorting?: SortingState;
-  /** Callback when sorting changes */
-  onSortingChange?: OnChangeFn<SortingState>;
+  /** Sorting configuration from useDataTable hook */
+  sorting?: DataTableSortingConfig;
   /** Enable row selection */
   enableRowSelection?: boolean;
   /** Row selection state (controlled) */
@@ -82,8 +81,27 @@ export interface DataTableProps<TData> {
   onRowClick?: (row: Row<TData>) => void;
   /** Whether rows are clickable (adds cursor pointer) */
   clickableRows?: boolean;
-  /** Header content (filters, actions, etc.) */
-  header?: ReactNode;
+
+  // ============================================================================
+  // Header configuration
+  // ============================================================================
+
+  /** Search configuration */
+  search?: DataTableSearchConfig;
+  /** Filter configurations */
+  filters?: FilterConfig[];
+  /** Date range filter configuration */
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+    onChange: (range: DateRange | undefined) => void;
+  };
+  /** Whether filters are loading */
+  isFiltersLoading?: boolean;
+  /** Callback to clear all filters */
+  onClearFilters?: () => void;
+  /** Header action menu element (use DataTableActionMenu component) */
+  actionMenu?: ReactNode;
   /** Footer content */
   footer?: ReactNode;
   /** Enable sticky layout with header at top and pagination at bottom */
@@ -111,9 +129,7 @@ export function DataTable<TData>({
   emptyState,
   pagination,
   currentPage = 1,
-  enableSorting = false,
-  initialSorting = [],
-  onSortingChange,
+  sorting: sortingConfig,
   enableRowSelection = false,
   rowSelection: controlledRowSelection,
   onRowSelectionChange,
@@ -124,11 +140,39 @@ export function DataTable<TData>({
   rowClassName,
   onRowClick,
   clickableRows = false,
-  header,
+  // Header configuration props
+  search,
+  filters,
+  dateRange,
+  isFiltersLoading = false,
+  onClearFilters,
+  actionMenu,
   footer,
   stickyLayout = false,
 }: DataTableProps<TData>) {
   const { t } = useT('common');
+
+  // Extract sorting config - presence of sortingConfig enables sorting
+  const enableSorting = !!sortingConfig;
+  const initialSorting = sortingConfig?.initialSorting ?? [];
+  const onSortingChange = sortingConfig?.onSortingChange;
+
+  // Determine if we should render header
+  const hasHeader = search || (filters && filters.length > 0) || dateRange || actionMenu;
+
+  // Build the header content
+  const headerContent = hasHeader ? (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <DataTableFilters
+        search={search}
+        filters={filters}
+        dateRange={dateRange}
+        isLoading={isFiltersLoading}
+        onClearAll={onClearFilters}
+      />
+      {actionMenu}
+    </div>
+  ) : null;
 
   // Internal state for uncontrolled modes
   const [internalSorting, setInternalSorting] =
@@ -185,9 +229,9 @@ export function DataTable<TData>({
           className,
         )}
       >
-        {header && (
+        {headerContent && (
           <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-            {header}
+            {headerContent}
           </div>
         )}
         <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
@@ -224,9 +268,9 @@ export function DataTable<TData>({
           className,
         )}
       >
-        {header && (
+        {headerContent && (
           <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-            {header}
+            {headerContent}
           </div>
         )}
         <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
@@ -248,9 +292,9 @@ export function DataTable<TData>({
         className,
       )}
     >
-      {header && (
+      {headerContent && (
         <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-          {header}
+          {headerContent}
         </div>
       )}
 

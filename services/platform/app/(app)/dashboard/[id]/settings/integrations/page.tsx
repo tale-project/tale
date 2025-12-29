@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('integrations.title')} | ${t('suffix')}`,
+    title: t('integrations.title'),
     description: t('integrations.description'),
   };
 }
@@ -28,23 +28,31 @@ interface IntegrationsPageProps {
 
 /**
  * Skeleton for integration card matching the actual layout.
+ * Matches the Card structure in integrations.tsx with icon, title, description, and footer.
  */
 function IntegrationCardSkeleton() {
   return (
-    <Card>
+    <Card className="flex flex-col justify-between">
       <CardContent className="p-5">
         <Stack gap={3}>
-          <Skeleton className="w-11 h-11 rounded-md" />
+          {/* Icon container with border - matches Center w-11 h-11 border... */}
+          <div className="w-11 h-11 border border-border rounded-md flex items-center justify-center">
+            <Skeleton className="size-6 rounded-sm" />
+          </div>
           <Stack gap={1}>
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
+            {/* Title - matches CardTitle text-base (16px = h-4) */}
+            <Skeleton className="h-4 w-24" />
+            {/* Description - matches CardDescription (~2 lines of text-sm) */}
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-4/5" />
           </Stack>
         </Stack>
       </CardContent>
       <CardFooter className="border-t border-border px-5 py-4">
         <HStack justify="between" className="w-full">
+          {/* Manage button - matches Button h-6 */}
           <Skeleton className="h-6 w-20" />
+          {/* Switch - matches Switch dimensions */}
           <Skeleton className="h-5 w-9 rounded-full" />
         </HStack>
       </CardFooter>
@@ -54,12 +62,13 @@ function IntegrationCardSkeleton() {
 
 /**
  * Skeleton for the integrations page that matches the actual layout.
+ * Shows 4 integration cards matching the integrations array.
  */
 function IntegrationsSkeleton() {
   return (
     <Stack>
       <Grid cols={1} md={2} lg={3}>
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <IntegrationCardSkeleton key={i} />
         ))}
       </Grid>

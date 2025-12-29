@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Loader, Globe } from 'lucide-react';
+import { Loader, Globe, Plus } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableEmptyState,
+  DataTableActionMenu,
+} from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
-import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { WebsiteIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
 import WebsiteRowActions from './website-row-actions';
 import AddWebsiteDialog from './add-website-dialog';
-import AddWebsiteButton from './add-website-button';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -34,6 +36,8 @@ export default function WebsitesTable({
   const locale = useLocale();
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  const handleAddClick = useCallback(() => setIsAddDialogOpen(true), []);
 
   // Use unified URL filters hook with sorting
   const {
@@ -187,7 +191,13 @@ export default function WebsitesTable({
           icon={Globe}
           title={tEmpty('websites.title')}
           description={tEmpty('websites.description')}
-          action={<AddWebsiteButton organizationId={organizationId} />}
+          actionMenu={
+            <DataTableActionMenu
+              label={tWebsites('addButton')}
+              icon={Plus}
+              onClick={handleAddClick}
+            />
+          }
         />
         <AddWebsiteDialog
           isOpen={isAddDialogOpen}
@@ -211,23 +221,24 @@ export default function WebsitesTable({
         getRowId={(row) => row._id}
         isLoading={isLoading}
         stickyLayout
-        enableSorting
-        initialSorting={sorting}
-        onSortingChange={setSorting}
-        header={
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <DataTableFilters
-              search={{
-                value: filterValues.query,
-                onChange: (value) => setFilter('query', value),
-                placeholder: tWebsites('searchPlaceholder'),
-              }}
-              filters={filterConfigs}
-              isLoading={isPending}
-              onClearAll={clearAll}
-            />
-            <AddWebsiteButton organizationId={organizationId} />
-          </div>
+        sorting={{
+          initialSorting: sorting,
+          onSortingChange: setSorting,
+        }}
+        search={{
+          value: filterValues.query,
+          onChange: (value) => setFilter('query', value),
+          placeholder: tWebsites('searchPlaceholder'),
+        }}
+        filters={filterConfigs}
+        isFiltersLoading={isPending}
+        onClearFilters={clearAll}
+        actionMenu={
+          <DataTableActionMenu
+            label={tWebsites('addButton')}
+            icon={Plus}
+            onClick={handleAddClick}
+          />
         }
         pagination={{
           total: data?.total ?? 0,

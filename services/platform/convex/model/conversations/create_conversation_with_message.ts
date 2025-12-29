@@ -96,13 +96,16 @@ export async function createConversationWithMessage(
     },
   });
 
-  // Update conversation metadata with initial message info
+  // Update conversation with initial message info
+  // Set both the indexed lastMessageAt field and metadata for backwards compatibility
+  const now = Date.now();
   const existingMetadata =
     (conversation.metadata as Record<string, unknown>) || {};
   await ctx.db.patch(conversationId, {
+    lastMessageAt: now,
     metadata: {
       ...existingMetadata,
-      last_message_at: Date.now(),
+      last_message_at: now,
       unread_count: args.initialMessage.isCustomer ? 1 : 0,
     },
   });

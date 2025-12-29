@@ -1,5 +1,11 @@
 export { DataTable, type DataTableProps } from './data-table';
 export {
+  DataTableActionMenu,
+  type DataTableActionMenuProps,
+  type DataTableActionMenuItem,
+  type IconComponent,
+} from './data-table-action-menu';
+export {
   DataTableEmptyState,
   type DataTableEmptyStateProps,
 } from './data-table-empty-state';
@@ -17,6 +23,15 @@ export {
   type FilterConfig,
   type FilterOption,
 } from './data-table-filters';
+
+// Data table hooks
+export {
+  useDataTable,
+  type UseDataTableOptions,
+  type UseDataTableReturn,
+  type DataTableSearchConfig,
+  type DataTableSortingConfig,
+} from './use-data-table';
 
 // Re-export TanStack Table utilities for convenience
 export { createColumnHelper } from '@tanstack/react-table';

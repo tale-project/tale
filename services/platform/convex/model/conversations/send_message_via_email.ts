@@ -167,13 +167,19 @@ export async function sendMessageViaEmail(
     );
   }
 
-  // Update conversation's providerId if not already set
+  // Update conversation with lastMessageAt and providerId if not already set
   // This ensures the conversation remembers which provider to use for future replies
-  if (!conversation.providerId) {
-    await ctx.db.patch(args.conversationId, {
-      providerId: provider._id,
-    });
-  }
+  const now = Date.now();
+  const existingMetadata =
+    (conversation.metadata as Record<string, unknown>) || {};
+  await ctx.db.patch(args.conversationId, {
+    lastMessageAt: now,
+    providerId: conversation.providerId || provider._id,
+    metadata: {
+      ...existingMetadata,
+      last_message_at: now,
+    },
+  });
 
   // Auto-approve any pending approval for this conversation
   // This allows the workflow to continue after the user sends the message

@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTable, DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Stack, HStack } from '@/components/ui/layout';
@@ -158,11 +158,12 @@ export default function ExampleMessagesTable({
           icon={Sparkles}
           title={tEmpty('examples.title')}
           description={tEmpty('examples.description')}
-          action={
-            <Button onClick={onAddExample}>
-              <Plus className="size-4 mr-2" />
-              {tTone('exampleMessages.addButton')}
-            </Button>
+          actionMenu={
+            <DataTableActionMenu
+              label={tTone('exampleMessages.addButton')}
+              icon={Plus}
+              onClick={onAddExample}
+            />
           }
         />
       </Stack>

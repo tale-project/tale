@@ -3,7 +3,8 @@ import { connection } from 'next/server';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { createAuth } from '@/convex/auth';
-import { getToken as getTokenNextjs } from '@convex-dev/better-auth/nextjs';
+// Dynamic import of betterAuth moved inside getAuthToken() to enable PPR/cacheComponents.
+// Static imports of betterAuth cause prerender failures due to crypto.getRandomValues() usage.
 import { cookies } from 'next/headers';
 /**
  * Get the current authenticated user from server-side context.
@@ -60,6 +61,11 @@ export async function getAuthToken(): Promise<string | undefined> {
   await connection();
 
   try {
+    // Dynamic import AFTER connection() to defer betterAuth initialization to request time.
+    // This enables PPR/cacheComponents by avoiding crypto.getRandomValues() during prerender.
+    const { getToken: getTokenNextjs } = await import(
+      '@convex-dev/better-auth/nextjs'
+    );
     // First, try the standard Next.js token getter
     const token = await getTokenNextjs(createAuth);
     if (token) {

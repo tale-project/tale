@@ -1,20 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Users } from 'lucide-react';
+import { Users, Plus } from 'lucide-react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableEmptyState,
+  DataTableActionMenu,
+  useDataTable,
+} from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
-import { DataTableFilters } from '@/components/ui/data-table/data-table-filters';
 import { LocaleIcon } from '@/components/ui/icons';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
 import { formatDate } from '@/lib/utils/date/format';
 import CustomerRowActions from './customer-row-actions';
-import ImportCustomersMenu from './import-customers-menu';
+import ImportCustomersDialog from './import-customers-dialog';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -34,22 +38,30 @@ export default function CustomersTable({
   const { t: tCustomers } = useT('customers');
   const locale = useLocale();
 
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+
+  const handleImportClick = useCallback(() => setIsImportDialogOpen(true), []);
+
   // Use unified URL filters hook with sorting
-  const {
-    filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
-    setFilter,
-    setPage,
-    setPageSize,
-    clearAll,
-    hasActiveFilters,
-    isPending,
-  } = useUrlFilters({
+  const urlFilters = useUrlFilters({
     filters: customerFilterDefinitions,
     pagination: { defaultPageSize: 10 },
     sorting: { defaultSort: '_creationTime', defaultDesc: true },
+  });
+
+  const { filters: filterValues, sorting, pagination, setPage, setPageSize } = urlFilters;
+
+  // Use the new useDataTable hook for search, filter, and sorting configs
+  const { searchConfig, filterConfigs, sortingConfig, hasActiveFilters, clearAll, isPending } = useDataTable({
+    urlFilters,
+    t: (key) => {
+      // Route translation keys to appropriate namespaces
+      if (key.startsWith('tables.')) return tTables(key.replace('tables.', '') as 'headers.status');
+      if (key.startsWith('customers.')) return tCustomers(key.replace('customers.', '') as 'filter.status.active');
+      if (key.startsWith('locales.')) return key.replace('locales.', '').toUpperCase();
+      return key;
+    },
+    search: { placeholder: tCustomers('searchPlaceholder') },
   });
 
   // Use paginated query with SSR + real-time updates
@@ -58,16 +70,7 @@ export default function CustomersTable({
     preloadedData: preloadedCustomers,
     organizationId,
     filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
+      ...urlFilters,
       definitions: customerFilterDefinitions,
     },
     transformFilters: (f) => ({
@@ -157,102 +160,68 @@ export default function CustomersTable({
     [tTables, locale],
   );
 
-  // Build filter configs for DataTableFilters component
-  // Note: Status labels are capitalized directly (matching original behavior)
-  const filterConfigs = useMemo(
-    () => [
-      {
-        key: 'status',
-        title: tTables('headers.status'),
-        options: [
-          { value: 'active', label: tCustomers('filter.status.active') },
-          { value: 'potential', label: tCustomers('filter.status.potential') },
-          { value: 'churned', label: tCustomers('filter.status.churned') },
-          { value: 'lost', label: tCustomers('filter.status.lost') },
-        ],
-        selectedValues: filterValues.status,
-        onChange: (values: string[]) => setFilter('status', values),
-      },
-      {
-        key: 'source',
-        title: tTables('headers.source'),
-        options: [
-          { value: 'manual_import', label: tCustomers('filter.source.manual') },
-          { value: 'file_upload', label: tCustomers('filter.source.upload') },
-          { value: 'circuly', label: tCustomers('filter.source.circuly') },
-        ],
-        selectedValues: filterValues.source,
-        onChange: (values: string[]) => setFilter('source', values),
-      },
-      {
-        key: 'locale',
-        title: tTables('headers.locale'),
-        options: [
-          { value: 'en', label: 'EN' },
-          { value: 'es', label: 'ES' },
-          { value: 'fr', label: 'FR' },
-          { value: 'de', label: 'DE' },
-          { value: 'it', label: 'IT' },
-          { value: 'pt', label: 'PT' },
-          { value: 'nl', label: 'NL' },
-          { value: 'zh', label: 'ZH' },
-        ],
-        selectedValues: filterValues.locale,
-        onChange: (values: string[]) => setFilter('locale', values),
-        grid: true,
-      },
-    ],
-    [filterValues, setFilter, tTables, tCustomers],
-  );
-
   // Show empty state when no customers and no filters
   if (emptyCustomers) {
     return (
-      <DataTableEmptyState
-        icon={Users}
-        title={tEmpty('customers.title')}
-        description={tEmpty('customers.description')}
-        action={<ImportCustomersMenu organizationId={organizationId} />}
-      />
+      <>
+        <DataTableEmptyState
+          icon={Users}
+          title={tEmpty('customers.title')}
+          description={tEmpty('customers.description')}
+          actionMenu={
+            <DataTableActionMenu
+              label={tCustomers('importMenu.importCustomers')}
+              icon={Plus}
+              onClick={handleImportClick}
+            />
+          }
+        />
+        <ImportCustomersDialog
+          isOpen={isImportDialogOpen}
+          onClose={() => setIsImportDialogOpen(false)}
+          organizationId={organizationId}
+        />
+      </>
     );
   }
 
   return (
-    <DataTable
-      columns={columns}
-      data={customers}
-      getRowId={(row) => row._id}
-      isLoading={isLoading}
-      stickyLayout
-      enableSorting
-      initialSorting={sorting}
-      onSortingChange={setSorting}
-      header={
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <DataTableFilters
-            search={{
-              value: filterValues.query,
-              onChange: (value) => setFilter('query', value),
-              placeholder: tCustomers('searchPlaceholder'),
-            }}
-            filters={filterConfigs}
-            isLoading={isPending}
-            onClearAll={clearAll}
+    <>
+      <ImportCustomersDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        organizationId={organizationId}
+      />
+      <DataTable
+        columns={columns}
+        data={customers}
+        getRowId={(row) => row._id}
+        isLoading={isLoading}
+        stickyLayout
+        sorting={sortingConfig}
+        search={searchConfig}
+        filters={filterConfigs}
+        isFiltersLoading={isPending}
+        onClearFilters={clearAll}
+        actionMenu={
+          <DataTableActionMenu
+            label={tCustomers('importMenu.importCustomers')}
+            icon={Plus}
+            onClick={handleImportClick}
           />
-          <ImportCustomersMenu organizationId={organizationId} />
-        </div>
-      }
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
-      }}
-      currentPage={pagination.page}
-    />
+        }
+        pagination={{
+          total: data?.total ?? 0,
+          pageSize: pagination.pageSize,
+          totalPages: data?.totalPages ?? 1,
+          hasNextPage: data?.hasNextPage ?? false,
+          hasPreviousPage: data?.hasPreviousPage ?? false,
+          onPageChange: setPage,
+          onPageSizeChange: setPageSize,
+          clientSide: false,
+        }}
+        currentPage={pagination.page}
+      />
+    </>
   );
 }

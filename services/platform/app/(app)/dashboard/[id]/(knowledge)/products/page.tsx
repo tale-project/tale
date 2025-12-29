@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
   return {
-    title: `${t('products.title')} | ${t('suffix')}`,
+    title: t('products.title'),
     description: t('products.description'),
   };
 }
@@ -34,7 +34,8 @@ async function ProductsSkeleton() {
     <DataTableSkeleton
       rows={10}
       columns={[
-        { header: t('headers.product') }, // No size = expands to fill remaining space
+        { header: t('headers.product'), size: 400 },
+        { header: t('headers.description') },
         { header: t('headers.stock'), size: 80 },
         { header: t('headers.updated'), size: 140 },
         { isAction: true, size: 80 },

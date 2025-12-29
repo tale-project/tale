@@ -2,59 +2,56 @@
  * Search products by metadata (internal operation)
  *
  * Simple search: if metadata is a string, check if it includes the target.
- * Uses cursor-based iteration for efficient processing.
+ * Uses async iteration for efficient streaming and memory usage.
  *
  * @param ctx - Query context
  * @param args.organizationId - Organization ID to filter products
  * @param args.target - Target string to search for in metadata
+ * @param args.limit - Optional limit on number of results (default: unlimited)
  * @returns Object containing matched products array and count
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
 
 export async function searchProductsByMetadata(
   ctx: QueryCtx,
   args: {
     organizationId: string;
     target: string;
+    limit?: number;
   },
-): Promise<{ products: unknown[]; count: number }> {
-  const { organizationId, target } = args;
+): Promise<{ products: Doc<'products'>[]; count: number }> {
+  const { organizationId, target, limit } = args;
+  const targetLower = target.toLowerCase();
 
-  const matchedProducts: unknown[] = [];
-  let lastCreationTime = 0;
+  const matchedProducts: Doc<'products'>[] = [];
 
-  // Loop through all products using cursor-based iteration
-  while (true) {
-    // Fetch the next document after the last processed one
-    // Use .gt() in the index query for better performance since _creationTime is part of the index
-    const product = await ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .gt('_creationTime', lastCreationTime),
-      )
-      .order('asc')
-      .first();
+  // Use async iteration for efficient streaming
+  const query = ctx.db
+    .query('products')
+    .withIndex('by_organizationId', (q) => q.eq('organizationId', organizationId));
 
-    if (!product) break; // No more documents
+  for await (const product of query) {
+    // Check if metadata contains the target string
+    let matches = false;
 
-    // Check if metadata is a string and includes the target
-    // If not a string, convert to JSON string and then search
     if (typeof product.metadata === 'string') {
-      if (product.metadata.includes(target)) {
-        matchedProducts.push(product);
-      }
+      matches = product.metadata.toLowerCase().includes(targetLower);
     } else if (product.metadata !== undefined && product.metadata !== null) {
-      const metadataString = JSON.stringify(product.metadata);
-      if (metadataString.includes(target)) {
-        matchedProducts.push(product);
-      }
+      // Convert object to JSON string for search
+      const metadataString = JSON.stringify(product.metadata).toLowerCase();
+      matches = metadataString.includes(targetLower);
     }
 
-    // Update the cursor
-    lastCreationTime = product._creationTime;
+    if (matches) {
+      matchedProducts.push(product);
+
+      // Early termination if limit is reached
+      if (limit !== undefined && matchedProducts.length >= limit) {
+        break;
+      }
+    }
   }
 
   return {
