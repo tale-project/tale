@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Store, Plus } from 'lucide-react';
+import { Store } from 'lucide-react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
@@ -10,13 +10,12 @@ import type { Doc } from '@/convex/_generated/dataModel';
 import {
   DataTable,
   DataTableEmptyState,
-  DataTableActionMenu,
 } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
 import { formatDate } from '@/lib/utils/date/format';
 import VendorRowActions from './vendor-row-actions';
-import ImportVendorsDialog from './import-vendors-dialog';
+import { VendorsActionMenu } from './vendors-action-menu';
 import { useT, useLocale } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -34,10 +33,6 @@ export default function VendorsTable({
   const { t: tVendors } = useT('vendors');
   const { t: tTables } = useT('tables');
   const locale = useLocale();
-
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-
-  const handleImportClick = useCallback(() => setIsImportDialogOpen(true), []);
 
   // Use unified URL filters hook with sorting
   const {
@@ -194,72 +189,46 @@ export default function VendorsTable({
   // Show empty state when no vendors and no filters
   if (emptyVendors) {
     return (
-      <>
-        <DataTableEmptyState
-          icon={Store}
-          title={tVendors('noVendorsYet')}
-          description={tVendors('uploadFirstVendor')}
-          actionMenu={
-            <DataTableActionMenu
-              label={tVendors('importMenu.importVendors')}
-              icon={Plus}
-              onClick={handleImportClick}
-            />
-          }
-        />
-        <ImportVendorsDialog
-          isOpen={isImportDialogOpen}
-          onClose={() => setIsImportDialogOpen(false)}
-          organizationId={organizationId}
-        />
-      </>
+      <DataTableEmptyState
+        icon={Store}
+        title={tVendors('noVendorsYet')}
+        description={tVendors('uploadFirstVendor')}
+        actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+      />
     );
   }
 
   return (
-    <>
-      <ImportVendorsDialog
-        isOpen={isImportDialogOpen}
-        onClose={() => setIsImportDialogOpen(false)}
-        organizationId={organizationId}
-      />
-      <DataTable
-        columns={columns}
-        data={vendors}
-        getRowId={(row) => row._id}
-        isLoading={isLoading}
-        stickyLayout
-        sorting={{
-          initialSorting: sorting,
-          onSortingChange: setSorting,
-        }}
-        search={{
-          value: filterValues.query,
-          onChange: (value) => setFilter('query', value),
-          placeholder: tVendors('searchPlaceholder'),
-        }}
-        filters={filterConfigs}
-        isFiltersLoading={isPending}
-        onClearFilters={clearAll}
-        actionMenu={
-          <DataTableActionMenu
-            label={tVendors('importMenu.importVendors')}
-            icon={Plus}
-            onClick={handleImportClick}
-          />
-        }
-        pagination={{
-          total: data?.total ?? 0,
-          pageSize: pagination.pageSize,
-          totalPages: data?.totalPages ?? 1,
-          hasNextPage: data?.hasNextPage ?? false,
-          hasPreviousPage: data?.hasPreviousPage ?? false,
-          onPageChange: setPage,
-          onPageSizeChange: setPageSize,
-          clientSide: false,
-        }}
-        currentPage={pagination.page}
-      />
-    </>
+    <DataTable
+      columns={columns}
+      data={vendors}
+      getRowId={(row) => row._id}
+      isLoading={isLoading}
+      stickyLayout
+      sorting={{
+        initialSorting: sorting,
+        onSortingChange: setSorting,
+      }}
+      search={{
+        value: filterValues.query,
+        onChange: (value) => setFilter('query', value),
+        placeholder: tVendors('searchPlaceholder'),
+      }}
+      filters={filterConfigs}
+      isFiltersLoading={isPending}
+      onClearFilters={clearAll}
+      actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+      pagination={{
+        total: data?.total ?? 0,
+        pageSize: pagination.pageSize,
+        totalPages: data?.totalPages ?? 1,
+        hasNextPage: data?.hasNextPage ?? false,
+        hasPreviousPage: data?.hasPreviousPage ?? false,
+        onPageChange: setPage,
+        onPageSizeChange: setPageSize,
+        clientSide: false,
+      }}
+      currentPage={pagination.page}
+    />
   );
 }
