@@ -84,9 +84,64 @@ export async function handleExecuteStep(
     });
   }
 
+  // Debug: Log before variable replacement for LLM steps
+  if (args.stepType === 'llm') {
+    const llmConfig = stepDef.config as any;
+    const stepsData = fullVariables.steps as Record<string, any> | undefined;
+
+    console.log('[execute_step_handler] Before replaceVariables (LLM step):', {
+      stepSlug: args.stepSlug,
+      hasUserPrompt: !!llmConfig.userPrompt,
+      userPromptLength: llmConfig.userPrompt?.length ?? 0,
+      userPromptPreview: llmConfig.userPrompt?.substring(0, 100),
+      hasTemplateMarkers: /\{\{/.test(llmConfig.userPrompt || ''),
+      availableVariableKeys: Object.keys(fullVariables),
+      stepsKeys: stepsData ? Object.keys(stepsData) : [],
+    });
+
+    // Log specific step data that the template needs
+    if (stepsData?.query_conversation_messages) {
+      console.log('[execute_step_handler] query_conversation_messages step data:', {
+        hasOutput: !!stepsData.query_conversation_messages.output,
+        outputKeys: stepsData.query_conversation_messages.output
+          ? Object.keys(stepsData.query_conversation_messages.output)
+          : [],
+        hasData: !!stepsData.query_conversation_messages.output?.data,
+        dataKeys: stepsData.query_conversation_messages.output?.data
+          ? Object.keys(stepsData.query_conversation_messages.output.data)
+          : [],
+        hasPage: !!stepsData.query_conversation_messages.output?.data?.page,
+        pageLength: Array.isArray(stepsData.query_conversation_messages.output?.data?.page)
+          ? stepsData.query_conversation_messages.output.data.page.length
+          : 'not an array',
+      });
+    } else {
+      console.log('[execute_step_handler] query_conversation_messages step NOT in variables');
+    }
+
+    // Log currentConversation variables
+    console.log('[execute_step_handler] Conversation variables:', {
+      currentConversationId: fullVariables.currentConversationId,
+      currentConversationSubject: fullVariables.currentConversationSubject,
+      currentConversationType: fullVariables.currentConversationType,
+    });
+  }
+
   const processedConfig = isSetVariablesAction
     ? stepDef.config
     : replaceVariables(stepDef.config, fullVariables);
+
+  // Debug: Log after variable replacement for LLM steps
+  if (args.stepType === 'llm') {
+    const processedLlmConfig = processedConfig as any;
+    console.log('[execute_step_handler] After replaceVariables (LLM step):', {
+      stepSlug: args.stepSlug,
+      userPromptLength: processedLlmConfig.userPrompt?.length ?? 0,
+      userPromptPreview: processedLlmConfig.userPrompt?.substring(0, 100),
+      systemPromptLength: processedLlmConfig.systemPrompt?.length ?? 0,
+    });
+  }
+
   const processedStepDef = { ...stepDef, config: processedConfig };
 
   // 5. Execute step by type

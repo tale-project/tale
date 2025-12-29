@@ -38,9 +38,34 @@ export function processPrompts(
     ? replaceVariables(config.userPrompt, variables)
     : '';
 
+  // Validate and trim prompts
+  const trimmedSystemPrompt =
+    typeof systemPrompt === 'string' ? systemPrompt.trim() : '';
+  const trimmedUserPrompt =
+    typeof userPrompt === 'string' ? userPrompt.trim() : '';
+
+  // Validate that at least one prompt has content
+  if (!trimmedSystemPrompt && !trimmedUserPrompt) {
+    throw new Error(
+      'Both systemPrompt and userPrompt are empty after variable substitution. ' +
+        'At least one prompt must have content.'
+    );
+  }
+
+  // If userPrompt is empty but systemPrompt exists, provide a default prompt
+  // This handles cases where NO userPrompt was configured in the step config
+  if (!trimmedUserPrompt && trimmedSystemPrompt) {
+    return {
+      systemPrompt: trimmedSystemPrompt,
+      userPrompt: 'Please proceed with the task described in your instructions.',
+      availableSteps: [],
+      missingVariables: [],
+    };
+  }
+
   return {
-    systemPrompt,
-    userPrompt,
+    systemPrompt: trimmedSystemPrompt,
+    userPrompt: trimmedUserPrompt,
     availableSteps: [],
     missingVariables: [],
   };

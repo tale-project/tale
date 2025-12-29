@@ -99,15 +99,33 @@ export async function executeAgentWithTools(
   debugLog('executeAgentWithTools Executing', {
     hasOutputSchema: !!config.outputSchema,
     toolCount: (config.tools?.length ?? 0) + (jsonOutputTool ? 1 : 0),
+    userPromptLength: prompts.userPrompt?.length ?? 0,
+    systemPromptLength: prompts.systemPrompt?.length ?? 0,
   });
 
+  // processPrompts ensures we always have a valid userPrompt
+  // (either from config or a default prompt when config userPrompt is empty)
+
   // Single generateText call for all scenarios
-  const result = await agent.generateText(
-    contextWithOrg,
-    { threadId },
-    { prompt: prompts.userPrompt },
-    { contextOptions: { excludeToolMessages: false } },
-  );
+  let result;
+  try {
+    result = await agent.generateText(
+      contextWithOrg,
+      { threadId },
+      { prompt: prompts.userPrompt },
+      { contextOptions: { excludeToolMessages: false } },
+    );
+  } catch (error) {
+    // Provide more context when AI SDK fails
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `LLM generation failed: ${errorMessage}. ` +
+        `Thread: ${threadId}, ` +
+        `User prompt length: ${prompts.userPrompt?.length ?? 0}, ` +
+        `System prompt length: ${prompts.systemPrompt?.length ?? 0}`,
+    );
+  }
 
   const { agentSteps, toolDiagnostics } = processAgentResult(result);
 
