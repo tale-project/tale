@@ -4,7 +4,7 @@
 
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import type { Id, Doc } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 
 /**
  * Metadata for an integration operation approval
@@ -45,8 +45,8 @@ export function useIntegrationApprovals(threadId: string | undefined) {
 
   // Transform the approvals to a more usable format
   const integrationApprovals: IntegrationApproval[] = (approvals || [])
-    .filter((a: Doc<'approvals'>) => a.resourceType === 'integration_operation' && a.metadata)
-    .map((a: Doc<'approvals'>) => ({
+    .filter((a) => a.resourceType === 'integration_operation' && a.metadata)
+    .map((a) => ({
       _id: a._id,
       status: a.status as 'pending' | 'approved' | 'rejected',
       metadata: a.metadata as IntegrationOperationMetadata,

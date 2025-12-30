@@ -1,8 +1,6 @@
 import { useMutation } from 'convex/react';
 import { useParams } from 'next/navigation';
 import { api } from '@/convex/_generated/api';
-import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
-
 export function useSetDefaultProvider() {
   const params = useParams();
   const organizationId = params?.id as string;
@@ -16,7 +14,7 @@ export function useSetDefaultProvider() {
         localStore.setQuery(
           api.email_providers.list,
           { organizationId },
-          current.map((provider: EmailProviderDoc) => ({
+          current.map((provider) => ({
             ...provider,
             isDefault: provider._id === args.providerId,
           }))

@@ -314,7 +314,7 @@ export function AutomationTemplatesTab({
               </div>
             ) : (
               <Stack gap={3}>
-                {automations.map((workflow: Doc<'wfDefinitions'>) => (
+                {automations.map((workflow) => (
                   <div
                     key={workflow._id}
                     className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedWorkflow === workflow._id
