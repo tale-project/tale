@@ -27,7 +27,7 @@ export const conversationPriorityValidator = v.union(
 
 /**
  * Message status validator
- * Represents delivery states for conversation messages (from deliveryState field)
+ * Represents delivery states for the message status field
  */
 export const messageStatusValidator = v.union(
   v.literal('queued'),
