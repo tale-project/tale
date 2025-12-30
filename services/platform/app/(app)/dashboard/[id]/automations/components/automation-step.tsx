@@ -7,6 +7,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { PickaxeIcon, Repeat } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useT } from '@/lib/i18n';
+import { useAutomationCallbacks } from './automation-callbacks-context';
 
 interface AutomationStepProps {
   data: {
@@ -14,10 +15,8 @@ interface AutomationStepProps {
     description?: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     stepSlug: string;
-    onNodeClick?: (stepSlug: string) => void;
     isLeafNode?: boolean;
     isTerminalNode?: boolean;
-    onAddStep?: () => void;
     hasNextSteps?: boolean;
     target?: string;
     incomingCount?: number;
@@ -29,6 +28,8 @@ interface AutomationStepProps {
 
 export default function AutomationStep({ data }: AutomationStepProps) {
   const { t } = useT('automations');
+  const { onNodeClick } = useAutomationCallbacks();
+
   // Determine handle positions based on whether each edge (top/bottom) has bidirectional connections
   // Only offset if there are connections in both directions at that specific edge
   const topTargetLeft = data.hasBidirectionalTop ? '45%' : '50%';
@@ -85,7 +86,7 @@ export default function AutomationStep({ data }: AutomationStepProps) {
           ? 'border-dashed border-2 border-muted-foreground/50'
           : 'border-border',
       )}
-      onClick={() => data.onNodeClick?.(data.stepSlug)}
+      onClick={() => onNodeClick(data.stepSlug)}
     >
       <div className="py-2 px-2.5 flex gap-3">
         {/* Icon on left */}
