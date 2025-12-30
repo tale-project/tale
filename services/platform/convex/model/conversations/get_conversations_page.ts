@@ -12,7 +12,7 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import type { ConversationListResponse, ConversationStatus, ConversationPriority } from './types';
+import type { ConversationListResponse, ConversationStatus } from './types';
 import { transformConversation } from './transform_conversation';
 
 export async function getConversationsPage(
@@ -20,7 +20,8 @@ export async function getConversationsPage(
   args: {
     organizationId: string;
     status?: ConversationStatus;
-    priority?: ConversationPriority;
+    // Accepts comma-separated priority values for multi-priority filtering (e.g., "high,urgent")
+    priority?: string;
     category?: string;
     search?: string;
     page?: number;
