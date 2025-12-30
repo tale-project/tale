@@ -2,7 +2,10 @@
  * Central export point for organizations model
  */
 
-// Types and validators
+// Validators
+export * from './validators';
+
+// Types
 export * from './types';
 
 // Model operations

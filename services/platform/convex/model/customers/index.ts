@@ -4,7 +4,10 @@
  * This file exports all customer business logic functions and types.
  */
 
-// Export types and validators
+// Export validators
+export * from './validators';
+
+// Export types
 export * from './types';
 
 // Export internal business logic functions

@@ -4,32 +4,11 @@
  * Central export point for all conversation model functions
  */
 
-// Export types
-export type {
-  CreateConversationArgs,
-  CreateConversationResult,
-  UpdateConversationsArgs,
-  UpdateConversationsResult,
-  QueryConversationsArgs,
-  QueryConversationsResult,
-  MessageInfo,
-  CustomerInfo,
-  ConversationItem,
-  ConversationListResponse,
-  BulkOperationResult,
-} from './types';
-
 // Export validators
-export {
-  conversationStatusValidator,
-  conversationPriorityValidator,
-  messageValidator,
-  customerInfoValidator,
-  conversationItemValidator,
-  conversationListResponseValidator,
-  conversationWithMessagesValidator,
-  bulkOperationResultValidator,
-} from './types';
+export * from './validators';
+
+// Export types
+export * from './types';
 
 // Export functions
 export { createConversation } from './create_conversation';

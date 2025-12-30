@@ -2,7 +2,10 @@
  * Central export point for wf_definitions model
  */
 
-// Types and validators
+// Validators
+export * from './validators';
+
+// Types
 export * from './types';
 
 // Internal operations

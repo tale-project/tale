@@ -19,7 +19,7 @@ import {
   conversationWithMessagesValidator,
   bulkOperationResultValidator,
   conversationStatusValidator,
-} from './model/conversations/types';
+} from './model/conversations/validators';
 
 // =============================================================================
 // INTERNAL OPERATIONS (without RLS)
