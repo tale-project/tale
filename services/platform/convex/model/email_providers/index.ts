@@ -2,6 +2,7 @@
  * Email providers model - central export point
  */
 
+export * from './validators';
 export * from './types';
 export * from './update_provider_status';
 export * from './get_provider_by_id';

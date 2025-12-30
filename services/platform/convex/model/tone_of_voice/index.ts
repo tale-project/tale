@@ -2,7 +2,10 @@
  * Central export point for tone of voice model
  */
 
-// Types and validators
+// Validators
+export * from './validators';
+
+// Types
 export * from './types';
 
 // Query operations

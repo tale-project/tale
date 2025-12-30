@@ -1,58 +1,25 @@
 /**
- * Type definitions and validators for website operations
+ * Type definitions for website operations
  */
 
-import { v } from 'convex/values';
+import type { Infer } from 'convex/values';
 import type { Id } from '../../_generated/dataModel';
+import {
+  websitePageValidator,
+  websiteStatusValidator,
+  websiteValidator,
+} from './validators';
 
 // =============================================================================
-// VALIDATORS
+// INFERRED TYPES (from validators)
 // =============================================================================
 
-/**
- * Website status validator
- */
-export const websiteStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('inactive'),
-  v.literal('error'),
-);
-
-/**
- * Website document validator (matches schema)
- */
-export const websiteValidator = v.object({
-  _id: v.id('websites'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  domain: v.string(),
-  title: v.optional(v.string()),
-  description: v.optional(v.string()),
-  scanInterval: v.string(),
-  lastScannedAt: v.optional(v.number()),
-  status: v.optional(websiteStatusValidator),
-  metadata: v.optional(v.any()),
-});
-
-/**
- * Website page document validator (matches schema)
- */
-export const websitePageValidator = v.object({
-  _id: v.id('websitePages'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  websiteId: v.id('websites'),
-  url: v.string(),
-  title: v.optional(v.string()),
-  content: v.optional(v.string()),
-  wordCount: v.optional(v.number()),
-  lastCrawledAt: v.number(),
-  metadata: v.optional(v.record(v.string(), v.any())),
-  structuredData: v.optional(v.record(v.string(), v.any())),
-});
+export type WebsiteStatus = Infer<typeof websiteStatusValidator>;
+export type Website = Infer<typeof websiteValidator>;
+export type WebsitePage = Infer<typeof websitePageValidator>;
 
 // =============================================================================
-// TYPESCRIPT TYPES
+// MANUAL TYPES (no corresponding validator)
 // =============================================================================
 
 /**
@@ -68,7 +35,7 @@ export interface GetWebsitesResult {
     description?: string;
     scanInterval: string;
     lastScannedAt?: number;
-    status?: 'active' | 'inactive' | 'error';
+    status?: WebsiteStatus;
     metadata?: unknown;
   }>;
   isDone: boolean;
@@ -96,7 +63,7 @@ export interface BulkWebsiteData {
   title?: string;
   description?: string;
   scanInterval: string;
-  status?: 'active' | 'inactive' | 'error';
+  status?: WebsiteStatus;
   metadata?: unknown;
 }
 
