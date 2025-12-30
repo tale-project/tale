@@ -13,7 +13,7 @@ export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
  * Member list item validator (for listing organization members)
  */
 export const memberListItemValidator = v.object({
-  _id: v.string(),
+  _id: v.id('members'),
   _creationTime: v.number(),
   organizationId: v.string(),
   identityId: v.optional(v.string()),
