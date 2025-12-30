@@ -7,7 +7,9 @@ export {
 } from './data-table-action-menu';
 export {
   DataTableEmptyState,
+  DataTableFilteredEmptyState,
   type DataTableEmptyStateProps,
+  type DataTableFilteredEmptyStateProps,
 } from './data-table-empty-state';
 export {
   DataTablePagination,

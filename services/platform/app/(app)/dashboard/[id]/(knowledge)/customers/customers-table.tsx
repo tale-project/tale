@@ -9,7 +9,6 @@ import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 import {
   DataTable,
-  DataTableEmptyState,
   useDataTable,
 } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
@@ -46,7 +45,7 @@ export default function CustomersTable({
   const { filters: filterValues, sorting, pagination, setPage, setPageSize } = urlFilters;
 
   // Use the useDataTable hook for search and sorting configs
-  const { searchConfig, sortingConfig, hasActiveFilters, clearAll, isPending } = useDataTable({
+  const { searchConfig, sortingConfig, clearAll, isPending } = useDataTable({
     urlFilters,
     search: { placeholder: tCustomers('searchPlaceholder') },
   });
@@ -118,7 +117,6 @@ export default function CustomersTable({
   });
 
   const customers = data?.items ?? [];
-  const emptyCustomers = customers.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Doc<'customers'>>[]>(
@@ -188,18 +186,6 @@ export default function CustomersTable({
     [tTables],
   );
 
-  // Show empty state when no customers and no filters
-  if (emptyCustomers) {
-    return (
-      <DataTableEmptyState
-        icon={Users}
-        title={tEmpty('customers.title')}
-        description={tEmpty('customers.description')}
-        actionMenu={<CustomersActionMenu organizationId={organizationId} />}
-      />
-    );
-  }
-
   return (
     <DataTable
       columns={columns}
@@ -213,6 +199,11 @@ export default function CustomersTable({
       isFiltersLoading={isPending}
       onClearFilters={clearAll}
       actionMenu={<CustomersActionMenu organizationId={organizationId} />}
+      emptyState={{
+        icon: Users,
+        title: tEmpty('customers.title'),
+        description: tEmpty('customers.description'),
+      }}
       pagination={{
         total: data?.total ?? 0,
         pageSize: pagination.pageSize,
