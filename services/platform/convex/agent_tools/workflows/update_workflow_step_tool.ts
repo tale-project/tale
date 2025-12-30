@@ -188,8 +188,13 @@ LOOP (iteration):
         // Attempt to repair common corruption patterns
         // Pattern: Field names that look like descriptions instead of identifiers
         const repairObject = (obj: any): any => {
-          if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+          if (!obj || typeof obj !== 'object') {
             return obj;
+          }
+
+          // Handle arrays by recursively repairing each element
+          if (Array.isArray(obj)) {
+            return obj.map((item) => repairObject(item));
           }
 
           const repaired: Record<string, any> = {};
@@ -197,11 +202,20 @@ LOOP (iteration):
             let repairedKey = key;
 
             // If key contains newlines or is too descriptive, try to extract the actual field name
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentionally matching control characters to detect and repair corrupted field names
             if (/[\x00-\x1F\x7F]/.test(key) || key.length > 50) {
               // Try to extract common field names from descriptive keys
               const fieldNameMatch = key.match(/^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|order|stepType)/i);
               if (fieldNameMatch) {
-                repairedKey = fieldNameMatch[1];
+                // Normalize to proper camelCase
+                const lowerKey = fieldNameMatch[1].toLowerCase();
+                const camelCaseMap: Record<string, string> = {
+                  userprompt: 'userPrompt',
+                  systemprompt: 'systemPrompt',
+                  nextsteps: 'nextSteps',
+                  steptype: 'stepType',
+                };
+                repairedKey = camelCaseMap[lowerKey] ?? lowerKey;
                 debugLog('Repaired field name', { original: key.substring(0, 50), repaired: repairedKey });
               } else {
                 // Can't repair this key, leave it as-is for validation to catch
@@ -220,9 +234,16 @@ LOOP (iteration):
         const validateObject = (obj: any, path = ''): void => {
           if (!obj || typeof obj !== 'object') return;
 
+          // Handle arrays by recursively validating each element
+          if (Array.isArray(obj)) {
+            obj.forEach((item, index) => validateObject(item, `${path}[${index}]`));
+            return;
+          }
+
           for (const [key, value] of Object.entries(obj)) {
             // Check for control characters (including newlines, tabs, etc.)
             // Control characters are ASCII 0-31 and 127
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentionally matching control characters to reject them
             const hasControlChars = /[\x00-\x1F\x7F]/.test(key);
             if (hasControlChars) {
               // Show escaped version to make control chars visible
