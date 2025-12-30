@@ -1,34 +1,32 @@
 /**
- * Types and validators for email providers
+ * Type definitions for email providers
  */
 
-import { v } from 'convex/values';
+import type { Infer } from 'convex/values';
 import type { Doc } from '../../_generated/dataModel';
+import {
+  emailProviderAuthMethodValidator,
+  emailProviderStatusValidator,
+  emailProviderVendorValidator,
+  imapConfigValidator,
+  smtpConfigValidator,
+} from './validators';
 
 // =============================================================================
-// TypeScript Types
+// INFERRED TYPES (from validators)
 // =============================================================================
 
-export type EmailProviderVendor =
-  | 'gmail'
-  | 'outlook'
-  | 'smtp'
-  | 'resend'
-  | 'other';
-export type EmailProviderAuthMethod = 'password' | 'oauth2';
-export type EmailProviderStatus = 'active' | 'error' | 'testing';
+export type EmailProviderVendor = Infer<typeof emailProviderVendorValidator>;
+export type EmailProviderAuthMethod = Infer<
+  typeof emailProviderAuthMethodValidator
+>;
+export type EmailProviderStatus = Infer<typeof emailProviderStatusValidator>;
+export type SmtpConfig = Infer<typeof smtpConfigValidator>;
+export type ImapConfig = Infer<typeof imapConfigValidator>;
 
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-}
-
-export interface ImapConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-}
+// =============================================================================
+// MANUAL TYPES (no corresponding validator)
+// =============================================================================
 
 export interface UpdateProviderStatusArgs {
   providerId: Doc<'emailProviders'>['_id'];
@@ -40,38 +38,3 @@ export interface UpdateProviderStatusArgs {
 export interface GetProviderByIdArgs {
   providerId: Doc<'emailProviders'>['_id'];
 }
-
-// =============================================================================
-// Convex Validators
-// =============================================================================
-
-export const emailProviderVendorValidator = v.union(
-  v.literal('gmail'),
-  v.literal('outlook'),
-  v.literal('smtp'),
-  v.literal('resend'),
-  v.literal('other'),
-);
-
-export const emailProviderAuthMethodValidator = v.union(
-  v.literal('password'),
-  v.literal('oauth2'),
-);
-
-export const emailProviderStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('error'),
-  v.literal('testing'),
-);
-
-export const smtpConfigValidator = v.object({
-  host: v.string(),
-  port: v.number(),
-  secure: v.boolean(),
-});
-
-export const imapConfigValidator = v.object({
-  host: v.string(),
-  port: v.number(),
-  secure: v.boolean(),
-});

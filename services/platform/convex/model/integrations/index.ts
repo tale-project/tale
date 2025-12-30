@@ -2,7 +2,10 @@
  * Central export point for integrations model
  */
 
-// Types and validators
+// Validators
+export * from './validators';
+
+// Types
 export * from './types';
 
 // Connection testing

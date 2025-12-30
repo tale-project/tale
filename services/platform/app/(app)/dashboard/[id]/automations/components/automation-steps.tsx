@@ -42,13 +42,8 @@ import AutomationSidePanel from './automation-sidepanel';
 import AutomationGroupNode from './automation-group-node';
 import AutomationLoopContainer from './automation-loop-container';
 import AutomationEdge from './automation-edge';
+import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { Doc, Id } from '@/convex/_generated/dataModel';
-import {
-  Tooltip,
-  TooltipProvider,
-  TooltipTrigger,
-  TooltipContent,
-} from '@/components/ui/tooltip';
 import { getLayoutedElements } from '../utils/dagre-layout';
 
 interface AutomationStepsProps {
@@ -87,13 +82,18 @@ function AutomationStepsInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
+
+  // Memoize URL state definitions to prevent infinite re-renders
+  // The definitions object must be stable to avoid triggering useUrlState recalculation
+  const urlStateDefinitions = useMemo(() => ({
+    panel: { default: isDraft ? 'ai-chat' : null },
+    step: { default: null },
+  }), [isDraft]);
+
   // URL-based state for side panel mode and selected step
   // This persists the panel state in URL params for bookmarkability and page reload support
   const { state: panelState, setStates: setPanelStates, clearAll: clearPanelState } = useUrlState({
-    definitions: {
-      panel: { default: isDraft ? 'ai-chat' : null },
-      step: { default: null },
-    },
+    definitions: urlStateDefinitions,
   });
 
   // Derive sidePanelMode from URL state
@@ -190,6 +190,15 @@ function AutomationStepsInner({
     [],
   );
 
+  // Handle adding step after a leaf node
+  const handleAddStep = useCallback(
+    (stepSlug: string) => {
+      setParentStepForNewStep(stepSlug);
+      setIsCreateStepDialogOpen(true);
+    },
+    [],
+  );
+
   // Handle deleting edge
   const handleDeleteEdge = useCallback(async (_edgeId: string) => {
     // NOTE: Editing connections is currently disabled until public Convex
@@ -201,7 +210,19 @@ function AutomationStepsInner({
     return;
   }, [t]);
 
+  // Stable key for step array to detect actual changes
+  // This creates a deterministic string based on step content (not object identity)
+  const stepsKey = useMemo(() => {
+    if (!steps || steps.length === 0) return '';
+    return steps
+      .map((s) => `${s.stepSlug}:${s.order}:${JSON.stringify(s.nextSteps)}`)
+      .sort()
+      .join('|');
+  }, [steps]);
+
   // Convert steps to nodes and edges using Dagre layout
+  // IMPORTANT: Only include primitive values in node.data to avoid infinite loops
+  // Callbacks are passed via context or refs to prevent object identity changes
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!steps || steps.length === 0) {
       return { initialNodes: [], initialEdges: [] };
@@ -445,6 +466,9 @@ function AutomationStepsInner({
       }
 
       // Build node configuration
+      // IMPORTANT: Do NOT include callback functions in data - they cause infinite loops
+      // because new function references trigger ReactFlow's StoreUpdater to re-render
+      // Callbacks should be accessed via refs or context in the node components
       const nodeConfig: Partial<Node> = {
         id: step.stepSlug,
         type: isLoopNode ? 'loopContainer' : 'custom',
@@ -454,17 +478,10 @@ function AutomationStepsInner({
           label: step.name,
           stepType: step.stepType,
           stepSlug: step.stepSlug,
-          onNodeClick: handleNodeClick,
           isLeafNode: leafStepSlugs.has(step.stepSlug),
           isTerminalNode: leafStepSlugs.has(step.stepSlug),
           rank: step.order, // Use order as rank for automatic positioning
           isLoopBodyNode: !!parentLoopId, // Flag to identify loop body nodes
-          onAddStep: leafStepSlugs.has(step.stepSlug)
-            ? () => {
-                setParentStepForNewStep(step.stepSlug);
-                setIsCreateStepDialogOpen(true);
-              }
-            : undefined,
         },
       };
 
@@ -702,6 +719,8 @@ function AutomationStepsInner({
               return;
             }
 
+            // IMPORTANT: Do NOT include callback functions in edge data - they cause infinite loops
+            // Callbacks should be accessed via refs or context in the edge components
             edges.push({
               id: `e${step.stepSlug}-${targetStepSlug}-${key}`,
               type: edgeType,
@@ -743,8 +762,6 @@ function AutomationStepsInner({
               animated: !isBackwardConnection, // Animate forward edges to show direction
               data: {
                 isBackward: isBackwardConnection,
-                onAddStepOnEdge: handleAddStepOnEdge,
-                onDeleteEdge: handleDeleteEdge,
                 label: edgeLabel,
                 labelStyle: edgeLabel
                   ? {
@@ -856,7 +873,8 @@ function AutomationStepsInner({
       initialNodes: layouted.nodes,
       initialEdges: layouted.edges,
     };
-  }, [steps, handleNodeClick, handleAddStepOnEdge, handleDeleteEdge]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stepsKey is a stable derived key
+  }, [stepsKey]);
 
   // Update nodes and edges when steps change
   useEffect(() => {
@@ -938,70 +956,76 @@ function AutomationStepsInner({
   };
 
   return (
-    <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
-      <style>{`
-        /* Allow individual edges to control their z-index */
-        .react-flow__edges {
-          z-index: auto;
-        }
-        .react-flow__nodes {
-          z-index: auto;
-        }
-        /* Individual elements can override z-index as needed */
-        .react-flow__edge {
-          z-index: 0;
-        }
-        .react-flow__node {
-          z-index: 1;
-        }
+    <AutomationCallbacksProvider
+      onNodeClick={handleNodeClick}
+      onAddStep={handleAddStep}
+      onAddStepOnEdge={handleAddStepOnEdge}
+      onDeleteEdge={handleDeleteEdge}
+    >
+      <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
+        <style>{`
+          /* Allow individual edges to control their z-index */
+          .react-flow__edges {
+            z-index: auto;
+          }
+          .react-flow__nodes {
+            z-index: auto;
+          }
+          /* Individual elements can override z-index as needed */
+          .react-flow__edge {
+            z-index: 0;
+          }
+          .react-flow__node {
+            z-index: 1;
+          }
 
-        /* MiniMap dark mode support */
-        .react-flow__minimap {
-          background-color: hsl(var(--muted)) !important;
-        }
+          /* MiniMap dark mode support */
+          .react-flow__minimap {
+            background-color: hsl(var(--muted)) !important;
+          }
 
-        .react-flow__minimap-node {
-          fill: hsl(var(--background)) !important;
-        }
+          .react-flow__minimap-node {
+            fill: hsl(var(--background)) !important;
+          }
 
-        .react-flow__minimap-mask {
-          fill: hsl(var(--muted) / 0.6) !important;
-        }
-      `}</style>
-      {/* Main automation canvas */}
-      <div className="flex-[1_1_0] min-h-0 bg-background">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={isActive ? undefined : onNodesChange}
-          onEdgesChange={isActive ? undefined : onEdgesChange}
-          onConnect={isActive ? undefined : onConnect}
-          onEdgesDelete={isActive ? undefined : onEdgesDelete}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          fitView={true}
-          fitViewOptions={{ padding: 0.2, duration: 400, maxZoom: 1 }}
-          defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
-          minZoom={0.2}
-          maxZoom={2}
-          elevateEdgesOnSelect={false}
-          elevateNodesOnSelect={false}
-          selectNodesOnDrag={false}
-          defaultEdgeOptions={{
-            type: 'smoothstep',
-            animated: false,
-            style: { strokeWidth: 2 },
-            zIndex: 0,
-          }}
-          deleteKeyCode={isActive ? null : ['Backspace', 'Delete']}
-          nodesDraggable={!isActive}
-          nodesConnectable={!isActive}
-          nodesFocusable={!isActive}
-          edgesFocusable={!isActive}
-          multiSelectionKeyCode={['Meta', 'Ctrl']}
-          proOptions={{ hideAttribution: true }}
-        >
+          .react-flow__minimap-mask {
+            fill: hsl(var(--muted) / 0.6) !important;
+          }
+        `}</style>
+        {/* Main automation canvas */}
+        <div className="flex-[1_1_0] min-h-0 bg-background">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={isActive ? undefined : onNodesChange}
+            onEdgesChange={isActive ? undefined : onEdgesChange}
+            onConnect={isActive ? undefined : onConnect}
+            onEdgesDelete={isActive ? undefined : onEdgesDelete}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            fitView={true}
+            fitViewOptions={{ padding: 0.2, duration: 400, maxZoom: 1 }}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.6 }}
+            minZoom={0.2}
+            maxZoom={2}
+            elevateEdgesOnSelect={false}
+            elevateNodesOnSelect={false}
+            selectNodesOnDrag={false}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              animated: false,
+              style: { strokeWidth: 2 },
+              zIndex: 0,
+            }}
+            deleteKeyCode={isActive ? null : ['Backspace', 'Delete']}
+            nodesDraggable={!isActive}
+            nodesConnectable={!isActive}
+            nodesFocusable={!isActive}
+            edgesFocusable={!isActive}
+            multiSelectionKeyCode={['Meta', 'Ctrl']}
+            proOptions={{ hideAttribution: true }}
+          >
           <MiniMap
             className="border border-border rounded-lg shadow-sm"
             nodeStrokeColor={(node) => {
@@ -1092,88 +1116,71 @@ function AutomationStepsInner({
             <div className="flex items-center gap-2 rounded-lg ring-1 ring-border bg-background p-1 shadow-sm">
               {/* Action Tools */}
               <div className="flex items-center gap-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          fitView({
-                            padding: 0.2,
-                            duration: 400,
-                            maxZoom: 1,
-                          });
-                        }}
-                      >
-                        <Scan className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t('steps.toolbar.focus')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('steps.toolbar.focus')}
+                  onClick={() => {
+                    fitView({
+                      padding: 0.2,
+                      duration: 400,
+                      maxZoom: 1,
+                    });
+                  }}
+                >
+                  <Scan className="size-4" />
+                </Button>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleOpenAIChat}
-                      >
-                        <Sparkles className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t('steps.toolbar.aiAssistant')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('steps.toolbar.aiAssistant')}
+                  onClick={handleOpenAIChat}
+                >
+                  <Sparkles className="size-4" />
+                </Button>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleOpenTestPanel}
-                        disabled={steps.length === 0}
-                      >
-                        <TestTubeDiagonal className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">{t('steps.toolbar.testAutomation')}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  title={t('steps.toolbar.testAutomation')}
+                  onClick={handleOpenTestPanel}
+                  disabled={steps.length === 0}
+                >
+                  <TestTubeDiagonal className="size-4" />
+                </Button>
               </div>
             </div>
           </Panel>
-        </ReactFlow>
-      </div>
+          </ReactFlow>
+        </div>
 
-      {/* Right side panel for step details, AI chat, or test panel */}
-      {sidePanelMode && (
-        <AutomationSidePanel
-          step={selectedStep}
-          isOpen={!!sidePanelMode}
-          onClose={handleCloseSidePanel}
-          showAIChat={sidePanelMode === 'ai-chat'}
-          showTestPanel={sidePanelMode === 'test'}
-          automationId={automationId}
-          organizationId={organizationId}
+        {/* Right side panel for step details, AI chat, or test panel */}
+        {sidePanelMode && (
+          <AutomationSidePanel
+            step={selectedStep}
+            isOpen={!!sidePanelMode}
+            onClose={handleCloseSidePanel}
+            showAIChat={sidePanelMode === 'ai-chat'}
+            showTestPanel={sidePanelMode === 'test'}
+            automationId={automationId}
+            organizationId={organizationId}
+          />
+        )}
+        {/* Create Step Dialog */}
+        <CreateStepDialog
+          open={isCreateStepDialogOpen}
+          onOpenChange={(open) => {
+            setIsCreateStepDialogOpen(open);
+            if (!open) {
+              setParentStepForNewStep(null);
+              setEdgeToInsertStep(null);
+            }
+          }}
+          onCreateStep={handleCreateStep}
         />
-      )}
-      {/* Create Step Dialog */}
-      <CreateStepDialog
-        open={isCreateStepDialogOpen}
-        onOpenChange={(open) => {
-          setIsCreateStepDialogOpen(open);
-          if (!open) {
-            setParentStepForNewStep(null);
-            setEdgeToInsertStep(null);
-          }
-        }}
-        onCreateStep={handleCreateStep}
-      />
-    </div>
+      </div>
+    </AutomationCallbacksProvider>
   );
 }
 

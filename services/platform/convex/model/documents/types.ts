@@ -2,8 +2,29 @@
  * Type definitions for document model
  */
 
-import { v } from 'convex/values';
+import type { Infer } from 'convex/values';
 import type { Id } from '../../_generated/dataModel';
+import {
+  documentItemValidator,
+  documentListResponseValidator,
+  documentRecordValidator,
+  ragStatusValidator,
+  sourceProviderValidator,
+} from './validators';
+
+// =============================================================================
+// INFERRED TYPES (from validators)
+// =============================================================================
+
+export type RagStatus = Infer<typeof ragStatusValidator>;
+export type SourceProvider = Infer<typeof sourceProviderValidator>;
+export type DocumentItemResponse = Infer<typeof documentItemValidator>;
+export type DocumentListResponse = Infer<typeof documentListResponseValidator>;
+export type DocumentRecord = Infer<typeof documentRecordValidator>;
+
+// =============================================================================
+// MANUAL TYPES (no corresponding validator)
+// =============================================================================
 
 export interface CreateDocumentArgs {
   organizationId: string;
@@ -14,7 +35,7 @@ export interface CreateDocumentArgs {
   mimeType?: string;
   extension?: string;
   metadata?: unknown;
-  sourceProvider?: 'onedrive' | 'upload';
+  sourceProvider?: SourceProvider;
   externalItemId?: string;
 }
 
@@ -25,69 +46,11 @@ export interface CreateDocumentResult {
 
 export interface QueryDocumentsArgs {
   organizationId: string;
-
-  sourceProvider?: 'onedrive' | 'upload';
-
+  sourceProvider?: SourceProvider;
   paginationOpts: {
     numItems: number;
     cursor: string | null;
   };
-}
-
-export interface QueryDocumentsResult {
-  items: Array<{
-    _id: Id<'documents'>;
-    _creationTime: number;
-    organizationId: string;
-    title?: string;
-
-    content?: string;
-    fileId?: Id<'_storage'>;
-    mimeType?: string;
-    extension?: string;
-    metadata?: unknown;
-    sourceProvider?: 'onedrive' | 'upload';
-    externalItemId?: string;
-  }>;
-  isDone: boolean;
-  continueCursor: string | null;
-  count: number;
-}
-
-/** RAG ingestion status for a document */
-export type RagStatus = 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'not_indexed' | 'stale';
-
-export interface DocumentItemResponse {
-  id: string;
-  name?: string;
-  type: 'file' | 'folder';
-  size?: number;
-  mimeType?: string;
-  extension?: string;
-  storagePath?: string;
-  sourceProvider?: 'onedrive' | 'upload';
-  sourceMode?: 'auto' | 'manual';
-  lastModified?: number;
-  syncConfigId?: string;
-  isDirectlySelected?: boolean;
-  url?: string;
-  ragStatus?: RagStatus;
-  /** Timestamp (in seconds) when the document was indexed */
-  ragIndexedAt?: number;
-  /** Error message (for failed status) */
-  ragError?: string;
-}
-
-export interface DocumentListResponse {
-  success: boolean;
-  items: DocumentItemResponse[];
-  totalItems: number;
-  pagination?: {
-    hasNextPage: boolean;
-    currentPage: number;
-    pageSize: number;
-  };
-  error?: string;
 }
 
 export interface CheckMembershipArgs {
@@ -176,83 +139,3 @@ export interface GenerateDocumentResult {
   /** File extension (e.g. pdf, png, jpeg) */
   extension: string;
 }
-
-// =============================================================================
-// VALIDATORS (for Convex function args/returns)
-// =============================================================================
-
-/**
- * RAG status validator
- */
-export const RagStatusValidator = v.optional(
-  v.union(
-    v.literal('pending'),
-    v.literal('queued'),
-    v.literal('running'),
-    v.literal('completed'),
-    v.literal('failed'),
-    v.literal('not_indexed'),
-    v.literal('stale'),
-  ),
-);
-
-/**
- * Document item validator (for public API responses)
- */
-export const DocumentItem = v.object({
-  id: v.string(),
-  name: v.optional(v.string()),
-  type: v.union(v.literal('file'), v.literal('folder')),
-  size: v.optional(v.number()),
-  mimeType: v.optional(v.string()),
-  extension: v.optional(v.string()),
-  storagePath: v.optional(v.string()),
-  sourceProvider: v.optional(
-    v.union(v.literal('onedrive'), v.literal('upload')),
-  ),
-  sourceMode: v.optional(v.union(v.literal('auto'), v.literal('manual'))),
-  lastModified: v.optional(v.number()),
-  syncConfigId: v.optional(v.string()),
-  isDirectlySelected: v.optional(v.boolean()),
-  url: v.optional(v.string()),
-  ragStatus: RagStatusValidator,
-  ragIndexedAt: v.optional(v.number()),
-  ragError: v.optional(v.string()),
-});
-
-/**
- * Document list response validator
- */
-export const DocumentListResponseValidator = v.object({
-  success: v.boolean(),
-  items: v.array(DocumentItem),
-  totalItems: v.number(),
-  pagination: v.optional(
-    v.object({
-      hasNextPage: v.boolean(),
-      currentPage: v.number(),
-      pageSize: v.number(),
-    }),
-  ),
-  error: v.optional(v.string()),
-});
-
-/**
- * Document record validator (raw database document)
- */
-export const DocumentRecord = v.object({
-  _id: v.id('documents'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  title: v.optional(v.string()),
-
-  content: v.optional(v.string()),
-  fileId: v.optional(v.id('_storage')),
-  mimeType: v.optional(v.string()),
-  extension: v.optional(v.string()),
-  metadata: v.optional(v.any()),
-  sourceProvider: v.optional(
-    v.union(v.literal('onedrive'), v.literal('upload')),
-  ),
-  externalItemId: v.optional(v.string()),
-});

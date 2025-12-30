@@ -147,6 +147,7 @@ import type * as model_approvals_list_pending_approvals_for_execution from "../m
 import type * as model_approvals_remove_recommended_product from "../model/approvals/remove_recommended_product.js";
 import type * as model_approvals_types from "../model/approvals/types.js";
 import type * as model_approvals_update_approval_status from "../model/approvals/update_approval_status.js";
+import type * as model_approvals_validators from "../model/approvals/validators.js";
 import type * as model_chat_agent_auto_summarize_if_needed from "../model/chat_agent/auto_summarize_if_needed.js";
 import type * as model_chat_agent_chat_with_agent from "../model/chat_agent/chat_with_agent.js";
 import type * as model_chat_agent_context_management_check_and_summarize from "../model/chat_agent/context_management/check_and_summarize.js";
@@ -187,6 +188,7 @@ import type * as model_conversations_types from "../model/conversations/types.js
 import type * as model_conversations_update_conversation from "../model/conversations/update_conversation.js";
 import type * as model_conversations_update_conversation_message from "../model/conversations/update_conversation_message.js";
 import type * as model_conversations_update_conversations from "../model/conversations/update_conversations.js";
+import type * as model_conversations_validators from "../model/conversations/validators.js";
 import type * as model_customers_bulk_create_customers from "../model/customers/bulk_create_customers.js";
 import type * as model_customers_create_customer from "../model/customers/create_customer.js";
 import type * as model_customers_create_customer_public from "../model/customers/create_customer_public.js";
@@ -205,6 +207,7 @@ import type * as model_customers_types from "../model/customers/types.js";
 import type * as model_customers_update_customer from "../model/customers/update_customer.js";
 import type * as model_customers_update_customer_metadata from "../model/customers/update_customer_metadata.js";
 import type * as model_customers_update_customers from "../model/customers/update_customers.js";
+import type * as model_customers_validators from "../model/customers/validators.js";
 import type * as model_documents_analyze_pptx from "../model/documents/analyze_pptx.js";
 import type * as model_documents_check_membership from "../model/documents/check_membership.js";
 import type * as model_documents_create_document from "../model/documents/create_document.js";
@@ -231,6 +234,7 @@ import type * as model_documents_transform_to_document_item from "../model/docum
 import type * as model_documents_types from "../model/documents/types.js";
 import type * as model_documents_update_document from "../model/documents/update_document.js";
 import type * as model_documents_upload_base64_to_storage from "../model/documents/upload_base64_to_storage.js";
+import type * as model_documents_validators from "../model/documents/validators.js";
 import type * as model_email_providers_create_oauth2_provider_logic from "../model/email_providers/create_oauth2_provider_logic.js";
 import type * as model_email_providers_create_provider_internal from "../model/email_providers/create_provider_internal.js";
 import type * as model_email_providers_create_provider_logic from "../model/email_providers/create_provider_logic.js";
@@ -257,6 +261,7 @@ import type * as model_email_providers_update_metadata_internal from "../model/e
 import type * as model_email_providers_update_oauth2_tokens from "../model/email_providers/update_oauth2_tokens.js";
 import type * as model_email_providers_update_provider from "../model/email_providers/update_provider.js";
 import type * as model_email_providers_update_provider_status from "../model/email_providers/update_provider_status.js";
+import type * as model_email_providers_validators from "../model/email_providers/validators.js";
 import type * as model_integrations_create_integration_internal from "../model/integrations/create_integration_internal.js";
 import type * as model_integrations_create_integration_logic from "../model/integrations/create_integration_logic.js";
 import type * as model_integrations_delete_integration from "../model/integrations/delete_integration.js";
@@ -276,6 +281,7 @@ import type * as model_integrations_types from "../model/integrations/types.js";
 import type * as model_integrations_update_integration_internal from "../model/integrations/update_integration_internal.js";
 import type * as model_integrations_update_integration_logic from "../model/integrations/update_integration_logic.js";
 import type * as model_integrations_update_sync_stats from "../model/integrations/update_sync_stats.js";
+import type * as model_integrations_validators from "../model/integrations/validators.js";
 import type * as model_onedrive_create_sync_configs_logic from "../model/onedrive/create_sync_configs_logic.js";
 import type * as model_onedrive_get_user_token_logic from "../model/onedrive/get_user_token_logic.js";
 import type * as model_onedrive_index from "../model/onedrive/index.js";
@@ -294,6 +300,7 @@ import type * as model_organizations_index from "../model/organizations/index.js
 import type * as model_organizations_save_default_workflows from "../model/organizations/save_default_workflows.js";
 import type * as model_organizations_types from "../model/organizations/types.js";
 import type * as model_organizations_update_organization from "../model/organizations/update_organization.js";
+import type * as model_organizations_validators from "../model/organizations/validators.js";
 import type * as model_products_create_product from "../model/products/create_product.js";
 import type * as model_products_create_product_public from "../model/products/create_product_public.js";
 import type * as model_products_delete_product from "../model/products/delete_product.js";
@@ -309,6 +316,7 @@ import type * as model_products_types from "../model/products/types.js";
 import type * as model_products_update_product from "../model/products/update_product.js";
 import type * as model_products_update_products from "../model/products/update_products.js";
 import type * as model_products_upsert_product_translation from "../model/products/upsert_product_translation.js";
+import type * as model_products_validators from "../model/products/validators.js";
 import type * as model_threads_create_chat_thread from "../model/threads/create_chat_thread.js";
 import type * as model_threads_delete_chat_thread from "../model/threads/delete_chat_thread.js";
 import type * as model_threads_get_latest_thread_with_message_count from "../model/threads/get_latest_thread_with_message_count.js";
@@ -331,6 +339,7 @@ import type * as model_tone_of_voice_save_generated_tone from "../model/tone_of_
 import type * as model_tone_of_voice_types from "../model/tone_of_voice/types.js";
 import type * as model_tone_of_voice_update_example_message from "../model/tone_of_voice/update_example_message.js";
 import type * as model_tone_of_voice_upsert_tone_of_voice from "../model/tone_of_voice/upsert_tone_of_voice.js";
+import type * as model_tone_of_voice_validators from "../model/tone_of_voice/validators.js";
 import type * as model_trusted_headers_authenticate_create_session_for_trusted_user from "../model/trusted_headers_authenticate/create_session_for_trusted_user.js";
 import type * as model_trusted_headers_authenticate_find_or_create_user_from_headers from "../model/trusted_headers_authenticate/find_or_create_user_from_headers.js";
 import type * as model_trusted_headers_authenticate_get_user_by_id from "../model/trusted_headers_authenticate/get_user_by_id.js";
@@ -358,6 +367,7 @@ import type * as model_websites_rescan_website from "../model/websites/rescan_we
 import type * as model_websites_search_websites from "../model/websites/search_websites.js";
 import type * as model_websites_types from "../model/websites/types.js";
 import type * as model_websites_update_website from "../model/websites/update_website.js";
+import type * as model_websites_validators from "../model/websites/validators.js";
 import type * as model_wf_definitions_activate_version from "../model/wf_definitions/activate_version.js";
 import type * as model_wf_definitions_create_draft_from_active from "../model/wf_definitions/create_draft_from_active.js";
 import type * as model_wf_definitions_create_workflow from "../model/wf_definitions/create_workflow.js";
@@ -382,6 +392,7 @@ import type * as model_wf_definitions_types from "../model/wf_definitions/types.
 import type * as model_wf_definitions_update_draft from "../model/wf_definitions/update_draft.js";
 import type * as model_wf_definitions_update_workflow from "../model/wf_definitions/update_workflow.js";
 import type * as model_wf_definitions_update_workflow_status from "../model/wf_definitions/update_workflow_status.js";
+import type * as model_wf_definitions_validators from "../model/wf_definitions/validators.js";
 import type * as model_wf_executions_complete_execution from "../model/wf_executions/complete_execution.js";
 import type * as model_wf_executions_fail_execution from "../model/wf_executions/fail_execution.js";
 import type * as model_wf_executions_get_execution from "../model/wf_executions/get_execution.js";
@@ -398,6 +409,7 @@ import type * as model_wf_executions_types from "../model/wf_executions/types.js
 import type * as model_wf_executions_update_execution_metadata from "../model/wf_executions/update_execution_metadata.js";
 import type * as model_wf_executions_update_execution_status from "../model/wf_executions/update_execution_status.js";
 import type * as model_wf_executions_update_execution_variables from "../model/wf_executions/update_execution_variables.js";
+import type * as model_wf_executions_validators from "../model/wf_executions/validators.js";
 import type * as model_wf_step_defs_create_step from "../model/wf_step_defs/create_step.js";
 import type * as model_wf_step_defs_delete_step from "../model/wf_step_defs/delete_step.js";
 import type * as model_wf_step_defs_get_next_step_in_sequence from "../model/wf_step_defs/get_next_step_in_sequence.js";
@@ -410,6 +422,7 @@ import type * as model_wf_step_defs_list_workflow_steps from "../model/wf_step_d
 import type * as model_wf_step_defs_reorder_steps from "../model/wf_step_defs/reorder_steps.js";
 import type * as model_wf_step_defs_types from "../model/wf_step_defs/types.js";
 import type * as model_wf_step_defs_update_step from "../model/wf_step_defs/update_step.js";
+import type * as model_wf_step_defs_validators from "../model/wf_step_defs/validators.js";
 import type * as model_workflow_processing_records_ast_helpers_extract_comparison from "../model/workflow_processing_records/ast_helpers/extract_comparison.js";
 import type * as model_workflow_processing_records_ast_helpers_extract_literal_value from "../model/workflow_processing_records/ast_helpers/extract_literal_value.js";
 import type * as model_workflow_processing_records_ast_helpers_get_full_field_path from "../model/workflow_processing_records/ast_helpers/get_full_field_path.js";
@@ -819,6 +832,7 @@ declare const fullApi: ApiFromModules<{
   "model/approvals/remove_recommended_product": typeof model_approvals_remove_recommended_product;
   "model/approvals/types": typeof model_approvals_types;
   "model/approvals/update_approval_status": typeof model_approvals_update_approval_status;
+  "model/approvals/validators": typeof model_approvals_validators;
   "model/chat_agent/auto_summarize_if_needed": typeof model_chat_agent_auto_summarize_if_needed;
   "model/chat_agent/chat_with_agent": typeof model_chat_agent_chat_with_agent;
   "model/chat_agent/context_management/check_and_summarize": typeof model_chat_agent_context_management_check_and_summarize;
@@ -859,6 +873,7 @@ declare const fullApi: ApiFromModules<{
   "model/conversations/update_conversation": typeof model_conversations_update_conversation;
   "model/conversations/update_conversation_message": typeof model_conversations_update_conversation_message;
   "model/conversations/update_conversations": typeof model_conversations_update_conversations;
+  "model/conversations/validators": typeof model_conversations_validators;
   "model/customers/bulk_create_customers": typeof model_customers_bulk_create_customers;
   "model/customers/create_customer": typeof model_customers_create_customer;
   "model/customers/create_customer_public": typeof model_customers_create_customer_public;
@@ -877,6 +892,7 @@ declare const fullApi: ApiFromModules<{
   "model/customers/update_customer": typeof model_customers_update_customer;
   "model/customers/update_customer_metadata": typeof model_customers_update_customer_metadata;
   "model/customers/update_customers": typeof model_customers_update_customers;
+  "model/customers/validators": typeof model_customers_validators;
   "model/documents/analyze_pptx": typeof model_documents_analyze_pptx;
   "model/documents/check_membership": typeof model_documents_check_membership;
   "model/documents/create_document": typeof model_documents_create_document;
@@ -903,6 +919,7 @@ declare const fullApi: ApiFromModules<{
   "model/documents/types": typeof model_documents_types;
   "model/documents/update_document": typeof model_documents_update_document;
   "model/documents/upload_base64_to_storage": typeof model_documents_upload_base64_to_storage;
+  "model/documents/validators": typeof model_documents_validators;
   "model/email_providers/create_oauth2_provider_logic": typeof model_email_providers_create_oauth2_provider_logic;
   "model/email_providers/create_provider_internal": typeof model_email_providers_create_provider_internal;
   "model/email_providers/create_provider_logic": typeof model_email_providers_create_provider_logic;
@@ -929,6 +946,7 @@ declare const fullApi: ApiFromModules<{
   "model/email_providers/update_oauth2_tokens": typeof model_email_providers_update_oauth2_tokens;
   "model/email_providers/update_provider": typeof model_email_providers_update_provider;
   "model/email_providers/update_provider_status": typeof model_email_providers_update_provider_status;
+  "model/email_providers/validators": typeof model_email_providers_validators;
   "model/integrations/create_integration_internal": typeof model_integrations_create_integration_internal;
   "model/integrations/create_integration_logic": typeof model_integrations_create_integration_logic;
   "model/integrations/delete_integration": typeof model_integrations_delete_integration;
@@ -948,6 +966,7 @@ declare const fullApi: ApiFromModules<{
   "model/integrations/update_integration_internal": typeof model_integrations_update_integration_internal;
   "model/integrations/update_integration_logic": typeof model_integrations_update_integration_logic;
   "model/integrations/update_sync_stats": typeof model_integrations_update_sync_stats;
+  "model/integrations/validators": typeof model_integrations_validators;
   "model/onedrive/create_sync_configs_logic": typeof model_onedrive_create_sync_configs_logic;
   "model/onedrive/get_user_token_logic": typeof model_onedrive_get_user_token_logic;
   "model/onedrive/index": typeof model_onedrive_index;
@@ -966,6 +985,7 @@ declare const fullApi: ApiFromModules<{
   "model/organizations/save_default_workflows": typeof model_organizations_save_default_workflows;
   "model/organizations/types": typeof model_organizations_types;
   "model/organizations/update_organization": typeof model_organizations_update_organization;
+  "model/organizations/validators": typeof model_organizations_validators;
   "model/products/create_product": typeof model_products_create_product;
   "model/products/create_product_public": typeof model_products_create_product_public;
   "model/products/delete_product": typeof model_products_delete_product;
@@ -981,6 +1001,7 @@ declare const fullApi: ApiFromModules<{
   "model/products/update_product": typeof model_products_update_product;
   "model/products/update_products": typeof model_products_update_products;
   "model/products/upsert_product_translation": typeof model_products_upsert_product_translation;
+  "model/products/validators": typeof model_products_validators;
   "model/threads/create_chat_thread": typeof model_threads_create_chat_thread;
   "model/threads/delete_chat_thread": typeof model_threads_delete_chat_thread;
   "model/threads/get_latest_thread_with_message_count": typeof model_threads_get_latest_thread_with_message_count;
@@ -1003,6 +1024,7 @@ declare const fullApi: ApiFromModules<{
   "model/tone_of_voice/types": typeof model_tone_of_voice_types;
   "model/tone_of_voice/update_example_message": typeof model_tone_of_voice_update_example_message;
   "model/tone_of_voice/upsert_tone_of_voice": typeof model_tone_of_voice_upsert_tone_of_voice;
+  "model/tone_of_voice/validators": typeof model_tone_of_voice_validators;
   "model/trusted_headers_authenticate/create_session_for_trusted_user": typeof model_trusted_headers_authenticate_create_session_for_trusted_user;
   "model/trusted_headers_authenticate/find_or_create_user_from_headers": typeof model_trusted_headers_authenticate_find_or_create_user_from_headers;
   "model/trusted_headers_authenticate/get_user_by_id": typeof model_trusted_headers_authenticate_get_user_by_id;
@@ -1030,6 +1052,7 @@ declare const fullApi: ApiFromModules<{
   "model/websites/search_websites": typeof model_websites_search_websites;
   "model/websites/types": typeof model_websites_types;
   "model/websites/update_website": typeof model_websites_update_website;
+  "model/websites/validators": typeof model_websites_validators;
   "model/wf_definitions/activate_version": typeof model_wf_definitions_activate_version;
   "model/wf_definitions/create_draft_from_active": typeof model_wf_definitions_create_draft_from_active;
   "model/wf_definitions/create_workflow": typeof model_wf_definitions_create_workflow;
@@ -1054,6 +1077,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_definitions/update_draft": typeof model_wf_definitions_update_draft;
   "model/wf_definitions/update_workflow": typeof model_wf_definitions_update_workflow;
   "model/wf_definitions/update_workflow_status": typeof model_wf_definitions_update_workflow_status;
+  "model/wf_definitions/validators": typeof model_wf_definitions_validators;
   "model/wf_executions/complete_execution": typeof model_wf_executions_complete_execution;
   "model/wf_executions/fail_execution": typeof model_wf_executions_fail_execution;
   "model/wf_executions/get_execution": typeof model_wf_executions_get_execution;
@@ -1070,6 +1094,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_executions/update_execution_metadata": typeof model_wf_executions_update_execution_metadata;
   "model/wf_executions/update_execution_status": typeof model_wf_executions_update_execution_status;
   "model/wf_executions/update_execution_variables": typeof model_wf_executions_update_execution_variables;
+  "model/wf_executions/validators": typeof model_wf_executions_validators;
   "model/wf_step_defs/create_step": typeof model_wf_step_defs_create_step;
   "model/wf_step_defs/delete_step": typeof model_wf_step_defs_delete_step;
   "model/wf_step_defs/get_next_step_in_sequence": typeof model_wf_step_defs_get_next_step_in_sequence;
@@ -1082,6 +1107,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_step_defs/reorder_steps": typeof model_wf_step_defs_reorder_steps;
   "model/wf_step_defs/types": typeof model_wf_step_defs_types;
   "model/wf_step_defs/update_step": typeof model_wf_step_defs_update_step;
+  "model/wf_step_defs/validators": typeof model_wf_step_defs_validators;
   "model/workflow_processing_records/ast_helpers/extract_comparison": typeof model_workflow_processing_records_ast_helpers_extract_comparison;
   "model/workflow_processing_records/ast_helpers/extract_literal_value": typeof model_workflow_processing_records_ast_helpers_extract_literal_value;
   "model/workflow_processing_records/ast_helpers/get_full_field_path": typeof model_workflow_processing_records_ast_helpers_get_full_field_path;

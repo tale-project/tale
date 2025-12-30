@@ -2,6 +2,7 @@
  * Workflow step definitions model - central export point
  */
 
+export * from './validators';
 export * from './types';
 export * from './create_step';
 export * from './delete_step';

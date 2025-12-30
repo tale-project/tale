@@ -19,7 +19,7 @@ import {
   conversationWithMessagesValidator,
   bulkOperationResultValidator,
   conversationStatusValidator,
-} from './model/conversations/types';
+} from './model/conversations/validators';
 
 // =============================================================================
 // INTERNAL OPERATIONS (without RLS)
@@ -109,6 +109,7 @@ export const getConversationById = internalQuery({
         v.union(v.literal('inbound'), v.literal('outbound')),
       ),
       providerId: v.optional(v.id('emailProviders')),
+      lastMessageAt: v.optional(v.number()),
 
       metadata: v.optional(v.any()),
     }),
@@ -143,6 +144,7 @@ export const getConversationByExternalMessageId = internalQuery({
         v.union(v.literal('inbound'), v.literal('outbound')),
       ),
       providerId: v.optional(v.id('emailProviders')),
+      lastMessageAt: v.optional(v.number()),
 
       metadata: v.optional(v.any()),
     }),
@@ -221,6 +223,7 @@ export const queryConversations = internalQuery({
           v.union(v.literal('inbound'), v.literal('outbound')),
         ),
         providerId: v.optional(v.id('emailProviders')),
+        lastMessageAt: v.optional(v.number()),
         metadata: v.optional(v.any()),
       }),
     ),
@@ -462,6 +465,7 @@ export const getConversation = queryWithRLS({
         v.union(v.literal('inbound'), v.literal('outbound')),
       ),
       providerId: v.optional(v.id('emailProviders')),
+      lastMessageAt: v.optional(v.number()),
 
       metadata: v.optional(v.any()),
     }),

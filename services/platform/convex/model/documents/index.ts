@@ -4,30 +4,11 @@
  * Central export point for all document model functions
  */
 
-// Export types
-export type {
-  CreateDocumentArgs,
-  CreateDocumentResult,
-  QueryDocumentsArgs,
-  QueryDocumentsResult,
-  DocumentItemResponse,
-  DocumentListResponse,
-  CheckMembershipArgs,
-  MembershipResult,
-  DocumentSourceType,
-  DocumentOutputFormat,
-  GenerateDocumentArgs,
-  GenerateDocumentResult,
-  ListDocumentsByExtensionArgs,
-  ListDocumentsByExtensionResult,
-} from './types';
-
 // Export validators
-export {
-  DocumentItem,
-  DocumentListResponseValidator,
-  DocumentRecord,
-} from './types';
+export * from './validators';
+
+// Export types
+export * from './types';
 
 // Export functions
 export { createDocument } from './create_document';

@@ -22,10 +22,10 @@ import type { Id } from './_generated/dataModel';
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';
 import {
-  DocumentItem,
-  DocumentListResponseValidator as DocumentListResponse,
-  DocumentRecord,
-} from './model/documents/types';
+  documentItemValidator as DocumentItem,
+  documentListResponseValidator as DocumentListResponse,
+  documentRecordValidator as DocumentRecord,
+} from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
 
 // =============================================================================

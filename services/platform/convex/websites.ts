@@ -25,7 +25,7 @@ import {
   websiteStatusValidator,
   websiteValidator,
   websitePageValidator,
-} from './model/websites/types';
+} from './model/websites/validators';
 
 // =============================================================================
 // PUBLIC OPERATIONS (with RLS)

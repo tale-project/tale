@@ -36,7 +36,7 @@ import type { QueryResult } from '../conversation/helpers/types';
 import {
   customerStatusValidator,
   customerAddressValidator,
-} from '../../../model/customers/types';
+} from '../../../model/customers/validators';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {

@@ -1,28 +1,12 @@
 /**
- * Type definitions and validators for organizations
+ * Type definitions for organizations
  */
 
-import { v } from 'convex/values';
+import type { Infer } from 'convex/values';
+import { memberRoleValidator } from './validators';
 
-/**
- * Organization validator
- */
-export const organizationValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  name: v.string(),
-  slug: v.optional(v.string()),
-  logoId: v.optional(v.id('_storage')),
-  metadata: v.optional(v.any()),
-});
+// =============================================================================
+// INFERRED TYPES (from validators)
+// =============================================================================
 
-/**
- * Member role validator
- */
-export const memberRoleValidator = v.union(
-  v.literal('Disabled'),
-  v.literal('Admin'),
-  v.literal('Developer'),
-  v.literal('Editor'),
-  v.literal('Member'),
-);
+export type MemberRole = Infer<typeof memberRoleValidator>;

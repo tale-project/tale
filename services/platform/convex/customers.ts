@@ -17,7 +17,7 @@ import {
   customerSourceValidator,
   customerAddressValidator,
   customerValidator,
-} from './model/customers/types';
+} from './model/customers/validators';
 
 // =============================================================================
 // INTERNAL OPERATIONS (without RLS)
