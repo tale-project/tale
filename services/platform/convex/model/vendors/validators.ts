@@ -46,22 +46,6 @@ export const vendorInputValidator = v.object({
 });
 
 /**
- * Vendor update validator (for updating existing vendors)
- */
-export const vendorUpdateValidator = v.object({
-  name: v.optional(v.string()),
-  email: v.optional(v.string()),
-  phone: v.optional(v.string()),
-  externalId: v.optional(v.string()),
-  source: v.optional(vendorSourceValidator),
-  locale: v.optional(v.string()),
-  address: v.optional(vendorAddressValidator),
-  tags: v.optional(v.array(v.string())),
-  metadata: v.optional(v.any()),
-  notes: v.optional(v.string()),
-});
-
-/**
  * Vendor list response validator (paginated list with metadata)
  */
 export const vendorListResponseValidator = v.object({
