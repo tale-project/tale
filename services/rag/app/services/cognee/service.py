@@ -94,7 +94,7 @@ class CogneeService:
         """Add a document to the knowledge base.
 
         Args:
-            content: Document content (file path or text content)
+            content: Path to the document file to ingest
             metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID (used for tagging and later deletion)
 
