@@ -11,9 +11,10 @@ export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
 
 /**
  * Member list item validator (for listing organization members)
+ * Note: _id is a string because members come from Better Auth adapter, not native Convex tables
  */
 export const memberListItemValidator = v.object({
-  _id: v.id('members'),
+  _id: v.string(),
   _creationTime: v.number(),
   organizationId: v.string(),
   identityId: v.optional(v.string()),
@@ -25,9 +26,10 @@ export const memberListItemValidator = v.object({
 
 /**
  * Member object validator (for member details)
+ * Note: _id is a string because members come from Better Auth adapter, not native Convex tables
  */
 export const memberValidator = v.object({
-  _id: v.id('members'),
+  _id: v.string(),
   _creationTime: v.number(),
   organizationId: v.string(),
   identityId: v.optional(v.string()),

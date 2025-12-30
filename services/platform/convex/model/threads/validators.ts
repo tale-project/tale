@@ -39,9 +39,10 @@ export const toolStatusValidator = v.union(
 
 /**
  * Thread message validator (single message in a thread)
+ * Note: _id is a string because messages come from Agent Component, not native Convex tables
  */
 export const threadMessageValidator = v.object({
-  _id: v.id('threadMessages'),
+  _id: v.string(),
   _creationTime: v.number(),
   role: messageRoleValidator,
   content: v.string(),
@@ -56,9 +57,10 @@ export const threadMessagesResponseValidator = v.object({
 
 /**
  * Thread list item validator (for listing threads)
+ * Note: _id is a string because threads come from Agent Component, not native Convex tables
  */
 export const threadListItemValidator = v.object({
-  _id: v.id('threads'),
+  _id: v.string(),
   _creationTime: v.number(),
   title: v.optional(v.string()),
   status: threadStatusValidator,
