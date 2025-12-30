@@ -56,13 +56,11 @@ async def extract_text_from_pdf(
     with fitz.open(file_path) as doc:
         total_pages = len(doc)
         pages_text: list[str] = []
-        vision_used = False
         semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
 
-        async def process_page(page_num: int) -> str:
-            """Process a single page and return its text content."""
-            nonlocal vision_used
-
+        async def process_page(page_num: int) -> tuple[str, bool]:
+            """Process a single page and return its text content and vision usage flag."""
+            page_vision_used = False
             page = doc[page_num]
             page_parts: list[str] = []
 
@@ -78,7 +76,7 @@ async def extract_text_from_pdf(
                 ocr_text = await _ocr_page(page, semaphore)
                 if ocr_text:
                     page_parts.append(ocr_text)
-                    vision_used = True
+                    page_vision_used = True
                 elif direct_text:
                     # Fallback to direct text if OCR returns nothing
                     page_parts.append(direct_text)
@@ -91,17 +89,18 @@ async def extract_text_from_pdf(
             if process_images:
                 image_descriptions = await _extract_image_descriptions(page, semaphore)
                 if image_descriptions:
-                    vision_used = True
+                    page_vision_used = True
                     for desc in image_descriptions:
                         page_parts.append(f"\n[Image: {desc}]\n")
 
-            return "\n".join(page_parts)
+            return "\n".join(page_parts), page_vision_used
 
         # Process all pages concurrently (with semaphore limiting)
         tasks = [process_page(i) for i in range(total_pages)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Collect results, handling any errors
+        # Collect results and aggregate vision_used flag
+        vision_used = False
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"Failed to process page {i + 1}: {result}")
@@ -113,8 +112,11 @@ async def extract_text_from_pdf(
                 except Exception:
                     pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
             else:
-                if result:
-                    pages_text.append(f"--- Page {i + 1} ---\n{result}")
+                page_text, page_vision_used = result
+                if page_vision_used:
+                    vision_used = True
+                if page_text:
+                    pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
 
         combined_text = "\n\n".join(pages_text)
         logger.info(
@@ -243,13 +245,11 @@ async def extract_text_from_pdf_bytes(
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
         total_pages = len(doc)
         pages_text: list[str] = []
-        vision_used = False
         semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
 
-        async def process_page(page_num: int) -> str:
-            """Process a single page and return its text content."""
-            nonlocal vision_used
-
+        async def process_page(page_num: int) -> tuple[str, bool]:
+            """Process a single page and return its text content and vision usage flag."""
+            page_vision_used = False
             page = doc[page_num]
             page_parts: list[str] = []
 
@@ -265,7 +265,7 @@ async def extract_text_from_pdf_bytes(
                 ocr_text = await _ocr_page(page, semaphore)
                 if ocr_text:
                     page_parts.append(ocr_text)
-                    vision_used = True
+                    page_vision_used = True
                 elif direct_text:
                     page_parts.append(direct_text)
             else:
@@ -276,15 +276,17 @@ async def extract_text_from_pdf_bytes(
             if process_images:
                 image_descriptions = await _extract_image_descriptions(page, semaphore)
                 if image_descriptions:
-                    vision_used = True
+                    page_vision_used = True
                     for desc in image_descriptions:
                         page_parts.append(f"\n[Image: {desc}]\n")
 
-            return "\n".join(page_parts)
+            return "\n".join(page_parts), page_vision_used
 
         tasks = [process_page(i) for i in range(total_pages)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Collect results and aggregate vision_used flag
+        vision_used = False
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(f"Failed to process page {i + 1}: {result}")
@@ -295,8 +297,11 @@ async def extract_text_from_pdf_bytes(
                 except Exception:
                     pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
             else:
-                if result:
-                    pages_text.append(f"--- Page {i + 1} ---\n{result}")
+                page_text, page_vision_used = result
+                if page_vision_used:
+                    vision_used = True
+                if page_text:
+                    pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
 
         combined_text = "\n\n".join(pages_text)
         logger.info(
