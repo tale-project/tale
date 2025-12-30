@@ -3,7 +3,13 @@ import { queryWithRLS, mutationWithRLS, getAuthenticatedUser } from './lib/rls';
 import { query } from './_generated/server';
 import { components } from './_generated/api';
 
-const _role = v.string();
+// Import validators from model
+import {
+  sortOrderValidator,
+  memberListItemValidator,
+  memberContextValidator,
+  addMemberResponseValidator,
+} from './model/members/validators';
 
 /**
  * Public query to get user ID by email (for adding existing users to organizations).
@@ -47,21 +53,10 @@ export const getUserIdByEmail = query({
 export const listByOrganization = queryWithRLS({
   args: {
     organizationId: v.string(),
-    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+    sortOrder: v.optional(sortOrderValidator),
     search: v.optional(v.string()),
   },
-  returns: v.array(
-    v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      organizationId: v.string(),
-      identityId: v.optional(v.string()),
-      email: v.optional(v.string()),
-      role: v.optional(v.string()),
-      displayName: v.optional(v.string()),
-      metadata: v.optional(v.any()),
-    }),
-  ),
+  returns: v.array(memberListItemValidator),
   handler: async (ctx, args) => {
     // RLS handles authorization automatically
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -127,24 +122,7 @@ export const getCurrentMemberContext = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
-  returns: v.object({
-    member: v.union(
-      v.object({
-        _id: v.string(),
-        _creationTime: v.number(),
-        organizationId: v.string(),
-        identityId: v.optional(v.string()),
-        email: v.optional(v.string()),
-        role: v.optional(v.string()),
-        displayName: v.optional(v.string()),
-      }),
-      v.null(),
-    ),
-    role: v.union(v.string(), v.null()),
-    isAdmin: v.boolean(),
-    canManageMembers: v.boolean(),
-    canChangePassword: v.boolean(),
-  }),
+  returns: memberContextValidator,
   handler: async (ctx, args) => {
     // Get current authenticated user through RLS context
     const authUser = await getAuthenticatedUser(ctx);
@@ -257,9 +235,7 @@ export const addMember = mutationWithRLS({
     role: v.optional(v.string()),
     displayName: v.optional(v.string()),
   },
-  returns: v.object({
-    memberId: v.string(),
-  }),
+  returns: addMemberResponseValidator,
   handler: async (ctx, args) => {
     const trustedHeadersEnabled =
       process.env.TRUSTED_HEADERS_ENABLED === 'true';

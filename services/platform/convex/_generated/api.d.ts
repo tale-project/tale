@@ -287,6 +287,8 @@ import type * as model_integrations_update_integration_internal from "../model/i
 import type * as model_integrations_update_integration_logic from "../model/integrations/update_integration_logic.js";
 import type * as model_integrations_update_sync_stats from "../model/integrations/update_sync_stats.js";
 import type * as model_integrations_validators from "../model/integrations/validators.js";
+import type * as model_members_index from "../model/members/index.js";
+import type * as model_members_validators from "../model/members/validators.js";
 import type * as model_onedrive_create_sync_configs_logic from "../model/onedrive/create_sync_configs_logic.js";
 import type * as model_onedrive_get_user_token_logic from "../model/onedrive/get_user_token_logic.js";
 import type * as model_onedrive_index from "../model/onedrive/index.js";
@@ -296,6 +298,7 @@ import type * as model_onedrive_refresh_token_logic from "../model/onedrive/refr
 import type * as model_onedrive_update_sync_config_logic from "../model/onedrive/update_sync_config_logic.js";
 import type * as model_onedrive_upload_and_create_document_logic from "../model/onedrive/upload_and_create_document_logic.js";
 import type * as model_onedrive_upload_to_storage_logic from "../model/onedrive/upload_to_storage_logic.js";
+import type * as model_onedrive_validators from "../model/onedrive/validators.js";
 import type * as model_organizations_create_organization from "../model/organizations/create_organization.js";
 import type * as model_organizations_delete_organization from "../model/organizations/delete_organization.js";
 import type * as model_organizations_delete_organization_logo from "../model/organizations/delete_organization_logo.js";
@@ -331,6 +334,7 @@ import type * as model_threads_get_thread_messages_streaming from "../model/thre
 import type * as model_threads_index from "../model/threads/index.js";
 import type * as model_threads_list_threads from "../model/threads/list_threads.js";
 import type * as model_threads_update_chat_thread from "../model/threads/update_chat_thread.js";
+import type * as model_threads_validators from "../model/threads/validators.js";
 import type * as model_tone_of_voice_add_example_message from "../model/tone_of_voice/add_example_message.js";
 import type * as model_tone_of_voice_delete_example_message from "../model/tone_of_voice/delete_example_message.js";
 import type * as model_tone_of_voice_generate_tone_of_voice from "../model/tone_of_voice/generate_tone_of_voice.js";
@@ -357,6 +361,8 @@ import type * as model_users_get_user_by_email from "../model/users/get_user_by_
 import type * as model_users_has_any_users from "../model/users/has_any_users.js";
 import type * as model_users_index from "../model/users/index.js";
 import type * as model_users_update_user_password from "../model/users/update_user_password.js";
+import type * as model_vendors_index from "../model/vendors/index.js";
+import type * as model_vendors_validators from "../model/vendors/validators.js";
 import type * as model_websites_bulk_create_websites from "../model/websites/bulk_create_websites.js";
 import type * as model_websites_bulk_upsert_pages from "../model/websites/bulk_upsert_pages.js";
 import type * as model_websites_create_website from "../model/websites/create_website.js";
@@ -977,6 +983,8 @@ declare const fullApi: ApiFromModules<{
   "model/integrations/update_integration_logic": typeof model_integrations_update_integration_logic;
   "model/integrations/update_sync_stats": typeof model_integrations_update_sync_stats;
   "model/integrations/validators": typeof model_integrations_validators;
+  "model/members/index": typeof model_members_index;
+  "model/members/validators": typeof model_members_validators;
   "model/onedrive/create_sync_configs_logic": typeof model_onedrive_create_sync_configs_logic;
   "model/onedrive/get_user_token_logic": typeof model_onedrive_get_user_token_logic;
   "model/onedrive/index": typeof model_onedrive_index;
@@ -986,6 +994,7 @@ declare const fullApi: ApiFromModules<{
   "model/onedrive/update_sync_config_logic": typeof model_onedrive_update_sync_config_logic;
   "model/onedrive/upload_and_create_document_logic": typeof model_onedrive_upload_and_create_document_logic;
   "model/onedrive/upload_to_storage_logic": typeof model_onedrive_upload_to_storage_logic;
+  "model/onedrive/validators": typeof model_onedrive_validators;
   "model/organizations/create_organization": typeof model_organizations_create_organization;
   "model/organizations/delete_organization": typeof model_organizations_delete_organization;
   "model/organizations/delete_organization_logo": typeof model_organizations_delete_organization_logo;
@@ -1021,6 +1030,7 @@ declare const fullApi: ApiFromModules<{
   "model/threads/index": typeof model_threads_index;
   "model/threads/list_threads": typeof model_threads_list_threads;
   "model/threads/update_chat_thread": typeof model_threads_update_chat_thread;
+  "model/threads/validators": typeof model_threads_validators;
   "model/tone_of_voice/add_example_message": typeof model_tone_of_voice_add_example_message;
   "model/tone_of_voice/delete_example_message": typeof model_tone_of_voice_delete_example_message;
   "model/tone_of_voice/generate_tone_of_voice": typeof model_tone_of_voice_generate_tone_of_voice;
@@ -1047,6 +1057,8 @@ declare const fullApi: ApiFromModules<{
   "model/users/has_any_users": typeof model_users_has_any_users;
   "model/users/index": typeof model_users_index;
   "model/users/update_user_password": typeof model_users_update_user_password;
+  "model/vendors/index": typeof model_vendors_index;
+  "model/vendors/validators": typeof model_vendors_validators;
   "model/websites/bulk_create_websites": typeof model_websites_bulk_create_websites;
   "model/websites/bulk_upsert_pages": typeof model_websites_bulk_upsert_pages;
   "model/websites/create_website": typeof model_websites_create_website;
