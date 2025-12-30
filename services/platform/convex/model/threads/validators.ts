@@ -41,7 +41,7 @@ export const toolStatusValidator = v.union(
  * Thread message validator (single message in a thread)
  */
 export const threadMessageValidator = v.object({
-  _id: v.string(),
+  _id: v.id('threadMessages'),
   _creationTime: v.number(),
   role: messageRoleValidator,
   content: v.string(),
