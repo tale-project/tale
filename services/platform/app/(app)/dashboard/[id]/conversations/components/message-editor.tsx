@@ -64,7 +64,7 @@ interface MessageEditorProps {
   businessId?: string;
   conversationId?: string;
   onConversationResolved?: () => void;
-  pendingMessage?: Pick<ConversationMessage, 'id' | 'content' | 'status'>;
+  pendingMessage?: Pick<ConversationMessage, 'id' | 'content'>;
   hasMessageHistory?: boolean;
 }
 

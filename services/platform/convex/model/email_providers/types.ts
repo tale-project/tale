@@ -6,6 +6,7 @@ import type { Infer } from 'convex/values';
 import type { Doc } from '../../_generated/dataModel';
 import {
   emailProviderAuthMethodValidator,
+  emailProviderDocValidator,
   emailProviderStatusValidator,
   emailProviderVendorValidator,
   imapConfigValidator,
@@ -23,6 +24,7 @@ export type EmailProviderAuthMethod = Infer<
 export type EmailProviderStatus = Infer<typeof emailProviderStatusValidator>;
 export type SmtpConfig = Infer<typeof smtpConfigValidator>;
 export type ImapConfig = Infer<typeof imapConfigValidator>;
+export type EmailProviderDoc = Infer<typeof emailProviderDocValidator>;
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)

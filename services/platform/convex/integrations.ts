@@ -3,10 +3,11 @@
  */
 
 import { action, internalMutation, internalQuery } from './_generated/server';
+import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as IntegrationsModel from './model/integrations';
-import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
+import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
 
 // ============================================================================
 // Public Queries
@@ -162,7 +163,7 @@ export const testConnection = action({
   returns: IntegrationsModel.testConnectionResultValidator,
   handler: async (ctx, args) => {
     // Get integration to find organizationId for rate limiting
-    const integration = await IntegrationsModel.getIntegrationById(ctx, args.integrationId);
+    const integration = await ctx.runQuery(internal.integrations.getIntegrationInternal, { integrationId: args.integrationId });
     if (integration) {
       await checkOrganizationRateLimit(
         ctx,
@@ -171,6 +172,23 @@ export const testConnection = action({
       );
     }
     return await IntegrationsModel.testConnectionLogic(ctx, args);
+  },
+});
+
+// ============================================================================
+// Internal Queries
+// ============================================================================
+
+/**
+ * Internal query to get integration by ID (bypasses RLS)
+ */
+export const getIntegrationInternal = internalQuery({
+  args: {
+    integrationId: v.id('integrations'),
+  },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    return await IntegrationsModel.getIntegration(ctx, args.integrationId);
   },
 });
 

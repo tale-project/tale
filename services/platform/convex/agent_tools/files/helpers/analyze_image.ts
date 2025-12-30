@@ -11,7 +11,7 @@ import { createDebugLog } from '../../../lib/debug_log';
 import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 import { getVisionModel, createVisionAgent } from './vision_agent';
-import { imageAnalysisCache } from '../../../lib/action-cache';
+import { imageAnalysisCache } from '../../../lib/action_cache';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 

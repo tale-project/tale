@@ -18,7 +18,7 @@ import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import { cursorPaginationOptsValidator } from './lib/pagination';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
+import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
 
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';

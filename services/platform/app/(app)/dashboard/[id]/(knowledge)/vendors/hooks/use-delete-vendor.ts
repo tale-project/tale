@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-
 export function useDeleteVendor() {
   const params = useParams();
   const searchParams = useSearchParams();

@@ -6,6 +6,7 @@
  */
 
 import { ActionCache } from '@convex-dev/action-cache';
+import type { FunctionReference } from 'convex/server';
 import { components, internal } from '../../_generated/api';
 
 // Version prefix for cache invalidation when logic changes
@@ -33,7 +34,9 @@ export const TTL = {
  * Same input produces same output (deterministic).
  * 24-hour TTL for daily refresh.
  */
-export const improveMessageCache = new ActionCache(components.actionCache, {
+export const improveMessageCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
   action: internal.improve_message.improveMessageUncached,
   name: `improve_message_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
@@ -47,7 +50,9 @@ export const improveMessageCache = new ActionCache(components.actionCache, {
  * Cache for file parsing results.
  * File content is immutable per storage ID.
  */
-export const parseFileCache = new ActionCache(components.actionCache, {
+export const parseFileCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
   action: internal.agent_tools.files.internal_actions.parseFileUncached,
   name: `parse_file_${CACHE_VERSION}`,
   ttl: TTL.INDEFINITE,
@@ -57,7 +62,9 @@ export const parseFileCache = new ActionCache(components.actionCache, {
  * Cache for image analysis results.
  * Same image + question produces same analysis.
  */
-export const imageAnalysisCache = new ActionCache(components.actionCache, {
+export const imageAnalysisCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
   action: internal.agent_tools.files.internal_actions.analyzeImageUncached,
   name: `image_analysis_${CACHE_VERSION}`,
   ttl: TTL.INDEFINITE,
@@ -71,7 +78,9 @@ export const imageAnalysisCache = new ActionCache(components.actionCache, {
  * Cache for search engine results.
  * Results change frequently, 30-minute TTL.
  */
-export const searchResultsCache = new ActionCache(components.actionCache, {
+export const searchResultsCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
   action: internal.agent_tools.crawler.internal_actions.fetchSearXNGResultsUncached,
   name: `search_results_${CACHE_VERSION}`,
   ttl: TTL.THIRTY_MIN,
@@ -86,7 +95,9 @@ export const searchResultsCache = new ActionCache(components.actionCache, {
  * Stable until example messages change.
  * 24-hour TTL for daily refresh.
  */
-export const toneOfVoiceCache = new ActionCache(components.actionCache, {
+export const toneOfVoiceCache: ActionCache<
+  FunctionReference<'action', 'internal'>
+> = new ActionCache(components.actionCache, {
   action: internal.tone_of_voice.generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,

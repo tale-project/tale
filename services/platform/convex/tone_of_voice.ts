@@ -12,7 +12,8 @@ import {
 import { internal } from './_generated/api';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as ToneOfVoiceModel from './model/tone_of_voice';
-import { toneOfVoiceCache } from './lib/action-cache';
+import type { GenerateToneResponse } from './model/tone_of_voice/types';
+import { toneOfVoiceCache } from './lib/action_cache';
 
 // ==================== QUERIES ====================
 
@@ -158,13 +159,13 @@ export const generateToneOfVoice = action({
     forceRefresh: v.optional(v.boolean()),
   },
   returns: ToneOfVoiceModel.generateToneResponseValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<GenerateToneResponse> => {
     if (args.forceRefresh) {
       return await ToneOfVoiceModel.generateToneOfVoice(ctx, args);
     }
-    return await toneOfVoiceCache.fetch(ctx, {
+    return (await toneOfVoiceCache.fetch(ctx, {
       organizationId: args.organizationId,
-    });
+    })) as GenerateToneResponse;
   },
 });
 
