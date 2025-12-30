@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stack } from '@/components/ui/layout';
 import { Select } from '@/components/ui/select';
-
+import Banner from '@/components/banner';
 import { toast } from '@/hooks/use-toast';
 import { useUpdateMemberRole } from '../hooks';
 import { useT } from '@/lib/i18n';
@@ -188,11 +188,7 @@ export default function EditMemberDialog({
         {!isEditingSelf &&
           member?.role === 'admin' &&
           watch('role') !== 'admin' && (
-            <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
-              <p className="text-sm text-amber-800">
-                {t('organization.adminWarning')}
-              </p>
-            </div>
+            <Banner variant="warning" message={t('organization.adminWarning')} dismissible={false} className="mt-2" />
           )}
       </Stack>
 

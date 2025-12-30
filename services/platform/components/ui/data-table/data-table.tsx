@@ -285,6 +285,12 @@ export function DataTable<TData>({
     ? table.getRowModel().rows
     : table.getRowModel().rows;
 
+  // Check if any filters are actively applied - "No results found" should only show when filtering
+  const hasActiveFilters =
+    (search?.value && search.value.trim().length > 0) ||
+    (filters && filters.some((f) => f.selectedValues.length > 0)) ||
+    (dateRange?.from || dateRange?.to);
+
   return (
     <div
       className={cn(
@@ -330,7 +336,7 @@ export function DataTable<TData>({
             ))}
           </TableHeader>
           <TableBody>
-            {rows.length === 0 ? (
+            {rows.length === 0 && hasActiveFilters ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (enableExpanding ? 1 : 0)}
@@ -339,7 +345,7 @@ export function DataTable<TData>({
                   {t('search.noResults')}
                 </TableCell>
               </TableRow>
-            ) : (
+            ) : rows.length === 0 ? null : (
               rows.map((row, index) => {
                 const isExpanded = row.getIsExpanded();
                 const rowClassNameValue =

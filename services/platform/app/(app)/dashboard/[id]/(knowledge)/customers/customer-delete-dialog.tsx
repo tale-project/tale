@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import DeleteCustomerDialog from './delete-customer-dialog';
+import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
 import { useT } from '@/lib/i18n';
 import { useDeleteCustomer } from './hooks';
 
@@ -23,34 +22,36 @@ export default function DeleteCustomerButton({
   asChild = false,
 }: DeleteCustomerButtonProps) {
   const { t: tCustomers } = useT('customers');
+  const { t: tToast } = useT('toast');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const deleteCustomer = useDeleteCustomer();
 
-  // Use controlled state if provided, otherwise use internal state
   const isDialogOpen =
     controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
   const setIsDialogOpen = controlledOnOpenChange || setInternalIsOpen;
 
-  const handleDeleteCustomer = async () => {
-    try {
-      setIsDeleting(true);
+  const handleDelete = useCallback(
+    async (c: Doc<'customers'>) => {
+      await deleteCustomer({ customerId: c._id });
+    },
+    [deleteCustomer]
+  );
 
-      await deleteCustomer({
-        customerId: customer._id,
-      });
+  const getEntityName = useCallback(
+    (c: Doc<'customers'>) => c.name || tCustomers('thisCustomer'),
+    [tCustomers]
+  );
 
-      setIsDialogOpen(false);
-    } catch (err) {
-      console.error('Deletion error:', err);
-      toast({
-        title: tCustomers('deleteError'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  const translations = useMemo(
+    () => ({
+      title: tCustomers('deleteCustomer'),
+      description: tCustomers('deleteConfirmation', { name: '{name}' }),
+      warningText: tCustomers('deleteWarning'),
+      successMessage: tToast('success.deleted'),
+      errorMessage: tCustomers('deleteError'),
+    }),
+    [tCustomers, tToast]
+  );
 
   return (
     <>
@@ -65,12 +66,13 @@ export default function DeleteCustomerButton({
         </Button>
       )}
 
-      <DeleteCustomerDialog
+      <DeleteEntityDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        onConfirm={handleDeleteCustomer}
-        customer={customer}
-        isDeleting={isDeleting}
+        entity={customer}
+        getEntityName={getEntityName}
+        deleteMutation={handleDelete}
+        translations={translations}
       />
     </>
   );

@@ -13,10 +13,10 @@ import {
 } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
-import { formatDate } from '@/lib/utils/date/format';
+import { TableTimestampCell } from '@/components/ui/table-date-cell';
 import VendorRowActions from './vendor-row-actions';
 import { VendorsActionMenu } from './vendors-action-menu';
-import { useT, useLocale } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { vendorFilterDefinitions } from './filter-definitions';
@@ -32,7 +32,6 @@ export default function VendorsTable({
 }: VendorsTableProps) {
   const { t: tVendors } = useT('vendors');
   const { t: tTables } = useT('tables');
-  const locale = useLocale();
 
   // Use unified URL filters hook with sorting
   const {
@@ -129,12 +128,7 @@ export default function VendorsTable({
         header: () => <span className="text-right w-full block">{tTables('headers.created')}</span>,
         size: 140,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground text-right block">
-            {formatDate(new Date(row.original._creationTime), {
-              preset: 'short',
-              locale,
-            })}
-          </span>
+          <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
         ),
       },
       {
@@ -148,7 +142,7 @@ export default function VendorsTable({
         ),
       },
     ],
-    [tTables, locale],
+    [tTables],
   );
 
   // Build filter configs for DataTableFilters component

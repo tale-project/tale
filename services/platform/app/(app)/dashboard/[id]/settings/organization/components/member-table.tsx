@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { ChevronDownIcon } from 'lucide-react';
-import { formatDate } from '@/lib/utils/date/format';
-import MemberOptions from './member-options';
+import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
+import { TableTimestampCell } from '@/components/ui/table-date-cell';
+import MemberRowActions from './member-row-actions';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useT, useLocale } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 
 type Member = {
   _id: string;
@@ -32,17 +33,6 @@ interface MemberTableProps {
   onSortChange: (sortOrder: 'asc' | 'desc') => void;
 }
 
-const getRoleBadgeColor = (role?: string) => {
-  switch ((role || '').toLowerCase()) {
-    case 'admin':
-      return 'bg-red-100 text-red-800';
-    case 'member':
-      return 'bg-muted text-muted-foreground';
-    default:
-      return 'bg-muted text-muted-foreground';
-  }
-};
-
 export default function MemberTable({
   members,
   sortOrder,
@@ -51,8 +41,6 @@ export default function MemberTable({
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
-  const { t: tCommon } = useT('common');
-  const locale = useLocale();
   const handleSort = useCallback(() => {
     onSortChange(sortOrder === 'asc' ? 'desc' : 'asc');
   }, [sortOrder, onSortChange]);
@@ -102,7 +90,7 @@ export default function MemberTable({
             : 'roles.disabled';
           return (
             <span
-              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeClasses(
                 role,
               )}`}
             >
@@ -116,9 +104,7 @@ export default function MemberTable({
         id: 'joined',
         header: () => <div className="text-right">{tTables('headers.joined')}</div>,
         cell: ({ row }) => (
-          <div className="text-sm text-muted-foreground text-right">
-            {formatDate(new Date(row.original._creationTime), { preset: 'relative', locale })}
-          </div>
+          <TableTimestampCell timestamp={row.original._creationTime} preset="relative" />
         ),
       },
       {
@@ -126,7 +112,7 @@ export default function MemberTable({
         header: '',
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <MemberOptions
+            <MemberRowActions
               member={row.original}
               memberContext={memberContext}
             />

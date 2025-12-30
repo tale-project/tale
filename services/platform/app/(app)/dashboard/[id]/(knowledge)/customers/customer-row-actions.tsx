@@ -1,20 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { MoreVertical, Eye, Pencil, Trash2 } from 'lucide-react';
-import { IconButton } from '@/components/ui/icon-button';
+import { useMemo } from 'react';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
+  EntityRowActions,
+  useEntityRowDialogs,
+} from '@/components/ui/entity-row-actions';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
-import EditCustomerButton from './edit-customer-button';
-import DeleteCustomerButton from './delete-customer-button';
+import CustomerEditDialog from './customer-edit-dialog';
+import CustomerDeleteDialog from './customer-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
+
 interface CustomerRowActionsProps {
   customer: Doc<'customers'>;
 }
@@ -24,77 +21,60 @@ export default function CustomerRowActions({
 }: CustomerRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t: tCustomers } = useT('customers');
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
 
   const canEdit =
     customer.source === 'manual_import' || customer.source === 'file_upload';
 
+  const actions = useMemo(
+    () => [
+      {
+        key: 'view',
+        label: tCustomers('viewDetails'),
+        icon: Eye,
+        onClick: dialogs.open.view,
+      },
+      {
+        key: 'edit',
+        label: tCommon('actions.edit'),
+        icon: Pencil,
+        onClick: dialogs.open.edit,
+        separator: true,
+        visible: canEdit,
+      },
+      {
+        key: 'delete',
+        label: tCommon('actions.delete'),
+        icon: Trash2,
+        onClick: dialogs.open.delete,
+        destructive: true,
+        visible: canEdit,
+      },
+    ],
+    [tCustomers, tCommon, dialogs.open, canEdit]
+  );
+
   return (
     <>
-      <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-        <DropdownMenuTrigger asChild>
-          <IconButton icon={MoreVertical} aria-label={tCommon('actions.openMenu')} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-[10rem]">
-          <DropdownMenuItem
-            onClick={() => {
-              setIsViewDialogOpen(true);
-              setIsDropdownOpen(false);
-            }}
-          >
-            <Eye className="mr-2 size-4" />
-            {tCustomers('viewDetails')}
-          </DropdownMenuItem>
-          {canEdit && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => {
-                  setIsEditDialogOpen(true);
-                  setIsDropdownOpen(false);
-                }}
-              >
-                <Pencil className="mr-2 size-4" />
-                {tCommon('actions.edit')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setIsDeleteDialogOpen(true);
-                  setIsDropdownOpen(false);
-                }}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="mr-2 size-4" />
-                {tCommon('actions.delete')}
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <EntityRowActions actions={actions} />
 
-      {/* View Dialog */}
       <CustomerInfoDialog
         customer={customer}
-        open={isViewDialogOpen}
-        onOpenChange={setIsViewDialogOpen}
+        open={dialogs.isOpen.view}
+        onOpenChange={dialogs.setOpen.view}
       />
 
-      {/* Edit Dialog */}
-      <EditCustomerButton
+      <CustomerEditDialog
         customer={customer}
-        isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
+        isOpen={dialogs.isOpen.edit}
+        onOpenChange={dialogs.setOpen.edit}
         asChild
       />
 
-      {/* Delete Dialog */}
-      <DeleteCustomerButton
+      <CustomerDeleteDialog
         customer={customer}
-        isOpen={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
+        isOpen={dialogs.isOpen.delete}
+        onOpenChange={dialogs.setOpen.delete}
         asChild
       />
     </>

@@ -7,10 +7,11 @@ import * as z from 'zod';
 import { FormModal, ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Stack } from '@/components/ui/layout';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Check, X, Copy } from 'lucide-react';
+import { ValidationCheckList } from '@/components/ui/validation-check-item';
+import { CopyableField } from '@/components/ui/copyable-field';
 import { useAddMember, useCreateMember } from '../hooks';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
@@ -76,8 +77,6 @@ export default function AddMemberDialog({
     email: string;
     password: string;
   } | null>(null);
-  const [copiedEmail, setCopiedEmail] = useState(false);
-  const [copiedPassword, setCopiedPassword] = useState(false);
   const { toast } = useToast();
 
   const addMember = useAddMember();
@@ -96,32 +95,28 @@ export default function AddMemberDialog({
   const selectedRole = watch('role');
   const password = watch('password') ?? '';
 
-  // Password validation checks
-  const passwordChecks = {
-    length: password.length >= 8,
-    lowercase: /[a-z]/.test(password),
-    uppercase: /[A-Z]/.test(password),
-    number: /\d/.test(password),
-  };
-
-  const handleCopy = async (text: string, type: 'email' | 'password') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      if (type === 'email') {
-        setCopiedEmail(true);
-        setTimeout(() => setCopiedEmail(false), 2000);
-      } else {
-        setCopiedPassword(true);
-        setTimeout(() => setCopiedPassword(false), 2000);
-      }
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: tCommon('errors.failedToCopy'),
-        variant: 'destructive',
-      });
-    }
-  };
+  // Password validation checks for display
+  const passwordValidationItems = useMemo(
+    () => [
+      {
+        isValid: password.length >= 8,
+        message: tAuth('changePassword.requirements.length'),
+      },
+      {
+        isValid: /[a-z]/.test(password),
+        message: tAuth('changePassword.requirements.lowercase'),
+      },
+      {
+        isValid: /[A-Z]/.test(password),
+        message: tAuth('changePassword.requirements.uppercase'),
+      },
+      {
+        isValid: /\d/.test(password),
+        message: tAuth('changePassword.requirements.number'),
+      },
+    ],
+    [password, tAuth]
+  );
 
   const onSubmit = async (data: AddMemberFormData) => {
     setIsSubmitting(true);
@@ -211,8 +206,6 @@ export default function AddMemberDialog({
   const handleClose = () => {
     setShowCredentials(false);
     setCredentials(null);
-    setCopiedEmail(false);
-    setCopiedPassword(false);
     reset();
     setIsSubmitting(false);
     onOpenChange(false);
@@ -227,7 +220,6 @@ export default function AddMemberDialog({
 
   return (
     <>
-      {/* Add Member Form Dialog */}
       <FormModal
         open={open && !showCredentials}
         onOpenChange={handleOpenChange}
@@ -237,7 +229,6 @@ export default function AddMemberDialog({
         isSubmitting={isSubmitting}
         onSubmit={handleSubmit(onSubmit)}
       >
-        {/* Name Field */}
         <Input
           id="displayName"
           label={tSettings('form.name')}
@@ -246,7 +237,6 @@ export default function AddMemberDialog({
           className="w-full"
         />
 
-        {/* Email Field */}
         <Input
           id="email"
           type="email"
@@ -258,7 +248,6 @@ export default function AddMemberDialog({
           errorMessage={formState.errors.email?.message}
         />
 
-        {/* Password Field */}
         <Stack gap={2}>
           <Input
             id="password"
@@ -269,76 +258,13 @@ export default function AddMemberDialog({
             className="w-full"
           />
           {password && (
-            <Stack gap={1} className="text-xs">
-              <HStack gap={1}>
-                {passwordChecks.length ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-                <span
-                  className={
-                    passwordChecks.length
-                      ? 'text-green-600'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  {tAuth('changePassword.requirements.length')}
-                </span>
-              </HStack>
-              <HStack gap={1}>
-                {passwordChecks.lowercase ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-                <span
-                  className={
-                    passwordChecks.lowercase
-                      ? 'text-green-600'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  {tAuth('changePassword.requirements.lowercase')}
-                </span>
-              </HStack>
-              <HStack gap={1}>
-                {passwordChecks.uppercase ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-                <span
-                  className={
-                    passwordChecks.uppercase
-                      ? 'text-green-600'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  {tAuth('changePassword.requirements.uppercase')}
-                </span>
-              </HStack>
-              <HStack gap={1}>
-                {passwordChecks.number ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-                <span
-                  className={
-                    passwordChecks.number
-                      ? 'text-green-600'
-                      : 'text-muted-foreground'
-                  }
-                >
-                  {tAuth('changePassword.requirements.number')}
-                </span>
-              </HStack>
-            </Stack>
+            <ValidationCheckList
+              items={passwordValidationItems}
+              className="text-xs"
+            />
           )}
         </Stack>
 
-        {/* Role Field */}
         <Select
           value={selectedRole}
           onValueChange={(value) =>
@@ -363,64 +289,26 @@ export default function AddMemberDialog({
         />
       </FormModal>
 
-      {/* Credentials Display Dialog */}
       <ViewModal
         open={showCredentials}
         onOpenChange={handleClose}
         title={tDialogs('memberAdded.title')}
       >
         <Stack gap={4}>
-          <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-800 border border-yellow-200">
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
             {tDialogs('memberAdded.credentialsWarning')}
           </div>
 
           {credentials && (
             <Stack gap={4}>
-              {/* Email */}
-              <HStack gap={2}>
-                <Input
-                  value={credentials.email}
-                  readOnly
-                  label={tSettings('form.email')}
-                  className="flex-1 font-mono text-sm"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1 mt-6"
-                  onClick={() => handleCopy(credentials.email, 'email')}
-                >
-                  {copiedEmail ? (
-                    <Check className="size-4 text-success p-0.5" />
-                  ) : (
-                    <Copy className="size-4 p-0.5" />
-                  )}
-                </Button>
-              </HStack>
-
-              {/* Password */}
-              <HStack gap={2}>
-                <Input
-                  value={credentials.password}
-                  readOnly
-                  label={tSettings('form.password')}
-                  className="flex-1 font-mono text-sm"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="p-1 mt-6"
-                  onClick={() =>
-                    handleCopy(credentials.password, 'password')
-                  }
-                >
-                  {copiedPassword ? (
-                    <Check className="size-4 text-success p-0.5" />
-                  ) : (
-                    <Copy className="size-4 p-0.5" />
-                  )}
-                </Button>
-              </HStack>
+              <CopyableField
+                value={credentials.email}
+                label={tSettings('form.email')}
+              />
+              <CopyableField
+                value={credentials.password}
+                label={tSettings('form.password')}
+              />
             </Stack>
           )}
 

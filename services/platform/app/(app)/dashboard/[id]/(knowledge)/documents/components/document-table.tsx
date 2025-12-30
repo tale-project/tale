@@ -14,14 +14,15 @@ import BreadcrumbNavigation from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/ui/icons';
 import { DocumentItem } from '@/types/documents';
-import DocumentActions from './document-actions';
+import DocumentRowActions from './document-row-actions';
 import DocumentPreviewModal from './document-preview-modal';
 import DocumentIcon from '@/components/ui/document-icon';
 import RagStatusBadge from './rag-status-badge';
 import { DocumentsActionMenu } from './documents-action-menu';
 import { useT } from '@/lib/i18n';
-import { useDateFormat } from '@/hooks/use-date-format';
+import { TableDateCell } from '@/components/ui/table-date-cell';
 import { useDebounce } from '@/hooks/use-debounce';
+import { useUrlModal } from '@/hooks/use-url-modal';
 
 export interface DocumentTableProps {
   items: DocumentItem[];
@@ -52,17 +53,25 @@ export default function DocumentTable({
 }: DocumentTableProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tTables } = useT('tables');
-  const { formatDate } = useDateFormat();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchQuery ?? '');
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewPath, setPreviewPath] = useState<string | null>(null);
-  const [previewDocumentId, setPreviewDocumentId] = useState<string | null>(
-    null,
-  );
-  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+
+  // URL-based modal state for document preview
+  // This persists the preview modal state in URL params for bookmarkability and link sharing
+  const { itemId: previewDocumentId, isOpen: previewOpen, openModal: openPreview, closeModal: closePreview } = useUrlModal({
+    paramKey: 'doc',
+  });
+
+  // Derive preview data from the selected document ID
+  const previewDocument = useMemo(() => {
+    if (!previewDocumentId) return null;
+    return items.find((item) => item.id === previewDocumentId) ?? null;
+  }, [items, previewDocumentId]);
+
+  const previewPath = previewDocument?.storagePath ?? null;
+  const previewFileName = previewDocument?.name ?? null;
 
   // Debounce search query for URL updates
   const debouncedQuery = useDebounce(query, 300);
@@ -150,22 +159,14 @@ export default function DocumentTable({
     (item: DocumentItem, e: React.MouseEvent) => {
       e.stopPropagation();
       if (item.type === 'file') {
-        if (item.storagePath) {
-          setPreviewPath(item.storagePath);
-          setPreviewDocumentId(null);
-          setPreviewFileName(item.name ?? null);
-        } else {
-          setPreviewDocumentId(item.id);
-          setPreviewPath(null);
-          setPreviewFileName(item.name ?? null);
-        }
-        setPreviewOpen(true);
+        // Open preview modal via URL state
+        openPreview(item.id);
       }
       if (item.type === 'folder' && item.storagePath) {
         handleFolderClick(item);
       }
     },
-    [handleFolderClick],
+    [handleFolderClick, openPreview],
   );
 
   // Define columns using TanStack Table
@@ -249,31 +250,31 @@ export default function DocumentTable({
         header: () => <span className="text-right w-full block">{tTables('headers.modified')}</span>,
         size: 192,
         cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground text-right block">
-            {row.original.lastModified
-              ? formatDate(new Date(row.original.lastModified), 'short')
-              : '—'}
-          </span>
+          <TableDateCell
+            date={row.original.lastModified}
+            preset="short"
+            alignRight
+          />
         ),
       },
       {
         id: 'actions',
         size: 160,
         cell: ({ row }) => (
-          <DocumentActions
-            organizationId={organizationId}
-            documentId={row.original.id}
-            storagePath={row.original.storagePath ?? ''}
-            itemType={row.original.type}
-            name={row.original.name ?? null}
-            syncConfigId={row.original.syncConfigId}
-            isDirectlySelected={row.original.isDirectlySelected}
-            sourceMode={row.original.sourceMode}
-          />
+          <HStack justify="end">
+            <DocumentRowActions
+              documentId={row.original.id}
+              itemType={row.original.type}
+              name={row.original.name ?? null}
+              syncConfigId={row.original.syncConfigId}
+              isDirectlySelected={row.original.isDirectlySelected}
+              sourceMode={row.original.sourceMode}
+            />
+          </HStack>
         ),
       },
     ],
-    [organizationId, handleDocumentClick, tTables],
+    [handleDocumentClick, tTables],
   );
 
   const emptyDocuments = items.length === 0 && !query;
@@ -341,7 +342,7 @@ export default function DocumentTable({
       {/* Document Preview Modal */}
       <DocumentPreviewModal
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(open) => !open && closePreview()}
         organizationId={organizationId}
         storagePath={previewPath ?? undefined}
         documentId={previewDocumentId ?? undefined}
