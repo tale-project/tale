@@ -2,6 +2,9 @@
  * Threads model - Business logic for thread operations
  */
 
+// Export validators
+export * from './validators';
+
 export { createChatThread } from './create_chat_thread';
 export { deleteChatThread } from './delete_chat_thread';
 export { getThreadMessages } from './get_thread_messages';

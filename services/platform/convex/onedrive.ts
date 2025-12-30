@@ -19,6 +19,20 @@ import type { ActionCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { checkUserRateLimit } from './lib/rate_limiter/helpers';
 
+// Import validators from model
+import {
+  driveItemsResponseValidator,
+  syncConfigStatusValidator,
+  fileItemValidator,
+  listFilesResponseValidator,
+  readFileResponseValidator,
+  readFileFromOnedriveResponseValidator,
+  listFolderContentsResponseValidator,
+  uploadToStorageResponseValidator,
+  refreshTokenResponseValidator,
+  getUserTokenResponseValidator,
+} from './model/onedrive/validators';
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -64,49 +78,6 @@ interface MicrosoftAccount {
   refreshToken: string | null;
   refreshTokenExpiresAt: number | null;
 }
-
-// =============================================================================
-// VALIDATORS
-// =============================================================================
-
-const driveItemValidator = v.object({
-  id: v.string(),
-  name: v.string(),
-  size: v.optional(v.number()),
-  createdDateTime: v.string(),
-  lastModifiedDateTime: v.string(),
-  webUrl: v.string(),
-  downloadUrl: v.optional(v.string()),
-  file: v.optional(
-    v.object({
-      mimeType: v.string(),
-      hashes: v.optional(
-        v.object({
-          sha1Hash: v.optional(v.string()),
-          sha256Hash: v.optional(v.string()),
-        }),
-      ),
-    }),
-  ),
-  folder: v.optional(
-    v.object({
-      childCount: v.number(),
-    }),
-  ),
-  parentReference: v.optional(
-    v.object({
-      driveId: v.string(),
-      driveType: v.string(),
-      id: v.string(),
-      path: v.string(),
-    }),
-  ),
-});
-
-const driveItemsResponseValidator = v.object({
-  nextLink: v.optional(v.string()),
-  value: v.array(driveItemValidator),
-});
 
 // =============================================================================
 // INTERNAL HELPERS
@@ -942,9 +913,7 @@ export const uploadToStorage = internalAction({
 export const updateSyncConfig = internalMutation({
   args: {
     configId: v.id('onedriveSyncConfigs'),
-    status: v.optional(
-      v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
-    ),
+    status: v.optional(syncConfigStatusValidator),
     lastSyncAt: v.optional(v.number()),
     lastSyncStatus: v.optional(v.string()),
     errorMessage: v.optional(v.string()),

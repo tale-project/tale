@@ -12,6 +12,17 @@ import { vStreamArgs } from '@convex-dev/agent';
 import { validateOrganizationAccess, getAuthenticatedUser } from './lib/rls';
 import * as ThreadsModel from './model/threads';
 
+// Import validators from model
+import {
+  chatTypeValidator,
+  messageRoleValidator,
+  threadStatusValidator,
+  threadMessageValidator,
+  threadMessagesResponseValidator,
+  threadListItemValidator,
+  latestToolMessageValidator,
+} from './model/threads/validators';
+
 /**
  * Create a new chat thread using Convex Agent Component.
  * Simply wraps createThread and validates organization access.
@@ -20,9 +31,7 @@ export const createChatThread = mutation({
   args: {
     organizationId: v.string(),
     title: v.optional(v.string()),
-    chatType: v.optional(
-      v.union(v.literal('general'), v.literal('workflow_assistant')),
-    ),
+    chatType: v.optional(chatTypeValidator),
   },
   returns: v.string(),
   handler: async (ctx, args) => {
@@ -72,16 +81,7 @@ export const getThreadMessages = query({
   args: {
     threadId: v.string(),
   },
-  returns: v.object({
-    messages: v.array(
-      v.object({
-        _id: v.string(),
-        _creationTime: v.number(),
-        role: v.union(v.literal('user'), v.literal('assistant')),
-        content: v.string(),
-      }),
-    ),
-  }),
+  returns: threadMessagesResponseValidator,
   handler: async (ctx, args) => {
     return await ThreadsModel.getThreadMessages(ctx, args.threadId);
   },
@@ -95,15 +95,7 @@ export const listThreads = query({
   args: {
     search: v.optional(v.string()),
   },
-  returns: v.array(
-    v.object({
-      _id: v.string(),
-      _creationTime: v.number(),
-      title: v.optional(v.string()),
-      status: v.union(v.literal('active'), v.literal('archived')),
-      userId: v.optional(v.string()),
-    }),
-  ),
+  returns: v.array(threadListItemValidator),
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
     if (!user) return [];
@@ -145,11 +137,7 @@ export const getLatestToolMessage = query({
   args: {
     threadId: v.string(),
   },
-  returns: v.object({
-    toolNames: v.array(v.string()),
-    status: v.union(v.literal('calling'), v.literal('completed'), v.null()),
-    timestamp: v.union(v.number(), v.null()),
-  }),
+  returns: latestToolMessageValidator,
   handler: async (ctx, args) => {
     return await ThreadsModel.getLatestToolMessage(ctx, args.threadId);
   },
