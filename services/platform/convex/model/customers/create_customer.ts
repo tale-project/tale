@@ -9,7 +9,7 @@ export interface CreateCustomerArgs {
   name?: string;
   email?: string;
   status?: 'active' | 'churned' | 'potential';
-  source?: 'manual_import' | 'file_upload' | 'circuly';
+  source: 'manual_import' | 'file_upload' | 'circuly';
   locale?: string;
   address?: {
     street?: string;
@@ -31,7 +31,7 @@ export async function createCustomer(
     name: args.name,
     email: args.email,
     status: args.status,
-    source: args.source ?? 'manual_import',
+    source: args.source,
     locale: args.locale,
     address: args.address,
     externalId: args.externalId,
