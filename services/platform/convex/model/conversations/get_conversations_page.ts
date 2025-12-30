@@ -12,14 +12,15 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import type { ConversationListResponse } from './types';
+import type { ConversationListResponse, ConversationStatus } from './types';
 import { transformConversation } from './transform_conversation';
 
 export async function getConversationsPage(
   ctx: QueryCtx,
   args: {
     organizationId: string;
-    status?: 'open' | 'closed' | 'spam' | 'archived';
+    status?: ConversationStatus;
+    // Accepts comma-separated priority values for multi-priority filtering (e.g., "high,urgent")
     priority?: string;
     category?: string;
     search?: string;

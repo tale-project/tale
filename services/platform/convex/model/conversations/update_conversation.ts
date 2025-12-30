@@ -4,14 +4,15 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function updateConversation(
   ctx: MutationCtx,
   args: {
     conversationId: Id<'conversations'>;
     subject?: string;
-    status?: string;
-    priority?: string;
+    status?: ConversationStatus;
+    priority?: ConversationPriority;
     type?: string;
     metadata?: unknown;
   },
