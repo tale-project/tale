@@ -20,6 +20,7 @@ echo "🚀 Starting Tale Platform with integrated Convex backend..."
 CONVEX_PID=""
 NEXTJS_PID=""
 DASHBOARD_PID=""
+MONITOR_PID=""
 
 # Shutdown marker file - health check will return 503 when this exists
 SHUTDOWN_MARKER="/tmp/shutting_down"
@@ -53,8 +54,9 @@ shutdown() {
   echo "   ⏳ Waiting ${grace_period}s for in-flight requests to complete..."
   sleep "$grace_period"
 
-  # Step 4: Send SIGTERM to all services
+  # Step 4: Send SIGTERM to all services (including monitor)
   echo "   🔌 Sending SIGTERM to services..."
+  kill -TERM "$MONITOR_PID" 2>/dev/null || true
   kill -TERM "$NEXTJS_PID" 2>/dev/null || true
   kill -TERM "$CONVEX_PID" 2>/dev/null || true
   kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
@@ -68,6 +70,7 @@ shutdown() {
   while [ "$waited" -lt "$shutdown_timeout" ]; do
     # Check if all processes have exited
     local still_running=0
+    kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
     kill -0 "$NEXTJS_PID" 2>/dev/null && still_running=1
     kill -0 "$CONVEX_PID" 2>/dev/null && still_running=1
     kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
@@ -83,7 +86,7 @@ shutdown() {
   # Force kill if still running
   if [ "$waited" -ge "$shutdown_timeout" ]; then
     echo "   ⚠️  Timeout reached, force killing remaining processes..."
-    kill -KILL "$NEXTJS_PID" "$CONVEX_PID" "$DASHBOARD_PID" 2>/dev/null || true
+    kill -KILL "$MONITOR_PID" "$NEXTJS_PID" "$CONVEX_PID" "$DASHBOARD_PID" 2>/dev/null || true
   fi
 
   # Cleanup
@@ -498,6 +501,66 @@ echo "   🔌 Convex API:           ${DISPLAY_BASE_URL}/ws_api"
 echo "   ⚡ Convex Actions:        ${DISPLAY_BASE_URL}/http_api"
 echo "   📊 Convex Dashboard:     ${DISPLAY_BASE_URL}/convex-dashboard"
 echo ""
+
+# ============================================================================
+# Process Supervisor - Monitor and restart Convex if it crashes
+# ============================================================================
+
+CRASH_LOG="/app/convex-data/crash.log"
+
+monitor_convex() {
+  local max_restarts=10
+  local restart_count=0
+  local restart_window=3600  # Reset counter after 1 hour of stability
+  local last_restart_time=0
+
+  while true; do
+    sleep 10
+
+    # Check if Convex backend is responding
+    if ! curl -sf "http://localhost:${CONVEX_BACKEND_PORT}/version" > /dev/null 2>&1; then
+      current_time=$(date +%s)
+
+      # Reset counter if stable for restart_window
+      if [ $((current_time - last_restart_time)) -gt $restart_window ]; then
+        restart_count=0
+      fi
+
+      restart_count=$((restart_count + 1))
+      last_restart_time=$current_time
+
+      # Log crash event
+      echo "[$(date -Iseconds)] Convex backend crash detected (restart #$restart_count)" | tee -a "$CRASH_LOG"
+
+      if [ $restart_count -gt $max_restarts ]; then
+        echo "[$(date -Iseconds)] Max restarts ($max_restarts) exceeded, exiting container" | tee -a "$CRASH_LOG"
+        exit 1
+      fi
+
+      # Kill stale process if exists
+      if [ -n "${CONVEX_PID:-}" ] && kill -0 "$CONVEX_PID" 2>/dev/null; then
+        kill "$CONVEX_PID" 2>/dev/null || true
+        wait "$CONVEX_PID" 2>/dev/null || true
+      fi
+
+      # Restart Convex backend
+      echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
+      convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
+      CONVEX_PID=$!
+
+      # Wait for recovery
+      sleep 5
+
+      if curl -sf "http://localhost:${CONVEX_BACKEND_PORT}/version" > /dev/null 2>&1; then
+        echo "[$(date -Iseconds)] Convex backend recovered successfully" | tee -a "$CRASH_LOG"
+      fi
+    fi
+  done
+}
+
+# Start process supervisor in background
+monitor_convex &
+MONITOR_PID=$!
 
 # Wait for all background processes
 wait "$CONVEX_PID" "$NEXTJS_PID" "$DASHBOARD_PID"
