@@ -15,9 +15,6 @@ import * as ThreadsModel from './model/threads';
 // Import validators from model
 import {
   chatTypeValidator,
-  messageRoleValidator,
-  threadStatusValidator,
-  threadMessageValidator,
   threadMessagesResponseValidator,
   threadListItemValidator,
   latestToolMessageValidator,
