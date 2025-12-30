@@ -11,7 +11,7 @@ export interface FindOrCreateCustomerArgs {
   organizationId: string;
   email: string;
   name?: string;
-  source?: 'manual_import' | 'file_upload' | 'circuly';
+  source: 'manual_import' | 'file_upload' | 'circuly';
   status?: 'active' | 'churned' | 'potential';
   metadata?: unknown;
 }
@@ -48,7 +48,7 @@ export async function findOrCreateCustomer(
     organizationId: args.organizationId,
     email: args.email,
     name: args.name || args.email,
-    source: args.source || 'manual_import',
+    source: args.source,
     status: args.status || 'potential',
     metadata: args.metadata,
   };
