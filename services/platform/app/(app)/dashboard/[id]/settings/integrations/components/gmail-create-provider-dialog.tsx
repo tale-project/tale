@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { ViewModal } from '@/components/ui/modals';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -270,13 +270,11 @@ export default function GmailCreateProviderDialog({
   );
 
   return (
-    <FormModal
+    <ViewModal
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.addProvider', { provider: 'Gmail' })}
-      customHeader={customHeader}
       customFooter={<></>}
-      isSubmitting={isLoading}
     >
       <Tabs
         value={authMethod}
@@ -397,6 +395,6 @@ export default function GmailCreateProviderDialog({
           </Form>
         </TabsContent>
       </Tabs>
-    </FormModal>
+    </ViewModal>
   );
 }

@@ -8,7 +8,6 @@ import { action } from './_generated/server';
 import { v } from 'convex/values';
 import { createWorkflowAgent } from './lib/create_workflow_agent';
 import { components, internal } from './_generated/api';
-import { toonify } from '../lib/utils/toonify';
 import type { ToolName } from './agent_tools/tool_registry';
 import {
   type FileAttachment,
@@ -92,19 +91,48 @@ export const chatWithWorkflowAssistant = action({
 
         // Add step details if there are steps
         if (steps.length > 0) {
-          const toonifiedSteps = toonify({
-            steps: steps.map((step: unknown) => ({
-              ...(step as Record<string, unknown>),
-              organizationId: args.organizationId,
-              wfDefinitionId: args.workflowId!,
-            })),
+          // Provide step overview with shortened config (for understanding flow)
+          // But exclude long string values (prompts, etc.) to prevent JSON corruption
+          const stepsForContext = steps.map((step: any) => {
+            return {
+              organizationId: step.organizationId,
+              wfDefinitionId: step.wfDefinitionId,
+              _id: step._id,
+              stepSlug: step.stepSlug,
+              name: step.name,
+              stepType: step.stepType,
+              order: step.order,
+              nextSteps: step.nextSteps,
+            };
           });
+
+          // Use toonify format for more compact representation (excludes config)
+          const { toonify } = await import('../lib/utils/toonify');
+          const toonified = toonify(
+            { steps: stepsForContext },
+            ['_id', 'stepSlug', 'name', 'stepType', 'order', 'nextSteps']
+          );
+
           workflowContext += `
 
-**Step Details (Toon Format):**
+**Workflow Steps Overview (Toon Format):**
 \`\`\`
-${toonifiedSteps}
-\`\`\``;
+${toonified}
+\`\`\`
+
+**IMPORTANT NOTES:**
+- Config details are NOT shown above to keep context compact
+- This overview helps you understand the workflow flow and connections (nextSteps)
+- **To see or update a step's config, you MUST:**
+  1. Call workflow_read with operation='get_step' and stepId='<step_id>' to get the COMPLETE current config
+  2. Modify ONLY the requested fields in the config
+  3. Call update_workflow_step with the complete modified config
+
+**Example workflow for updating a step:**
+1. workflow_read(operation='get_step', stepId='${steps[0]?._id || 'step_id_here'}')
+2. Extract step.config from the result
+3. Modify config (e.g., add outputSchema field while keeping all other fields)
+4. update_workflow_step(stepRecordId='${steps[0]?._id || 'step_id_here'}', updates={ config: <complete_modified_config> })`;
         } else {
           workflowContext += `
 

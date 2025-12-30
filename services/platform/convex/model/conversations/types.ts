@@ -215,6 +215,7 @@ export const conversationItemValidator = v.object({
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
   providerId: v.optional(v.id('emailProviders')),
+  lastMessageAt: v.optional(v.number()),
 
   metadata: v.optional(v.any()),
   // Computed fields for frontend compatibility
@@ -263,6 +264,7 @@ export const conversationWithMessagesValidator = v.object({
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
   providerId: v.optional(v.id('emailProviders')),
+  lastMessageAt: v.optional(v.number()),
 
   metadata: v.optional(v.any()),
   // Computed fields

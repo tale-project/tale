@@ -56,6 +56,7 @@ export const conversationAutoReplyWorkflow = {
     },
 
     // Step 2: Find Unprocessed Open Conversation
+    // Uses filterExpression with smart index selection
     {
       stepSlug: 'find_unprocessed_conversation',
       name: 'Find Unprocessed Open Conversation',
@@ -64,8 +65,10 @@ export const conversationAutoReplyWorkflow = {
       config: {
         type: 'workflow_processing_records',
         parameters: {
-          operation: 'find_unprocessed_open_conversation',
+          operation: 'find_unprocessed',
+          tableName: 'conversations',
           backoffHours: '{{backoffHours}}',
+          filterExpression: 'status == "open"',
         },
       },
       nextSteps: {
@@ -182,6 +185,62 @@ export const conversationAutoReplyWorkflow = {
         temperature: 0.2,
         maxTokens: 500,
         outputFormat: 'json',
+        outputSchema: {
+          type: 'object',
+          properties: {
+            needs_reply: {
+              type: 'boolean',
+              description: 'Whether the conversation needs a reply from support',
+            },
+            reason: {
+              type: 'string',
+              description:
+                'Brief explanation of why a reply is or is not needed',
+            },
+            urgency: {
+              type: 'string',
+              enum: ['low', 'medium', 'high'],
+              description: 'Urgency level of the response',
+            },
+            conversation_type: {
+              type: 'string',
+              enum: [
+                'product_recommendation',
+                'churn_survey',
+                'service_request',
+                'general',
+                'spam',
+              ],
+              description: 'Classification of the conversation type',
+            },
+            type_confidence: {
+              type: 'number',
+              minimum: 0,
+              maximum: 1,
+              description: 'Confidence level in the type classification (0-1)',
+            },
+            type_reasoning: {
+              type: 'string',
+              description:
+                'Brief explanation of the conversation type classification',
+            },
+            should_update_type: {
+              type: 'boolean',
+              description:
+                'Whether the conversation type should be updated (only if current type is missing, empty, or "general")',
+            },
+          },
+          required: [
+            'needs_reply',
+            'reason',
+            'urgency',
+            'conversation_type',
+            'type_confidence',
+            'type_reasoning',
+            'should_update_type',
+          ],
+          additionalProperties: false,
+        },
         systemPrompt: `You are an expert customer service assistant. Analyze the conversation to:
 1. Determine if a reply is needed
 2. Classify the conversation type

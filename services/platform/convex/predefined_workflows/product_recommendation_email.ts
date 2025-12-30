@@ -71,6 +71,7 @@ export const productRecommendationEmailWorkflow = {
     },
 
     // Step 2: Find One Approved Product Recommendation Approval
+    // Uses filterExpression with smart index selection
     {
       stepSlug: 'find_approved_approval',
       name: 'Find Approved Product Recommendation Approval',
@@ -79,9 +80,10 @@ export const productRecommendationEmailWorkflow = {
       config: {
         type: 'workflow_processing_records',
         parameters: {
-          operation: 'find_product_recommendation_by_status',
+          operation: 'find_unprocessed',
+          tableName: 'approvals',
           backoffHours: '{{backoffHours}}',
-          status: 'approved',
+          filterExpression: 'status == "approved" && resourceType == "product_recommendation"',
         },
       },
       nextSteps: {

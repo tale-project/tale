@@ -84,9 +84,44 @@ export async function handleExecuteStep(
     });
   }
 
+  // Debug: Log before variable replacement for LLM steps
+  if (args.stepType === 'llm') {
+    const llmConfig = stepDef.config as Record<string, unknown>;
+    const stepsData = fullVariables.steps as Record<string, Record<string, unknown>> | undefined;
+
+    debugLog('Before replaceVariables (LLM step):', {
+      stepSlug: args.stepSlug,
+      hasUserPrompt: !!llmConfig.userPrompt,
+      userPromptLength: typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt.length : 0,
+      userPromptPreview: typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt.substring(0, 100) : '',
+      hasTemplateMarkers: /\{\{/.test(typeof llmConfig.userPrompt === 'string' ? llmConfig.userPrompt : ''),
+      availableVariableKeys: Object.keys(fullVariables),
+      stepsKeys: stepsData ? Object.keys(stepsData) : [],
+    });
+
+    // Log currentConversation variables
+    debugLog('Conversation variables:', {
+      currentConversationId: fullVariables.currentConversationId,
+      currentConversationSubject: fullVariables.currentConversationSubject,
+      currentConversationType: fullVariables.currentConversationType,
+    });
+  }
+
   const processedConfig = isSetVariablesAction
     ? stepDef.config
     : replaceVariables(stepDef.config, fullVariables);
+
+  // Debug: Log after variable replacement for LLM steps
+  if (args.stepType === 'llm') {
+    const processedLlmConfig = processedConfig as Record<string, unknown>;
+    debugLog('After replaceVariables (LLM step):', {
+      stepSlug: args.stepSlug,
+      userPromptLength: typeof processedLlmConfig.userPrompt === 'string' ? processedLlmConfig.userPrompt.length : 0,
+      userPromptPreview: typeof processedLlmConfig.userPrompt === 'string' ? processedLlmConfig.userPrompt.substring(0, 100) : '',
+      systemPromptLength: typeof processedLlmConfig.systemPrompt === 'string' ? processedLlmConfig.systemPrompt.length : 0,
+    });
+  }
+
   const processedStepDef = { ...stepDef, config: processedConfig };
 
   // 5. Execute step by type

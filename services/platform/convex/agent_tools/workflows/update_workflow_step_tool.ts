@@ -24,6 +24,13 @@ export const updateWorkflowStepTool = {
   tool: createTool({
     description: `Update an existing workflow step. Use this to modify step configuration, name, or connections.
 
+**CRITICAL JSON FORMATTING RULES:**
+1. When passing long strings (especially prompts), ensure proper JSON escaping of special characters
+2. Escape all double quotes inside strings with backslash: \\"
+3. Escape all backslashes: \\\\
+4. Escape newlines as \\n, not literal line breaks
+5. Test your JSON structure is valid before calling this tool
+
 **CRITICAL STRUCTURE RULES:**
 1. 'config' and 'nextSteps' are SEPARATE fields in the 'updates' object - NEVER nest nextSteps inside config!
 2. For ACTION steps, 'config' MUST include the 'type' field (e.g., "customer", "product")
@@ -76,10 +83,17 @@ export const updateWorkflowStepTool = {
    }
 
 **IMPORTANT RULES:**
-- When updating config, you MUST pass the COMPLETE config object with ALL required fields
+- **CRITICAL: You MUST first call workflow_read with operation='get_step' to get the current step details**
+- When updating config, you MUST pass the COMPLETE config object with ALL required fields from the current step
+- When updating config, you SHOULD include the stepType in updates.stepType (get it from the current step via get_step)
 - For ACTION steps: config MUST have 'type' field (action type like "customer", "product")
 - nextSteps goes at updates.nextSteps, NOT inside updates.config
-- Use get_workflow_structure to see current config before updating`,
+
+**REQUIRED WORKFLOW:**
+1. Call workflow_read(operation='get_step', stepId='<step_id>') to get current step
+2. Extract step.stepType and step.config from result
+3. Modify only the fields you need to change in config
+4. Call update_workflow_step with stepType and complete modified config`,
     args: z.object({
       stepRecordId: z
         .string()
@@ -163,16 +177,126 @@ LOOP (iteration):
         updates: args.updates,
       });
 
+      // Sanitize args.updates to prevent malformed JSON structures
+      // This handles cases where LLM generates corrupted JSON with field values merged into field names
+      let sanitizedUpdates = args.updates;
+      try {
+        // Deep clone and re-parse to ensure clean JSON structure
+        const jsonStr = JSON.stringify(args.updates);
+        sanitizedUpdates = JSON.parse(jsonStr);
+
+        // Attempt to repair common corruption patterns
+        // Pattern: Field names that look like descriptions instead of identifiers
+        const repairObject = (obj: any): any => {
+          if (!obj || typeof obj !== 'object') {
+            return obj;
+          }
+
+          // Handle arrays by recursively repairing each element
+          if (Array.isArray(obj)) {
+            return obj.map((item) => repairObject(item));
+          }
+
+          const repaired: Record<string, any> = {};
+          for (const [key, value] of Object.entries(obj)) {
+            let repairedKey = key;
+
+            // If key contains newlines or is too descriptive, try to extract the actual field name
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentionally matching control characters to detect and repair corrupted field names
+            if (/[\x00-\x1F\x7F]/.test(key) || key.length > 50) {
+              // Try to extract common field names from descriptive keys
+              const fieldNameMatch = key.match(/^(config|userPrompt|systemPrompt|name|parameters|type|nextSteps|order|stepType)/i);
+              if (fieldNameMatch) {
+                // Normalize to proper camelCase
+                const lowerKey = fieldNameMatch[1].toLowerCase();
+                const camelCaseMap: Record<string, string> = {
+                  userprompt: 'userPrompt',
+                  systemprompt: 'systemPrompt',
+                  nextsteps: 'nextSteps',
+                  steptype: 'stepType',
+                };
+                repairedKey = camelCaseMap[lowerKey] ?? lowerKey;
+                debugLog('Repaired field name', { original: key.substring(0, 50), repaired: repairedKey });
+              } else {
+                // Can't repair this key, leave it as-is for validation to catch
+                repairedKey = key;
+              }
+            }
+
+            repaired[repairedKey] = typeof value === 'object' && value !== null ? repairObject(value) : value;
+          }
+          return repaired;
+        };
+
+        sanitizedUpdates = repairObject(sanitizedUpdates);
+
+        // Additional validation: check for extremely long field names and invalid characters
+        const validateObject = (obj: any, path = ''): void => {
+          if (!obj || typeof obj !== 'object') return;
+
+          // Handle arrays by recursively validating each element
+          if (Array.isArray(obj)) {
+            obj.forEach((item, index) => validateObject(item, `${path}[${index}]`));
+            return;
+          }
+
+          for (const [key, value] of Object.entries(obj)) {
+            // Check for control characters (including newlines, tabs, etc.)
+            // Control characters are ASCII 0-31 and 127
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: Intentionally matching control characters to reject them
+            const hasControlChars = /[\x00-\x1F\x7F]/.test(key);
+            if (hasControlChars) {
+              // Show escaped version to make control chars visible
+              const escapedKey = JSON.stringify(key).slice(1, -1);
+              throw new Error(
+                `Invalid field name contains control characters: "${escapedKey.substring(0, 50)}${escapedKey.length > 50 ? '...' : ''}". Field names cannot contain newlines, tabs, or other control characters. This indicates malformed JSON from the LLM.`
+              );
+            }
+
+            // Field names should never exceed 100 characters in normal usage
+            if (key.length > 100) {
+              throw new Error(
+                `Invalid field name detected (length: ${key.length}). This usually indicates malformed JSON from the LLM. Field path: ${path}.${key.substring(0, 50)}...`
+              );
+            }
+
+            // Recursively validate nested objects
+            if (typeof value === 'object' && value !== null) {
+              validateObject(value, path ? `${path}.${key}` : key);
+            }
+          }
+        };
+
+        validateObject(sanitizedUpdates);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        debugLog('JSON sanitization failed', { error: errorMsg, originalUpdates: args.updates });
+
+        return {
+          success: false,
+          message: `Failed to parse tool arguments: ${errorMsg}
+
+IMPORTANT: This error means the tool call JSON is malformed. Common causes:
+1. Field names with newlines or special characters (field names should be simple identifiers like "config", "userPrompt", etc.)
+2. Missing quotes around string values
+3. Unescaped special characters in string values
+
+Please try again with a properly structured JSON object. Ensure all field names are simple identifiers without spaces or special characters.`,
+          step: null,
+          validationErrors: [errorMsg],
+        };
+      }
+
       // Validate step config if it's being updated
       // Note: When only config is updated without stepType, validation may be incomplete
       // since we don't fetch the existing step's stepType. The mutation itself will
       // handle the full validation with the merged step data.
-      if (args.updates.config || args.updates.stepType) {
+      if (sanitizedUpdates.config || sanitizedUpdates.stepType) {
         const stepValidation = validateStepConfig({
           stepSlug: 'update', // Placeholder, actual slug comes from existing step
-          name: args.updates.name ?? 'Step',
-          stepType: args.updates.stepType, // May be undefined if only config is being updated
-          config: args.updates.config,
+          name: sanitizedUpdates.name ?? 'Step',
+          stepType: sanitizedUpdates.stepType, // May be undefined if only config is being updated
+          config: sanitizedUpdates.config,
         });
 
         const errors: string[] = [];
@@ -186,11 +310,11 @@ LOOP (iteration):
         }
 
         // Additional warning for action type matching stepType
-        const config = args.updates.config as
+        const config = sanitizedUpdates.config as
           | Record<string, unknown>
           | undefined;
         if (
-          args.updates.stepType === 'action' &&
+          sanitizedUpdates.stepType === 'action' &&
           config &&
           typeof config === 'object' &&
           'type' in config
@@ -218,7 +342,7 @@ LOOP (iteration):
         internal.wf_step_defs.updateStep,
         {
           stepRecordId: args.stepRecordId as Id<'wfStepDefs'>,
-          updates: args.updates as any,
+          updates: sanitizedUpdates as any,
         },
       )) as Doc<'wfStepDefs'> | null;
 

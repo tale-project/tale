@@ -4,7 +4,7 @@
  * These actions provide operations for tracking which entities have been processed by workflows,
  * enabling efficient incremental processing. They:
  * - Track processing history per workflow per table
- * - Use Convex indexes for efficient queries
+ * - Use smart index selection for efficient queries based on filter expressions
  * - Support resume optimization to avoid scanning all documents
  * - Handle concurrent workflow executions safely
  */
@@ -13,8 +13,6 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { findUnprocessed } from './helpers/find_unprocessed';
-import { findUnprocessedOpenConversation } from './helpers/find_unprocessed_open_conversation';
-import { findProductRecommendationByStatus } from './helpers/find_product_recommendation_by_status';
 import { recordProcessed } from './helpers/record_processed';
 import type { TableName } from './helpers/types';
 
@@ -32,27 +30,25 @@ const tableNameValidator = v.union(
   v.literal('exampleMessages'),
 );
 
-const statusValidator = v.union(
-  v.literal('pending'),
-  v.literal('approved'),
-  v.literal('rejected'),
-);
-
 // Type for workflow processing records operation params (discriminated union)
 type WorkflowProcessingRecordsActionParams =
   | {
       operation: 'find_unprocessed';
       tableName: TableName;
       backoffHours: number;
-    }
-  | {
-      operation: 'find_unprocessed_open_conversation';
-      backoffHours: number;
-    }
-  | {
-      operation: 'find_product_recommendation_by_status';
-      backoffHours: number;
-      status: 'pending' | 'approved' | 'rejected';
+      /**
+       * Optional JEXL filter expression for advanced filtering.
+       * Simple equality conditions (e.g., 'status == "closed"') will be used
+       * for index-based query optimization.
+       * Complex conditions (e.g., 'daysAgo(metadata.resolved_at) > 30') will be
+       * applied as post-filters.
+       *
+       * @example 'status == "closed"'
+       * @example 'status == "open" && priority == "high"'
+       * @example 'status == "closed" && daysAgo(metadata.resolved_at) > 30'
+       * @example 'status == "approved" && resourceType == "product_recommendation"'
+       */
+      filterExpression?: string;
     }
   | {
       operation: 'record_processed';
@@ -65,25 +61,31 @@ export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessin
   {
     type: 'workflow_processing_records',
     title: 'Workflow Processing Records Operation',
-    description:
-      'Execute workflow processing records operations (find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed). Returns at most one matching document or null if none found. organizationId and rootWfDefinitionId are automatically read from workflow context variables.',
+    description: `Execute workflow processing records operations.
+
+Operations:
+- find_unprocessed: Find one unprocessed record from a table with optional filter expression
+- record_processed: Record that a document has been processed
+
+The find_unprocessed operation supports flexible filtering via filterExpression:
+- Simple equality conditions (e.g., 'status == "closed"') are used for index optimization
+- Complex conditions (e.g., 'daysAgo(metadata.resolved_at) > 30') are applied as post-filters
+- Available transforms: daysAgo(), hoursAgo(), minutesAgo(), parseDate(), isBefore(), isAfter()
+
+Examples:
+- Find any conversation: { operation: 'find_unprocessed', tableName: 'conversations' }
+- Find open conversations: { filterExpression: 'status == "open"' }
+- Find stale closed conversations: { filterExpression: 'status == "closed" && daysAgo(metadata.resolved_at) > 30' }
+- Find approved product recommendations: { tableName: 'approvals', filterExpression: 'status == "approved" && resourceType == "product_recommendation"' }
+
+organizationId and rootWfDefinitionId are automatically read from workflow context variables.`,
     parametersValidator: v.union(
-      // find_unprocessed: Find one unprocessed record from a table
+      // find_unprocessed: Find one unprocessed record from a table with optional filter
       v.object({
         operation: v.literal('find_unprocessed'),
         tableName: tableNameValidator,
         backoffHours: v.number(),
-      }),
-      // find_unprocessed_open_conversation: Find one unprocessed open conversation
-      v.object({
-        operation: v.literal('find_unprocessed_open_conversation'),
-        backoffHours: v.number(),
-      }),
-      // find_product_recommendation_by_status: Find one product recommendation by status
-      v.object({
-        operation: v.literal('find_product_recommendation_by_status'),
-        backoffHours: v.number(),
-        status: statusValidator,
+        filterExpression: v.optional(v.string()),
       }),
       // record_processed: Record that a document has been processed
       v.object({
@@ -94,63 +96,47 @@ export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessin
       }),
     ),
 
-  async execute(ctx, params, variables) {
-    // Read and validate organizationId and wfDefinitionId from workflow context variables
-    const organizationId = variables?.organizationId;
-    const wfDefinitionId = variables?.rootWfDefinitionId;
+    async execute(ctx, params, variables) {
+      // Read and validate organizationId and wfDefinitionId from workflow context variables
+      const organizationId = variables?.organizationId;
+      const wfDefinitionId = variables?.rootWfDefinitionId;
 
-    if (typeof organizationId !== 'string' || !organizationId) {
-      throw new Error(
-        'workflow_processing_records requires a non-empty string organizationId in workflow context',
-      );
-    }
-    if (typeof wfDefinitionId !== 'string' || !wfDefinitionId) {
-      throw new Error(
-        'workflow_processing_records requires a non-empty string rootWfDefinitionId in workflow context',
-      );
-    }
-
-    switch (params.operation) {
-      case 'find_unprocessed': {
-        return await findUnprocessed(ctx, {
-          organizationId,
-          tableName: params.tableName, // Required by validator
-          wfDefinitionId,
-          backoffHours: params.backoffHours, // Required by validator
-        });
-      }
-
-      case 'find_unprocessed_open_conversation': {
-        return await findUnprocessedOpenConversation(ctx, {
-          organizationId,
-          wfDefinitionId,
-          backoffHours: params.backoffHours, // Required by validator
-        });
-      }
-
-      case 'find_product_recommendation_by_status': {
-        return await findProductRecommendationByStatus(ctx, {
-          organizationId,
-          wfDefinitionId,
-          backoffHours: params.backoffHours, // Required by validator
-          status: params.status, // Required by validator
-        });
-      }
-
-      case 'record_processed': {
-        return await recordProcessed(ctx, {
-          organizationId,
-          tableName: params.tableName, // Required by validator
-          recordId: params.recordId, // Required by validator
-          wfDefinitionId,
-          metadata: params.metadata,
-        });
-      }
-
-      default:
+      if (typeof organizationId !== 'string' || !organizationId) {
         throw new Error(
-          `Unsupported workflow_processing_records operation: ${(params as { operation: string }).operation}`,
+          'workflow_processing_records requires a non-empty string organizationId in workflow context',
         );
-    }
-  },
-};
+      }
+      if (typeof wfDefinitionId !== 'string' || !wfDefinitionId) {
+        throw new Error(
+          'workflow_processing_records requires a non-empty string rootWfDefinitionId in workflow context',
+        );
+      }
+
+      switch (params.operation) {
+        case 'find_unprocessed': {
+          return await findUnprocessed(ctx, {
+            organizationId,
+            tableName: params.tableName,
+            wfDefinitionId,
+            backoffHours: params.backoffHours,
+            filterExpression: params.filterExpression,
+          });
+        }
+
+        case 'record_processed': {
+          return await recordProcessed(ctx, {
+            organizationId,
+            tableName: params.tableName,
+            recordId: params.recordId,
+            wfDefinitionId,
+            metadata: params.metadata,
+          });
+        }
+
+        default:
+          throw new Error(
+            `Unsupported workflow_processing_records operation: ${(params as { operation: string }).operation}`,
+          );
+      }
+    },
+  };

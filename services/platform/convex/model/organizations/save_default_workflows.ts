@@ -10,6 +10,7 @@ import onedriveSync from '../../predefined_workflows/onedrive_sync';
 import generalCustomerStatusAssessmentWorkflow from '../../predefined_workflows/general_customer_status_assessment';
 import generalProductRecommendationWorkflow from '../../predefined_workflows/general_product_recommendation';
 import productRecommendationEmailWorkflow from '../../predefined_workflows/product_recommendation_email';
+import conversationAutoArchiveWorkflow from '../../predefined_workflows/conversation_auto_archive';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -61,6 +62,11 @@ export async function saveDefaultWorkflows(
     {
       workflow: productRecommendationEmailWorkflow,
       schedule: '0 10 * * *', // Every day at 10 AM
+      timezone: 'UTC',
+    },
+    {
+      workflow: conversationAutoArchiveWorkflow,
+      schedule: '0 0 * * *', // Daily at midnight
       timezone: 'UTC',
     },
   ];

@@ -225,4 +225,91 @@ jexlInstance.addTransform(
   },
 );
 
+// =============================================================================
+// Date/Time Transforms for Filtering
+// =============================================================================
+
+/**
+ * Helper to safely parse a date value (string, number, or Date)
+ * Returns timestamp in milliseconds, or NaN if invalid.
+ *
+ * Handles both seconds and milliseconds timestamps:
+ * - Timestamps < 1e11 (before year 5138 in seconds, or year 1973 in ms) are treated as seconds
+ * - This heuristic works because reasonable timestamps are always > 1e12 in milliseconds
+ */
+function parseDateValue(val: unknown): number {
+  if (val === null || val === undefined) return NaN;
+
+  let timestamp: number;
+  if (typeof val === 'number') {
+    timestamp = val;
+  } else if (val instanceof Date) {
+    return val.getTime(); // Date objects are always in milliseconds
+  } else if (typeof val === 'string') {
+    timestamp = new Date(val).getTime();
+    if (isNaN(timestamp)) return NaN;
+    return timestamp; // String parsing via Date constructor returns milliseconds
+  } else {
+    return NaN;
+  }
+
+  // Heuristic: if timestamp is less than 1e11, it's likely in seconds
+  // 1e11 ms = March 1973, so any valid recent timestamp in ms will be > 1e12
+  // 1e11 s = year 5138, so any valid seconds timestamp will be < 1e11
+  if (timestamp > 0 && timestamp < 1e11) {
+    timestamp *= 1000; // Convert seconds to milliseconds
+  }
+
+  return timestamp;
+}
+
+// Calculate days since a given date
+jexlInstance.addTransform('daysAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1; // Return -1 for invalid dates
+  return Math.floor((Date.now() - timestamp) / (24 * 60 * 60 * 1000));
+});
+
+// Calculate hours since a given date
+jexlInstance.addTransform('hoursAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1;
+  return Math.floor((Date.now() - timestamp) / (60 * 60 * 1000));
+});
+
+// Calculate minutes since a given date
+jexlInstance.addTransform('minutesAgo', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  if (isNaN(timestamp)) return -1;
+  return Math.floor((Date.now() - timestamp) / (60 * 1000));
+});
+
+// Parse date string to timestamp (milliseconds)
+jexlInstance.addTransform('parseDate', (dateVal: unknown) => {
+  const timestamp = parseDateValue(dateVal);
+  return isNaN(timestamp) ? null : timestamp;
+});
+
+// Check if a date is before another date (or days ago)
+jexlInstance.addTransform(
+  'isBefore',
+  (dateVal: unknown, compareVal: unknown) => {
+    const timestamp = parseDateValue(dateVal);
+    const compareTimestamp = parseDateValue(compareVal);
+    if (isNaN(timestamp) || isNaN(compareTimestamp)) return false;
+    return timestamp < compareTimestamp;
+  },
+);
+
+// Check if a date is after another date
+jexlInstance.addTransform(
+  'isAfter',
+  (dateVal: unknown, compareVal: unknown) => {
+    const timestamp = parseDateValue(dateVal);
+    const compareTimestamp = parseDateValue(compareVal);
+    if (isNaN(timestamp) || isNaN(compareTimestamp)) return false;
+    return timestamp > compareTimestamp;
+  },
+);
+
 export { jexlInstance };

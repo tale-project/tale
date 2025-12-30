@@ -30,6 +30,7 @@ export interface JsonSchemaDefinition {
   properties: Record<string, JsonSchemaProperty>;
   required?: string[];
   description?: string;
+  additionalProperties?: boolean; // Whether to allow additional properties beyond those defined
 }
 
 export interface LLMNodeConfig {
@@ -127,6 +128,7 @@ const jsonSchemaDefinitionValidator = v.object({
   properties: v.record(v.string(), jsonSchemaPropertyValidator),
   required: v.optional(v.array(v.string())),
   description: v.optional(v.string()),
+  additionalProperties: v.optional(v.boolean()), // Whether to allow additional properties
 });
 
 export const llmNodeConfigValidator = v.object({

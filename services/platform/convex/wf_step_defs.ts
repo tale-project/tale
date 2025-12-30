@@ -30,6 +30,14 @@ export const listWorkflowSteps = internalQuery({
   },
 });
 
+export const getStepById = internalQuery({
+  args: { stepId: v.id('wfStepDefs') },
+  returns: v.union(v.any(), v.null()),
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.stepId);
+  },
+});
+
 // =============================================================================
 // Public Queries
 // =============================================================================

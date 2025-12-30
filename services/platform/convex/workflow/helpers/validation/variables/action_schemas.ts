@@ -261,18 +261,6 @@ const workflowProcessingRecordsSchemas: Record<string, OutputSchema> = {
     nullable: true,
     fields: processingRecordFields,
   },
-  find_unprocessed_open_conversation: {
-    // Returns full conversation document
-    description: 'Unprocessed open conversation or null',
-    nullable: true,
-    // No fields = dynamic output
-  },
-  find_product_recommendation_by_status: {
-    // Returns full product recommendation document
-    description: 'Product recommendation by status or null',
-    nullable: true,
-    // No fields = dynamic output
-  },
 };
 
 // =============================================================================

@@ -25,6 +25,7 @@ import { contextSearchTool } from './threads/context_search_tool';
 import { integrationTool } from './integrations/integration_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 import { verifyApprovalTool } from './integrations/verify_approval_tool';
+import { databaseSchemaTool } from './database/database_schema_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -52,6 +53,7 @@ export const TOOL_NAMES = [
   'integration',
   'integration_introspect',
   'verify_approval',
+  'database_schema',
 ] as const;
 
 /**
@@ -77,6 +79,7 @@ export const TOOL_REGISTRY = [
   integrationTool,
   integrationIntrospectTool,
   verifyApprovalTool,
+  databaseSchemaTool,
 ] as const;
 
 /**

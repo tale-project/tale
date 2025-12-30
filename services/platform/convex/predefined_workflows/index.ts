@@ -15,6 +15,7 @@ import documentRagSync from './document_rag_sync';
 import productRagSync from './product_rag_sync';
 import customerRagSync from './customer_rag_sync';
 import conversationAutoReply from './conversation_auto_reply';
+import conversationAutoArchive from './conversation_auto_archive';
 import loopiCustomerStatusAssessment from './loopi_customer_status_assessment';
 import productRelationshipAnalysis from './product_relationship_analysis';
 import onedriveSync from './onedrive_sync';
@@ -39,6 +40,7 @@ export {
   productRagSync,
   customerRagSync,
   conversationAutoReply,
+  conversationAutoArchive,
   loopiCustomerStatusAssessment,
   productRelationshipAnalysis,
   onedriveSync,
@@ -69,6 +71,7 @@ export const workflows = {
   workflowRagSync,
   websitePagesRagSync,
   conversationAutoReply,
+  conversationAutoArchive,
   loopiCustomerStatusAssessment,
   productRelationshipAnalysis,
 } as const;

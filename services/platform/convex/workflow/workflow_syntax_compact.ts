@@ -42,10 +42,8 @@ Exception: set_variables returns \`{ variables: {...} }\`
 (Params: required params listed first, optional params end with ?)
 
 ### workflow_processing_records
-Ops: find_unprocessed, find_unprocessed_open_conversation, find_product_recommendation_by_status, record_processed
-Params (find_unprocessed): tableName (required), backoffHours (required)
-Params (find_unprocessed_open_conversation): backoffHours (required)
-Params (find_product_recommendation_by_status): backoffHours (required), status (required: 'pending'|'approved'|'rejected')
+Ops: find_unprocessed, record_processed
+Params (find_unprocessed): tableName (required), backoffHours (required), filterExpression? (JEXL expression for filtering, e.g., 'status == "open"')
 Params (record_processed): tableName (required), recordId (required), recordCreationTime (required), metadata?
 Note: organizationId and rootWfDefinitionId are auto-read from workflow context
 Output (find_*): \`{ data: {...document} | null }\` - returns single document or null

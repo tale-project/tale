@@ -4,6 +4,7 @@
  * Unified read-only workflow operations for agents.
  * Supports:
  * - operation = 'get_structure': fetch workflow structure with all steps
+ * - operation = 'get_step': fetch a single step by ID
  * - operation = 'list_all': list all workflows for the organization
  * - operation = 'get_active_version_steps': get active version steps by workflow name
  * - operation = 'list_version_history': list all versions of a workflow
@@ -13,6 +14,8 @@ import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
+import type { Id } from '../../_generated/dataModel';
+import { internal } from '../../_generated/api';
 
 import type {
   WorkflowReadGetStructureResult,
@@ -31,12 +34,13 @@ const workflowReadArgs = z.object({
   operation: z
     .enum([
       'get_structure',
+      'get_step',
       'list_all',
       'get_active_version_steps',
       'list_version_history',
     ])
     .describe(
-      "Operation to perform: 'get_structure', 'list_all', 'get_active_version_steps', or 'list_version_history'",
+      "Operation to perform: 'get_structure', 'get_step', 'list_all', 'get_active_version_steps', or 'list_version_history'",
     ),
   // For get_structure operation
   workflowId: z
@@ -44,6 +48,13 @@ const workflowReadArgs = z.object({
     .optional()
     .describe(
       'Required for \'get_structure\': The workflow ID (Convex Id<"wfDefinitions">)',
+    ),
+  // For get_step operation
+  stepId: z
+    .string()
+    .optional()
+    .describe(
+      'Required for \'get_step\': The step record ID (Convex Id<"wfStepDefs">)',
     ),
   // For list_all operation
   status: z
@@ -81,6 +92,7 @@ export const workflowReadTool: ToolDefinition = {
 
 OPERATIONS:
 • 'get_structure': Get the complete structure of a workflow including workflow metadata and all steps. Use this to understand the current workflow before making modifications.
+• 'get_step': Get a single step by its ID. **Use this when you need to update a step's config** - it returns the complete current step config that you can modify and pass to update_workflow_step.
 • 'list_all': List all workflows for the organization. Returns workflow summaries (id, name, description, status, version). Use this to get an overview of all available workflows.
 • 'get_active_version_steps': Get the current active version of a workflow by name, including all its steps. Use this when you need to see what the currently deployed version looks like.
 • 'list_version_history': List all versions of a workflow (draft, active, archived) with optional step details. Use this to review the version history and understand how a workflow has evolved.
@@ -88,6 +100,7 @@ OPERATIONS:
 BEST PRACTICES:
 • Use 'list_all' to get an overview of all workflows in the organization.
 • Use 'get_structure' when you have a specific workflow ID and need to inspect or modify it.
+• **Use 'get_step' before calling update_workflow_step** - this gets the complete current config you need to modify.
 • Use 'get_active_version_steps' when you need the currently active/deployed version by workflow name.
 • Use 'list_version_history' to see all versions of a workflow and their changes over time.
 • Pass 'status' parameter with 'list_all' to filter by workflow status.`,
@@ -100,6 +113,7 @@ BEST PRACTICES:
       | WorkflowReadListAllResult
       | WorkflowReadGetActiveVersionStepsResult
       | WorkflowReadListVersionHistoryResult
+      | { success: boolean; step: any }
     > => {
       if (args.operation === 'get_structure') {
         if (!args.workflowId) {
@@ -108,6 +122,25 @@ BEST PRACTICES:
           );
         }
         return readWorkflowStructure(ctx, { workflowId: args.workflowId });
+      }
+
+      if (args.operation === 'get_step') {
+        if (!args.stepId) {
+          throw new Error(
+            "Missing required 'stepId' for get_step operation",
+          );
+        }
+        // Get the step by ID using internal query
+        const stepDoc = await ctx.runQuery(internal.wf_step_defs.getStepById, {
+          stepId: args.stepId as Id<'wfStepDefs'>,
+        });
+        if (!stepDoc) {
+          throw new Error(`Step not found: ${args.stepId}`);
+        }
+        return {
+          success: true,
+          step: stepDoc,
+        };
       }
 
       if (args.operation === 'get_active_version_steps') {
