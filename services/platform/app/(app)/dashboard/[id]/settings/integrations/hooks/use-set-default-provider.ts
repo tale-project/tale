@@ -1,7 +1,6 @@
 import { useMutation } from 'convex/react';
 import { useParams } from 'next/navigation';
 import { api } from '@/convex/_generated/api';
-
 export function useSetDefaultProvider() {
   const params = useParams();
   const organizationId = params?.id as string;

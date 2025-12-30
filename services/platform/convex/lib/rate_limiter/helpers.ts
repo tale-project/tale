@@ -31,6 +31,7 @@ export async function checkOrganizationRateLimit(
   organizationId: string,
   count: number = 1,
 ): Promise<void> {
+  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
   const result = await rateLimiter.limit(ctx, name, {
     key: `org:${organizationId}`,
     count,
@@ -55,6 +56,7 @@ export async function checkUserRateLimit(
   userId: string,
   count: number = 1,
 ): Promise<void> {
+  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
   const result = await rateLimiter.limit(ctx, name, {
     key: `user:${userId}`,
     count,
@@ -79,6 +81,7 @@ export async function checkIpRateLimit(
   ip: string,
   count: number = 1,
 ): Promise<void> {
+  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
   const result = await rateLimiter.limit(ctx, name, {
     key: `ip:${ip}`,
     count,
@@ -102,6 +105,7 @@ export async function canPerformAction(
   key: string,
   count: number = 1,
 ): Promise<{ allowed: boolean; retryAfter?: number }> {
+  // @ts-expect-error - TypeScript can't infer conditional types from generic rate limit names
   const result = await rateLimiter.check(ctx, name, {
     key,
     count,

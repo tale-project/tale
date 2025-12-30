@@ -16,7 +16,7 @@ import {
   onChatComplete as onChatCompleteModel,
 } from './model/chat_agent';
 import { autoSummarizeIfNeededModel } from './model/chat_agent/auto_summarize_if_needed';
-import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
+import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
 
 export const chatWithAgent = mutation({
   args: {

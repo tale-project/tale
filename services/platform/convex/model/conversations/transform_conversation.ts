@@ -90,7 +90,7 @@ export async function transformConversation(
       content: m.content,
       timestamp,
       isCustomer: m.direction === 'inbound',
-      status: (m.deliveryState as string) || 'sent',
+      status: (m.deliveryState as 'queued' | 'sent' | 'delivered' | 'failed') || 'sent',
       attachment: (m.metadata as { attachment?: unknown })?.attachment,
     };
   });

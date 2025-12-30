@@ -18,7 +18,8 @@ import { toast } from '@/hooks/use-toast';
 import OutlookCreateProviderDialog from './outlook-create-provider-dialog';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
 import {
   useDeleteEmailProvider,
   useTestEmailProvider,
@@ -47,14 +48,15 @@ export default function OutlookIntegrationDialog({
   );
 
   // Fetch Outlook providers using Convex
-  const allProviders = useQuery(
+  const allProvidersData = useQuery(
     api.email_providers.list,
     organizationId ? { organizationId: organizationId as string } : 'skip',
   );
+  const allProviders: EmailProviderDoc[] = allProvidersData ?? [];
 
   // Filter for Outlook providers only
-  const providers = allProviders?.filter((p) => p.vendor === 'outlook') || [];
-  const isLoading = allProviders === undefined;
+  const providers = allProviders.filter((p) => p.vendor === 'outlook');
+  const isLoading = allProvidersData === undefined;
 
   // Convex mutations and actions
   const deleteProvider = useDeleteEmailProvider();

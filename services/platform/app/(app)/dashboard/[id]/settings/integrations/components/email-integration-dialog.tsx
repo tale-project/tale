@@ -18,7 +18,8 @@ import { toast } from '@/hooks/use-toast';
 import EmailProviderTypeSelector from './email-provider-type-selector';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
 import {
   useDeleteEmailProvider,
   useSetDefaultProvider,
@@ -45,12 +46,13 @@ export default function EmailIntegrationDialog({
   );
 
   // Fetch all email providers using Convex
-  const providers = useQuery(
+  const providersData = useQuery(
     api.email_providers.list,
     organizationId ? { organizationId: organizationId as string } : 'skip',
   );
+  const providers: EmailProviderDoc[] = providersData ?? [];
 
-  const isLoading = providers === undefined;
+  const isLoading = providersData === undefined;
 
   const deleteProvider = useDeleteEmailProvider();
   const setDefaultProvider = useSetDefaultProvider();

@@ -15,6 +15,7 @@ import type * as agent_tools_crawler_helpers_get_crawler_service_url from "../ag
 import type * as agent_tools_crawler_helpers_get_search_service_url from "../agent_tools/crawler/helpers/get_search_service_url.js";
 import type * as agent_tools_crawler_helpers_search_web from "../agent_tools/crawler/helpers/search_web.js";
 import type * as agent_tools_crawler_helpers_types from "../agent_tools/crawler/helpers/types.js";
+import type * as agent_tools_crawler_internal_actions from "../agent_tools/crawler/internal_actions.js";
 import type * as agent_tools_crawler_web_read_tool from "../agent_tools/crawler/web_read_tool.js";
 import type * as agent_tools_create_json_output_tool from "../agent_tools/create_json_output_tool.js";
 import type * as agent_tools_customers_customer_read_tool from "../agent_tools/customers/customer_read_tool.js";
@@ -33,6 +34,7 @@ import type * as agent_tools_files_helpers_check_resource_accessible from "../ag
 import type * as agent_tools_files_helpers_parse_file from "../agent_tools/files/helpers/parse_file.js";
 import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/files/helpers/vision_agent.js";
 import type * as agent_tools_files_image_tool from "../agent_tools/files/image_tool.js";
+import type * as agent_tools_files_internal_actions from "../agent_tools/files/internal_actions.js";
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
@@ -78,6 +80,7 @@ import type * as file from "../file.js";
 import type * as http from "../http.js";
 import type * as improve_message from "../improve_message.js";
 import type * as integrations from "../integrations.js";
+import type * as lib_action_cache_index from "../lib/action_cache/index.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
 import type * as lib_attachments_index from "../lib/attachments/index.js";
@@ -103,6 +106,8 @@ import type * as lib_query_builder_build_query from "../lib/query_builder/build_
 import type * as lib_query_builder_index from "../lib/query_builder/index.js";
 import type * as lib_query_builder_select_index from "../lib/query_builder/select_index.js";
 import type * as lib_query_builder_types from "../lib/query_builder/types.js";
+import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
+import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
@@ -700,6 +705,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/crawler/helpers/get_search_service_url": typeof agent_tools_crawler_helpers_get_search_service_url;
   "agent_tools/crawler/helpers/search_web": typeof agent_tools_crawler_helpers_search_web;
   "agent_tools/crawler/helpers/types": typeof agent_tools_crawler_helpers_types;
+  "agent_tools/crawler/internal_actions": typeof agent_tools_crawler_internal_actions;
   "agent_tools/crawler/web_read_tool": typeof agent_tools_crawler_web_read_tool;
   "agent_tools/create_json_output_tool": typeof agent_tools_create_json_output_tool;
   "agent_tools/customers/customer_read_tool": typeof agent_tools_customers_customer_read_tool;
@@ -718,6 +724,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/helpers/parse_file": typeof agent_tools_files_helpers_parse_file;
   "agent_tools/files/helpers/vision_agent": typeof agent_tools_files_helpers_vision_agent;
   "agent_tools/files/image_tool": typeof agent_tools_files_image_tool;
+  "agent_tools/files/internal_actions": typeof agent_tools_files_internal_actions;
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
@@ -763,6 +770,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   improve_message: typeof improve_message;
   integrations: typeof integrations;
+  "lib/action_cache/index": typeof lib_action_cache_index;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;
   "lib/attachments/index": typeof lib_attachments_index;
@@ -788,6 +796,8 @@ declare const fullApi: ApiFromModules<{
   "lib/query_builder/index": typeof lib_query_builder_index;
   "lib/query_builder/select_index": typeof lib_query_builder_select_index;
   "lib/query_builder/types": typeof lib_query_builder_types;
+  "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
+  "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
@@ -6065,6 +6075,182 @@ export declare const components: {
           null
         >;
       };
+    };
+  };
+  rateLimiter: {
+    lib: {
+      checkRateLimit: FunctionReference<
+        "query",
+        "internal",
+        {
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: null;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
+      >;
+      clearAll: FunctionReference<
+        "mutation",
+        "internal",
+        { before?: number },
+        null
+      >;
+      getServerTime: FunctionReference<"mutation", "internal", {}, number>;
+      getValue: FunctionReference<
+        "query",
+        "internal",
+        {
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: null;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          key?: string;
+          name: string;
+          sampleShards?: number;
+        },
+        {
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: null;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          shard: number;
+          ts: number;
+          value: number;
+        }
+      >;
+      rateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          config:
+            | {
+                capacity?: number;
+                kind: "token bucket";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: null;
+              }
+            | {
+                capacity?: number;
+                kind: "fixed window";
+                maxReserved?: number;
+                period: number;
+                rate: number;
+                shards?: number;
+                start?: number;
+              };
+          count?: number;
+          key?: string;
+          name: string;
+          reserve?: boolean;
+          throws?: boolean;
+        },
+        { ok: true; retryAfter?: number } | { ok: false; retryAfter: number }
+      >;
+      resetRateLimit: FunctionReference<
+        "mutation",
+        "internal",
+        { key?: string; name: string },
+        null
+      >;
+    };
+    time: {
+      getServerTime: FunctionReference<"mutation", "internal", {}, number>;
+    };
+  };
+  actionCache: {
+    crons: {
+      purge: FunctionReference<
+        "mutation",
+        "internal",
+        { expiresAt?: number },
+        null
+      >;
+    };
+    lib: {
+      get: FunctionReference<
+        "query",
+        "internal",
+        { args: any; name: string; ttl: number | null },
+        { kind: "hit"; value: any } | { expiredEntry?: string; kind: "miss" }
+      >;
+      put: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          args: any;
+          expiredEntry?: string;
+          name: string;
+          ttl: number | null;
+          value: any;
+        },
+        { cacheHit: boolean; deletedExpiredEntry: boolean }
+      >;
+      remove: FunctionReference<
+        "mutation",
+        "internal",
+        { args: any; name: string },
+        null
+      >;
+      removeAll: FunctionReference<
+        "mutation",
+        "internal",
+        { batchSize?: number; before?: number; name?: string },
+        null
+      >;
     };
   };
 };

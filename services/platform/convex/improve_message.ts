@@ -4,8 +4,8 @@ import { action, internalAction } from './_generated/server';
 import { internal } from './_generated/api';
 import { v } from 'convex/values';
 import { createChatAgent } from './lib/create_chat_agent';
-import { checkUserRateLimit } from './lib/rate-limiter/helpers';
-import { improveMessageCache } from './lib/action-cache';
+import { checkUserRateLimit } from './lib/rate_limiter/helpers';
+import { improveMessageCache } from './lib/action_cache';
 
 const improveMessageArgsValidator = {
   originalMessage: v.string(),
@@ -20,17 +20,13 @@ const improveMessageReturnValidator = v.object({
 export const improveMessage = action({
   args: improveMessageArgsValidator,
   returns: improveMessageReturnValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ improvedMessage: string; error?: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (identity) {
       await checkUserRateLimit(ctx, 'ai:improve', identity.subject);
     }
 
-    return await improveMessageCache.fetch(
-      ctx,
-      internal.improve_message.improveMessageUncached,
-      args,
-    );
+    return await improveMessageCache.fetch(ctx, args);
   },
 });
 

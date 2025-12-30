@@ -275,8 +275,8 @@ export default function ConversationPanel({
 
   const { messages } = conversation;
 
-  // Filter out pending messages from display
-  const displayMessages = messages.filter((msg) => msg.status !== 'pending');
+  // All messages from the database have valid delivery states, no filtering needed
+  const displayMessages = messages;
 
   // Create pending message from approval if it exists (emailBody only)
   const pendingMessage =
@@ -288,7 +288,6 @@ export default function ConversationPanel({
           content: (
             conversation.pendingApproval.metadata as { emailBody: string }
           ).emailBody,
-          status: 'pending' as const,
         }
       : undefined;
 

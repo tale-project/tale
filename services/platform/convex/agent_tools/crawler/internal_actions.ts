@@ -24,8 +24,15 @@ export const fetchSearXNGResultsUncached = internalAction({
     pageNo: v.optional(v.number()),
     engines: v.optional(v.array(v.string())),
     categories: v.optional(v.array(v.string())),
-    timeRange: v.optional(v.string()),
-    safesearch: v.optional(v.number()),
+    timeRange: v.optional(
+      v.union(
+        v.literal('day'),
+        v.literal('week'),
+        v.literal('month'),
+        v.literal('year'),
+      ),
+    ),
+    safesearch: v.optional(v.union(v.literal(0), v.literal(1), v.literal(2))),
     language: v.optional(v.string()),
     numResults: v.optional(v.number()),
   },
