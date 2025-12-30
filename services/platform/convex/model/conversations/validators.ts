@@ -20,7 +20,7 @@ export const conversationStatusValidator = v.union(
  */
 export const conversationPriorityValidator = v.union(
   v.literal('low'),
-  v.literal('normal'),
+  v.literal('medium'),
   v.literal('high'),
   v.literal('urgent'),
 );
@@ -73,6 +73,7 @@ export const conversationItemValidator = v.object({
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
+  // Schema stores priority as string, not union type
   priority: v.optional(v.string()),
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
@@ -122,6 +123,7 @@ export const conversationWithMessagesValidator = v.object({
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
+  // Schema stores priority as string, not union type
   priority: v.optional(v.string()),
   type: v.optional(v.string()),
   channel: v.optional(v.string()),

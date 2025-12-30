@@ -52,6 +52,7 @@ export const CONVERSATION_PRIORITY = {
   low: 'low',
   medium: 'medium',
   high: 'high',
+  urgent: 'urgent',
 } as const;
 
 export type ConversationPriority =

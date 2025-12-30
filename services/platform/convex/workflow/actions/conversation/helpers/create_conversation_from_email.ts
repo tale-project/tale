@@ -1,7 +1,7 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { EmailType, ConversationStatus } from './types';
+import type { EmailType, ConversationStatus, ConversationPriority } from './types';
 import { checkMessageExists } from './check_message_exists';
 import { checkConversationExists } from './check_conversation_exists';
 import { findOrCreateCustomerFromEmail } from './find_or_create_customer_from_email';
@@ -36,7 +36,7 @@ export async function createConversationFromEmail(
     organizationId: string;
     emails: unknown;
     status?: ConversationStatus;
-    priority?: string;
+    priority?: ConversationPriority;
     providerId?: Id<'emailProviders'>;
     type?: string;
   },
