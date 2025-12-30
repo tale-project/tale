@@ -26,6 +26,96 @@ MIN_TEXT_THRESHOLD = 50
 MIN_IMAGE_SIZE = 10000  # ~100x100 pixels
 
 
+async def _process_pdf_document(
+    doc: fitz.Document,
+    filename: str,
+    process_images: bool,
+    ocr_scanned_pages: bool,
+) -> tuple[str, bool]:
+    """Shared PDF processing logic.
+
+    Args:
+        doc: PyMuPDF document object
+        filename: Filename for logging
+        process_images: Whether to extract and describe embedded images
+        ocr_scanned_pages: Whether to OCR pages with low text content
+
+    Returns:
+        Tuple of (extracted_text, was_processed_with_vision)
+    """
+    total_pages = len(doc)
+    pages_text: list[str] = []
+    semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
+
+    async def process_page(page_num: int) -> tuple[str, bool]:
+        """Process a single page and return its text content and vision usage flag."""
+        page_vision_used = False
+        page = doc[page_num]
+        page_parts: list[str] = []
+
+        # 1. Extract text directly from the page
+        direct_text = page.get_text("text").strip()
+
+        # 2. Check if this is a scanned page (low text content)
+        if len(direct_text) < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
+            logger.debug(
+                f"Page {page_num + 1}: Low text ({len(direct_text)} chars), "
+                "sending to Vision API for OCR"
+            )
+            ocr_text = await _ocr_page(page, semaphore)
+            if ocr_text:
+                page_parts.append(ocr_text)
+                page_vision_used = True
+            elif direct_text:
+                # Fallback to direct text if OCR returns nothing
+                page_parts.append(direct_text)
+        else:
+            # Page has sufficient text, use it directly
+            if direct_text:
+                page_parts.append(direct_text)
+
+        # 3. Extract and describe embedded images
+        if process_images:
+            image_descriptions = await _extract_image_descriptions(page, semaphore)
+            if image_descriptions:
+                page_vision_used = True
+                for desc in image_descriptions:
+                    page_parts.append(f"\n[Image: {desc}]\n")
+
+        return "\n".join(page_parts), page_vision_used
+
+    # Process all pages concurrently (with semaphore limiting)
+    tasks = [process_page(i) for i in range(total_pages)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Collect results and aggregate vision_used flag
+    vision_used = False
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            logger.error(f"Failed to process page {i + 1}: {result}")
+            # Try to get at least the direct text on error
+            try:
+                fallback_text = doc[i].get_text("text").strip()
+                if fallback_text:
+                    pages_text.append(f"--- Page {i + 1} ---\n{fallback_text}")
+            except Exception:
+                pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
+        else:
+            page_text, page_vision_used = result
+            if page_vision_used:
+                vision_used = True
+            if page_text:
+                pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
+
+    combined_text = "\n\n".join(pages_text)
+    logger.info(
+        f"PDF processing complete: {total_pages} pages, "
+        f"{len(combined_text)} chars, Vision API used: {vision_used}"
+    )
+
+    return combined_text, vision_used
+
+
 async def extract_text_from_pdf(
     file_path: str | Path,
     *,
@@ -54,77 +144,9 @@ async def extract_text_from_pdf(
     logger.info(f"Processing PDF: {file_path.name}")
 
     with fitz.open(file_path) as doc:
-        total_pages = len(doc)
-        pages_text: list[str] = []
-        semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
-
-        async def process_page(page_num: int) -> tuple[str, bool]:
-            """Process a single page and return its text content and vision usage flag."""
-            page_vision_used = False
-            page = doc[page_num]
-            page_parts: list[str] = []
-
-            # 1. Extract text directly from the page
-            direct_text = page.get_text("text").strip()
-
-            # 2. Check if this is a scanned page (low text content)
-            if len(direct_text) < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
-                logger.debug(
-                    f"Page {page_num + 1}: Low text ({len(direct_text)} chars), "
-                    "sending to Vision API for OCR"
-                )
-                ocr_text = await _ocr_page(page, semaphore)
-                if ocr_text:
-                    page_parts.append(ocr_text)
-                    page_vision_used = True
-                elif direct_text:
-                    # Fallback to direct text if OCR returns nothing
-                    page_parts.append(direct_text)
-            else:
-                # Page has sufficient text, use it directly
-                if direct_text:
-                    page_parts.append(direct_text)
-
-            # 3. Extract and describe embedded images
-            if process_images:
-                image_descriptions = await _extract_image_descriptions(page, semaphore)
-                if image_descriptions:
-                    page_vision_used = True
-                    for desc in image_descriptions:
-                        page_parts.append(f"\n[Image: {desc}]\n")
-
-            return "\n".join(page_parts), page_vision_used
-
-        # Process all pages concurrently (with semaphore limiting)
-        tasks = [process_page(i) for i in range(total_pages)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Collect results and aggregate vision_used flag
-        vision_used = False
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"Failed to process page {i + 1}: {result}")
-                # Try to get at least the direct text on error
-                try:
-                    fallback_text = doc[i].get_text("text").strip()
-                    if fallback_text:
-                        pages_text.append(f"--- Page {i + 1} ---\n{fallback_text}")
-                except Exception:
-                    pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
-            else:
-                page_text, page_vision_used = result
-                if page_vision_used:
-                    vision_used = True
-                if page_text:
-                    pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
-
-        combined_text = "\n\n".join(pages_text)
-        logger.info(
-            f"PDF processing complete: {total_pages} pages, "
-            f"{len(combined_text)} chars, Vision API used: {vision_used}"
+        return await _process_pdf_document(
+            doc, file_path.name, process_images, ocr_scanned_pages
         )
-
-        return combined_text, vision_used
 
 
 async def _ocr_page(
@@ -243,70 +265,6 @@ async def extract_text_from_pdf_bytes(
     logger.info(f"Processing PDF from bytes: {filename}")
 
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-        total_pages = len(doc)
-        pages_text: list[str] = []
-        semaphore = asyncio.Semaphore(settings.vision_max_concurrent_pages)
-
-        async def process_page(page_num: int) -> tuple[str, bool]:
-            """Process a single page and return its text content and vision usage flag."""
-            page_vision_used = False
-            page = doc[page_num]
-            page_parts: list[str] = []
-
-            # 1. Extract text directly from the page
-            direct_text = page.get_text("text").strip()
-
-            # 2. Check if this is a scanned page (low text content)
-            if len(direct_text) < MIN_TEXT_THRESHOLD and ocr_scanned_pages:
-                logger.debug(
-                    f"Page {page_num + 1}: Low text ({len(direct_text)} chars), "
-                    "sending to Vision API for OCR"
-                )
-                ocr_text = await _ocr_page(page, semaphore)
-                if ocr_text:
-                    page_parts.append(ocr_text)
-                    page_vision_used = True
-                elif direct_text:
-                    page_parts.append(direct_text)
-            else:
-                if direct_text:
-                    page_parts.append(direct_text)
-
-            # 3. Extract and describe embedded images
-            if process_images:
-                image_descriptions = await _extract_image_descriptions(page, semaphore)
-                if image_descriptions:
-                    page_vision_used = True
-                    for desc in image_descriptions:
-                        page_parts.append(f"\n[Image: {desc}]\n")
-
-            return "\n".join(page_parts), page_vision_used
-
-        tasks = [process_page(i) for i in range(total_pages)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Collect results and aggregate vision_used flag
-        vision_used = False
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(f"Failed to process page {i + 1}: {result}")
-                try:
-                    fallback_text = doc[i].get_text("text").strip()
-                    if fallback_text:
-                        pages_text.append(f"--- Page {i + 1} ---\n{fallback_text}")
-                except Exception:
-                    pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
-            else:
-                page_text, page_vision_used = result
-                if page_vision_used:
-                    vision_used = True
-                if page_text:
-                    pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
-
-        combined_text = "\n\n".join(pages_text)
-        logger.info(
-            f"PDF processing complete: {total_pages} pages, "
-            f"{len(combined_text)} chars, Vision API used: {vision_used}"
+        return await _process_pdf_document(
+            doc, filename, process_images, ocr_scanned_pages
         )
-
-        return combined_text, vision_used
