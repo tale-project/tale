@@ -93,10 +93,26 @@ export function scoreIndex(
     break; // Can't continue with index
   }
 
-  // Any remaining conditions not in index go to post-filter
+  // Any remaining conditions not satisfied by the index go to post-filter
+  // This includes:
+  // 1. Fields not in the index at all
+  // 2. Index fields that weren't processed (e.g., we broke early due to missing intermediate fields)
+  const usedFields = new Set(Object.keys(values));
   for (const [field, fieldConditions] of conditionsByField.entries()) {
-    if (!index.fields.includes(field) && field !== 'organizationId') {
-      fieldConditions.forEach((c) => postFilterConditions.push(c));
+    // Skip organizationId (always satisfied) and fields we already added to indexableConditions
+    if (field === 'organizationId' || usedFields.has(field)) {
+      continue;
+    }
+    // Check if all conditions for this field are already in postFilterConditions
+    const alreadyInPostFilter = fieldConditions.every((c) =>
+      postFilterConditions.includes(c)
+    );
+    if (!alreadyInPostFilter) {
+      fieldConditions.forEach((c) => {
+        if (!postFilterConditions.includes(c) && !indexableConditions.includes(c)) {
+          postFilterConditions.push(c);
+        }
+      });
     }
   }
 
