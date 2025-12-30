@@ -14,6 +14,9 @@ from .openai_client import vision_client
 # Supported image extensions
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
+# Minimum characters to consider OCR result as meaningful text
+MIN_OCR_TEXT_LENGTH = 20
+
 
 def is_supported_image(file_path: str | Path) -> bool:
     """Check if a file is a supported image format."""
@@ -69,7 +72,7 @@ async def extract_text_from_image_bytes(
         ocr_text = await vision_client.ocr_image(image_bytes)
 
         # If we got meaningful text, return it
-        if ocr_text and len(ocr_text.strip()) > 20:
+        if ocr_text and len(ocr_text.strip()) > MIN_OCR_TEXT_LENGTH:
             logger.info(f"Image OCR successful: {len(ocr_text)} chars extracted")
             return ocr_text, True
 
