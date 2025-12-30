@@ -35,6 +35,7 @@ import type { Id } from '../../../_generated/dataModel';
 import type { QueryResult } from '../conversation/helpers/types';
 import {
   customerStatusValidator,
+  customerSourceValidator,
   customerAddressValidator,
 } from '../../../model/customers/validators';
 
@@ -80,7 +81,7 @@ type CustomerActionParams =
       email?: string;
       externalId?: string | number;
       status?: 'active' | 'churned' | 'potential';
-      source?: string;
+      source: 'manual_import' | 'file_upload' | 'circuly';
       locale?: string;
       address?: CustomerAddress;
       metadata?: Record<string, unknown>;
@@ -115,7 +116,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       email: v.optional(v.string()),
       externalId: v.optional(v.union(v.string(), v.number())),
       status: statusValidator,
-      source: v.optional(v.string()),
+      source: customerSourceValidator,
       locale: v.optional(v.string()),
       address: v.optional(customerAddressValidator),
       metadata: v.optional(v.record(v.string(), v.any())),
@@ -159,11 +160,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
             name: params.name,
             email: params.email,
             status: params.status,
-            source: params.source as
-              | 'manual_import'
-              | 'file_upload'
-              | 'circuly'
-              | undefined,
+            source: params.source,
             locale: params.locale,
             address: params.address,
             externalId: params.externalId,
