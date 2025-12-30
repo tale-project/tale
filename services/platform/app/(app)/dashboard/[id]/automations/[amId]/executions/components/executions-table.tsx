@@ -418,7 +418,6 @@ export function ExecutionsTable({
       emptyState={{
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
-        isFiltered: true,
       }}
       pagination={{
         total: data?.total ?? 0,

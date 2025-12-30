@@ -7,10 +7,7 @@ import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import {
-  DataTable,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
@@ -79,7 +76,6 @@ export default function VendorsTable({
   });
 
   const vendors = data?.items ?? [];
-  const emptyVendors = vendors.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Doc<'vendors'>>[]>(
@@ -180,18 +176,6 @@ export default function VendorsTable({
     [filterValues, setFilter, tTables, tVendors],
   );
 
-  // Show empty state when no vendors and no filters
-  if (emptyVendors) {
-    return (
-      <DataTableEmptyState
-        icon={Store}
-        title={tVendors('noVendorsYet')}
-        description={tVendors('uploadFirstVendor')}
-        actionMenu={<VendorsActionMenu organizationId={organizationId} />}
-      />
-    );
-  }
-
   return (
     <DataTable
       columns={columns}
@@ -212,6 +196,11 @@ export default function VendorsTable({
       isFiltersLoading={isPending}
       onClearFilters={clearAll}
       actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+      emptyState={{
+        icon: Store,
+        title: tVendors('noVendorsYet'),
+        description: tVendors('uploadFirstVendor'),
+      }}
       pagination={{
         total: data?.total ?? 0,
         pageSize: pagination.pageSize,

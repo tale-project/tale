@@ -6,10 +6,7 @@ import { Loader, Globe } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
-import {
-  DataTable,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { WebsiteIcon } from '@/components/ui/icons';
 import { TableDateCell } from '@/components/ui/table-date-cell';
@@ -78,7 +75,6 @@ export default function WebsitesTable({
   });
 
   const websites = data?.items ?? [];
-  const emptyWebsites = websites.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Doc<'websites'>>[]>(
@@ -171,18 +167,6 @@ export default function WebsitesTable({
     [filterValues, setFilter, tTables, tWebsites],
   );
 
-  // Show empty state when no websites and no filters
-  if (emptyWebsites) {
-    return (
-      <DataTableEmptyState
-        icon={Globe}
-        title={tEmpty('websites.title')}
-        description={tEmpty('websites.description')}
-        actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
-      />
-    );
-  }
-
   return (
     <DataTable
       columns={columns}
@@ -203,6 +187,11 @@ export default function WebsitesTable({
       isFiltersLoading={isPending}
       onClearFilters={clearAll}
       actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+      emptyState={{
+        icon: Globe,
+        title: tEmpty('websites.title'),
+        description: tEmpty('websites.description'),
+      }}
       pagination={{
         total: data?.total ?? 0,
         pageSize: pagination.pageSize,

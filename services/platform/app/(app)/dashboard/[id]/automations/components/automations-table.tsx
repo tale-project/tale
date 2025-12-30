@@ -7,7 +7,7 @@ import { Workflow } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { Badge } from '@/components/ui/badge';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
@@ -78,7 +78,6 @@ export default function AutomationsTable({
   });
 
   const automations = data?.items ?? [];
-  const emptyAutomations = automations.length === 0 && !hasActiveFilters;
 
   const handleRowClick = (row: Row<Doc<'wfDefinitions'>>) => {
     router.push(`/dashboard/${organizationId}/automations/${row.original._id}`);
@@ -169,20 +168,6 @@ export default function AutomationsTable({
     [filterValues, setFilter, tTables, tCommon],
   );
 
-  // Show empty state when no automations and no filters
-  if (emptyAutomations) {
-    return (
-      <DataTableEmptyState
-        icon={Workflow}
-        title={tEmpty('automations.title')}
-        description={tEmpty('automations.description')}
-        actionMenu={
-          <AutomationsActionMenu organizationId={organizationId} variant="ai" />
-        }
-      />
-    );
-  }
-
   return (
     <DataTable
       columns={columns}
@@ -205,9 +190,9 @@ export default function AutomationsTable({
       onClearFilters={clearAll}
       actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
       emptyState={{
-        title: tCommon('search.noResults'),
-        description: tCommon('search.tryAdjusting'),
-        isFiltered: true,
+        icon: Workflow,
+        title: tEmpty('automations.title'),
+        description: tEmpty('automations.description'),
       }}
       pagination={{
         total: data?.total ?? 0,

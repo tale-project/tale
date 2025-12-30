@@ -30,6 +30,7 @@ import { ChevronRight } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import {
   DataTableEmptyState,
+  DataTableFilteredEmptyState,
   type DataTableEmptyStateProps,
 } from './data-table-empty-state';
 import {
@@ -50,8 +51,8 @@ export interface DataTableProps<TData> {
   caption?: string;
   /** Whether the table is loading */
   isLoading?: boolean;
-  /** Empty state configuration */
-  emptyState?: DataTableEmptyStateProps;
+  /** Empty state configuration (actionMenu is automatically provided) */
+  emptyState?: Omit<DataTableEmptyStateProps, 'actionMenu'>;
   /** Pagination configuration */
   pagination?: Omit<DataTablePaginationProps, 'currentPage'> & {
     /** Whether to use client-side pagination */
@@ -259,8 +260,14 @@ export function DataTable<TData>({
     );
   }
 
-  // Show empty state when no data
-  if (data.length === 0 && emptyState) {
+  // Check if any filters are actively applied
+  const hasActiveFilters =
+    (search?.value && search.value.trim().length > 0) ||
+    (filters && filters.some((f) => f.selectedValues.length > 0)) ||
+    (dateRange?.from || dateRange?.to);
+
+  // Show empty state when no data (but not while loading to prevent flashing)
+  if (data.length === 0 && emptyState && !isLoading) {
     return (
       <div
         className={cn(
@@ -268,14 +275,20 @@ export function DataTable<TData>({
           className,
         )}
       >
-        {headerContent && (
-          <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-            {headerContent}
-          </div>
+        {hasActiveFilters ? (
+          <DataTableFilteredEmptyState
+            title={t('search.noResults')}
+            description={t('search.tryAdjusting')}
+            actionMenu={actionMenu}
+            headerContent={headerContent}
+            stickyLayout={stickyLayout}
+          />
+        ) : (
+          <DataTableEmptyState
+            {...emptyState}
+            actionMenu={actionMenu}
+          />
         )}
-        <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
-          <DataTableEmptyState {...emptyState} />
-        </div>
         {footer}
       </div>
     );
@@ -284,12 +297,6 @@ export function DataTable<TData>({
   const rows = pagination?.clientSide
     ? table.getRowModel().rows
     : table.getRowModel().rows;
-
-  // Check if any filters are actively applied - "No results found" should only show when filtering
-  const hasActiveFilters =
-    (search?.value && search.value.trim().length > 0) ||
-    (filters && filters.some((f) => f.selectedValues.length > 0)) ||
-    (dateRange?.from || dateRange?.to);
 
   return (
     <div

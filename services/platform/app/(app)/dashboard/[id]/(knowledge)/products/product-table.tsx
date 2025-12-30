@@ -5,10 +5,7 @@ import { Package } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
-import {
-  DataTable,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { TableDateCell } from '@/components/ui/table-date-cell';
 import ProductImage from './product-image';
@@ -102,7 +99,6 @@ export default function ProductTable({
   });
 
   const products = data?.products ?? [];
-  const emptyProducts = products.length === 0 && !hasActiveFilters;
 
   // Define columns using TanStack Table
   const columns = useMemo<ColumnDef<Product>[]>(
@@ -195,20 +191,8 @@ export default function ProductTable({
         onChange: (values: string[]) => setFilter('status', values),
       },
     ],
-    [filterValues.status, setFilter, tTables],
+    [filterValues.status, setFilter, tTables, tCommon],
   );
-
-  // Show empty state when no products and no filters
-  if (emptyProducts) {
-    return (
-      <DataTableEmptyState
-        icon={Package}
-        title={tProducts('emptyState.title')}
-        description={tProducts('emptyState.description')}
-        actionMenu={<ProductsActionMenu organizationId={organizationId} />}
-      />
-    );
-  }
 
   return (
     <DataTable
@@ -230,15 +214,11 @@ export default function ProductTable({
       isFiltersLoading={isPending}
       onClearFilters={clearAll}
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
-      emptyState={
-        hasActiveFilters
-          ? {
-              title: tProducts('searchEmptyState.title'),
-              description: tProducts('searchEmptyState.description'),
-              isFiltered: true,
-            }
-          : undefined
-      }
+      emptyState={{
+        icon: Package,
+        title: tProducts('emptyState.title'),
+        description: tProducts('emptyState.description'),
+      }}
       pagination={{
         total: data?.total ?? 0,
         pageSize: pagination.pageSize,

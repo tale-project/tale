@@ -4,10 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
-import {
-  DataTable,
-  DataTableEmptyState,
-} from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import Pagination from '@/components/ui/pagination';
 import BreadcrumbNavigation from './breadcrumb-navigation';
@@ -277,24 +274,6 @@ export default function DocumentTable({
     [handleDocumentClick, tTables],
   );
 
-  const emptyDocuments = items.length === 0 && !query;
-
-  if (emptyDocuments) {
-    return (
-      <DataTableEmptyState
-        icon={ClipboardList}
-        title={tDocuments('emptyState.title')}
-        description={tDocuments('emptyState.description')}
-        actionMenu={
-          <DocumentsActionMenu
-            organizationId={organizationId}
-            hasMicrosoftAccount={hasMicrosoftAccount}
-          />
-        }
-      />
-    );
-  }
-
   return (
     <Stack gap={4}>
       {/* Breadcrumb Navigation */}
@@ -325,9 +304,9 @@ export default function DocumentTable({
           />
         }
         emptyState={{
-          title: tDocuments('searchEmptyState.title'),
-          description: tDocuments('searchEmptyState.description'),
-          isFiltered: true,
+          icon: ClipboardList,
+          title: tDocuments('emptyState.title'),
+          description: tDocuments('emptyState.description'),
         }}
         footer={
           <Pagination
