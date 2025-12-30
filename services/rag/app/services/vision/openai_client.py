@@ -6,12 +6,34 @@ This module provides a wrapper around the OpenAI Vision API for:
 """
 
 import base64
+import imghdr
 from typing import Optional
 
 from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
+
+
+def _detect_mime_type(image_bytes: bytes) -> str:
+    """Detect MIME type from image bytes.
+
+    Args:
+        image_bytes: Raw image bytes
+
+    Returns:
+        MIME type string (e.g., "image/png", "image/jpeg")
+    """
+    img_type = imghdr.what(None, h=image_bytes)
+    mime_map = {
+        "png": "image/png",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "webp": "image/webp",
+        "bmp": "image/bmp",
+        "tiff": "image/tiff",
+    }
+    return mime_map.get(img_type, "image/png")
 
 # Default prompts for Vision API
 OCR_PROMPT = """Extract ALL text from this document image.
@@ -65,8 +87,9 @@ class VisionClient:
         vision_model = settings.get_vision_model()
         extraction_prompt = prompt or settings.vision_extraction_prompt or OCR_PROMPT
 
-        # Encode image to base64
+        # Encode image to base64 and detect MIME type
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        mime_type = _detect_mime_type(image_bytes)
 
         logger.debug(f"Sending OCR request to {vision_model}")
 
@@ -81,7 +104,7 @@ class VisionClient:
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "url": f"data:{mime_type};base64,{image_b64}",
                                 },
                             },
                         ],
@@ -125,8 +148,9 @@ class VisionClient:
         vision_model = settings.get_vision_model()
         description_prompt = prompt or DESCRIBE_PROMPT
 
-        # Encode image to base64
+        # Encode image to base64 and detect MIME type
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        mime_type = _detect_mime_type(image_bytes)
 
         logger.debug(f"Sending image description request to {vision_model}")
 
@@ -141,7 +165,7 @@ class VisionClient:
                             {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "url": f"data:{mime_type};base64,{image_b64}",
                                 },
                             },
                         ],
