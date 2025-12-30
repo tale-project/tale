@@ -8,6 +8,16 @@ import {
 } from './lib/pagination';
 import type { Doc } from './_generated/dataModel';
 
+// Import validators from model
+import {
+  sortOrderValidator,
+  vendorSourceValidator,
+  vendorAddressValidator,
+  vendorInputValidator,
+  vendorListResponseValidator,
+  bulkCreateVendorsResponseValidator,
+} from './model/vendors/validators';
+
 /**
  * Check if organization has any vendors (fast count query for empty state detection)
  */
@@ -96,17 +106,9 @@ export const listVendors = queryWithRLS({
     source: v.optional(v.array(v.string())),
     locale: v.optional(v.array(v.string())),
     sortField: v.optional(v.string()),
-    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+    sortOrder: v.optional(sortOrderValidator),
   },
-  returns: v.object({
-    items: v.array(v.any()),
-    total: v.number(),
-    page: v.number(),
-    pageSize: v.number(),
-    totalPages: v.number(),
-    hasNextPage: v.boolean(),
-    hasPreviousPage: v.boolean(),
-  }),
+  returns: vendorListResponseValidator,
   handler: async (ctx, args) => {
     const { page: currentPage, pageSize } = normalizePaginationOptions({
       page: args.currentPage,
@@ -208,23 +210,9 @@ export const updateVendor = mutationWithRLS({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     externalId: v.optional(v.string()),
-    source: v.optional(
-      v.union(
-        v.literal('manual_import'),
-        v.literal('file_upload'),
-        v.literal('circuly'),
-      ),
-    ),
+    source: v.optional(vendorSourceValidator),
     locale: v.optional(v.string()),
-    address: v.optional(
-      v.object({
-        street: v.optional(v.string()),
-        city: v.optional(v.string()),
-        state: v.optional(v.string()),
-        country: v.optional(v.string()),
-        postalCode: v.optional(v.string()),
-      }),
-    ),
+    address: v.optional(vendorAddressValidator),
     tags: v.optional(v.array(v.string())),
     metadata: v.optional(v.any()),
     notes: v.optional(v.string()),
@@ -309,33 +297,9 @@ export const deleteVendor = mutationWithRLS({
 export const bulkCreateVendors = mutationWithRLS({
   args: {
     organizationId: v.string(),
-    vendors: v.array(
-      v.object({
-        name: v.optional(v.string()),
-        email: v.string(),
-        phone: v.optional(v.string()),
-        externalId: v.optional(v.string()),
-        source: v.union(
-          v.literal('manual_import'),
-          v.literal('file_upload'),
-          v.literal('circuly'),
-        ),
-        locale: v.optional(v.string()),
-        address: v.optional(
-          v.object({
-            street: v.optional(v.string()),
-            city: v.optional(v.string()),
-            state: v.optional(v.string()),
-            country: v.optional(v.string()),
-            postalCode: v.optional(v.string()),
-          }),
-        ),
-        tags: v.optional(v.array(v.string())),
-        metadata: v.optional(v.any()),
-        notes: v.optional(v.string()),
-      }),
-    ),
+    vendors: v.array(vendorInputValidator),
   },
+  returns: bulkCreateVendorsResponseValidator,
   handler: async (ctx, args) => {
     const results = {
       success: 0,

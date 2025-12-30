@@ -26,6 +26,30 @@ import {
   documentItemValidator as DocumentItem,
   documentListResponseValidator as DocumentListResponse,
   documentRecordValidator as DocumentRecord,
+  sourceProviderValidator,
+  excelSheetValidator,
+  uploadBase64ResponseValidator,
+  readFileBase64ResponseValidator,
+  sourceTypeValidator,
+  outputFormatValidator,
+  pdfOptionsValidator,
+  imageOptionsValidator,
+  urlOptionsValidator,
+  generateDocumentResponseValidator,
+  membershipValidator,
+  signedUrlResponseValidator,
+  documentByExtensionItemValidator,
+  deleteFromRagResponseValidator,
+  uploadFileResponseValidator,
+  createOneDriveSyncConfigResponseValidator,
+  analyzePptxResponseValidator,
+  slideContentDataValidator,
+  pptxBrandingDataValidator,
+  generatePptxResponseValidator,
+  docxContentValidator,
+  generateDocxResponseValidator,
+  retryRagIndexingResponseValidator,
+  sortOrderValidator,
 } from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
 
@@ -46,9 +70,7 @@ export const createDocument = internalMutation({
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
     metadata: v.optional(v.any()),
-    sourceProvider: v.optional(
-      v.union(v.literal('onedrive'), v.literal('upload')),
-    ),
+    sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
   },
   returns: v.object({
@@ -73,14 +95,7 @@ export const uploadBase64Internal = internalAction({
     contentType: v.string(),
     dataBase64: v.string(),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    url: v.string(),
-    fileName: v.string(),
-    size: v.number(),
-    contentType: v.string(),
-  }),
+  returns: uploadBase64ResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.uploadBase64ToStorage(ctx, args);
   },
@@ -97,15 +112,7 @@ export const uploadBase64Internal = internalAction({
 export const generateExcelInternal = internalAction({
   args: {
     fileName: v.string(),
-    sheets: v.array(
-      v.object({
-        name: v.string(),
-        headers: v.array(v.string()),
-        rows: v.array(
-          v.array(v.union(v.string(), v.number(), v.boolean(), v.null())),
-        ),
-      }),
-    ),
+    sheets: v.array(excelSheetValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -173,13 +180,7 @@ export const readFileBase64Internal = internalAction({
   args: {
     fileId: v.id('_storage'),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    dataBase64: v.string(),
-    contentType: v.string(),
-    size: v.number(),
-  }),
+  returns: readFileBase64ResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.readFileBase64FromStorage(ctx, args);
   },
@@ -193,59 +194,16 @@ export const readFileBase64Internal = internalAction({
 export const generateDocumentInternal = internalAction({
   args: {
     fileName: v.string(),
-    sourceType: v.union(
-      v.literal('markdown'),
-      v.literal('html'),
-      v.literal('url'),
-    ),
-    outputFormat: v.union(v.literal('pdf'), v.literal('image')),
+    sourceType: sourceTypeValidator,
+    outputFormat: outputFormatValidator,
     content: v.string(),
-    pdfOptions: v.optional(
-      v.object({
-        format: v.optional(v.string()),
-        landscape: v.optional(v.boolean()),
-        marginTop: v.optional(v.string()),
-        marginBottom: v.optional(v.string()),
-        marginLeft: v.optional(v.string()),
-        marginRight: v.optional(v.string()),
-        printBackground: v.optional(v.boolean()),
-      }),
-    ),
-    imageOptions: v.optional(
-      v.object({
-        imageType: v.optional(v.string()),
-        quality: v.optional(v.number()),
-        fullPage: v.optional(v.boolean()),
-        width: v.optional(v.number()),
-        height: v.optional(v.number()),
-        scale: v.optional(v.number()),
-      }),
-    ),
-    urlOptions: v.optional(
-      v.object({
-        waitUntil: v.optional(
-          v.union(
-            v.literal('load'),
-            v.literal('domcontentloaded'),
-            v.literal('networkidle'),
-            v.literal('commit'),
-          ),
-        ),
-        timeout: v.optional(v.number()),
-      }),
-    ),
+    pdfOptions: v.optional(pdfOptionsValidator),
+    imageOptions: v.optional(imageOptionsValidator),
+    urlOptions: v.optional(urlOptionsValidator),
     extraCss: v.optional(v.string()),
     wrapInTemplate: v.optional(v.boolean()),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    url: v.string(),
-    fileName: v.string(),
-    contentType: v.string(),
-    extension: v.string(),
-    size: v.number(),
-  }),
+  returns: generateDocumentResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.generateDocument(ctx, args);
   },
@@ -270,9 +228,7 @@ export const getDocumentById = internalQuery({
 export const queryDocuments = internalQuery({
   args: {
     organizationId: v.string(),
-    sourceProvider: v.optional(
-      v.union(v.literal('onedrive'), v.literal('upload')),
-    ),
+    sourceProvider: v.optional(sourceProviderValidator),
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
@@ -314,9 +270,7 @@ export const updateDocumentInternal = internalMutation({
     fileId: v.optional(v.id('_storage')),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
-    sourceProvider: v.optional(
-      v.union(v.literal('onedrive'), v.literal('upload')),
-    ),
+    sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -334,15 +288,7 @@ export const checkMembership = internalQuery({
     organizationId: v.string(),
     userId: v.string(),
   },
-  returns: v.union(
-    v.null(),
-    v.object({
-      _id: v.string(),
-      organizationId: v.string(),
-      identityId: v.optional(v.string()),
-      role: v.optional(v.string()),
-    }),
-  ),
+  returns: v.union(v.null(), membershipValidator),
   handler: async (ctx, args) => {
     return await DocumentsModel.checkMembership(ctx, args);
   },
@@ -355,16 +301,7 @@ export const generateSignedUrl = internalQuery({
   args: {
     documentId: v.id('documents'),
   },
-  returns: v.union(
-    v.object({
-      success: v.boolean(),
-      url: v.string(),
-    }),
-    v.object({
-      success: v.boolean(),
-      error: v.string(),
-    }),
-  ),
+  returns: signedUrlResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.generateSignedUrl(ctx, args.documentId);
   },
@@ -382,17 +319,7 @@ export const listDocumentsByExtension = internalQuery({
     extension: v.string(),
     limit: v.optional(v.number()),
   },
-  returns: v.array(
-    v.object({
-      _id: v.id('documents'),
-      _creationTime: v.number(),
-      title: v.optional(v.string()),
-      fileId: v.optional(v.id('_storage')),
-      mimeType: v.optional(v.string()),
-      extension: v.optional(v.string()),
-      metadata: v.optional(v.any()),
-    }),
-  ),
+  returns: v.array(documentByExtensionItemValidator),
   handler: async (ctx, args) => {
     return await DocumentsModel.listDocumentsByExtension(ctx, args);
   },
@@ -410,13 +337,7 @@ export const deleteDocumentFromRagInternal = internalAction({
     documentId: v.string(),
     mode: v.optional(v.union(v.literal('soft'), v.literal('hard'))),
   },
-  returns: v.object({
-    success: v.boolean(),
-    deletedCount: v.number(),
-    deletedDataIds: v.array(v.string()),
-    message: v.string(),
-    error: v.optional(v.string()),
-  }),
+  returns: deleteFromRagResponseValidator,
   handler: async (_ctx, args) => {
     const { getRagConfig } = await import(
       './workflow/actions/rag/helpers/get_rag_config'
@@ -484,7 +405,7 @@ export const getDocuments = queryWithRLS({
     query: v.optional(v.string()),
     folderPath: v.optional(v.string()),
     sortField: v.optional(v.string()),
-    sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
+    sortOrder: v.optional(sortOrderValidator),
   },
   returns: DocumentListResponse,
   handler: async (ctx, args) => {
@@ -612,12 +533,7 @@ export const uploadFile = action({
     contentType: v.string(),
     metadata: v.optional(v.any()),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.optional(v.string()),
-    documentId: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
+  returns: uploadFileResponseValidator,
   handler: async (
     ctx,
     args,
@@ -752,11 +668,7 @@ export const createOneDriveSyncConfig = mutationWithRLS({
     targetBucket: v.string(),
     storagePrefix: v.optional(v.string()),
   },
-  returns: v.object({
-    success: v.boolean(),
-    configId: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
+  returns: createOneDriveSyncConfigResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.createOneDriveSyncConfig(ctx, args);
   },
@@ -773,57 +685,7 @@ export const analyzePptxInternal = internalAction({
   args: {
     templateStorageId: v.id('_storage'),
   },
-  returns: v.object({
-    success: v.boolean(),
-    slideCount: v.number(),
-    slides: v.array(
-      v.object({
-        slideNumber: v.number(),
-        layoutName: v.string(),
-        title: v.union(v.string(), v.null()),
-        subtitle: v.union(v.string(), v.null()),
-        textContent: v.array(
-          v.object({
-            text: v.string(),
-            isPlaceholder: v.boolean(),
-          }),
-        ),
-        tables: v.array(
-          v.object({
-            rowCount: v.number(),
-            columnCount: v.number(),
-            headers: v.array(v.string()),
-            rows: v.array(v.array(v.string())),
-          }),
-        ),
-        charts: v.array(
-          v.object({
-            chartType: v.string(),
-            hasLegend: v.optional(v.boolean()),
-            seriesCount: v.optional(v.number()),
-          }),
-        ),
-        images: v.array(
-          v.object({
-            width: v.optional(v.number()),
-            height: v.optional(v.number()),
-          }),
-        ),
-      }),
-    ),
-    availableLayouts: v.array(v.string()),
-    branding: v.object({
-      slideWidth: v.optional(v.number()),
-      slideHeight: v.optional(v.number()),
-      titleFontName: v.optional(v.union(v.string(), v.null())),
-      bodyFontName: v.optional(v.union(v.string(), v.null())),
-      titleFontSize: v.optional(v.number()),
-      bodyFontSize: v.optional(v.number()),
-      primaryColor: v.optional(v.union(v.string(), v.null())),
-      secondaryColor: v.optional(v.union(v.string(), v.null())),
-      accentColor: v.optional(v.union(v.string(), v.null())),
-    }),
-  }),
+  returns: analyzePptxResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.analyzePptx(ctx, {
       templateStorageId: args.templateStorageId,
@@ -840,45 +702,11 @@ export const analyzePptxInternal = internalAction({
 export const generatePptxInternal = internalAction({
   args: {
     fileName: v.string(),
-    slidesContent: v.array(
-      v.object({
-        title: v.optional(v.string()),
-        subtitle: v.optional(v.string()),
-        textContent: v.optional(v.array(v.string())),
-        bulletPoints: v.optional(v.array(v.string())),
-        tables: v.optional(
-          v.array(
-            v.object({
-              headers: v.array(v.string()),
-              rows: v.array(v.array(v.string())),
-            }),
-          ),
-        ),
-      }),
-    ),
-    branding: v.optional(
-      v.object({
-        slideWidth: v.optional(v.number()),
-        slideHeight: v.optional(v.number()),
-        titleFontName: v.optional(v.string()),
-        bodyFontName: v.optional(v.string()),
-        titleFontSize: v.optional(v.number()),
-        bodyFontSize: v.optional(v.number()),
-        primaryColor: v.optional(v.string()),
-        secondaryColor: v.optional(v.string()),
-        accentColor: v.optional(v.string()),
-      }),
-    ),
+    slidesContent: v.array(slideContentDataValidator),
+    branding: v.optional(pptxBrandingDataValidator),
     templateStorageId: v.id('_storage'),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    url: v.string(),
-    fileName: v.string(),
-    contentType: v.string(),
-    size: v.number(),
-  }),
+  returns: generatePptxResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.generatePptx(ctx, {
       fileName: args.fileName,
@@ -895,37 +723,9 @@ export const generatePptxInternal = internalAction({
 export const generateDocxInternal = internalAction({
   args: {
     fileName: v.string(),
-    content: v.object({
-      title: v.optional(v.string()),
-      subtitle: v.optional(v.string()),
-      sections: v.array(
-        v.object({
-          type: v.union(
-            v.literal('heading'),
-            v.literal('paragraph'),
-            v.literal('bullets'),
-            v.literal('numbered'),
-            v.literal('table'),
-            v.literal('quote'),
-            v.literal('code'),
-          ),
-          text: v.optional(v.string()),
-          level: v.optional(v.number()),
-          items: v.optional(v.array(v.string())),
-          headers: v.optional(v.array(v.string())),
-          rows: v.optional(v.array(v.array(v.string()))),
-        }),
-      ),
-    }),
+    content: docxContentValidator,
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    url: v.string(),
-    fileName: v.string(),
-    contentType: v.string(),
-    size: v.number(),
-  }),
+  returns: generateDocxResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.generateDocx(ctx, {
       fileName: args.fileName,
@@ -945,38 +745,10 @@ export const generateDocxInternal = internalAction({
 export const generateDocxFromTemplateInternal = internalAction({
   args: {
     fileName: v.string(),
-    content: v.object({
-      title: v.optional(v.string()),
-      subtitle: v.optional(v.string()),
-      sections: v.array(
-        v.object({
-          type: v.union(
-            v.literal('heading'),
-            v.literal('paragraph'),
-            v.literal('bullets'),
-            v.literal('numbered'),
-            v.literal('table'),
-            v.literal('quote'),
-            v.literal('code'),
-          ),
-          text: v.optional(v.string()),
-          level: v.optional(v.number()),
-          items: v.optional(v.array(v.string())),
-          headers: v.optional(v.array(v.string())),
-          rows: v.optional(v.array(v.array(v.string()))),
-        }),
-      ),
-    }),
+    content: docxContentValidator,
     templateStorageId: v.id('_storage'),
   },
-  returns: v.object({
-    success: v.boolean(),
-    fileId: v.id('_storage'),
-    url: v.string(),
-    fileName: v.string(),
-    contentType: v.string(),
-    size: v.number(),
-  }),
+  returns: generateDocxResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.generateDocxFromTemplate(ctx, {
       fileName: args.fileName,
@@ -996,11 +768,7 @@ export const generateDocxFromTemplateInternal = internalAction({
  */
 export const retryRagIndexing = action({
   args: { documentId: v.id('documents') },
-  returns: v.object({
-    success: v.boolean(),
-    jobId: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }),
+  returns: retryRagIndexingResponseValidator,
   handler: async (ctx, args) => {
     try {
       const identity = await ctx.auth.getUserIdentity();
