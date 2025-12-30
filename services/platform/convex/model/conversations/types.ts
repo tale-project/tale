@@ -12,6 +12,7 @@ import {
   conversationStatusValidator,
   conversationWithMessagesValidator,
   customerInfoValidator,
+  messageStatusValidator,
   messageValidator,
 } from './validators';
 
@@ -21,6 +22,7 @@ import {
 
 export type ConversationStatus = Infer<typeof conversationStatusValidator>;
 export type ConversationPriority = Infer<typeof conversationPriorityValidator>;
+export type MessageStatus = Infer<typeof messageStatusValidator>;
 export type MessageInfo = Infer<typeof messageValidator>;
 export type CustomerInfo = Infer<typeof customerInfoValidator>;
 export type ConversationItem = Infer<typeof conversationItemValidator>;

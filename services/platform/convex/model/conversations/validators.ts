@@ -26,6 +26,17 @@ export const conversationPriorityValidator = v.union(
 );
 
 /**
+ * Message status validator
+ * Represents delivery states for conversation messages (from deliveryState field)
+ */
+export const messageStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('sent'),
+  v.literal('delivered'),
+  v.literal('failed'),
+);
+
+/**
  * Message validator
  */
 export const messageValidator = v.object({
@@ -34,7 +45,7 @@ export const messageValidator = v.object({
   content: v.string(),
   timestamp: v.string(),
   isCustomer: v.boolean(),
-  status: v.string(),
+  status: messageStatusValidator,
   attachment: v.optional(v.any()),
 });
 
