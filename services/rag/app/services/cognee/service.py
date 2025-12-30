@@ -5,18 +5,33 @@ cognee RAG operations.
 """
 
 import asyncio
+import logging
+import os
 import time
+from pathlib import Path
 from typing import Any, Optional
+from uuid import uuid4
 
+import aiofiles
 import cognee
 from cognee import SearchType
 from loguru import logger
 from openai import AsyncOpenAI
+from tenacity import (
+    AsyncRetrying,
+    before_sleep_log,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ...config import settings
 from ...models import SearchType as ApiSearchType
+from ..vision import extract_text_from_document, is_vision_supported
 from .cleanup import cleanup_legacy_site_packages_data, cleanup_missing_local_files_data
 from .utils import normalize_add_result, normalize_search_results
+
+# Standard logging adapter for tenacity (it doesn't support loguru directly)
+_std_logger = logging.getLogger(__name__)
 
 
 def _map_api_search_type_to_cognee(search_type: ApiSearchType | None) -> SearchType:
@@ -89,7 +104,7 @@ class CogneeService:
         """Add a document to the knowledge base.
 
         Args:
-            content: Document content
+            content: Path to the document file to ingest
             metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID (used for tagging and later deletion)
 
@@ -98,6 +113,9 @@ class CogneeService:
         """
         if not self.initialized:
             await self.initialize()
+
+        # Track temporary files created by Vision processing for cleanup
+        vision_temp_file: Optional[str] = None
 
         try:
             start_time = time.time()
@@ -117,26 +135,38 @@ class CogneeService:
                 f"(timeout: {timeout_seconds}s)"
             )
 
-            # Configure PDF loader to use hi_res strategy with OCR for image-based PDFs.
-            # This enables Tesseract OCR to extract text from images embedded in PDFs.
-            # Languages: German (deu), English (eng), and French (fra) for multi-language documents.
-            preferred_loaders = [
-                {
-                    "advanced_pdf_loader": {
-                        "strategy": "hi_res",
-                        "languages": ["deu", "eng", "fra"],
-                    }
-                }
-            ]
+            # Pre-process PDFs and images with Vision API
+            # This extracts text using OpenAI Vision instead of Tesseract OCR
+            file_to_ingest = content
+            if Path(content).exists() and is_vision_supported(content):
+                logger.info(f"Pre-processing with Vision API: {content}")
+                extracted_text, was_processed = await extract_text_from_document(content)
+
+                if extracted_text and was_processed:
+                    # Save extracted text to a temp file for cognee
+                    ingest_dir = os.path.join(settings.cognee_data_dir, "ingest")
+                    os.makedirs(ingest_dir, exist_ok=True)
+                    vision_temp_file = os.path.join(
+                        ingest_dir, f"vision_{uuid4().hex}.txt"
+                    )
+                    async with aiofiles.open(
+                        vision_temp_file, "w", encoding="utf-8"
+                    ) as f:
+                        await f.write(extracted_text)
+
+                    file_to_ingest = vision_temp_file
+                    logger.info(
+                        f"Vision extraction complete: {len(extracted_text)} chars "
+                        f"saved to {vision_temp_file}"
+                    )
 
             # Wrap cognee.add() with timeout
             try:
                 result = await asyncio.wait_for(
                     cognee.add(
-                        content,
+                        file_to_ingest,
                         dataset_name=dataset_name,
                         node_set=node_set,
-                        preferred_loaders=preferred_loaders,
                     ),
                     timeout=timeout_seconds,
                 )
@@ -162,22 +192,32 @@ class CogneeService:
                 f"(remaining timeout: {remaining_timeout:.0f}s)"
             )
 
-            try:
-                await asyncio.wait_for(
-                    cognee.cognify(
-                        datasets=[dataset_name],
-                        incremental_loading=True,
-                    ),
-                    timeout=remaining_timeout,
-                )
-            except asyncio.TimeoutError:
-                elapsed = time.time() - start_time
-                error_msg = (
-                    f"cognee.cognify() timed out after {elapsed:.1f}s "
-                    f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
-                )
-                logger.error(error_msg)
-                raise TimeoutError(error_msg)
+            # Retry cognee.cognify() on transient errors (network issues, API errors, etc.)
+            # Cognee's incremental_loading=True ensures already-processed items are skipped,
+            # so retrying is safe and efficient - only failed items will be reprocessed.
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=2, max=30),
+                before_sleep=before_sleep_log(_std_logger, logging.WARNING),
+                reraise=True,
+            ):
+                with attempt:
+                    try:
+                        await asyncio.wait_for(
+                            cognee.cognify(
+                                datasets=[dataset_name],
+                                incremental_loading=True,
+                            ),
+                            timeout=remaining_timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        elapsed = time.time() - start_time
+                        error_msg = (
+                            f"cognee.cognify() timed out after {elapsed:.1f}s "
+                            f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
+                        )
+                        logger.error(error_msg)
+                        raise TimeoutError(error_msg)
 
             processing_time = (time.time() - start_time) * 1000
             logger.info(f"Document added in {processing_time:.2f}ms")
@@ -197,6 +237,16 @@ class CogneeService:
         except Exception as e:
             logger.error(f"Failed to add document: {e}")
             raise
+        finally:
+            # Clean up Vision temp file if created
+            if vision_temp_file and os.path.exists(vision_temp_file):
+                try:
+                    os.unlink(vision_temp_file)
+                    logger.debug(f"Cleaned up Vision temp file: {vision_temp_file}")
+                except OSError as cleanup_exc:
+                    logger.warning(
+                        f"Failed to clean up Vision temp file: {cleanup_exc}"
+                    )
 
     async def search(
         self,

@@ -3,17 +3,16 @@
 
 # Use official TimescaleDB image as base
 # TimescaleDB is PostgreSQL with time-series extensions
-# Note: Using the Debian-based variant (timescaledb-ha) for compatibility
-FROM timescale/timescaledb-ha:pg16
+FROM timescale/timescaledb:2.24.0-pg16
 
 # Switch to root for all setup operations
 USER root
 
 # Install additional tools, create directories, and set up configuration in one layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Note: TimescaleDB image is based on Alpine Linux, so we use apk instead of apt-get
+RUN apk add --no-cache \
     curl \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /docker-entrypoint-initdb.d \
                 /etc/postgresql/conf.d \
                 /var/lib/postgresql/backup

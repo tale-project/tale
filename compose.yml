@@ -22,8 +22,8 @@ services:
     # Volume mounts
     # Persist database data
     volumes:
-      # PostgreSQL data directory (timescaledb-ha uses /home/postgres/pgdata/data)
-      - db-data:/home/postgres/pgdata/data
+      # PostgreSQL data directory
+      - db-data:/var/lib/postgresql/data
       # Backup directory (optional)
       - db-backup:/var/lib/postgresql/backup
 

@@ -67,6 +67,18 @@ class Settings(BaseSettings):
     ingestion_timeout_seconds: int = 10800
 
     # ========================================================================
+    # Vision API Configuration
+    # ========================================================================
+    # Vision model for OCR and image description (OpenAI-compatible)
+    openai_vision_model: Optional[str] = None
+    # Maximum concurrent Vision API calls per PDF
+    vision_max_concurrent_pages: int = 5
+    # DPI for rendering PDF pages as images for OCR
+    vision_pdf_dpi: int = 150
+    # Custom prompt for text extraction (optional)
+    vision_extraction_prompt: Optional[str] = None
+
+    # ========================================================================
     # Feature Flags
     # ========================================================================
     enable_graph_storage: bool = True
@@ -143,6 +155,20 @@ class Settings(BaseSettings):
             config["api_key"] = api_key
 
         return config
+
+    def get_vision_model(self) -> str:
+        """Get the Vision model for OCR and image description.
+
+        Priority:
+        1. RAG_OPENAI_VISION_MODEL (openai_vision_model)
+        2. OPENAI_VISION_MODEL env var
+        3. Default: qwen/qwen3-vl-32b-instruct (cost-effective multi-language vision model)
+        """
+        return (
+            self.openai_vision_model
+            or os.environ.get("OPENAI_VISION_MODEL")
+            or "qwen/qwen3-vl-32b-instruct"
+        )
 
     def get_allowed_origins_list(self) -> list[str]:
         """Parse allowed origins from comma-separated string."""

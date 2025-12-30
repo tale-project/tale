@@ -14,8 +14,12 @@ cognee[baml]==0.4.0
 # - xlsx: Excel files (.xls, .xlsx)
 # - docx: Word documents (.doc, .docx)
 # - pptx: PowerPoint presentations (.ppt, .pptx)
-# - pdf: PDF with OCR support for scanned documents
-unstructured[xlsx,docx,pptx,pdf]==0.18.21
+# Note: PDF support removed - now handled by PyMuPDF + Vision API
+unstructured[xlsx,docx,pptx]==0.18.21
+
+# PyMuPDF for PDF text extraction (no system dependencies)
+# Replaces tesseract/poppler with lightweight pure-Python solution
+PyMuPDF>=1.24.0
 
 # Database drivers (for cognee storage and PGVector)
 asyncpg==0.31.0
@@ -28,6 +32,7 @@ python-dotenv==1.2.1
 loguru==0.7.3
 httpx==0.28.1
 aiofiles>=23.0.0,<24.0.0
+tenacity>=8.0.0
 
 # Web crawling (for automatic website discovery and crawling)
 # NOTE: crawl4ai is currently disabled due to dependency conflict with cognee
