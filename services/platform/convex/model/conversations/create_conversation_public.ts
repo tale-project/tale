@@ -25,7 +25,7 @@ export async function createConversationPublic(
     customerId: args.customerId,
     externalMessageId: args.externalMessageId,
     subject: args.subject,
-    status: (args.status as any) || 'open',
+    status: args.status ?? 'open',
     priority: args.priority,
     type: args.type || 'general',
     direction: args.direction,
