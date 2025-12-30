@@ -21,11 +21,11 @@ const getLastMessagePreview = (conversation: Conversation): string => {
   const lastMessage = conversation.messages[conversation.messages.length - 1];
 
   // If the latest message is from customer, show it directly
-  // If not from customer, only show if status is 'approved' or 'sent'
+  // If not from customer, only show if status is 'sent' or 'delivered'
   if (
     !lastMessage.isCustomer &&
-    lastMessage.status !== 'approved' &&
-    lastMessage.status !== 'sent'
+    lastMessage.status !== 'sent' &&
+    lastMessage.status !== 'delivered'
   ) {
     // Find the most recent message that should be displayed
     // Search from the end backwards without modifying the original array
@@ -34,8 +34,8 @@ const getLastMessagePreview = (conversation: Conversation): string => {
       const msg = conversation.messages[i];
       if (
         msg.isCustomer ||
-        msg.status === 'approved' ||
-        msg.status === 'sent'
+        msg.status === 'sent' ||
+        msg.status === 'delivered'
       ) {
         displayableMessage = msg;
         break;
@@ -76,7 +76,7 @@ const getLastMessagePreview = (conversation: Conversation): string => {
     return content;
   }
 
-  // Process the last message (either from customer or approved/sent)
+  // Process the last message (either from customer or sent/delivered)
   let content = lastMessage.content;
 
   // Remove style and script tags and their contents
