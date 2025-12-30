@@ -89,7 +89,8 @@ async def extract_text_from_image_bytes(
 
     except Exception as e:
         logger.error(f"Failed to describe image: {e}")
-        raise
+        # Fall through to return empty result for graceful degradation
 
     # Fallback - return empty with vision flag
+    logger.warning(f"Both OCR and description failed for image: {filename}")
     return "", True
