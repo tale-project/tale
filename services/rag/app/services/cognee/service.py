@@ -5,6 +5,7 @@ cognee RAG operations.
 """
 
 import asyncio
+import logging
 import os
 import time
 from pathlib import Path
@@ -16,12 +17,21 @@ import cognee
 from cognee import SearchType
 from loguru import logger
 from openai import AsyncOpenAI
+from tenacity import (
+    AsyncRetrying,
+    before_sleep_log,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ...config import settings
 from ...models import SearchType as ApiSearchType
 from ..vision import extract_text_from_document, is_vision_supported
 from .cleanup import cleanup_legacy_site_packages_data, cleanup_missing_local_files_data
 from .utils import normalize_add_result, normalize_search_results
+
+# Standard logging adapter for tenacity (it doesn't support loguru directly)
+_std_logger = logging.getLogger(__name__)
 
 
 def _map_api_search_type_to_cognee(search_type: ApiSearchType | None) -> SearchType:
@@ -182,22 +192,32 @@ class CogneeService:
                 f"(remaining timeout: {remaining_timeout:.0f}s)"
             )
 
-            try:
-                await asyncio.wait_for(
-                    cognee.cognify(
-                        datasets=[dataset_name],
-                        incremental_loading=True,
-                    ),
-                    timeout=remaining_timeout,
-                )
-            except asyncio.TimeoutError:
-                elapsed = time.time() - start_time
-                error_msg = (
-                    f"cognee.cognify() timed out after {elapsed:.1f}s "
-                    f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
-                )
-                logger.error(error_msg)
-                raise TimeoutError(error_msg)
+            # Retry cognee.cognify() on transient errors (network issues, API errors, etc.)
+            # Cognee's incremental_loading=True ensures already-processed items are skipped,
+            # so retrying is safe and efficient - only failed items will be reprocessed.
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=2, max=30),
+                before_sleep=before_sleep_log(_std_logger, logging.WARNING),
+                reraise=True,
+            ):
+                with attempt:
+                    try:
+                        await asyncio.wait_for(
+                            cognee.cognify(
+                                datasets=[dataset_name],
+                                incremental_loading=True,
+                            ),
+                            timeout=remaining_timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        elapsed = time.time() - start_time
+                        error_msg = (
+                            f"cognee.cognify() timed out after {elapsed:.1f}s "
+                            f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
+                        )
+                        logger.error(error_msg)
+                        raise TimeoutError(error_msg)
 
             processing_time = (time.time() - start_time) * 1000
             logger.info(f"Document added in {processing_time:.2f}ms")
