@@ -20,46 +20,29 @@ const tableNameValidator = v.union(
   v.literal('exampleMessages'),
 );
 
-/** Find and claim a single unprocessed record using by_organizationId index. */
+/**
+ * Find and claim a single unprocessed record with smart index selection.
+ *
+ * The filterExpression parameter enables flexible querying:
+ * - Simple equality conditions (e.g., 'status == "closed"') are used for index optimization
+ * - Complex conditions (e.g., 'daysAgo(metadata.resolved_at) > 30') are applied as post-filters
+ *
+ * Examples:
+ * - Find any unprocessed conversation: { tableName: 'conversations' }
+ * - Find closed conversations: { tableName: 'conversations', filterExpression: 'status == "closed"' }
+ * - Find stale closed conversations: { tableName: 'conversations', filterExpression: 'status == "closed" && daysAgo(metadata.resolved_at) > 30' }
+ */
 export const findUnprocessed = internalMutation({
   args: {
     organizationId: v.string(),
     tableName: tableNameValidator,
     wfDefinitionId: v.string(),
     backoffHours: v.number(),
+    filterExpression: v.optional(v.string()),
   },
   returns: v.object({ document: v.union(v.any(), v.null()) }),
   handler: async (ctx, args) =>
     WorkflowProcessingRecordsModel.findUnprocessed(ctx, args),
-});
-
-/** Find and claim a single unprocessed open conversation with inbound message. */
-export const findUnprocessedOpenConversation = internalMutation({
-  args: {
-    organizationId: v.string(),
-    wfDefinitionId: v.string(),
-    backoffHours: v.number(),
-  },
-  returns: v.object({ conversation: v.union(v.any(), v.null()) }),
-  handler: async (ctx, args) =>
-    WorkflowProcessingRecordsModel.findUnprocessedOpenConversation(ctx, args),
-});
-
-/** Find and claim a single product recommendation approval by status. */
-export const findProductRecommendationByStatus = internalMutation({
-  args: {
-    organizationId: v.string(),
-    wfDefinitionId: v.string(),
-    backoffHours: v.number(),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('approved'),
-      v.literal('rejected'),
-    ),
-  },
-  returns: v.object({ approval: v.union(v.any(), v.null()) }),
-  handler: async (ctx, args) =>
-    WorkflowProcessingRecordsModel.findProductRecommendationByStatus(ctx, args),
 });
 
 /** Record that a document has been processed by a workflow. */

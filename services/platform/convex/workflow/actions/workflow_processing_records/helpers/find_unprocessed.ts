@@ -10,6 +10,12 @@ export async function findUnprocessed(
     tableName: TableName;
     wfDefinitionId: string;
     backoffHours: number;
+    /**
+     * Optional JEXL filter expression for advanced filtering.
+     * Simple equality conditions are used for index optimization.
+     * Complex conditions are applied as post-filters.
+     */
+    filterExpression?: string;
   },
 ): Promise<FindUnprocessedResult> {
   const result = await ctx.runMutation(
@@ -19,6 +25,7 @@ export async function findUnprocessed(
       tableName: params.tableName,
       wfDefinitionId: params.wfDefinitionId,
       backoffHours: params.backoffHours,
+      filterExpression: params.filterExpression,
     },
   );
 

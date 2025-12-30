@@ -12,6 +12,12 @@ export type MarkExecutionCompletedArgs = {
 };
 
 /**
+ * Maximum size for inline storage of workflow execution output.
+ * Set to 900KB to stay safely under Convex's 1MB document size limit.
+ */
+const MAX_INLINE_OUTPUT_SIZE = 900 * 1024;
+
+/**
  * Handle marking an execution as completed
  */
 export async function handleMarkExecutionCompleted(
@@ -28,12 +34,28 @@ export async function handleMarkExecutionCompleted(
     try {
       const parsed = JSON.parse(execution.variables);
       // If variables are in storage, use a reference object
-      finalOutput = parsed._storageRef
-        ? {
-            _note: 'Variables stored in Convex storage',
-            _storageRef: parsed._storageRef,
-          }
-        : parsed;
+      if (parsed._storageRef) {
+        finalOutput = {
+          _note: 'Variables stored in Convex storage',
+          _storageRef: parsed._storageRef,
+        };
+      } else {
+        // Check size before storing inline
+        const outputJson = JSON.stringify(parsed);
+        const sizeInBytes = new Blob([outputJson]).size;
+
+        if (sizeInBytes > MAX_INLINE_OUTPUT_SIZE) {
+          // Output is too large - store a summary instead
+          finalOutput = {
+            _note: 'Output too large for inline storage',
+            _size: `${(sizeInBytes / 1024 / 1024).toFixed(2)} MiB`,
+            _warning: 'Full output exceeded size limit and was truncated',
+            _storageRef: parsed._storageRef || null,
+          };
+        } else {
+          finalOutput = parsed;
+        }
+      }
     } catch {
       finalOutput = {};
     }
