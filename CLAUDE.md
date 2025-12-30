@@ -5,6 +5,11 @@
 - ALL pages should be optimized for accessibility (Level AA).
 - ALWAYS write filenames in dash-case (generally) and snake_case (for Convex).
 
+## TypeScript
+
+- USE implicit typing whenever possible.
+- DO NOT use type casting. Avoid `any`, and `unknown` whenever possible.
+
 ## React
 
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
