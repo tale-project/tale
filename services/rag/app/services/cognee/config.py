@@ -170,12 +170,15 @@ def setup_cognee_environment() -> None:
 
     # For Cognee + LiteLLM, when using an OpenAI-compatible endpoint (like OpenRouter)
     # make sure the model string encodes the provider so LiteLLM can route correctly.
+    # Only add 'openai/' prefix if the model doesn't already have a provider prefix
+    # (models with provider prefix have format 'provider/model-name', e.g. 'moonshotai/kimi-k2')
     cognee_llm_model = model
     cognee_embedding_model = embedding_model
     if "api.openai.com" not in base_url:
-        if not model.startswith("openai/"):
+        # Only add openai/ prefix if model doesn't already have a provider prefix (contains '/')
+        if not model.startswith("openai/") and "/" not in model:
             cognee_llm_model = f"openai/{model}"
-        if not embedding_model.startswith("openai/"):
+        if not embedding_model.startswith("openai/") and "/" not in embedding_model:
             cognee_embedding_model = f"openai/{embedding_model}"
 
     # Set LLM environment variables for Cognee
