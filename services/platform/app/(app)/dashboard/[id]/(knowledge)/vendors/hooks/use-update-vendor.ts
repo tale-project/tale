@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 export function useUpdateVendor() {
   const params = useParams();
@@ -34,7 +35,7 @@ export function useUpdateVendor() {
       const current = localStore.getQuery(api.vendors.getVendors, queryParams);
 
       if (current !== undefined) {
-        const updatedPage = current.page.map((vendor) =>
+        const updatedPage = current.page.map((vendor: Doc<'vendors'>) =>
           vendor._id === args.vendorId
             ? {
                 ...vendor,

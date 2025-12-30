@@ -9,7 +9,8 @@ import {
   type SearchResult,
   type SearXNGResponse,
 } from './types';
-import { searchResultsCache } from '../../../lib/action-cache';
+export type { SearchOptions } from './types';
+import { searchResultsCache } from '../../../lib/action_cache';
 import type { ActionCtx } from '../../../_generated/server';
 
 export async function fetchSearXNGResults(

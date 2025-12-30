@@ -16,7 +16,7 @@ import {
 import { saveMessage } from '@convex-dev/agent';
 import { parseFile } from './agent_tools/files/helpers/parse_file';
 import { analyzeImage } from './agent_tools/files/helpers/analyze_image';
-import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
+import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
 
 import { createDebugLog } from './lib/debug_log';
 

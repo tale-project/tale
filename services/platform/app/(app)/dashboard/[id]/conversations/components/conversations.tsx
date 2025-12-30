@@ -18,7 +18,8 @@ import { toast } from '@/hooks/use-toast';
 import { useParams } from 'next/navigation';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { ConversationItem } from '@/convex/model/conversations/types';
 import {
   useBulkCloseConversations,
   useBulkReopenConversations,
@@ -69,7 +70,7 @@ export default function Conversations({
   const emailProviders = usePreloadedQuery(preloadedEmailProviders);
 
   // Extract conversations from result
-  const conversations = conversationsResult?.conversations || [];
+  const conversations: ConversationItem[] = conversationsResult?.conversations ?? [];
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Convex mutations

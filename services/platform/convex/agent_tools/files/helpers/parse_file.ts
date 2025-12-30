@@ -5,7 +5,7 @@
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from '../../crawler/helpers/get_crawler_service_url';
-import { parseFileCache } from '../../../lib/action-cache';
+import { parseFileCache } from '../../../lib/action_cache';
 import type { ActionCtx } from '../../../_generated/server';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');

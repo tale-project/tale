@@ -197,7 +197,7 @@ export default function AutomationNavigation({
                 </NavigationMenuTrigger>
                 <NavigationMenuContent className="md:w-40">
                   <ul className="p-1 space-y-1">
-                    {versions.map((version) => (
+                    {versions.map((version: Doc<'wfDefinitions'>) => (
                       <li key={version._id}>
                         <NavigationMenuLink asChild>
                           <Button

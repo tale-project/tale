@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import type { Doc } from '@/convex/_generated/dataModel';
 
 export function useDeleteVendor() {
   const params = useParams();
@@ -35,7 +36,7 @@ export function useDeleteVendor() {
 
       if (current !== undefined) {
         const updatedPage = current.page.filter(
-          (vendor) => vendor._id !== args.vendorId
+          (vendor: Doc<'vendors'>) => vendor._id !== args.vendorId
         );
         localStore.setQuery(api.vendors.getVendors, queryParams, {
           ...current,

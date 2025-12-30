@@ -2,7 +2,7 @@ import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
 import { httpAction } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { checkIpRateLimit, RateLimitExceededError } from './lib/rate-limiter/helpers';
+import { checkIpRateLimit, RateLimitExceededError } from './lib/rate_limiter/helpers';
 
 const http = httpRouter();
 

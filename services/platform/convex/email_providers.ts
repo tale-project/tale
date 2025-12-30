@@ -15,11 +15,12 @@ import { api, internal } from './_generated/api';
 import { Id } from './_generated/dataModel';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as EmailProviders from './model/email_providers';
+import { emailProviderDocValidator } from './model/email_providers/validators';
 import { saveRelatedWorkflows } from './model/email_providers/save_related_workflows';
 import {
   checkUserRateLimit,
   checkOrganizationRateLimit,
-} from './lib/rate-limiter/helpers';
+} from './lib/rate_limiter/helpers';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -36,6 +37,7 @@ export const list = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
+  returns: v.array(emailProviderDocValidator),
   handler: async (ctx, args) => {
     return await EmailProviders.listProviders(ctx, args);
   },

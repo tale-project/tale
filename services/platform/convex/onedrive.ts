@@ -17,7 +17,7 @@ import { internal } from './_generated/api';
 import { components } from './_generated/api';
 import type { ActionCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { checkUserRateLimit } from './lib/rate-limiter/helpers';
+import { checkUserRateLimit } from './lib/rate_limiter/helpers';
 
 // =============================================================================
 // TYPES

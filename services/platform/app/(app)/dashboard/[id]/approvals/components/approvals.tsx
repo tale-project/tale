@@ -182,7 +182,7 @@ export default function Approvals({
   // Memoized function to get approval detail data
   const getApprovalDetail = useCallback(
     (approvalId: string): ApprovalDetail | null => {
-      const approval = approvals.find((a) => a._id === approvalId);
+      const approval = approvals.find((a: ApprovalDoc) => a._id === approvalId);
       if (!approval) return null;
 
       // Cast metadata to Record for dynamic property access
