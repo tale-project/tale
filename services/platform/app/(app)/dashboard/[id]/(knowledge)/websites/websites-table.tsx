@@ -12,10 +12,10 @@ import {
 } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { WebsiteIcon } from '@/components/ui/icons';
-import { formatDate } from '@/lib/utils/date/format';
+import { TableDateCell } from '@/components/ui/table-date-cell';
 import WebsiteRowActions from './website-row-actions';
 import { WebsitesActionMenu } from './websites-action-menu';
-import { useT, useLocale } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { websiteFilterDefinitions } from './filter-definitions';
@@ -32,7 +32,6 @@ export default function WebsitesTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
-  const locale = useLocale();
 
   // Use unified URL filters hook with sorting
   const {
@@ -123,18 +122,12 @@ export default function WebsitesTable({
         accessorKey: 'lastScannedAt',
         header: tTables('headers.scanned'),
         size: 128,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.lastScannedAt ? (
-              formatDate(new Date(row.original.lastScannedAt), {
-                preset: 'short',
-                locale,
-              })
-            ) : (
-              <Loader className="size-4 animate-spin text-muted-foreground" />
-            )}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.lastScannedAt ? (
+            <TableDateCell date={row.original.lastScannedAt} preset="short" className="text-xs" />
+          ) : (
+            <Loader className="size-4 animate-spin text-muted-foreground" />
+          ),
       },
       {
         accessorKey: 'scanInterval',
@@ -157,7 +150,7 @@ export default function WebsitesTable({
         ),
       },
     ],
-    [tTables, locale],
+    [tTables],
   );
 
   // Build filter configs for DataTableFilters component

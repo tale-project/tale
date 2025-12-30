@@ -1,7 +1,5 @@
 'use client';
 
-import Link from 'next/link';
-import { cn } from '@/lib/utils/cn';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -16,9 +14,12 @@ import {
   NavigationMenuTrigger,
   NavigationMenuViewport,
 } from '@/components/ui/navigation-menu';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/components/ui/tab-navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useResizeObserver } from '@/hooks/use-resize-observer';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/use-convex-auth';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { ChevronDown } from 'lucide-react';
@@ -28,21 +29,6 @@ interface AutomationNavigationProps {
   userRole?: string | null;
   automation?: Doc<'wfDefinitions'> | null;
 }
-
-interface NavItem {
-  label: string;
-  href: string;
-  roles?: string[];
-}
-
-const hasRequiredRole = (
-  userRole?: string | null,
-  requiredRoles?: string[],
-): boolean => {
-  if (!requiredRoles || requiredRoles.length === 0) return true;
-  if (!userRole) return false;
-  return requiredRoles.includes(userRole);
-};
 
 export default function AutomationNavigation({
   userRole,
@@ -60,13 +46,6 @@ export default function AutomationNavigation({
   const [isPublishing, setIsPublishing] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
 
-  const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
-  const navRef = useRef<HTMLElement | null>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState({
-    width: 0,
-    left: 0,
-  });
-
   const publishAutomation = usePublishAutomationDraft();
   const createDraftFromActive = useCreateDraftFromActive();
 
@@ -81,11 +60,12 @@ export default function AutomationNavigation({
       : 'skip',
   );
 
-  const navigationItems: NavItem[] = automationId
+  const navigationItems: TabNavigationItem[] = automationId
     ? [
         {
           label: t('navigation.editor'),
           href: `/dashboard/${organizationId}/automations/${automationId}`,
+          matchMode: 'exact',
         },
         {
           label: t('executions.title'),
@@ -97,50 +77,6 @@ export default function AutomationNavigation({
         },
       ]
     : [];
-
-  // Filter out items that are not accessible
-  const accessibleItems = navigationItems.filter((item) =>
-    hasRequiredRole(userRole, item.roles),
-  );
-
-  // Find active item index among accessible items
-  const activeIndex = accessibleItems.findIndex((item) => {
-    // For Editor, check exact match. For sub-pages, check if path starts with href
-    if (item.label === t('navigation.editor')) {
-      return pathname === item.href;
-    }
-    return pathname.startsWith(item.href);
-  });
-
-  // Function to update indicator position
-  const updateIndicator = useCallback(() => {
-    if (activeIndex !== -1 && itemRefs.current[activeIndex]) {
-      const activeElement = itemRefs.current[activeIndex];
-      if (activeElement) {
-        setIndicatorStyle({
-          width: activeElement.offsetWidth,
-          left: activeElement.offsetLeft,
-        });
-      }
-    }
-  }, [activeIndex]);
-
-  // Update indicator position and width when active item or accessible items change
-  useEffect(() => {
-    updateIndicator();
-  }, [updateIndicator, accessibleItems.length]);
-
-  // Combine navRef and itemRefs for observation
-  const allRefs = useMemo(() => {
-    const refs: (HTMLElement | null)[] = [navRef.current, ...itemRefs.current];
-    return { current: refs };
-  }, [accessibleItems.length]);
-
-  // Re-measure on window resize and element size changes
-  useResizeObserver(allRefs, updateIndicator, {
-    listenToWindow: true,
-    deps: [accessibleItems.length],
-  });
 
   if (!automationId) {
     return null;
@@ -217,7 +153,9 @@ export default function AutomationNavigation({
       console.error('Failed to create draft:', error);
       toast({
         title:
-          error instanceof Error ? error.message : t('navigation.toast.draftFailed'),
+          error instanceof Error
+            ? error.message
+            : t('navigation.toast.draftFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -226,55 +164,17 @@ export default function AutomationNavigation({
   };
 
   const handleVersionChange = (versionId: string) => {
-    // Navigate to the selected version
     const currentPath = pathname.split('/automations/')[0];
     router.push(`${currentPath}/automations/${versionId}`);
   };
 
   return (
-    <nav
-      ref={navRef}
-      className="bg-background sticky top-12 z-10 border-b border-border px-4 flex items-center gap-4 min-h-12"
-      aria-label={tCommon('aria.automationsNavigation')}
+    <TabNavigation
+      items={navigationItems}
+      userRole={userRole}
+      className="top-12"
+      ariaLabel={tCommon('aria.automationsNavigation')}
     >
-      {accessibleItems.map((item, index) => {
-        // Check if current path matches the nav item
-        // For Editor, check exact match. For sub-pages, check if path starts with href
-        const isActive =
-          item.label === t('navigation.editor')
-            ? pathname === item.href
-            : pathname.startsWith(item.href);
-
-        return (
-          <Link
-            key={item.href}
-            ref={(el) => {
-              itemRefs.current[index] = el;
-            }}
-            href={item.href}
-            aria-current={isActive ? 'page' : undefined}
-            className={cn(
-              'h-full flex items-center text-sm font-medium transition-colors cursor-pointer',
-              isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-      {/* Single animated indicator */}
-      {activeIndex !== -1 && (
-        <div
-          className="absolute bottom-0 h-0.5 bg-foreground transition-all duration-200 ease-out"
-          style={{
-            width: `${indicatorStyle.width}px`,
-            left: `${indicatorStyle.left}px`,
-          }}
-        />
-      )}
-
       <div className="flex items-center gap-4 ml-auto">
         {automation && versions && versions.length > 0 && (
           <NavigationMenu>
@@ -283,9 +183,12 @@ export default function AutomationNavigation({
                 <NavigationMenuTrigger className="text-sm h-8">
                   {automation.version}
                   <span className="text-xs text-muted-foreground ml-1">
-                    {automation.status === 'draft' && `- ${tCommon('status.draft')}`}
-                    {automation.status === 'active' && `- ${tCommon('status.active')}`}
-                    {automation.status === 'archived' && `- ${t('navigation.archived')}`}
+                    {automation.status === 'draft' &&
+                      `- ${tCommon('status.draft')}`}
+                    {automation.status === 'active' &&
+                      `- ${tCommon('status.active')}`}
+                    {automation.status === 'archived' &&
+                      `- ${t('navigation.archived')}`}
                   </span>
                   <ChevronDown
                     className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
@@ -305,9 +208,12 @@ export default function AutomationNavigation({
                           >
                             <span>{version.version}</span>
                             <span className="text-xs text-muted-foreground ml-1">
-                              {version.status === 'draft' && `- ${tCommon('status.draft')}`}
-                              {version.status === 'active' && `- ${tCommon('status.active')}`}
-                              {version.status === 'archived' && `- ${t('navigation.archived')}`}
+                              {version.status === 'draft' &&
+                                `- ${tCommon('status.draft')}`}
+                              {version.status === 'active' &&
+                                `- ${tCommon('status.active')}`}
+                              {version.status === 'archived' &&
+                                `- ${t('navigation.archived')}`}
                             </span>
                           </Button>
                         </NavigationMenuLink>
@@ -323,7 +229,9 @@ export default function AutomationNavigation({
 
         {automation?.status === 'draft' && (
           <Button onClick={handlePublish} disabled={isPublishing} size="sm">
-            {isPublishing ? t('navigation.publishing') : t('navigation.publish')}
+            {isPublishing
+              ? t('navigation.publishing')
+              : t('navigation.publish')}
           </Button>
         )}
 
@@ -345,10 +253,12 @@ export default function AutomationNavigation({
             size="sm"
             variant="secondary"
           >
-            {isPublishing ? t('navigation.rollingBack') : t('navigation.rollback')}
+            {isPublishing
+              ? t('navigation.rollingBack')
+              : t('navigation.rollback')}
           </Button>
         )}
       </div>
-    </nav>
+    </TabNavigation>
   );
 }

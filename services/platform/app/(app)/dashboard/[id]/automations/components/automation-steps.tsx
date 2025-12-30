@@ -7,6 +7,7 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
+import { useUrlState } from '@/hooks/use-url-state';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -86,13 +87,24 @@ function AutomationStepsInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [isCreateStepDialogOpen, setIsCreateStepDialogOpen] = useState(false);
-  const [selectedStep, setSelectedStep] = useState<Doc<'wfStepDefs'> | null>(
-    null,
-  );
-  // Auto-open AI assistant panel when editing a draft automation
-  const [sidePanelMode, setSidePanelMode] = useState<
-    'step' | 'ai-chat' | 'test' | null
-  >(isDraft ? 'ai-chat' : null);
+  // URL-based state for side panel mode and selected step
+  // This persists the panel state in URL params for bookmarkability and page reload support
+  const { state: panelState, setStates: setPanelStates, clearAll: clearPanelState } = useUrlState({
+    definitions: {
+      panel: { default: isDraft ? 'ai-chat' : null },
+      step: { default: null },
+    },
+  });
+
+  // Derive sidePanelMode from URL state
+  const sidePanelMode = panelState.panel as 'step' | 'ai-chat' | 'test' | null;
+  const selectedStepSlug = panelState.step;
+
+  // Get the actual step object from the slug
+  const selectedStep = useMemo(() => {
+    if (!selectedStepSlug) return null;
+    return steps.find((s) => s.stepSlug === selectedStepSlug) ?? null;
+  }, [steps, selectedStepSlug]);
   const [_parentStepForNewStep, setParentStepForNewStep] = useState<
     string | null
   >(null);
@@ -148,30 +160,26 @@ function AutomationStepsInner({
     (stepSlug: string) => {
       const step = steps.find((s) => s.stepSlug === stepSlug);
       if (step) {
-        setSelectedStep(step);
-        setSidePanelMode('step');
+        setPanelStates({ panel: 'step', step: stepSlug });
       }
     },
-    [steps],
+    [steps, setPanelStates],
   );
 
   // Handle closing side panel
-  const handleCloseSidePanel = () => {
-    setSidePanelMode(null);
-    setSelectedStep(null);
-  };
+  const handleCloseSidePanel = useCallback(() => {
+    clearPanelState();
+  }, [clearPanelState]);
 
   // Handle opening AI chat
-  const handleOpenAIChat = () => {
-    setSelectedStep(null);
-    setSidePanelMode('ai-chat');
-  };
+  const handleOpenAIChat = useCallback(() => {
+    setPanelStates({ panel: 'ai-chat', step: null });
+  }, [setPanelStates]);
 
   // Handle opening test panel
-  const handleOpenTestPanel = () => {
-    setSelectedStep(null);
-    setSidePanelMode('test');
-  };
+  const handleOpenTestPanel = useCallback(() => {
+    setPanelStates({ panel: 'test', step: null });
+  }, [setPanelStates]);
 
   // Handle adding step on edge
   const handleAddStepOnEdge = useCallback(

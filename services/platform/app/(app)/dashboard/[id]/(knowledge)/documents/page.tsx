@@ -63,6 +63,7 @@ interface DocumentsPageProps {
     folderPath?: string;
     sort?: string;
     sortOrder?: string;
+    doc?: string; // Document ID for preview modal (URL state)
   }>;
 }
 
@@ -75,6 +76,7 @@ interface DocumentsContentProps {
     folderPath?: string;
     sort?: string;
     sortOrder?: string;
+    doc?: string; // Document ID for preview modal (URL state)
   }>;
 }
 

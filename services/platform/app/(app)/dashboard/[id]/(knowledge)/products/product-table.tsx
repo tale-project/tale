@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Package, MoreVertical, ExternalLink } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -10,18 +10,11 @@ import {
   DataTableEmptyState,
 } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
-import { IconButton } from '@/components/ui/icon-button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { formatDate } from '@/lib/utils/date/format';
+import { TableDateCell } from '@/components/ui/table-date-cell';
 import ProductImage from './product-image';
 import { ProductsActionMenu } from './products-action-menu';
-import ProductActions from './product-actions';
-import { useT, useLocale } from '@/lib/i18n';
+import ProductRowActions from './product-row-actions';
+import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { productFilterDefinitions } from './filter-definitions';
@@ -46,7 +39,6 @@ export default function ProductTable({
   organizationId,
   preloadedProducts,
 }: ProductTableProps) {
-  const locale = useLocale();
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
@@ -166,12 +158,12 @@ export default function ProductTable({
         ),
         size: 140,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground text-right block">
-            {formatDate(new Date(row.original.lastUpdated), {
-              preset: 'short',
-              locale,
-            })}
-          </span>
+          <TableDateCell
+            date={row.original.lastUpdated}
+            preset="short"
+            alignRight
+            className="text-xs"
+          />
         ),
       },
       {
@@ -179,35 +171,12 @@ export default function ProductTable({
         size: 80,
         cell: ({ row }) => (
           <HStack justify="end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <IconButton
-                  icon={MoreVertical}
-                  aria-label={tCommon('actions.openMenu')}
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[160px]">
-                <ProductActions product={row.original} />
-                {typeof row.original.metadata?.url === 'string' && (
-                  <DropdownMenuItem asChild>
-                    <a
-                      href={row.original.metadata.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center"
-                    >
-                      <ExternalLink className="size-4 mr-2" />
-                      {tCommon('actions.viewSource')}
-                    </a>
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ProductRowActions product={row.original} />
           </HStack>
         ),
       },
     ],
-    [tCommon, tTables, locale],
+    [tTables],
   );
 
   // Build filter configs for DataTableFilters component

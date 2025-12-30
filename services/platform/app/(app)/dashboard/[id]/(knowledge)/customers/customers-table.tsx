@@ -15,10 +15,10 @@ import {
 import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
-import { formatDate } from '@/lib/utils/date/format';
+import { TableTimestampCell } from '@/components/ui/table-date-cell';
 import CustomerRowActions from './customer-row-actions';
 import { CustomersActionMenu } from './customers-action-menu';
-import { useT, useLocale } from '@/lib/i18n';
+import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { customerFilterDefinitions } from './filter-definitions';
@@ -35,7 +35,6 @@ export default function CustomersTable({
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCustomers } = useT('customers');
-  const locale = useLocale();
 
   // Use unified URL filters hook with sorting
   const urlFilters = useUrlFilters({
@@ -172,12 +171,7 @@ export default function CustomersTable({
         header: () => <span className="text-right w-full block">{tTables('headers.created')}</span>,
         size: 140,
         cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground text-right block">
-            {formatDate(new Date(row.original._creationTime), {
-              preset: 'short',
-              locale,
-            })}
-          </span>
+          <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
         ),
       },
       {
@@ -191,7 +185,7 @@ export default function CustomersTable({
         ),
       },
     ],
-    [tTables, locale],
+    [tTables],
   );
 
   // Show empty state when no customers and no filters

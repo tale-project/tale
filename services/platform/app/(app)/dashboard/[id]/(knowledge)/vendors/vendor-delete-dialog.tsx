@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from '@/hooks/use-toast';
-import DeleteVendorDialog from './delete-vendor-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
+import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
 import { useT } from '@/lib/i18n';
 import { useDeleteVendor } from './hooks';
 
@@ -23,33 +22,35 @@ export default function DeleteVendorButton({
   asChild = false,
 }: DeleteVendorButtonProps) {
   const { t: tVendors } = useT('vendors');
+  const { t: tToast } = useT('toast');
   const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const deleteVendor = useDeleteVendor();
 
-  // Use controlled state if provided, otherwise use internal state
   const isDialogOpen =
     controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
   const setIsDialogOpen = controlledOnOpenChange || setInternalIsOpen;
 
-  const handleDeleteVendor = async () => {
-    try {
-      setIsDeleting(true);
+  const handleDelete = useCallback(
+    async (v: Doc<'vendors'>) => {
+      await deleteVendor({ vendorId: v._id });
+    },
+    [deleteVendor]
+  );
 
-      await deleteVendor({
-        vendorId: vendor._id,
-      });
-      setIsDialogOpen(false);
-    } catch (err) {
-      console.error('Deletion error:', err);
-      toast({
-        title: tVendors('deleteError'),
-        variant: 'destructive',
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  const getEntityName = useCallback(
+    (v: Doc<'vendors'>) => v.name || tVendors('thisVendor'),
+    [tVendors]
+  );
+
+  const translations = useMemo(
+    () => ({
+      title: tVendors('deleteVendor'),
+      description: tVendors('deleteConfirmation', { name: '{name}' }),
+      successMessage: tToast('success.deleted'),
+      errorMessage: tVendors('deleteError'),
+    }),
+    [tVendors, tToast]
+  );
 
   return (
     <>
@@ -65,12 +66,13 @@ export default function DeleteVendorButton({
         </Button>
       )}
 
-      <DeleteVendorDialog
+      <DeleteEntityDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        onConfirm={handleDeleteVendor}
-        vendor={vendor}
-        isDeleting={isDeleting}
+        entity={vendor}
+        getEntityName={getEntityName}
+        deleteMutation={handleDelete}
+        translations={translations}
       />
     </>
   );

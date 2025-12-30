@@ -8,9 +8,9 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useBulkCreateVendors } from './hooks';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n';
-// Note: xlsx is dynamically imported in parseFileData to reduce initial bundle size
+import { useFileImport, vendorMappers } from '@/hooks/use-file-import';
 
 // Type for the form data
 type FormValues = {
@@ -42,6 +42,12 @@ export default function ImportVendorsDialog({
 }: ImportVendorsDialogProps) {
   const { t } = useT('vendors');
   const { t: tCommon } = useT('common');
+
+  // Use shared file import hook
+  const { parseFile, parseCSV } = useFileImport<ParsedVendor>({
+    csvMapper: vendorMappers.csv,
+    excelMapper: vendorMappers.excel,
+  });
 
   // Create Zod schema with translated validation messages
   const formSchema = useMemo(
@@ -102,172 +108,89 @@ export default function ImportVendorsDialog({
     });
   }, [mode, formMethods]);
 
-  const resetForm = () => {
+  const handleClose = useCallback(() => {
     formMethods.reset();
-  };
-
-  const handleClose = () => {
-    resetForm();
     onClose();
-  };
+  }, [formMethods, onClose]);
 
-  // Parse CSV data from manual input
-  const parseCSVData = (csvData: string) => {
-    const lines = csvData.trim().split('\n');
-    const vendors = [];
+  const onSubmit = useCallback(
+    async (values: FormValues) => {
+      try {
+        let vendors: ParsedVendor[] = [];
 
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) continue;
-
-      const [email, locale] = trimmedLine.split(',').map((item) => item.trim());
-
-      if (!email) continue;
-
-      vendors.push({
-        email,
-        locale: locale || 'en',
-        source: 'manual_import' as const,
-      });
-    }
-
-    return vendors;
-  };
-
-  // Parse uploaded file (Excel/CSV)
-  const parseFileData = async (file: File) => {
-    return new Promise<ParsedVendor[]>((resolve, reject) => {
-      const reader = new FileReader();
-
-      reader.onload = async (e) => {
-        try {
-          const data = e.target?.result;
-          if (!data) {
-            reject(new Error('Failed to read file'));
-            return;
-          }
-
-          const vendors: ParsedVendor[] = [];
-
-          if (file.name.endsWith('.csv')) {
-            // Parse CSV
-            const csvText = data as string;
-            const lines = csvText.trim().split('\n');
-
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              if (!trimmedLine) continue;
-
-              const [email, locale] = trimmedLine
-                .split(',')
-                .map((item) => item.trim());
-
-              if (!email) continue;
-
-              vendors.push({
-                email,
-                locale: locale || 'en',
-                source: 'file_upload' as const,
-              });
-            }
-          } else {
-            // Dynamically import xlsx to reduce bundle size
-            const XLSX = await import('xlsx');
-            // Parse Excel
-            const workbook = XLSX.read(data, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-            vendors.push(
-              ...(jsonData as Array<Record<string, unknown>>)
-                .map((row) => ({
-                  email: (row.email as string) || (row.Email as string),
-                  locale:
-                    (row.locale as string) || (row.Locale as string) || 'en',
-                  source: 'file_upload' as const,
-                }))
-                .filter((vendor) => vendor.email),
-            );
-          }
-
-          resolve(vendors);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      reader.onerror = () => reject(new Error('Failed to read file'));
-
-      if (file.name.endsWith('.csv')) {
-        reader.readAsText(file);
-      } else {
-        reader.readAsBinaryString(file);
-      }
-    });
-  };
-
-  async function onSubmit(values: FormValues) {
-    try {
-      let vendors: ParsedVendor[] = [];
-
-      // Handle different data sources
-      if (values.dataSource === 'manual_import' && values.vendors) {
-        vendors = parseCSVData(values.vendors);
-      } else if (values.dataSource === 'file_upload' && values.file) {
-        vendors = await parseFileData(values.file);
-      } else {
-        toast({
-          title: t('import.provideData'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (vendors.length === 0) {
-        toast({
-          title: t('noValidData'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Import vendors using Convex
-      const result = await bulkCreateVendors({
-        organizationId,
-        vendors: vendors,
-      });
-
-      // Show results
-      if (result.success > 0) {
-        toast({
-          title: t('import.success'),
-          description: t('import.successDescription', { success: result.success, failed: result.failed }),
-        });
-
-        if (result.errors.length > 0) {
-          console.warn('Import errors:', result.errors);
+        // Handle different data sources using shared utilities
+        if (values.dataSource === 'manual_import' && values.vendors) {
+          const result = parseCSV(values.vendors);
+          vendors = result.data;
+        } else if (values.dataSource === 'file_upload' && values.file) {
+          const result = await parseFile(values.file);
+          vendors = result.data;
+        } else {
+          toast({
+            title: t('import.provideData'),
+            variant: 'destructive',
+          });
+          return;
         }
 
-        onSuccess?.();
-        handleClose();
-      } else {
+        if (vendors.length === 0) {
+          toast({
+            title: t('noValidData'),
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Import vendors using Convex
+        const result = await bulkCreateVendors({
+          organizationId,
+          vendors: vendors,
+        });
+
+        // Show results
+        if (result.success > 0) {
+          toast({
+            title: t('import.success'),
+            description: t('import.successDescription', {
+              success: result.success,
+              failed: result.failed,
+            }),
+          });
+
+          if (result.errors.length > 0) {
+            console.warn('Import errors:', result.errors);
+          }
+
+          onSuccess?.();
+          handleClose();
+        } else {
+          toast({
+            title: t('import.failed'),
+            description: t('noneImported'),
+            variant: 'destructive',
+          });
+        }
+      } catch (err) {
+        console.error('Error importing vendors:', err);
         toast({
-          title: t('import.failed'),
-          description: t('noneImported'),
+          title: err instanceof Error ? err.message : t('import.error'),
           variant: 'destructive',
         });
       }
-    } catch (err) {
-      console.error('Error importing vendors:', err);
-      toast({
-        title: err instanceof Error ? err.message : t('import.error'),
-        variant: 'destructive',
-      });
-    }
-  }
+    },
+    [
+      parseCSV,
+      parseFile,
+      bulkCreateVendors,
+      organizationId,
+      t,
+      onSuccess,
+      handleClose,
+    ]
+  );
 
-  const dialogTitle = mode === 'manual' ? t('addVendors') : t('uploadVendors');
+  const dialogTitle =
+    mode === 'manual' ? t('addVendors') : t('uploadVendors');
 
   return (
     <FormModal

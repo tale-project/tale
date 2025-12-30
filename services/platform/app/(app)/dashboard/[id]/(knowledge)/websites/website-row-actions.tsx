@@ -1,19 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { MoreVertical } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
 import { Eye, ScanText, RefreshCcw, Pencil, Trash2 } from 'lucide-react';
+import {
+  EntityRowActions,
+  useEntityRowDialogs,
+} from '@/components/ui/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
-import ViewWebsiteDialog from './view-website-dialog';
-import EditWebsiteDialog from './edit-website-dialog';
-import DeleteWebsiteDialog from './delete-website-dialog';
+import WebsiteViewDialog from './website-view-dialog';
+import WebsiteEditDialog from './website-edit-dialog';
+import WebsiteDeleteDialog from './website-delete-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useRescanWebsite } from './hooks';
 import { useT } from '@/lib/i18n';
@@ -25,14 +21,12 @@ interface WebsiteRowActionsProps {
 export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const { t } = useT('websites');
   const { t: tCommon } = useT('common');
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
   const [isRescanning, setIsRescanning] = useState(false);
 
   const rescanWebsite = useRescanWebsite();
 
-  const handleRescan = async () => {
+  const handleRescan = useCallback(async () => {
     setIsRescanning(true);
     try {
       await rescanWebsite({ websiteId: website._id });
@@ -49,64 +43,64 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
     } finally {
       setIsRescanning(false);
     }
-  };
+  }, [rescanWebsite, website._id, t]);
+
+  const actions = useMemo(
+    () => [
+      {
+        key: 'view',
+        label: tCommon('actions.view'),
+        icon: Eye,
+        onClick: dialogs.open.view,
+      },
+      {
+        key: 'rescan',
+        label: t('actions.rescan'),
+        icon: isRescanning ? RefreshCcw : ScanText,
+        onClick: handleRescan,
+        disabled: isRescanning,
+      },
+      {
+        key: 'edit',
+        label: tCommon('actions.edit'),
+        icon: Pencil,
+        onClick: dialogs.open.edit,
+      },
+      {
+        key: 'delete',
+        label: tCommon('actions.delete'),
+        icon: Trash2,
+        onClick: dialogs.open.delete,
+        destructive: true,
+      },
+    ],
+    [tCommon, t, dialogs.open, handleRescan, isRescanning]
+  );
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="size-8 p-0">
-            <MoreVertical className="size-4" />
-            <span className="sr-only">{tCommon('actions.openMenu')}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setIsViewDialogOpen(true)}>
-            <Eye className="mr-2 size-4" />
-            {tCommon('actions.view')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleRescan} disabled={isRescanning}>
-            {isRescanning ? (
-              <RefreshCcw className="mr-2 size-4 animate-spin text-muted-foreground" />
-            ) : (
-              <ScanText className="mr-2 size-4" />
-            )}
-            {t('actions.rescan')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
-            <Pencil className="mr-2 size-4" />
-            {tCommon('actions.edit')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setIsDeleteDialogOpen(true)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2 className="mr-2 size-4" />
-            {tCommon('actions.delete')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <EntityRowActions actions={actions} />
 
-      {isViewDialogOpen && (
-        <ViewWebsiteDialog
-          isOpen={isViewDialogOpen}
-          onClose={() => setIsViewDialogOpen(false)}
+      {dialogs.isOpen.view && (
+        <WebsiteViewDialog
+          isOpen={dialogs.isOpen.view}
+          onClose={() => dialogs.setOpen.view(false)}
           website={website}
         />
       )}
 
-      {isEditDialogOpen && (
-        <EditWebsiteDialog
-          isOpen={isEditDialogOpen}
-          onClose={() => setIsEditDialogOpen(false)}
+      {dialogs.isOpen.edit && (
+        <WebsiteEditDialog
+          isOpen={dialogs.isOpen.edit}
+          onClose={() => dialogs.setOpen.edit(false)}
           website={website}
         />
       )}
 
-      {isDeleteDialogOpen && (
-        <DeleteWebsiteDialog
-          isOpen={isDeleteDialogOpen}
-          onClose={() => setIsDeleteDialogOpen(false)}
+      {dialogs.isOpen.delete && (
+        <WebsiteDeleteDialog
+          isOpen={dialogs.isOpen.delete}
+          onClose={() => dialogs.setOpen.delete(false)}
           website={website}
         />
       )}
