@@ -27,7 +27,7 @@ export const memberListItemValidator = v.object({
  * Member object validator (for member details)
  */
 export const memberValidator = v.object({
-  _id: v.string(),
+  _id: v.id('members'),
   _creationTime: v.number(),
   organizationId: v.string(),
   identityId: v.optional(v.string()),
