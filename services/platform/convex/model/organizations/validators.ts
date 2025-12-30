@@ -8,7 +8,7 @@ import { v } from 'convex/values';
  * Organization validator
  */
 export const organizationValidator = v.object({
-  _id: v.string(),
+  _id: v.id('organizations'),
   _creationTime: v.number(),
   name: v.string(),
   slug: v.optional(v.string()),

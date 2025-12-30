@@ -37,7 +37,7 @@ export const workflowUpdateValidator = v.object({
   name: v.optional(v.string()),
   description: v.optional(v.string()),
   version: v.optional(v.string()),
-  status: v.optional(v.string()),
+  status: v.optional(workflowStatusValidator),
   workflowType: v.optional(workflowTypeValidator),
   config: v.optional(workflowConfigValidator),
   metadata: v.optional(v.any()),

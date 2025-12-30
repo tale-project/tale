@@ -48,7 +48,7 @@ export const getStepDefinitionArgsValidator = {
 
 export const getStepsByTypeArgsValidator = {
   wfDefinitionId: v.id('wfDefinitions'),
-  stepType: v.string(),
+  stepType: stepTypeValidator,
 };
 
 export const listWorkflowStepsArgsValidator = {
