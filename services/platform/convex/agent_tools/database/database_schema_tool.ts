@@ -13,10 +13,10 @@ import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 
-import type {
-  DatabaseSchemaListTablesResult,
-  DatabaseSchemaGetTableResult,
+import {
   JEXL_TRANSFORMS,
+  type DatabaseSchemaListTablesResult,
+  type DatabaseSchemaGetTableResult,
 } from './helpers/types';
 import { getSupportedTables, getTableSchema } from './helpers/schema_definitions';
 
@@ -74,14 +74,8 @@ FILTER EXPRESSION EXAMPLES:
       _ctx,
       args,
     ): Promise<DatabaseSchemaListTablesResult | DatabaseSchemaGetTableResult> => {
-      const jexlTransforms = [
-        'daysAgo',
-        'hoursAgo',
-        'minutesAgo',
-        'parseDate',
-        'isBefore',
-        'isAfter',
-      ];
+      // Use the shared JEXL_TRANSFORMS constant for consistency
+      const jexlTransforms = [...JEXL_TRANSFORMS];
 
       if (args.operation === 'list_tables') {
         return {
