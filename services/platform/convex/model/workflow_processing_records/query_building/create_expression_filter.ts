@@ -26,7 +26,9 @@ export function createExpressionFilter(
         nowMs: Date.now(),
       };
 
-      // Evaluate the expression
+      // Evaluate the expression synchronously
+      // Note: Using evalSync is intentional - all registered JEXL transforms are synchronous
+      // (daysAgo, hoursAgo, etc.) and this runs in a Convex function context
       const result = jexlInstance.evalSync(expression, context);
 
       // Ensure boolean result

@@ -364,6 +364,7 @@ BIDIRECTIONAL RELATIONSHIPS:
                   'confidence',
                   'reasoning',
                 ],
+                additionalProperties: false,
               },
             },
           },

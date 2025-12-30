@@ -42,6 +42,7 @@ export function selectOptimalIndex(
   const baseValues: Record<string, unknown> = { organizationId };
 
   // If no filter expression, use the basic organizationId index
+  // Note: index_registry.ts guarantees by_organizationId is always last in each table's index list
   if (!filterExpression || filterExpression.trim() === '') {
     const basicIndex =
       indexes.find(
@@ -65,7 +66,8 @@ export function selectOptimalIndex(
   const conditionsByField = groupConditionsByField(conditions);
 
   // Score each index
-  let bestIndex: IndexConfig = indexes[indexes.length - 1]; // Default to basic index
+  // Default to basic organizationId index (always last per index_registry.ts)
+  let bestIndex: IndexConfig = indexes[indexes.length - 1];
   let bestScore = 0;
   let bestResult: ScoringResult = {
     score: 0,

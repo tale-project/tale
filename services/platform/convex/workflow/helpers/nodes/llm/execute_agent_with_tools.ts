@@ -116,7 +116,7 @@ export async function executeAgentWithTools(
       { contextOptions: { excludeToolMessages: false } },
     );
   } catch (error) {
-    // Provide more context when AI SDK fails
+    // Provide more context when AI SDK fails, preserving the original error
     const errorMessage =
       error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -124,6 +124,7 @@ export async function executeAgentWithTools(
         `Thread: ${threadId}, ` +
         `User prompt length: ${prompts.userPrompt?.length ?? 0}, ` +
         `System prompt length: ${prompts.systemPrompt?.length ?? 0}`,
+      { cause: error },
     );
   }
 

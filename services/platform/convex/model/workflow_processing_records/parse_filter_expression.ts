@@ -55,6 +55,8 @@ export function parseFilterExpression(
 
   try {
     // Compile expression to AST
+    // Note: _getAst() is a private JEXL API but stable since JEXL 2.x
+    // It returns the internal AST representation for static analysis
     const compiled = jexlInstance.compile(expression);
     const ast = compiled._getAst();
 
