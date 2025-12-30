@@ -231,17 +231,36 @@ jexlInstance.addTransform(
 
 /**
  * Helper to safely parse a date value (string, number, or Date)
- * Returns timestamp in milliseconds, or NaN if invalid
+ * Returns timestamp in milliseconds, or NaN if invalid.
+ *
+ * Handles both seconds and milliseconds timestamps:
+ * - Timestamps < 1e11 (before year 5138 in seconds, or year 1973 in ms) are treated as seconds
+ * - This heuristic works because reasonable timestamps are always > 1e12 in milliseconds
  */
 function parseDateValue(val: unknown): number {
   if (val === null || val === undefined) return NaN;
-  if (typeof val === 'number') return val;
-  if (val instanceof Date) return val.getTime();
-  if (typeof val === 'string') {
-    const timestamp = new Date(val).getTime();
-    return timestamp;
+
+  let timestamp: number;
+  if (typeof val === 'number') {
+    timestamp = val;
+  } else if (val instanceof Date) {
+    return val.getTime(); // Date objects are always in milliseconds
+  } else if (typeof val === 'string') {
+    timestamp = new Date(val).getTime();
+    if (isNaN(timestamp)) return NaN;
+    return timestamp; // String parsing via Date constructor returns milliseconds
+  } else {
+    return NaN;
   }
-  return NaN;
+
+  // Heuristic: if timestamp is less than 1e11, it's likely in seconds
+  // 1e11 ms = March 1973, so any valid recent timestamp in ms will be > 1e12
+  // 1e11 s = year 5138, so any valid seconds timestamp will be < 1e11
+  if (timestamp > 0 && timestamp < 1e11) {
+    timestamp *= 1000; // Convert seconds to milliseconds
+  }
+
+  return timestamp;
 }
 
 // Calculate days since a given date
