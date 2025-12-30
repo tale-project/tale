@@ -2,6 +2,7 @@ import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
 import { httpAction } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { checkIpRateLimit, RateLimitExceededError } from './lib/rate-limiter/helpers';
 
 const http = httpRouter();
 
@@ -24,6 +25,25 @@ http.route({
 
     if (!storageId) {
       return new Response('Missing storage ID', { status: 400 });
+    }
+
+    // Rate limit by IP address
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+    try {
+      await checkIpRateLimit(ctx, 'security:storage-access', ip);
+    } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return new Response('Rate limit exceeded', {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil(error.retryAfter / 1000)),
+          },
+        });
+      }
+      throw error;
     }
 
     try {

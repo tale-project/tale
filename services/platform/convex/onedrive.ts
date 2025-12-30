@@ -17,6 +17,7 @@ import { internal } from './_generated/api';
 import { components } from './_generated/api';
 import type { ActionCtx, QueryCtx } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { checkUserRateLimit } from './lib/rate-limiter/helpers';
 
 // =============================================================================
 // TYPES
@@ -318,6 +319,11 @@ export const listFiles = action({
   }),
   handler: async (ctx, args) => {
     try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity) {
+        await checkUserRateLimit(ctx, 'external:onedrive-list', identity.subject);
+      }
+
       const token = await getMicrosoftGraphToken(ctx);
       if (!token) {
         return {
@@ -398,6 +404,11 @@ export const readFile = action({
   }),
   handler: async (ctx, args) => {
     try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity) {
+        await checkUserRateLimit(ctx, 'external:onedrive-read', identity.subject);
+      }
+
       const token = await getMicrosoftGraphToken(ctx);
       if (!token) {
         return {
@@ -473,6 +484,11 @@ export const searchFiles = action({
   }),
   handler: async (ctx, args) => {
     try {
+      const identity = await ctx.auth.getUserIdentity();
+      if (identity) {
+        await checkUserRateLimit(ctx, 'external:onedrive-search', identity.subject);
+      }
+
       if (!args.query || args.query.trim().length === 0) {
         return {
           success: false,

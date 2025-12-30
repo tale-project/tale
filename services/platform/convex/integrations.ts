@@ -6,6 +6,7 @@ import { action, internalMutation, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as IntegrationsModel from './model/integrations';
+import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
 
 // ============================================================================
 // Public Queries
@@ -160,6 +161,15 @@ export const testConnection = action({
   },
   returns: IntegrationsModel.testConnectionResultValidator,
   handler: async (ctx, args) => {
+    // Get integration to find organizationId for rate limiting
+    const integration = await IntegrationsModel.getIntegrationById(ctx, args.integrationId);
+    if (integration) {
+      await checkOrganizationRateLimit(
+        ctx,
+        'external:integration-test',
+        integration.organizationId,
+      );
+    }
     return await IntegrationsModel.testConnectionLogic(ctx, args);
   },
 });

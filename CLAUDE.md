@@ -3,7 +3,7 @@
 - ALWAYS optimize your code for MAX performance.
 - ALWAYS ensure that you follow the existing design.
 - ALL pages should be optimized for accessibility (Level AA).
-- ALWAYS write filenames in dash-case.
+- ALWAYS write filenames in dash-case (generally) and snake_case (for Convex).
 
 ## React
 
@@ -17,3 +17,4 @@
 ## Convex
 
 - CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
+- CONSIDER TO use rate limiting and action caching.

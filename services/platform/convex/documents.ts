@@ -18,6 +18,7 @@ import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import { cursorPaginationOptsValidator } from './lib/pagination';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
 
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';
@@ -627,6 +628,8 @@ export const uploadFile = action({
     error?: string;
   }> => {
     try {
+      await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
+
       // 1. Check authentication
       const identity = await ctx.auth.getUserIdentity();
       if (!identity) {
@@ -1011,6 +1014,12 @@ export const retryRagIndexing = action({
       if (!document) {
         return { success: false, error: 'Document not found' };
       }
+
+      await checkOrganizationRateLimit(
+        ctx,
+        'file:rag-retry',
+        document.organizationId,
+      );
 
       const member = await ctx.runQuery(internal.documents.checkMembership, {
         organizationId: document.organizationId,
