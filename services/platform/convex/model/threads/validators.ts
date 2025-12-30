@@ -58,7 +58,7 @@ export const threadMessagesResponseValidator = v.object({
  * Thread list item validator (for listing threads)
  */
 export const threadListItemValidator = v.object({
-  _id: v.string(),
+  _id: v.id('threads'),
   _creationTime: v.number(),
   title: v.optional(v.string()),
   status: threadStatusValidator,
