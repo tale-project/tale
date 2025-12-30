@@ -3,9 +3,16 @@
  */
 
 import { v } from 'convex/values';
-import { internalMutation, internalQuery, action } from './_generated/server';
+import {
+  internalMutation,
+  internalQuery,
+  internalAction,
+  action,
+} from './_generated/server';
+import { internal } from './_generated/api';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as ToneOfVoiceModel from './model/tone_of_voice';
+import { toneOfVoiceCache } from './lib/action-cache';
 
 // ==================== QUERIES ====================
 
@@ -142,14 +149,49 @@ export const saveGeneratedTone = internalMutation({
 // ==================== ACTIONS ====================
 
 /**
- * Generate tone of voice from example messages using AI
+ * Generate tone of voice from example messages using AI.
+ * Results are cached for 24 hours to avoid repeated AI calls.
  */
 export const generateToneOfVoice = action({
+  args: {
+    organizationId: v.string(),
+    forceRefresh: v.optional(v.boolean()),
+  },
+  returns: ToneOfVoiceModel.generateToneResponseValidator,
+  handler: async (ctx, args) => {
+    if (args.forceRefresh) {
+      return await ToneOfVoiceModel.generateToneOfVoice(ctx, args);
+    }
+    return await toneOfVoiceCache.fetch(ctx, {
+      organizationId: args.organizationId,
+    });
+  },
+});
+
+/**
+ * Internal action for tone of voice generation (uncached).
+ * Used by the ActionCache.
+ */
+export const generateToneOfVoiceUncached = internalAction({
   args: {
     organizationId: v.string(),
   },
   returns: ToneOfVoiceModel.generateToneResponseValidator,
   handler: async (ctx, args) => {
     return await ToneOfVoiceModel.generateToneOfVoice(ctx, args);
+  },
+});
+
+/**
+ * Internal action to invalidate tone of voice cache for an organization.
+ */
+export const invalidateToneCache = internalAction({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, _args) => {
+    await toneOfVoiceCache.removeAllForName(ctx);
+    return null;
   },
 });

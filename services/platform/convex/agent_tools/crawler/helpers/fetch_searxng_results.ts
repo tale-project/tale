@@ -9,6 +9,8 @@ import {
   type SearchResult,
   type SearXNGResponse,
 } from './types';
+import { searchResultsCache } from '../../../lib/action-cache';
+import type { ActionCtx } from '../../../_generated/server';
 
 export async function fetchSearXNGResults(
   serviceUrl: string,
@@ -77,4 +79,30 @@ export async function fetchSearXNGResults(
     totalResults: data.number_of_results || items.length,
     suggestions: data.suggestions || [],
   };
+}
+
+/**
+ * Cached version of fetchSearXNGResults.
+ * Use this when calling from actions to benefit from caching.
+ * Results are cached for 30 minutes.
+ */
+export async function fetchSearXNGResultsCached(
+  ctx: ActionCtx,
+  options: SearchOptions,
+): Promise<{
+  items: SearchResult[];
+  totalResults: number;
+  suggestions: string[];
+}> {
+  return await searchResultsCache.fetch(ctx, {
+    query: options.query,
+    site: options.site,
+    pageNo: options.pageNo,
+    engines: options.engines,
+    categories: options.categories,
+    timeRange: options.timeRange,
+    safesearch: options.safesearch,
+    language: options.language,
+    numResults: options.numResults,
+  });
 }

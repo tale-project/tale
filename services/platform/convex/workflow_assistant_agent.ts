@@ -16,6 +16,7 @@ import {
 import { saveMessage } from '@convex-dev/agent';
 import { parseFile } from './agent_tools/files/helpers/parse_file';
 import { analyzeImage } from './agent_tools/files/helpers/analyze_image';
+import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -57,6 +58,11 @@ export const chatWithWorkflowAssistant = action({
     response: string;
     toolCalls?: Array<{ toolName: string; status: string }>;
   }> => {
+    await checkOrganizationRateLimit(
+      ctx,
+      'ai:workflow-assistant',
+      args.organizationId,
+    );
     const { maxSteps = 30 } = args;
 
     // Load workflow context if workflowId is provided

@@ -20,8 +20,10 @@
   "dependencies": {
     "@ai-sdk/openai": "2.0.74",
     "@ai-sdk/provider-utils": "3.0.17",
+    "@convex-dev/action-cache": "^0.3.0",
     "@convex-dev/agent": "0.3.0",
     "@convex-dev/better-auth": "0.9.7",
+    "@convex-dev/rate-limiter": "^0.3.2",
     "@convex-dev/workflow": "0.3.2",
     "@convex-dev/workpool": "0.3.0",
     "@dmitryrechkin/json-schema-to-zod": "^1.0.1",

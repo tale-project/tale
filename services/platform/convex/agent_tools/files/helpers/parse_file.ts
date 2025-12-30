@@ -5,6 +5,8 @@
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from '../../crawler/helpers/get_crawler_service_url';
+import { parseFileCache } from '../../../lib/action-cache';
+import type { ActionCtx } from '../../../_generated/server';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -120,4 +122,22 @@ export async function parseFile(
       error: message,
     };
   }
+}
+
+/**
+ * Cached version of parseFile.
+ * Use this when calling from actions to benefit from caching.
+ * @param ctx - Action context
+ * @param url - URL of the file to download
+ * @param filename - Original filename with extension
+ * @param toolName - Name of the calling tool (for logging)
+ * @returns ParseFileResult with extracted text and metadata
+ */
+export async function parseFileCached(
+  ctx: ActionCtx,
+  url: string,
+  filename: string,
+  toolName: string,
+): Promise<ParseFileResult> {
+  return await parseFileCache.fetch(ctx, { url, filename, toolName });
 }

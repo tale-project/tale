@@ -16,6 +16,7 @@ import {
   onChatComplete as onChatCompleteModel,
 } from './model/chat_agent';
 import { autoSummarizeIfNeededModel } from './model/chat_agent/auto_summarize_if_needed';
+import { checkOrganizationRateLimit } from './lib/rate-limiter/helpers';
 
 export const chatWithAgent = mutation({
   args: {
@@ -38,6 +39,7 @@ export const chatWithAgent = mutation({
     messageAlreadyExists: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await checkOrganizationRateLimit(ctx, 'ai:chat', args.organizationId);
     return await chatWithAgentModel(ctx, args);
   },
 });

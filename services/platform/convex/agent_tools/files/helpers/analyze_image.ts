@@ -11,6 +11,7 @@ import { createDebugLog } from '../../../lib/debug_log';
 import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 import { getVisionModel, createVisionAgent } from './vision_agent';
+import { imageAnalysisCache } from '../../../lib/action-cache';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
 
@@ -150,4 +151,20 @@ export async function analyzeImage(
       fileName,
     };
   }
+}
+
+/**
+ * Cached version of analyzeImage.
+ * Use this when calling from actions to benefit from caching.
+ * Same image + question will return cached analysis.
+ */
+export async function analyzeImageCached(
+  ctx: ActionCtx,
+  params: AnalyzeImageParams,
+): Promise<AnalyzeImageResult> {
+  return await imageAnalysisCache.fetch(ctx, {
+    fileId: params.fileId,
+    question: params.question,
+    fileName: params.fileName,
+  });
 }

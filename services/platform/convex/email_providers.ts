@@ -16,6 +16,10 @@ import { Id } from './_generated/dataModel';
 import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import * as EmailProviders from './model/email_providers';
 import { saveRelatedWorkflows } from './model/email_providers/save_related_workflows';
+import {
+  checkUserRateLimit,
+  checkOrganizationRateLimit,
+} from './lib/rate-limiter/helpers';
 
 import { createDebugLog } from './lib/debug_log';
 
@@ -253,6 +257,11 @@ export const testConnection = action({
     }),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      await checkUserRateLimit(ctx, 'external:email-test', identity.subject);
+    }
+
     // Delegate to Node.js action in node_only/email_providers
     const result: {
       success: boolean;
@@ -470,6 +479,12 @@ export const handleOAuth2Callback = action({
     if (!provider) {
       throw new Error('Email provider not found');
     }
+
+    await checkOrganizationRateLimit(
+      ctx,
+      'external:oauth-callback',
+      provider.organizationId,
+    );
 
     if (!provider.oauth2Auth) {
       throw new Error('OAuth2 configuration not found for this provider');
