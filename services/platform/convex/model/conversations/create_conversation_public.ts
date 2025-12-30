@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function createConversationPublic(
   ctx: MutationCtx,
@@ -12,8 +13,8 @@ export async function createConversationPublic(
     customerId?: Id<'customers'>;
     externalMessageId?: string;
     subject?: string;
-    status?: string;
-    priority?: string;
+    status?: ConversationStatus;
+    priority?: ConversationPriority;
     type?: string;
     direction?: 'inbound' | 'outbound';
     metadata?: unknown;

@@ -475,7 +475,7 @@ export default defineSchema({
         v.literal('archived'),
       ),
     ),
-    priority: v.optional(v.string()), // 'low' | 'medium' | 'high'
+    priority: v.optional(v.string()), // 'low' | 'medium' | 'high' | 'urgent'
     type: v.optional(v.string()), // 'product_recommendation' | 'churn_survey' | 'service_request' | 'general' | 'spam' | etc.
     channel: v.optional(v.string()), // 'email' | 'chat' | 'phone' | 'sms' | etc.
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))), // 'inbound' | 'outbound'

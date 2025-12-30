@@ -7,15 +7,15 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import type { ConversationListResponse } from './types';
+import type { ConversationListResponse, ConversationStatus, ConversationPriority } from './types';
 import { transformConversation } from './transform_conversation';
 
 export async function getConversations(
   ctx: QueryCtx,
   args: {
     organizationId: string;
-    status?: 'open' | 'closed' | 'spam' | 'archived';
-    priority?: string;
+    status?: ConversationStatus;
+    priority?: ConversationPriority;
     search?: string;
     page?: number;
     limit?: number;

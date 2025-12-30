@@ -44,7 +44,7 @@ export interface CreateConversationArgs {
   externalMessageId?: string;
   subject?: string;
   status?: ConversationStatus;
-  priority?: string;
+  priority?: ConversationPriority;
   type?: string;
   channel?: string;
   direction?: 'inbound' | 'outbound';
@@ -57,7 +57,7 @@ export interface UpdateConversationsArgs {
   conversationId?: Id<'conversations'>;
   organizationId?: string;
   status?: ConversationStatus;
-  priority?: string;
+  priority?: ConversationPriority;
 
   updates: unknown;
 }
@@ -71,7 +71,7 @@ export interface UpdateConversationsResult {
 export interface QueryConversationsArgs {
   organizationId: string;
   status?: ConversationStatus;
-  priority?: string;
+  priority?: ConversationPriority;
   channel?: string;
   direction?: 'inbound' | 'outbound';
   customerId?: Id<'customers'>;

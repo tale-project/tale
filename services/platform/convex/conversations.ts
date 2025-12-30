@@ -19,6 +19,7 @@ import {
   conversationWithMessagesValidator,
   bulkOperationResultValidator,
   conversationStatusValidator,
+  conversationPriorityValidator,
 } from './model/conversations/validators';
 
 // =============================================================================
@@ -32,7 +33,7 @@ export const createConversation = internalMutation({
     externalMessageId: v.optional(v.string()),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
@@ -59,7 +60,7 @@ export const createConversationWithMessage = internalMutation({
     externalMessageId: v.optional(v.string()),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     type: v.optional(v.string()),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
@@ -101,8 +102,8 @@ export const getConversationById = internalQuery({
       customerId: v.optional(v.id('customers')),
       externalMessageId: v.optional(v.string()),
       subject: v.optional(v.string()),
-      status: v.optional(v.string()),
-      priority: v.optional(v.string()),
+      status: v.optional(conversationStatusValidator),
+      priority: v.optional(conversationPriorityValidator),
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
       direction: v.optional(
@@ -136,8 +137,8 @@ export const getConversationByExternalMessageId = internalQuery({
       customerId: v.optional(v.id('customers')),
       externalMessageId: v.optional(v.string()),
       subject: v.optional(v.string()),
-      status: v.optional(v.string()),
-      priority: v.optional(v.string()),
+      status: v.optional(conversationStatusValidator),
+      priority: v.optional(conversationPriorityValidator),
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
       direction: v.optional(
@@ -201,7 +202,7 @@ export const queryConversations = internalQuery({
     organizationId: v.string(),
     customerId: v.optional(v.id('customers')),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
     paginationOpts: cursorPaginationOptsValidator,
@@ -215,8 +216,8 @@ export const queryConversations = internalQuery({
         customerId: v.optional(v.id('customers')),
         externalMessageId: v.optional(v.string()),
         subject: v.optional(v.string()),
-        status: v.optional(v.string()),
-        priority: v.optional(v.string()),
+        status: v.optional(conversationStatusValidator),
+        priority: v.optional(conversationPriorityValidator),
         type: v.optional(v.string()),
         channel: v.optional(v.string()),
         direction: v.optional(
@@ -324,13 +325,13 @@ export const updateConversations = internalMutation({
     conversationId: v.optional(v.id('conversations')),
     organizationId: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
 
     updates: v.object({
       customerId: v.optional(v.id('customers')),
       subject: v.optional(v.string()),
       status: v.optional(conversationStatusValidator),
-      priority: v.optional(v.string()),
+      priority: v.optional(conversationPriorityValidator),
       type: v.optional(v.string()),
 
       metadata: v.optional(v.record(v.string(), v.any())),
@@ -418,7 +419,7 @@ export const getConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     search: v.optional(v.string()),
     page: v.optional(v.number()),
     limit: v.optional(v.number()),
@@ -433,7 +434,7 @@ export const getConversationsPage = queryWithRLS({
   args: {
     organizationId: v.string(),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     category: v.optional(v.string()),
     search: v.optional(v.string()),
     page: v.optional(v.number()),
@@ -457,8 +458,8 @@ export const getConversation = queryWithRLS({
       organizationId: v.string(),
       customerId: v.optional(v.id('customers')),
       subject: v.optional(v.string()),
-      status: v.optional(v.string()),
-      priority: v.optional(v.string()),
+      status: v.optional(conversationStatusValidator),
+      priority: v.optional(conversationPriorityValidator),
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
       direction: v.optional(
@@ -493,7 +494,7 @@ export const updateConversation = mutationWithRLS({
     conversationId: v.id('conversations'),
     subject: v.optional(v.string()),
     status: v.optional(conversationStatusValidator),
-    priority: v.optional(v.string()),
+    priority: v.optional(conversationPriorityValidator),
     type: v.optional(v.string()),
     metadata: v.optional(v.any()),
   },

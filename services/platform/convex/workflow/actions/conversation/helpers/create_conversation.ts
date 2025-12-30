@@ -1,7 +1,7 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { ConversationStatus } from './types';
+import type { ConversationStatus, ConversationPriority } from './types';
 
 export async function createConversation(
   ctx: ActionCtx,
@@ -10,7 +10,7 @@ export async function createConversation(
     customerId?: Id<'customers'>;
     subject?: string;
     status?: ConversationStatus;
-    priority?: string;
+    priority?: ConversationPriority;
     type?: string;
     channel?: string;
     direction?: 'inbound' | 'outbound';

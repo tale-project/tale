@@ -19,7 +19,7 @@ import { queryLatestMessageByDeliveryState } from './helpers/query_latest_messag
 import { updateConversations } from './helpers/update_conversations';
 import { createConversationFromEmail } from './helpers/create_conversation_from_email';
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
-import type { ConversationStatus } from './helpers/types';
+import type { ConversationStatus, ConversationPriority } from './helpers/types';
 
 // Common field validators
 const paginationOptsValidator = v.object({
@@ -44,6 +44,14 @@ const statusValidator = v.union(
   v.literal('spam'),
 );
 
+// Priority validator matching ConversationPriority type
+const priorityValidator = v.union(
+  v.literal('low'),
+  v.literal('medium'),
+  v.literal('high'),
+  v.literal('urgent'),
+);
+
 // Type for conversation operation params (discriminated union)
 // Note: This type is maintained separately from the parametersValidator for clarity.
 // The TypeScript type provides IDE support, while the validator provides runtime validation.
@@ -53,7 +61,7 @@ type ConversationActionParams =
       customerId?: Id<'customers'>;
       subject?: string;
       status?: ConversationStatus;
-      priority?: string;
+      priority?: ConversationPriority;
       type?: string;
       channel?: string;
       direction?: 'inbound' | 'outbound';
@@ -83,7 +91,7 @@ type ConversationActionParams =
       operation: 'create_from_email';
       emails: unknown;
       status?: ConversationStatus;
-      priority?: string;
+      priority?: ConversationPriority;
       providerId?: Id<'emailProviders'>;
       type?: string;
     }
@@ -92,7 +100,7 @@ type ConversationActionParams =
       emails: unknown;
       accountEmail?: string;
       status?: ConversationStatus;
-      priority?: string;
+      priority?: ConversationPriority;
       providerId?: Id<'emailProviders'>;
       type?: string;
     };
@@ -109,7 +117,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       customerId: v.optional(v.id('customers')),
       subject: v.optional(v.string()),
       status: v.optional(statusValidator),
-      priority: v.optional(v.string()),
+      priority: v.optional(priorityValidator),
       type: v.optional(v.string()),
       channel: v.optional(v.string()),
       direction: v.optional(directionValidator),
@@ -143,7 +151,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       operation: v.literal('create_from_email'),
       emails: v.any(),
       status: v.optional(statusValidator),
-      priority: v.optional(v.string()),
+      priority: v.optional(priorityValidator),
       providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
     }),
@@ -153,7 +161,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
       emails: v.any(),
       accountEmail: v.optional(v.string()),
       status: v.optional(statusValidator),
-      priority: v.optional(v.string()),
+      priority: v.optional(priorityValidator),
       providerId: v.optional(v.id('emailProviders')),
       type: v.optional(v.string()),
     }),

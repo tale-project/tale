@@ -20,7 +20,7 @@ export const conversationStatusValidator = v.union(
  */
 export const conversationPriorityValidator = v.union(
   v.literal('low'),
-  v.literal('normal'),
+  v.literal('medium'),
   v.literal('high'),
   v.literal('urgent'),
 );
@@ -73,7 +73,7 @@ export const conversationItemValidator = v.object({
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
-  priority: v.optional(v.string()),
+  priority: v.optional(conversationPriorityValidator),
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
@@ -122,7 +122,7 @@ export const conversationWithMessagesValidator = v.object({
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),
   status: v.optional(conversationStatusValidator),
-  priority: v.optional(v.string()),
+  priority: v.optional(conversationPriorityValidator),
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
