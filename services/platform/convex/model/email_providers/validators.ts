@@ -132,7 +132,7 @@ export const oauth2CallbackResponseValidator = v.object({
  */
 export const sendMessageResponseValidator = v.object({
   success: v.boolean(),
-  messageId: v.string(),
+  messageId: v.optional(v.string()),
 });
 
 /**
