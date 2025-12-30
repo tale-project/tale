@@ -15,6 +15,7 @@ import {
   vendorAddressValidator,
   vendorInputValidator,
   vendorListResponseValidator,
+  bulkCreateVendorsResponseValidator,
 } from './model/vendors/validators';
 
 /**
@@ -298,6 +299,7 @@ export const bulkCreateVendors = mutationWithRLS({
     organizationId: v.string(),
     vendors: v.array(vendorInputValidator),
   },
+  returns: bulkCreateVendorsResponseValidator,
   handler: async (ctx, args) => {
     const results = {
       success: 0,
