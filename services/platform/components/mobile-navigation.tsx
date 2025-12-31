@@ -69,7 +69,7 @@ const MobileNavigationItem = ({
         <span className="text-sm font-medium">{item.label}</span>
       </Link>
       {item.subItems && isActive && (
-        <div className="ml-8 mt-1 space-y-1">
+        <div className="ml-8 mt-2 space-y-2">
           {item.subItems.map((subItem) => {
             const isSubActive = isNavigationUrlMatch(
               subItem.href,
@@ -108,6 +108,7 @@ export default function MobileNavigation({ role }: MobileNavigationProps) {
   const params = useParams();
   const businessId = params.id as string;
   const { t } = useT('common');
+  const { t: tNav } = useT('navigation');
 
   const navigationItems = useNavigationItems(businessId);
 
@@ -129,18 +130,20 @@ export default function MobileNavigation({ role }: MobileNavigationProps) {
             <SheetTitle>{t('actions.openMenu')}</SheetTitle>
             <SheetDescription>{t('actions.openMenu')}</SheetDescription>
           </VisuallyHidden.Root>
-          <NavigationMenu className="flex flex-col bg-background min-h-full max-w-none w-full">
-            <div className="p-4 border-b border-border">
+          <NavigationMenu className="flex flex-col bg-background h-full max-w-none w-full">
+            {/* Header - matches mobile nav height (52px = 8px + 32px + 8px) */}
+            <div className="flex-shrink-0 h-[52px] px-4 py-2 border-b border-border flex items-center">
               <Link
                 href={`/dashboard/${businessId}`}
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2"
+                className="flex items-center"
               >
                 <TaleLogo />
               </Link>
             </div>
-            <div className="flex-1 p-4 overflow-y-auto">
-              <NavigationMenuList className="flex flex-col space-y-1 w-full">
+            {/* Scrollable navigation content */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              <NavigationMenuList className="flex flex-col space-y-2 w-full">
                 {navigationItems.map((item) => (
                   <MobileNavigationItem
                     key={item.href}
@@ -151,8 +154,9 @@ export default function MobileNavigation({ role }: MobileNavigationProps) {
                 ))}
               </NavigationMenuList>
             </div>
-            <div className="p-4 border-t border-border">
-              <UserButton />
+            {/* Footer - matches header height (52px = 8px + 32px + 8px) */}
+            <div className="flex-shrink-0 h-[52px] px-4 py-2 border-t border-border flex items-center">
+              <UserButton label={tNav('settings')} />
             </div>
           </NavigationMenu>
         </SheetContent>

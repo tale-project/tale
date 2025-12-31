@@ -58,13 +58,13 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex flex-col md:flex-row size-full">
-      {/* Mobile header with hamburger menu */}
-      <div className="md:hidden flex items-center justify-between p-3 border-b border-border bg-background">
+      {/* Mobile header with hamburger menu - height matches side nav width (52px = 8px + 32px + 8px) */}
+      <div className="md:hidden flex items-center justify-between h-[52px] px-3 py-2 border-b border-border bg-background">
         <MobileNavigationServer role={memberContext.role} />
       </div>
 
-      {/* Desktop Navigation - hidden on mobile */}
-      <div className="hidden md:flex md:flex-[0_0_52px] overflow-y-auto px-2">
+      {/* Desktop Navigation - hidden on mobile, width matches mobile nav height (52px) */}
+      <div className="hidden md:flex md:flex-[0_0_52px] h-full px-2">
         <NavigationServer
           organizationId={organizationId}
           role={memberContext.role}

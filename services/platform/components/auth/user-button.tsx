@@ -31,12 +31,21 @@ import { useTheme } from 'next-themes';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import { cn } from '@/lib/utils/cn';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
+  /** Optional label to show next to the icon (for mobile navigation) */
+  label?: string;
+  /** Optional custom tooltip text (defaults to "Manage account") */
+  tooltipText?: string;
 }
 
-export function UserButton({ align = 'start' }: UserButtonProps) {
+export function UserButton({
+  align = 'start',
+  label,
+  tooltipText,
+}: UserButtonProps) {
   const { t } = useT('auth');
   const { user, signOut, isLoading: loading } = useAuth();
   const router = useRouter();
@@ -81,20 +90,34 @@ export function UserButton({ align = 'start' }: UserButtonProps) {
 
   const displayName = memberContext?.member?.displayName || user.name || t('userButton.defaultName');
 
+  const triggerContent = (
+    <div
+      className={cn(
+        'relative flex items-center rounded-lg transition-colors hover:bg-muted cursor-pointer',
+        label ? 'gap-3 px-3 py-2 w-full' : 'justify-center p-2',
+      )}
+    >
+      <UserCircle className="size-5 shrink-0 text-muted-foreground" />
+      {label && <span className="text-sm font-medium">{label}</span>}
+    </div>
+  );
+
   return (
     <DropdownMenu>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <div className="relative flex items-center justify-center p-2 rounded-lg transition-colors hover:bg-muted cursor-pointer">
-                <UserCircle className="size-5 shrink-0 text-muted-foreground" />
-              </div>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="right">{t('userButton.manageAccount')}</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {label ? (
+        <DropdownMenuTrigger asChild>{triggerContent}</DropdownMenuTrigger>
+      ) : (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>{triggerContent}</DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {tooltipText ?? t('userButton.manageAccount')}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       <DropdownMenuContent className="w-64" align={align} forceMount>
         {/* User Info Header */}
         <DropdownMenuLabel className="font-normal pb-3">
