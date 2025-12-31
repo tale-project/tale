@@ -7,7 +7,7 @@ import { useUpdatePassword } from './hooks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form } from '@/components/ui/form';
-import { Stack, Center } from '@/components/ui/layout';
+import { Stack, NarrowContainer } from '@/components/ui/layout';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -72,18 +72,20 @@ export default function AccountForm({
 
   if (memberContext && !memberContext.canChangePassword) {
     return (
-      <Center className="py-6">
-        <div className="w-full max-w-md text-sm text-muted-foreground">
+      <NarrowContainer className="py-4">
+        <div className="text-sm text-muted-foreground">
           {tAuth('changePassword.ssoMessage')}
         </div>
-      </Center>
+      </NarrowContainer>
     );
   }
 
   return (
-    <Center className="py-6">
-      <Stack className="w-full max-w-md">
-        <h2 className="text-lg font-semibold mb-6">{tAuth('changePassword.title')}</h2>
+    <NarrowContainer className="py-4">
+      <Stack>
+        <h2 className="text-lg font-semibold mb-6">
+          {tAuth('changePassword.title')}
+        </h2>
         <Form onSubmit={handleSubmit(onSubmit)}>
           {/* Current Password */}
           <Input
@@ -126,17 +128,19 @@ export default function AccountForm({
             {...register('confirmPassword', {
               required: tAuth('changePassword.validation.confirmRequired'),
               validate: (value) =>
-                value === newPassword || tAuth('changePassword.validation.mismatch'),
+                value === newPassword ||
+                tAuth('changePassword.validation.mismatch'),
             })}
           />
 
           {/* Submit Button */}
           <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.saveChanges')}
+            {isSubmitting
+              ? tCommon('actions.saving')
+              : tCommon('actions.saveChanges')}
           </Button>
         </Form>
       </Stack>
-    </Center>
+    </NarrowContainer>
   );
 }
-
