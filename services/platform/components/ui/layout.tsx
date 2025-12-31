@@ -224,5 +224,20 @@ const Spacer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 );
 Spacer.displayName = 'Spacer';
 
-export { Stack, HStack, VStack, Grid, Center, Spacer };
+/**
+ * NarrowContainer - Centered container with max-width 576px and horizontal padding 16px
+ * Use for forms and configuration pages that need a narrow, centered layout
+ */
+const NarrowContainer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn('mx-auto w-full max-w-[576px] px-4', className)}
+      {...props}
+    />
+  ),
+);
+NarrowContainer.displayName = 'NarrowContainer';
+
+export { Stack, HStack, VStack, Grid, Center, Spacer, NarrowContainer };
 export type { Gap };

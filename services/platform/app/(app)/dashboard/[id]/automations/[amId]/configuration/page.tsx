@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
-import { Stack, Grid } from '@/components/ui/layout';
+import { Stack, Grid, NarrowContainer } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-convex-auth';
@@ -193,7 +193,7 @@ export default function ConfigurationPage() {
   // Show skeleton while loading - matches form layout to prevent CLS
   if (!workflow) {
     return (
-      <div className="py-4 px-6 max-w-xl mx-auto w-full">
+      <NarrowContainer className="py-4">
         <Stack gap={4}>
           {/* Name */}
           <Stack gap={2}>
@@ -235,12 +235,12 @@ export default function ConfigurationPage() {
             <Skeleton className="h-10 w-36" />
           </div>
         </Stack>
-      </div>
+      </NarrowContainer>
     );
   }
 
   return (
-    <div className="py-4 px-6 max-w-xl mx-auto w-full">
+    <NarrowContainer className="py-4">
       <Stack gap={4}>
         {/* Name */}
         <Input
@@ -334,6 +334,6 @@ export default function ConfigurationPage() {
           </Button>
         </div>
       </Stack>
-    </div>
+    </NarrowContainer>
   );
 }
