@@ -134,7 +134,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'bg-background sticky z-10 border-b border-border px-4 min-h-12 flex items-center gap-4',
+        'bg-background sticky z-10 border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none',
         className,
       )}
       aria-label={ariaLabel}
@@ -152,7 +152,7 @@ export function TabNavigation({
             prefetch={prefetch}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'h-full flex items-center py-1 text-sm font-medium transition-colors',
+              'h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
               isActive
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
