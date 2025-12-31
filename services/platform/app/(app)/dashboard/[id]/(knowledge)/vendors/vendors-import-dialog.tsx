@@ -1,6 +1,6 @@
 'use client';
 
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import VendorImportForm from '@/components/vendor-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -193,7 +193,7 @@ export default function ImportVendorsDialog({
     mode === 'manual' ? t('addVendors') : t('uploadVendors');
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
       title={dialogTitle}
@@ -205,6 +205,6 @@ export default function ImportVendorsDialog({
       <FormProvider {...formMethods}>
         <VendorImportForm organizationId={organizationId} mode={mode} />
       </FormProvider>
-    </FormModal>
+    </FormDialog>
   );
 }

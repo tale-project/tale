@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { Description } from '@/components/ui/description';
 import { StatusIndicator } from '@/components/ui/status-indicator';
@@ -160,7 +160,7 @@ export default function CirculyIntegrationDialog({
   );
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.circulyIntegration')}
@@ -214,6 +214,6 @@ export default function CirculyIntegrationDialog({
           </Description>
         </Form>
       )}
-    </FormModal>
+    </FormDialog>
   );
 }

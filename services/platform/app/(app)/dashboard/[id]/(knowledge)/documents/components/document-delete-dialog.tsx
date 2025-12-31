@@ -1,9 +1,9 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n';
 
-interface DeleteConfirmationModalProps {
+interface DocumentDeleteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmDelete: () => void;
@@ -11,17 +11,17 @@ interface DeleteConfirmationModalProps {
   fileName?: string | null;
 }
 
-export default function DeleteConfirmationModal({
+export default function DocumentDeleteDialog({
   open,
   onOpenChange,
   onConfirmDelete,
   isLoading = false,
   fileName,
-}: DeleteConfirmationModalProps) {
+}: DocumentDeleteDialogProps) {
   const { t: tDocuments } = useT('documents');
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteFile.title')}

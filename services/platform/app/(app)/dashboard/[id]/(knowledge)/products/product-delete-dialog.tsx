@@ -1,6 +1,6 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n';
 
 interface DeleteProductDialogProps {
@@ -21,7 +21,7 @@ export default function DeleteProductDialog({
   const { t: tProducts } = useT('products');
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={tProducts('delete.title')}

@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
@@ -149,7 +149,7 @@ export default function EditAutomationDialog({
   if (!workflow) return null;
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('editDialog.title')}
@@ -221,6 +221,6 @@ export default function EditAutomationDialog({
           description={t('editDialog.variablesDescription')}
         />
       </Stack>
-    </FormModal>
+    </FormDialog>
   );
 }

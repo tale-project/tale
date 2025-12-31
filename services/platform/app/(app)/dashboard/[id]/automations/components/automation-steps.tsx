@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import CreateStepDialog from './create-step-dialog';
+import CreateStepDialog from './step-create-dialog';
 import AutomationStep from './automation-step';
 import AutomationSidePanel from './automation-sidepanel';
 import AutomationGroupNode from './automation-group-node';

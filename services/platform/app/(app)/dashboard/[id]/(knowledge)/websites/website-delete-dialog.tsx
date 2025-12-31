@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useDeleteWebsite } from './hooks';
 import { toast } from '@/hooks/use-toast';
@@ -39,7 +39,7 @@ export default function DeleteWebsiteDialog({
   };
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={tWebsites('delete.title')}

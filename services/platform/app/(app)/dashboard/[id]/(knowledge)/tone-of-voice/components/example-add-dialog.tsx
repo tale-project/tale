@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/lib/i18n';
 
@@ -58,7 +58,7 @@ export default function AddExampleDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
       title={tTone('exampleMessages.addButton')}
@@ -75,6 +75,6 @@ export default function AddExampleDialog({
         placeholder={tTone('exampleMessages.placeholder')}
         className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
       />
-    </FormModal>
+    </FormDialog>
   );
 }

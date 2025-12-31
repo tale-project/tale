@@ -45,7 +45,7 @@ import DOMPurify from 'dompurify';
 
 // AI improvement
 import { improveMessage } from '../actions/improve-message';
-import { MessageImprovementModal } from './message-improvement-modal';
+import { MessageImprovementDialog } from './message-improvement-dialog';
 
 interface AttachedFile {
   id: string;
@@ -145,7 +145,7 @@ function MilkdownEditorInner({
   const [hasContent, setHasContent] = useState(initialHasContent);
 
   const [savedEditorContent, setSavedEditorContent] = useState<string>('');
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [improvedContent, setImprovedContent] = useState('');
   // Track programmatic content updates (separate from user edits)
   const [programmaticContent, setProgrammaticContent] = useState<string | null>(
@@ -280,7 +280,7 @@ function MilkdownEditorInner({
         }
 
         setImprovedContent(result.improvedMessage);
-        setShowPreviewModal(true);
+        setShowPreviewDialog(true);
         setIsImproveMode(false);
       } catch (error) {
         console.error('Failed to improve content:', error);
@@ -300,12 +300,12 @@ function MilkdownEditorInner({
       // This is necessary because Crepe only has getMarkdown(), not setMarkdown()
       setProgrammaticContent(improvedContent);
     }
-    setShowPreviewModal(false);
+    setShowPreviewDialog(false);
     setImproveInstruction('');
   };
 
   const handleRejectImprovement = () => {
-    setShowPreviewModal(false);
+    setShowPreviewDialog(false);
     setImprovedContent('');
   };
 
@@ -645,8 +645,8 @@ function MilkdownEditorInner({
         </div>
       </div>
 
-      <MessageImprovementModal
-        isOpen={showPreviewModal}
+      <MessageImprovementDialog
+        isOpen={showPreviewDialog}
         onClose={handleRejectImprovement}
         onAccept={handleAcceptImprovement}
         originalMessage={savedEditorContent}

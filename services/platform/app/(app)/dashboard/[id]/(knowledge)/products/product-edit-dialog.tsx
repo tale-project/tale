@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Grid } from '@/components/ui/layout';
@@ -105,7 +105,7 @@ export default function EditProductDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={onClose}
       title={tProducts('edit.title')}
@@ -206,6 +206,6 @@ export default function EditProductDialog({
           disabled={isSubmitting}
         />
       </Grid>
-    </FormModal>
+    </FormDialog>
   );
 }

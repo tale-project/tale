@@ -30,12 +30,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import Image from 'next/image';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import MessageInfoModal from './message-info-modal';
+import MessageInfoDialog from './message-info-dialog';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
 import { StreamingMarkdown } from './streaming-markdown';
 import { useT } from '@/lib/i18n';
@@ -365,18 +365,22 @@ const MarkdownImage = memo(function MarkdownImage(
           unoptimized
         />
       </span>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-fit p-0 border-0 [&>button]:hidden bg-background/50 backdrop-blur-sm">
-          <DialogTitle className="sr-only">{t('imagePreview')}</DialogTitle>
-          <Image
-            src={imageSrc}
-            alt={altText}
-            width={1920}
-            height={1080}
-            className="max-h-[80dvh] w-auto object-contain rounded-lg"
-            unoptimized
-          />
-        </DialogContent>
+      <Dialog
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        title={t('imagePreview')}
+        hideClose
+        className="max-w-fit p-0 border-0 ring-0 bg-background/50 backdrop-blur-sm"
+        customHeader={<span className="sr-only">{t('imagePreview')}</span>}
+      >
+        <Image
+          src={imageSrc}
+          alt={altText}
+          width={1920}
+          height={1080}
+          className="max-h-[80dvh] w-auto object-contain rounded-lg"
+          unoptimized
+        />
       </Dialog>
     </>
   );
@@ -466,8 +470,8 @@ function MessageBubbleComponent({
 
   // State for copy button
   const [isCopied, setIsCopied] = useState(false);
-  // State for info modal
-  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  // State for info dialog
+  const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
   // Ref for copy timeout cleanup
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -500,7 +504,7 @@ function MessageBubbleComponent({
 
   // Handle info button click
   const handleInfoClick = () => {
-    setIsInfoModalOpen(true);
+    setIsInfoDialogOpen(true);
   };
 
   return (
@@ -593,10 +597,10 @@ function MessageBubbleComponent({
           </div>
         )}
 
-        {/* Info Modal */}
-        <MessageInfoModal
-          isOpen={isInfoModalOpen}
-          onOpenChange={setIsInfoModalOpen}
+        {/* Info Dialog */}
+        <MessageInfoDialog
+          isOpen={isInfoDialogOpen}
+          onOpenChange={setIsInfoDialogOpen}
           messageId={message.id}
           timestamp={message.timestamp}
           metadata={metadata}

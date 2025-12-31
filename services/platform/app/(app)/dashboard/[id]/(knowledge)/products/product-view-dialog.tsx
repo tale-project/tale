@@ -1,6 +1,6 @@
 'use client';
 
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Stack, HStack, Grid } from '@/components/ui/layout';
@@ -38,7 +38,7 @@ export default function ViewProductDialog({
   const { t: tProducts } = useT('products');
 
   return (
-    <ViewModal
+    <ViewDialog
       open={isOpen}
       onOpenChange={onClose}
       title={tProducts('view.title')}
@@ -187,6 +187,6 @@ export default function ViewProductDialog({
           </code>
         </div>
       </Stack>
-    </ViewModal>
+    </ViewDialog>
   );
 }

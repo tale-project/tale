@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormModal, ViewModal } from '@/components/ui/modals';
+import { FormDialog, ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Stack } from '@/components/ui/layout';
@@ -172,7 +172,7 @@ export default function AddMemberDialog({
         });
       }
 
-      // Success! Show credentials modal only for new users
+      // Success! Show credentials dialog only for new users
       toast({
         title: isNewUser
           ? tToast('success.newMemberCreated')
@@ -220,7 +220,7 @@ export default function AddMemberDialog({
 
   return (
     <>
-      <FormModal
+      <FormDialog
         open={open && !showCredentials}
         onOpenChange={handleOpenChange}
         title={tDialogs('addMember.title')}
@@ -287,9 +287,9 @@ export default function AddMemberDialog({
             { value: 'disabled', label: tSettings('roles.disabled') },
           ]}
         />
-      </FormModal>
+      </FormDialog>
 
-      <ViewModal
+      <ViewDialog
         open={showCredentials}
         onOpenChange={handleClose}
         title={tDialogs('memberAdded.title')}
@@ -316,7 +316,7 @@ export default function AddMemberDialog({
             {tCommon('actions.done')}
           </Button>
         </Stack>
-      </ViewModal>
+      </ViewDialog>
     </>
   );
 }

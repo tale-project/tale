@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
@@ -95,7 +95,7 @@ export default function ProductTranslationsEditor({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={setOpen}
       title={tProducts('translations.title')}
@@ -162,6 +162,6 @@ export default function ProductTranslationsEditor({
         placeholder={tProducts('translations.enterTranslation', { language: 'French' })}
         className="w-full"
       />
-    </FormModal>
+    </FormDialog>
   );
 }

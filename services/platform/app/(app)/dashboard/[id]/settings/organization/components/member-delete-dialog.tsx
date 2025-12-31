@@ -1,6 +1,6 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { useRemoveMember } from '../hooks';
 import { useT } from '@/lib/i18n';
@@ -50,7 +50,7 @@ export default function DeleteMemberDialog({
   };
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('organization.removeTeamMember')}

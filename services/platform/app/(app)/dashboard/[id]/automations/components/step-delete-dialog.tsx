@@ -1,6 +1,6 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
 
@@ -24,7 +24,7 @@ export default function DeleteStepDialog({
   if (!step) return null;
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('deleteStep.title')}
@@ -51,6 +51,6 @@ export default function DeleteStepDialog({
           {step.order}
         </div>
       </div>
-    </DeleteModal>
+    </DeleteDialog>
   );
 }
