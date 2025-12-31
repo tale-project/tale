@@ -69,6 +69,7 @@ export const listExecutionsArgsValidator = {
 
 export const listExecutionsPaginatedArgsValidator = {
   wfDefinitionId: v.id('wfDefinitions'),
+  organizationId: v.optional(v.string()), // Added for compatibility with useOffsetPaginatedQuery hook (not used in query)
   currentPage: v.optional(v.number()),
   pageSize: v.optional(v.number()),
   searchTerm: v.optional(v.string()),
