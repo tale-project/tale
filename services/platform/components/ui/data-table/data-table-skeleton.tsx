@@ -40,6 +40,8 @@ export interface DataTableSkeletonProps {
   className?: string;
   /** Disable default avatar layout for first column */
   noFirstColumnAvatar?: boolean;
+  /** Enable sticky layout mode (removes table wrapper) */
+  stickyLayout?: boolean;
 }
 
 /**
@@ -57,7 +59,69 @@ export function DataTableSkeleton({
   showPagination = false,
   className,
   noFirstColumnAvatar = false,
+  stickyLayout = false,
 }: DataTableSkeletonProps) {
+  const tableContent = (
+    <Table stickyLayout={stickyLayout}>
+      {showHeader && (
+        <TableHeader sticky={stickyLayout}>
+          <TableRow className="bg-secondary/20">
+            {columns.map((col, i) => (
+              <TableHead
+                key={i}
+                className="font-medium text-sm text-muted-foreground"
+                style={col.size ? { width: col.size } : undefined}
+              >
+                {col.header ?? <Skeleton className="h-3.5 w-20" />}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+      )}
+      <TableBody>
+        {Array.from({ length: rows }).map((_, rowIndex) => (
+          <TableRow key={rowIndex}>
+            {columns.map((col, colIndex) => {
+              const showAvatar =
+                col.hasAvatar === true ||
+                (!noFirstColumnAvatar &&
+                  colIndex === 0 &&
+                  col.hasAvatar !== false);
+
+              return (
+                <TableCell
+                  key={colIndex}
+                  style={col.size ? { width: col.size } : undefined}
+                >
+                  {col.isAction ? (
+                    <HStack justify="end">
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                    </HStack>
+                  ) : showAvatar ? (
+                    <HStack gap={3}>
+                      <Skeleton className="size-8 rounded-md shrink-0" />
+                      <Stack gap={1} className="flex-1">
+                        <Skeleton className="h-3.5 w-full max-w-48" />
+                        <Skeleton className="h-3 w-2/3 max-w-24" />
+                      </Stack>
+                    </HStack>
+                  ) : (
+                    <Skeleton className="h-3.5 w-full max-w-[80%]" />
+                  )}
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
+  // For sticky layout, just return the table without wrapping
+  if (stickyLayout) {
+    return tableContent;
+  }
+
   return (
     <Stack gap={4} className={cn('w-full', className)}>
       {customHeader
@@ -69,56 +133,7 @@ export function DataTableSkeleton({
             </HStack>
           )}
 
-      <Table>
-        {showHeader && (
-          <TableHeader>
-            <TableRow className="bg-secondary/20">
-              {columns.map((col, i) => (
-                <TableHead
-                  key={i}
-                  className="font-medium text-sm text-muted-foreground"
-                  style={col.size ? { width: col.size } : undefined}
-                >
-                  {col.header ?? <Skeleton className="h-3.5 w-20" />}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-        )}
-        <TableBody>
-          {Array.from({ length: rows }).map((_, rowIndex) => (
-            <TableRow key={rowIndex}>
-              {columns.map((col, colIndex) => {
-                const showAvatar = col.hasAvatar === true ||
-                  (!noFirstColumnAvatar && colIndex === 0 && col.hasAvatar !== false);
-
-                return (
-                  <TableCell
-                    key={colIndex}
-                    style={col.size ? { width: col.size } : undefined}
-                  >
-                    {col.isAction ? (
-                      <HStack justify="end">
-                        <Skeleton className="h-8 w-8 rounded-md" />
-                      </HStack>
-                    ) : showAvatar ? (
-                      <HStack gap={3}>
-                        <Skeleton className="size-8 rounded-md shrink-0" />
-                        <Stack gap={1} className="flex-1">
-                          <Skeleton className="h-3.5 w-full max-w-48" />
-                          <Skeleton className="h-3 w-2/3 max-w-24" />
-                        </Stack>
-                      </HStack>
-                    ) : (
-                      <Skeleton className="h-3.5 w-full max-w-[80%]" />
-                    )}
-                  </TableCell>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {tableContent}
 
       {showPagination && (
         <HStack gap={2} justify="between" className="px-2">

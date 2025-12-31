@@ -3,29 +3,52 @@ import { forwardRef } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
-const Table = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto rounded-xl border border-border">
+interface TableProps extends HTMLAttributes<HTMLTableElement> {
+  /** When true, removes wrapper for use in custom scroll containers */
+  stickyLayout?: boolean;
+}
+
+const Table = forwardRef<HTMLTableElement, TableProps>(
+  ({ className, stickyLayout = false, ...props }, ref) => {
+    const table = (
       <table
         ref={ref}
         className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
-    </div>
-  ),
+    );
+
+    if (stickyLayout) {
+      return table;
+    }
+
+    return (
+      <div className="relative w-full overflow-auto rounded-xl border border-border">
+        {table}
+      </div>
+    );
+  },
 );
 Table.displayName = 'Table';
 
-const TableHeader = forwardRef<
-  HTMLTableSectionElement,
-  HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead
-    ref={ref}
-    className={cn('[&_tr]:bg-muted [&_tr]:border-0', className)}
-    {...props}
-  />
-));
+interface TableHeaderProps extends HTMLAttributes<HTMLTableSectionElement> {
+  /** When true, header sticks to top of scroll container */
+  sticky?: boolean;
+}
+
+const TableHeader = forwardRef<HTMLTableSectionElement, TableHeaderProps>(
+  ({ className, sticky = false, ...props }, ref) => (
+    <thead
+      ref={ref}
+      className={cn(
+        '[&_tr]:bg-muted [&_tr]:border-0',
+        sticky && 'sticky top-0 z-10 [&_tr]:bg-muted',
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 TableHeader.displayName = 'TableHeader';
 
 const TableBody = forwardRef<

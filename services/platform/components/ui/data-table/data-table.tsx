@@ -223,29 +223,40 @@ export function DataTable<TData>({
 
   // Show skeleton while loading
   if (isLoading) {
-    return (
-      <div
-        className={cn(
-          stickyLayout ? 'flex flex-col flex-1 min-h-0' : 'space-y-4',
-          className,
-        )}
-      >
-        {headerContent && (
-          <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-            {headerContent}
-          </div>
-        )}
-        <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
+    // For non-sticky layout, use the skeleton's built-in layout
+    if (!stickyLayout) {
+      return (
+        <div className={cn('space-y-4', className)}>
+          {headerContent}
           <DataTableSkeleton
             rows={pagination?.pageSize ?? 5}
             columns={columns.map((col) => ({
               header: typeof col.header === 'string' ? col.header : undefined,
             }))}
-            showPagination={!stickyLayout && !!pagination}
+            showPagination={!!pagination}
+          />
+          {footer}
+        </div>
+      );
+    }
+
+    // For sticky layout, use flex structure with real pagination
+    return (
+      <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+        {headerContent && (
+          <div className="flex-shrink-0 pb-4">{headerContent}</div>
+        )}
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+          <DataTableSkeleton
+            rows={pagination?.pageSize ?? 5}
+            columns={columns.map((col) => ({
+              header: typeof col.header === 'string' ? col.header : undefined,
+            }))}
+            stickyLayout
           />
         </div>
-        {stickyLayout && pagination && (
-          <div className="sticky bottom-0 z-10 bg-background py-6">
+        {pagination && (
+          <div className="flex-shrink-0 pt-6">
             <DataTablePagination
               currentPage={currentPage}
               total={0}
@@ -298,166 +309,170 @@ export function DataTable<TData>({
     ? table.getRowModel().rows
     : table.getRowModel().rows;
 
-  return (
-    <div
-      className={cn(
-        stickyLayout ? 'flex flex-col flex-1 min-h-0' : 'space-y-4',
-        className,
-      )}
-    >
-      {headerContent && (
-        <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
-          {headerContent}
-        </div>
-      )}
-
-      <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
-        <Table>
-          {caption && (
-            <TableCaption className="sr-only">{caption}</TableCaption>
-          )}
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-secondary/20">
-                {enableExpanding && <TableHead className="w-[3rem]" />}
-                {headerGroup.headers.map((headerCell) => (
-                  <TableHead
-                    key={headerCell.id}
-                    className="font-medium text-sm"
-                    style={{
-                      width:
-                        headerCell.column.getSize() !== 150
-                          ? headerCell.column.getSize()
-                          : undefined,
-                    }}
-                  >
-                    {headerCell.isPlaceholder
-                      ? null
-                      : flexRender(
-                          headerCell.column.columnDef.header,
-                          headerCell.getContext(),
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 && hasActiveFilters ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length + (enableExpanding ? 1 : 0)}
-                  className="text-center py-10 text-muted-foreground"
-                >
-                  {t('search.noResults')}
-                </TableCell>
-              </TableRow>
-            ) : rows.length === 0 ? null : (
-              rows.map((row, index) => {
-                const isExpanded = row.getIsExpanded();
-                const rowClassNameValue =
-                  typeof rowClassName === 'function'
-                    ? rowClassName(row)
-                    : rowClassName;
-
-                return (
-                  <Fragment key={row.id}>
-                    <TableRow
-                      className={cn(
-                        'group',
-                        index === rows.length - 1 ? 'border-b-0' : '',
-                        clickableRows || onRowClick ? 'cursor-pointer' : '',
-                        rowClassNameValue,
-                      )}
-                      data-state={row.getIsSelected() ? 'selected' : undefined}
-                      onClick={() => {
-                        if (enableExpanding) {
-                          row.toggleExpanded();
-                        }
-                        onRowClick?.(row);
-                      }}
-                    >
-                      {enableExpanding && (
-                        <TableCell className="w-[3rem]">
-                          <ChevronRight
-                            className={cn(
-                              'size-4 text-muted-foreground transition-transform duration-200',
-                              isExpanded && 'rotate-90',
-                            )}
-                          />
-                        </TableCell>
-                      )}
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                    {enableExpanding && isExpanded && renderExpandedRow && (
-                      <TableRow className="hover:bg-transparent border-0">
-                        <TableCell
-                          colSpan={columns.length + 1}
-                          className="p-0"
-                        >
-                          <div className="grid animate-in fade-in-0 slide-in-from-top-1 duration-150">
-                            <div className="bg-muted/20 px-4 pb-2">
-                              {renderExpandedRow(row)}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+  // Shared table content
+  const tableContent = (
+    <Table stickyLayout={stickyLayout}>
+      {caption && <TableCaption className="sr-only">{caption}</TableCaption>}
+      <TableHeader sticky={stickyLayout}>
+        {table.getHeaderGroups().map((headerGroup) => (
+          <TableRow key={headerGroup.id} className="bg-secondary/20">
+            {enableExpanding && <TableHead className="w-[3rem]" />}
+            {headerGroup.headers.map((headerCell) => (
+              <TableHead
+                key={headerCell.id}
+                className="font-medium text-sm"
+                style={{
+                  width:
+                    headerCell.column.getSize() !== 150
+                      ? headerCell.column.getSize()
+                      : undefined,
+                }}
+              >
+                {headerCell.isPlaceholder
+                  ? null
+                  : flexRender(
+                      headerCell.column.columnDef.header,
+                      headerCell.getContext(),
                     )}
-                  </Fragment>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+              </TableHead>
+            ))}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {rows.length === 0 && hasActiveFilters ? (
+          <TableRow>
+            <TableCell
+              colSpan={columns.length + (enableExpanding ? 1 : 0)}
+              className="text-center py-10 text-muted-foreground"
+            >
+              {t('search.noResults')}
+            </TableCell>
+          </TableRow>
+        ) : rows.length === 0 ? null : (
+          rows.map((row, index) => {
+            const isExpanded = row.getIsExpanded();
+            const rowClassNameValue =
+              typeof rowClassName === 'function'
+                ? rowClassName(row)
+                : rowClassName;
+
+            return (
+              <Fragment key={row.id}>
+                <TableRow
+                  className={cn(
+                    'group',
+                    index === rows.length - 1 ? 'border-b-0' : '',
+                    clickableRows || onRowClick ? 'cursor-pointer' : '',
+                    rowClassNameValue,
+                  )}
+                  data-state={row.getIsSelected() ? 'selected' : undefined}
+                  onClick={() => {
+                    if (enableExpanding) {
+                      row.toggleExpanded();
+                    }
+                    onRowClick?.(row);
+                  }}
+                >
+                  {enableExpanding && (
+                    <TableCell className="w-[3rem]">
+                      <ChevronRight
+                        className={cn(
+                          'size-4 text-muted-foreground transition-transform duration-200',
+                          isExpanded && 'rotate-90',
+                        )}
+                      />
+                    </TableCell>
+                  )}
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+                {enableExpanding && isExpanded && renderExpandedRow && (
+                  <TableRow className="hover:bg-transparent border-0">
+                    <TableCell colSpan={columns.length + 1} className="p-0">
+                      <div className="grid animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                        <div className="bg-muted/20 px-4 pb-2">
+                          {renderExpandedRow(row)}
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            );
+          })
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  // Shared pagination content
+  const paginationContent = pagination && (
+    <DataTablePagination
+      currentPage={
+        pagination.clientSide ? internalPagination.pageIndex + 1 : currentPage
+      }
+      total={pagination.total ?? data.length}
+      pageSize={pagination.pageSize}
+      totalPages={pagination.totalPages}
+      hasNextPage={pagination.hasNextPage}
+      hasPreviousPage={pagination.hasPreviousPage}
+      onPageChange={(page) => {
+        if (pagination.clientSide) {
+          setInternalPagination((prev) => ({
+            ...prev,
+            pageIndex: page - 1,
+          }));
+        }
+        pagination.onPageChange?.(page);
+      }}
+      isLoading={pagination.isLoading}
+      showPageSizeSelector={pagination.showPageSizeSelector}
+      pageSizeOptions={pagination.pageSizeOptions}
+      onPageSizeChange={(size) => {
+        if (pagination.clientSide) {
+          setInternalPagination((prev) => ({
+            ...prev,
+            pageSize: size,
+            pageIndex: 0,
+          }));
+        }
+        pagination.onPageSizeChange?.(size);
+      }}
+      className={pagination.className}
+    />
+  );
+
+  // Non-sticky layout: simple stacked layout with gaps
+  if (!stickyLayout) {
+    return (
+      <div className={cn('space-y-4', className)}>
+        {headerContent}
+        {tableContent}
+        {paginationContent}
+        {footer}
       </div>
+    );
+  }
 
-      {pagination && (
-        <div className={cn(stickyLayout && 'sticky bottom-0 z-10 bg-background py-6')}>
-          <DataTablePagination
-            currentPage={
-              pagination.clientSide
-                ? internalPagination.pageIndex + 1
-                : currentPage
-            }
-            total={pagination.total ?? data.length}
-            pageSize={pagination.pageSize}
-            totalPages={pagination.totalPages}
-            hasNextPage={pagination.hasNextPage}
-            hasPreviousPage={pagination.hasPreviousPage}
-            onPageChange={(page) => {
-              if (pagination.clientSide) {
-                setInternalPagination((prev) => ({
-                  ...prev,
-                  pageIndex: page - 1,
-                }));
-              }
-              pagination.onPageChange?.(page);
-            }}
-            isLoading={pagination.isLoading}
-            showPageSizeSelector={pagination.showPageSizeSelector}
-            pageSizeOptions={pagination.pageSizeOptions}
-            onPageSizeChange={(size) => {
-              if (pagination.clientSide) {
-                setInternalPagination((prev) => ({
-                  ...prev,
-                  pageSize: size,
-                  pageIndex: 0,
-                }));
-              }
-              pagination.onPageSizeChange?.(size);
-            }}
-            className={pagination.className}
-          />
-        </div>
+  // Sticky layout: flex layout with fixed header/footer and scrollable table
+  return (
+    <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+      {headerContent && (
+        <div className="flex-shrink-0 pb-4">{headerContent}</div>
       )}
-
+      <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+        {tableContent}
+      </div>
+      {paginationContent && (
+        <div className="flex-shrink-0 pt-6">{paginationContent}</div>
+      )}
       {footer}
     </div>
   );

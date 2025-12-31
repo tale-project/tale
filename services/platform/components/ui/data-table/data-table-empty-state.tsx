@@ -98,12 +98,10 @@ export function DataTableFilteredEmptyState({
           stickyLayout ? 'flex flex-col flex-1 min-h-0' : 'space-y-4',
         )}
       >
-        <div className={cn(stickyLayout && 'sticky top-0 z-10 bg-background pb-4')}>
+        <div className={cn(stickyLayout && 'flex-shrink-0 pb-4')}>
           {headerContent}
         </div>
-        <div className={cn(stickyLayout && 'flex-1 min-h-0 overflow-auto')}>
-          {content}
-        </div>
+        <div className={cn(stickyLayout && 'flex-1 min-h-0')}>{content}</div>
       </div>
     );
   }

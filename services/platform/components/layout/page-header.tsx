@@ -25,7 +25,7 @@ export function PageHeader({
     <HStack
       gap={0}
       className={cn(
-        'px-4 py-2 sticky top-0 z-50 bg-background/50 backdrop-blur-md min-h-12',
+        'px-4 py-2 sticky top-0 z-50 bg-background/50 backdrop-blur-md min-h-12 flex-shrink-0',
         showBorder && 'border-b border-border',
         className,
       )}

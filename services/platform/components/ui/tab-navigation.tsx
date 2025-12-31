@@ -134,7 +134,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'bg-background sticky z-10 border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none',
+        'bg-background sticky z-10 border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
         className,
       )}
       aria-label={ariaLabel}
