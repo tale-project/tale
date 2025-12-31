@@ -58,7 +58,7 @@ export interface UseFormDialogStateOptions {
  * };
  *
  * return (
- *   <FormModal
+ *   <FormDialog
  *     open={dialog.isOpen}
  *     onOpenChange={dialog.setOpen}
  *     isSubmitting={dialog.isSubmitting}
@@ -66,7 +66,7 @@ export interface UseFormDialogStateOptions {
  *   >
  *     {dialog.error && <ErrorAlert>{dialog.error}</ErrorAlert>}
  *     <FormFields />
- *   </FormModal>
+ *   </FormDialog>
  * );
  * ```
  */

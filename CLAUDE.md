@@ -3,7 +3,7 @@
 - ALWAYS optimize your code for MAX performance.
 - ALWAYS ensure that you follow the existing design.
 - ALL pages should be optimized for accessibility (Level AA).
-- ALWAYS write filenames in dash-case (generally) and snake_case (for Convex).
+- ALWAYS write filenames in dash-case (generally) and snake_case (for Convex and Python).
 
 ## TypeScript
 

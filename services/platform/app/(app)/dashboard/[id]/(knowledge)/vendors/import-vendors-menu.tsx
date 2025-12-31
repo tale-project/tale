@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/navigation-menu';
 import { Button } from '@/components/ui/button';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
-import ImportVendorsDialog from './import-vendors-dialog';
+import ImportVendorsDialog from './vendors-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportVendorsMenuProps {

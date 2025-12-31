@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { HStack } from '@/components/ui/layout';
 import {
   Tooltip,
@@ -104,7 +104,7 @@ export default function ChatActions({
       </TooltipProvider>
 
       {/* Delete Confirmation Dialog */}
-      <DeleteModal
+      <DeleteDialog
         open={isDeleteDialogOpen}
         onOpenChange={setIsDeleteDialogOpen}
         title={tChat('deleteChat')}

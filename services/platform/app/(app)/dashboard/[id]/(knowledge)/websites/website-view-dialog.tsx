@@ -1,6 +1,6 @@
 'use client';
 
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Stack, HStack, Grid } from '@/components/ui/layout';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
@@ -31,7 +31,7 @@ export default function ViewWebsiteDialog({
   };
 
   return (
-    <ViewModal
+    <ViewDialog
       open={isOpen}
       onOpenChange={onClose}
       title={t('viewDialog.title')}
@@ -104,7 +104,7 @@ export default function ViewWebsiteDialog({
           </div>
         </Grid>
       </Stack>
-    </ViewModal>
+    </ViewDialog>
   );
 }
 

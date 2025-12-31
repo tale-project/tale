@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { memo, useCallback } from 'react';
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
 /**
@@ -112,7 +112,7 @@ function DeleteEntityDialogInner<TEntity>({
   }, [translations.description, translations.warningText, entityName]);
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={translations.title}
@@ -196,7 +196,7 @@ export const SimpleDeleteDialog = memo(function SimpleDeleteDialog({
   }, [translations.description, translations.warningText, itemName]);
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={translations.title}

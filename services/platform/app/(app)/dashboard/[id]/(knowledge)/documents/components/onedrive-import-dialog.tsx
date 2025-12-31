@@ -1,20 +1,13 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
-import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
 import { Search, Home, Loader2, Database, X } from 'lucide-react';
 import type { DriveItem } from '@/types/microsoft-graph';
@@ -33,7 +26,9 @@ import DocumentIcon from '@/components/ui/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n';
 
-interface OneDriveImportDialogProps extends DialogProps {
+interface OneDriveImportDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess?: () => void;
 }
@@ -688,7 +683,7 @@ export default function OneDriveImportDialog({
         directlySelectedIds,
       );
 
-      // Show sync status modal
+      // Show sync status dialog
       syncStatus.showSync(allFiles);
 
       // Show toast notification as backup
@@ -744,202 +739,212 @@ export default function OneDriveImportDialog({
 
   if (stage === 'picker') {
     return (
-      <Dialog {...props}>
-        <DialogContent className="max-w-5xl p-0">
-          {/* Header */}
+      <Dialog
+        open={props.open ?? false}
+        onOpenChange={props.onOpenChange ?? (() => {})}
+        title={t('onedrive.selectFiles')}
+        hideClose
+        className="max-w-5xl p-0"
+        customHeader={
           <HStack align="start" justify="between" className="border-b border-border px-6 py-6">
             <Stack gap={1}>
-              <DialogTitle className="font-semibold text-foreground">
+              <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
                 {t('onedrive.selectFiles')}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
+              </h2>
+              <p className="text-sm text-muted-foreground">
                 {t('onedrive.selectDescription')}
-              </DialogDescription>
+              </p>
             </Stack>
           </HStack>
-
-          {/* Content */}
-          <Stack gap={4} className="px-6 py-2">
-            {/* Breadcrumb Navigation */}
-            {folderPath.length > 1 && (
-              <HStack gap={2} className="text-sm text-muted-foreground">
-                {folderPath.map((folder, index) => (
-                  <HStack
-                    key={folder.id || 'root'}
-                    gap={2}
+        }
+      >
+        <Stack gap={4} className="px-6 py-2">
+          {/* Breadcrumb Navigation */}
+          {folderPath.length > 1 && (
+            <HStack gap={2} className="text-sm text-muted-foreground">
+              {folderPath.map((folder, index) => (
+                <HStack
+                  key={folder.id || 'root'}
+                  gap={2}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleBreadcrumbClick(index)}
+                    className="hover:text-blue-600 hover:underline"
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleBreadcrumbClick(index)}
-                      className="hover:text-blue-600 hover:underline"
-                    >
-                      {index === 0 ? <Home className="size-4" /> : folder.name}
-                    </button>
-                    {index < folderPath.length - 1 && (
-                      <span className="text-muted-foreground">/</span>
-                    )}
-                  </HStack>
-                ))}
-              </HStack>
-            )}
-
-            {/* Search Input and Import Button */}
-            <HStack gap={3}>
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  placeholder={t('searchFilesAndFolders')}
-                  size="sm"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Button
-                size="sm"
-                onClick={proceedToSettings}
-                disabled={selectedItems.size === 0}
-                className="px-6 whitespace-nowrap"
-              >
-                {t('onedrive.importCount', { count: selectedItems.size })}
-              </Button>
+                    {index === 0 ? <Home className="size-4" /> : folder.name}
+                  </button>
+                  {index < folderPath.length - 1 && (
+                    <span className="text-muted-foreground">/</span>
+                  )}
+                </HStack>
+              ))}
             </HStack>
+          )}
 
-            {/* Items List */}
-            <div className="h-[500px] overflow-y-auto">
-              <OneDriveFileTable
-                items={filteredItems}
-                isLoading={loading}
-                isMicrosoftAccountError={isMicrosoftAccountError}
-                searchQuery={searchQuery}
-                selectedItems={selectedItems}
-                getSelectAllState={getSelectAllState}
-                handleSelectAllChange={handleSelectAllChange}
-                getCheckedState={getCheckedState}
-                handleCheckChange={handleCheckChange}
-                handleFolderClick={handleFolderClick}
-                buildItemPath={buildItemPath}
+          {/* Search Input and Import Button */}
+          <HStack gap={3}>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder={t('searchFilesAndFolders')}
+                size="sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
               />
             </div>
-          </Stack>
-        </DialogContent>
+            <Button
+              size="sm"
+              onClick={proceedToSettings}
+              disabled={selectedItems.size === 0}
+              className="px-6 whitespace-nowrap"
+            >
+              {t('onedrive.importCount', { count: selectedItems.size })}
+            </Button>
+          </HStack>
+
+          {/* Items List */}
+          <div className="h-[500px] overflow-y-auto">
+            <OneDriveFileTable
+              items={filteredItems}
+              isLoading={loading}
+              isMicrosoftAccountError={isMicrosoftAccountError}
+              searchQuery={searchQuery}
+              selectedItems={selectedItems}
+              getSelectAllState={getSelectAllState}
+              handleSelectAllChange={handleSelectAllChange}
+              getCheckedState={getCheckedState}
+              handleCheckChange={handleCheckChange}
+              handleFolderClick={handleFolderClick}
+              buildItemPath={buildItemPath}
+            />
+          </div>
+        </Stack>
       </Dialog>
     );
   }
 
   if (stage === 'settings') {
+    const settingsFooter = (
+      <HStack gap={4} className="justify-stretch w-full">
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (isSyncing && syncAbortController) {
+              syncAbortController.abort();
+              setSyncAbortController(null);
+              setIsSyncing(false);
+              toast({
+                title: importType === 'one-time' ? t('onedrive.importCancelled') : t('onedrive.syncCancelled'),
+                description: importType === 'one-time' ? t('onedrive.importCancelledDescription') : t('onedrive.syncCancelledDescription'),
+                variant: 'default',
+              });
+            } else {
+              setStage('picker');
+            }
+          }}
+          className="flex-1"
+          disabled={false}
+        >
+          {isSyncing ? (
+            <>
+              <X className="size-4 mr-2" />
+              {tCommon('actions.cancel')}
+            </>
+          ) : (
+            tCommon('actions.back')
+          )}
+        </Button>
+        <Button
+          onClick={handleImport}
+          className="flex-1"
+          disabled={isSyncing}
+        >
+          {isSyncing ? (
+            <>
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              {importType === 'one-time' ? t('onedrive.importing') : t('onedrive.syncing')}
+            </>
+          ) : (
+            <>
+              <Database className="size-4 mr-2" />
+              {t('onedrive.importItem', { type: importType, count: selectedItems.size })}
+            </>
+          )}
+        </Button>
+      </HStack>
+    );
+
     return (
-      <Dialog {...props}>
-        <DialogContent className="sm:max-w-md p-0">
-          {/* Header */}
+      <Dialog
+        open={props.open ?? false}
+        onOpenChange={props.onOpenChange ?? (() => {})}
+        title={t('onedrive.importSettings')}
+        description={t('onedrive.settingsDescription', { count: selectedItems.size })}
+        size="md"
+        hideClose
+        className="p-0"
+        customHeader={
           <div className="border-b border-border flex items-start justify-between px-6 py-5">
-            <DialogHeader className="space-y-1">
-              <DialogTitle className="font-semibold text-foreground">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
                 {t('onedrive.importSettings')}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
+              </h2>
+              <p className="text-sm text-muted-foreground">
                 {t('onedrive.settingsDescription', { count: selectedItems.size })}
-              </DialogDescription>
-            </DialogHeader>
+              </p>
+            </div>
           </div>
-
-          {/* Content */}
-          <div className="px-6 py-2">
-            <RadioGroup
-              value={importType}
-              onValueChange={(value: string) =>
-                setImportType(value as ImportType)
-              }
-              className="space-y-2"
-            >
-              {/* One-time Import Option */}
-              <div className="border border-border rounded-lg p-3 hover:bg-muted">
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="one-time" id="one-time" />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="one-time"
-                      className="font-medium text-base cursor-pointer"
-                    >
-                      {t('onedrive.oneTimeImport')}
-                    </label>
-                    <div className="text-sm text-muted-foreground">
-                      {t('onedrive.oneTimeDescription')}
-                    </div>
+        }
+        footer={settingsFooter}
+        footerClassName="border-t border-border p-4"
+      >
+        <div className="px-6 py-2">
+          <RadioGroup
+            value={importType}
+            onValueChange={(value: string) =>
+              setImportType(value as ImportType)
+            }
+            className="space-y-2"
+          >
+            {/* One-time Import Option */}
+            <div className="border border-border rounded-lg p-3 hover:bg-muted">
+              <div className="flex items-center gap-3">
+                <RadioGroupItem value="one-time" id="one-time" />
+                <div className="flex-1">
+                  <label
+                    htmlFor="one-time"
+                    className="font-medium text-base cursor-pointer"
+                  >
+                    {t('onedrive.oneTimeImport')}
+                  </label>
+                  <div className="text-sm text-muted-foreground">
+                    {t('onedrive.oneTimeDescription')}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Sync Import Option */}
-              <div className="border border-border rounded-lg p-3 hover:bg-muted">
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="sync" id="sync" />
-                  <div className="flex-1">
-                    <label
-                      htmlFor="sync"
-                      className="font-medium text-base cursor-pointer"
-                    >
-                      {t('onedrive.syncImport')}
-                    </label>
-                    <div className="text-sm text-muted-foreground">
-                      {t('onedrive.syncDescription')}
-                    </div>
+            {/* Sync Import Option */}
+            <div className="border border-border rounded-lg p-3 hover:bg-muted">
+              <div className="flex items-center gap-3">
+                <RadioGroupItem value="sync" id="sync" />
+                <div className="flex-1">
+                  <label
+                    htmlFor="sync"
+                    className="font-medium text-base cursor-pointer"
+                  >
+                    {t('onedrive.syncImport')}
+                  </label>
+                  <div className="text-sm text-muted-foreground">
+                    {t('onedrive.syncDescription')}
                   </div>
                 </div>
               </div>
-            </RadioGroup>
-          </div>
-
-          {/* Footer */}
-          <HStack gap={4} className="border-t border-border p-4 justify-stretch">
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (isSyncing && syncAbortController) {
-                  // Cancel the ongoing import/sync
-                  syncAbortController.abort();
-                  setSyncAbortController(null);
-                  setIsSyncing(false);
-                  toast({
-                    title: importType === 'one-time' ? t('onedrive.importCancelled') : t('onedrive.syncCancelled'),
-                    description: importType === 'one-time' ? t('onedrive.importCancelledDescription') : t('onedrive.syncCancelledDescription'),
-                    variant: 'default',
-                  });
-                } else {
-                  setStage('picker');
-                }
-              }}
-              className="flex-1"
-              disabled={false}
-            >
-              {isSyncing ? (
-                <>
-                  <X className="size-4 mr-2" />
-                  {tCommon('actions.cancel')}
-                </>
-              ) : (
-                tCommon('actions.back')
-              )}
-            </Button>
-            <Button
-              onClick={handleImport}
-              className="flex-1"
-              disabled={isSyncing}
-            >
-              {isSyncing ? (
-                <>
-                  <Loader2 className="size-4 mr-2 animate-spin" />
-                  {importType === 'one-time' ? t('onedrive.importing') : t('onedrive.syncing')}
-                </>
-              ) : (
-                <>
-                  <Database className="size-4 mr-2" />
-                  {t('onedrive.importItem', { type: importType, count: selectedItems.size })}
-                </>
-              )}
-            </Button>
-          </HStack>
-        </DialogContent>
+            </div>
+          </RadioGroup>
+        </div>
       </Dialog>
     );
   }

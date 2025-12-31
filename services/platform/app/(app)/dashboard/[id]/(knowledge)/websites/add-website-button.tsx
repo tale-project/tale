@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AddWebsiteDialog from './add-website-dialog';
+import AddWebsiteDialog from './website-add-dialog';
 import { useT } from '@/lib/i18n';
 
 interface AddWebsiteButtonProps {

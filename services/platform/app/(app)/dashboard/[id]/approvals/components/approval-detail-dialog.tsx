@@ -3,13 +3,7 @@
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sparkles } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Stack, HStack } from '@/components/ui/layout';
 import ProductCard from './product-card';
@@ -33,7 +27,7 @@ const RecommendationIcon = () => (
   <Sparkles className="size-4 text-muted-foreground" />
 );
 
-interface ApprovalDetailModalProps {
+interface ApprovalDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   approvalDetail: ApprovalDetail | null;
@@ -45,7 +39,7 @@ interface ApprovalDetailModalProps {
   removingProductId?: string | null;
 }
 
-export default function ApprovalDetailModal({
+export default function ApprovalDetailDialog({
   open,
   onOpenChange,
   approvalDetail,
@@ -55,7 +49,7 @@ export default function ApprovalDetailModal({
   isRejecting,
   onRemoveRecommendation,
   removingProductId,
-}: ApprovalDetailModalProps) {
+}: ApprovalDetailDialogProps) {
   const { t } = useT('approvals');
   const locale = useLocale();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
@@ -98,21 +92,49 @@ export default function ApprovalDetailModal({
 
   const visibleProducts = sortedProducts.slice(0, 3);
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[376px] max-h-[90vh] overflow-hidden p-0 gap-0">
-        <DialogHeader className="px-4 py-6 border-b border-border">
-          <DialogTitle className="font-semibold text-foreground">
-            {t('detail.title')}
-          </DialogTitle>
-        </DialogHeader>
+  const footer = approvalDetail.status === 'pending' ? (
+    <div className="flex gap-3 w-full">
+      <Button
+        onClick={() => onReject?.(approvalDetail._id)}
+        disabled={isApproving || isRejecting}
+        variant="outline"
+        className="flex-1"
+      >
+        {t('detail.reject')}
+      </Button>
+      <Button
+        onClick={() => onApprove?.(approvalDetail._id)}
+        disabled={isApproving || isRejecting}
+        className="flex-1"
+      >
+        {t('detail.approve')}
+      </Button>
+    </div>
+  ) : undefined;
 
+  return (
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={t('detail.title')}
+        className="w-full max-w-[376px] max-h-[90vh] overflow-hidden p-0 gap-0"
+        footer={footer}
+        footerClassName="p-4 border-t border-border bg-background"
+        customHeader={
+          <div className="px-4 py-6 border-b border-border">
+            <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
+              {t('detail.title')}
+            </h2>
+          </div>
+        }
+      >
         {/* Content */}
         <Stack
           gap={10}
           className={cn(
             'p-4 max-h-[calc(90vh-88px)] overflow-y-auto',
-            approvalDetail.status === 'pending' && 'pb-20',
+            approvalDetail.status === 'pending' && 'pb-4',
           )}
         >
           {/* Customer Info */}
@@ -220,28 +242,7 @@ export default function ApprovalDetailModal({
             </Stack>
           )}
         </Stack>
-
-        {/* Action Buttons - Only show for pending approvals */}
-        {approvalDetail.status === 'pending' && (
-          <DialogFooter className="p-4 border-t border-border bg-background flex gap-3">
-            <Button
-              onClick={() => onReject?.(approvalDetail._id)}
-              disabled={isApproving || isRejecting}
-              variant="outline"
-              className="flex-1"
-            >
-              {t('detail.reject')}
-            </Button>
-            <Button
-              onClick={() => onApprove?.(approvalDetail._id)}
-              disabled={isApproving || isRejecting}
-              className="flex-1"
-            >
-              {t('detail.approve')}
-            </Button>
-          </DialogFooter>
-        )}
-      </DialogContent>
+      </Dialog>
 
       {/* Nested dialog for Customer Information */}
       {customerRecord && (
@@ -251,6 +252,6 @@ export default function ApprovalDetailModal({
           onOpenChange={setCustomerInfoOpen}
         />
       )}
-    </Dialog>
+    </>
   );
 }

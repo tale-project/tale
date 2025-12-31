@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Stack } from '@/components/ui/layout';
 import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
 import { Mail, ChevronRight } from 'lucide-react';
@@ -60,7 +60,7 @@ export default function EmailProviderTypeSelector({
 
   return (
     <>
-      <ViewModal
+      <ViewDialog
         open={open}
         onOpenChange={onOpenChange}
         title={t('integrations.chooseEmailProvider')}
@@ -100,7 +100,7 @@ export default function EmailProviderTypeSelector({
             );
           })}
         </Stack>
-      </ViewModal>
+      </ViewDialog>
 
       {/* Gmail Create Dialog */}
       <GmailCreateProviderDialog

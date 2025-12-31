@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { DeleteModal, FormModal } from '@/components/ui/modals';
+import { DeleteDialog, FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { JsonInput } from '@/components/ui/json-input';
@@ -252,7 +252,7 @@ export function AutomationTemplatesTab({
             <CardDescription>{t('templates.createNewTemplate')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <FormModal
+            <FormDialog
               open={createOpen}
               onOpenChange={setCreateOpen}
               title={t('createDialog.title')}
@@ -290,7 +290,7 @@ export function AutomationTemplatesTab({
                 }
                 placeholder={t('configuration.descriptionPlaceholder')}
               />
-            </FormModal>
+            </FormDialog>
           </CardContent>
         </Card>
 
@@ -474,7 +474,7 @@ export function AutomationTemplatesTab({
         </Card>
       </Grid>
       {/* Delete confirmation dialog */}
-      <DeleteModal
+      <DeleteDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={t('templates.deleteTitle')}

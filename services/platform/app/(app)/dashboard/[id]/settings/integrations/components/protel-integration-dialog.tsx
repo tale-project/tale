@@ -4,19 +4,13 @@ import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from '@/components/ui/dialog';
+import { FormDialog } from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { HStack } from '@/components/ui/layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { DialogProps } from '@radix-ui/react-dialog';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
 type ProtelFormValues = {
   server: string;
@@ -26,7 +20,9 @@ type ProtelFormValues = {
   password: string;
 };
 
-interface ProtelIntegrationDialogProps extends DialogProps {
+interface ProtelIntegrationDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   credentials?: {
     server?: string;
     port?: number;
@@ -38,11 +34,14 @@ interface ProtelIntegrationDialogProps extends DialogProps {
 }
 
 export default function ProtelIntegrationDialog({
+  open,
+  onOpenChange,
   credentials,
   onConnect,
   onDisconnect,
-  ...props
 }: ProtelIntegrationDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const isConnected = !!credentials?.server;
 
   const protelSchema = useMemo(
@@ -77,22 +76,25 @@ export default function ProtelIntegrationDialog({
     try {
       await onConnect(values);
       toast({
-        title: isConnected ? 'Update successful' : 'Connection successful',
+        title: isConnected
+          ? t('integrations.protel.updateSuccess')
+          : t('integrations.protel.connectionSuccess'),
         description: isConnected
-          ? 'Protel PMS integration has been updated successfully.'
-          : 'Protel PMS integration has been connected successfully.',
+          ? t('integrations.protel.updateSuccessDescription')
+          : t('integrations.protel.connectionSuccessDescription'),
         variant: 'success',
       });
       if (!isConnected) {
         reset();
       }
-      props.onOpenChange?.(false);
+      onOpenChange?.(false);
     } catch (error) {
       console.error('Failed to connect to Protel:', error);
       toast({
-        title: isConnected ? 'Update failed' : 'Connection failed',
-        description:
-          'Failed to connect to Protel PMS. Please check your credentials.',
+        title: isConnected
+          ? t('integrations.protel.updateFailed')
+          : t('integrations.protel.connectionFailed'),
+        description: t('integrations.protel.connectionFailedDescription'),
         variant: 'destructive',
       });
     }
@@ -103,139 +105,117 @@ export default function ProtelIntegrationDialog({
     try {
       await onDisconnect();
       reset();
-      props.onOpenChange?.(false);
+      onOpenChange?.(false);
       toast({
-        title: 'Disconnected',
-        description: 'Protel PMS integration has been disconnected.',
+        title: t('integrations.protel.disconnected'),
+        description: t('integrations.protel.disconnectedDescription'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Failed to disconnect Protel:', error);
       toast({
-        title: 'Disconnect failed',
-        description: 'Failed to disconnect Protel PMS, please try again.',
+        title: t('integrations.protel.disconnectFailed'),
+        description: t('integrations.protel.disconnectFailedDescription'),
         variant: 'destructive',
       });
     }
   };
 
+  const customFooter = isConnected && onDisconnect ? (
+    <>
+      <Button
+        variant="destructive"
+        onClick={handleDisconnect}
+        disabled={isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting ? t('integrations.protel.disconnecting') : t('integrations.protel.disconnect')}
+      </Button>
+      <Button
+        type="submit"
+        disabled={isSubmitting}
+        className="flex-1"
+      >
+        {isSubmitting ? t('integrations.protel.updating') : t('integrations.protel.update')}
+      </Button>
+    </>
+  ) : undefined;
+
   return (
-    <Dialog {...props}>
-      <DialogContent className="p-0 max-w-lg">
-        <div className="border-b border-border px-4 py-6">
-          <DialogHeader className="space-y-1">
-            <DialogTitle>Protel PMS Integration</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              Connect to your Protel hotel management system via SQL Server.
-            </p>
-          </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('integrations.protel.title')}
+      description={t('integrations.protel.description')}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit(handleConnect)}
+      submitText={t('integrations.protel.connect')}
+      submittingText={t('integrations.protel.connecting')}
+      customFooter={customFooter}
+      className="max-w-lg"
+    >
+      {isConnected ? (
+        <div className="rounded-md bg-success/10 p-4">
+          <p className="text-sm font-medium text-success">
+            {t('integrations.protel.connectedTo', { server: credentials?.server })}
+          </p>
+          <p className="text-xs text-success/80 mt-1">
+            {t('integrations.protel.database')}: {credentials?.database}
+          </p>
         </div>
+      ) : (
+        <>
+          <HStack gap={3}>
+            <Input
+              id="server"
+              label={t('integrations.protel.serverAddress')}
+              placeholder={t('integrations.protel.serverPlaceholder')}
+              disabled={isSubmitting}
+              errorMessage={errors.server?.message}
+              className="flex-[2]"
+              {...register('server')}
+            />
+            <Input
+              id="port"
+              type="number"
+              label={t('integrations.protel.port')}
+              placeholder="1433"
+              disabled={isSubmitting}
+              errorMessage={errors.port?.message}
+              className="flex-1"
+              {...register('port')}
+            />
+          </HStack>
 
-        <div className="p-4">
-          {isConnected ? (
-            <div className="space-y-4">
-              <div className="rounded-md bg-success/10 p-4">
-                <p className="text-sm font-medium text-success">
-                  Connected to {credentials?.server}
-                </p>
-                <p className="text-xs text-success/80 mt-1">
-                  Database: {credentials?.database}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <Form onSubmit={handleSubmit(handleConnect)}>
-              <HStack gap={3}>
-                <Input
-                  id="server"
-                  label="Server Address"
-                  placeholder="192.168.1.100 or hostname"
-                  disabled={isSubmitting}
-                  errorMessage={errors.server?.message}
-                  className="flex-[2]"
-                  {...register('server')}
-                />
-                <Input
-                  id="port"
-                  type="number"
-                  label="Port"
-                  placeholder="1433"
-                  disabled={isSubmitting}
-                  errorMessage={errors.port?.message}
-                  className="flex-1"
-                  {...register('port')}
-                />
-              </HStack>
+          <Input
+            id="database"
+            label={t('integrations.protel.databaseName')}
+            placeholder="Protel"
+            disabled={isSubmitting}
+            errorMessage={errors.database?.message}
+            {...register('database')}
+          />
 
-              <Input
-                id="database"
-                label="Database Name"
-                placeholder="Protel"
-                disabled={isSubmitting}
-                errorMessage={errors.database?.message}
-                {...register('database')}
-              />
+          <Input
+            id="username"
+            label={t('integrations.protel.username')}
+            placeholder={t('integrations.protel.usernamePlaceholder')}
+            disabled={isSubmitting}
+            errorMessage={errors.username?.message}
+            {...register('username')}
+          />
 
-              <Input
-                id="username"
-                label="Username"
-                placeholder="SQL Server username"
-                disabled={isSubmitting}
-                errorMessage={errors.username?.message}
-                {...register('username')}
-              />
-
-              <Input
-                id="password"
-                type="password"
-                label="Password"
-                placeholder="SQL Server password"
-                disabled={isSubmitting}
-                errorMessage={errors.password?.message}
-                {...register('password')}
-              />
-            </Form>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-border flex items-center justify-stretch p-4 gap-4">
-          {isConnected && onDisconnect ? (
-            <>
-              <Button
-                variant="destructive"
-                onClick={handleDisconnect}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                {isSubmitting ? 'Disconnecting...' : 'Disconnect'}
-              </Button>
-              <Button
-                onClick={handleSubmit(handleConnect)}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                {isSubmitting ? 'Updating...' : 'Update'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <DialogClose asChild>
-                <Button variant="outline" className="flex-1">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button
-                onClick={handleSubmit(handleConnect)}
-                className="flex-1"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Connecting...' : 'Connect'}
-              </Button>
-            </>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+          <Input
+            id="password"
+            type="password"
+            label={t('integrations.protel.password')}
+            placeholder={t('integrations.protel.passwordPlaceholder')}
+            disabled={isSubmitting}
+            errorMessage={errors.password?.message}
+            {...register('password')}
+          />
+        </>
+      )}
+    </FormDialog>
   );
 }

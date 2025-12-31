@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { useCreateWebsite } from './hooks';
@@ -100,7 +100,7 @@ export default function AddWebsiteDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={tWebsites('addWebsite')}
@@ -128,6 +128,6 @@ export default function AddWebsiteDialog({
         placeholder={tWebsites('scanIntervalPlaceholder')}
         options={SCAN_INTERVALS}
       />
-    </FormModal>
+    </FormDialog>
   );
 }

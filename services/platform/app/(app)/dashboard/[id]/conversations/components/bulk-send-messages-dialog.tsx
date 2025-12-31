@@ -1,6 +1,6 @@
 'use client';
 
-import { ConfirmModal } from '@/components/ui/modals';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n';
 
 interface BulkSendMessagesDialogProps {
@@ -21,7 +21,7 @@ export function BulkSendMessagesDialog({
   const { t } = useT('conversations');
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('bulkSend.title', { count: selectedCount })}

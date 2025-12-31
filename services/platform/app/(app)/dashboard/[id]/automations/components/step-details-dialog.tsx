@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FormModal } from '@/components/ui/modals';
-import DeleteStepDialog from './delete-step-dialog';
+import { FormDialog } from '@/components/ui/dialog';
+import DeleteStepDialog from './step-delete-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { JsonInput } from '@/components/ui/json-input';
@@ -324,7 +324,7 @@ export default function StepDetailsDialog({
 
   return (
     <>
-      <FormModal
+      <FormDialog
         open={open}
         onOpenChange={handleClose}
         title={step.name}
@@ -359,7 +359,7 @@ export default function StepDetailsDialog({
           rows={4}
           disabled={isLoading}
         />
-      </FormModal>
+      </FormDialog>
 
       <DeleteStepDialog
         open={showDeleteConfirm}

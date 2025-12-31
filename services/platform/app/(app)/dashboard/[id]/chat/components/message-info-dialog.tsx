@@ -1,6 +1,6 @@
 'use client';
 
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Stack, Grid } from '@/components/ui/layout';
 import { Field, FieldGroup } from '@/components/ui/field';
 import { formatDate } from '@/lib/utils/date/format';
@@ -18,7 +18,7 @@ interface MessageMetadata {
   reasoning?: string;
 }
 
-interface MessageInfoModalProps {
+interface MessageInfoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   messageId: string;
@@ -26,18 +26,18 @@ interface MessageInfoModalProps {
   metadata?: MessageMetadata;
 }
 
-export default function MessageInfoModal({
+export default function MessageInfoDialog({
   isOpen,
   onOpenChange,
   messageId,
   timestamp,
   metadata,
-}: MessageInfoModalProps) {
+}: MessageInfoDialogProps) {
   const locale = useLocale();
   const { t } = useT('chat');
 
   return (
-    <ViewModal
+    <ViewDialog
       open={isOpen}
       onOpenChange={onOpenChange}
       title={t('messageInfo.title')}
@@ -136,6 +136,6 @@ export default function MessageInfoModal({
           </div>
         )}
       </FieldGroup>
-    </ViewModal>
+    </ViewDialog>
   );
 }
