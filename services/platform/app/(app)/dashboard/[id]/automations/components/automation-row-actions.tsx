@@ -1,15 +1,21 @@
 'use client';
 
 import { useMemo, useCallback, useState } from 'react';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
 import AutomationDeleteDialog from './automation-delete-dialog';
-import { useDuplicateAutomation, useDeleteAutomation } from '../hooks';
+import AutomationRenameDialog from './automation-rename-dialog';
+import {
+  useDuplicateAutomation,
+  useDeleteAutomation,
+  useUpdateAutomation,
+} from '../hooks';
 import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n';
 
 interface AutomationRowActionsProps {
@@ -22,11 +28,13 @@ export default function AutomationRowActions({
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
   const { t: tTables } = useT('tables');
-  const dialogs = useEntityRowDialogs(['delete']);
+  const { user } = useAuth();
+  const dialogs = useEntityRowDialogs(['delete', 'rename']);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const duplicateAutomation = useDuplicateAutomation();
   const deleteAutomation = useDeleteAutomation();
+  const updateAutomation = useUpdateAutomation();
 
   const handleDuplicate = useCallback(async () => {
     try {
@@ -45,6 +53,31 @@ export default function AutomationRowActions({
       });
     }
   }, [duplicateAutomation, automation._id, tToast, tTables]);
+
+  const handleRename = useCallback(
+    async (name: string) => {
+      if (!user) return;
+      try {
+        await updateAutomation({
+          wfDefinitionId: automation._id,
+          updates: { name },
+          updatedBy: user._id,
+        });
+        toast({
+          title: tToast('success.automationRenamed'),
+          variant: 'success',
+        });
+      } catch (error) {
+        console.error('Failed to rename automation:', error);
+        toast({
+          title: `${tToast('error.automationRenameFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [updateAutomation, automation._id, user, tToast, tTables],
+  );
 
   const handleDeleteConfirm = useCallback(async () => {
     setIsDeleting(true);
@@ -73,6 +106,12 @@ export default function AutomationRowActions({
         onClick: handleDuplicate,
       },
       {
+        key: 'rename',
+        label: tCommon('actions.rename'),
+        icon: Pencil,
+        onClick: dialogs.open.rename,
+      },
+      {
         key: 'delete',
         label: tCommon('actions.delete'),
         icon: Trash2,
@@ -80,12 +119,19 @@ export default function AutomationRowActions({
         destructive: true,
       },
     ],
-    [tCommon, handleDuplicate, dialogs.open]
+    [tCommon, handleDuplicate, dialogs.open],
   );
 
   return (
     <>
       <EntityRowActions actions={actions} />
+
+      <AutomationRenameDialog
+        open={dialogs.isOpen.rename}
+        onOpenChange={dialogs.setOpen.rename}
+        currentName={automation.name}
+        onRename={handleRename}
+      />
 
       <AutomationDeleteDialog
         open={dialogs.isOpen.delete}
