@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Stack } from '@/components/ui/layout';
 import { Select } from '@/components/ui/select';
@@ -203,7 +203,7 @@ export default function CreateStepDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={handleClose}
       title={t('createStep.title')}
@@ -260,7 +260,7 @@ export default function CreateStepDialog({
           description={t('createStep.nextStepsDescription')}
         />
       </Stack>
-    </FormModal>
+    </FormDialog>
   );
 }
 

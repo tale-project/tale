@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, Plus } from 'lucide-react';
-import ImportProductsDialog from './import-products-dialog';
+import ImportProductsDialog from './products-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportProductsMenuProps {

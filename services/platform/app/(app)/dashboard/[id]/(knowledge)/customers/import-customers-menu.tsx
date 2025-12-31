@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
-import ImportCustomersDialog from './import-customers-dialog';
+import ImportCustomersDialog from './customers-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportCustomersMenuProps {

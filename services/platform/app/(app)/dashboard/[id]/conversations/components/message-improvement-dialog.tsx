@@ -1,10 +1,10 @@
 'use client';
 
-import { ConfirmModal } from '@/components/ui/modals';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import ReactMarkdown from 'react-markdown';
 import { useT } from '@/lib/i18n';
 
-interface MessageImprovementModalProps {
+interface MessageImprovementDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onAccept: () => void;
@@ -12,17 +12,17 @@ interface MessageImprovementModalProps {
   improvedMessage: string;
 }
 
-export function MessageImprovementModal({
+export function MessageImprovementDialog({
   isOpen,
   onClose,
   onAccept,
   originalMessage,
   improvedMessage,
-}: MessageImprovementModalProps) {
+}: MessageImprovementDialogProps) {
   const { t } = useT('conversations');
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={isOpen}
       onOpenChange={onClose}
       title={t('improvement.title')}
@@ -51,6 +51,6 @@ export function MessageImprovementModal({
           </div>
         </div>
       </div>
-    </ConfirmModal>
+    </ConfirmDialog>
   );
 }

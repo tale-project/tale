@@ -1,6 +1,6 @@
 'use client';
 
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { CustomerInformation } from './customer-information';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -20,7 +20,7 @@ export function CustomerInfoDialog({
 }: CustomerInfoDialogProps) {
   const { t } = useT('dialogs');
   return (
-    <ViewModal
+    <ViewDialog
       open={open ?? true}
       onOpenChange={onOpenChange ?? (() => {})}
       title={t('customerInfo.title')}
@@ -29,6 +29,6 @@ export function CustomerInfoDialog({
       <div className="overflow-y-auto max-h-[calc(100vh-12rem)] space-y-8">
         <CustomerInformation customer={customer} />
       </div>
-    </ViewModal>
+    </ViewDialog>
   );
 }

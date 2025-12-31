@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Stack, HStack, Center } from '@/components/ui/layout';
@@ -172,7 +172,7 @@ export default function EmailIntegrationDialog({
 
   return (
     <>
-      <ViewModal
+      <ViewDialog
         open={open}
         onOpenChange={onOpenChange}
         title={t('integrations.emailIntegration')}
@@ -312,7 +312,7 @@ export default function EmailIntegrationDialog({
             </p>
           </div>
         )}
-      </ViewModal>
+      </ViewDialog>
 
       {/* Provider Type Selector */}
       <EmailProviderTypeSelector

@@ -1,6 +1,6 @@
 'use client';
 
-import { ConfirmModal } from '@/components/ui/modals';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n';
 
 interface PublishAutomationDialogProps {
@@ -24,7 +24,7 @@ export default function PublishAutomationDialog({
   };
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('publishDialog.title')}

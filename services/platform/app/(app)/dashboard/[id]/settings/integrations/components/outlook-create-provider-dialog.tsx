@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -271,7 +271,7 @@ export default function OutlookCreateProviderDialog({
   );
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.addProvider', { provider: 'Outlook' })}
@@ -418,6 +418,6 @@ export default function OutlookCreateProviderDialog({
               </Form>
             </TabsContent>
           </Tabs>
-    </FormModal>
+    </FormDialog>
   );
 }

@@ -8,7 +8,7 @@ import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import ApprovalDetailModal from './approval-detail-modal';
+import ApprovalDetailDialog from './approval-detail-dialog';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
@@ -60,7 +60,7 @@ export default function Approvals({
   const [removingProductId, setRemovingProductId] = useState<string | null>(
     null,
   );
-  const [approvalDetailModalOpen, setApprovalDetailModalOpen] = useState(false);
+  const [approvalDetailDialogOpen, setApprovalDetailDialogOpen] = useState(false);
 
   // Use preloaded data with real-time reactivity
   // This provides SSR benefits AND automatic updates when data changes
@@ -169,11 +169,11 @@ export default function Approvals({
 
   const handleApprovalRowClick = useCallback((approvalId: string) => {
     setSelectedApprovalId(approvalId);
-    setApprovalDetailModalOpen(true);
+    setApprovalDetailDialogOpen(true);
   }, []);
 
   const handleApprovalDetailOpenChange = useCallback((open: boolean) => {
-    setApprovalDetailModalOpen(open);
+    setApprovalDetailDialogOpen(open);
     if (!open) {
       setSelectedApprovalId(null);
     }
@@ -743,8 +743,8 @@ export default function Approvals({
           onRowClick={(row) => handleApprovalRowClick(row.original._id)}
           rowClassName="cursor-pointer"
         />
-        <ApprovalDetailModal
-          open={approvalDetailModalOpen}
+        <ApprovalDetailDialog
+          open={approvalDetailDialogOpen}
           onOpenChange={handleApprovalDetailOpenChange}
           approvalDetail={
             selectedApprovalId ? getApprovalDetail(selectedApprovalId) : null
@@ -770,8 +770,8 @@ export default function Approvals({
           onRowClick={(row) => handleApprovalRowClick(row.original._id)}
           rowClassName="cursor-pointer"
         />
-        <ApprovalDetailModal
-          open={approvalDetailModalOpen}
+        <ApprovalDetailDialog
+          open={approvalDetailDialogOpen}
           onOpenChange={handleApprovalDetailOpenChange}
           approvalDetail={
             selectedApprovalId ? getApprovalDetail(selectedApprovalId) : null
@@ -787,12 +787,12 @@ export default function Approvals({
     );
   }
 
-  // Default return with modal for other cases
+  // Default return with dialog for other cases
   return (
     <>
       <DataTableEmptyState icon={GitCompare} title={t('noApprovalsFound')} />
-      <ApprovalDetailModal
-        open={approvalDetailModalOpen}
+      <ApprovalDetailDialog
+        open={approvalDetailDialogOpen}
         onOpenChange={handleApprovalDetailOpenChange}
         approvalDetail={
           selectedApprovalId ? getApprovalDetail(selectedApprovalId) : null

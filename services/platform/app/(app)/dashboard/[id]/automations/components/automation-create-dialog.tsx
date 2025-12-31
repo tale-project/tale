@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
@@ -77,7 +77,7 @@ export default function CreateAutomationDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('createDialog.title')}
@@ -101,6 +101,6 @@ export default function CreateAutomationDialog({
         placeholder={t('createDialog.descriptionPlaceholder')}
         rows={3}
       />
-    </FormModal>
+    </FormDialog>
   );
 }

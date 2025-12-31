@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stack } from '@/components/ui/layout';
@@ -124,7 +124,7 @@ export default function EditMemberDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={handleOpenChange}
       title={t('organization.editMember')}
@@ -223,6 +223,6 @@ export default function EditMemberDialog({
           </Stack>
         )}
       </Stack>
-    </FormModal>
+    </FormDialog>
   );
 }

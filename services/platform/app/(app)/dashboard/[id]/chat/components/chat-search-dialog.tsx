@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils/cn';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -96,11 +96,16 @@ export default function ChatSearchDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 overflow-hidden gap-0" hideClose>
+    <Dialog
+      open={isOpen}
+      onOpenChange={onOpenChange}
+      title={t('searchChat.title')}
+      hideClose
+      className="p-0 overflow-hidden gap-0"
+      customHeader={
         <div className="py-3 px-4 border-b border-border relative flex items-center">
           <VisuallyHidden>
-            <DialogTitle>{t('searchChat.title')}</DialogTitle>
+            <h2>{t('searchChat.title')}</h2>
           </VisuallyHidden>
           <Input
             ref={inputRef}
@@ -119,43 +124,44 @@ export default function ChatSearchDialog({
             <X className="size-4" />
           </button>
         </div>
-        <div className="h-[13.75rem] overflow-y-auto p-3">
-          {chats.length === 0 ? (
-            <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
-              {t('searchChat.noResults')}
-            </div>
-          ) : (
-            <ul className="py-1">
-              {chats.map((chat, idx) => (
-                <li key={chat._id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      'w-full text-left flex items-start gap-3 p-3 hover:bg-muted transition-colors rounded-lg',
-                      idx === selectedIndex && 'bg-muted',
-                    )}
-                    onMouseEnter={() => setSelectedIndex(idx)}
-                    onClick={() => {
-                      router.push(
-                        `/dashboard/${organizationId}/chat/${chat._id}`,
-                      );
-                      close();
-                    }}
-                  >
-                    <div className="text-sm text-foreground truncate flex items-center gap-2 w-full">
-                      {chat.title}
-                      <div className="text-[0.625rem] text-muted-foreground truncate ml-auto">
-                        {chat.createdAt &&
-                          formatDateSmart(new Date(chat.createdAt) || '')}
-                      </div>
+      }
+    >
+      <div className="h-[13.75rem] overflow-y-auto p-3">
+        {chats.length === 0 ? (
+          <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
+            {t('searchChat.noResults')}
+          </div>
+        ) : (
+          <ul className="py-1">
+            {chats.map((chat, idx) => (
+              <li key={chat._id}>
+                <button
+                  type="button"
+                  className={cn(
+                    'w-full text-left flex items-start gap-3 p-3 hover:bg-muted transition-colors rounded-lg',
+                    idx === selectedIndex && 'bg-muted',
+                  )}
+                  onMouseEnter={() => setSelectedIndex(idx)}
+                  onClick={() => {
+                    router.push(
+                      `/dashboard/${organizationId}/chat/${chat._id}`,
+                    );
+                    close();
+                  }}
+                >
+                  <div className="text-sm text-foreground truncate flex items-center gap-2 w-full">
+                    {chat.title}
+                    <div className="text-[0.625rem] text-muted-foreground truncate ml-auto">
+                      {chat.createdAt &&
+                        formatDateSmart(new Date(chat.createdAt) || '')}
                     </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </DialogContent>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Dialog>
   );
 }

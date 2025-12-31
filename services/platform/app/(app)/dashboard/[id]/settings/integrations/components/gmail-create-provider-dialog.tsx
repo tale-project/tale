@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -270,7 +270,7 @@ export default function GmailCreateProviderDialog({
   );
 
   return (
-    <ViewModal
+    <ViewDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.addProvider', { provider: 'Gmail' })}
@@ -395,6 +395,6 @@ export default function GmailCreateProviderDialog({
           </Form>
         </TabsContent>
       </Tabs>
-    </ViewModal>
+    </ViewDialog>
   );
 }

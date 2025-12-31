@@ -1,10 +1,10 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { Stack } from '@/components/ui/layout';
 import { useT } from '@/lib/i18n';
 
-interface DeleteSyncFolderConfirmationModalProps {
+interface DocumentDeleteFolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirmDelete: () => void;
@@ -12,17 +12,17 @@ interface DeleteSyncFolderConfirmationModalProps {
   folderName?: string | null;
 }
 
-export default function DeleteSyncFolderConfirmationModal({
+export default function DocumentDeleteFolderDialog({
   open,
   onOpenChange,
   onConfirmDelete,
   isLoading = false,
   folderName,
-}: DeleteSyncFolderConfirmationModalProps) {
+}: DocumentDeleteFolderDialogProps) {
   const { t: tDocuments } = useT('documents');
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
       title={tDocuments('deleteSyncFolder.title')}
@@ -48,6 +48,6 @@ export default function DeleteSyncFolderConfirmationModal({
           </p>
         </Stack>
       </Stack>
-    </DeleteModal>
+    </DeleteDialog>
   );
 }

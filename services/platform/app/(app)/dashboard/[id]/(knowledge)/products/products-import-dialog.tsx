@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import ProductImportForm from './product-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -209,7 +209,7 @@ export default function ImportProductsDialog({
   );
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
       title={t('import.uploadProducts')}
@@ -224,6 +224,6 @@ export default function ImportProductsDialog({
           hideTabs={true}
         />
       </FormProvider>
-    </FormModal>
+    </FormDialog>
   );
 }

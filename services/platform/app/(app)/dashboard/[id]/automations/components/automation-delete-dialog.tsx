@@ -1,6 +1,6 @@
 'use client';
 
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n';
 
 interface DeleteAutomationDialogProps {
@@ -21,7 +21,7 @@ export default function DeleteAutomationDialog({
   const { t } = useT('automations');
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('deleteAutomation.title')}

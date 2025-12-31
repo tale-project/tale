@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import CustomerImportForm from '@/components/customer-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -201,7 +201,7 @@ export default function ImportCustomersDialog({
       : tCustomers('import.uploadCustomers');
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
       title={dialogTitle}
@@ -213,6 +213,6 @@ export default function ImportCustomersDialog({
       <FormProvider {...formMethods}>
         <CustomerImportForm organizationId={organizationId} mode={mode} />
       </FormProvider>
-    </FormModal>
+    </FormDialog>
   );
 }

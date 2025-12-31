@@ -1,47 +1,44 @@
 'use client';
 
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { DialogProps } from '@radix-ui/react-dialog';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { useT } from '@/lib/i18n';
 
-interface ProtelDisconnectConfirmationDialogProps extends DialogProps {
+interface ProtelDisconnectConfirmDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   server: string;
   database: string;
   onConfirm: () => Promise<void> | void;
 }
 
-export default function ProtelDisconnectConfirmationDialog({
+export default function ProtelDisconnectConfirmDialog({
+  open,
+  onOpenChange,
   server,
   database,
   onConfirm,
-  ...props
-}: ProtelDisconnectConfirmationDialogProps) {
+}: ProtelDisconnectConfirmDialogProps) {
+  const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleConfirm = async () => {
     setIsDisconnecting(true);
     try {
       await onConfirm();
-      props.onOpenChange?.(false);
+      onOpenChange?.(false);
       toast({
-        title: 'Disconnected',
-        description: 'Protel PMS integration has been disconnected.',
+        title: t('integrations.protel.disconnected'),
+        description: t('integrations.protel.disconnectedDescription'),
         variant: 'success',
       });
     } catch (error) {
       console.error('Failed to disconnect Protel:', error);
       toast({
-        title: 'Disconnect failed',
-        description: 'Failed to disconnect Protel PMS. Please try again.',
+        title: t('integrations.protel.disconnectFailed'),
+        description: t('integrations.protel.disconnectFailedDescription'),
         variant: 'destructive',
       });
     } finally {
@@ -50,34 +47,22 @@ export default function ProtelDisconnectConfirmationDialog({
   };
 
   return (
-    <Dialog {...props}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Disconnect Protel PMS?</DialogTitle>
-          <DialogDescription>
-            This will disconnect your Protel PMS integration for{' '}
-            <strong>{server}</strong> (database: <strong>{database}</strong>).
-            Your hotel data will no longer sync with this platform.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={() => props.onOpenChange?.(false)}
-            disabled={isDisconnecting}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleConfirm}
-            disabled={isDisconnecting}
-          >
-            {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('integrations.protel.disconnectTitle')}
+      description={
+        <>
+          {t('integrations.protel.disconnectConfirmation')}{' '}
+          <strong>{server}</strong> ({t('integrations.protel.database')}: <strong>{database}</strong>).
+          {' '}{t('integrations.protel.disconnectWarning')}
+        </>
+      }
+      confirmText={t('integrations.protel.disconnect')}
+      loadingText={t('integrations.protel.disconnecting')}
+      isLoading={isDisconnecting}
+      onConfirm={handleConfirm}
+      variant="destructive"
+    />
   );
 }
-

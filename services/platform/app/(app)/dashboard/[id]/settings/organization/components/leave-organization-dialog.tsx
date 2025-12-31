@@ -1,6 +1,6 @@
 'use client';
 
-import { ConfirmModal } from '@/components/ui/modals';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { Dispatch, SetStateAction } from 'react';
 import { useT } from '@/lib/i18n';
 
@@ -20,7 +20,7 @@ export default function LeaveOrganizationDialog({
   const { t } = useT('settings');
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('organization.leaveOrganization')}

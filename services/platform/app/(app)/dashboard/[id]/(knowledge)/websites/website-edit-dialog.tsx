@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -104,7 +104,7 @@ export default function EditWebsiteDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={tWebsites('editWebsite')}
@@ -131,6 +131,6 @@ export default function EditWebsiteDialog({
         placeholder={tWebsites('scanIntervalPlaceholder')}
         options={SCAN_INTERVALS}
       />
-    </FormModal>
+    </FormDialog>
   );
 }

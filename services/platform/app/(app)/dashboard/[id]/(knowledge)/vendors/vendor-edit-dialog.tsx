@@ -4,7 +4,7 @@ import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Doc, Id } from '@/convex/_generated/dataModel';
@@ -114,7 +114,7 @@ export default function VendorEditDialog({
   };
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleOpenChange}
       title={tVendors('editVendor')}
@@ -152,6 +152,6 @@ export default function VendorEditDialog({
         error={!!errors.locale}
         options={LOCALE_OPTIONS}
       />
-    </FormModal>
+    </FormDialog>
   );
 }

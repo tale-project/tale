@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Specialized URL-based modal state hook for data tables
+ * Specialized URL-based dialog state hook for data tables
  *
  * Features:
- * - Opens/closes modals based on URL params
+ * - Opens/closes dialogs based on URL params
  * - Preserves filter, pagination, and sorting params from useUrlFilters
  * - Non-blocking URL updates with useTransition
  * - Type-safe with generic item ID type
@@ -13,50 +13,50 @@
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useMemo, useTransition } from 'react';
 
-export interface UseUrlModalOptions {
+export interface UseUrlDialogOptions {
   /** URL param key for the item ID (default: 'item') */
   paramKey?: string;
 }
 
-export interface UseUrlModalReturn {
-  /** Currently selected item ID from URL (null if modal closed) */
+export interface UseUrlDialogReturn {
+  /** Currently selected item ID from URL (null if dialog closed) */
   itemId: string | null;
-  /** Whether modal is open */
+  /** Whether dialog is open */
   isOpen: boolean;
-  /** Open modal for a specific item */
-  openModal: (id: string) => void;
-  /** Close modal */
-  closeModal: () => void;
+  /** Open dialog for a specific item */
+  openDialog: (id: string) => void;
+  /** Close dialog */
+  closeDialog: () => void;
   /** Whether URL update is pending */
   isPending: boolean;
 }
 
 /**
- * Hook for managing URL-synced modal state in data tables
+ * Hook for managing URL-synced dialog state in data tables
  *
  * Automatically preserves filter, pagination, and sorting params.
  *
  * @example
  * ```tsx
  * // In table component
- * const { itemId, isOpen, openModal, closeModal } = useUrlModal({
+ * const { itemId, isOpen, openDialog, closeDialog } = useUrlDialog({
  *   paramKey: 'customer',
  * });
  *
- * // Open modal when row is clicked
+ * // Open dialog when row is clicked
  * const handleRowClick = (row: Row<Customer>) => {
- *   openModal(row.original._id);
+ *   openDialog(row.original._id);
  * };
  *
- * // Modal component
- * <CustomerModal
+ * // Dialog component
+ * <CustomerDialog
  *   open={isOpen}
  *   customerId={itemId}
- *   onOpenChange={(open) => !open && closeModal()}
+ *   onOpenChange={(open) => !open && closeDialog()}
  * />
  * ```
  */
-export function useUrlModal(options: UseUrlModalOptions = {}): UseUrlModalReturn {
+export function useUrlDialog(options: UseUrlDialogOptions = {}): UseUrlDialogReturn {
   const { paramKey = 'item' } = options;
 
   const searchParams = useSearchParams();
@@ -71,8 +71,8 @@ export function useUrlModal(options: UseUrlModalOptions = {}): UseUrlModalReturn
 
   const isOpen = itemId !== null;
 
-  // Open modal - preserves all existing params
-  const openModal = useCallback(
+  // Open dialog - preserves all existing params
+  const openDialog = useCallback(
     (id: string) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set(paramKey, id);
@@ -84,8 +84,8 @@ export function useUrlModal(options: UseUrlModalOptions = {}): UseUrlModalReturn
     [searchParams, paramKey, pathname, router],
   );
 
-  // Close modal - preserves all other params
-  const closeModal = useCallback(() => {
+  // Close dialog - preserves all other params
+  const closeDialog = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete(paramKey);
 
@@ -101,8 +101,8 @@ export function useUrlModal(options: UseUrlModalOptions = {}): UseUrlModalReturn
   return {
     itemId,
     isOpen,
-    openModal,
-    closeModal,
+    openDialog,
+    closeDialog,
     isPending,
   };
 }

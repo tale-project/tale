@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, CircleCheck, XCircle, Clock, Database, RotateCw, AlertTriangle } from 'lucide-react';
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
@@ -66,8 +66,8 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
-  const [isFailedModalOpen, setIsFailedModalOpen] = useState(false);
+  const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
+  const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
   const router = useRouter();
 
   // Get translated label for status
@@ -160,15 +160,15 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       <>
         <button
           type="button"
-          onClick={() => setIsCompletedModalOpen(true)}
+          onClick={() => setIsCompletedDialogOpen(true)}
           className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
         >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
           {getStatusLabel(status)}
         </button>
-        <ViewModal
-          open={isCompletedModalOpen}
-          onOpenChange={setIsCompletedModalOpen}
+        <ViewDialog
+          open={isCompletedDialogOpen}
+          onOpenChange={setIsCompletedDialogOpen}
           title={t('rag.dialog.indexed.title')}
           description={t('rag.dialog.indexed.description')}
         >
@@ -177,7 +177,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
               <span className="font-medium">{t('rag.dialog.indexed.indexedOn')}</span> {formattedDate}
             </p>
           </div>
-        </ViewModal>
+        </ViewDialog>
       </>
     );
   }
@@ -188,15 +188,15 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
       <span className="inline-flex items-center gap-1.5">
         <button
           type="button"
-          onClick={() => setIsFailedModalOpen(true)}
+          onClick={() => setIsFailedDialogOpen(true)}
           className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
         >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
           {getStatusLabel(status)}
         </button>
-        <ViewModal
-          open={isFailedModalOpen}
-          onOpenChange={setIsFailedModalOpen}
+        <ViewDialog
+          open={isFailedDialogOpen}
+          onOpenChange={setIsFailedDialogOpen}
           title={t('rag.dialog.failed.title')}
           description={t('rag.dialog.failed.description')}
         >
@@ -206,7 +206,7 @@ export default function RagStatusBadge({ status, indexedAt, error, documentId }:
               {error || t('rag.dialog.failed.unknownError')}
             </pre>
           </div>
-        </ViewModal>
+        </ViewDialog>
         <Button
           size="icon"
           variant="outline"

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Stack, HStack } from '@/components/ui/layout';
@@ -129,7 +129,7 @@ export default function ViewEditExampleDialog({
   );
 
   return (
-    <FormModal
+    <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
       title={mode === 'view' ? tTone('exampleMessages.viewExample') : tTone('exampleMessages.editExample')}
@@ -156,6 +156,6 @@ export default function ViewEditExampleDialog({
           className="min-h-[10rem] px-4 py-3 bg-background border border-border rounded-lg shadow-sm text-sm resize-none"
         />
       )}
-    </FormModal>
+    </FormDialog>
   );
 }

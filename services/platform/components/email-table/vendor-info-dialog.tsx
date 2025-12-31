@@ -1,6 +1,6 @@
 'use client';
 
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { VendorInformation } from './vendor-information';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -20,7 +20,7 @@ export function VendorInfoDialog({
 }: VendorInfoDialogProps) {
   const { t } = useT('dialogs');
   return (
-    <ViewModal
+    <ViewDialog
       open={open ?? true}
       onOpenChange={onOpenChange ?? (() => {})}
       title={t('vendorInfo.title')}
@@ -29,6 +29,6 @@ export function VendorInfoDialog({
       <div className="overflow-y-auto">
         <VendorInformation vendor={vendor} />
       </div>
-    </ViewModal>
+    </ViewDialog>
   );
 }

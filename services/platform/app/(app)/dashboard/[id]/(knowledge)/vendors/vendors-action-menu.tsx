@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
-import ImportVendorsDialog from './import-vendors-dialog';
+import ImportVendorsDialog from './vendors-import-dialog';
 import { useT } from '@/lib/i18n';
 
 export type ImportMode = 'manual' | 'upload';

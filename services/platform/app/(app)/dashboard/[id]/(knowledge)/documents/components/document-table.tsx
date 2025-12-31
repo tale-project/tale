@@ -12,14 +12,14 @@ import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/ui/icons';
 import { DocumentItem } from '@/types/documents';
 import DocumentRowActions from './document-row-actions';
-import DocumentPreviewModal from './document-preview-modal';
+import DocumentPreviewDialog from './document-preview-dialog';
 import DocumentIcon from '@/components/ui/document-icon';
 import RagStatusBadge from './rag-status-badge';
 import { DocumentsActionMenu } from './documents-action-menu';
 import { useT } from '@/lib/i18n';
 import { TableDateCell } from '@/components/ui/table-date-cell';
 import { useDebounce } from '@/hooks/use-debounce';
-import { useUrlModal } from '@/hooks/use-url-modal';
+import { useUrlDialog } from '@/hooks/use-url-dialog';
 
 export interface DocumentTableProps {
   items: DocumentItem[];
@@ -55,9 +55,9 @@ export default function DocumentTable({
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchQuery ?? '');
 
-  // URL-based modal state for document preview
-  // This persists the preview modal state in URL params for bookmarkability and link sharing
-  const { itemId: previewDocumentId, isOpen: previewOpen, openModal: openPreview, closeModal: closePreview } = useUrlModal({
+  // URL-based dialog state for document preview
+  // This persists the preview dialog state in URL params for bookmarkability and link sharing
+  const { itemId: previewDocumentId, isOpen: previewOpen, openDialog: openPreview, closeDialog: closePreview } = useUrlDialog({
     paramKey: 'doc',
   });
 
@@ -156,7 +156,7 @@ export default function DocumentTable({
     (item: DocumentItem, e: React.MouseEvent) => {
       e.stopPropagation();
       if (item.type === 'file') {
-        // Open preview modal via URL state
+        // Open preview dialog via URL state
         openPreview(item.id);
       }
       if (item.type === 'folder' && item.storagePath) {
@@ -318,8 +318,8 @@ export default function DocumentTable({
         }
       />
 
-      {/* Document Preview Modal */}
-      <DocumentPreviewModal
+      {/* Document Preview Dialog */}
+      <DocumentPreviewDialog
         open={previewOpen}
         onOpenChange={(open) => !open && closePreview()}
         organizationId={organizationId}

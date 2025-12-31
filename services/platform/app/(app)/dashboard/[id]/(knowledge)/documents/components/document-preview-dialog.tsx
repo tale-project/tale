@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { HStack } from '@/components/ui/layout';
@@ -21,7 +15,7 @@ import DocumentPreview from './document-preview';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
-interface DocumentPreviewModalProps {
+interface DocumentPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
@@ -35,14 +29,14 @@ const extractNameFromStoragePath = (storagePath: string) => {
   return parts[parts.length - 1];
 };
 
-export default function DocumentPreviewModal({
+export default function DocumentPreviewDialog({
   open,
   onOpenChange,
   organizationId,
   storagePath,
   documentId,
   fileName,
-}: DocumentPreviewModalProps) {
+}: DocumentPreviewDialogProps) {
   const { t } = useT('documents');
   const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
@@ -122,19 +116,23 @@ export default function DocumentPreviewModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        hideClose
-        className="w-[95vw] max-w-[1100px] h-[85vh] p-0 overflow-hidden flex flex-col"
-      >
-        {/* Header */}
-        <DialogHeader className="flex flex-row items-center justify-between p-5 border-b max-h-[4.5rem]">
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={displayName}
+      size="wide"
+      hideClose
+      className="h-[85vh] p-0 overflow-hidden flex flex-col"
+      customHeader={
+        <div className="flex flex-row items-center justify-between p-5 border-b max-h-[4.5rem]">
           <HStack gap={3} className="min-w-0">
             <div className="shrink-0">
               <DocumentIcon fileName={displayName} />
             </div>
             <div className="min-w-0">
-              <DialogTitle className="truncate">{displayName}</DialogTitle>
+              <h2 className="text-base font-semibold leading-none tracking-tight truncate">
+                {displayName}
+              </h2>
             </div>
           </HStack>
 
@@ -159,25 +157,25 @@ export default function DocumentPreviewModal({
               <IconButton icon={X} aria-label={t('preview.closePreview')} />
             </DialogClose>
           </HStack>
-        </DialogHeader>
-
-        {/* Body */}
-        {isLoading && (
-          <div className="flex-1 grid place-items-center p-6">
-            <div className="text-sm text-muted-foreground">{t('preview.loading')}</div>
+        </div>
+      }
+    >
+      {/* Body */}
+      {isLoading && (
+        <div className="flex-1 grid place-items-center p-6">
+          <div className="text-sm text-muted-foreground">{t('preview.loading')}</div>
+        </div>
+      )}
+      {isError && (
+        <div className="flex-1 grid place-items-center p-6">
+          <div className="text-sm text-destructive">
+            {queryError?.message || t('preview.failedToLoad')}
           </div>
-        )}
-        {isError && (
-          <div className="flex-1 grid place-items-center p-6">
-            <div className="text-sm text-destructive">
-              {queryError?.message || t('preview.failedToLoad')}
-            </div>
-          </div>
-        )}
-        {!isLoading && !isError && doc && doc.url && (
-          <DocumentPreview url={doc.url} fileName={displayName} />
-        )}
-      </DialogContent>
+        </div>
+      )}
+      {!isLoading && !isError && doc && doc.url && (
+        <DocumentPreview url={doc.url} fileName={displayName} />
+      )}
     </Dialog>
   );
 }

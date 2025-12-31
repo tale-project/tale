@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FormModal } from '@/components/ui/modals';
+import { FormDialog } from '@/components/ui/dialog';
 import { StatusIndicator } from '@/components/ui/status-indicator';
 import { Description } from '@/components/ui/description';
 import { Stack } from '@/components/ui/layout';
@@ -135,7 +135,7 @@ export default function ShopifyIntegrationDialog({
   );
 
   return (
-    <FormModal
+    <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.shopifyIntegration')}
@@ -186,6 +186,6 @@ export default function ShopifyIntegrationDialog({
           {t('integrations.shopify.accessTokenHelpNav')}
         </Description>
       </Stack>
-    </FormModal>
+    </FormDialog>
   );
 }

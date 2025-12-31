@@ -133,29 +133,29 @@ export default function Integrations({
   const deleteCirculyIntegration = useDeleteIntegration({ integrationName: 'circuly' });
   const deleteProtelIntegration = useDeleteIntegration({ integrationName: 'protel' });
 
-  // Modal states
-  const [shopifyModalOpen, setShopifyModalOpen] = useState(false);
-  const [shopifyDisconnectModalOpen, setShopifyDisconnectModalOpen] =
+  // Dialog states
+  const [shopifyDialogOpen, setShopifyDialogOpen] = useState(false);
+  const [shopifyDisconnectDialogOpen, setShopifyDisconnectDialogOpen] =
     useState(false);
-  const [circulyModalOpen, setCirculyModalOpen] = useState(false);
-  const [circulyDisconnectModalOpen, setCirculyDisconnectModalOpen] =
+  const [circulyDialogOpen, setCirculyDialogOpen] = useState(false);
+  const [circulyDisconnectDialogOpen, setCirculyDisconnectDialogOpen] =
     useState(false);
-  const [protelModalOpen, setProtelModalOpen] = useState(false);
-  const [protelDisconnectModalOpen, setProtelDisconnectModalOpen] =
+  const [protelDialogOpen, setProtelDialogOpen] = useState(false);
+  const [protelDisconnectDialogOpen, setProtelDisconnectDialogOpen] =
     useState(false);
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   // Handle URL parameter to open specific integration dialog
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab === 'shopify') {
-      setShopifyModalOpen(true);
+      setShopifyDialogOpen(true);
     } else if (tab === 'circuly') {
-      setCirculyModalOpen(true);
+      setCirculyDialogOpen(true);
     } else if (tab === 'protel') {
-      setProtelModalOpen(true);
+      setProtelDialogOpen(true);
     } else if (tab === 'email') {
-      setEmailModalOpen(true);
+      setEmailDialogOpen(true);
     }
   }, [searchParams]);
 
@@ -163,27 +163,27 @@ export default function Integrations({
     switch (integrationId) {
       case 'shopify':
         if (checked) {
-          setShopifyModalOpen(true);
+          setShopifyDialogOpen(true);
         } else {
-          setShopifyDisconnectModalOpen(true);
+          setShopifyDisconnectDialogOpen(true);
         }
         break;
       case 'circuly':
         if (checked) {
-          setCirculyModalOpen(true);
+          setCirculyDialogOpen(true);
         } else {
-          setCirculyDisconnectModalOpen(true);
+          setCirculyDisconnectDialogOpen(true);
         }
         break;
       case 'protel':
         if (checked) {
-          setProtelModalOpen(true);
+          setProtelDialogOpen(true);
         } else {
-          setProtelDisconnectModalOpen(true);
+          setProtelDisconnectDialogOpen(true);
         }
         break;
       case 'email':
-        setEmailModalOpen(true);
+        setEmailDialogOpen(true);
         break;
     }
   };
@@ -191,10 +191,10 @@ export default function Integrations({
   const handleManageClick = (integrationId: string) => {
     switch (integrationId) {
       case 'protel':
-        setProtelModalOpen(true);
+        setProtelDialogOpen(true);
         break;
       case 'email':
-        setEmailModalOpen(true);
+        setEmailDialogOpen(true);
         break;
     }
   };
@@ -258,7 +258,7 @@ export default function Integrations({
       await deleteShopifyIntegration({
         integrationId: shopifyIntegration._id,
       });
-      setShopifyDisconnectModalOpen(false);
+      setShopifyDisconnectDialogOpen(false);
     } catch (error) {
       toast({
         title: t('integrations.toast.disconnectFailed'),
@@ -323,7 +323,7 @@ export default function Integrations({
         title: t('integrations.toast.disconnected'),
         description: t('integrations.circuly.disconnectedDescription'),
       });
-      setCirculyDisconnectModalOpen(false);
+      setCirculyDisconnectDialogOpen(false);
     } catch (error) {
       toast({
         title: t('integrations.toast.disconnectFailed'),
@@ -393,7 +393,7 @@ export default function Integrations({
       await deleteProtelIntegration({
         integrationId: protelIntegration._id,
       });
-      setProtelDisconnectModalOpen(false);
+      setProtelDisconnectDialogOpen(false);
     } catch (error) {
       toast({
         title: t('integrations.toast.disconnectFailed'),
@@ -454,11 +454,11 @@ export default function Integrations({
                     size="sm"
                     onClick={() => {
                       if (integration.id === 'circuly') {
-                        setCirculyModalOpen(true);
+                        setCirculyDialogOpen(true);
                       } else if (integration.id === 'shopify') {
-                        setShopifyModalOpen(true);
+                        setShopifyDialogOpen(true);
                       } else if (integration.id === 'protel') {
-                        setProtelModalOpen(true);
+                        setProtelDialogOpen(true);
                       } else {
                         handleManageClick(integration.id);
                       }
@@ -490,12 +490,12 @@ export default function Integrations({
         })}
       </Grid>
 
-      {/* Integration Modals */}
+      {/* Integration Dialogs */}
       <ShopifyIntegrationDialog
-        open={shopifyModalOpen}
-        onOpenChange={setShopifyModalOpen}
+        open={shopifyDialogOpen}
+        onOpenChange={setShopifyDialogOpen}
         onConnect={handleShopifyConnect}
-        onDisconnect={() => setShopifyDisconnectModalOpen(true)}
+        onDisconnect={() => setShopifyDisconnectDialogOpen(true)}
         credentials={
           shopifyIntegration
             ? {
@@ -506,8 +506,8 @@ export default function Integrations({
       />
 
       <CirculyIntegrationDialog
-        open={circulyModalOpen}
-        onOpenChange={setCirculyModalOpen}
+        open={circulyDialogOpen}
+        onOpenChange={setCirculyDialogOpen}
         credentials={
           circulyIntegration
             ? {
@@ -516,26 +516,26 @@ export default function Integrations({
             : null
         }
         onConnect={handleCirculyConnect}
-        onDisconnect={() => setCirculyDisconnectModalOpen(true)}
+        onDisconnect={() => setCirculyDisconnectDialogOpen(true)}
       />
 
       <ShopifyDisconnectConfirmationDialog
-        open={shopifyDisconnectModalOpen}
-        onOpenChange={setShopifyDisconnectModalOpen}
+        open={shopifyDisconnectDialogOpen}
+        onOpenChange={setShopifyDisconnectDialogOpen}
         domain={shopifyIntegration?.connectionConfig?.domain || ''}
         onConfirm={handleShopifyDisconnect}
       />
 
       <CirculyDisconnectConfirmationDialog
-        open={circulyDisconnectModalOpen}
-        onOpenChange={setCirculyDisconnectModalOpen}
+        open={circulyDisconnectDialogOpen}
+        onOpenChange={setCirculyDisconnectDialogOpen}
         username={circulyIntegration?.basicAuth?.username || ''}
         onConfirm={handleCirculyDisconnect}
       />
 
       <ProtelIntegrationDialog
-        open={protelModalOpen}
-        onOpenChange={setProtelModalOpen}
+        open={protelDialogOpen}
+        onOpenChange={setProtelDialogOpen}
         credentials={
           protelIntegration
             ? {
@@ -547,20 +547,20 @@ export default function Integrations({
             : null
         }
         onConnect={handleProtelConnect}
-        onDisconnect={() => setProtelDisconnectModalOpen(true)}
+        onDisconnect={() => setProtelDisconnectDialogOpen(true)}
       />
 
       <ProtelDisconnectConfirmationDialog
-        open={protelDisconnectModalOpen}
-        onOpenChange={setProtelDisconnectModalOpen}
+        open={protelDisconnectDialogOpen}
+        onOpenChange={setProtelDisconnectDialogOpen}
         server={protelIntegration?.sqlConnectionConfig?.server || ''}
         database={protelIntegration?.sqlConnectionConfig?.database || ''}
         onConfirm={handleProtelDisconnect}
       />
 
       <EmailIntegrationDialog
-        open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
         organizationId={organizationId}
       />
     </Stack>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewModal } from '@/components/ui/modals';
+import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Stack, HStack } from '@/components/ui/layout';
@@ -42,7 +42,7 @@ export default function GmailIntegrationDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { formatDate } = useDateFormat();
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
     null,
   );
@@ -63,7 +63,7 @@ export default function GmailIntegrationDialog({
   const generateAuthUrl = useGenerateOAuthUrl();
 
   const handleCreateProvider = () => {
-    setShowCreateModal(true);
+    setShowCreateDialog(true);
   };
 
   const handleTestConnection = async (providerId: string) => {
@@ -153,7 +153,7 @@ export default function GmailIntegrationDialog({
 
   return (
     <>
-      <ViewModal
+      <ViewDialog
         open={open}
         onOpenChange={onOpenChange}
         title={t('integrations.gmailIntegration')}
@@ -300,15 +300,15 @@ export default function GmailIntegrationDialog({
             </p>
           </div>
         )}
-      </ViewModal>
+      </ViewDialog>
 
-      {/* Create Provider Modal */}
+      {/* Create Provider Dialog */}
       <GmailCreateProviderDialog
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
         organizationId={organizationId}
         onSuccess={() => {
-          setShowCreateModal(false);
+          setShowCreateDialog(false);
         }}
       />
     </>

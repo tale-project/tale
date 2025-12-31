@@ -253,7 +253,7 @@ export default function ConversationHeader({
         </div>
       </HStack>
 
-      {/* Customer Info Modal */}
+      {/* Customer Info Dialog */}
       {customerDoc && (
         <CustomerInfoDialog
           customer={customerDoc}

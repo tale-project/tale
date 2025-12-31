@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ConfirmModal } from '@/components/ui/modals';
+import { ConfirmDialog } from '@/components/ui/dialog';
 import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
@@ -46,7 +46,7 @@ export default function ShopifyDisconnectConfirmationDialog({
   };
 
   return (
-    <ConfirmModal
+    <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('integrations.disconnectConfirm', { provider: 'Shopify' })}
@@ -78,6 +78,6 @@ export default function ShopifyDisconnectConfirmationDialog({
           </div>
         </Stack>
       </Stack>
-    </ConfirmModal>
+    </ConfirmDialog>
   );
 }

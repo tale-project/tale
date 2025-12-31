@@ -2,13 +2,13 @@
 
 import * as React from 'react';
 import { memo, useCallback } from 'react';
-import { DeleteModal } from '@/components/ui/modals';
+import { DeleteDialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 
 /**
  * Translation strings for the delete dialog.
  */
-export interface DeleteEntityTranslations {
+export interface EntityDeleteTranslations {
   /** Dialog title (e.g., "Delete Customer") */
   title: string;
   /** Description/confirmation message. Use {name} placeholder for entity name */
@@ -21,7 +21,7 @@ export interface DeleteEntityTranslations {
   errorMessage: string;
 }
 
-export interface DeleteEntityDialogProps<TEntity> {
+export interface EntityDeleteDialogProps<TEntity> {
   /** Whether the dialog is open */
   isOpen: boolean;
   /** Called when the dialog should close */
@@ -33,7 +33,7 @@ export interface DeleteEntityDialogProps<TEntity> {
   /** Async function to delete the entity */
   deleteMutation: (entity: TEntity) => Promise<void>;
   /** Translation strings */
-  translations: DeleteEntityTranslations;
+  translations: EntityDeleteTranslations;
   /** Optional callback after successful deletion */
   onSuccess?: () => void;
 }
@@ -44,7 +44,7 @@ export interface DeleteEntityDialogProps<TEntity> {
  *
  * @example
  * ```tsx
- * <DeleteEntityDialog
+ * <EntityDeleteDialog
  *   isOpen={isOpen}
  *   onClose={() => setIsOpen(false)}
  *   entity={customer}
@@ -60,7 +60,7 @@ export interface DeleteEntityDialogProps<TEntity> {
  * />
  * ```
  */
-function DeleteEntityDialogInner<TEntity>({
+function EntityDeleteDialogInner<TEntity>({
   isOpen,
   onClose,
   entity,
@@ -68,7 +68,7 @@ function DeleteEntityDialogInner<TEntity>({
   deleteMutation,
   translations,
   onSuccess,
-}: DeleteEntityDialogProps<TEntity>) {
+}: EntityDeleteDialogProps<TEntity>) {
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const entityName = getEntityName(entity);
@@ -112,7 +112,7 @@ function DeleteEntityDialogInner<TEntity>({
   }, [translations.description, translations.warningText, entityName]);
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={translations.title}
@@ -123,13 +123,13 @@ function DeleteEntityDialogInner<TEntity>({
   );
 }
 
-export const DeleteEntityDialog = memo(DeleteEntityDialogInner) as typeof DeleteEntityDialogInner;
+export const EntityDeleteDialog = memo(EntityDeleteDialogInner) as typeof EntityDeleteDialogInner;
 
 /**
  * Simple delete confirmation dialog that only needs a name string.
  * Useful when you don't have a full entity object.
  */
-export interface SimpleDeleteDialogProps {
+export interface SimpleEntityDeleteDialogProps {
   /** Whether the dialog is open */
   isOpen: boolean;
   /** Called when the dialog should close */
@@ -139,7 +139,7 @@ export interface SimpleDeleteDialogProps {
   /** Async function to perform the deletion */
   onDelete: () => Promise<void>;
   /** Translation strings */
-  translations: DeleteEntityTranslations;
+  translations: EntityDeleteTranslations;
   /** Optional callback after successful deletion */
   onSuccess?: () => void;
 }
@@ -147,14 +147,14 @@ export interface SimpleDeleteDialogProps {
 /**
  * Simplified delete dialog that doesn't require an entity object.
  */
-export const SimpleDeleteDialog = memo(function SimpleDeleteDialog({
+export const SimpleEntityDeleteDialog = memo(function SimpleEntityDeleteDialog({
   isOpen,
   onClose,
   itemName,
   onDelete,
   translations,
   onSuccess,
-}: SimpleDeleteDialogProps) {
+}: SimpleEntityDeleteDialogProps) {
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleDelete = useCallback(async () => {
@@ -196,7 +196,7 @@ export const SimpleDeleteDialog = memo(function SimpleDeleteDialog({
   }, [translations.description, translations.warningText, itemName]);
 
   return (
-    <DeleteModal
+    <DeleteDialog
       open={isOpen}
       onOpenChange={() => onClose()}
       title={translations.title}
