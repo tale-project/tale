@@ -32,6 +32,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils/cn';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
@@ -59,14 +60,6 @@ export function UserButton({
     organizationId ? { organizationId: organizationId as string } : 'skip',
   );
 
-  if (loading) {
-    return <div className="size-8 rounded-full bg-muted animate-pulse" />;
-  }
-
-  if (!user) {
-    return null;
-  }
-
   const handleSignOut = async () => {
     // Optimistic logout - immediately redirect and show toast
     // since logout will almost always succeed
@@ -88,7 +81,7 @@ export function UserButton({
     }
   };
 
-  const displayName = memberContext?.member?.displayName || user.name || t('userButton.defaultName');
+  const displayName = memberContext?.member?.displayName || user?.name || t('userButton.defaultName');
 
   const triggerContent = (
     <div
@@ -121,20 +114,40 @@ export function UserButton({
       <DropdownMenuContent className="w-64" align={align} forceMount>
         {/* User Info Header */}
         <DropdownMenuLabel className="font-normal pb-3">
-          <div className="flex flex-col space-y-1">
-            <p className="text-base font-semibold text-foreground leading-none">
-              {displayName}
-            </p>
-            <p className="text-sm text-muted-foreground leading-none">
-              {user.email}
-            </p>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col space-y-1 cursor-default">
+                  {loading || !user ? (
+                    <>
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3.5 w-40" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-base font-semibold text-foreground leading-none">
+                        {displayName}
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-none">
+                        {user.email}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </TooltipTrigger>
+              {!loading && user && memberContext?.role && (
+                <TooltipContent side="top">
+                  {displayName} - {memberContext.role}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />
 
         {/* Settings - Only visible for Admin and Developer roles */}
-        {(() => {
+        {!loading && user && (() => {
           const userRole = (memberContext?.role ?? '').toLowerCase();
           return userRole === 'admin' || userRole === 'developer';
         })() && (
@@ -194,7 +207,11 @@ export function UserButton({
         </a>
 
         {/* Log out */}
-        <DropdownMenuItem onClick={handleSignOut} className="py-2.5">
+        <DropdownMenuItem
+          onClick={handleSignOut}
+          disabled={loading || !user}
+          className="py-2.5"
+        >
           <LogOut className="mr-3 size-4" />
           <span>{t('userButton.logOut')}</span>
         </DropdownMenuItem>
