@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
-import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
+import { EntityDeleteDialog } from '@/components/ui/entity-delete-dialog';
 import { useT } from '@/lib/i18n';
 import { useDeleteVendor } from './hooks';
 
@@ -66,7 +66,7 @@ export default function DeleteVendorButton({
         </Button>
       )}
 
-      <DeleteEntityDialog
+      <EntityDeleteDialog
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         entity={vendor}
