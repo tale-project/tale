@@ -71,9 +71,9 @@ export default async function DashboardLayout({
         />
       </div>
 
-      {/* Main content area */}
+      {/* Main content area - overflow-auto for sticky headers, flex for child layout control */}
       <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
-        <div className="flex-1 min-h-0 overflow-auto flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0 overflow-auto">
           {children}
         </div>
       </div>
