@@ -22,6 +22,7 @@ import {
   hasRequiredRole,
   type NavItem,
 } from '@/hooks/use-navigation-items';
+import { useT } from '@/lib/i18n';
 
 const NavigationItem = ({
   role,
@@ -99,12 +100,14 @@ const NavigationItem = ({
 export default function Navigation({ role }: { role?: string | null }) {
   const params = useParams();
   const businessId = params.id as string;
+  const { t } = useT('navigation');
 
   const navigationItems = useNavigationItems(businessId);
 
   return (
-    <NavigationMenu className="flex flex-col bg-background border-border min-h-full">
-      <div className="sticky top-0 z-10 bg-background pb-5 pt-4">
+    <NavigationMenu className="flex flex-col bg-background border-border h-full">
+      {/* Header - logo with 8px padding top/bottom */}
+      <div className="flex-shrink-0 py-2 flex items-center justify-center">
         <Link
           className="flex items-center justify-center"
           href={`/dashboard/${businessId}`}
@@ -112,19 +115,17 @@ export default function Navigation({ role }: { role?: string | null }) {
           <TaleLogo />
         </Link>
       </div>
-      <div className="flex-1 py-4">
+      {/* Scrollable navigation content */}
+      <div className="flex-1 min-h-0 overflow-y-auto py-4">
         <NavigationMenuList className="block space-y-2 space-x-0">
           {navigationItems.map((item) => (
             <NavigationItem key={item.href} item={item} role={role} />
           ))}
         </NavigationMenuList>
       </div>
-      <div className="mt-auto sticky bottom-0 bg-background z-20">
-        <div className="pb-2">
-          <div className="mt-2 flex justify-center">
-            <UserButton />
-          </div>
-        </div>
+      {/* Footer - matches header padding */}
+      <div className="flex-shrink-0 py-2 flex items-center justify-center">
+        <UserButton tooltipText={t('settingsAndMore')} />
       </div>
     </NavigationMenu>
   );

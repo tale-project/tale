@@ -17,35 +17,34 @@ export const TaleLogo = () => {
     // Return a placeholder that matches the expected size during SSR
     return (
       <div
-        style={{ width: 36, height: 36 }}
-        className="bg-transparent rounded-md"
+        className="size-8 flex items-center justify-center bg-transparent"
         aria-label="Logo loading"
       />
     );
   }
 
   return (
-    <>
+    <div className="size-8 flex items-center justify-center">
       {resolvedTheme === 'light' && (
         <Image
           priority
           src="/assets/logo-black.svg"
-          className="py-[0.19rem] px-[0.28rem] size-8"
+          className="size-5 object-contain"
           alt="logo"
-          width={32}
-          height={32}
+          width={20}
+          height={20}
         />
       )}
       {resolvedTheme === 'dark' && (
         <Image
           priority
           src="/assets/logo-white.svg"
-          className="py-[0.19rem] px-[0.28rem] size-8"
+          className="size-5 object-contain"
           alt="logo"
-          width={32}
-          height={32}
+          width={20}
+          height={20}
         />
       )}
-    </>
+    </div>
   );
 };
