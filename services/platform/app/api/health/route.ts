@@ -54,7 +54,7 @@ export async function GET() {
   // Check if Convex backend is ready
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const response = await fetch(CONVEX_BACKEND_URL, {
       signal: controller.signal,
