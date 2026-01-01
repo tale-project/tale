@@ -55,7 +55,7 @@ fix_cert_permissions() {
 # Start a background process to fix permissions after Caddy generates certs
 (
   # Wait for Caddy to generate certificates (check every 5 seconds for up to 60 seconds)
-  for i in $(seq 1 12); do
+  for _ in $(seq 1 12); do
     sleep 5
     if [ -f "/data/caddy/pki/authorities/local/root.crt" ]; then
       fix_cert_permissions
