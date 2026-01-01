@@ -52,7 +52,8 @@ import {
   PersistentTextStreaming,
   type StreamId,
 } from '@convex-dev/persistent-text-streaming';
-import { components, internal } from './_generated/api';
+import type { ActionCtx } from './_generated/server';
+import { components } from './_generated/api';
 import {
   mutation,
   query,
@@ -150,9 +151,10 @@ export const appendToStream = internalMutation({
   handler: async (ctx, { streamId, text }) => {
     // Use the component's public mutation to add a chunk
     // The component handles batching and persistence
-    await ctx.runMutation(components.persistentTextStreaming.public.addChunk, {
+    await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
       streamId: streamId,
       text,
+      final: false,
     });
   },
 });
@@ -170,10 +172,13 @@ export const startStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, { streamId }) => {
-    await ctx.runMutation(components.persistentTextStreaming.public.setStatus, {
-      streamId: streamId,
-      status: 'streaming',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: streamId,
+        status: 'streaming',
+      }
+    );
   },
 });
 
@@ -190,10 +195,13 @@ export const completeStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, { streamId }) => {
-    await ctx.runMutation(components.persistentTextStreaming.public.setStatus, {
-      streamId: streamId,
-      status: 'done',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: streamId,
+        status: 'done',
+      }
+    );
   },
 });
 
@@ -210,10 +218,13 @@ export const errorStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, { streamId }) => {
-    await ctx.runMutation(components.persistentTextStreaming.public.setStatus, {
-      streamId: streamId,
-      status: 'error',
-    });
+    await ctx.runMutation(
+      components.persistentTextStreaming.lib.setStreamStatus,
+      {
+        streamId: streamId,
+        status: 'error',
+      }
+    );
   },
 });
 
@@ -261,7 +272,12 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
       ctx,
       request,
       streamId,
-      async (actionCtx, _req, sid, append) => {
+      async (
+        actionCtx: ActionCtx,
+        _req: Request,
+        sid: StreamId,
+        append: (text: string) => Promise<void>
+      ) => {
         // This callback runs while the HTTP connection is open
         // We poll the database for the stream body and send updates
         //
@@ -288,7 +304,11 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
           }
 
           // Check if stream is complete
-          if (body.status === 'done' || body.status === 'error' || body.status === 'timeout') {
+          if (
+            body.status === 'done' ||
+            body.status === 'error' ||
+            body.status === 'timeout'
+          ) {
             break;
           }
 
@@ -306,10 +326,15 @@ export const streamChatHttp = httpAction(async (ctx, request) => {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
 
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value: string, key: string) => {
+      responseHeaders[key] = value;
+    });
+
     return new Response(response.body, {
       status: response.status,
       headers: {
-        ...Object.fromEntries(response.headers.entries()),
+        ...responseHeaders,
         ...corsHeaders,
       },
     });

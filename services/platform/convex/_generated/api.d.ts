@@ -166,6 +166,7 @@ import type * as model_chat_agent_generate_agent_response from "../model/chat_ag
 import type * as model_chat_agent_index from "../model/chat_agent/index.js";
 import type * as model_chat_agent_message_deduplication from "../model/chat_agent/message_deduplication.js";
 import type * as model_chat_agent_on_chat_complete from "../model/chat_agent/on_chat_complete.js";
+import type * as model_common_validators from "../model/common/validators.js";
 import type * as model_conversations_add_message_to_conversation from "../model/conversations/add_message_to_conversation.js";
 import type * as model_conversations_bulk_close_conversations from "../model/conversations/bulk_close_conversations.js";
 import type * as model_conversations_bulk_reopen_conversations from "../model/conversations/bulk_reopen_conversations.js";
@@ -536,6 +537,7 @@ import type * as predefined_workflows_website_pages_rag_sync from "../predefined
 import type * as predefined_workflows_website_scan from "../predefined_workflows/website_scan.js";
 import type * as predefined_workflows_workflow_rag_sync from "../predefined_workflows/workflow_rag_sync.js";
 import type * as products from "../products.js";
+import type * as streaming from "../streaming.js";
 import type * as threads from "../threads.js";
 import type * as tone_of_voice from "../tone_of_voice.js";
 import type * as trusted_headers_authenticate from "../trusted_headers_authenticate.js";
@@ -862,6 +864,7 @@ declare const fullApi: ApiFromModules<{
   "model/chat_agent/index": typeof model_chat_agent_index;
   "model/chat_agent/message_deduplication": typeof model_chat_agent_message_deduplication;
   "model/chat_agent/on_chat_complete": typeof model_chat_agent_on_chat_complete;
+  "model/common/validators": typeof model_common_validators;
   "model/conversations/add_message_to_conversation": typeof model_conversations_add_message_to_conversation;
   "model/conversations/bulk_close_conversations": typeof model_conversations_bulk_close_conversations;
   "model/conversations/bulk_reopen_conversations": typeof model_conversations_bulk_reopen_conversations;
@@ -1232,6 +1235,7 @@ declare const fullApi: ApiFromModules<{
   "predefined_workflows/website_scan": typeof predefined_workflows_website_scan;
   "predefined_workflows/workflow_rag_sync": typeof predefined_workflows_workflow_rag_sync;
   products: typeof products;
+  streaming: typeof streaming;
   threads: typeof threads;
   tone_of_voice: typeof tone_of_voice;
   trusted_headers_authenticate: typeof trusted_headers_authenticate;
@@ -6262,6 +6266,41 @@ export declare const components: {
         "internal",
         { batchSize?: number; before?: number; name?: string },
         null
+      >;
+    };
+  };
+  persistentTextStreaming: {
+    lib: {
+      addChunk: FunctionReference<
+        "mutation",
+        "internal",
+        { final: boolean; streamId: string; text: string },
+        any
+      >;
+      createStream: FunctionReference<"mutation", "internal", {}, any>;
+      getStreamStatus: FunctionReference<
+        "query",
+        "internal",
+        { streamId: string },
+        "pending" | "streaming" | "done" | "error" | "timeout"
+      >;
+      getStreamText: FunctionReference<
+        "query",
+        "internal",
+        { streamId: string },
+        {
+          status: "pending" | "streaming" | "done" | "error" | "timeout";
+          text: string;
+        }
+      >;
+      setStreamStatus: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          status: "pending" | "streaming" | "done" | "error" | "timeout";
+          streamId: string;
+        },
+        any
       >;
     };
   };
