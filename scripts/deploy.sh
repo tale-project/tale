@@ -39,6 +39,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # State file to track current deployment color
 STATE_FILE="${PROJECT_ROOT}/.deployment-color"
 
+# Lock file to prevent concurrent deployments
+LOCK_FILE="${PROJECT_ROOT}/.deployment-lock"
+
 # Timeouts (in seconds)
 HEALTH_CHECK_TIMEOUT="${HEALTH_CHECK_TIMEOUT:-180}"  # Max time to wait for health
 HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-3}"   # Interval between checks
@@ -92,6 +95,28 @@ log_step() {
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+# Acquire deployment lock
+acquire_lock() {
+  if [ -f "$LOCK_FILE" ]; then
+    local lock_pid
+    lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
+      log_error "Another deployment is in progress (PID: $lock_pid)"
+      return 1
+    fi
+    # Stale lock file, remove it
+    rm -f "$LOCK_FILE"
+  fi
+  echo $$ > "$LOCK_FILE"
+  trap 'rm -f "$LOCK_FILE"' EXIT
+  return 0
+}
+
+# Release deployment lock
+release_lock() {
+  rm -f "$LOCK_FILE"
+}
 
 # Get the opposite color
 opposite_color() {
@@ -165,7 +190,7 @@ wait_for_health() {
 
   log_step "Waiting for ${color} services to be healthy..."
 
-  while [ $elapsed -lt $HEALTH_CHECK_TIMEOUT ]; do
+  while [ "$elapsed" -lt "$HEALTH_CHECK_TIMEOUT" ]; do
     local all_healthy=true
 
     for service in $ROTATABLE_SERVICES; do
@@ -207,7 +232,7 @@ wait_for_platform_health() {
 
   log_info "Waiting for platform-${color} health endpoint..."
 
-  while [ $elapsed -lt $HEALTH_CHECK_TIMEOUT ]; do
+  while [ "$elapsed" -lt "$HEALTH_CHECK_TIMEOUT" ]; do
     # Try to hit the health endpoint via Docker network
     if docker exec "tale-platform-${color}" curl -sf http://localhost:3000/api/health > /dev/null 2>&1; then
       log_success "Platform ${color} health endpoint responding!"
@@ -270,6 +295,11 @@ cmd_deploy() {
   local current_color
   local target_color
 
+  # Prevent concurrent deployments
+  if ! acquire_lock; then
+    return 1
+  fi
+
   log_step "Starting blue-green deployment"
   echo ""
 
@@ -325,7 +355,7 @@ cmd_deploy() {
     # The old containers will receive SIGTERM which triggers graceful shutdown
     # Wait for drain period
     local drain_elapsed=0
-    while [ $drain_elapsed -lt $DRAIN_TIMEOUT ]; do
+    while [ "$drain_elapsed" -lt "$DRAIN_TIMEOUT" ]; do
       echo -ne "\r   Draining... (${drain_elapsed}s/${DRAIN_TIMEOUT}s)    "
       sleep 5
       drain_elapsed=$((drain_elapsed + 5))
@@ -379,7 +409,7 @@ cmd_rollback() {
     # Drain and cleanup current
     log_step "Draining ${current_color} containers (${DRAIN_TIMEOUT}s)..."
     local drain_elapsed=0
-    while [ $drain_elapsed -lt $DRAIN_TIMEOUT ]; do
+    while [ "$drain_elapsed" -lt "$DRAIN_TIMEOUT" ]; do
       echo -ne "\r   Draining... (${drain_elapsed}s/${DRAIN_TIMEOUT}s)    "
       sleep 5
       drain_elapsed=$((drain_elapsed + 5))

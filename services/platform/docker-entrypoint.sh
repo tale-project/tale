@@ -62,7 +62,7 @@ shutdown() {
 
   # Wait with timeout
   local waited=0
-  while [ $waited -lt $shutdown_timeout ]; do
+  while [ "$waited" -lt "$shutdown_timeout" ]; do
     # Check if all processes have exited
     local still_running=0
     kill -0 "$NEXTJS_PID" 2>/dev/null && still_running=1
@@ -78,7 +78,7 @@ shutdown() {
   done
 
   # Force kill if still running
-  if [ $waited -ge $shutdown_timeout ]; then
+  if [ "$waited" -ge "$shutdown_timeout" ]; then
     echo "   ⚠️  Timeout reached, force killing remaining processes..."
     kill -KILL "$NEXTJS_PID" "$CONVEX_PID" "$DASHBOARD_PID" 2>/dev/null || true
   fi
