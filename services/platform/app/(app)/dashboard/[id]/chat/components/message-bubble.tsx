@@ -12,7 +12,6 @@ import {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { useTypewriter } from '../hooks/use-typewriter';
 import { CopyIcon, CheckIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,7 +36,7 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import MessageInfoDialog from './message-info-dialog';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
-import { StreamingMarkdown } from './streaming-markdown';
+import { TypewriterText } from './typewriter-text';
 import { useT } from '@/lib/i18n';
 
 interface FileAttachment {
@@ -413,33 +412,30 @@ const markdownComponents = {
   ),
 };
 
-// Optimized typewriter component for streaming text
-function TypewriterText({
+/**
+ * TypewriterTextWrapper - Wraps the TypewriterText component with markdown styling
+ *
+ * Uses the new optimized TypewriterText component which features:
+ * - Hybrid CSS+JS animation for smooth 60fps text reveal
+ * - Incremental markdown parsing (stable/streaming split)
+ * - Tab visibility detection (pauses when hidden)
+ * - Reduced motion support (instant reveal if preferred)
+ * - Word boundary snapping for natural reading flow
+ */
+function TypewriterTextWrapper({
   text,
   isStreaming = false,
 }: {
   text: string;
   isStreaming?: boolean;
 }) {
-  const { displayText, isTyping } = useTypewriter({
-    text,
-    isStreaming,
-    targetCPS: 120, // Characters per second (smooth, fast display)
-    minBufferSize: 8, // Maintain small buffer to prevent stuttering
-    catchUpMultiplier: 2.0, // Catch up faster when buffer grows
-  });
-
   return (
-    <div className={markdownWrapperStyles}>
-      <StreamingMarkdown
-        content={displayText}
-        isStreaming={isStreaming}
-        components={markdownComponents}
-      />
-      {isStreaming && isTyping && (
-        <span className="inline-block w-2 h-4 bg-current ml-1 animate-cursor-blink" />
-      )}
-    </div>
+    <TypewriterText
+      text={text}
+      isStreaming={isStreaming}
+      components={markdownComponents}
+      className={markdownWrapperStyles}
+    />
   );
 }
 
@@ -544,7 +540,7 @@ function MessageBubbleComponent({
         {sanitizedContent && (
           <div className="text-sm leading-5">
             {isAssistantStreaming ? (
-              <TypewriterText text={sanitizedContent} isStreaming={true} />
+              <TypewriterTextWrapper text={sanitizedContent} isStreaming={true} />
             ) : (
               <div className={markdownWrapperStyles}>
                 <Markdown

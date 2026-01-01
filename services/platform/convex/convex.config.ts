@@ -4,6 +4,7 @@ import workflow from '@convex-dev/workflow/convex.config';
 import agent from '@convex-dev/agent/convex.config';
 import rateLimiter from '@convex-dev/rate-limiter/convex.config';
 import actionCache from '@convex-dev/action-cache/convex.config';
+import persistentTextStreaming from '@convex-dev/persistent-text-streaming/convex.config';
 
 const app = defineApp();
 app.use(betterAuth);
@@ -11,5 +12,6 @@ app.use(workflow);
 app.use(agent);
 app.use(rateLimiter);
 app.use(actionCache);
+app.use(persistentTextStreaming);
 
 export default app;

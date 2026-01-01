@@ -50,6 +50,7 @@ interface ChatMessage {
   attachments?: FileAttachment[];
   fileParts?: FilePart[]; // File parts from server messages
   _creationTime?: number; // For chronological ordering with approvals
+  isStreaming?: boolean; // Whether this message is currently streaming
 }
 
 /**
@@ -346,6 +347,9 @@ export default function ChatInterface({
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
+          // Mark messages with 'streaming' status as actively streaming
+          // This triggers the TypewriterText animation in MessageBubble
+          isStreaming: m.status === 'streaming',
         };
       });
   }, [uiMessages]);
