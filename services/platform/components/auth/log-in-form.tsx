@@ -43,7 +43,9 @@ export function LogInForm({
           .string()
           .min(1, tCommon('validation.required', { field: t('email') }))
           .email(tCommon('validation.email')),
-        password: z.string().min(1, tCommon('validation.required', { field: t('password') })),
+        password: z
+          .string()
+          .min(1, tCommon('validation.required', { field: t('password') })),
       }),
     [tCommon, t],
   );
@@ -119,10 +121,7 @@ export function LogInForm({
     <AuthFormLayout title={t('login.loginTitle')}>
       <Stack gap={8}>
         <Stack gap={5}>
-          <Form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            autoComplete="on"
-          >
+          <Form onSubmit={form.handleSubmit(handleSubmit)} autoComplete="on">
             {/* Email Field */}
             <Input
               id="email"

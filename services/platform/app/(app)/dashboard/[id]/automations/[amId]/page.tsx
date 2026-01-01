@@ -15,7 +15,7 @@ const AutomationSteps = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
+      <div className="flex justify-stretch size-full flex-1 max-h-full">
         <div className="flex-[1_1_0] min-h-0 bg-background relative">
           {/* Background dots pattern - matches ReactFlow */}
           <div

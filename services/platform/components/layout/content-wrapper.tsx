@@ -13,9 +13,7 @@ interface ContentWrapperProps {
  */
 export function ContentWrapper({ children, className }: ContentWrapperProps) {
   return (
-    <div
-      className={cn('flex flex-col flex-1 min-h-0 px-4 py-6', className)}
-    >
+    <div className={cn('flex flex-col flex-1 min-h-0', className)}>
       {children}
     </div>
   );

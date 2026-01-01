@@ -21,8 +21,8 @@ export async function generateMetadata() {
 function isMicrosoftAuthEnabled(): boolean {
   return Boolean(
     process.env.AUTH_MICROSOFT_ENTRA_ID_ID &&
-      process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
-      process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
+    process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
   );
 }
 
@@ -50,9 +50,7 @@ async function LogInContent() {
 export default function LogInPage() {
   return (
     <Suspense
-      fallback={
-        <AuthFormSkeleton title="Log in" showMicrosoftButton />
-      }
+      fallback={<AuthFormSkeleton title="Log in" showMicrosoftButton />}
     >
       <LogInContent />
     </Suspense>

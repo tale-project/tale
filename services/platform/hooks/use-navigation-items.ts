@@ -21,6 +21,7 @@ export interface NavItem {
 export function useNavigationItems(businessId: string): NavItem[] {
   const { t: tNav } = useT('navigation');
   const { t: tKnowledge } = useT('knowledge');
+  const { t: tConversations } = useT('conversations');
 
   return [
     {
@@ -32,6 +33,24 @@ export function useNavigationItems(businessId: string): NavItem[] {
       label: tNav('conversations'),
       href: `/dashboard/${businessId}/conversations/open`,
       icon: Inbox,
+      subItems: [
+        {
+          label: tConversations('status.open'),
+          href: `/dashboard/${businessId}/conversations/open`,
+        },
+        {
+          label: tConversations('status.closed'),
+          href: `/dashboard/${businessId}/conversations/closed`,
+        },
+        {
+          label: tConversations('status.spam'),
+          href: `/dashboard/${businessId}/conversations/spam`,
+        },
+        {
+          label: tConversations('status.archived'),
+          href: `/dashboard/${businessId}/conversations/archived`,
+        },
+      ]
     },
     {
       label: tNav('knowledge'),
