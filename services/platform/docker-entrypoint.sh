@@ -565,6 +565,8 @@ monitor_convex() {
 
       if curl -sf "http://localhost:${CONVEX_BACKEND_PORT}/version" > /dev/null 2>&1; then
         echo "[$(date -Iseconds)] Convex backend recovered successfully" | tee -a "$CRASH_LOG"
+      else
+        echo "[$(date -Iseconds)] Convex backend recovery pending..." | tee -a "$CRASH_LOG"
       fi
     fi
   done
