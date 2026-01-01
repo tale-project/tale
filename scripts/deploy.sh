@@ -416,7 +416,11 @@ cmd_deploy() {
   done
 
   if [ "$caddy_verify_attempts" -ge "$caddy_verify_max" ]; then
-    log_warning "Could not verify proxy routing, continuing anyway..."
+    log_error "Could not verify proxy routing after ${caddy_verify_max} attempts"
+    log_error "Refusing to drain old containers - new services may not be serving traffic"
+    log_warning "Rolling back - stopping ${target_color} containers..."
+    cleanup_color "$target_color" true
+    return 1
   fi
 
   # Step 7: Drain and cleanup old version
