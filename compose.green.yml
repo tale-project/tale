@@ -1,0 +1,63 @@
+# Docker Compose Green Deployment Overlay
+# This file is used with compose.yml for blue-green deployments
+#
+# Usage:
+#   docker compose -f compose.yml -f compose.green.yml up -d
+#
+# This overlay:
+# - Assigns unique container names with "-green" suffix
+# - Creates network aliases for Caddy health checks
+# - Removes host port bindings (traffic goes through proxy)
+
+services:
+  # ============================================================================
+  # Green Platform
+  # ============================================================================
+  platform:
+    container_name: tale-platform-green
+    # Remove host port binding - all traffic through proxy
+    ports: !reset []
+    networks:
+      internal:
+        aliases:
+          - platform-green
+
+  # ============================================================================
+  # Green RAG
+  # ============================================================================
+  rag:
+    container_name: tale-rag-green
+    networks:
+      internal:
+        aliases:
+          - rag-green
+
+  # ============================================================================
+  # Green Crawler
+  # ============================================================================
+  crawler:
+    container_name: tale-crawler-green
+    networks:
+      internal:
+        aliases:
+          - crawler-green
+
+  # ============================================================================
+  # Green Search
+  # ============================================================================
+  search:
+    container_name: tale-search-green
+    networks:
+      internal:
+        aliases:
+          - search-green
+
+  # ============================================================================
+  # Green Graph DB
+  # ============================================================================
+  graph-db:
+    container_name: tale-graph-db-green
+    networks:
+      internal:
+        aliases:
+          - graph-db-green

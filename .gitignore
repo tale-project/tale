@@ -54,6 +54,10 @@ next-env.d.ts
 # docker compose
 compose.override.yml
 
+# deployment state files
+.deployment-lock
+.deployment-color
+
 .claude/
 
 # Python

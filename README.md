@@ -56,11 +56,11 @@ Ready to go live? Add your domain:
 # Update .env
 DOMAIN=https://yourdomain.com
 
-# Start with production profile
-docker compose --profile production up --build -d
+# Build and start in detached mode
+docker compose up --build -d
 ```
 
-SSL certificates are handled automatically.
+SSL certificates are handled automatically by Caddy.
 
 ## Authentication Options
 
@@ -107,6 +107,21 @@ Your proxy must send these headers with every request:
 
 ⚠️ **Security**: Only enable this when Tale is behind a trusted proxy that strips these headers from external requests.
 
+## Updating Tale
+
+To update to a new version:
+
+```bash
+# Pull latest changes
+git pull
+
+# Rebuild and restart
+docker compose down
+docker compose up --build -d
+```
+
+> **Need zero-downtime updates?** See [Zero-Downtime Deployment](docs/zero-downtime-deployment.md) for blue-green deployment strategy.
+
 ## Essential Commands
 
 ```bash
@@ -142,6 +157,10 @@ The admin key is required every time you open the dashboard. Keep it secure—an
 
 - **[Chat Agent Guide](docs/chat-agent-guide.md)** - Learn how to use the AI-powered chat assistant to manage customers, automate workflows, and access your business data through natural conversation
 - **[Workflow Guide](docs/workflow-guide.md)** - Build powerful automation workflows with AI, data processing, and customer engagement
+
+### Operations
+
+- **[Zero-Downtime Deployment](docs/zero-downtime-deployment.md)** - Blue-green deployment strategy for production environments requiring zero downtime
 
 ## Need Help?
 
