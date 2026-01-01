@@ -28,6 +28,9 @@ SHUTDOWN_MARKER="/tmp/shutting_down"
 # Clear any stale shutdown marker from previous runs
 rm -f "$SHUTDOWN_MARKER"
 
+# PID file for Convex process (shared between main script and monitor subshell)
+CONVEX_PID_FILE="/app/convex-data/convex.pid"
+
 # Gracefully shutdown all services with connection draining
 # This supports zero-downtime blue-green deployments by:
 # 1. Creating shutdown marker (health checks will fail)
@@ -54,11 +57,15 @@ shutdown() {
   echo "   ⏳ Waiting ${grace_period}s for in-flight requests to complete..."
   sleep "$grace_period"
 
+  # Read current Convex PID from file (may have been updated by monitor subshell)
+  local current_convex_pid
+  current_convex_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
+
   # Step 4: Send SIGTERM to all services (including monitor)
   echo "   🔌 Sending SIGTERM to services..."
   kill -TERM "$MONITOR_PID" 2>/dev/null || true
   kill -TERM "$NEXTJS_PID" 2>/dev/null || true
-  kill -TERM "$CONVEX_PID" 2>/dev/null || true
+  [ -n "$current_convex_pid" ] && kill -TERM "$current_convex_pid" 2>/dev/null || true
   kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
 
   # Step 5: Wait for processes to exit gracefully
@@ -72,7 +79,7 @@ shutdown() {
     local still_running=0
     kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
     kill -0 "$NEXTJS_PID" 2>/dev/null && still_running=1
-    kill -0 "$CONVEX_PID" 2>/dev/null && still_running=1
+    [ -n "$current_convex_pid" ] && kill -0 "$current_convex_pid" 2>/dev/null && still_running=1
     kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
 
     if [ $still_running -eq 0 ]; then
@@ -86,11 +93,12 @@ shutdown() {
   # Force kill if still running
   if [ "$waited" -ge "$shutdown_timeout" ]; then
     echo "   ⚠️  Timeout reached, force killing remaining processes..."
-    kill -KILL "$MONITOR_PID" "$NEXTJS_PID" "$CONVEX_PID" "$DASHBOARD_PID" 2>/dev/null || true
+    kill -KILL "$MONITOR_PID" "$NEXTJS_PID" "$current_convex_pid" "$DASHBOARD_PID" 2>/dev/null || true
   fi
 
   # Cleanup
   rm -f "$SHUTDOWN_MARKER"
+  rm -f "$CONVEX_PID_FILE"
 
   echo "✅ Services stopped gracefully"
   exit 0
@@ -372,6 +380,8 @@ SITE_ARGS="$SITE_ARGS --instance-name $INSTANCE_NAME --instance-secret $INSTANCE
 # Start Convex backend
 convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
 CONVEX_PID=$!
+# Write initial PID to file for cross-subshell visibility (used by monitor and shutdown)
+echo "$CONVEX_PID" > "$CONVEX_PID_FILE"
 
 # Wait for Convex backend to be ready
 wait_for_http "http://localhost:${CONVEX_BACKEND_PORT}/version" 60 "Convex backend API" false || {
@@ -537,16 +547,18 @@ monitor_convex() {
         exit 1
       fi
 
-      # Kill stale process if exists
-      if [ -n "${CONVEX_PID:-}" ] && kill -0 "$CONVEX_PID" 2>/dev/null; then
-        kill "$CONVEX_PID" 2>/dev/null || true
-        wait "$CONVEX_PID" 2>/dev/null || true
+      # Kill stale process if exists (read PID from file for cross-subshell visibility)
+      local current_pid
+      current_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
+      if [ -n "$current_pid" ] && kill -0 "$current_pid" 2>/dev/null; then
+        kill "$current_pid" 2>/dev/null || true
+        wait "$current_pid" 2>/dev/null || true
       fi
 
       # Restart Convex backend
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
       convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
-      CONVEX_PID=$!
+      echo $! > "$CONVEX_PID_FILE"
 
       # Wait for recovery
       sleep 5
