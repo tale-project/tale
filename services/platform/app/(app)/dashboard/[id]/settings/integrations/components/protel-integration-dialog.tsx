@@ -157,7 +157,7 @@ export default function ProtelIntegrationDialog({
       {isConnected ? (
         <div className="rounded-md bg-success/10 p-4">
           <p className="text-sm font-medium text-success">
-            {t('integrations.protel.connectedTo', { server: credentials?.server })}
+            {t('integrations.protel.connectedTo', { server: credentials?.server ?? '' })}
           </p>
           <p className="text-xs text-success/80 mt-1">
             {t('integrations.protel.database')}: {credentials?.database}

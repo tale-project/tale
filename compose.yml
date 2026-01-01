@@ -73,14 +73,12 @@ services:
   # ============================================================================
   # Tale Graph DB (Kuzu)
   # ============================================================================
+  # Stateless service - no container_name for blue-green deployment
   graph-db:
     # Build from local Dockerfile
     build:
       context: ./services/graph-db
       dockerfile: Dockerfile
-
-    # Container name
-    container_name: tale-graph-db
 
     # No port mapping needed - only accessed by other services (rag)
     # internally via http://graph-db:8000
@@ -94,13 +92,14 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check
+    # Health check - optimized for faster blue-green deployment
     # Docker will check if the service is healthy
+    # Note: Using Python since curl is not available in python:3.11-slim
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health")']
+      interval: 5s
+      timeout: 3s
+      retries: 2
       start_period: 10s
 
     # Logging configuration
@@ -117,14 +116,12 @@ services:
   # ============================================================================
   # Tale Crawler (Crawl4AI)
   # ============================================================================
+  # Stateless service - no container_name for blue-green deployment
   crawler:
     # Build configuration
     build:
       context: .
       dockerfile: services/crawler/Dockerfile
-
-    # Container name
-    container_name: tale-crawler
 
     # No port mapping needed - only accessed by platform service
     # internally via http://crawler:8002
@@ -138,13 +135,13 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check
+    # Health check - optimized for faster blue-green deployment
     # Docker will check if the service is healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 5s
+      timeout: 3s
+      retries: 2
       start_period: 40s
 
     # Resource limits (optional, adjust based on your needs)
@@ -171,14 +168,12 @@ services:
   # ============================================================================
   # Tale RAG (Cognee)
   # ============================================================================
+  # Stateless service - no container_name for blue-green deployment
   rag:
     # Build configuration
     build:
       context: .
       dockerfile: services/rag/Dockerfile
-
-    # Container name
-    container_name: tale-rag
 
     # No port mapping needed - only accessed by platform service
     # internally via http://rag:8001
@@ -205,13 +200,13 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check
+    # Health check - optimized for faster blue-green deployment
     # Docker will check if the service is healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 5s
+      timeout: 3s
+      retries: 2
       start_period: 40s
 
     # Dependencies
@@ -244,17 +239,16 @@ services:
   # ============================================================================
   # Tale Platform (Next.js + Convex)
   # ============================================================================
+  # Stateless service - no container_name for blue-green deployment
   platform:
     # Build configuration
     build:
       context: .
       dockerfile: services/platform/Dockerfile
 
-    # Container name
-    container_name: tale-platform
-
     # Port mapping for local development (bypasses proxy for easier testing)
     # Access via http://localhost:3000 (dev) or https://yourdomain.com via proxy (prod)
+    # Note: In production with blue-green, use ports in overlay files instead
     ports:
       - '3000:3000'
 
@@ -273,14 +267,14 @@ services:
     # Automatically restart the container if it crashes
     restart: unless-stopped
 
-    # Health check
+    # Health check - optimized for faster blue-green deployment
     # Docker will check if the service is healthy
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 45s
 
     # Dependencies
     # Wait for backend services to be ready
@@ -315,14 +309,12 @@ services:
   # ============================================================================
   # Tale Search (SearXNG) - Self-hosted Meta Search Engine
   # ============================================================================
+  # Stateless service - no container_name for blue-green deployment
   search:
     # Build configuration
     build:
       context: .
       dockerfile: services/search/Dockerfile
-
-    # Container name
-    container_name: tale-search
 
     # No port mapping needed - only accessed by platform service
     # internally via http://search:8080
@@ -334,7 +326,7 @@ services:
     # Restart policy
     restart: unless-stopped
 
-    # Health check
+    # Health check - optimized for faster blue-green deployment
     healthcheck:
       test:
         [
@@ -346,9 +338,9 @@ services:
           '--header=X-Real-IP: 127.0.0.1',
           'http://localhost:8080/healthz',
         ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 5s
+      timeout: 3s
+      retries: 2
       start_period: 30s
 
     # Logging configuration

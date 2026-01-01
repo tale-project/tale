@@ -13,7 +13,7 @@ set -e
 echo "🚀 Starting Tale Platform with integrated Convex backend..."
 
 # ============================================================================
-# Signal Handling
+# Signal Handling - Graceful Shutdown for Blue-Green Deployments
 # ============================================================================
 
 # PIDs for background processes
@@ -21,12 +21,72 @@ CONVEX_PID=""
 NEXTJS_PID=""
 DASHBOARD_PID=""
 
-# Gracefully shutdown all services
+# Shutdown marker file - health check will return 503 when this exists
+SHUTDOWN_MARKER="/tmp/shutting_down"
+
+# Gracefully shutdown all services with connection draining
+# This supports zero-downtime blue-green deployments by:
+# 1. Creating shutdown marker (health checks will fail)
+# 2. Waiting for load balancer to stop sending traffic
+# 3. Waiting for in-flight requests to complete
+# 4. Sending SIGTERM to gracefully stop services
 shutdown() {
-  echo "🛑 Shutting down services..."
-  kill -TERM "$CONVEX_PID" "$NEXTJS_PID" "$DASHBOARD_PID" 2>/dev/null || true
-  wait "$CONVEX_PID" "$NEXTJS_PID" "$DASHBOARD_PID" 2>/dev/null || true
-  echo "✅ Services stopped"
+  echo "🛑 Starting graceful shutdown..."
+
+  # Step 1: Signal that we're shutting down
+  # The health check endpoint can check for this marker
+  touch "$SHUTDOWN_MARKER"
+  echo "   ✓ Shutdown marker created"
+
+  # Step 2: Wait for load balancer to detect unhealthy status
+  # Caddy health checks run every 3s, so wait 2 health check cycles
+  local drain_wait="${SHUTDOWN_DRAIN_SECONDS:-6}"
+  echo "   ⏳ Waiting ${drain_wait}s for load balancer to stop routing traffic..."
+  sleep "$drain_wait"
+
+  # Step 3: Wait for in-flight requests to complete
+  # Give requests a grace period to finish
+  local grace_period="${SHUTDOWN_GRACE_SECONDS:-5}"
+  echo "   ⏳ Waiting ${grace_period}s for in-flight requests to complete..."
+  sleep "$grace_period"
+
+  # Step 4: Send SIGTERM to all services
+  echo "   🔌 Sending SIGTERM to services..."
+  kill -TERM "$NEXTJS_PID" 2>/dev/null || true
+  kill -TERM "$CONVEX_PID" 2>/dev/null || true
+  kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
+
+  # Step 5: Wait for processes to exit gracefully
+  local shutdown_timeout="${SHUTDOWN_TIMEOUT_SECONDS:-30}"
+  echo "   ⏳ Waiting up to ${shutdown_timeout}s for services to stop..."
+
+  # Wait with timeout
+  local waited=0
+  while [ "$waited" -lt "$shutdown_timeout" ]; do
+    # Check if all processes have exited
+    local still_running=0
+    kill -0 "$NEXTJS_PID" 2>/dev/null && still_running=1
+    kill -0 "$CONVEX_PID" 2>/dev/null && still_running=1
+    kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
+
+    if [ $still_running -eq 0 ]; then
+      break
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  # Force kill if still running
+  if [ "$waited" -ge "$shutdown_timeout" ]; then
+    echo "   ⚠️  Timeout reached, force killing remaining processes..."
+    kill -KILL "$NEXTJS_PID" "$CONVEX_PID" "$DASHBOARD_PID" 2>/dev/null || true
+  fi
+
+  # Cleanup
+  rm -f "$SHUTDOWN_MARKER"
+
+  echo "✅ Services stopped gracefully"
   exit 0
 }
 
