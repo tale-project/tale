@@ -579,7 +579,7 @@ cmd_help() {
   echo ""
   echo "ENVIRONMENT VARIABLES:"
   echo "  HEALTH_CHECK_TIMEOUT  Max time to wait for health (default: 180s)"
-  echo "  HEALTH_CHECK_INTERVAL Interval between checks (default: 3s)"
+  echo "  HEALTH_CHECK_INTERVAL Interval between checks (default: 1s)"
   echo "  DRAIN_TIMEOUT         Time to drain old containers (default: 30s)"
   echo ""
   echo "EXAMPLES:"
