@@ -12,7 +12,7 @@ interface DocumentDeleteFolderDialogProps {
   folderName?: string | null;
 }
 
-export default function DocumentDeleteFolderDialog({
+export function DocumentDeleteFolderDialog({
   open,
   onOpenChange,
   onConfirmDelete,

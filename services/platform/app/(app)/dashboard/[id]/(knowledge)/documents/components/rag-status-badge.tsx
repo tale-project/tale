@@ -62,7 +62,7 @@ const statusConfig: Record<
   },
 };
 
-export default function RagStatusBadge({ status, indexedAt, error, documentId }: RagStatusBadgeProps) {
+export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);

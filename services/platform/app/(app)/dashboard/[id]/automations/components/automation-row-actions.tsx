@@ -7,13 +7,11 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
-import AutomationDeleteDialog from './automation-delete-dialog';
-import AutomationRenameDialog from './automation-rename-dialog';
-import {
-  useDuplicateAutomation,
-  useDeleteAutomation,
-  useUpdateAutomation,
-} from '../hooks';
+import { DeleteAutomationDialog } from './automation-delete-dialog';
+import { AutomationRenameDialog } from './automation-rename-dialog';
+import { useDuplicateAutomation } from '../hooks/use-duplicate-automation';
+import { useDeleteAutomation } from '../hooks/use-delete-automation';
+import { useUpdateAutomation } from '../hooks/use-update-automation';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n';
@@ -22,7 +20,7 @@ interface AutomationRowActionsProps {
   automation: Doc<'wfDefinitions'>;
 }
 
-export default function AutomationRowActions({
+export function AutomationRowActions({
   automation,
 }: AutomationRowActionsProps) {
   const { t: tCommon } = useT('common');
@@ -133,7 +131,7 @@ export default function AutomationRowActions({
         onRename={handleRename}
       />
 
-      <AutomationDeleteDialog
+      <DeleteAutomationDialog
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         onConfirm={handleDeleteConfirm}

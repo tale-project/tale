@@ -6,7 +6,7 @@ interface AutomationGroupNodeProps {
   };
 }
 
-export default function AutomationGroupNode({
+export function AutomationGroupNode({
   data,
 }: AutomationGroupNodeProps) {
   return (

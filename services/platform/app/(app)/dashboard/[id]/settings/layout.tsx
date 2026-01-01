@@ -1,15 +1,12 @@
 import { ReactNode } from 'react';
 import { api } from '@/convex/_generated/api';
-import SettingsNavigation from './settings-navigation';
+import { SettingsNavigation } from './settings-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import {
-  ContentWrapper,
-  PageHeader,
-  PageHeaderTitle,
-} from '@/components/layout';
+import { ContentWrapper } from '@/components/layout/content-wrapper';
+import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
 import { getT } from '@/lib/i18n/server';
 
 interface SettingsLayoutProps {

@@ -2,14 +2,14 @@
 
 import { useMemo, useCallback } from 'react';
 import { FormDialog } from '@/components/ui/dialog';
-import ProductImportForm from './product-import-form';
+import { ProductImportForm } from './product-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { ProductStatus, PRODUCT_STATUS } from '@/constants/convex-enums';
 import { useT } from '@/lib/i18n';
-import { useCreateProduct } from './hooks';
+import { useCreateProduct } from './hooks/use-create-product';
 import { useFileImport, productMappers } from '@/hooks/use-file-import';
 
 type FormValues = {
@@ -34,7 +34,7 @@ interface ImportProductsDialogProps {
   onSuccess?: () => void;
 }
 
-export default function ImportProductsDialog({
+export function ProductsImportDialog({
   isOpen,
   onClose,
   organizationId,

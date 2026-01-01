@@ -30,7 +30,7 @@ interface AutomationEdgeProps extends EdgeProps {
   };
 }
 
-export default function AutomationEdge({
+export function AutomationEdge({
   sourceX,
   sourceY,
   targetX,

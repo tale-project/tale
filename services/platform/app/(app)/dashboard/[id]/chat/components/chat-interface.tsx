@@ -7,19 +7,17 @@ import { ArrowDown, Loader2 } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import MessageBubble from './message-bubble';
-import ChatInput from './chat-input';
+import { MessageBubble } from './message-bubble';
+import { ChatInput } from './chat-input';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
-import {
-  useCreateThread,
-  useUpdateThread,
-  useChatWithAgent,
-} from '../hooks';
+import { useCreateThread } from '../hooks/use-create-thread';
+import { useUpdateThread } from '../hooks/use-update-thread';
+import { useChatWithAgent } from '../hooks/use-chat-with-agent';
 import { Button } from '@/components/ui/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
@@ -285,7 +283,7 @@ function ThinkingAnimation({
   );
 }
 
-export default function ChatInterface({
+export function ChatInterface({
   organizationId,
   threadId,
 }: ChatInterfaceProps) {

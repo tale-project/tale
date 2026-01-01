@@ -4,7 +4,7 @@ import { ViewDialog } from '@/components/ui/dialog';
 import { Stack, Grid } from '@/components/ui/layout';
 import { Field, FieldGroup } from '@/components/ui/field';
 import { formatDate } from '@/lib/utils/date/format';
-import { formatNumber } from '@/lib/utils/format';
+import { formatNumber } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n';
 
 interface MessageMetadata {
@@ -26,7 +26,7 @@ interface MessageInfoDialogProps {
   metadata?: MessageMetadata;
 }
 
-export default function MessageInfoDialog({
+export function MessageInfoDialog({
   isOpen,
   onOpenChange,
   messageId,

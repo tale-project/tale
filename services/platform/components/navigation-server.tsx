@@ -1,4 +1,4 @@
-import Navigation from './navigation';
+import { Navigation } from './navigation';
 
 interface NavigationServerProps {
   organizationId: string;
@@ -16,7 +16,7 @@ interface NavigationServerProps {
  * - Enables streaming via Suspense in the parent
  * - Navigation renders immediately with correct role
  */
-export default function NavigationServer({
+export function NavigationServer({
   organizationId: _organizationId,
   role,
 }: NavigationServerProps) {

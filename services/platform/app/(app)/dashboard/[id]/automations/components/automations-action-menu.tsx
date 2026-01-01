@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
-import CreateAutomationDialog from './automation-create-dialog';
+import { CreateAutomationDialog } from './automation-create-dialog';
 import { useT } from '@/lib/i18n';
 
 export interface AutomationsActionMenuProps {

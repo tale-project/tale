@@ -1,13 +1,13 @@
 'use client';
 
 import { FormDialog } from '@/components/ui/dialog';
-import VendorImportForm from '@/components/vendor-import-form';
+import { VendorImportForm } from '@/components/vendor-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useBulkCreateVendors } from './hooks';
+import { useBulkCreateVendors } from './hooks/use-bulk-create-vendors';
 import { useEffect, useMemo, useCallback } from 'react';
 import { useT } from '@/lib/i18n';
 import { useFileImport, vendorMappers } from '@/hooks/use-file-import';
@@ -33,7 +33,7 @@ interface ImportVendorsDialogProps {
   mode?: 'manual' | 'upload';
 }
 
-export default function ImportVendorsDialog({
+export function ImportVendorsDialog({
   isOpen,
   onClose,
   organizationId,

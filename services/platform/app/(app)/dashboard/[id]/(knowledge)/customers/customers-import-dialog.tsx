@@ -2,14 +2,14 @@
 
 import { useMemo, useCallback } from 'react';
 import { FormDialog } from '@/components/ui/dialog';
-import CustomerImportForm from '@/components/customer-import-form';
+import { CustomerImportForm } from '@/components/customer-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
-import { useBulkCreateCustomers } from './hooks';
+import { useBulkCreateCustomers } from './hooks/use-bulk-create-customers';
 import { useFileImport, customerMappers } from '@/hooks/use-file-import';
 
 export interface ParsedCustomer {
@@ -35,7 +35,7 @@ interface ImportCustomersDialogProps {
   mode?: 'manual' | 'upload';
 }
 
-export default function ImportCustomersDialog({
+export function ImportCustomersDialog({
   isOpen,
   onClose,
   organizationId,

@@ -6,7 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { Dialog } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Stack, HStack } from '@/components/ui/layout';
-import ProductCard from './product-card';
+import { ProductCard } from './product-card';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
@@ -39,7 +39,7 @@ interface ApprovalDetailDialogProps {
   removingProductId?: string | null;
 }
 
-export default function ApprovalDetailDialog({
+export function ApprovalDetailDialog({
   open,
   onOpenChange,
   approvalDetail,

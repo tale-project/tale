@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { JsonViewer } from '@/components/ui/json-viewer';
 import { useT, useLocale } from '@/lib/i18n';
-import { formatDuration } from '@/lib/utils/format';
+import { formatDuration } from '@/lib/utils/format/number';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { executionFilterDefinitions } from '../filter-definitions';

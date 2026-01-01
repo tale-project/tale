@@ -4,7 +4,7 @@ interface DotIconProps {
   className?: string;
 }
 
-export default function DotIcon({ className }: DotIconProps) {
+export function DotIcon({ className }: DotIconProps) {
   return (
     <div
       className={cn(

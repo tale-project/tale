@@ -15,16 +15,14 @@ import { OutlookIcon } from '@/components/ui/icons';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Shield } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/hooks/use-toast';
-import OutlookCreateProviderDialog from './outlook-create-provider-dialog';
+import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
-import {
-  useDeleteEmailProvider,
-  useTestEmailProvider,
-  useGenerateOAuthUrl,
-} from '../hooks';
+import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
+import { useTestEmailProvider } from '../hooks/use-test-email-provider';
+import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
 import { useDateFormat } from '@/hooks/use-date-format';
 import { useT } from '@/lib/i18n';
 
@@ -34,7 +32,7 @@ interface OutlookIntegrationDialogProps {
   organizationId: string;
 }
 
-export default function OutlookIntegrationDialog({
+export function OutlookIntegrationDialog({
   open,
   onOpenChange,
   organizationId,

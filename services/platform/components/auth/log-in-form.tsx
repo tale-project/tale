@@ -12,7 +12,7 @@ import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
-import { AuthFormLayout } from '@/components/layout';
+import { AuthFormLayout } from '@/components/layout/auth-form-layout';
 import { useT } from '@/lib/i18n';
 
 type LogInFormData = {
@@ -25,7 +25,7 @@ interface LogInFormProps {
   microsoftEnabled?: boolean;
 }
 
-export default function LogInForm({
+export function LogInForm({
   userId,
   microsoftEnabled = false,
 }: LogInFormProps) {

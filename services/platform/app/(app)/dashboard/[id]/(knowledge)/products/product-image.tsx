@@ -10,7 +10,7 @@ interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   productName: string;
 }
 
-export default function ProductImage({
+export function ProductImage({
   images,
   productName,
   className,

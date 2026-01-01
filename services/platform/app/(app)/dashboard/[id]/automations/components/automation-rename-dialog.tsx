@@ -19,7 +19,7 @@ interface AutomationRenameDialogProps {
   onRename: (name: string) => Promise<void>;
 }
 
-export default function AutomationRenameDialog({
+export function AutomationRenameDialog({
   open,
   onOpenChange,
   currentName,

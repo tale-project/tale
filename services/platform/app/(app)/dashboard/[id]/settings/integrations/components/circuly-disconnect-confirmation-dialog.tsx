@@ -13,7 +13,7 @@ interface CirculyDisconnectConfirmationDialogProps {
   onConfirm: () => Promise<void> | void;
 }
 
-export default function CirculyDisconnectConfirmationDialog({
+export function CirculyDisconnectConfirmationDialog({
   open,
   onOpenChange,
   username,

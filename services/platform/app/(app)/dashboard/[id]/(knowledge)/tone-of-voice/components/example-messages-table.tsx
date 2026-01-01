@@ -22,7 +22,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
-import Pagination from '@/components/ui/pagination';
+import { Pagination } from '@/components/ui/pagination';
 import { useT, useLocale } from '@/lib/i18n';
 
 interface ExampleMessage {
@@ -44,7 +44,7 @@ const truncateMessage = (message: string, maxLength: number = 100) => {
   return `"${message.substring(0, maxLength)}..."`;
 };
 
-export default function ExampleMessagesTable({
+export function ExampleMessagesTable({
   examples,
   onAddExample,
   onViewExample,

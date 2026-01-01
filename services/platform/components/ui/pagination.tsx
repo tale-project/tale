@@ -16,7 +16,7 @@ interface PaginationProps {
   queryString?: string; // Additional query parameters to preserve
 }
 
-export default function Pagination({
+export function Pagination({
   currentPage,
   total = 0,
   pageSize = 10,

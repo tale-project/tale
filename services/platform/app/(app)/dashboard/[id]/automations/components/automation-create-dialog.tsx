@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/hooks/use-toast';
-import { useCreateAutomation } from '../hooks';
+import { useCreateAutomation } from '../hooks/use-create-automation';
 import { useT } from '@/lib/i18n';
 
 type FormData = {
@@ -23,7 +23,7 @@ interface CreateAutomationDialogProps {
   organizationId: string;
 }
 
-export default function CreateAutomationDialog({
+export function CreateAutomationDialog({
   open,
   onOpenChange,
   organizationId,

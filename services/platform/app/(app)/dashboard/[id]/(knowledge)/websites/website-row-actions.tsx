@@ -7,18 +7,18 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
-import WebsiteViewDialog from './website-view-dialog';
-import WebsiteEditDialog from './website-edit-dialog';
-import WebsiteDeleteDialog from './website-delete-dialog';
+import { ViewWebsiteDialog } from './website-view-dialog';
+import { EditWebsiteDialog } from './website-edit-dialog';
+import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useRescanWebsite } from './hooks';
+import { useRescanWebsite } from './hooks/use-rescan-website';
 import { useT } from '@/lib/i18n';
 
 interface WebsiteRowActionsProps {
   website: Doc<'websites'>;
 }
 
-export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
+export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
   const { t } = useT('websites');
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);
@@ -82,7 +82,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
       <EntityRowActions actions={actions} />
 
       {dialogs.isOpen.view && (
-        <WebsiteViewDialog
+        <ViewWebsiteDialog
           isOpen={dialogs.isOpen.view}
           onClose={() => dialogs.setOpen.view(false)}
           website={website}
@@ -90,7 +90,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
       )}
 
       {dialogs.isOpen.edit && (
-        <WebsiteEditDialog
+        <EditWebsiteDialog
           isOpen={dialogs.isOpen.edit}
           onClose={() => dialogs.setOpen.edit(false)}
           website={website}
@@ -98,7 +98,7 @@ export default function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
       )}
 
       {dialogs.isOpen.delete && (
-        <WebsiteDeleteDialog
+        <DeleteWebsiteDialog
           isOpen={dialogs.isOpen.delete}
           onClose={() => dialogs.setOpen.delete(false)}
           website={website}

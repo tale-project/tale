@@ -10,7 +10,7 @@ interface AddStepNodeProps {
   };
 }
 
-export default function AddStepNode({ data }: AddStepNodeProps) {
+export function AddStepNode({ data }: AddStepNodeProps) {
   const { t } = useT('common');
   return (
     <div className="relative">

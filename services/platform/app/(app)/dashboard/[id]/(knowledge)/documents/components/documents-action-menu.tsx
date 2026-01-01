@@ -10,7 +10,7 @@ import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';
 
 // Lazy-load OneDrive dialog to avoid MGT bundle size impact and SSR issues
-const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog'), {
+const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })), {
   ssr: false,
 });
 

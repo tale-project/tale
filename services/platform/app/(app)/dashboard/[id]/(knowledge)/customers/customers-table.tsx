@@ -15,7 +15,7 @@ import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
 import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
-import CustomerRowActions from './customer-row-actions';
+import { CustomerRowActions } from './customer-row-actions';
 import { CustomersActionMenu } from './customers-action-menu';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
@@ -27,7 +27,7 @@ export interface CustomersTableProps {
   preloadedCustomers: Preloaded<typeof api.customers.listCustomers>;
 }
 
-export default function CustomersTable({
+export function CustomersTable({
   organizationId,
   preloadedCustomers,
 }: CustomersTableProps) {

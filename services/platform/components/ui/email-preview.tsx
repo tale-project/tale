@@ -137,7 +137,7 @@ function splitQuotedContent(html: string): { main: string; quoted: string } {
   return { main: html, quoted: '' };
 }
 
-export default function EmailPreview({
+export function EmailPreview({
   html,
   className,
   style,

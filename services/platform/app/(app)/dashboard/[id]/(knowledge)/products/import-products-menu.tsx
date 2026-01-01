@@ -13,14 +13,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, Plus } from 'lucide-react';
-import ImportProductsDialog from './products-import-dialog';
+import { ProductsImportDialog } from './products-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportProductsMenuProps {
   organizationId: string;
 }
 
-export default function ImportProductsMenu({
+export function ImportProductsMenu({
   organizationId,
 }: ImportProductsMenuProps) {
   const { t } = useT('products');
@@ -101,7 +101,7 @@ export default function ImportProductsMenu({
         </NavigationMenuList>
       </NavigationMenu>
 
-      <ImportProductsDialog
+      <ProductsImportDialog
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
         organizationId={organizationId}

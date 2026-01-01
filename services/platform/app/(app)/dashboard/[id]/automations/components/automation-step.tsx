@@ -26,7 +26,7 @@ interface AutomationStepProps {
   };
 }
 
-export default function AutomationStep({ data }: AutomationStepProps) {
+export function AutomationStep({ data }: AutomationStepProps) {
   const { t } = useT('automations');
   const { onNodeClick } = useAutomationCallbacks();
 

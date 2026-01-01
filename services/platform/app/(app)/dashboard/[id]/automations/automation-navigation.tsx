@@ -3,7 +3,8 @@
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { usePublishAutomationDraft, useCreateDraftFromActive } from './hooks';
+import { usePublishAutomationDraft } from './hooks/use-publish-automation-draft';
+import { useCreateDraftFromActive } from './hooks/use-create-draft-from-active';
 import { Button } from '@/components/ui/button';
 import {
   NavigationMenu,
@@ -30,7 +31,7 @@ interface AutomationNavigationProps {
   automation?: Doc<'wfDefinitions'> | null;
 }
 
-export default function AutomationNavigation({
+export function AutomationNavigation({
   userRole,
   automation,
 }: AutomationNavigationProps) {

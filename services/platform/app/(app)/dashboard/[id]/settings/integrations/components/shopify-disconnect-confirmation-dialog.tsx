@@ -13,7 +13,7 @@ interface ShopifyDisconnectConfirmationDialogProps {
   onConfirm: () => Promise<void> | void;
 }
 
-export default function ShopifyDisconnectConfirmationDialog({
+export function ShopifyDisconnectConfirmationDialog({
   open,
   onOpenChange,
   domain,

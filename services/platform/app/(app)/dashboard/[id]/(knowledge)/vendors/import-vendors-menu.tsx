@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/navigation-menu';
 import { Button } from '@/components/ui/button';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
-import ImportVendorsDialog from './vendors-import-dialog';
+import { ImportVendorsDialog } from './vendors-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportVendorsMenuProps {
@@ -21,7 +21,7 @@ interface ImportVendorsMenuProps {
 
 export type ImportMode = 'manual' | 'upload';
 
-export default function ImportVendorsMenu({
+export function ImportVendorsMenu({
   organizationId,
 }: ImportVendorsMenuProps) {
   const { t } = useT('vendors');

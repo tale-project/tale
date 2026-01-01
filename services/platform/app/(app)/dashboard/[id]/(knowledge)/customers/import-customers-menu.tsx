@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { CirculyIcon } from '@/components/ui/icons';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
-import ImportCustomersDialog from './customers-import-dialog';
+import { ImportCustomersDialog } from './customers-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ImportCustomersMenuProps {
@@ -22,7 +22,7 @@ interface ImportCustomersMenuProps {
 
 export type ImportMode = 'manual' | 'upload';
 
-export default function ImportCustomersMenu({
+export function ImportCustomersMenu({
   organizationId,
 }: ImportCustomersMenuProps) {
   const { t } = useT('customers');

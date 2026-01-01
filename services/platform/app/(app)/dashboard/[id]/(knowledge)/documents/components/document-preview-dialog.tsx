@@ -8,10 +8,10 @@ import { IconButton } from '@/components/ui/icon-button';
 import { HStack } from '@/components/ui/layout';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import DocumentIcon from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/document-icon';
 import { Download, X, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import DocumentPreview from './document-preview';
+import { DocumentPreview } from './document-preview';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -29,7 +29,7 @@ const extractNameFromStoragePath = (storagePath: string) => {
   return parts[parts.length - 1];
 };
 
-export default function DocumentPreviewDialog({
+export function DocumentPreviewDialog({
   open,
   onOpenChange,
   organizationId,

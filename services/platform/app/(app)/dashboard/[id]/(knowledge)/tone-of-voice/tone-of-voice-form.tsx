@@ -5,21 +5,19 @@ import { useForm } from 'react-hook-form';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import {
-  useAddExample,
-  useUpdateExample,
-  useDeleteExample,
-  useUpsertTone,
-  useGenerateTone,
-} from './hooks';
+import { useAddExample } from './hooks/use-add-example';
+import { useUpdateExample } from './hooks/use-update-example';
+import { useDeleteExample } from './hooks/use-delete-example';
+import { useUpsertTone } from './hooks/use-upsert-tone';
+import { useGenerateTone } from './hooks/use-generate-tone';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
-import ExampleMessagesTable from './components/example-messages-table';
-import AddExampleDialog from './components/example-add-dialog';
-import ViewEditExampleDialog from './components/example-view-edit-dialog';
+import { ExampleMessagesTable } from './components/example-messages-table';
+import { AddExampleDialog } from './components/example-add-dialog';
+import { ViewEditExampleDialog } from './components/example-view-edit-dialog';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 import { useT } from '@/lib/i18n';
@@ -35,7 +33,7 @@ interface ToneFormData {
   tone: string;
 }
 
-export default function ToneOfVoiceForm({
+export function ToneOfVoiceForm({
   organizationId,
   preloadedToneOfVoice,
 }: ToneOfVoiceFormProps) {

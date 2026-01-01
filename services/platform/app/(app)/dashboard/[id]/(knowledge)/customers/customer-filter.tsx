@@ -15,7 +15,7 @@ import { useT } from '@/lib/i18n';
 
 type FilterSectionKey = 'status' | 'source' | 'locale';
 
-export default function CustomerFilter() {
+export function CustomerFilter() {
   const { t: tCustomers } = useT('customers');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');

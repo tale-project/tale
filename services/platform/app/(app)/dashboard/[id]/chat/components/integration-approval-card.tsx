@@ -273,4 +273,3 @@ export const IntegrationApprovalCard = memo(
   }
 );
 
-export default IntegrationApprovalCard;

@@ -2,8 +2,8 @@ import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
-import LogInForm from '@/components/auth/log-in-form';
-import { FormSkeleton } from '@/components/skeletons';
+import { LogInForm } from '@/components/auth/log-in-form';
+import { FormSkeleton } from '@/components/skeletons/form-skeleton';
 import { api } from '@/convex/_generated/api';
 import { getT } from '@/lib/i18n/server';
 

@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
-import AddWebsiteDialog from './website-add-dialog';
+import { AddWebsiteDialog } from './website-add-dialog';
 import { useT } from '@/lib/i18n';
 
 interface WebsitesActionMenuProps {

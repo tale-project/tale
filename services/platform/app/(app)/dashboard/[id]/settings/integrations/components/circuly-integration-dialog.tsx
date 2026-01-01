@@ -33,7 +33,7 @@ interface CirculyIntegrationDialogProps {
   onDisconnect?: () => Promise<void> | void;
 }
 
-export default function CirculyIntegrationDialog({
+export function CirculyIntegrationDialog({
   open,
   onOpenChange,
   credentials,

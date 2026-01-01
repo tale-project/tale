@@ -36,12 +36,12 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import CreateStepDialog from './step-create-dialog';
-import AutomationStep from './automation-step';
-import AutomationSidePanel from './automation-sidepanel';
-import AutomationGroupNode from './automation-group-node';
-import AutomationLoopContainer from './automation-loop-container';
-import AutomationEdge from './automation-edge';
+import { CreateStepDialog } from './step-create-dialog';
+import { AutomationStep } from './automation-step';
+import { AutomationSidePanel } from './automation-sidepanel';
+import { AutomationGroupNode } from './automation-group-node';
+import { AutomationLoopContainer } from './automation-loop-container';
+import { AutomationEdge } from './automation-edge';
 import { AutomationCallbacksProvider } from './automation-callbacks-context';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { getLayoutedElements } from '../utils/dagre-layout';

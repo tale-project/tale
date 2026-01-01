@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AddWebsiteDialog from './website-add-dialog';
+import { AddWebsiteDialog } from './website-add-dialog';
 import { useT } from '@/lib/i18n';
 
 interface AddWebsiteButtonProps {
   organizationId: string;
 }
 
-export default function AddWebsiteButton({ organizationId }: AddWebsiteButtonProps) {
+export function AddWebsiteButton({ organizationId }: AddWebsiteButtonProps) {
   const { t: tWebsites } = useT('websites');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 

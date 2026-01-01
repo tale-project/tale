@@ -18,22 +18,18 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import {
-  useChatWithWorkflowAssistant,
-  useUpdateAutomationMetadata,
-} from '../hooks';
-import {
-  useCreateThread,
-  useDeleteThread,
-  useGenerateUploadUrl,
-} from '../../chat/hooks';
+import { useChatWithWorkflowAssistant } from '../hooks/use-chat-with-workflow-assistant';
+import { useUpdateAutomationMetadata } from '../hooks/use-update-automation-metadata';
+import { useCreateThread } from '../../chat/hooks/use-create-thread';
+import { useDeleteThread } from '../../chat/hooks/use-delete-thread';
+import { useGenerateUploadUrl } from '../../chat/hooks/use-generate-upload-url';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { toast } from '@/hooks/use-toast';
-import DocumentIcon from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/document-icon';
 import { useUIMessages } from '@convex-dev/agent/react';
 import Image from 'next/image';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';

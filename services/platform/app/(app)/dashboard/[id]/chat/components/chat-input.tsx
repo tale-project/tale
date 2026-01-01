@@ -4,9 +4,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { ComponentPropsWithoutRef, useRef, useState, useMemo, useCallback } from 'react';
 import { X, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useGenerateUploadUrl } from '../hooks';
+import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { Id } from '@/convex/_generated/dataModel';
-import DocumentIcon from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/document-icon';
 import { EnterKeyIcon } from '@/components/ui/icons';
 import { LoaderCircleIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
@@ -31,7 +31,7 @@ interface ChatInputProps extends Omit<
   onChange?: (value: string) => void;
 }
 
-export default function ChatInput({
+export function ChatInput({
   value = '',
   onChange,
   onSendMessage,

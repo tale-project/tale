@@ -19,7 +19,7 @@ interface PaginatedMarkdownTableProps {
   pageSize?: number;
 }
 
-export default function PaginatedMarkdownTable({
+export function PaginatedMarkdownTable({
   children,
   pageSize = 10,
 }: PaginatedMarkdownTableProps) {

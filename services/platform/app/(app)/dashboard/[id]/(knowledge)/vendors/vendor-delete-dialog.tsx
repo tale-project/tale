@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { EntityDeleteDialog } from '@/components/ui/entity-delete-dialog';
 import { useT } from '@/lib/i18n';
-import { useDeleteVendor } from './hooks';
+import { useDeleteVendor } from './hooks/use-delete-vendor';
 
 interface DeleteVendorButtonProps {
   vendor: Doc<'vendors'>;
@@ -15,7 +15,7 @@ interface DeleteVendorButtonProps {
   asChild?: boolean;
 }
 
-export default function DeleteVendorButton({
+export function VendorDeleteDialog({
   vendor,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,

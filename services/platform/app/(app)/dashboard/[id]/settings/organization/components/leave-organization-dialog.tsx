@@ -11,7 +11,7 @@ interface LeaveOrganizationDialogProps {
   onLeave: () => void;
 }
 
-export default function LeaveOrganizationDialog({
+export function LeaveOrganizationDialog({
   open,
   isUpdating,
   onLeave,

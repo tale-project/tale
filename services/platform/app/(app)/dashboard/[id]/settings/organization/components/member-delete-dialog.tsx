@@ -2,7 +2,7 @@
 
 import { DeleteDialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { useRemoveMember } from '../hooks';
+import { useRemoveMember } from '../hooks/use-remove-member';
 import { useT } from '@/lib/i18n';
 
 type MemberLite = {
@@ -18,7 +18,7 @@ interface DeleteMemberDialogProps {
   member: MemberLite | null;
 }
 
-export default function DeleteMemberDialog({
+export function DeleteMemberDialog({
   open,
   onOpenChange,
   member,

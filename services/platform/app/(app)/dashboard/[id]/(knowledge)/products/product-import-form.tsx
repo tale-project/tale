@@ -8,7 +8,7 @@ import { Stack, HStack, VStack, Center } from '@/components/ui/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';
-import DocumentIcon from '../../../../../../components/ui/document-icon';
+import { DocumentIcon } from '../../../../../../components/ui/document-icon';
 import { Button } from '../../../../../../components/ui/button';
 import { useT } from '@/lib/i18n';
 
@@ -19,7 +19,7 @@ interface ProductImportFormProps {
 
 export type DataSource = 'SYNC' | 'FILE_UPLOAD';
 
-export default function ProductImportForm({
+export function ProductImportForm({
   hideTabs: _hideTabs,
   organizationId: _organizationId,
 }: ProductImportFormProps) {

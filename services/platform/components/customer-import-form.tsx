@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { ShopifyIcon } from './ui/icons';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
-import DocumentIcon from './ui/document-icon';
+import { DocumentIcon } from './ui/document-icon';
 import { Button } from './ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -23,7 +23,7 @@ interface CustomerImportFormProps {
 
 export type DataSource = Doc<'customers'>['source'];
 
-export default function CustomerImportForm({
+export function CustomerImportForm({
   hideTabs,
   organizationId,
   mode,

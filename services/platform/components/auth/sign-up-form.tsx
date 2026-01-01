@@ -12,7 +12,7 @@ import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/ui/icons';
-import { AuthFormLayout } from '@/components/layout';
+import { AuthFormLayout } from '@/components/layout/auth-form-layout';
 import { useT } from '@/lib/i18n';
 
 // Type for the form data
@@ -25,7 +25,7 @@ interface SignUpFormProps {
   microsoftEnabled?: boolean;
 }
 
-export default function SignUpForm({
+export function SignUpForm({
   microsoftEnabled = false,
 }: SignUpFormProps) {
   const router = useRouter();

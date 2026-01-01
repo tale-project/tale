@@ -3,12 +3,10 @@
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import {
-  useCreateAutomationDraft,
-  useUpdateAutomationStatus,
-  useUpdateAutomation,
-  useDeleteAutomation,
-} from '../hooks';
+import { useCreateAutomationDraft } from '../hooks/use-create-automation-draft';
+import { useUpdateAutomationStatus } from '../hooks/use-update-automation-status';
+import { useUpdateAutomation } from '../hooks/use-update-automation';
+import { useDeleteAutomation } from '../hooks/use-delete-automation';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import type { WorkflowConfig } from '@/convex/model/wf_definitions/types';
 import { useAuth } from '@/hooks/use-convex-auth';

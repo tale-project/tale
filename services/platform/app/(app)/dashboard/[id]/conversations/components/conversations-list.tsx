@@ -144,7 +144,7 @@ const categoryConfig = {
   },
 };
 
-export default function ConversationsList({
+export function ConversationsList({
   conversations,
   selectedConversationId,
   onConversationSelect,

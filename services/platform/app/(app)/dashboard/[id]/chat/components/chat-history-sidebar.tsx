@@ -4,12 +4,12 @@ import { ComponentPropsWithoutRef, useEffect, useState, useRef, useMemo } from '
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useUpdateThread } from '../hooks';
+import { useUpdateThread } from '../hooks/use-update-thread';
 import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
-import ChatActions from './chat-actions';
+import { ChatActions } from './chat-actions';
 import { useT } from '@/lib/i18n';
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
@@ -18,7 +18,7 @@ interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   onNewChat?: () => void;
 }
 
-export default function ChatHistorySidebar({
+export function ChatHistorySidebar({
   organizationId,
   onSearchOpen,
   onNewChat,

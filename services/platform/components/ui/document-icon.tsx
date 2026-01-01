@@ -6,7 +6,7 @@ interface DocumentIconProps {
   className?: string;
 }
 
-export default function DocumentIcon({
+export function DocumentIcon({
   fileName,
   className = '',
 }: DocumentIconProps) {

@@ -15,16 +15,14 @@ import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Mail } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/hooks/use-toast';
-import EmailProviderTypeSelector from './email-provider-type-selector';
+import { EmailProviderTypeSelector } from './email-provider-type-selector';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
-import {
-  useDeleteEmailProvider,
-  useSetDefaultProvider,
-  useTestEmailProvider,
-} from '../hooks';
+import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
+import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
+import { useTestEmailProvider } from '../hooks/use-test-email-provider';
 import { useT } from '@/lib/i18n';
 
 interface EmailIntegrationDialogProps {
@@ -33,7 +31,7 @@ interface EmailIntegrationDialogProps {
   organizationId: string;
 }
 
-export default function EmailIntegrationDialog({
+export function EmailIntegrationDialog({
   open,
   onOpenChange,
   organizationId,

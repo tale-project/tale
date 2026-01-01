@@ -7,10 +7,10 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { Id } from '@/convex/_generated/dataModel';
-import ProductViewDialog from './product-view-dialog';
-import ProductEditDialog from './product-edit-dialog';
-import ProductDeleteDialog from './product-delete-dialog';
-import { useDeleteProduct } from './hooks';
+import { ProductViewDialog } from './product-view-dialog';
+import { ProductEditDialog } from './product-edit-dialog';
+import { ProductDeleteDialog } from './product-delete-dialog';
+import { useDeleteProduct } from './hooks/use-delete-product';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -33,7 +33,7 @@ interface ProductRowActionsProps {
   product: Product;
 }
 
-export default function ProductRowActions({ product }: ProductRowActionsProps) {
+export function ProductRowActions({ product }: ProductRowActionsProps) {
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);

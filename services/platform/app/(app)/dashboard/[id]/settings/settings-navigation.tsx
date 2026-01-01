@@ -14,7 +14,7 @@ interface SettingsNavigationProps {
 
 type SettingsLabelKey = 'organization' | 'integrations' | 'account';
 
-export default function SettingsNavigation({
+export function SettingsNavigation({
   userRole,
   canChangePassword = true,
 }: SettingsNavigationProps) {

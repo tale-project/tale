@@ -11,7 +11,7 @@ interface DeleteProductDialogProps {
   isDeleting?: boolean;
 }
 
-export default function DeleteProductDialog({
+export function ProductDeleteDialog({
   isOpen,
   onClose,
   onConfirm,

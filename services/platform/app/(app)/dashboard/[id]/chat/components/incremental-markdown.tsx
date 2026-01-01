@@ -102,7 +102,7 @@ const StableMarkdown = memo(
   (prevProps, nextProps) => {
     // Only re-render if content actually changed
     return prevProps.content === nextProps.content;
-  }
+  },
 );
 
 // ============================================================================
@@ -149,7 +149,7 @@ const StreamingMarkdown = memo(
       prevProps.content === nextProps.content &&
       prevProps.revealedLength === nextProps.revealedLength
     );
-  }
+  },
 );
 
 // ============================================================================
@@ -180,32 +180,33 @@ export function IncrementalMarkdown({
   className,
 }: IncrementalMarkdownProps) {
   // Split content at anchor position
-  const { stableContent, streamingContent, streamingRevealLength } = useMemo(() => {
-    // When not streaming, treat all content as stable
-    if (!isStreaming) {
+  const { stableContent, streamingContent, streamingRevealLength } =
+    useMemo(() => {
+      // When not streaming, treat all content as stable
+      if (!isStreaming) {
+        return {
+          stableContent: content,
+          streamingContent: '',
+          streamingRevealLength: 0,
+        };
+      }
+
+      // Ensure anchor doesn't exceed reveal position
+      const effectiveAnchor = Math.min(anchorPosition, revealPosition);
+
+      // Split at anchor
+      const stable = content.slice(0, effectiveAnchor);
+      const streaming = content.slice(effectiveAnchor, content.length);
+
+      // Calculate how much of streaming content is revealed
+      const revealedInStreaming = Math.max(0, revealPosition - effectiveAnchor);
+
       return {
-        stableContent: content,
-        streamingContent: '',
-        streamingRevealLength: 0,
+        stableContent: stable,
+        streamingContent: streaming,
+        streamingRevealLength: revealedInStreaming,
       };
-    }
-
-    // Ensure anchor doesn't exceed reveal position
-    const effectiveAnchor = Math.min(anchorPosition, revealPosition);
-
-    // Split at anchor
-    const stable = content.slice(0, effectiveAnchor);
-    const streaming = content.slice(effectiveAnchor, content.length);
-
-    // Calculate how much of streaming content is revealed
-    const revealedInStreaming = Math.max(0, revealPosition - effectiveAnchor);
-
-    return {
-      stableContent: stable,
-      streamingContent: streaming,
-      streamingRevealLength: revealedInStreaming,
-    };
-  }, [content, anchorPosition, revealPosition, isStreaming]);
+    }, [content, anchorPosition, revealPosition, isStreaming]);
 
   return (
     <div className={className}>
@@ -225,9 +226,3 @@ export function IncrementalMarkdown({
     </div>
   );
 }
-
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
-export default IncrementalMarkdown;

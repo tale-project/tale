@@ -10,7 +10,8 @@
 - USE implicit typing whenever possible.
 - DO NOT use type casting. Avoid `any`, and `unknown` whenever possible.
 - ALWAYS put imports at the top and exports at the bottom. Keep them sorted correctly.
-- PREFER named exports.
+- PREFER named exports. AVOID default exports (only if needed).
+- AVOID index barrel files (only if it makes sense to group).
 
 ## React
 

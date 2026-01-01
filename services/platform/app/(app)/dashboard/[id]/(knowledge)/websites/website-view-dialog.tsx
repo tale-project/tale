@@ -12,7 +12,7 @@ interface ViewWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-export default function ViewWebsiteDialog({
+export function ViewWebsiteDialog({
   isOpen,
   onClose,
   website,

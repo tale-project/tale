@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { createContext, useContext, useState, useCallback } from 'react';
-import ChatHeader from './components/chat-header';
+import { ChatHeader } from './components/chat-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';

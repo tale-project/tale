@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import ChatInterface from './components/chat-interface';
+import { ChatInterface } from './components/chat-interface';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';

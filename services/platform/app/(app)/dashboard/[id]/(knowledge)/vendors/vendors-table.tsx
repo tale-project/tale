@@ -11,7 +11,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { LocaleIcon } from '@/components/ui/icons';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
-import VendorRowActions from './vendor-row-actions';
+import { VendorRowActions } from './vendor-row-actions';
 import { VendorsActionMenu } from './vendors-action-menu';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
@@ -23,7 +23,7 @@ export interface VendorsTableProps {
   preloadedVendors: Preloaded<typeof api.vendors.listVendors>;
 }
 
-export default function VendorsTable({
+export function VendorsTable({
   organizationId,
   preloadedVendors,
 }: VendorsTableProps) {

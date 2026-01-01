@@ -8,7 +8,7 @@ import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import ApprovalDetailDialog from './approval-detail-dialog';
+import { ApprovalDetailDialog } from './approval-detail-dialog';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils/date/format';
@@ -16,10 +16,8 @@ import { usePreloadedQuery, useQuery } from 'convex/react';
 import { useLocale } from '@/lib/i18n';
 import { api } from '@/convex/_generated/api';
 import type { Id, Doc } from '@/convex/_generated/dataModel';
-import {
-  useUpdateApprovalStatus,
-  useRemoveRecommendedProduct,
-} from '../hooks';
+import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
+import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
 
 type ApprovalDoc = Doc<'approvals'>;
@@ -30,7 +28,7 @@ interface ApprovalsProps {
   preloadedApprovals: PreloadedApprovals;
 }
 
-export default function Approvals({
+export function Approvals({
   status,
   organizationId,
   preloadedApprovals,

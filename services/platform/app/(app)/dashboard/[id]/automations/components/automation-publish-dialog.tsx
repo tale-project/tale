@@ -10,7 +10,7 @@ interface PublishAutomationDialogProps {
   workflowName?: string;
 }
 
-export default function PublishAutomationDialog({
+export function PublishAutomationDialog({
   open,
   onOpenChange,
   onPublish,

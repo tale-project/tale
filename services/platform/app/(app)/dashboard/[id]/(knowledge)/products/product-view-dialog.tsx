@@ -4,9 +4,9 @@ import { ViewDialog } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Stack, HStack, Grid } from '@/components/ui/layout';
-import ProductImage from './product-image';
+import { ProductImage } from './product-image';
 import { formatDate } from '@/lib/utils/date/format';
-import { formatCurrency } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n';
 
 interface ViewProductDialogProps {
@@ -28,7 +28,7 @@ interface ViewProductDialogProps {
   };
 }
 
-export default function ViewProductDialog({
+export function ProductViewDialog({
   isOpen,
   onClose,
   product,
