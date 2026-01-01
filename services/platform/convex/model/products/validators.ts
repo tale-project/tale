@@ -4,6 +4,8 @@
 
 import { v } from 'convex/values';
 
+export { sortOrderValidator } from '../common/validators';
+
 /**
  * Product translation validator
  */
@@ -38,11 +40,6 @@ export const productSortByValidator = v.union(
   v.literal('stock'),
   v.literal('price'),
 );
-
-/**
- * Sort order validator
- */
-export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
 
 /**
  * Product item validator (for responses)

@@ -4,6 +4,8 @@
 
 import { v } from 'convex/values';
 
+export { sortOrderValidator } from '../common/validators';
+
 /**
  * RAG status validator
  */
@@ -100,11 +102,6 @@ export const documentRecordValidator = v.object({
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
 });
-
-/**
- * Sort order validator
- */
-export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
 
 /**
  * Excel sheet validator (for generateExcelInternal)

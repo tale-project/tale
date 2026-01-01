@@ -4,6 +4,8 @@
 
 import { v } from 'convex/values';
 
+import { priorityValidator } from '../common/validators';
+
 /**
  * Approval status validator
  */
@@ -14,14 +16,9 @@ export const approvalStatusValidator = v.union(
 );
 
 /**
- * Approval priority validator
+ * Approval priority validator (alias for priorityValidator)
  */
-export const approvalPriorityValidator = v.union(
-  v.literal('low'),
-  v.literal('medium'),
-  v.literal('high'),
-  v.literal('urgent'),
-);
+export const approvalPriorityValidator = priorityValidator;
 
 /**
  * Approval resource type validator

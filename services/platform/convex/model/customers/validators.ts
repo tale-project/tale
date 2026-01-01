@@ -4,6 +4,8 @@
 
 import { v } from 'convex/values';
 
+import { dataSourceValidator } from '../common/validators';
+
 /**
  * Customer status validator
  */
@@ -14,13 +16,9 @@ export const customerStatusValidator = v.union(
 );
 
 /**
- * Customer source validator
+ * Customer source validator (alias for dataSourceValidator)
  */
-export const customerSourceValidator = v.union(
-  v.literal('manual_import'),
-  v.literal('file_upload'),
-  v.literal('circuly'),
-);
+export const customerSourceValidator = dataSourceValidator;
 
 /**
  * Customer address validator
