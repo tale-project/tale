@@ -10,7 +10,7 @@ const eslintConfig = [
       'node_modules/**',
       'out/**',
       'build/**',
-      '_generated/**',
+      '**/_generated/**',
     ],
   },
   ...tseslint.configs.recommended,
