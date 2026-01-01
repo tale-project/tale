@@ -129,7 +129,14 @@ env_normalize_common
 # ============================================================================
 # When using self-signed certificates from Caddy, we need to trust the CA
 # so that Convex backend (Rust) can make HTTPS requests to tale.local
-if [ -n "${CADDY_ROOT_CA:-}" ] && [ -f "${CADDY_ROOT_CA}" ]; then
+#
+# This supports both old env vars (CADDY_ROOT_CA, NODE_EXTRA_CA_CERTS) and
+# new env var (CADDY_CA_CERT_PATH) for blue-green deployment compatibility.
+
+# Determine CA cert path from available environment variables
+CA_CERT_PATH="${CADDY_CA_CERT_PATH:-${CADDY_ROOT_CA:-}}"
+
+if [ -n "${CA_CERT_PATH}" ] && [ -f "${CA_CERT_PATH}" ]; then
   echo "🔐 Setting up Caddy root CA certificate for self-signed HTTPS..."
   # Create a combined CA bundle: system CAs + Caddy's CA
   COMBINED_CA_BUNDLE="/tmp/ca-certificates.crt"
@@ -139,21 +146,27 @@ if [ -n "${CADDY_ROOT_CA:-}" ] && [ -f "${CADDY_ROOT_CA}" ]; then
     # Start with system CA bundle
     cp "${SYSTEM_CA_BUNDLE}" "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
     # Append Caddy's root CA
-    cat "${CADDY_ROOT_CA}" >> "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
+    cat "${CA_CERT_PATH}" >> "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
     chmod 644 "${COMBINED_CA_BUNDLE}"
     # Set SSL_CERT_FILE for Rust/native TLS libraries
     export SSL_CERT_FILE="${COMBINED_CA_BUNDLE}"
     # Also set REQUESTS_CA_BUNDLE for Python requests library
     export REQUESTS_CA_BUNDLE="${COMBINED_CA_BUNDLE}"
+    # Set NODE_EXTRA_CA_CERTS for Node.js - only when file exists
+    export NODE_EXTRA_CA_CERTS="${CA_CERT_PATH}"
     echo "   ✓ Combined CA bundle created with Caddy root CA"
     echo "   ✓ SSL_CERT_FILE=${COMBINED_CA_BUNDLE}"
+    echo "   ✓ NODE_EXTRA_CA_CERTS=${CA_CERT_PATH}"
   else
     echo "   ⚠️  System CA bundle not found at ${SYSTEM_CA_BUNDLE}"
   fi
 else
-  if [ -n "${CADDY_ROOT_CA:-}" ]; then
-    echo "⚠️  CADDY_ROOT_CA is set but file not found: ${CADDY_ROOT_CA}"
-    echo "   ℹ️  This is normal on first start. Caddy needs to generate certificates first."
+  # CA cert file not found - this is normal for Let's Encrypt mode
+  # Unset any pre-existing NODE_EXTRA_CA_CERTS to avoid Node.js errors
+  unset NODE_EXTRA_CA_CERTS 2>/dev/null || true
+  if [ -n "${CA_CERT_PATH}" ]; then
+    echo "ℹ️  Using public CA certificates (Let's Encrypt or similar)"
+    echo "   Self-signed CA not found at: ${CA_CERT_PATH}"
   fi
 fi
 

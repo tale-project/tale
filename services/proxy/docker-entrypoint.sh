@@ -5,35 +5,48 @@ set -e
 # Caddy Entrypoint Script
 # ============================================================================
 # This script:
-# 1. Maps TLS_MODE to Caddy's TLS_ISSUER format
+# 1. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
 # 2. Ensures self-signed CA certificates are readable by other containers
 # ============================================================================
 
+# Source and destination for Caddyfile
+# We copy to /config (writable volume) because /etc/caddy is read-only in the image
+CADDYFILE_SRC="/etc/caddy/Caddyfile"
+CADDYFILE="/config/Caddyfile"
+
 # ============================================================================
-# Map TLS_MODE to Caddy's TLS configuration
+# Generate TLS configuration based on TLS_MODE
 # ============================================================================
-# User-friendly: TLS_MODE=selfsigned|letsencrypt
-# Caddy expects: TLS_CONFIG with issuer and optional email
+# We hardcode the TLS config directly into Caddyfile because environment
+# variables don't persist through `caddy reload` commands.
+echo "TLS Configuration:"
+echo "  TLS_MODE: ${TLS_MODE:-selfsigned}"
+
 case "${TLS_MODE:-selfsigned}" in
   letsencrypt)
-    # For Let's Encrypt, include email if provided
+    echo "  Mode: Let's Encrypt (ACME - trusted certificates)"
     if [ -n "${TLS_EMAIL:-}" ]; then
-      export TLS_CONFIG="${TLS_EMAIL}"
-      echo "TLS Mode: Let's Encrypt (trusted certificates)"
       echo "  Email: ${TLS_EMAIL}"
+      # ACME with email for notifications
+      TLS_CONFIG="tls ${TLS_EMAIL}"
     else
-      # Let Caddy use its default ACME behavior
-      export TLS_CONFIG=""
-      echo "TLS Mode: Let's Encrypt (trusted certificates)"
       echo "  Warning: TLS_EMAIL not set, certificate expiry notifications disabled"
+      # ACME without email
+      TLS_CONFIG="tls"
     fi
     ;;
   selfsigned|*)
-    export TLS_CONFIG="internal"
-    echo "TLS Mode: Self-signed (browser warning expected)"
+    echo "  Mode: Self-signed (internal CA - browser warning expected)"
     echo "  To trust certs on host: docker exec tale-proxy caddy trust"
+    # Internal CA for self-signed certificates
+    TLS_CONFIG="tls internal"
     ;;
 esac
+
+# Copy Caddyfile to writable location and apply TLS config
+cp "$CADDYFILE_SRC" "$CADDYFILE"
+sed -i "s|.*TLS_PLACEHOLDER.*|\\t${TLS_CONFIG}|" "$CADDYFILE"
+echo "  Caddyfile configured: ${TLS_CONFIG}"
 
 # Function to fix certificate permissions after Caddy generates them
 fix_cert_permissions() {
