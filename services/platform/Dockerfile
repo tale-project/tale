@@ -115,7 +115,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 
 
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+# Optimized node_modules: standalone already includes its own minimal node_modules (~75 MB)
+# We only need to add convex CLI dependencies for `npx convex deploy` and `npx convex env set` (~65 MB)
+# This saves ~1.4 GB compared to copying the full node_modules (1.5 GB)
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/convex ./node_modules/convex
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/esbuild ./node_modules/esbuild
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@esbuild ./node_modules/@esbuild
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prettier ./node_modules/prettier
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 # Copy startup script with correct ownership and set execute permission
