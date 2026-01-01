@@ -4,10 +4,7 @@
 
 import { v } from 'convex/values';
 
-/**
- * Sort order validator
- */
-export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
+export { sortOrderValidator } from '../common/validators';
 
 /**
  * Member list item validator (for listing organization members)

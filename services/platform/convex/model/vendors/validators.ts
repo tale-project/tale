@@ -4,19 +4,14 @@
 
 import { v } from 'convex/values';
 
-/**
- * Sort order validator
- */
-export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
+import { dataSourceValidator } from '../common/validators';
+
+export { sortOrderValidator } from '../common/validators';
 
 /**
- * Vendor source validator
+ * Vendor source validator (alias for dataSourceValidator)
  */
-export const vendorSourceValidator = v.union(
-  v.literal('manual_import'),
-  v.literal('file_upload'),
-  v.literal('circuly'),
-);
+export const vendorSourceValidator = dataSourceValidator;
 
 /**
  * Vendor address validator
