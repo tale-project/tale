@@ -403,6 +403,7 @@ cmd_deploy() {
   sleep "$caddy_stabilize_time"
 
   # Verify traffic is being served through proxy
+  # Note: -k flag accepts self-signed certs (TLS_MODE=selfsigned in local dev)
   local caddy_verify_attempts=0
   local caddy_verify_max=5
   while [ "$caddy_verify_attempts" -lt "$caddy_verify_max" ]; do
