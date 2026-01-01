@@ -8,11 +8,17 @@ import { NextResponse } from 'next/server';
 const SHUTDOWN_MARKER = '/tmp/shutting_down';
 
 /**
+ * Convex backend health check URL
+ * The Convex local backend exposes a version endpoint that indicates it's ready
+ */
+const CONVEX_BACKEND_URL = 'http://localhost:3210/version';
+
+/**
  * Health check endpoint for Docker, Caddy, and monitoring
  *
  * Returns:
  * - 200 OK: Service is healthy and accepting traffic
- * - 503 Service Unavailable: Service is shutting down (draining connections)
+ * - 503 Service Unavailable: Service is shutting down or Convex not ready
  *
  * This endpoint is used by:
  * - Docker health checks (container health status)
@@ -26,6 +32,10 @@ const SHUTDOWN_MARKER = '/tmp/shutting_down';
  * 4. Caddy stops routing new requests to this backend
  * 5. Existing requests complete during drain period
  * 6. Container shuts down gracefully
+ *
+ * For zero-downtime deployments:
+ * - Also checks if Convex backend is ready before reporting healthy
+ * - This prevents traffic from being routed before functions are deployed
  */
 export async function GET() {
   // Check if we're in shutdown mode
@@ -41,6 +51,39 @@ export async function GET() {
     );
   }
 
+  // Check if Convex backend is ready
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const response = await fetch(CONVEX_BACKEND_URL, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          status: 'starting',
+          service: 'tale-platform',
+          timestamp: new Date().toISOString(),
+          message: 'Convex backend not ready',
+        },
+        { status: 503 }
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      {
+        status: 'starting',
+        service: 'tale-platform',
+        timestamp: new Date().toISOString(),
+        message: 'Convex backend not reachable',
+      },
+      { status: 503 }
+    );
+  }
+
   return NextResponse.json(
     {
       status: 'ok',
@@ -50,4 +93,3 @@ export async function GET() {
     { status: 200 }
   );
 }
-

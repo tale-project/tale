@@ -1,63 +1,192 @@
 # Docker Compose Blue Deployment Overlay
-# This file is used with compose.yml for blue-green deployments
+# This file defines SEPARATE blue services that won't conflict with green
 #
 # Usage:
-#   docker compose -f compose.yml -f compose.blue.yml up -d
+#   docker compose -f compose.yml -f compose.blue.yml up -d platform-blue rag-blue ...
 #
-# This overlay:
-# - Assigns unique container names with "-blue" suffix
-# - Creates network aliases for Caddy health checks
-# - Removes host port bindings (traffic goes through proxy)
+# Key difference from previous approach:
+# - Services are named platform-blue, rag-blue, etc. (not platform, rag)
+# - This prevents Docker Compose from touching green services when deploying blue
 
 services:
   # ============================================================================
   # Blue Platform
   # ============================================================================
-  platform:
+  platform-blue:
+    # Build configuration - same as base platform
+    build:
+      context: .
+      dockerfile: services/platform/Dockerfile
+
     container_name: tale-platform-blue
-    # Remove host port binding - all traffic through proxy
-    ports: !reset []
+
+    # No host port binding - all traffic through proxy
+    # ports: []
+
+    volumes:
+      - platform-convex-data:/app/convex-data
+      - caddy-data:/caddy-data:ro
+
+    env_file:
+      - .env
+
+    environment:
+      - NODE_EXTRA_CA_CERTS=/caddy-data/caddy/pki/authorities/local/root.crt
+      - CADDY_ROOT_CA=/caddy-data/caddy/pki/authorities/local/root.crt
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 120s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
     networks:
       internal:
         aliases:
           - platform-blue
+          - platform
 
   # ============================================================================
   # Blue RAG
   # ============================================================================
-  rag:
+  rag-blue:
+    build:
+      context: .
+      dockerfile: services/rag/Dockerfile
+
     container_name: tale-rag-blue
+
+    volumes:
+      - rag-data:/app/data
+
+    env_file:
+      - .env
+
+    environment:
+      - RAG_CHUNK_SIZE=512
+      - RAG_CHUNK_OVERLAP=50
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8001/health']
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 40s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
     networks:
       internal:
         aliases:
           - rag-blue
+          - rag
 
   # ============================================================================
   # Blue Crawler
   # ============================================================================
-  crawler:
+  crawler-blue:
+    build:
+      context: .
+      dockerfile: services/crawler/Dockerfile
+
     container_name: tale-crawler-blue
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8002/health']
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 40s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
     networks:
       internal:
         aliases:
           - crawler-blue
+          - crawler
 
   # ============================================================================
   # Blue Search
   # ============================================================================
-  search:
+  search-blue:
+    build:
+      context: .
+      dockerfile: services/search/Dockerfile
+
     container_name: tale-search-blue
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          '--header=X-Real-IP: 127.0.0.1',
+          'http://localhost:8080/healthz',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 2
+      start_period: 30s
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
     networks:
       internal:
         aliases:
           - search-blue
+          - search
 
-  # ============================================================================
-  # Blue Graph DB
-  # ============================================================================
-  graph-db:
-    container_name: tale-graph-db-blue
-    networks:
-      internal:
-        aliases:
-          - graph-db-blue
+# Reference volumes from base compose.yml
+volumes:
+  platform-convex-data:
+    external: true
+    name: tale_platform-convex-data
+  caddy-data:
+    external: true
+    name: tale_caddy-data
+  rag-data:
+    external: true
+    name: tale_rag-data
+
+# Reference network from base compose.yml
+networks:
+  internal:
+    external: true
+    name: tale_internal

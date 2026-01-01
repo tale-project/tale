@@ -44,21 +44,34 @@ LOCK_FILE="${PROJECT_ROOT}/.deployment-lock"
 
 # Timeouts (in seconds)
 HEALTH_CHECK_TIMEOUT="${HEALTH_CHECK_TIMEOUT:-180}"  # Max time to wait for health
-HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-3}"   # Interval between checks
+HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-1}"   # Interval between checks
 DRAIN_TIMEOUT="${DRAIN_TIMEOUT:-30}"                  # Time to drain old containers
 
-# Services to deploy in blue-green rotation
+# Base service names for blue-green rotation
 # These are "rotatable" services - they can run in parallel during deployment:
 # - platform: Application server, no local state
 # - rag: RAG service, data stored in shared volume (rag-data)
 # - crawler: Web crawler, no local state
 # - search: Search engine, no local state
-# - graph-db: Graph database, data stored in shared volume (graph-db-data)
 #
-# Services NOT included (shared between blue/green):
+# Services NOT included (shared between blue/green, single instance only):
 # - db: TimescaleDB - single instance required for data consistency
 # - proxy: Caddy - single entry point for traffic routing
-ROTATABLE_SERVICES="platform rag crawler search graph-db"
+# - graph-db: Kuzu - requires exclusive file lock, cannot run two instances
+#
+# The actual service names in compose files are suffixed with color:
+# e.g., platform-blue, platform-green, rag-blue, rag-green, etc.
+ROTATABLE_SERVICE_BASES="platform rag crawler search"
+
+# Helper to get service names for a color
+get_services_for_color() {
+  local color="$1"
+  local services=""
+  for base in $ROTATABLE_SERVICE_BASES; do
+    services="${services} ${base}-${color}"
+  done
+  echo "$services"
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -159,12 +172,6 @@ save_deployment_color() {
   echo "$color" > "$STATE_FILE"
 }
 
-# Build compose command with overlay file
-compose_cmd() {
-  local color="$1"
-  echo "docker compose -f ${PROJECT_ROOT}/compose.yml -f ${PROJECT_ROOT}/compose.${color}.yml"
-}
-
 # Check if a service is healthy
 check_service_health() {
   local color="$1"
@@ -193,7 +200,7 @@ wait_for_health() {
   while [ "$elapsed" -lt "$HEALTH_CHECK_TIMEOUT" ]; do
     local all_healthy=true
 
-    for service in $ROTATABLE_SERVICES; do
+    for service in $ROTATABLE_SERVICE_BASES; do
       if ! check_service_health "$color" "$service"; then
         all_healthy=false
         break
@@ -207,7 +214,7 @@ wait_for_health() {
 
     # Show progress
     local progress_services=""
-    for service in $ROTATABLE_SERVICES; do
+    for service in $ROTATABLE_SERVICE_BASES; do
       if check_service_health "$color" "$service"; then
         progress_services="${progress_services} ${service}:${GREEN}OK${NC}"
       else
@@ -270,7 +277,7 @@ cleanup_color() {
 
   # Build list of container names for this color
   local containers=""
-  for service in $ROTATABLE_SERVICES; do
+  for service in $ROTATABLE_SERVICE_BASES; do
     containers="${containers} tale-${service}-${color}"
   done
 
@@ -316,23 +323,28 @@ cmd_deploy() {
   fi
 
   # Step 2: Ensure stateful services are running
-  log_step "Ensuring stateful services (db, proxy) are running..."
-  docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy
+  # These services run as single instances (not blue-green rotated)
+  log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
+  docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
   sleep 5  # Give stateful services time to start
 
   # Step 3: Build new version
+  # The compose.{color}.yml files define separate services (platform-blue, platform-green, etc.)
+  # so they won't conflict with each other
   log_step "Building ${target_color} containers..."
-  local compose_target
-  compose_target=$(compose_cmd "$target_color")
+  local target_services
+  target_services=$(get_services_for_color "$target_color")
 
-  if ! $compose_target build; then
+  if ! docker compose -f "${PROJECT_ROOT}/compose.${target_color}.yml" build $target_services; then
     log_error "Build failed!"
     return 1
   fi
 
   # Step 4: Start new version
+  # Since blue/green services have different names (platform-blue vs platform-green),
+  # starting one color won't affect the other color's containers
   log_step "Starting ${target_color} containers..."
-  if ! $compose_target up -d; then
+  if ! docker compose -f "${PROJECT_ROOT}/compose.${target_color}.yml" up -d $target_services; then
     log_error "Failed to start ${target_color} containers!"
     return 1
   fi
@@ -347,6 +359,38 @@ cmd_deploy() {
 
   # Step 6: Reload Caddy (optional - health checks should handle routing)
   reload_caddy
+
+  # Step 6.5: Wait for Caddy to route traffic to new services
+  # This ensures Caddy's health checks have detected the new healthy backends
+  # before we start draining the old ones
+  #
+  # Caddy uses health_passes=2 and health_interval=2s, so we need at least 4s
+  # after Docker marks the container healthy before Caddy will route to it.
+  # We add extra buffer for safety.
+  log_step "Waiting for Caddy to detect ${target_color} as healthy..."
+
+  # Wait for Caddy's health checks (health_interval=2s * health_passes=2 = 4s minimum)
+  # Plus extra buffer for network latency and processing
+  local caddy_stabilize_time=10
+  echo "   Waiting ${caddy_stabilize_time}s for Caddy health checks to stabilize..."
+  sleep "$caddy_stabilize_time"
+
+  # Verify traffic is being served through proxy
+  local caddy_verify_attempts=0
+  local caddy_verify_max=5
+  while [ "$caddy_verify_attempts" -lt "$caddy_verify_max" ]; do
+    if curl -sf -o /dev/null -k --max-time 3 "https://tale.local/api/health" 2>/dev/null; then
+      log_success "Proxy is serving traffic successfully"
+      break
+    fi
+    caddy_verify_attempts=$((caddy_verify_attempts + 1))
+    echo "   Retry ${caddy_verify_attempts}/${caddy_verify_max}..."
+    sleep 2
+  done
+
+  if [ "$caddy_verify_attempts" -ge "$caddy_verify_max" ]; then
+    log_warning "Could not verify proxy routing, continuing anyway..."
+  fi
 
   # Step 7: Drain and cleanup old version
   if [ "$current_color" != "none" ]; then
@@ -394,11 +438,12 @@ cmd_rollback() {
   log_info "Rolling back to: ${rollback_color}"
 
   # Start rollback containers (will use existing images)
+  # Since blue/green have separate service definitions, no conflict occurs
   log_step "Starting ${rollback_color} containers..."
-  local compose_target
-  compose_target=$(compose_cmd "$rollback_color")
+  local rollback_services
+  rollback_services=$(get_services_for_color "$rollback_color")
 
-  if ! $compose_target up -d; then
+  if ! docker compose -f "${PROJECT_ROOT}/compose.${rollback_color}.yml" up -d $rollback_services; then
     log_error "Failed to start ${rollback_color} containers"
     return 1
   fi
@@ -443,9 +488,9 @@ cmd_status() {
   echo -e "  Active Deployment: ${GREEN}${current_color}${NC}"
   echo ""
 
-  # Stateful services
+  # Stateful services (single instance, not rotated)
   echo "  Stateful Services:"
-  for service in db proxy; do
+  for service in db proxy graph-db; do
     local container_name="tale-${service}"
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
       local health
@@ -459,7 +504,7 @@ cmd_status() {
 
   # Blue services
   echo "  Blue Services:"
-  for service in $ROTATABLE_SERVICES; do
+  for service in $ROTATABLE_SERVICE_BASES; do
     local container_name="tale-${service}-blue"
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
       local health
@@ -477,7 +522,7 @@ cmd_status() {
 
   # Green services
   echo "  Green Services:"
-  for service in $ROTATABLE_SERVICES; do
+  for service in $ROTATABLE_SERVICE_BASES; do
     local container_name="tale-${service}-green"
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
       local health
