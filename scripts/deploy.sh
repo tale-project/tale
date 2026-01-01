@@ -44,9 +44,18 @@ HEALTH_CHECK_TIMEOUT="${HEALTH_CHECK_TIMEOUT:-180}"  # Max time to wait for heal
 HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-3}"   # Interval between checks
 DRAIN_TIMEOUT="${DRAIN_TIMEOUT:-30}"                  # Time to drain old containers
 
-# Services to deploy (stateless services only)
-# Stateful services (db, proxy) are not included in blue-green rotation
-STATELESS_SERVICES="platform rag crawler search graph-db"
+# Services to deploy in blue-green rotation
+# These are "rotatable" services - they can run in parallel during deployment:
+# - platform: Application server, no local state
+# - rag: RAG service, data stored in shared volume (rag-data)
+# - crawler: Web crawler, no local state
+# - search: Search engine, no local state
+# - graph-db: Graph database, data stored in shared volume (graph-db-data)
+#
+# Services NOT included (shared between blue/green):
+# - db: TimescaleDB - single instance required for data consistency
+# - proxy: Caddy - single entry point for traffic routing
+ROTATABLE_SERVICES="platform rag crawler search graph-db"
 
 # Colors for output
 RED='\033[0;31m'
@@ -159,7 +168,7 @@ wait_for_health() {
   while [ $elapsed -lt $HEALTH_CHECK_TIMEOUT ]; do
     local all_healthy=true
 
-    for service in $STATELESS_SERVICES; do
+    for service in $ROTATABLE_SERVICES; do
       if ! check_service_health "$color" "$service"; then
         all_healthy=false
         break
@@ -173,7 +182,7 @@ wait_for_health() {
 
     # Show progress
     local progress_services=""
-    for service in $STATELESS_SERVICES; do
+    for service in $ROTATABLE_SERVICES; do
       if check_service_health "$color" "$service"; then
         progress_services="${progress_services} ${service}:${GREEN}OK${NC}"
       else
@@ -234,17 +243,19 @@ cleanup_color() {
 
   log_step "Cleaning up ${color} containers..."
 
-  # Get the compose command
-  local cmd
-  cmd=$(compose_cmd "$color")
+  # Build list of container names for this color
+  local containers=""
+  for service in $ROTATABLE_SERVICES; do
+    containers="${containers} tale-${service}-${color}"
+  done
 
   if [ "$force" = "true" ]; then
     # Force stop immediately
-    $cmd down --remove-orphans 2>/dev/null || true
+    docker rm -f $containers 2>/dev/null || true
   else
-    # Graceful stop - SIGTERM will trigger graceful shutdown in entrypoint
-    $cmd stop 2>/dev/null || true
-    $cmd rm -f 2>/dev/null || true
+    # Graceful stop - SIGTERM will trigger graceful shutdown
+    docker stop $containers 2>/dev/null || true
+    docker rm $containers 2>/dev/null || true
   fi
 
   log_success "${color} containers cleaned up"
@@ -352,35 +363,40 @@ cmd_rollback() {
   log_info "Current: ${current_color}"
   log_info "Rolling back to: ${rollback_color}"
 
-  # Check if rollback containers exist (maybe from failed deployment)
-  if docker ps -a --format '{{.Names}}' | grep -q "tale-platform-${rollback_color}"; then
-    # Try to start existing containers
-    log_step "Starting existing ${rollback_color} containers..."
-    local compose_target
-    compose_target=$(compose_cmd "$rollback_color")
-    $compose_target up -d
+  # Start rollback containers (will use existing images)
+  log_step "Starting ${rollback_color} containers..."
+  local compose_target
+  compose_target=$(compose_cmd "$rollback_color")
 
-    if wait_for_health "$rollback_color"; then
-      log_success "Rollback containers started!"
-
-      # Drain and cleanup current
-      log_step "Draining ${current_color} containers..."
-      sleep "$DRAIN_TIMEOUT"
-      cleanup_color "$current_color"
-
-      save_deployment_color "$rollback_color"
-      log_success "Rollback complete! Now running: ${rollback_color}"
-      return 0
-    else
-      log_error "Rollback containers failed health check"
-      return 1
-    fi
+  if ! $compose_target up -d; then
+    log_error "Failed to start ${rollback_color} containers"
+    return 1
   fi
 
-  log_error "No ${rollback_color} containers found for rollback"
-  log_info "Hint: Rollback works best immediately after a failed deployment"
-  log_info "For a fresh deployment, use: ./scripts/deploy.sh deploy"
-  return 1
+  if wait_for_health "$rollback_color"; then
+    log_success "Rollback containers started!"
+
+    # Drain and cleanup current
+    log_step "Draining ${current_color} containers (${DRAIN_TIMEOUT}s)..."
+    local drain_elapsed=0
+    while [ $drain_elapsed -lt $DRAIN_TIMEOUT ]; do
+      echo -ne "\r   Draining... (${drain_elapsed}s/${DRAIN_TIMEOUT}s)    "
+      sleep 5
+      drain_elapsed=$((drain_elapsed + 5))
+    done
+    echo ""
+
+    cleanup_color "$current_color"
+
+    save_deployment_color "$rollback_color"
+    log_success "Rollback complete! Now running: ${rollback_color}"
+    return 0
+  else
+    log_error "Rollback containers failed health check"
+    log_warning "Cleaning up failed rollback containers..."
+    cleanup_color "$rollback_color" true
+    return 1
+  fi
 }
 
 # Show current deployment status
@@ -413,7 +429,7 @@ cmd_status() {
 
   # Blue services
   echo "  Blue Services:"
-  for service in $STATELESS_SERVICES; do
+  for service in $ROTATABLE_SERVICES; do
     local container_name="tale-${service}-blue"
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
       local health
@@ -431,7 +447,7 @@ cmd_status() {
 
   # Green services
   echo "  Green Services:"
-  for service in $STATELESS_SERVICES; do
+  for service in $ROTATABLE_SERVICES; do
     local container_name="tale-${service}-green"
     if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
       local health
