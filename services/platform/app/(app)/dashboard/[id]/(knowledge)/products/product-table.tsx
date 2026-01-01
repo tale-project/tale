@@ -8,9 +8,9 @@ import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { TableDateCell } from '@/components/ui/table-date-cell';
-import ProductImage from './product-image';
+import { ProductImage } from './product-image';
 import { ProductsActionMenu } from './products-action-menu';
-import ProductRowActions from './product-row-actions';
+import { ProductRowActions } from './product-row-actions';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -32,7 +32,7 @@ export interface ProductTableProps {
   preloadedProducts: Preloaded<typeof api.products.getProducts>;
 }
 
-export default function ProductTable({
+export function ProductTable({
   organizationId,
   preloadedProducts,
 }: ProductTableProps) {

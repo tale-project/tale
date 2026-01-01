@@ -2,8 +2,8 @@
 
 import { Suspense } from 'react';
 import type { Conversation } from '../types';
-import Conversations from './conversations';
-import { ListSkeleton } from '@/components/skeletons';
+import { Conversations } from './conversations';
+import { ListSkeleton } from '@/components/skeletons/list-skeleton';
 import type { Preloaded } from 'convex/react';
 import type { api } from '@/convex/_generated/api';
 
@@ -34,7 +34,7 @@ function ConversationsSkeleton() {
   );
 }
 
-export default function ConversationsWrapper({
+export function ConversationsWrapper({
   status,
   preloadedConversations,
   preloadedEmailProviders,

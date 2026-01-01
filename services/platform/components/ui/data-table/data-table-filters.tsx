@@ -12,7 +12,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterButton } from '@/components/filters/filter-button';
 import { FilterSection } from '@/components/filters/filter-section';
-import DatePickerWithRange from '@/components/ui/date-range-picker';
+import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';

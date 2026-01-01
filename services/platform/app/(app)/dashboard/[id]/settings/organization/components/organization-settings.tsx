@@ -11,8 +11,8 @@ import { Stack, HStack } from '@/components/ui/layout';
 import { api } from '@/convex/_generated/api';
 import { Search, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import AddMemberDialog from './member-add-dialog';
-import MemberTable from './member-table';
+import { AddMemberDialog } from './member-add-dialog';
+import { MemberTable } from './member-table';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useT } from '@/lib/i18n';
 import type {
@@ -30,7 +30,7 @@ interface OrganizationFormData {
   name: string;
 }
 
-export default function OrganizationSettings({
+export function OrganizationSettings({
   organization,
   preloadedMemberContext,
   preloadedMembers,

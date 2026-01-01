@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { DeleteDialog } from '@/components/ui/dialog';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useDeleteWebsite } from './hooks';
+import { useDeleteWebsite } from './hooks/use-delete-website';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -13,7 +13,7 @@ interface DeleteWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-export default function DeleteWebsiteDialog({
+export function DeleteWebsiteDialog({
   isOpen,
   onClose,
   website,

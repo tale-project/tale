@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
-import DocumentTable from './components/document-table';
+import { DocumentTable } from './components/document-table';
 import { Logger } from '@/lib/logger';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';

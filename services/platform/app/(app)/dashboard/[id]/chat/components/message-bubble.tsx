@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import PaginatedMarkdownTable from './paginated-markdown-table';
+import { PaginatedMarkdownTable } from './paginated-markdown-table';
 import { Info } from 'lucide-react';
 import {
   Tooltip,
@@ -34,7 +34,7 @@ import Image from 'next/image';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import MessageInfoDialog from './message-info-dialog';
+import { MessageInfoDialog } from './message-info-dialog';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
 import { TypewriterText } from './typewriter-text';
 import { useT } from '@/lib/i18n';
@@ -619,4 +619,4 @@ const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
   );
 });
 
-export default MessageBubble;
+export { MessageBubble };

@@ -13,7 +13,7 @@ interface ProtelDisconnectConfirmDialogProps {
   onConfirm: () => Promise<void> | void;
 }
 
-export default function ProtelDisconnectConfirmDialog({
+export function ProtelDisconnectConfirmationDialog({
   open,
   onOpenChange,
   server,

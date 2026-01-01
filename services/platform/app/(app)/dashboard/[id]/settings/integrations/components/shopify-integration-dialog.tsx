@@ -24,7 +24,7 @@ interface ShopifyIntegrationDialogProps {
   onDisconnect?: () => Promise<void> | void;
 }
 
-export default function ShopifyIntegrationDialog({
+export function ShopifyIntegrationDialog({
   open,
   onOpenChange,
   credentials,

@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useUpdatePassword } from './hooks';
+import { useUpdatePassword } from './hooks/use-update-password';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form } from '@/components/ui/form';
@@ -22,7 +22,7 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
-export default function AccountForm({
+export function AccountForm({
   preloadedMemberContext,
 }: AccountFormProps) {
   const { t: tAuth } = useT('auth');

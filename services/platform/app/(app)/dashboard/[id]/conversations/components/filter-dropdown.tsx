@@ -58,7 +58,7 @@ function FilterOption({ label, isSelected, onToggle }: FilterOptionProps) {
   );
 }
 
-export default function FilterDropdown({
+export function FilterDropdown({
   filters,
   onFiltersChange,
   isLoading = false,

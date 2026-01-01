@@ -3,23 +3,21 @@
 import { CardContent } from '@/components/ui/card';
 import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import Message from './message';
-import ConversationHeader from './conversation-header';
+import { Message } from './message';
+import { ConversationHeader } from './conversation-header';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
 import { Stack, VStack, Center } from '@/components/ui/layout';
 import { useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import {
-  useMarkAsRead,
-  useSendMessageViaEmail,
-  useGenerateUploadUrl,
-} from '../hooks';
+import { useMarkAsRead } from '../hooks/use-mark-as-read';
+import { useSendMessageViaEmail } from '../hooks/use-send-message-via-email';
+import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { toast } from '@/hooks/use-toast';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n';
 
-const MessageEditor = dynamic(() => import('./message-editor'), {
+const MessageEditor = dynamic(() => import('./message-editor').then(mod => ({ default: mod.MessageEditor })), {
   ssr: false,
   loading: () => (
     <div className="flex items-center justify-center p-4">
@@ -50,7 +48,7 @@ interface ConversationPanelProps {
   onSelectedConversationChange: (conversationId: string | null) => void;
 }
 
-export default function ConversationPanel({
+export function ConversationPanel({
   selectedConversationId,
   onSelectedConversationChange,
 }: ConversationPanelProps) {

@@ -3,11 +3,11 @@ import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
-import OrganizationForm from './organization-form';
+import { OrganizationForm } from './organization-form';
 import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import Link from 'next/link';
-import { FormSkeleton } from '@/components/skeletons';
+import { FormSkeleton } from '@/components/skeletons/form-skeleton';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 

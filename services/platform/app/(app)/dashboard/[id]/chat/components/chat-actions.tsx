@@ -14,7 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useT } from '@/lib/i18n';
-import { useDeleteThread } from '../hooks';
+import { useDeleteThread } from '../hooks/use-delete-thread';
 
 interface ChatActionsProps {
   chat: {
@@ -26,7 +26,7 @@ interface ChatActionsProps {
   onRename?: () => void;
 }
 
-export default function ChatActions({
+export function ChatActions({
   chat,
   currentChatId,
   organizationId,

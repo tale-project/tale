@@ -8,7 +8,7 @@ import { Stack, HStack, VStack, Center } from '@/components/ui/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';
-import DocumentIcon from './ui/document-icon';
+import { DocumentIcon } from './ui/document-icon';
 import { Button } from './ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -21,7 +21,7 @@ interface VendorImportFormProps {
 
 export type DataSource = Doc<'vendors'>['source'];
 
-export default function VendorImportForm({
+export function VendorImportForm({
   hideTabs,
   organizationId: _organizationId,
   mode,

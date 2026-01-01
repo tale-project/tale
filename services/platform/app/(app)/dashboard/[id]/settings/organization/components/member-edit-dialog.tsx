@@ -9,9 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stack } from '@/components/ui/layout';
 import { Select } from '@/components/ui/select';
-import Banner from '@/components/banner';
+import { Banner } from '@/components/banner';
 import { toast } from '@/hooks/use-toast';
-import { useUpdateMemberRole } from '../hooks';
+import { useUpdateMemberRole } from '../hooks/use-update-member-role';
 import { useT } from '@/lib/i18n';
 
 // Type for the form data
@@ -37,7 +37,7 @@ interface EditMemberDialogProps {
   currentUserMemberId?: string;
 }
 
-export default function EditMemberDialog({
+export function EditMemberDialog({
   open,
   onOpenChange,
   member,

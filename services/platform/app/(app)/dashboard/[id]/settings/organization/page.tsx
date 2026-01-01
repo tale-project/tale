@@ -5,13 +5,13 @@ import {
   type Preloaded,
 } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
-import OrganizationSettings from './components/organization-settings';
+import { OrganizationSettings } from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stack, HStack } from '@/components/ui/layout';
 import { DataTableSkeleton } from '@/components/ui/data-table';
-import { AccessDenied } from '@/components/layout';
+import { AccessDenied } from '@/components/layout/access-denied';
 import { getT } from '@/lib/i18n/server';
 
 // Export preloaded types for use in client components

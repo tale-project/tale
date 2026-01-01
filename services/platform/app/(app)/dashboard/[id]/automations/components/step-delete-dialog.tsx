@@ -12,7 +12,7 @@ interface DeleteStepDialogProps {
   isLoading?: boolean;
 }
 
-export default function DeleteStepDialog({
+export function DeleteStepDialog({
   open,
   onOpenChange,
   step,

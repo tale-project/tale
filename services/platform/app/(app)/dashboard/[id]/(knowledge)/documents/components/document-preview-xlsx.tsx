@@ -9,7 +9,7 @@ interface DocumentPreviewXlsxProps {
   url: string;
 }
 
-export default function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
+export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
   const { t } = useT('documents');
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);

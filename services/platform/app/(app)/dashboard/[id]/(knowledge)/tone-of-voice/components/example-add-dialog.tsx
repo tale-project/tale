@@ -16,7 +16,7 @@ interface ExampleFormData {
   content: string;
 }
 
-export default function AddExampleDialog({
+export function AddExampleDialog({
   isOpen,
   onClose,
   onAdd,

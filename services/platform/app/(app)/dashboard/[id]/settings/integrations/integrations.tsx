@@ -13,60 +13,58 @@ import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
-import {
-  useCreateIntegration,
-  useUpdateIntegration,
-  useTestIntegration,
-  useDeleteIntegration,
-} from './hooks';
+import { useCreateIntegration } from './hooks/use-create-integration';
+import { useUpdateIntegration } from './hooks/use-update-integration';
+import { useTestIntegration } from './hooks/use-test-integration';
+import { useDeleteIntegration } from './hooks/use-delete-integration';
 import { OAuth2Banner } from '@/components/oauth2-banner';
 import { useT } from '@/lib/i18n';
 
 // Dynamically import dialog components to reduce initial bundle size
 const ShopifyIntegrationDialog = dynamic(
-  () => import('./components/shopify-integration-dialog'),
+  () => import('./components/shopify-integration-dialog').then(mod => ({ default: mod.ShopifyIntegrationDialog })),
   {
     ssr: false,
   },
 );
 
 const CirculyIntegrationDialog = dynamic(
-  () => import('./components/circuly-integration-dialog'),
+  () => import('./components/circuly-integration-dialog').then(mod => ({ default: mod.CirculyIntegrationDialog })),
   {
     ssr: false,
   },
 );
 
 const CirculyDisconnectConfirmationDialog = dynamic(
-  () => import('./components/circuly-disconnect-confirmation-dialog'),
+  () => import('./components/circuly-disconnect-confirmation-dialog').then(mod => ({ default: mod.CirculyDisconnectConfirmationDialog })),
   {
     ssr: false,
   },
 );
 
 const ShopifyDisconnectConfirmationDialog = dynamic(
-  () => import('./components/shopify-disconnect-confirmation-dialog'),
+  () => import('./components/shopify-disconnect-confirmation-dialog').then(mod => ({ default: mod.ShopifyDisconnectConfirmationDialog })),
   {
     ssr: false,
   },
 );
 
 const EmailIntegrationDialog = dynamic(
-  () => import('./components/email-integration-dialog'),
+  () => import('./components/email-integration-dialog').then(mod => ({ default: mod.EmailIntegrationDialog })),
   {
     ssr: false,
   },
 );
 
 const ProtelIntegrationDialog = dynamic(
-  () => import('./components/protel-integration-dialog'),
+  () => import('./components/protel-integration-dialog').then(mod => ({ default: mod.ProtelIntegrationDialog })),
   {
     ssr: false,
   },
 );
 
 const ProtelDisconnectConfirmationDialog = dynamic(
-  () => import('./components/protel-disconnect-confirmation-dialog'),
+  () => import('./components/protel-disconnect-confirmation-dialog').then(mod => ({ default: mod.ProtelDisconnectConfirmationDialog })),
   {
     ssr: false,
   },
@@ -80,7 +78,7 @@ interface IntegrationsProps {
   preloadedEmailProviders: Preloaded<typeof api.email_providers.list>;
 }
 
-export default function Integrations({
+export function Integrations({
   organizationId,
   preloadedShopify,
   preloadedCirculy,

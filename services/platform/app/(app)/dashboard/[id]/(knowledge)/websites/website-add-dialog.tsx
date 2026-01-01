@@ -7,7 +7,7 @@ import * as z from 'zod';
 import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { useCreateWebsite } from './hooks';
+import { useCreateWebsite } from './hooks/use-create-website';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -22,7 +22,7 @@ interface AddWebsiteDialogProps {
   organizationId: string;
 }
 
-export default function AddWebsiteDialog({
+export function AddWebsiteDialog({
   isOpen,
   onClose,
   organizationId,

@@ -71,7 +71,7 @@ const getStepTypeColor = (stepType: string) => {
   }
 };
 
-export default function AutomationSidePanel({
+export function AutomationSidePanel({
   step,
   isOpen,
   onClose: _onClose,

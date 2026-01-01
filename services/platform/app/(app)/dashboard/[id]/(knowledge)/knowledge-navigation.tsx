@@ -19,7 +19,7 @@ type KnowledgeLabelKey =
   | 'vendors'
   | 'toneOfVoice';
 
-export default function KnowledgeNavigation({
+export function KnowledgeNavigation({
   userRole,
 }: KnowledgeNavigationProps) {
   const { t } = useT('knowledge');

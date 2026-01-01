@@ -1,4 +1,4 @@
-import VendorsTable from './vendors-table';
+import { VendorsTable } from './vendors-table';
 import { Suspense } from 'react';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
@@ -6,7 +6,7 @@ import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
-import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { vendorFilterDefinitions } from './filter-definitions';
 import { VendorsEmptyState } from './vendors-empty-state';
 import type { Metadata } from 'next';

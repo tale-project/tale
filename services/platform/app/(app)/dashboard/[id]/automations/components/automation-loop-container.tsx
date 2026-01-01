@@ -18,7 +18,7 @@ interface AutomationLoopContainerProps {
   };
 }
 
-export default function AutomationLoopContainer({
+export function AutomationLoopContainer({
   data,
 }: AutomationLoopContainerProps) {
   const { t } = useT('automations');

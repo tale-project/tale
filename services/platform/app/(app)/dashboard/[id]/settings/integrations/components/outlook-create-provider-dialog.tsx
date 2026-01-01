@@ -15,12 +15,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useT } from '@/lib/i18n';
-import {
-  useCreateEmailProvider,
-  useCreateOAuth2Provider,
-  useTestEmailConnection,
-  useGenerateOAuthUrl,
-} from '../hooks';
+import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
+import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
+import { useTestEmailConnection } from '../hooks/use-test-email-connection';
+import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
 
 // Type for the form data
 type PasswordFormData = {
@@ -45,7 +43,7 @@ interface OutlookCreateProviderDialogProps {
   onSuccess: () => void;
 }
 
-export default function OutlookCreateProviderDialog({
+export function OutlookCreateProviderDialog({
   open,
   onOpenChange,
   organizationId,

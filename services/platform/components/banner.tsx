@@ -81,7 +81,7 @@ export interface BannerProps
   readonly isHidden?: boolean;
 }
 
-export default function Banner({
+export function Banner({
   variant = 'info',
   message,
   icon: Icon,

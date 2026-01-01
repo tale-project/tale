@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
-import ApprovalsWrapper from '../components/approvals-wrapper';
+import { ApprovalsWrapper } from '../components/approvals-wrapper';
 import { preloadApprovalsData } from '../utils/get-approvals-data';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery } from '@/lib/convex-next-server';

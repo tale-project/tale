@@ -6,15 +6,15 @@ import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
-import Pagination from '@/components/ui/pagination';
-import BreadcrumbNavigation from './breadcrumb-navigation';
+import { Pagination } from '@/components/ui/pagination';
+import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/ui/icons';
 import { DocumentItem } from '@/types/documents';
-import DocumentRowActions from './document-row-actions';
-import DocumentPreviewDialog from './document-preview-dialog';
-import DocumentIcon from '@/components/ui/document-icon';
-import RagStatusBadge from './rag-status-badge';
+import { DocumentRowActions } from './document-row-actions';
+import { DocumentPreviewDialog } from './document-preview-dialog';
+import { DocumentIcon } from '@/components/ui/document-icon';
+import { RagStatusBadge } from './rag-status-badge';
 import { DocumentsActionMenu } from './documents-action-menu';
 import { useT } from '@/lib/i18n';
 import { TableDateCell } from '@/components/ui/table-date-cell';
@@ -35,7 +35,7 @@ export interface DocumentTableProps {
   initialSortOrder?: 'asc' | 'desc';
 }
 
-export default function DocumentTable({
+export function DocumentTable({
   items,
   total,
   currentPage,

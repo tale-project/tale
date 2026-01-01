@@ -7,9 +7,9 @@ import { getFileExtension } from '@/lib/utils/document-helpers';
 import { Image } from 'lucide-react';
 import { Download, Loader2 } from 'lucide-react';
 import { useMemo } from 'react';
-import DocumentPreviewPDF from './document-preview-pdf';
-import DocumentPreviewDocx from './document-preview-docx';
-import DocumentPreviewXlsx from './document-preview-xlsx';
+import { DocumentPreviewPDF } from './document-preview-pdf';
+import { DocumentPreviewDocx } from './document-preview-docx';
+import { DocumentPreviewXlsx } from './document-preview-xlsx';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -18,7 +18,7 @@ export interface DocumentPreviewProps {
   fileName?: string;
 }
 
-export default function DocumentPreview({
+export function DocumentPreview({
   url,
   fileName,
 }: DocumentPreviewProps) {

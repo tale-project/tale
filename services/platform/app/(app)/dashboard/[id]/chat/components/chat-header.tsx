@@ -5,14 +5,14 @@ import { cn } from '@/lib/utils/cn';
 import { Clock, Search, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEffect, useMemo, useState } from 'react';
-import ChatSearchDialog from './chat-search-dialog';
+import { ChatSearchDialog } from './chat-search-dialog';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import ChatHistorySidebar from './chat-history-sidebar';
+import { ChatHistorySidebar } from './chat-history-sidebar';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 
@@ -20,7 +20,7 @@ interface ChatHeaderProps {
   organizationId: string;
 }
 
-export default function ChatHeader({ organizationId }: ChatHeaderProps) {
+export function ChatHeader({ organizationId }: ChatHeaderProps) {
   const router = useRouter();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);

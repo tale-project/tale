@@ -20,7 +20,7 @@ interface FilterStatusIndicatorProps {
   ) => void;
 }
 
-export default function FilterStatusIndicator({
+export function FilterStatusIndicator({
   searchQuery,
   filters,
   isLoading,

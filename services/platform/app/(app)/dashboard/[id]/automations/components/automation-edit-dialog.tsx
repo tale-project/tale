@@ -49,7 +49,7 @@ interface EditAutomationDialogProps {
   ) => Promise<void>;
 }
 
-export default function EditAutomationDialog({
+export function EditAutomationDialog({
   open,
   onOpenChange,
   workflow,

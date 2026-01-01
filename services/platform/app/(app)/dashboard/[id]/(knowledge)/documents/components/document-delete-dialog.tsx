@@ -11,7 +11,7 @@ interface DocumentDeleteDialogProps {
   fileName?: string | null;
 }
 
-export default function DocumentDeleteDialog({
+export function DocumentDeleteDialog({
   open,
   onOpenChange,
   onConfirmDelete,

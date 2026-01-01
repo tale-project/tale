@@ -25,12 +25,10 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import type { ConversationWithMessages } from '../types';
-import DotIcon from './dot-icon';
-import {
-  useCloseConversation,
-  useReopenConversation,
-  useMarkAsSpam,
-} from '../hooks';
+import { DotIcon } from './dot-icon';
+import { useCloseConversation } from '../hooks/use-close-conversation';
+import { useReopenConversation } from '../hooks/use-reopen-conversation';
+import { useMarkAsSpam } from '../hooks/use-mark-as-spam';
 
 interface ConversationHeaderProps {
   conversation: ConversationWithMessages;
@@ -39,7 +37,7 @@ interface ConversationHeaderProps {
   onBack?: () => void;
 }
 
-export default function ConversationHeader({
+export function ConversationHeader({
   conversation,
   onResolve,
   onReopen,

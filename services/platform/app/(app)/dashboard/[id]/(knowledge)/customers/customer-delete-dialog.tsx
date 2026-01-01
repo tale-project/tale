@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { EntityDeleteDialog } from '@/components/ui/entity-delete-dialog';
 import { useT } from '@/lib/i18n';
-import { useDeleteCustomer } from './hooks';
+import { useDeleteCustomer } from './hooks/use-delete-customer';
 
 interface DeleteCustomerButtonProps {
   customer: Doc<'customers'>;
@@ -15,7 +15,7 @@ interface DeleteCustomerButtonProps {
   asChild?: boolean;
 }
 
-export default function DeleteCustomerButton({
+export function CustomerDeleteDialog({
   customer,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,

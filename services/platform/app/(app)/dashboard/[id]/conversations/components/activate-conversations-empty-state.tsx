@@ -8,7 +8,7 @@ interface ActivateConversationsEmptyStateProps {
   organizationId: string;
 }
 
-export default function ActivateConversationsEmptyState({
+export function ActivateConversationsEmptyState({
   organizationId,
 }: ActivateConversationsEmptyStateProps) {
   const { t } = useT('conversations');

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useStartWorkflow, useCancelExecution } from '../hooks';
+import { useStartWorkflow } from '../hooks/use-start-workflow';
+import { useCancelExecution } from '../hooks/use-cancel-execution';
 import { Id } from '@/convex/_generated/dataModel';
 import {
   Card,

@@ -1,11 +1,8 @@
 import { ReactNode } from 'react';
 import { connection } from 'next/server';
-import ApprovalsNavigation from './approvals-navigation';
-import {
-  ContentWrapper,
-  PageHeader,
-  PageHeaderTitle,
-} from '@/components/layout';
+import { ApprovalsNavigation } from './approvals-navigation';
+import { ContentWrapper } from '@/components/layout/content-wrapper';
+import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { getT } from '@/lib/i18n/server';
 

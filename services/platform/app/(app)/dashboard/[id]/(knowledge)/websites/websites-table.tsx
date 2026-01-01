@@ -10,7 +10,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { WebsiteIcon } from '@/components/ui/icons';
 import { TableDateCell } from '@/components/ui/table-date-cell';
-import WebsiteRowActions from './website-row-actions';
+import { WebsiteRowActions } from './website-row-actions';
 import { WebsitesActionMenu } from './websites-action-menu';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
@@ -22,7 +22,7 @@ export interface WebsitesTableProps {
   preloadedWebsites: Preloaded<typeof api.websites.listWebsites>;
 }
 
-export default function WebsitesTable({
+export function WebsitesTable({
   organizationId,
   preloadedWebsites,
 }: WebsitesTableProps) {

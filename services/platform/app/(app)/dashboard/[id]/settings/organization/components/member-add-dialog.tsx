@@ -12,7 +12,8 @@ import { Select } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ValidationCheckList } from '@/components/ui/validation-check-item';
 import { CopyableField } from '@/components/ui/copyable-field';
-import { useAddMember, useCreateMember } from '../hooks';
+import { useAddMember } from '../hooks/use-add-member';
+import { useCreateMember } from '../hooks/use-create-member';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
@@ -31,7 +32,7 @@ interface AddMemberDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export default function AddMemberDialog({
+export function AddMemberDialog({
   organizationId,
   open,
   onOpenChange,

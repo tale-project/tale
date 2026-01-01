@@ -8,7 +8,7 @@ interface BreadcrumbNavigationProps {
   currentFolderPath: string;
 }
 
-export default function BreadcrumbNavigation({
+export function BreadcrumbNavigation({
   currentFolderPath,
 }: BreadcrumbNavigationProps) {
   const { t } = useT('documents');

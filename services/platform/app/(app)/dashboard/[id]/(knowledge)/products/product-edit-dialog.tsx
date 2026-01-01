@@ -9,7 +9,7 @@ import { Grid } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
-import { useUpdateProduct } from './hooks';
+import { useUpdateProduct } from './hooks/use-update-product';
 
 interface EditProductDialogProps {
   isOpen: boolean;
@@ -27,7 +27,7 @@ interface EditProductDialogProps {
   };
 }
 
-export default function EditProductDialog({
+export function ProductEditDialog({
   isOpen,
   onClose,
   product,

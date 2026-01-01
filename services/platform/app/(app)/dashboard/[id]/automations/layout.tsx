@@ -7,13 +7,13 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils/cn';
 import { useQuery } from 'convex/react';
 import { useParams, useRouter } from 'next/navigation';
-import { useUpdateAutomation } from './hooks';
+import { useUpdateAutomation } from './hooks/use-update-automation';
 import { ReactNode, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import AutomationNavigation from './automation-navigation';
+import { AutomationNavigation } from './automation-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { PageHeader } from '@/components/layout';
+import { PageHeader } from '@/components/layout/page-header';
 import { useT } from '@/lib/i18n';
 
 interface AutomationsLayoutProps {

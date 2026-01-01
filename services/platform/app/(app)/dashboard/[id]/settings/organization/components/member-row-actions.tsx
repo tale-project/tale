@@ -6,8 +6,8 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
-import MemberEditDialog from './member-edit-dialog';
-import MemberDeleteDialog from './member-delete-dialog';
+import { EditMemberDialog } from './member-edit-dialog';
+import { DeleteMemberDialog } from './member-delete-dialog';
 import { useT } from '@/lib/i18n';
 
 type MemberItem = {
@@ -30,7 +30,7 @@ interface MemberRowActionsProps {
   } | null;
 }
 
-export default function MemberRowActions({
+export function MemberRowActions({
   member,
   memberContext,
 }: MemberRowActionsProps) {
@@ -70,14 +70,14 @@ export default function MemberRowActions({
     <>
       <EntityRowActions actions={actions} />
 
-      <MemberEditDialog
+      <EditMemberDialog
         open={dialogs.isOpen.edit}
         onOpenChange={dialogs.setOpen.edit}
         member={member}
         currentUserMemberId={memberContext?.member?._id}
       />
 
-      <MemberDeleteDialog
+      <DeleteMemberDialog
         open={dialogs.isOpen.delete}
         onOpenChange={dialogs.setOpen.delete}
         member={member}

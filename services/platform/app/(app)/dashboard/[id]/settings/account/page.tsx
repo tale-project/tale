@@ -2,7 +2,7 @@ import { preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import AccountForm from './account-form';
+import { AccountForm } from './account-form';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 

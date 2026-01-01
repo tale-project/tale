@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import Approvals from './approvals';
+import { Approvals } from './approvals';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
 import { useT } from '@/lib/i18n';
@@ -44,7 +44,7 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
   );
 }
 
-export default function ApprovalsWrapper({
+export function ApprovalsWrapper({
   status,
   organizationId,
   preloadedApprovals,

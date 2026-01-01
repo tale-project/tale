@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
 import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
-import ImportProductsDialog from './products-import-dialog';
+import { ProductsImportDialog } from './products-import-dialog';
 import { useT } from '@/lib/i18n';
 
 interface ProductsActionMenuProps {
@@ -56,7 +56,7 @@ export function ProductsActionMenu({ organizationId }: ProductsActionMenuProps) 
           },
         ]}
       />
-      <ImportProductsDialog
+      <ProductsImportDialog
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
         organizationId={organizationId}

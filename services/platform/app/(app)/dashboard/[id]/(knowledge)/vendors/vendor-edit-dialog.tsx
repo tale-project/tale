@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/select';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-import { useUpdateVendor } from './hooks';
+import { useUpdateVendor } from './hooks/use-update-vendor';
 
 type VendorFormData = {
   name: string;
@@ -36,7 +36,7 @@ const LOCALE_OPTIONS = [
   { value: 'zh', label: '中文' },
 ];
 
-export default function VendorEditDialog({
+export function VendorEditDialog({
   vendor,
   isOpen,
   onOpenChange,

@@ -83,7 +83,7 @@ const getDefaultTemplates = (
   }
 };
 
-export default function CreateStepDialog({
+export function CreateStepDialog({
   open,
   onOpenChange,
   onCreateStep,

@@ -33,7 +33,7 @@ interface ProtelIntegrationDialogProps {
   onDisconnect?: () => Promise<void> | void;
 }
 
-export default function ProtelIntegrationDialog({
+export function ProtelIntegrationDialog({
   open,
   onOpenChange,
   credentials,

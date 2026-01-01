@@ -22,7 +22,7 @@ const getApprovalsNavigationItems = ({
     status,
   }));
 
-export default function ApprovalsNavigation({
+export function ApprovalsNavigation({
   organizationId,
 }: ApprovalsNavigationProps) {
   const pathname = usePathname();

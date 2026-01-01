@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { FormDialog } from '@/components/ui/dialog';
-import DeleteStepDialog from './step-delete-dialog';
+import { DeleteStepDialog } from './step-delete-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { JsonInput } from '@/components/ui/json-input';
@@ -26,7 +26,7 @@ interface StepDetailsDialogProps {
   onStepUpdated?: () => void;
 }
 
-export default function StepDetailsDialog({
+export function StepDetailsDialog({
   open,
   onOpenChange,
   step,

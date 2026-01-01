@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Search } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2Icon } from 'lucide-react';
-import ConversationPanel from './conversation-panel';
-import ConversationsList from './conversations-list';
-import FilterDropdown from './filter-dropdown';
+import { ConversationPanel } from './conversation-panel';
+import { ConversationsList } from './conversations-list';
+import { FilterDropdown } from './filter-dropdown';
 import { BulkSendMessagesDialog } from './bulk-send-messages-dialog';
 import { useConversationFilters } from '@/hooks/use-conversation-filters';
-import FilterStatusIndicator from './filter-status-indicator';
-import ActivateConversationsEmptyState from './activate-conversations-empty-state';
+import { FilterStatusIndicator } from './filter-status-indicator';
+import { ActivateConversationsEmptyState } from './activate-conversations-empty-state';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/hooks/use-toast';
 import { useParams } from 'next/navigation';
@@ -20,11 +20,9 @@ import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ConversationItem } from '@/convex/model/conversations/types';
-import {
-  useBulkCloseConversations,
-  useBulkReopenConversations,
-  useAddMessage,
-} from '../hooks';
+import { useBulkCloseConversations } from '../hooks/use-bulk-close-conversations';
+import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversations';
+import { useAddMessage } from '../hooks/use-add-message';
 import type { Conversation } from '../types';
 import { useT } from '@/lib/i18n';
 
@@ -49,7 +47,7 @@ function isAllSelection(state: SelectionState): state is { type: 'all' } {
   return state.type === 'all';
 }
 
-export default function Conversations({
+export function Conversations({
   status,
   preloadedConversations,
   preloadedEmailProviders,

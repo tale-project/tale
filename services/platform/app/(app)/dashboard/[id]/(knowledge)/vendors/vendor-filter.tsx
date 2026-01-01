@@ -15,7 +15,7 @@ import { useT } from '@/lib/i18n';
 
 type FilterSectionKey = 'source' | 'locale';
 
-export default function VendorFilter() {
+export function VendorFilter() {
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
   const { t: tVendors } = useT('vendors');

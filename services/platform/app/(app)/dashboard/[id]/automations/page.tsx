@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { api } from '@/convex/_generated/api';
 
-import AutomationsTable from './components/automations-table';
+import { AutomationsTable } from './components/automations-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
@@ -11,9 +11,10 @@ import {
   DataTableActionMenu,
 } from '@/components/ui/data-table';
 import { Workflow, Sparkles } from 'lucide-react';
-import { AccessDenied, ContentWrapper } from '@/components/layout';
+import { AccessDenied } from '@/components/layout/access-denied';
+import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { getT } from '@/lib/i18n/server';
-import { parseSearchParams, hasActiveFilters } from '@/lib/pagination';
+import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { automationFilterDefinitions } from './filter-definitions';
 import type { Metadata } from 'next';
 

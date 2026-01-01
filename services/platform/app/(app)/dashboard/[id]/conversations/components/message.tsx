@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils/cn';
 import Image from 'next/image';
 import type { Message as MessageType } from '../types';
 import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
-import EmailPreview from '@/components/ui/email-preview';
+import { EmailPreview } from '@/components/ui/email-preview';
 import { Clock, CheckCheck, Check, AlertCircle } from 'lucide-react';
 
 interface MessageProps {
@@ -24,7 +24,7 @@ function getDeliveryIcon(status: string) {
   }
 }
 
-export default function Message({ message }: MessageProps) {
+export function Message({ message }: MessageProps) {
   return (
     <div className="flex flex-col">
       <div

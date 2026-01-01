@@ -26,7 +26,7 @@ interface ExecutionsFilterDropdownProps {
   isLoading?: boolean;
 }
 
-export default function ExecutionsFilterDropdown({
+export function ExecutionsFilterDropdown({
   filters,
   onFiltersChange,
   triggeredByOptions,

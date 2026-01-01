@@ -55,7 +55,7 @@ function ImageWithFallback({
   );
 }
 
-export default function ProductCard({
+export function ProductCard({
   product,
   purchase,
   type,

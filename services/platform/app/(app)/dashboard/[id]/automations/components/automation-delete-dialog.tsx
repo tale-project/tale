@@ -11,7 +11,7 @@ interface DeleteAutomationDialogProps {
   isDeleting?: boolean;
 }
 
-export default function DeleteAutomationDialog({
+export function DeleteAutomationDialog({
   open,
   onOpenChange,
   onConfirm,

@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import SignUpForm from '@/components/auth/sign-up-form';
-import { FormSkeleton } from '@/components/skeletons';
+import { SignUpForm } from '@/components/auth/sign-up-form';
+import { FormSkeleton } from '@/components/skeletons/form-skeleton';
 import { getT } from '@/lib/i18n/server';
 
 export async function generateMetadata() {

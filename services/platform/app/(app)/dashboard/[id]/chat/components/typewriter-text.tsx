@@ -40,7 +40,13 @@
  * />
  */
 
-import { memo, useRef, useEffect, useCallback, type ComponentType } from 'react';
+import {
+  memo,
+  useRef,
+  useEffect,
+  useCallback,
+  type ComponentType,
+} from 'react';
 import { useStreamBuffer } from '../hooks/use-stream-buffer';
 import { IncrementalMarkdown } from './incremental-markdown';
 import { cn } from '@/lib/utils/cn';
@@ -119,13 +125,15 @@ function TypewriterTextComponent({
   className,
 }: TypewriterTextProps) {
   // Use the stream buffer hook for animation management
-  const { displayLength, anchorPosition, isTyping, progress } = useStreamBuffer({
-    text,
-    isStreaming,
-    targetCPS: TYPEWRITER_CONFIG.targetCPS,
-    minBufferWords: TYPEWRITER_CONFIG.minBufferWords,
-    catchUpMultiplier: TYPEWRITER_CONFIG.catchUpMultiplier,
-  });
+  const { displayLength, anchorPosition, isTyping, progress } = useStreamBuffer(
+    {
+      text,
+      isStreaming,
+      targetCPS: TYPEWRITER_CONFIG.targetCPS,
+      minBufferWords: TYPEWRITER_CONFIG.minBufferWords,
+      catchUpMultiplier: TYPEWRITER_CONFIG.catchUpMultiplier,
+    },
+  );
 
   // Ref for the streaming container (used for CSS variable updates)
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,7 +143,12 @@ function TypewriterTextComponent({
 
   // Fire onComplete when animation finishes
   useEffect(() => {
-    if (progress === 1 && !isStreaming && !hasCompletedRef.current && onComplete) {
+    if (
+      progress === 1 &&
+      !isStreaming &&
+      !hasCompletedRef.current &&
+      onComplete
+    ) {
       hasCompletedRef.current = true;
       onComplete();
     }
@@ -166,10 +179,12 @@ function TypewriterTextComponent({
     <div
       ref={containerRef}
       className={cn('typewriter-container', className)}
-      style={{
-        // Initialize CSS custom property
-        '--reveal-chars': displayLength,
-      } as React.CSSProperties}
+      style={
+        {
+          // Initialize CSS custom property
+          '--reveal-chars': displayLength,
+        } as React.CSSProperties
+      }
     >
       {/* Render text with incremental markdown parsing */}
       <IncrementalMarkdown
@@ -186,22 +201,19 @@ function TypewriterTextComponent({
   );
 }
 
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
 /**
  * Memoized TypewriterText component.
  *
  * Only re-renders when text content or streaming state changes,
  * not on every parent render.
  */
-export const TypewriterText = memo(TypewriterTextComponent, (prevProps, nextProps) => {
-  return (
-    prevProps.text === nextProps.text &&
-    prevProps.isStreaming === nextProps.isStreaming &&
-    prevProps.className === nextProps.className
-  );
-});
-
-export default TypewriterText;
+export const TypewriterText = memo(
+  TypewriterTextComponent,
+  (prevProps, nextProps) => {
+    return (
+      prevProps.text === nextProps.text &&
+      prevProps.isStreaming === nextProps.isStreaming &&
+      prevProps.className === nextProps.className
+    );
+  },
+);

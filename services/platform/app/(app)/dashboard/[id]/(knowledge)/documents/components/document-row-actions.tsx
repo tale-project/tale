@@ -7,9 +7,9 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import type { Id } from '@/convex/_generated/dataModel';
-import { useDeleteDocument } from '../hooks';
-import DocumentDeleteDialog from './document-delete-dialog';
-import DocumentDeleteFolderDialog from './document-delete-folder-dialog';
+import { useDeleteDocument } from '../hooks/use-delete-document';
+import { DocumentDeleteDialog } from './document-delete-dialog';
+import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -24,7 +24,7 @@ interface DocumentRowActionsProps {
   sourceMode?: StorageSourceMode;
 }
 
-export default function DocumentRowActions({
+export function DocumentRowActions({
   documentId,
   itemType,
   name,

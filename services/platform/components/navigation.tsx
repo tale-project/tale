@@ -97,7 +97,7 @@ const NavigationItem = ({
   );
 };
 
-export default function Navigation({ role }: { role?: string | null }) {
+export function Navigation({ role }: { role?: string | null }) {
   const params = useParams();
   const businessId = params.id as string;
   const { t } = useT('navigation');

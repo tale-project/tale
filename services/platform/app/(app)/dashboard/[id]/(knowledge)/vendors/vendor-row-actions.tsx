@@ -7,8 +7,8 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { VendorInfoDialog } from '@/components/email-table/vendor-info-dialog';
-import VendorEditDialog from './vendor-edit-dialog';
-import VendorDeleteDialog from './vendor-delete-dialog';
+import { VendorEditDialog } from './vendor-edit-dialog';
+import { VendorDeleteDialog } from './vendor-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
 
@@ -16,7 +16,7 @@ interface VendorRowActionsProps {
   vendor: Doc<'vendors'>;
 }
 
-export default function VendorRowActions({ vendor }: VendorRowActionsProps) {
+export function VendorRowActions({ vendor }: VendorRowActionsProps) {
   const { t } = useT('vendors');
   const { t: tCommon } = useT('common');
   const dialogs = useEntityRowDialogs(['view', 'edit', 'delete']);

@@ -12,7 +12,7 @@ interface DocumentUploadProps {
   onUploadComplete?: () => void;
 }
 
-export default function DocumentUpload({
+export function DocumentUpload({
   organizationId,
   onUploadComplete,
 }: DocumentUploadProps) {

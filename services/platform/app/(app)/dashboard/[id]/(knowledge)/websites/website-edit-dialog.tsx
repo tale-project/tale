@@ -8,7 +8,7 @@ import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useUpdateWebsite } from './hooks';
+import { useUpdateWebsite } from './hooks/use-update-website';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
@@ -23,7 +23,7 @@ interface EditWebsiteDialogProps {
   website: Doc<'websites'>;
 }
 
-export default function EditWebsiteDialog({
+export function EditWebsiteDialog({
   isOpen,
   onClose,
   website,

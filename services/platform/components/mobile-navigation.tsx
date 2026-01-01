@@ -103,7 +103,7 @@ interface MobileNavigationProps {
   role?: string | null;
 }
 
-export default function MobileNavigation({ role }: MobileNavigationProps) {
+export function MobileNavigation({ role }: MobileNavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const params = useParams();
   const businessId = params.id as string;

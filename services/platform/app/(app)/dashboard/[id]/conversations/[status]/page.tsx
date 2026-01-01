@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
-import ConversationsWrapper from '../components/conversations-wrapper';
+import { ConversationsWrapper } from '../components/conversations-wrapper';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { ListSkeleton } from '@/components/skeletons';
-import ActivateConversationsEmptyState from '../components/activate-conversations-empty-state';
+import { ListSkeleton } from '@/components/skeletons/list-skeleton';
+import { ActivateConversationsEmptyState } from '../components/activate-conversations-empty-state';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 

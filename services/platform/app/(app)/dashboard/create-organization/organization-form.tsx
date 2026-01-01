@@ -18,7 +18,7 @@ import { useMemo } from 'react';
 
 type FormData = { name: string };
 
-export default function OrganizationForm() {
+export function OrganizationForm() {
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useT('settings');

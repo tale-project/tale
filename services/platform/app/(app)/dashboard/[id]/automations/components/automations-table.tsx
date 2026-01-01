@@ -12,7 +12,7 @@ import { HStack } from '@/components/ui/layout';
 import { Badge } from '@/components/ui/badge';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
 import { AutomationsActionMenu } from './automations-action-menu';
-import AutomationRowActions from './automation-row-actions';
+import { AutomationRowActions } from './automation-row-actions';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -23,7 +23,7 @@ interface AutomationsTableProps {
   preloadedAutomations: Preloaded<typeof api.wf_definitions.listAutomations>;
 }
 
-export default function AutomationsTable({
+export function AutomationsTable({
   organizationId,
   preloadedAutomations,
 }: AutomationsTableProps) {

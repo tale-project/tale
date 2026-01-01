@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
-import { useStartWorkflow } from '../hooks';
+import { useStartWorkflow } from '../hooks/use-start-workflow';
 import { Button } from '@/components/ui/button';
 import { JsonInput } from '@/components/ui/json-input';
 import { Stack, VStack } from '@/components/ui/layout';

@@ -12,7 +12,7 @@ interface ConversationsNavigationProps {
 
 const STATUSES = ['open', 'closed', 'spam', 'archived'] as const;
 
-export default function ConversationsNavigation({
+export function ConversationsNavigation({
   organizationId,
 }: ConversationsNavigationProps) {
   const { t } = useT('conversations');

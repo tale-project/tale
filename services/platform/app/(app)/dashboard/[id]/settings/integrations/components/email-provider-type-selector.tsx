@@ -5,8 +5,8 @@ import { ViewDialog } from '@/components/ui/dialog';
 import { Stack } from '@/components/ui/layout';
 import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
 import { Mail, ChevronRight } from 'lucide-react';
-import GmailCreateProviderDialog from './gmail-create-provider-dialog';
-import OutlookCreateProviderDialog from './outlook-create-provider-dialog';
+import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
+import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';
 import { useT } from '@/lib/i18n';
 
 interface EmailProviderTypeSelectorProps {
@@ -16,7 +16,7 @@ interface EmailProviderTypeSelectorProps {
   onSuccess?: () => void;
 }
 
-export default function EmailProviderTypeSelector({
+export function EmailProviderTypeSelector({
   open,
   onOpenChange,
   organizationId,

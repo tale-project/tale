@@ -657,7 +657,7 @@ function MilkdownEditorInner({
 }
 
 // Main editor component with Milkdown provider
-export default function MessageEditor(props: MessageEditorProps) {
+export function MessageEditor(props: MessageEditorProps) {
   return (
     <MilkdownProvider>
       <MilkdownEditorInner {...props} />

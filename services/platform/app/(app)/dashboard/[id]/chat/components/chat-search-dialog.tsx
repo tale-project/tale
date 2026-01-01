@@ -19,7 +19,7 @@ interface ChatSearchDialogProps {
   organizationId: string;
 }
 
-export default function ChatSearchDialog({
+export function ChatSearchDialog({
   isOpen,
   onOpenChange,
   organizationId,

@@ -24,7 +24,7 @@ interface ExampleFormData {
   content: string;
 }
 
-export default function ViewEditExampleDialog({
+export function ViewEditExampleDialog({
   isOpen,
   onClose,
   mode: initialMode,

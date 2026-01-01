@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
-import { useUpsertProductTranslation } from './hooks';
+import { useUpsertProductTranslation } from './hooks/use-upsert-product-translation';
 
 type TranslatedNames = {
   [language: string]: string;
@@ -23,7 +23,7 @@ interface ProductTranslationsEditorProps {
   translatedNames: TranslatedNames | null;
 }
 
-export default function ProductTranslationsEditor({
+export function ProductTranslationsEditor({
   productId,
   productName,
   translatedNames,

@@ -269,4 +269,4 @@ const PDFViewer = ({ url }: { url: string }) => {
   );
 };
 
-export default PDFViewer;
+export { PDFViewer as DocumentPreviewPDF };

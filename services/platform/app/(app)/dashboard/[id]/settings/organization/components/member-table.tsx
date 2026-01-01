@@ -7,7 +7,7 @@ import { Stack, HStack } from '@/components/ui/layout';
 import { ChevronDownIcon } from 'lucide-react';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
-import MemberRowActions from './member-row-actions';
+import { MemberRowActions } from './member-row-actions';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n';
 
@@ -33,7 +33,7 @@ interface MemberTableProps {
   onSortChange: (sortOrder: 'asc' | 'desc') => void;
 }
 
-export default function MemberTable({
+export function MemberTable({
   members,
   sortOrder,
   memberContext,

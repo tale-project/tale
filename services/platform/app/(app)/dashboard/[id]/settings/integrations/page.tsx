@@ -1,13 +1,13 @@
 import { Suspense } from 'react';
 import { getAuthToken } from '@/lib/auth/auth-server';
-import Integrations from './integrations';
+import { Integrations } from './integrations';
 import { redirect } from 'next/navigation';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stack, Grid, HStack } from '@/components/ui/layout';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { AccessDenied } from '@/components/layout';
+import { AccessDenied } from '@/components/layout/access-denied';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 

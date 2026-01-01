@@ -24,7 +24,7 @@ export interface DatePickerWithRangeProps
   isLoading?: boolean;
 }
 
-export default function DatePickerWithRange({
+export function DatePickerWithRange({
   className,
   onChange,
   defaultDate,

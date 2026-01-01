@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
-import Banner from '@/components/banner';
+import { Banner } from '@/components/banner';
 import { useT } from '@/lib/i18n';
 
 /**

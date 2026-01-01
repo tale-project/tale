@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useUpdateAutomationMetadata } from '../../hooks';
+import { useUpdateAutomationMetadata } from '../../hooks/use-update-automation-metadata';
 import { Id } from '@/convex/_generated/dataModel';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';

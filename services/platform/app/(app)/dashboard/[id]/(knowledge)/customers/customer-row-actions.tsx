@@ -7,8 +7,8 @@ import {
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
 import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
-import CustomerEditDialog from './customer-edit-dialog';
-import CustomerDeleteDialog from './customer-delete-dialog';
+import { CustomerEditDialog } from './customer-edit-dialog';
+import { CustomerDeleteDialog } from './customer-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
 
@@ -16,7 +16,7 @@ interface CustomerRowActionsProps {
   customer: Doc<'customers'>;
 }
 
-export default function CustomerRowActions({
+export function CustomerRowActions({
   customer,
 }: CustomerRowActionsProps) {
   const { t: tCommon } = useT('common');
