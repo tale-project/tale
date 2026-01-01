@@ -326,7 +326,34 @@ cmd_deploy() {
   # These services run as single instances (not blue-green rotated)
   log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
   docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
-  sleep 5  # Give stateful services time to start
+
+  # Wait for stateful services to be healthy
+  log_info "Waiting for stateful services to be ready..."
+  local stateful_wait=0
+  local stateful_timeout=60
+  while [ "$stateful_wait" -lt "$stateful_timeout" ]; do
+    local all_ready=true
+    for service in db proxy graph-db; do
+      local health
+      health=$(docker inspect --format='{{.State.Health.Status}}' "tale-${service}" 2>/dev/null || echo "none")
+      if [ "$health" != "healthy" ]; then
+        all_ready=false
+        break
+      fi
+    done
+
+    if $all_ready; then
+      log_success "Stateful services are ready"
+      break
+    fi
+
+    sleep 2
+    stateful_wait=$((stateful_wait + 2))
+  done
+
+  if [ "$stateful_wait" -ge "$stateful_timeout" ]; then
+    log_warning "Stateful services may not be fully ready, continuing anyway..."
+  fi
 
   # Step 3: Build new version
   # The compose.{color}.yml files define separate services (platform-blue, platform-green, etc.)
