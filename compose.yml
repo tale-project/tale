@@ -249,11 +249,8 @@ services:
       context: .
       dockerfile: services/platform/Dockerfile
 
-    # Port mapping for local development (bypasses proxy for easier testing)
-    # Access via http://localhost:3000 (dev) or https://yourdomain.com via proxy (prod)
-    # Note: In production with blue-green, use ports in overlay files instead
-    ports:
-      - '3000:3000'
+    # No port mapping needed - accessed via proxy at https://tale.local (or your domain)
+    # internally via http://platform:3000
 
     # Volume mounts
     # Persist Convex local data
