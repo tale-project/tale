@@ -31,6 +31,11 @@ rm -f "$SHUTDOWN_MARKER"
 # PID file for Convex process (shared between main script and monitor subshell)
 CONVEX_PID_FILE="/app/convex-data/convex.pid"
 
+# Lock file for blue-green deployment coordination
+# Prevents restart loops when both blue and green containers are running
+CONVEX_LOCK_FILE="/app/convex-data/convex.lock"
+CONTAINER_NAME=$(hostname)
+
 # Gracefully shutdown all services with connection draining
 # This supports zero-downtime blue-green deployments by:
 # 1. Creating shutdown marker (health checks will fail)
@@ -99,6 +104,11 @@ shutdown() {
   # Cleanup
   rm -f "$SHUTDOWN_MARKER"
   rm -f "$CONVEX_PID_FILE"
+  # Only remove lock if we own it (allow other instance to take over)
+  lock_holder=$(cat "$CONVEX_LOCK_FILE" 2>/dev/null || echo "")
+  if [ "$lock_holder" = "$CONTAINER_NAME" ]; then
+    rm -f "$CONVEX_LOCK_FILE"
+  fi
 
   echo "✅ Services stopped gracefully"
   exit 0
@@ -382,6 +392,8 @@ convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
 CONVEX_PID=$!
 # Write initial PID to file for cross-subshell visibility (used by monitor and shutdown)
 echo "$CONVEX_PID" > "$CONVEX_PID_FILE"
+# Acquire lock for blue-green deployment coordination
+echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"
 
 # Wait for Convex backend to be ready
 wait_for_http "http://localhost:${CONVEX_BACKEND_PORT}/version" 60 "Convex backend API" false || {
@@ -547,6 +559,15 @@ monitor_convex() {
         exit 1
       fi
 
+      # Check if another instance holds the lock (blue-green deployment in progress)
+      lock_holder=$(cat "$CONVEX_LOCK_FILE" 2>/dev/null || echo "")
+      if [ -n "$lock_holder" ] && [ "$lock_holder" != "$CONTAINER_NAME" ]; then
+        echo "[$(date -Iseconds)] Another instance ($lock_holder) holds the lock, skipping restart" | tee -a "$CRASH_LOG"
+        # Don't count this as a restart attempt since it's expected during deployment
+        restart_count=$((restart_count - 1))
+        continue
+      fi
+
       # Kill stale process if exists (read PID from file for cross-subshell visibility)
       local current_pid
       current_pid=$(cat "$CONVEX_PID_FILE" 2>/dev/null || echo "")
@@ -559,6 +580,8 @@ monitor_convex() {
       echo "[$(date -Iseconds)] Restarting Convex backend..." | tee -a "$CRASH_LOG"
       convex-local-backend ${DB_ARGS} --local-storage /app/convex-data ${SITE_ARGS} &
       echo $! > "$CONVEX_PID_FILE"
+      # Update lock after restart
+      echo "$CONTAINER_NAME" > "$CONVEX_LOCK_FILE"
 
       # Wait for recovery
       sleep 5
