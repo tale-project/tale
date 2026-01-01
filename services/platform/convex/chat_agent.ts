@@ -37,6 +37,7 @@ export const chatWithAgent = mutation({
   },
   returns: v.object({
     messageAlreadyExists: v.boolean(),
+    streamId: v.string(),
   }),
   handler: async (ctx, args) => {
     await checkOrganizationRateLimit(ctx, 'ai:chat', args.organizationId);
@@ -61,6 +62,8 @@ export const generateAgentResponse = internalAction({
       ),
     ),
     messageText: v.optional(v.string()),
+    // Stream ID for Persistent Text Streaming (optimized text delivery)
+    streamId: v.optional(v.string()),
   },
   returns: v.object({
     threadId: v.string(),

@@ -2,7 +2,13 @@ import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
 import { httpAction } from './_generated/server';
 import type { Id } from './_generated/dataModel';
-import { checkIpRateLimit, RateLimitExceededError } from './lib/rate_limiter/helpers';
+import {
+  checkIpRateLimit,
+  RateLimitExceededError,
+} from './lib/rate_limiter/helpers';
+// Chat streaming endpoint - provides low-latency HTTP streaming for AI responses
+// Uses Persistent Text Streaming component for real-time token delivery
+import { streamChatHttp, streamChatHttpOptions } from './streaming';
 
 const http = httpRouter();
 
@@ -78,6 +84,18 @@ http.route({
 // Register Better Auth HTTP routes; no CORS needed for Next.js rewrites
 // This automatically registers endpoints like /api/auth/get-session
 authComponent.registerRoutes(http, createAuth);
+
+http.route({
+  path: '/api/chat-stream',
+  method: 'GET',
+  handler: streamChatHttp,
+});
+
+http.route({
+  path: '/api/chat-stream',
+  method: 'OPTIONS',
+  handler: streamChatHttpOptions,
+});
 
 const _routes = http.getRoutes();
 export default http;

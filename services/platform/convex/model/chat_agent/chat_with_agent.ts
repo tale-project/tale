@@ -2,15 +2,30 @@
  * Start a chat run with the agent.
  *
  * Contains the core logic previously in convex/chat_agent.ts:
+ * - Create a persistent text stream for optimized streaming
  * - Deduplicate the last user message
  * - Save the user message if it's new
- * - Schedule the agent response action
+ * - Schedule the agent response action with streamId
+ *
+ * STREAMING ARCHITECTURE:
+ * =======================
+ * We use a hybrid streaming approach:
+ * 1. Agent SDK DeltaStreamer: Handles tool call UI ("Searching...", "Reading...")
+ * 2. Persistent Text Streaming: Handles optimized text content delivery
+ *
+ * The streamId created here is passed to generateAgentResponse, which populates
+ * the stream with text chunks as they arrive from the AI. The frontend can then
+ * choose between:
+ * - getChatStreamBody query (reactive updates from database)
+ * - HTTP streaming endpoint (lowest latency)
+ * - useUIMessages (for tool call status + text)
  */
 
 import type { MutationCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { computeDeduplicationState } from './message_deduplication';
+import { persistentStreaming } from '../../streaming';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -30,6 +45,13 @@ export interface ChatWithAgentArgs {
 
 export interface ChatWithAgentResult {
   messageAlreadyExists: boolean;
+  /**
+   * The stream ID for the AI response.
+   * Frontend can use this to subscribe to text content via:
+   * - getChatStreamBody query (reactive)
+   * - HTTP streaming endpoint (lowest latency)
+   */
+  streamId: string;
 }
 
 export async function chatWithAgent(
@@ -37,6 +59,10 @@ export async function chatWithAgent(
   args: ChatWithAgentArgs,
 ): Promise<ChatWithAgentResult> {
   const { threadId, message, organizationId, maxSteps = 500, attachments } = args;
+
+  // Create a persistent text stream for the AI response
+  // This enables optimized text delivery to the frontend via reactive query or HTTP streaming
+  const streamId = await persistentStreaming.createStream(ctx);
 
   // Load recent non-tool messages to deduplicate the last user message
   const existingMessages = await listMessages(ctx, components.agent, {
@@ -57,6 +83,7 @@ export async function chatWithAgent(
   debugLog('chatWithAgent called', {
     threadId,
     organizationId,
+    streamId,
     messageAlreadyExists,
     lastUserMessageId: lastUserMessage?._id,
     latestMessageRole: latestMessage?.message?.role,
@@ -168,6 +195,7 @@ export async function chatWithAgent(
 
   // Schedule the action to run immediately
   // The agent component handles streaming status via syncStreams
+  // We also pass streamId for Persistent Text Streaming
   await ctx.scheduler.runAfter(0, internal.chat_agent.generateAgentResponse, {
     threadId,
     organizationId,
@@ -176,7 +204,9 @@ export async function chatWithAgent(
     attachments: actionAttachments,
     // Pass the original message text so the action can build multi-modal prompts
     messageText: trimmedMessage,
+    // Pass streamId for Persistent Text Streaming (optimized text delivery)
+    streamId,
   });
 
-  return { messageAlreadyExists };
+  return { messageAlreadyExists, streamId };
 }

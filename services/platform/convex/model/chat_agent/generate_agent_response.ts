@@ -65,6 +65,12 @@ export interface GenerateAgentResponseArgs {
   promptMessageId: string;
   attachments?: FileAttachment[];
   messageText?: string;
+  /**
+   * Stream ID for Persistent Text Streaming.
+   * Used to provide optimized text delivery to the frontend.
+   * The stream is populated with text content as it's generated.
+   */
+  streamId?: string;
 }
 
 export interface GenerateAgentResponseResult {
@@ -114,9 +120,15 @@ export async function generateAgentResponse(
   ctx: ActionCtx,
   args: GenerateAgentResponseArgs,
 ): Promise<GenerateAgentResponseResult> {
-  const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText } = args;
+  const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText, streamId } = args;
 
   const startTime = Date.now();
+
+  // If we have a streamId, mark the stream as actively streaming
+  // This updates the status from 'pending' to 'streaming' in Persistent Text Streaming
+  if (streamId) {
+    await ctx.runMutation(internal.streaming.startStream, { streamId });
+  }
 
   try {
     const userQuery = messageText || '';
@@ -536,6 +548,19 @@ export async function generateAgentResponse(
 
     const responseText = (result.text || '').trim();
 
+    // Save the complete response text to Persistent Text Streaming
+    // This enables optimized text retrieval via getChatStreamBody query
+    // Note: We save the final text after generation completes because the Agent SDK
+    // consumes the stream internally with saveStreamDeltas. For true per-token streaming,
+    // we would need to disable saveStreamDeltas and manually handle the stream.
+    if (streamId && responseText) {
+      await ctx.runMutation(internal.streaming.appendToStream, {
+        streamId,
+        text: responseText,
+      });
+      await ctx.runMutation(internal.streaming.completeStream, { streamId });
+    }
+
     if (!responseText) {
       const usage = result.usage;
       const inputTokens = usage?.inputTokens ?? 0;
@@ -611,6 +636,15 @@ export async function generateAgentResponse(
 
     return chatResult;
   } catch (error) {
+    // Mark the stream as errored if we have one
+    if (streamId) {
+      try {
+        await ctx.runMutation(internal.streaming.errorStream, { streamId });
+      } catch (streamError) {
+        console.error('[generateAgentResponse] Failed to mark stream as errored:', streamError);
+      }
+    }
+
     // Trigger summarization on error to reduce context for potential follow-up
     await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
       threadId,
