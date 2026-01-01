@@ -282,9 +282,13 @@ services:
     restart: unless-stopped
 
     # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy
+    # Docker will check if the service is healthy (both Next.js and Convex)
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf http://localhost:3000/api/health && curl -sf http://localhost:3210/version',
+        ]
       interval: 5s
       timeout: 3s
       retries: 3

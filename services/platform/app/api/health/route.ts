@@ -52,33 +52,24 @@ export async function GET() {
   }
 
   // Check if Convex backend is ready
+  let convexHealthy = false;
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
     const response = await fetch(CONVEX_BACKEND_URL, {
-      signal: controller.signal,
+      signal: AbortSignal.timeout(5000),
     });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          status: 'starting',
-          service: 'tale-platform',
-          timestamp: new Date().toISOString(),
-          message: 'Convex backend not ready',
-        },
-        { status: 503 }
-      );
-    }
+    convexHealthy = response.ok;
   } catch {
+    convexHealthy = false;
+  }
+
+  if (!convexHealthy) {
     return NextResponse.json(
       {
         status: 'starting',
         service: 'tale-platform',
+        convex: 'unhealthy',
         timestamp: new Date().toISOString(),
-        message: 'Convex backend not reachable',
+        message: 'Convex backend not ready',
       },
       { status: 503 }
     );
@@ -88,6 +79,7 @@ export async function GET() {
     {
       status: 'ok',
       service: 'tale-platform',
+      convex: 'healthy',
       timestamp: new Date().toISOString(),
     },
     { status: 200 }
