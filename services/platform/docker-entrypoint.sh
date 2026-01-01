@@ -24,6 +24,9 @@ DASHBOARD_PID=""
 # Shutdown marker file - health check will return 503 when this exists
 SHUTDOWN_MARKER="/tmp/shutting_down"
 
+# Clear any stale shutdown marker from previous runs
+rm -f "$SHUTDOWN_MARKER"
+
 # Gracefully shutdown all services with connection draining
 # This supports zero-downtime blue-green deployments by:
 # 1. Creating shutdown marker (health checks will fail)
@@ -99,6 +102,39 @@ trap shutdown SIGTERM SIGINT
 # Centralized environment normalization
 source "$(dirname "$0")/env.sh"
 env_normalize_common
+
+# ============================================================================
+# Trust Caddy's Self-Signed CA Certificate (Development Only)
+# ============================================================================
+# When using self-signed certificates from Caddy, we need to trust the CA
+# so that Convex backend (Rust) can make HTTPS requests to tale.local
+if [ -n "${CADDY_ROOT_CA:-}" ] && [ -f "${CADDY_ROOT_CA}" ]; then
+  echo "🔐 Setting up Caddy root CA certificate for self-signed HTTPS..."
+  # Create a combined CA bundle: system CAs + Caddy's CA
+  COMBINED_CA_BUNDLE="/tmp/ca-certificates.crt"
+  SYSTEM_CA_BUNDLE="/etc/ssl/certs/ca-certificates.crt"
+
+  if [ -f "${SYSTEM_CA_BUNDLE}" ]; then
+    # Start with system CA bundle
+    cp "${SYSTEM_CA_BUNDLE}" "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
+    # Append Caddy's root CA
+    cat "${CADDY_ROOT_CA}" >> "${COMBINED_CA_BUNDLE}" 2>/dev/null || true
+    chmod 644 "${COMBINED_CA_BUNDLE}"
+    # Set SSL_CERT_FILE for Rust/native TLS libraries
+    export SSL_CERT_FILE="${COMBINED_CA_BUNDLE}"
+    # Also set REQUESTS_CA_BUNDLE for Python requests library
+    export REQUESTS_CA_BUNDLE="${COMBINED_CA_BUNDLE}"
+    echo "   ✓ Combined CA bundle created with Caddy root CA"
+    echo "   ✓ SSL_CERT_FILE=${COMBINED_CA_BUNDLE}"
+  else
+    echo "   ⚠️  System CA bundle not found at ${SYSTEM_CA_BUNDLE}"
+  fi
+else
+  if [ -n "${CADDY_ROOT_CA:-}" ]; then
+    echo "⚠️  CADDY_ROOT_CA is set but file not found: ${CADDY_ROOT_CA}"
+    echo "   ℹ️  This is normal on first start. Caddy needs to generate certificates first."
+  fi
+fi
 
 echo "🔍 Environment after normalization:"
 echo "   DOMAIN=${DOMAIN}"
