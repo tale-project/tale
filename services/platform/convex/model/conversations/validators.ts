@@ -63,11 +63,16 @@ export const customerInfoValidator = v.object({
 });
 
 /**
- * Conversation item validator (for list responses)
+ * Shared base fields for conversation validators.
+ * Extracted to reduce duplication between list and detail view validators.
+ * If views diverge in the future, add view-specific fields to the respective validators.
  */
-export const conversationItemValidator = v.object({
+const conversationBaseFields = {
+  // Core Convex fields
   _id: v.id('conversations'),
   _creationTime: v.number(),
+
+  // Database fields
   organizationId: v.string(),
   customerId: v.optional(v.id('customers')),
   externalMessageId: v.optional(v.string()),
@@ -80,8 +85,8 @@ export const conversationItemValidator = v.object({
   direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
   providerId: v.optional(v.id('emailProviders')),
   lastMessageAt: v.optional(v.number()),
-
   metadata: v.optional(v.any()),
+
   // Computed fields for frontend compatibility
   id: v.string(),
   title: v.string(),
@@ -99,6 +104,13 @@ export const conversationItemValidator = v.object({
   customer: customerInfoValidator,
   messages: v.array(messageValidator),
   pendingApproval: v.optional(approvalItemValidator),
+};
+
+/**
+ * Conversation item validator (for list responses)
+ */
+export const conversationItemValidator = v.object({
+  ...conversationBaseFields,
 });
 
 /**
@@ -113,42 +125,10 @@ export const conversationListResponseValidator = v.object({
 });
 
 /**
- * Conversation with messages validator
+ * Conversation with messages validator (for detail view)
  */
 export const conversationWithMessagesValidator = v.object({
-  _id: v.id('conversations'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  customerId: v.optional(v.id('customers')),
-  externalMessageId: v.optional(v.string()),
-  subject: v.optional(v.string()),
-  status: v.optional(conversationStatusValidator),
-  // Schema stores priority as string, not union type
-  priority: v.optional(v.string()),
-  type: v.optional(v.string()),
-  channel: v.optional(v.string()),
-  direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
-  providerId: v.optional(v.id('emailProviders')),
-  lastMessageAt: v.optional(v.number()),
-
-  metadata: v.optional(v.any()),
-  // Computed fields
-  id: v.string(),
-  title: v.string(),
-  description: v.string(),
-  customer_id: v.string(),
-  business_id: v.string(),
-  message_count: v.number(),
-  unread_count: v.number(),
-  last_message_at: v.optional(v.string()),
-  last_read_at: v.optional(v.string()),
-  resolved_at: v.optional(v.string()),
-  resolved_by: v.optional(v.string()),
-  created_at: v.string(),
-  updated_at: v.string(),
-  customer: customerInfoValidator,
-  messages: v.array(messageValidator),
-  pendingApproval: v.optional(approvalItemValidator),
+  ...conversationBaseFields,
 });
 
 /**
