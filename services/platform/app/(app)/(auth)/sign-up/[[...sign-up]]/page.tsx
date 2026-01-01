@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { SignUpForm } from '@/components/auth/sign-up-form';
-import { FormSkeleton } from '@/components/skeletons/form-skeleton';
+import { AuthFormSkeleton } from '@/components/skeletons/auth-skeleton';
 import { getT } from '@/lib/i18n/server';
 
 export async function generateMetadata() {
@@ -36,18 +36,17 @@ async function SignUpContent() {
   return <SignUpForm microsoftEnabled={microsoftEnabled} />;
 }
 
-/** Skeleton for the sign-up form */
-function SignUpSkeleton() {
-  return (
-    <div className="max-w-md mx-auto">
-      <FormSkeleton fields={3} />
-    </div>
-  );
-}
-
 export default function SignUpPage() {
   return (
-    <Suspense fallback={<SignUpSkeleton />}>
+    <Suspense
+      fallback={
+        <AuthFormSkeleton
+          title="Sign up"
+          showPasswordRequirements
+          showMicrosoftButton
+        />
+      }
+    >
       <SignUpContent />
     </Suspense>
   );

@@ -41,11 +41,11 @@ export function LogInForm({
       z.object({
         email: z
           .string()
-          .min(1, tCommon('validation.required'))
+          .min(1, tCommon('validation.required', { field: t('email') }))
           .email(tCommon('validation.email')),
-        password: z.string().min(1, tCommon('validation.required')),
+        password: z.string().min(1, tCommon('validation.required', { field: t('password') })),
       }),
-    [tCommon],
+    [tCommon, t],
   );
 
   const form = useForm<LogInFormData>({

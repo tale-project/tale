@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { LogInForm } from '@/components/auth/log-in-form';
-import { FormSkeleton } from '@/components/skeletons/form-skeleton';
+import { AuthFormSkeleton } from '@/components/skeletons/auth-skeleton';
 import { api } from '@/convex/_generated/api';
 import { getT } from '@/lib/i18n/server';
 
@@ -47,18 +47,13 @@ async function LogInContent() {
   );
 }
 
-/** Skeleton for the log-in form */
-function LogInSkeleton() {
-  return (
-    <div className="max-w-md mx-auto">
-      <FormSkeleton fields={2} />
-    </div>
-  );
-}
-
 export default function LogInPage() {
   return (
-    <Suspense fallback={<LogInSkeleton />}>
+    <Suspense
+      fallback={
+        <AuthFormSkeleton title="Log in" showMicrosoftButton />
+      }
+    >
       <LogInContent />
     </Suspense>
   );
