@@ -3,29 +3,61 @@
 #
 # Supports blue-green deployments with automatic health-based routing
 #
-# Local dev: http://localhost
-# Production: https://yourdomain.com (automatic HTTPS via Let's Encrypt)
+# TLS Configuration (environment variables):
+# - TLS_MODE: Certificate mode
+#   - "selfsigned" (default): Self-signed certificates via Caddy's internal CA
+#   - "letsencrypt": Free trusted certificates from Let's Encrypt
+#
+# - TLS_EMAIL: Email for Let's Encrypt notifications (optional but recommended)
+#
+# Users always access via HTTPS regardless of TLS mode.
+#
+# Development: https://tale.local (TLS_MODE=selfsigned)
+# Production:  https://yourdomain.com (TLS_MODE=letsencrypt)
 #
 # Blue-Green Deployment:
 # - Both platform-blue:3000 and platform-green:3000 are listed as upstreams
 # - Caddy automatically routes to healthy backends based on health checks
 # - During deployment, traffic seamlessly switches to the healthy version
 
-{$DOMAIN:http://localhost} {
-	# TLS/ACME configuration - only applies to domains that qualify for ACME
-	# localhost will use HTTP only
-	@needsTLS not host *.test *.local *.localhost localhost 127.0.0.1
-	tls {
-		issuer acme {
-			dir {$ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
-			disable_tlsalpn_challenge
-		}
+# Global options
+{
+	default_sni {$DOMAIN_HOST:tale.local}
+}
+
+# HTTP health check endpoint (for Docker healthcheck)
+# This avoids SSL issues when checking from localhost
+:80 {
+	handle /health {
+		respond "OK" 200
 	}
+	# Redirect all other HTTP traffic to HTTPS
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
+
+{$DOMAIN:https://tale.local} {
+	# TLS Configuration based on TLS_MODE environment variable
+	# - selfsigned (default): Self-signed certs, browser shows warning
+	# - letsencrypt: Let's Encrypt certs, fully trusted
+	#
+	# Note: Caddy uses "internal" for self-signed and "acme" for Let's Encrypt
+	# TLS_ISSUER is set by docker-entrypoint.sh based on TLS_MODE
+	# TLS_CONFIG is also set by docker-entrypoint.sh (includes email if provided)
+	tls {$TLS_CONFIG:internal}
 
 	log {
 		output stdout
 		format console
 		level INFO
+	}
+
+	# Health check endpoint for the proxy itself
+	# Returns 200 OK if Caddy is running and able to serve requests
+	# Usage: curl -k https://tale.local/health
+	handle /health {
+		respond "OK" 200
 	}
 
 	# Blue-Green Upstream Pool
@@ -42,17 +74,22 @@
 
 		# Active health checking - Caddy probes these endpoints
 		health_uri /api/health
-		health_interval 3s
+		health_interval 2s
 		health_timeout 2s
 		health_status 200
+
+		# CRITICAL for zero-downtime: backends must pass health checks before receiving traffic
+		# health_passes: require 2 consecutive successful checks before marking healthy
+		# This prevents routing to backends that just started but aren't ready yet
+		health_passes 2
 
 		# Passive health checking (circuit breaker)
 		# Mark backend unhealthy after consecutive failures
 		fail_duration 10s
-		max_fails 3
+		max_fails 2
 		unhealthy_status 500 502 503 504
 
-		# Retry on failure - try other backends
+		# Retry on failure - try other healthy backends
 		lb_try_duration 5s
 		lb_try_interval 250ms
 
@@ -64,6 +101,16 @@
 	}
 
 	encode gzip zstd
+
+	# Maintenance page when no healthy backends available
+	# During blue-green deployments, there's a brief window (~8-10s) when
+	# the old backend loses its database lease and the new one isn't ready yet.
+	# This shows a friendly loading page instead of a raw 503 error.
+	handle_errors 502 503 504 {
+		root * /var/www
+		rewrite * /maintenance.html
+		file_server
+	}
 
 	header {
 		-Server

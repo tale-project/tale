@@ -73,12 +73,15 @@ services:
   # ============================================================================
   # Tale Graph DB (Kuzu)
   # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
+  # Stateful service - Kuzu requires exclusive file lock, cannot run two instances
   graph-db:
     # Build from local Dockerfile
     build:
       context: ./services/graph-db
       dockerfile: Dockerfile
+
+    # Container name - stateful service like db
+    container_name: tale-graph-db
 
     # No port mapping needed - only accessed by other services (rag)
     # internally via http://graph-db:8000
@@ -257,11 +260,22 @@ services:
     volumes:
       # Convex local backend data
       - platform-convex-data:/app/convex-data
+      # Mount Caddy's CA certificates for trusting self-signed certificates (development only)
+      - caddy-data:/caddy-data:ro
 
     # Environment file
     # Create a .env file in the project root with your configuration
     env_file:
       - .env
+
+    # Environment variables
+    environment:
+      # Trust Caddy's self-signed CA certificate (development only)
+      # Node.js uses NODE_EXTRA_CA_CERTS to add custom CA certificates
+      # This is more secure than NODE_TLS_REJECT_UNAUTHORIZED=0 because it still validates certificates
+      - NODE_EXTRA_CA_CERTS=/caddy-data/caddy/pki/authorities/local/root.crt
+      # Path to Caddy's root CA for Rust/native TLS libraries (Convex backend)
+      - CADDY_ROOT_CA=/caddy-data/caddy/pki/authorities/local/root.crt
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -273,8 +287,8 @@ services:
       test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
       interval: 5s
       timeout: 3s
-      retries: 2
-      start_period: 45s
+      retries: 3
+      start_period: 120s
 
     # Dependencies
     # Wait for backend services to be ready
@@ -358,14 +372,21 @@ services:
   # Tale Proxy (Caddy)
   # ============================================================================
   # Single entry point for all traffic (both local dev and production)
+  # Always serves over HTTPS with configurable certificate source.
+  #
+  # TLS Configuration (set in .env):
+  #   TLS_MODE=selfsigned   - Self-signed certs (default, for development)
+  #   TLS_MODE=letsencrypt  - Let's Encrypt certs (for production)
   #
   # For local development:
   #   - Run: docker compose up
-  #   - Access: http://localhost
+  #   - Access: https://tale.local (self-signed cert, browser warning expected)
+  #   - To trust certs: docker exec tale-proxy caddy trust
   #
   # For production with HTTPS:
   #   - Set DOMAIN=https://yourdomain.com in .env
-  #   - Access: https://yourdomain.com
+  #   - Set TLS_MODE=letsencrypt
+  #   - Access: https://yourdomain.com (trusted Let's Encrypt cert)
   #
   proxy:
     # Build configuration
@@ -400,7 +421,8 @@ services:
     restart: unless-stopped
 
     # Health check
-    # Docker will check if the proxy is healthy
+    # Docker will check if the proxy is healthy via /health endpoint on HTTP
+    # Using HTTP on localhost avoids SSL/IPv6 issues for internal health checks
     healthcheck:
       test:
         [
@@ -409,7 +431,7 @@ services:
           '--no-verbose',
           '--tries=1',
           '--spider',
-          'http://localhost:80/',
+          'http://127.0.0.1:80/health',
         ]
       interval: 30s
       timeout: 10s

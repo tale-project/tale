@@ -6,14 +6,30 @@ Tale is a ready-to-run platform that gives you everything you need: intelligent 
 
 ## Quick Start
 
-Get Tale running in 3 steps:
+Get Tale running in 4 steps:
 
 ### 1. Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) (v24+)
 - [OpenRouter API Key](https://openrouter.ai)
 
-### 2. Clone & Configure
+### 2. Configure Local Domain
+
+Add `tale.local` to your hosts file so your browser can find the local server:
+
+**macOS / Linux:**
+
+```bash
+echo "127.0.0.1 tale.local" | sudo tee -a /etc/hosts
+```
+
+**Windows (run PowerShell as Administrator):**
+
+```powershell
+Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "127.0.0.1 tale.local"
+```
+
+### 3. Clone & Configure
 
 ```bash
 git clone https://github.com/tale-project/tale.git
@@ -27,21 +43,23 @@ Edit `.env` and add your OpenRouter API key:
 OPENAI_API_KEY=your-openrouter-api-key
 ```
 
-### 3. Launch
+### 4. Launch
 
 ```bash
 docker compose up --build
 ```
 
-**That's it!** Open http://localhost:3000 when you see "Server ready".
+**That's it!** Open https://tale.local when you see "Server ready".
+
+> **Note:** Your browser will show a certificate warning because Tale uses self-signed certificates for local development. This is safe to accept. To avoid the warning, run: `docker exec tale-proxy caddy trust`
 
 ## What Can You Do?
 
 Once Tale is running, you can:
 
-| Goal                         | How                                                           |
-| ---------------------------- | ------------------------------------------------------------- |
-| **Use the main app**         | Visit your configured domain (default: http://localhost:3000) |
+| Goal                         | How                                                          |
+| ---------------------------- | ------------------------------------------------------------ |
+| **Use the main app**         | Visit your configured domain (default: https://tale.local)   |
 | **Chat with AI assistants**  | Built into the platform—start chatting immediately            |
 | **Crawl websites for data**  | Add URLs through the interface or Crawler API                 |
 | **Search your data with AI** | Use natural language queries in the app                       |
@@ -50,17 +68,21 @@ Once Tale is running, you can:
 
 ## Deploy to Production
 
-Ready to go live? Add your domain:
+Ready to go live? Update your `.env` file:
 
 ```bash
-# Update .env
 DOMAIN=https://yourdomain.com
+DOMAIN_HOST=yourdomain.com
+TLS_MODE=letsencrypt
+```
 
-# Build and start in detached mode
+Then build and start:
+
+```bash
 docker compose up --build -d
 ```
 
-SSL certificates are handled automatically by Caddy.
+SSL certificates are automatically provisioned via Let's Encrypt.
 
 ## Authentication Options
 

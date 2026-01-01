@@ -2,13 +2,21 @@
 # Tale Proxy Service (Caddy)
 # ============================================================================
 # This Dockerfile builds a Caddy reverse proxy for the Tale platform
-# with automatic HTTPS support via Let's Encrypt
+# with configurable HTTPS support (self-signed or Let's Encrypt)
 # ============================================================================
 
 FROM caddy:2.10-alpine
 
 # Copy Caddyfile
 COPY services/proxy/Caddyfile /etc/caddy/Caddyfile
+
+# Copy maintenance page for deployment transitions
+# Shown when no healthy backends are available (e.g., during blue-green deployment)
+COPY services/proxy/maintenance.html /var/www/maintenance.html
+
+# Copy entrypoint script that fixes certificate permissions
+COPY services/proxy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose HTTP and HTTPS ports
 EXPOSE 80 443
@@ -17,11 +25,13 @@ EXPOSE 80 443
 # Certificates are stored in /data/caddy
 VOLUME /data
 
-# Health check
+# Health check via /health endpoint
+# Uses HTTP on localhost (internal) to avoid SSL issues with IPv6
+# The actual HTTPS functionality is verified by external monitoring
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/health || exit 1
 
-# Caddy runs as non-root by default
-# Start Caddy with the Caddyfile
+# Use custom entrypoint that makes CA certificates readable
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
 

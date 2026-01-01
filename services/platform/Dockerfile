@@ -67,11 +67,15 @@ WORKDIR /app
 # - curl: for health checks
 # - tini: for proper signal handling with multiple processes
 # - postgresql-client: for database connectivity checks
+# - ca-certificates: for trusting custom CA certificates (e.g., Caddy's self-signed CA)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     tini \
     postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /usr/local/share/ca-certificates \
+    && chmod 755 /usr/local/share/ca-certificates
 
 # Note: convex-local-backend and generate_key are already in the base image at /convex/
 # We'll create symlinks to make them available in PATH and ensure they're executable
