@@ -52,8 +52,12 @@ export default async function DashboardLayout({
     redirect('/log-in');
   }
 
+  // If organization query failed but user has membership, this indicates a data issue
+  // Don't redirect - throw an error to show the error boundary
   if (!organization) {
-    redirect('/dashboard/create-organization');
+    throw new Error(
+      `Organization ${organizationId} not found, but user has membership`
+    );
   }
 
   return (
