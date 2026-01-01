@@ -58,7 +58,7 @@ export const vendorInputValidator = v.object({
   name: v.optional(v.string()),
   email: v.string(),
   phone: v.optional(v.string()),
-  externalId: v.optional(v.string()),
+  externalId: v.optional(v.union(v.string(), v.number())),
   source: vendorSourceValidator,
   locale: v.optional(v.string()),
   address: v.optional(vendorAddressValidator),
