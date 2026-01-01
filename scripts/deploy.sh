@@ -259,7 +259,7 @@ wait_for_platform_health() {
 # Reload Caddy to refresh upstream health
 reload_caddy() {
   log_info "Reloading Caddy configuration..."
-  if docker exec tale-proxy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null; then
+  if docker exec tale-proxy caddy reload --config /config/Caddyfile 2>/dev/null; then
     log_success "Caddy reloaded successfully"
     return 0
   else
@@ -325,7 +325,24 @@ cmd_deploy() {
   # Step 2: Ensure stateful services are running
   # These services run as single instances (not blue-green rotated)
   log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
-  docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
+
+  # Check if proxy is already healthy - avoid recreating it to preserve TLS state
+  local proxy_healthy=false
+  if docker ps --format '{{.Names}}' | grep -q "^tale-proxy$"; then
+    local proxy_health
+    proxy_health=$(docker inspect --format='{{.State.Health.Status}}' "tale-proxy" 2>/dev/null || echo "none")
+    if [ "$proxy_health" = "healthy" ]; then
+      proxy_healthy=true
+      log_info "Proxy already healthy, skipping recreation to preserve TLS certificates"
+    fi
+  fi
+
+  if [ "$proxy_healthy" = "true" ]; then
+    # Only start db and graph-db, leave proxy alone
+    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
+  else
+    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
+  fi
 
   # Wait for stateful services to be healthy
   log_info "Waiting for stateful services to be ready..."
@@ -404,10 +421,15 @@ cmd_deploy() {
 
   # Verify traffic is being served through proxy
   # Note: -k flag accepts self-signed certs (TLS_MODE=selfsigned in local dev)
+  # Load DOMAIN_HOST from .env file (defaults to tale.local for local dev)
+  local domain_host
+  domain_host=$(grep -E "^DOMAIN_HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host="${domain_host:-tale.local}"
+
   local caddy_verify_attempts=0
   local caddy_verify_max=5
   while [ "$caddy_verify_attempts" -lt "$caddy_verify_max" ]; do
-    if curl -sf -o /dev/null -k --max-time 3 "https://tale.local/api/health" 2>/dev/null; then
+    if curl -sf -o /dev/null -k --max-time 3 "https://${domain_host}/api/health" 2>/dev/null; then
       log_success "Proxy is serving traffic successfully"
       break
     fi

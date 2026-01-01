@@ -267,12 +267,10 @@ services:
 
     # Environment variables
     environment:
-      # Trust Caddy's self-signed CA certificate (development only)
-      # Node.js uses NODE_EXTRA_CA_CERTS to add custom CA certificates
-      # This is more secure than NODE_TLS_REJECT_UNAUTHORIZED=0 because it still validates certificates
-      - NODE_EXTRA_CA_CERTS=/caddy-data/caddy/pki/authorities/local/root.crt
-      # Path to Caddy's root CA for Rust/native TLS libraries (Convex backend)
-      - CADDY_ROOT_CA=/caddy-data/caddy/pki/authorities/local/root.crt
+      # CA cert path for self-signed mode - entrypoint script checks if file exists
+      # With Let's Encrypt, this file doesn't exist and is safely ignored
+      # The entrypoint will set NODE_EXTRA_CA_CERTS only if the file exists
+      - CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt
 
     # Restart policy
     # Automatically restart the container if it crashes

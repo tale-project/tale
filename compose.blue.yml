@@ -31,8 +31,9 @@ services:
       - .env
 
     environment:
-      - NODE_EXTRA_CA_CERTS=/caddy-data/caddy/pki/authorities/local/root.crt
-      - CADDY_ROOT_CA=/caddy-data/caddy/pki/authorities/local/root.crt
+      # CA cert paths - entrypoint script checks if files exist before using them
+      # With Let's Encrypt, these files don't exist and are safely ignored
+      - CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt
 
     restart: unless-stopped
 
