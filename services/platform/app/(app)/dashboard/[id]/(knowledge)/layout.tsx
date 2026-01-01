@@ -31,7 +31,7 @@ export default async function KnowledgeLayout({ children }: KnowledgeLayoutProps
         <KnowledgeNavigation />
       </StickyHeader>
       <ErrorBoundaryWithParams>
-        <ContentWrapper>{children}</ContentWrapper>
+        <ContentWrapper className="p-4">{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
     </>
   );

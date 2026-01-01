@@ -466,7 +466,7 @@ export function DataTable<TData>({
       {headerContent && (
         <div className="flex-shrink-0 pb-4">{headerContent}</div>
       )}
-      <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+      <div className="min-h-0 overflow-auto rounded-xl border border-border">
         {tableContent}
       </div>
       {paginationContent && (

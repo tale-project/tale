@@ -39,7 +39,7 @@ const AutomationSteps = dynamic(
           </div>
           {/* Toolbar placeholder */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-            <Skeleton className="h-10 w-32 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
           </div>
         </div>
       </div>

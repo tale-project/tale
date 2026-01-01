@@ -265,22 +265,17 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
           {getStatusLabel(status)}
         </span>
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
-          className="h-6 px-2 text-xs"
+          className="size-6 rounded-sm"
           onClick={handleRetry}
           disabled={isRetrying || !documentId}
+          title={t('rag.index')}
         >
           {isRetrying ? (
-            <>
-              <Loader2 className="size-3 animate-spin mr-1" />
-              {t('rag.indexing')}
-            </>
+            <Loader2 className="size-3 animate-spin" />
           ) : (
-            <>
-              <Database className="size-3 mr-1" />
-              {t('rag.index')}
-            </>
+            <RotateCw className="size-3" />
           )}
         </Button>
       </span>

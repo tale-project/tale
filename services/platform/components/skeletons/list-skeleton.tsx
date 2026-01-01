@@ -29,7 +29,7 @@ export function ListItemSkeleton({
       )}
     >
       {showAvatar && (
-        <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+        <Skeleton className="h-9 w-10 rounded-full flex-shrink-0" />
       )}
 
       <div className="flex-1 min-w-0 space-y-1">

@@ -46,8 +46,8 @@ async function DocumentsSkeleton() {
       stickyLayout
       customHeader={
         <HStack justify="between" className="flex-col sm:flex-row sm:items-center">
-          <Skeleton className="h-10 w-full sm:w-[300px]" />
-          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-9 w-full sm:w-[300px]" />
+          <Skeleton className="h-9 w-40" />
         </HStack>
       }
     />
