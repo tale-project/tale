@@ -23,8 +23,9 @@ WORKDIR /app
 # Copy package files from services/platform directory
 COPY services/platform/package.json services/platform/package-lock.json ./
 
-# Install dependencies using npm (as per user preference)
-RUN npm ci
+# Install dependencies using npm with retry for QEMU network stability
+# See: https://github.com/docker/build-push-action/issues/471
+RUN npm ci --fetch-timeout=600000 --fetch-retries=10
 
 # ============================================================================
 # Stage 2: Builder
