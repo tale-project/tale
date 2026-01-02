@@ -42,9 +42,9 @@ function IntegrationCardSkeleton() {
           <Stack gap={1}>
             {/* Title - matches CardTitle text-base (16px = h-4) */}
             <Skeleton className="h-4 w-24" />
-            {/* Description - matches CardDescription (~2 lines of text-sm) */}
-            <Skeleton className="h-3.5 w-full" />
-            <Skeleton className="h-3.5 w-4/5" />
+            {/* Description - matches CardDescription text-sm (line-height: 20px = h-5) */}
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-4/5" />
           </Stack>
         </Stack>
       </CardContent>

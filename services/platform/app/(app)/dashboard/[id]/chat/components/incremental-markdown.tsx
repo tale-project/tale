@@ -131,20 +131,36 @@ const StreamingMarkdown = memo(
     const revealedContent = content.slice(0, revealedLength);
 
     return (
-      <div className="streaming-text-reveal">
-        <Markdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]}
-          components={components}
+      <div className="streaming-text-container">
+        {/* Hidden layer: Full content establishes layout dimensions */}
+        <div
+          className="streaming-text-layout-reference"
+          aria-hidden="true"
         >
-          {revealedContent}
-        </Markdown>
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={components}
+          >
+            {content}
+          </Markdown>
+        </div>
+
+        {/* Visible layer: Revealed content overlaid on top */}
+        <div className="streaming-text-reveal">
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={components}
+          >
+            {revealedContent}
+          </Markdown>
+        </div>
       </div>
     );
   },
   (prevProps, nextProps) => {
-    // Re-render when revealed length changes
-    // (content changes are handled by parent via anchorPosition)
+    // Re-render when revealed length or content changes
     return (
       prevProps.content === nextProps.content &&
       prevProps.revealedLength === nextProps.revealedLength

@@ -37,7 +37,6 @@ import {
   DataTablePagination,
   type DataTablePaginationProps,
 } from './data-table-pagination';
-import { DataTableSkeleton } from './data-table-skeleton';
 import { DataTableFilters, type FilterConfig } from './data-table-filters';
 import type {
   DataTableSearchConfig,
@@ -52,8 +51,6 @@ export interface DataTableProps<TData> {
   data: TData[];
   /** Accessible table caption for screen readers */
   caption?: string;
-  /** Whether the table is loading */
-  isLoading?: boolean;
   /** Empty state configuration (actionMenu is automatically provided) */
   emptyState?: Omit<DataTableEmptyStateProps, 'actionMenu'>;
   /** Pagination configuration */
@@ -129,7 +126,6 @@ export function DataTable<TData>({
   columns,
   data,
   caption,
-  isLoading = false,
   emptyState,
   pagination,
   currentPage = 1,
@@ -225,56 +221,6 @@ export function DataTable<TData>({
     }),
   });
 
-  // Show skeleton while loading
-  if (isLoading) {
-    // For non-sticky layout, use the skeleton's built-in layout
-    if (!stickyLayout) {
-      return (
-        <div className={cn('space-y-4', className)}>
-          {headerContent}
-          <DataTableSkeleton
-            rows={pagination?.pageSize ?? 5}
-            columns={columns.map((col) => ({
-              header: typeof col.header === 'string' ? col.header : undefined,
-            }))}
-            showPagination={!!pagination}
-          />
-          {footer}
-        </div>
-      );
-    }
-
-    // For sticky layout, use flex structure with real pagination
-    return (
-      <div className={cn('flex flex-col flex-1 min-h-0', className)}>
-        {headerContent && (
-          <div className="flex-shrink-0 pb-4">{headerContent}</div>
-        )}
-        <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
-          <DataTableSkeleton
-            rows={pagination?.pageSize ?? 5}
-            columns={columns.map((col) => ({
-              header: typeof col.header === 'string' ? col.header : undefined,
-            }))}
-            stickyLayout
-          />
-        </div>
-        {pagination && (
-          <div className="flex-shrink-0 pt-6">
-            <DataTablePagination
-              currentPage={currentPage}
-              total={0}
-              pageSize={pagination.pageSize}
-              totalPages={1}
-              isLoading={true}
-            />
-          </div>
-        )}
-        {footer}
-      </div>
-    );
-  }
-
   // Check if any filters are actively applied
   const hasActiveFilters =
     (search?.value && search.value.trim().length > 0) ||
@@ -282,8 +228,8 @@ export function DataTable<TData>({
     dateRange?.from ||
     dateRange?.to;
 
-  // Show empty state when no data (but not while loading to prevent flashing)
-  if (data.length === 0 && emptyState && !isLoading) {
+  // Show empty state when no data
+  if (data.length === 0 && emptyState) {
     return (
       <div
         className={cn(

@@ -216,6 +216,30 @@ function findSafeAnchor(text: string, currentPos: number): number {
   return 0;
 }
 
+/**
+ * Adjust reveal position to avoid revealing trailing newlines.
+ * This prevents momentary empty line flashes when newlines are typed
+ * but content after them hasn't arrived yet.
+ */
+function adjustForTrailingNewlines(text: string, position: number): number {
+  // If at the end of text, show everything
+  if (position >= text.length) return position;
+
+  // Look back from position to find last non-newline
+  let adjusted = position;
+  while (adjusted > 0 && text[adjusted - 1] === '\n') {
+    // Check if there's non-whitespace content after this position in the full text
+    const hasContentAfter = text.slice(position).trim().length > 0;
+    if (!hasContentAfter) {
+      // No content after - safe to show newlines (end of stream)
+      break;
+    }
+    adjusted--;
+  }
+
+  return adjusted;
+}
+
 // ============================================================================
 // MAIN HOOK
 // ============================================================================
@@ -373,6 +397,9 @@ export function useStreamBuffer({
         if (nextBoundary <= textLength && nextBoundary - newDisplayed <= 3) {
           newDisplayed = nextBoundary;
         }
+
+        // Buffer trailing newlines to prevent empty line flashes
+        newDisplayed = adjustForTrailingNewlines(text, newDisplayed);
 
         // Update internal ref immediately
         if (newDisplayed !== displayedLengthRef.current) {

@@ -11,7 +11,6 @@ import type { DocumentItemResponse } from '@/convex/model/documents/types';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DocumentsEmptyState } from './components/documents-empty-state';
-import { HStack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
@@ -31,6 +30,7 @@ const logger = new Logger('documents');
 /** Skeleton for the documents table with header and rows - matches DocumentTable layout */
 async function DocumentsSkeleton() {
   const { t } = await getT('tables');
+  const { t: tDocuments } = await getT('documents');
   return (
     <DataTableSkeleton
       rows={10}
@@ -42,17 +42,9 @@ async function DocumentsSkeleton() {
         { header: t('headers.modified'), size: 192 },
         { isAction: true, size: 160 },
       ]}
-      showHeader
       stickyLayout
-      customHeader={
-        <HStack
-          justify="between"
-          className="flex-col sm:flex-row sm:items-center"
-        >
-          <Skeleton className="h-9 w-full sm:w-[300px]" />
-          <Skeleton className="h-9 w-40" />
-        </HStack>
-      }
+      searchPlaceholder={tDocuments('searchPlaceholder')}
+      actionMenu={<Skeleton className="h-9 w-40" />}
     />
   );
 }

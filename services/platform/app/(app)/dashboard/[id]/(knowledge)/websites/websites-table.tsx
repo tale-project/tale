@@ -2,16 +2,11 @@
 
 import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
-import { Loader, Globe } from 'lucide-react';
-import { type ColumnDef } from '@tanstack/react-table';
+import { Globe } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/components/ui/data-table';
-import { HStack } from '@/components/ui/layout';
-import { WebsiteIcon } from '@/components/ui/icons';
-import { TableDateCell } from '@/components/ui/table-date-cell';
-import { WebsiteRowActions } from './website-row-actions';
 import { WebsitesActionMenu } from './websites-action-menu';
+import { useWebsitesTableConfig } from './use-websites-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -30,6 +25,9 @@ export function WebsitesTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
 
+  // Use shared table config
+  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useWebsitesTableConfig();
+
   // Use unified URL filters hook with sorting
   const {
     filters: filterValues,
@@ -44,12 +42,12 @@ export function WebsitesTable({
     isPending,
   } = useUrlFilters({
     filters: websiteFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: '_creationTime', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.websites.listWebsites,
     preloadedData: preloadedWebsites,
     organizationId,
@@ -76,79 +74,6 @@ export function WebsitesTable({
 
   const websites = data?.items ?? [];
 
-  // Define columns using TanStack Table
-  const columns = useMemo<ColumnDef<Doc<'websites'>>[]>(
-    () => [
-      {
-        accessorKey: 'domain',
-        header: tTables('headers.website'),
-        size: 256,
-        cell: ({ row }) => (
-          <HStack gap={2}>
-            <div className="flex-shrink-0 size-5 rounded flex items-center justify-center bg-muted">
-              <WebsiteIcon className="size-3 text-muted-foreground" />
-            </div>
-            <span className="font-medium text-sm text-foreground truncate">
-              {row.original.domain}
-            </span>
-          </HStack>
-        ),
-      },
-      {
-        accessorKey: 'title',
-        header: tTables('headers.title'),
-        size: 192,
-        cell: ({ row }) => (
-          <span className="text-sm text-foreground truncate">
-            {row.original.title || tTables('cells.empty')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'description',
-        header: tTables('headers.description'),
-        size: 256,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground truncate">
-            {row.original.description || tTables('cells.empty')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'lastScannedAt',
-        header: tTables('headers.scanned'),
-        size: 128,
-        cell: ({ row }) =>
-          row.original.lastScannedAt ? (
-            <TableDateCell date={row.original.lastScannedAt} preset="short" className="text-xs" />
-          ) : (
-            <Loader className="size-4 animate-spin text-muted-foreground" />
-          ),
-      },
-      {
-        accessorKey: 'scanInterval',
-        header: tTables('headers.interval'),
-        size: 96,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.scanInterval}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
-        size: 128,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <WebsiteRowActions website={row.original} />
-          </HStack>
-        ),
-      },
-    ],
-    [tTables],
-  );
-
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
     () => [
@@ -172,8 +97,7 @@ export function WebsitesTable({
       columns={columns}
       data={websites}
       getRowId={(row) => row._id}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={{
         initialSorting: sorting,
         onSortingChange: setSorting,
@@ -181,7 +105,7 @@ export function WebsitesTable({
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
-        placeholder: tWebsites('searchPlaceholder'),
+        placeholder: searchPlaceholder,
       }}
       filters={filterConfigs}
       isFiltersLoading={isPending}

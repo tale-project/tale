@@ -113,38 +113,43 @@ body {
   }
 
   /*
-   * Streaming text reveal using CSS mask
+   * Streaming Text Layout Stabilization
    *
-   * How it works:
-   * - Full text is rendered but masked beyond the reveal point
-   * - --reveal-chars custom property controls how much is visible
-   * - Mask uses ch units (character width) for precision with monospace
-   * - For proportional fonts, we rely on the approximate character count
-   *
-   * Note: This is optional - the incremental markdown approach handles
-   * most cases without needing CSS masking. This can be enabled for
-   * smoother character-by-character reveal if needed.
+   * Uses a hidden "layout reference" layer that renders the full content
+   * to establish dimensions, then overlays the visible revealed content.
+   * This prevents layout shifts when:
+   * - Newlines are revealed
+   * - Text wraps to new lines
+   */
+  .streaming-text-container {
+    position: relative;
+  }
+
+  /*
+   * Layout Reference Layer
+   * - Renders full content to establish dimensions
+   * - Invisible to user but takes up space
+   * - Uses visibility:hidden (not display:none) to preserve layout
+   */
+  .streaming-text-layout-reference {
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /*
+   * Revealed Content Layer
+   * - Positioned absolutely on top of layout reference
+   * - Only shows the revealed portion
+   * - Inset 0 to match parent dimensions exactly
    */
   .streaming-text-reveal {
+    position: absolute;
+    inset: 0;
     /* Ensure smooth font rendering */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
-  /*
-   * Alternative approach: Opacity-based reveal for smoother appearance
-   * Uncomment to use instead of mask-based approach
-   */
-  /*
-  .streaming-text-reveal {
-    animation: fadeInText 0.1s ease-out;
-  }
-
-  @keyframes fadeInText {
-    from { opacity: 0.7; }
-    to { opacity: 1; }
-  }
-  */
 
   /* Cursor blink animation for typewriter effect */
   .animate-cursor-blink {
@@ -166,8 +171,13 @@ body {
       --reveal-chars: 999999;
     }
 
+    /* Skip layout stabilization - show content directly */
+    .streaming-text-layout-reference {
+      display: none;
+    }
+
     .streaming-text-reveal {
-      animation: none;
+      position: static;
     }
   }
 }

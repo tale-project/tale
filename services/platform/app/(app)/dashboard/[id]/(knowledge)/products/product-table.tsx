@@ -2,30 +2,15 @@
 
 import { useMemo } from 'react';
 import { Package } from 'lucide-react';
-import { type ColumnDef } from '@tanstack/react-table';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/components/ui/data-table';
-import { HStack } from '@/components/ui/layout';
-import { TableDateCell } from '@/components/ui/table-date-cell';
-import { ProductImage } from './product-image';
 import { ProductsActionMenu } from './products-action-menu';
-import { ProductRowActions } from './product-row-actions';
+import { useProductsTableConfig, type Product } from './use-products-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { productFilterDefinitions } from './filter-definitions';
-
-// Product type from the query
-type Product = {
-  id: string;
-  name: string;
-  description?: string;
-  imageUrl?: string;
-  stock?: number;
-  lastUpdated: number;
-  metadata?: { url?: string };
-};
 
 export interface ProductTableProps {
   organizationId: string;
@@ -39,6 +24,9 @@ export function ProductTable({
   const { t: tProducts } = useT('products');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
+
+  // Use shared table config
+  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useProductsTableConfig();
 
   // Use unified URL filters hook with sorting
   const {
@@ -54,12 +42,12 @@ export function ProductTable({
     isPending,
   } = useUrlFilters({
     filters: productFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: 'lastUpdated', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.products.getProducts,
     preloadedData: preloadedProducts,
     organizationId,
@@ -100,81 +88,6 @@ export function ProductTable({
 
   const products = data?.products ?? [];
 
-  // Define columns using TanStack Table
-  const columns = useMemo<ColumnDef<Product>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: tTables('headers.product'),
-        size: 400,
-        cell: ({ row }) => (
-          <HStack gap={3}>
-            <ProductImage
-              images={row.original.imageUrl ? [row.original.imageUrl] : []}
-              productName={row.original.name}
-              className="size-8 rounded shrink-0"
-            />
-            <span className="font-medium text-sm text-foreground">
-              {row.original.name}
-            </span>
-          </HStack>
-        ),
-      },
-      {
-        accessorKey: 'description',
-        header: tTables('headers.description'),
-        cell: ({ row }) => (
-          <div className="max-w-sm truncate text-xs text-muted-foreground">
-            {row.original.description ? `"${row.original.description}"` : '-'}
-          </div>
-        ),
-      },
-      {
-        accessorKey: 'stock',
-        header: tTables('headers.stock'),
-        size: 80,
-        cell: ({ row }) => (
-          <span
-            className={`text-xs ${
-              row.original.stock === 0
-                ? 'text-red-600'
-                : 'text-muted-foreground'
-            }`}
-          >
-            {row.original.stock !== undefined ? row.original.stock : '-'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'lastUpdated',
-        header: () => (
-          <span className="text-right w-full block">
-            {tTables('headers.updated')}
-          </span>
-        ),
-        size: 140,
-        cell: ({ row }) => (
-          <TableDateCell
-            date={row.original.lastUpdated}
-            preset="short"
-            alignRight
-            className="text-xs"
-          />
-        ),
-      },
-      {
-        id: 'actions',
-        size: 80,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <ProductRowActions product={row.original} />
-          </HStack>
-        ),
-      },
-    ],
-    [tTables],
-  );
-
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
     () => [
@@ -199,8 +112,7 @@ export function ProductTable({
       columns={columns}
       data={products}
       getRowId={(row) => row.id}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={{
         initialSorting: sorting,
         onSortingChange: setSorting,
@@ -208,7 +120,7 @@ export function ProductTable({
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
-        placeholder: tProducts('searchPlaceholder'),
+        placeholder: searchPlaceholder,
       }}
       filters={filterConfigs}
       isFiltersLoading={isPending}
