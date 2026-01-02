@@ -14,21 +14,25 @@ export async function getExampleMessages(
   },
 ): Promise<Array<ExampleMessage>> {
   if (args.toneOfVoiceId !== undefined) {
-    const examples = await ctx.db
+    const examples: Array<ExampleMessage> = [];
+    for await (const example of ctx.db
       .query('exampleMessages')
       .withIndex('by_toneOfVoiceId', (q) =>
         q.eq('toneOfVoiceId', args.toneOfVoiceId!),
-      )
-      .collect();
+      )) {
+      examples.push(example);
+    }
     return examples;
   }
 
   // If no toneOfVoiceId provided, get all for organization
-  const examples = await ctx.db
+  const examples: Array<ExampleMessage> = [];
+  for await (const example of ctx.db
     .query('exampleMessages')
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
-    )
-    .collect();
+    )) {
+    examples.push(example);
+  }
   return examples;
 }

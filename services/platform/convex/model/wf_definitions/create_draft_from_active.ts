@@ -5,7 +5,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 
 export interface CreateDraftFromActiveArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -47,12 +47,14 @@ export async function createDraftFromActive(
   }
 
   // Load all steps from the active version
-  const steps = await ctx.db
+  const steps: Array<Doc<'wfStepDefs'>> = [];
+  for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', args.wfDefinitionId),
-    )
-    .collect();
+    )) {
+    steps.push(step);
+  }
 
   // Create new draft version
   const newVersionNumber = activeWorkflow.versionNumber + 1;

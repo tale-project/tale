@@ -94,12 +94,14 @@ export async function loadDatabaseWorkflow(
   }
 
   // 3) Load steps for the effective definition
-  const steps = await ctx.db
+  const steps: Array<Doc<'wfStepDefs'>> = [];
+  for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', effectiveDefinition._id as Id<'wfDefinitions'>),
-    )
-    .collect();
+    )) {
+    steps.push(step);
+  }
 
   const orderedSteps = steps.sort((a, b) => a.order - b.order);
 

@@ -26,3 +26,4 @@
 
 - CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
 - CONSIDER TO use rate limiting and action caching.
+- DO NOT use `.collect()`, use `for await (const ... of ...)` instead.

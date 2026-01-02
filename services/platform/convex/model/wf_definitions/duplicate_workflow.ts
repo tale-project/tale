@@ -49,12 +49,9 @@ export async function duplicateWorkflow(
   });
 
   // Copy steps from the source workflow
-  const steps = await ctx.db
+  for await (const step of ctx.db
     .query('wfStepDefs')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))
-    .collect();
-
-  for (const step of steps) {
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))) {
     await ctx.db.insert('wfStepDefs', {
       organizationId: step.organizationId,
       wfDefinitionId: newWorkflowId,

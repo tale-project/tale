@@ -6,7 +6,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { PublishDraftResult } from './types';
 
 export interface PublishDraftArgs {
@@ -54,12 +54,14 @@ export async function publishDraft(
   });
 
   // 3. Get all steps from current version
-  const steps = await ctx.db
+  const steps: Array<Doc<'wfStepDefs'>> = [];
+  for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', args.wfDefinitionId),
-    )
-    .collect();
+    )) {
+    steps.push(step);
+  }
 
   // 4. Create new draft (version + 1)
   const newVersionNumber = workflow.versionNumber + 1;

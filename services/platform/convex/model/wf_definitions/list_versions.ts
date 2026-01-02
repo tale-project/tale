@@ -14,12 +14,14 @@ export async function listVersions(
   ctx: QueryCtx,
   args: ListVersionsArgs,
 ): Promise<WorkflowDefinition[]> {
-  const versions = await ctx.db
+  const versions: WorkflowDefinition[] = [];
+  for await (const version of ctx.db
     .query('wfDefinitions')
     .withIndex('by_org_and_name', (q) =>
       q.eq('organizationId', args.organizationId).eq('name', args.name),
-    )
-    .collect();
+    )) {
+    versions.push(version);
+  }
 
   // Sort by version number descending (newest first)
   return versions.sort((a, b) => b.versionNumber - a.versionNumber);

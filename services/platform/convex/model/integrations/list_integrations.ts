@@ -26,10 +26,13 @@ export async function listIntegrations(
   }
 
   // Otherwise, list all integrations for the organization
-  return await ctx.db
+  const integrations: Doc<'integrations'>[] = [];
+  for await (const integration of ctx.db
     .query('integrations')
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
-    )
-    .collect();
+    )) {
+    integrations.push(integration);
+  }
+  return integrations;
 }

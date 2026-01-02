@@ -28,6 +28,10 @@ export async function getPagesByWebsite(
     return await query.take(args.limit);
   }
 
-  return await query.collect();
+  const pages: Array<Doc<'websitePages'>> = [];
+  for await (const page of query) {
+    pages.push(page);
+  }
+  return pages;
 }
 
