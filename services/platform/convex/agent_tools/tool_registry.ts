@@ -9,7 +9,6 @@ import type { ToolDefinition } from './types';
 import { customerReadTool } from './customers/customer_read_tool';
 import { productReadTool } from './products/product_read_tool';
 import { ragSearchTool } from './rag/rag_search_tool';
-import { ragWriteTool } from './rag/rag_write_tool';
 import { webReadTool } from './crawler/web_read_tool';
 import { workflowReadTool } from './workflows/workflow_read_tool';
 import { workflowExamplesTool } from './workflows/workflow_examples_tool';
@@ -37,7 +36,6 @@ export const TOOL_NAMES = [
   'customer_read',
   'product_read',
   'rag_search',
-  'rag_write',
   'web_read',
   'pdf',
   'image',
@@ -63,7 +61,6 @@ export const TOOL_REGISTRY = [
   customerReadTool,
   productReadTool,
   ragSearchTool,
-  ragWriteTool,
   webReadTool,
   workflowReadTool,
   workflowExamplesTool,

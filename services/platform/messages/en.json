@@ -1229,7 +1229,6 @@
       "customerRead": "Reading customer data",
       "productRead": "Reading product catalog",
       "ragSearch": "Searching knowledge base",
-      "ragWrite": "Updating knowledge base",
       "webRead": "Fetching web content",
       "pdf": "Processing PDF",
       "image": "Analyzing image",

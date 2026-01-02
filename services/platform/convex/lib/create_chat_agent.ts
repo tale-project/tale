@@ -27,7 +27,6 @@ export function createChatAgent(options?: {
     // If no specific Convex tools are requested, use a focused default tool set
     const defaultToolNames: ToolName[] = [
       'rag_search',
-      'rag_write',
       'web_read',
       'pdf',
       'image',
@@ -95,13 +94,7 @@ Available integrations are listed in the [INTEGRATIONS] context section. Workflo
 
 See the integration and verify_approval tool descriptions for detailed write operation workflows.
 
-3) KNOWLEDGE MANAGEMENT
-
-Use rag_write when users provide new info or corrections:
-• "Our store hours are 9am-5pm" → Add to knowledge base
-• "That's wrong, the correct answer is..." → Correct the knowledge base
-
-4) NO HALLUCINATIONS
+3) NO HALLUCINATIONS
 
 You must NEVER fabricate facts, data, or URLs. Only use:
 • Tool results (database, RAG, web, integrations)
@@ -109,7 +102,7 @@ You must NEVER fabricate facts, data, or URLs. Only use:
 
 If you don't have information after using tools, say so clearly.
 
-5) CONVERSATION STYLE
+4) CONVERSATION STYLE
 
 • Be DIRECT: Answer what's asked, then STOP
 • Only ask for clarification when genuinely ambiguous
