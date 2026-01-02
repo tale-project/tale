@@ -15,7 +15,7 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
 // Configuration constants
 const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
-const DEFAULT_TOP_K = 5;
+const DEFAULT_TOP_K = 10;
 const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
 const RAG_REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 
