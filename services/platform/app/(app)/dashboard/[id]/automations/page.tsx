@@ -14,7 +14,10 @@ import { Workflow, Sparkles } from 'lucide-react';
 import { AccessDenied } from '@/components/layout/access-denied';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { getT } from '@/lib/i18n/server';
-import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
+import {
+  parseSearchParams,
+  hasActiveFilters,
+} from '@/lib/pagination/parse-search-params';
 import { automationFilterDefinitions } from './filter-definitions';
 import type { Metadata } from 'next';
 
@@ -40,6 +43,7 @@ async function AutomationsSkeleton() {
   return (
     <ContentWrapper>
       <DataTableSkeleton
+        className="py-6 px-4"
         rows={6}
         columns={[
           { header: t('columns.automation') }, // No size = expands to fill remaining space
@@ -86,7 +90,10 @@ interface AutomationsContentProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-async function AutomationsPageContent({ params, searchParams }: AutomationsContentProps) {
+async function AutomationsPageContent({
+  params,
+  searchParams,
+}: AutomationsContentProps) {
   // Permission check already done in parent component
   const token = await getAuthToken();
   if (!token) {
@@ -154,7 +161,10 @@ export default async function AutomationsPage({
   }
 
   // Parse filters to check for active filters
-  const { filters } = parseSearchParams(rawSearchParams, automationFilterDefinitions);
+  const { filters } = parseSearchParams(
+    rawSearchParams,
+    automationFilterDefinitions,
+  );
   const hasFilters = hasActiveFilters(filters, automationFilterDefinitions);
 
   // Two-phase loading: check if automations exist before showing skeleton

@@ -35,7 +35,7 @@ async function ExampleMessagesSkeleton() {
           <Skeleton className="h-6 w-40" />
           <Skeleton className="h-4 w-64" />
         </Stack>
-        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-9 w-32" />
       </HStack>
       <DataTableSkeleton
         rows={5}
@@ -62,8 +62,8 @@ function ToneFormSkeleton() {
       </HStack>
       <Skeleton className="h-40 w-full rounded-lg" />
       <HStack gap={2} justify="end">
-        <Skeleton className="h-10 w-32" />
-        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-9 w-32" />
       </HStack>
     </Stack>
   );

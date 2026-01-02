@@ -17,14 +17,18 @@ import { toast } from '@/hooks/use-toast';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { useT } from '@/lib/i18n';
 
-const MessageEditor = dynamic(() => import('./message-editor').then(mod => ({ default: mod.MessageEditor })), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center p-4">
-      <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
-    </div>
-  ),
-});
+const MessageEditor = dynamic(
+  () =>
+    import('./message-editor').then((mod) => ({ default: mod.MessageEditor })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center p-4">
+        <Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -199,7 +203,8 @@ export function ConversationPanel({
       }
     }
 
-    const subject = conversation.subject || tConversations('panel.defaultSubject');
+    const subject =
+      conversation.subject || tConversations('panel.defaultSubject');
 
     // For email threading, use the conversation's external message ID
     const inReplyTo = conversation.externalMessageId;
@@ -210,7 +215,9 @@ export function ConversationPanel({
       throw new Error(tConversations('panel.customerEmailNotFound'));
     }
 
-    const replySubject = tConversations('panel.replySubjectPrefix', { subject });
+    const replySubject = tConversations('panel.replySubjectPrefix', {
+      subject,
+    });
     console.log('Sending message via sendMessageViaEmail mutation', {
       conversationId: conversation._id,
       to: [customerEmail],
@@ -257,9 +264,68 @@ export function ConversationPanel({
 
   if (isLoading) {
     return (
-      <Center className="flex-1">
-        <Loader2Icon className="size-10 animate-spin" />
-      </Center>
+      <CardContent
+        ref={containerRef}
+        className="flex-[1_1_0] p-0 relative scrollbar-hide flex flex-col overflow-y-auto"
+      >
+        {/* Skeleton Header */}
+        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="size-10 rounded-full bg-muted animate-pulse" />
+            <div className="flex flex-col gap-1.5 flex-1">
+              <div className="h-4 w-40 bg-muted animate-pulse rounded" />
+              <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Messages */}
+        <div className="pt-6 mx-auto max-w-3xl flex-1 w-full px-4">
+          <Stack gap={4} className="mb-8">
+            {/* Left-aligned message */}
+            <div className="flex flex-col">
+              <div className="flex justify-start">
+                <div className="relative">
+                  <div className="max-w-[40rem] bg-white rounded-2xl overflow-hidden">
+                    <div className="h-24 w-96 bg-muted animate-pulse" />
+                  </div>
+                  <div className="h-3 w-20 bg-muted/60 animate-pulse rounded mt-1" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right-aligned message */}
+            <div className="flex flex-col">
+              <div className="flex justify-end">
+                <div className="relative mb-6">
+                  <div className="max-w-[40rem] bg-muted rounded-2xl shadow-sm overflow-hidden">
+                    <div className="h-20 w-80 bg-muted/80 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Left-aligned message */}
+            <div className="flex flex-col">
+              <div className="flex justify-start">
+                <div className="relative">
+                  <div className="max-w-[40rem] bg-white rounded-2xl overflow-hidden">
+                    <div className="h-16 w-72 bg-muted animate-pulse" />
+                  </div>
+                  <div className="h-3 w-20 bg-muted/60 animate-pulse rounded mt-1" />
+                </div>
+              </div>
+            </div>
+          </Stack>
+        </div>
+
+        {/* Skeleton Message Editor */}
+        <div className="sticky bottom-0 z-50 bg-background">
+          <div className="max-w-3xl mx-auto w-full px-4 py-4">
+            <div className="h-32 w-full bg-muted/40 animate-pulse rounded-lg border border-border" />
+          </div>
+        </div>
+      </CardContent>
     );
   }
 
@@ -296,7 +362,7 @@ export function ConversationPanel({
       ref={containerRef}
       className="flex-[1_1_0] p-0 relative scrollbar-hide flex flex-col overflow-y-auto"
     >
-      <div className="flex items-center flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
+      <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
         <ConversationHeader
           conversation={conversation}
           onResolve={() => {

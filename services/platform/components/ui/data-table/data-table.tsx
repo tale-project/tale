@@ -39,7 +39,10 @@ import {
 } from './data-table-pagination';
 import { DataTableSkeleton } from './data-table-skeleton';
 import { DataTableFilters, type FilterConfig } from './data-table-filters';
-import type { DataTableSearchConfig, DataTableSortingConfig } from './use-data-table';
+import type {
+  DataTableSearchConfig,
+  DataTableSortingConfig,
+} from './use-data-table';
 import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
@@ -159,7 +162,8 @@ export function DataTable<TData>({
   const onSortingChange = sortingConfig?.onSortingChange;
 
   // Determine if we should render header
-  const hasHeader = search || (filters && filters.length > 0) || dateRange || actionMenu;
+  const hasHeader =
+    search || (filters && filters.length > 0) || dateRange || actionMenu;
 
   // Build the header content
   const headerContent = hasHeader ? (
@@ -275,7 +279,8 @@ export function DataTable<TData>({
   const hasActiveFilters =
     (search?.value && search.value.trim().length > 0) ||
     (filters && filters.some((f) => f.selectedValues.length > 0)) ||
-    (dateRange?.from || dateRange?.to);
+    dateRange?.from ||
+    dateRange?.to;
 
   // Show empty state when no data (but not while loading to prevent flashing)
   if (data.length === 0 && emptyState && !isLoading) {
@@ -294,10 +299,7 @@ export function DataTable<TData>({
             stickyLayout={stickyLayout}
           />
         ) : (
-          <DataTableEmptyState
-            {...emptyState}
-            actionMenu={actionMenu}
-          />
+          <DataTableEmptyState {...emptyState} actionMenu={actionMenu} />
         )}
         {footer}
       </div>
@@ -466,7 +468,7 @@ export function DataTable<TData>({
       {headerContent && (
         <div className="flex-shrink-0 pb-4">{headerContent}</div>
       )}
-      <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+      <div className="min-h-0 overflow-auto rounded-xl border border-border">
         {tableContent}
       </div>
       {paginationContent && (

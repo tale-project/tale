@@ -68,7 +68,8 @@ export function Conversations({
   const emailProviders = usePreloadedQuery(preloadedEmailProviders);
 
   // Extract conversations from result
-  const conversations: ConversationItem[] = conversationsResult?.conversations ?? [];
+  const conversations: ConversationItem[] =
+    conversationsResult?.conversations ?? [];
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Convex mutations
@@ -174,7 +175,8 @@ export function Conversations({
 
       return {
         isSelectAllChecked:
-          conversationCount > 0 && selectedInFilteredCount === conversationCount,
+          conversationCount > 0 &&
+          selectedInFilteredCount === conversationCount,
         isSelectAllIndeterminate:
           selectedInFilteredCount > 0 &&
           selectedInFilteredCount < conversationCount,
@@ -227,7 +229,9 @@ export function Conversations({
         ),
       );
 
-      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const successCount = results.filter(
+        (r) => r.status === 'fulfilled',
+      ).length;
       const failedCount = results.filter((r) => r.status === 'rejected').length;
 
       // Log failed messages for debugging
@@ -242,7 +246,10 @@ export function Conversations({
 
       toast({
         title: tConversations('bulk.messagesSent'),
-        description: tConversations('bulk.messagesSentDescription', { successCount, failedCount }),
+        description: tConversations('bulk.messagesSentDescription', {
+          successCount,
+          failedCount,
+        }),
         variant: successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -289,7 +296,10 @@ export function Conversations({
 
       toast({
         title: tConversations('bulk.resolved'),
-        description: tConversations('bulk.resolvedDescription', { successCount: result.successCount, failedCount: result.failedCount }),
+        description: tConversations('bulk.resolvedDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -328,7 +338,10 @@ export function Conversations({
 
       toast({
         title: tConversations('bulk.reopened'),
-        description: tConversations('bulk.reopenedDescription', { successCount: result.successCount, failedCount: result.failedCount }),
+        description: tConversations('bulk.reopenedDescription', {
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+        }),
         variant: result.successCount > 0 ? 'default' : 'destructive',
       });
 
@@ -361,13 +374,15 @@ export function Conversations({
 
   return (
     <>
-      <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
+      <div className="flex justify-stretch size-full flex-1 max-h-full">
         {/* Left Panel - Conversation List - hidden on mobile when conversation is selected */}
-        <div className={cn(
-          "flex flex-col border-r border-border overflow-y-auto relative",
-          "w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]",
-          selectedConversationId ? "hidden md:flex" : "flex"
-        )}>
+        <div
+          className={cn(
+            'flex flex-col border-r border-border overflow-y-auto relative',
+            'w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]',
+            selectedConversationId ? 'hidden md:flex' : 'flex',
+          )}
+        >
           {/* Fixed Search and Filter Section / Action Buttons */}
           <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
             {/* Select All Checkbox */}
@@ -477,10 +492,12 @@ export function Conversations({
         </div>
 
         {/* Right Panel - Conversation Details - full width on mobile when conversation is selected */}
-        <div className={cn(
-          "flex-1 min-w-0",
-          selectedConversationId ? "flex" : "hidden md:flex"
-        )}>
+        <div
+          className={cn(
+            'flex-1 min-w-0',
+            selectedConversationId ? 'flex' : 'hidden md:flex',
+          )}
+        >
           <ConversationPanel
             selectedConversationId={selectedConversationId}
             onSelectedConversationChange={setSelectedConversationId}

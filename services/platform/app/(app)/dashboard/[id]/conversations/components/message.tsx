@@ -36,7 +36,7 @@ export function Message({ message }: MessageProps) {
         <div className="relative">
           <div
             className={cn(
-              'max-w-[40rem] relative overflow-x-auto',
+              'max-w-[40rem] relative overflow-x-auto bg-white',
               message.isCustomer
                 ? 'text-foreground'
                 : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-6',

@@ -19,7 +19,9 @@ interface KnowledgeLayoutProps {
  * 2. The navigation component only needs the organizationId from params
  * 3. This eliminates skeleton flash and provides instant navigation
  */
-export default async function KnowledgeLayout({ children }: KnowledgeLayoutProps) {
+export default async function KnowledgeLayout({
+  children,
+}: KnowledgeLayoutProps) {
   const { t } = await getT('knowledge');
 
   return (
@@ -31,7 +33,7 @@ export default async function KnowledgeLayout({ children }: KnowledgeLayoutProps
         <KnowledgeNavigation />
       </StickyHeader>
       <ErrorBoundaryWithParams>
-        <ContentWrapper>{children}</ContentWrapper>
+        <ContentWrapper className="py-6 px-4">{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
     </>
   );

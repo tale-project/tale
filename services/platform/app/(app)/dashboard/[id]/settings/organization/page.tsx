@@ -47,8 +47,8 @@ async function OrganizationSettingsSkeleton() {
       <Stack gap={2}>
         <Skeleton className="h-4 w-36" />
         <HStack gap={3} justify="between">
-          <Skeleton className="h-10 flex-1 max-w-sm" />
-          <Skeleton className="h-10 w-28" />
+          <Skeleton className="h-9 flex-1 max-w-sm" />
+          <Skeleton className="h-9 w-28" />
         </HStack>
       </Stack>
 

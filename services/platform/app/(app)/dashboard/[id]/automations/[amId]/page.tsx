@@ -15,7 +15,7 @@ const AutomationSteps = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
+      <div className="flex justify-stretch size-full flex-1 max-h-full">
         <div className="flex-[1_1_0] min-h-0 bg-background relative">
           {/* Background dots pattern - matches ReactFlow */}
           <div
@@ -39,7 +39,7 @@ const AutomationSteps = dynamic(
           </div>
           {/* Toolbar placeholder */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-            <Skeleton className="h-10 w-32 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
           </div>
         </div>
       </div>
@@ -49,8 +49,12 @@ const AutomationSteps = dynamic(
 
 export default function AutomationStepsPage() {
   const params = useParams();
-  const organizationId = params?.id as string;
-  const amId = params?.amId as Id<'wfDefinitions'>;
+  const organizationId = typeof params?.id === 'string' ? params.id : '';
+  const amId =
+    typeof params?.amId === 'string'
+      ? (params.amId as Id<'wfDefinitions'>)
+      : undefined;
+
   const steps = useQuery(
     api.wf_step_defs.getWorkflowStepsPublic,
     amId ? { wfDefinitionId: amId } : 'skip',
@@ -60,23 +64,25 @@ export default function AutomationStepsPage() {
     amId ? { wfDefinitionId: amId } : 'skip',
   );
 
-  // Handle step creation to refresh the steps
-  const handleStepCreated = () => {
-    // The useQuery hook will automatically refetch when the data changes
-    // due to Convex's real-time updates, so we don't need to do anything here
-  };
+  if (!amId) {
+    return null;
+  }
+
+  // Validate automation status is one of the expected values
+  const validStatuses = ['draft', 'active', 'inactive', 'archived'] as const;
+  const status = validStatuses.includes(
+    automation?.status as (typeof validStatuses)[number],
+  )
+    ? (automation?.status as (typeof validStatuses)[number])
+    : 'draft';
 
   return (
     <AutomationSteps
-      status={
-        (automation?.status as 'draft' | 'active' | 'inactive' | 'archived') ??
-        'draft'
-      }
+      status={status}
       className="flex-1"
       steps={steps || []}
       organizationId={organizationId}
       automationId={amId}
-      onStepCreated={handleStepCreated}
     />
   );
 }

@@ -73,7 +73,11 @@ export function AutomationsTable({
       searchTerm: f.query || undefined,
       status: f.status.length > 0 ? f.status : undefined,
       sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+      sortOrder: sorting[0]
+        ? sorting[0].desc
+          ? ('desc' as const)
+          : ('asc' as const)
+        : undefined,
     }),
   });
 
@@ -135,7 +139,10 @@ export function AutomationsTable({
         ),
         size: 140,
         cell: ({ row }) => (
-          <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
+          <TableTimestampCell
+            timestamp={row.original._creationTime}
+            preset="short"
+          />
         ),
       },
       {
@@ -170,6 +177,7 @@ export function AutomationsTable({
 
   return (
     <DataTable
+      className="py-6 px-4"
       columns={columns}
       data={automations}
       getRowId={(row) => row._id}

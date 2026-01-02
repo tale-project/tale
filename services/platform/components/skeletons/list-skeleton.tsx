@@ -22,14 +22,9 @@ export function ListItemSkeleton({
   className,
 }: ListItemSkeletonProps) {
   return (
-    <div
-      className={cn(
-        'flex items-center gap-3 p-3 rounded-lg',
-        className
-      )}
-    >
+    <div className={cn('flex items-center gap-3 p-3 rounded-lg', className)}>
       {showAvatar && (
-        <Skeleton className="h-10 w-10 rounded-full flex-shrink-0" />
+        <Skeleton className="h-9 w-10 rounded-full flex-shrink-0" />
       )}
 
       <div className="flex-1 min-w-0 space-y-1">
@@ -37,9 +32,7 @@ export function ListItemSkeleton({
         {showSecondary && <Skeleton className="h-3 w-1/2" />}
       </div>
 
-      {showAction && (
-        <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />
-      )}
+      {showAction && <Skeleton className="h-8 w-8 rounded-md flex-shrink-0" />}
     </div>
   );
 }
@@ -82,4 +75,3 @@ export function ListSkeleton({
     </div>
   );
 }
-

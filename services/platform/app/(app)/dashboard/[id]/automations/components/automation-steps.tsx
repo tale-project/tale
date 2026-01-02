@@ -85,14 +85,21 @@ function AutomationStepsInner({
 
   // Memoize URL state definitions to prevent infinite re-renders
   // The definitions object must be stable to avoid triggering useUrlState recalculation
-  const urlStateDefinitions = useMemo(() => ({
-    panel: { default: isDraft ? 'ai-chat' : null },
-    step: { default: null },
-  }), [isDraft]);
+  const urlStateDefinitions = useMemo(
+    () => ({
+      panel: { default: isDraft ? 'ai-chat' : null },
+      step: { default: null },
+    }),
+    [isDraft],
+  );
 
   // URL-based state for side panel mode and selected step
   // This persists the panel state in URL params for bookmarkability and page reload support
-  const { state: panelState, setStates: setPanelStates, clearAll: clearPanelState } = useUrlState({
+  const {
+    state: panelState,
+    setStates: setPanelStates,
+    clearAll: clearPanelState,
+  } = useUrlState({
     definitions: urlStateDefinitions,
   });
 
@@ -191,24 +198,24 @@ function AutomationStepsInner({
   );
 
   // Handle adding step after a leaf node
-  const handleAddStep = useCallback(
-    (stepSlug: string) => {
-      setParentStepForNewStep(stepSlug);
-      setIsCreateStepDialogOpen(true);
-    },
-    [],
-  );
+  const handleAddStep = useCallback((stepSlug: string) => {
+    setParentStepForNewStep(stepSlug);
+    setIsCreateStepDialogOpen(true);
+  }, []);
 
   // Handle deleting edge
-  const handleDeleteEdge = useCallback(async (_edgeId: string) => {
-    // NOTE: Editing connections is currently disabled until public Convex
-    // mutations are available. This UI is temporarily read-only.
-    toast({
-      title: t('steps.toast.editingNotAvailable'),
-      description: t('steps.toast.apiNotWired'),
-    });
-    return;
-  }, [t]);
+  const handleDeleteEdge = useCallback(
+    async (_edgeId: string) => {
+      // NOTE: Editing connections is currently disabled until public Convex
+      // mutations are available. This UI is temporarily read-only.
+      toast({
+        title: t('steps.toast.editingNotAvailable'),
+        description: t('steps.toast.apiNotWired'),
+      });
+      return;
+    },
+    [t],
+  );
 
   // Stable key for step array to detect actual changes
   // This creates a deterministic string based on step content (not object identity)
@@ -962,7 +969,7 @@ function AutomationStepsInner({
       onAddStepOnEdge={handleAddStepOnEdge}
       onDeleteEdge={handleDeleteEdge}
     >
-      <div className="flex justify-stretch size-full flex-1 max-h-[calc(100%-6rem)]">
+      <div className="flex justify-stretch size-full flex-1 max-h-full">
         <style>{`
           /* Allow individual edges to control their z-index */
           .react-flow__edges {
@@ -1026,132 +1033,132 @@ function AutomationStepsInner({
             multiSelectionKeyCode={['Meta', 'Ctrl']}
             proOptions={{ hideAttribution: true }}
           >
-          <MiniMap
-            className="border border-border rounded-lg shadow-sm"
-            nodeStrokeColor={(node) => {
-              const stepType = node.data?.stepType;
+            <MiniMap
+              className="border border-border rounded-lg shadow-sm"
+              nodeStrokeColor={(node) => {
+                const stepType = node.data?.stepType;
 
-              // Color mapping matching icon backgrounds for consistency
-              switch (stepType) {
-                case 'trigger':
-                  return '#3b82f6'; // blue-500
-                case 'llm':
-                  return '#a855f7'; // purple-500
-                case 'condition':
-                  return '#f59e0b'; // amber-500
+                // Color mapping matching icon backgrounds for consistency
+                switch (stepType) {
+                  case 'trigger':
+                    return '#3b82f6'; // blue-500
+                  case 'llm':
+                    return '#a855f7'; // purple-500
+                  case 'condition':
+                    return '#f59e0b'; // amber-500
 
-                case 'loop':
-                  return '#06b6d4'; // cyan-500
-                case 'action':
-                  return '#f97316'; // orange-500
-                default:
-                  return '#71717a'; // zinc-500
-              }
-            }}
-            nodeStrokeWidth={3}
-            pannable
-            zoomable
-          />
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={2}
-            color="hsl(var(--muted-foreground) / 0.2)"
-          />
+                  case 'loop':
+                    return '#06b6d4'; // cyan-500
+                  case 'action':
+                    return '#f97316'; // orange-500
+                  default:
+                    return '#71717a'; // zinc-500
+                }
+              }}
+              nodeStrokeWidth={3}
+              pannable
+              zoomable
+            />
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={20}
+              size={2}
+              color="hsl(var(--muted-foreground) / 0.2)"
+            />
 
-          {/* Empty state overlay when there are no steps */}
-          {!hasSteps && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center space-y-2">
-                <div className="text-muted-foreground">
-                  {t('emptyState.noSteps')}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {t('emptyState.createStepsHint')}
+            {/* Empty state overlay when there are no steps */}
+            {!hasSteps && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center space-y-2">
+                  <div className="text-muted-foreground">
+                    {t('emptyState.noSteps')}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {t('emptyState.createStepsHint')}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Draft Banner */}
-          {showDraftBanner && isDraft && (
-            <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
-              <div className="flex items-center gap-2 rounded-lg ring-1 ring-blue-200 bg-blue-50 p-3 shadow-sm">
-                <Info className="size-4 shrink-0 text-blue-600" />
-                <p className="text-sm text-blue-600">
-                  {t('steps.banners.draftNotPublished')}
-                </p>
-                <Button
-                  variant="ghost"
-                  className="ml-auto text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6"
-                  onClick={() => setShowDraftBanner(false)}
-                >
-                  <X className="size-4" />
-                </Button>
+            {/* Draft Banner */}
+            {showDraftBanner && isDraft && (
+              <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
+                <div className="flex items-center gap-2 rounded-lg ring-1 ring-blue-200 bg-blue-50 p-3 shadow-sm">
+                  <Info className="size-4 shrink-0 text-blue-600" />
+                  <p className="text-sm text-blue-600">
+                    {t('steps.banners.draftNotPublished')}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    className="ml-auto text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6"
+                    onClick={() => setShowDraftBanner(false)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </Panel>
+            )}
+
+            {/* Active Automation Banner */}
+            {showActiveBanner && isActive && (
+              <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
+                <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+                  <p className="text-sm text-amber-600">
+                    {t('steps.banners.activeCannotModify')}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    className="ml-auto text-amber-600 hover:bg-amber-100 hover:text-amber-700 size-6"
+                    onClick={() => setShowActiveBanner(false)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </Panel>
+            )}
+
+            {/* Toolbar Panel */}
+            <Panel position="bottom-center" className="mb-4">
+              <div className="flex items-center gap-2 rounded-lg ring-1 ring-border bg-background p-1 shadow-sm">
+                {/* Action Tools */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={t('steps.toolbar.focus')}
+                    onClick={() => {
+                      fitView({
+                        padding: 0.2,
+                        duration: 400,
+                        maxZoom: 1,
+                      });
+                    }}
+                  >
+                    <Scan className="size-4" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={t('steps.toolbar.aiAssistant')}
+                    onClick={handleOpenAIChat}
+                  >
+                    <Sparkles className="size-4" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    title={t('steps.toolbar.testAutomation')}
+                    onClick={handleOpenTestPanel}
+                    disabled={steps.length === 0}
+                  >
+                    <TestTubeDiagonal className="size-4" />
+                  </Button>
+                </div>
               </div>
             </Panel>
-          )}
-
-          {/* Active Automation Banner */}
-          {showActiveBanner && isActive && (
-            <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
-              <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
-                <AlertTriangle className="size-4 shrink-0 text-amber-600" />
-                <p className="text-sm text-amber-600">
-                  {t('steps.banners.activeCannotModify')}
-                </p>
-                <Button
-                  variant="ghost"
-                  className="ml-auto text-amber-600 hover:bg-amber-100 hover:text-amber-700 size-6"
-                  onClick={() => setShowActiveBanner(false)}
-                >
-                  <X className="size-4" />
-                </Button>
-              </div>
-            </Panel>
-          )}
-
-          {/* Toolbar Panel */}
-          <Panel position="bottom-center" className="mb-4">
-            <div className="flex items-center gap-2 rounded-lg ring-1 ring-border bg-background p-1 shadow-sm">
-              {/* Action Tools */}
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t('steps.toolbar.focus')}
-                  onClick={() => {
-                    fitView({
-                      padding: 0.2,
-                      duration: 400,
-                      maxZoom: 1,
-                    });
-                  }}
-                >
-                  <Scan className="size-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t('steps.toolbar.aiAssistant')}
-                  onClick={handleOpenAIChat}
-                >
-                  <Sparkles className="size-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title={t('steps.toolbar.testAutomation')}
-                  onClick={handleOpenTestPanel}
-                  disabled={steps.length === 0}
-                >
-                  <TestTubeDiagonal className="size-4" />
-                </Button>
-              </div>
-            </div>
-          </Panel>
           </ReactFlow>
         </div>
 
