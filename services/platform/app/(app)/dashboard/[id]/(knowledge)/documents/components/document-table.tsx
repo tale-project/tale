@@ -3,7 +3,11 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
+import {
+  type ColumnDef,
+  type Row,
+  type SortingState,
+} from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
@@ -36,7 +40,7 @@ export function DocumentTable({
   organizationId,
   currentFolderPath,
   hasMicrosoftAccount,
-  initialSortField = '_creationTime',
+  initialSortField = 'lastModified',
   initialSortOrder = 'desc',
 }: DocumentTableProps) {
   const { t: tDocuments } = useT('documents');
@@ -48,7 +52,12 @@ export function DocumentTable({
 
   // URL-based dialog state for document preview
   // This persists the preview dialog state in URL params for bookmarkability and link sharing
-  const { itemId: previewDocumentId, isOpen: previewOpen, openDialog: openPreview, closeDialog: closePreview } = useUrlDialog({
+  const {
+    itemId: previewDocumentId,
+    isOpen: previewOpen,
+    openDialog: openPreview,
+    closeDialog: closePreview,
+  } = useUrlDialog({
     paramKey: 'doc',
   });
 
@@ -65,9 +74,10 @@ export function DocumentTable({
   const debouncedQuery = useDebounce(query, 300);
 
   // Initialize sorting state from props
-  const initialSorting: SortingState = useMemo(() => [
-    { id: initialSortField, desc: initialSortOrder === 'desc' }
-  ], [initialSortField, initialSortOrder]);
+  const initialSorting: SortingState = useMemo(
+    () => [{ id: initialSortField, desc: initialSortOrder === 'desc' }],
+    [initialSortField, initialSortOrder],
+  );
 
   const baseParams = useMemo(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -93,7 +103,8 @@ export function DocumentTable({
 
   const handleSortingChange = useCallback(
     (sorting: SortingState | ((prev: SortingState) => SortingState)) => {
-      const newSorting = typeof sorting === 'function' ? sorting(initialSorting) : sorting;
+      const newSorting =
+        typeof sorting === 'function' ? sorting(initialSorting) : sorting;
       const params = new URLSearchParams(searchParams.toString());
       if (newSorting.length > 0) {
         params.set('sort', newSorting[0].id);
@@ -235,7 +246,11 @@ export function DocumentTable({
       },
       {
         accessorKey: 'lastModified',
-        header: () => <span className="text-right w-full block">{tTables('headers.modified')}</span>,
+        header: () => (
+          <span className="text-right w-full block">
+            {tTables('headers.modified')}
+          </span>
+        ),
         size: 192,
         cell: ({ row }) => (
           <TableDateCell

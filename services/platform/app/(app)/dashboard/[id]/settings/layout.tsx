@@ -57,7 +57,7 @@ export default async function SettingsLayout({
         />
       </StickyHeader>
       <ErrorBoundaryWithParams>
-        <ContentWrapper>{children}</ContentWrapper>
+        <ContentWrapper className="p-4">{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
     </>
   );

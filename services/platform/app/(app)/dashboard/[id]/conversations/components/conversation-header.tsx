@@ -150,9 +150,9 @@ export function ConversationHeader({
             <ArrowLeft className="size-5" />
           </Button>
         )}
-        <Stack className="min-w-0 overflow-hidden">
+        <Stack className="min-w-0 overflow-hidden space-y-1">
           {/* Title */}
-          <h2 className="flex items-center gap-2 text-base font-medium text-foreground tracking-tight whitespace-nowrap">
+          <h2 className="flex items-center gap-2 text-base font-medium text-foreground tracking-tight whitespace-nowrap [&>*]:leading-none">
             {customer.name && (
               <>
                 <button
@@ -168,7 +168,10 @@ export function ConversationHeader({
           </h2>
 
           {/* Metadata */}
-          <HStack gap={1} className="text-sm font-normal text-muted-foreground tracking-tight whitespace-nowrap">
+          <HStack
+            gap={1}
+            className="text-sm font-normal text-muted-foreground tracking-tight whitespace-nowrap"
+          >
             <button
               className="hover:underline cursor-pointer"
               onClick={() => setIsCustomerInfoOpen(true)}
@@ -218,7 +221,9 @@ export function ConversationHeader({
                 >
                   <MessageSquareOff className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isResolvingLoading ? t('header.closing') : t('header.closeConversation')}
+                    {isResolvingLoading
+                      ? t('header.closing')
+                      : t('header.closeConversation')}
                   </span>
                 </DropdownMenuItem>
               )}
@@ -230,7 +235,9 @@ export function ConversationHeader({
                 >
                   <MessageSquare className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isReopeningLoading ? t('header.reopening') : t('header.reopenConversation')}
+                    {isReopeningLoading
+                      ? t('header.reopening')
+                      : t('header.reopenConversation')}
                   </span>
                 </DropdownMenuItem>
               )}
@@ -242,7 +249,9 @@ export function ConversationHeader({
                 >
                   <ShieldX className="size-5 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">
-                    {isMarkingSpamLoading ? t('header.markingAsSpam') : t('header.markAsSpam')}
+                    {isMarkingSpamLoading
+                      ? t('header.markingAsSpam')
+                      : t('header.markAsSpam')}
                   </span>
                 </DropdownMenuItem>
               )}

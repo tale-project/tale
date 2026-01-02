@@ -127,10 +127,13 @@ export function DataTableSkeleton({
       {customHeader
         ? customHeader
         : showFilters && (
-            <HStack gap={3}>
-              <Skeleton className="h-10 w-full max-w-[18.75rem]" />
-              <Skeleton className="h-10 w-24" />
-            </HStack>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <HStack gap={3}>
+                <Skeleton className="h-9 w-[18.75rem]" />
+                <Skeleton className="size-9" />
+              </HStack>
+              <Skeleton className="h-9 w-40" />
+            </div>
           )}
 
       {tableContent}

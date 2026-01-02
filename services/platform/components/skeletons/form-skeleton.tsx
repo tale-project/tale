@@ -18,7 +18,9 @@ function FormFieldSkeleton({
       {/* Label */}
       <Skeleton className="h-4 w-24" />
       {/* Input */}
-      <Skeleton className={cn('w-full rounded-md', isTextarea ? 'h-24' : 'h-10')} />
+      <Skeleton
+        className={cn('w-full rounded-md', isTextarea ? 'h-24' : 'h-9')}
+      />
     </Stack>
   );
 }
@@ -58,7 +60,9 @@ export function FormSkeleton({
           {Array.from({ length: fields }).map((_, i) => (
             <FormFieldSkeleton key={i} />
           ))}
-          {hasTextarea && <FormFieldSkeleton isTextarea className="sm:col-span-2" />}
+          {hasTextarea && (
+            <FormFieldSkeleton isTextarea className="sm:col-span-2" />
+          )}
         </Grid>
       ) : (
         <Stack gap={4}>
@@ -71,11 +75,10 @@ export function FormSkeleton({
 
       {showActions && (
         <HStack gap={2} justify="end" className="pt-4 border-t">
-          <Skeleton className="h-10 w-24 rounded-md" />
-          <Skeleton className="h-10 w-32 rounded-md" />
+          <Skeleton className="h-9 w-24 rounded-md" />
+          <Skeleton className="h-9 w-32 rounded-md" />
         </HStack>
       )}
     </Stack>
   );
 }
-

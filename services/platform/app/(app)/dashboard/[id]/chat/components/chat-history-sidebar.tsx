@@ -1,13 +1,19 @@
 'use client';
 
-import { ComponentPropsWithoutRef, useEffect, useState, useRef, useMemo } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+} from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUpdateThread } from '../hooks/use-update-thread';
 import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { ChatActions } from './chat-actions';
 import { useT } from '@/lib/i18n';
@@ -143,10 +149,7 @@ export function ChatHistorySidebar({
   return (
     <Stack
       gap={4}
-      className={cn(
-        'flex-[1_1_0] pb-4 px-2 overflow-y-auto',
-        className,
-      )}
+      className={cn('flex-[1_1_0] pb-4 px-2 overflow-y-auto', className)}
       {...restProps}
     >
       <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background z-10 pt-3">
@@ -172,8 +175,8 @@ export function ChatHistorySidebar({
                   'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                   !isEditing && 'hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
-                  !isEditing &&
-                  'bg-accent text-accent-foreground',
+                    !isEditing &&
+                    'bg-accent text-accent-foreground',
                 )}
               >
                 {isEditing ? (

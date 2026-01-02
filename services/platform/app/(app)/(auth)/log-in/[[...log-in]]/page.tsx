@@ -1,9 +1,10 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
 import { LogInForm } from '@/components/auth/log-in-form';
-import { FormSkeleton } from '@/components/skeletons/form-skeleton';
+import { AuthFormSkeleton } from '@/components/skeletons/auth-skeleton';
 import { api } from '@/convex/_generated/api';
 import { getT } from '@/lib/i18n/server';
 
@@ -21,16 +22,41 @@ export async function generateMetadata() {
 function isMicrosoftAuthEnabled(): boolean {
   return Boolean(
     process.env.AUTH_MICROSOFT_ENTRA_ID_ID &&
-      process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
-      process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
+    process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET &&
+    process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID,
   );
 }
 
-async function LogInContent() {
-  const user = await getCurrentUser();
+/**
+ * Cached check for user existence
+ * Revalidates every hour (3600 seconds) since users don't get deleted often
+ */
+const getCachedHasAnyUsers = unstable_cache(
+  async () => {
+    return await fetchQuery(api.users.hasAnyUsers, {});
+  },
+  ['has-any-users'],
+  {
+    revalidate: 3600, // Cache for 1 hour
+    tags: ['users'],
+  },
+);
 
-  // Check if any users exist in the system
-  const hasUsers = await fetchQuery(api.users.hasAnyUsers, {});
+async function LogInContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirectTo?: string }>;
+}) {
+  const user = await getCurrentUser();
+  const params = await searchParams;
+
+  // If user is already authenticated, redirect to redirectTo or dashboard
+  if (user?.userId) {
+    redirect(params.redirectTo || '/dashboard');
+  }
+
+  // Check if any users exist in the system (cached)
+  const hasUsers = await getCachedHasAnyUsers();
 
   // If no users exist, redirect to sign-up page for initial setup
   if (!hasUsers) {
@@ -47,19 +73,20 @@ async function LogInContent() {
   );
 }
 
-/** Skeleton for the log-in form */
-function LogInSkeleton() {
-  return (
-    <div className="max-w-md mx-auto">
-      <FormSkeleton fields={2} />
-    </div>
-  );
-}
+export default async function LogInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirectTo?: string }>;
+}) {
+  const { t } = await getT('auth');
 
-export default function LogInPage() {
   return (
-    <Suspense fallback={<LogInSkeleton />}>
-      <LogInContent />
+    <Suspense
+      fallback={
+        <AuthFormSkeleton title={t('login.title')} showMicrosoftButton />
+      }
+    >
+      <LogInContent searchParams={searchParams} />
     </Suspense>
   );
 }

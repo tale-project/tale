@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, CircleCheck, XCircle, Clock, Database, RotateCw, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  CircleCheck,
+  XCircle,
+  Clock,
+  Database,
+  RotateCw,
+  AlertTriangle,
+} from 'lucide-react';
 import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
@@ -62,7 +70,12 @@ const statusConfig: Record<
   },
 };
 
-export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStatusBadgeProps) {
+export function RagStatusBadge({
+  status,
+  indexedAt,
+  error,
+  documentId,
+}: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -141,7 +154,9 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
   const Icon = config.icon;
 
   const content = (
-    <span className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
+    >
       <Icon
         className={`size-3.5 ${status === 'running' ? 'animate-spin' : ''} ${config.iconClassName || ''}`}
       />
@@ -174,7 +189,10 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
         >
           <div className="mt-4">
             <p className="text-sm">
-              <span className="font-medium">{t('rag.dialog.indexed.indexedOn')}</span> {formattedDate}
+              <span className="font-medium">
+                {t('rag.dialog.indexed.indexedOn')}
+              </span>{' '}
+              {formattedDate}
             </p>
           </div>
         </ViewDialog>
@@ -201,7 +219,9 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
           description={t('rag.dialog.failed.description')}
         >
           <div className="mt-4">
-            <p className="text-sm font-medium mb-2">{t('rag.dialog.failed.errorDetails')}</p>
+            <p className="text-sm font-medium mb-2">
+              {t('rag.dialog.failed.errorDetails')}
+            </p>
             <pre className="text-xs bg-muted p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap">
               {error || t('rag.dialog.failed.unknownError')}
             </pre>
@@ -229,7 +249,9 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
   if (status === 'stale') {
     return (
       <span className="inline-flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}>
+        <span
+          className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
+        >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
           {t('rag.status.stale')}
         </span>
@@ -260,27 +282,24 @@ export function RagStatusBadge({ status, indexedAt, error, documentId }: RagStat
   if (status === 'not_indexed') {
     return (
       <span className="inline-flex items-center gap-2">
-        <span className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}>
+        <span
+          className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
+        >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
           {getStatusLabel(status)}
         </span>
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
-          className="h-6 px-2 text-xs"
+          className="size-6 rounded-sm"
           onClick={handleRetry}
           disabled={isRetrying || !documentId}
+          title={t('rag.index')}
         >
           {isRetrying ? (
-            <>
-              <Loader2 className="size-3 animate-spin mr-1" />
-              {t('rag.indexing')}
-            </>
+            <Loader2 className="size-3 animate-spin" />
           ) : (
-            <>
-              <Database className="size-3 mr-1" />
-              {t('rag.index')}
-            </>
+            <RotateCw className="size-3" />
           )}
         </Button>
       </span>

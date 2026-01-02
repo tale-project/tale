@@ -3,7 +3,7 @@
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/components/ui/badge';
-import { HStack, Stack } from '@/components/ui/layout';
+import { HStack } from '@/components/ui/layout';
 import striptags from 'striptags';
 import { decode } from 'he';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -107,7 +107,7 @@ const getLastMessagePreview = (conversation: Conversation): string => {
 };
 
 interface ConversationsListProps {
-  conversations: Conversation[];
+  conversations: Conversation[] | undefined;
   selectedConversationId?: string | null;
   onConversationSelect?: (conversation: Conversation) => void;
   onConversationCheck?: (conversationId: string, checked: boolean) => void;
@@ -144,6 +144,47 @@ const categoryConfig = {
   },
 };
 
+function ConversationsListSkeleton() {
+  return (
+    <div className="divide-y divide-border border-b">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="p-4">
+          <div className="flex items-start gap-3">
+            {/* Checkbox */}
+            <div className="flex items-center mt-1">
+              <div className="size-4 rounded border-2 border-muted bg-background" />
+            </div>
+
+            {/* Conversation Details */}
+            <div className="flex-1 min-w-0">
+              {/* Header with title and timestamp */}
+              <div className="flex items-start justify-between mb-1.5">
+                <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
+                <div className="h-3 bg-muted animate-pulse rounded w-12 ml-4" />
+              </div>
+
+              {/* Last message preview */}
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="h-4 bg-muted/70 animate-pulse rounded w-full" />
+              </div>
+
+              {/* Badges */}
+              <div className="flex gap-2">
+                {i % 3 === 0 && (
+                  <div className="h-5 bg-muted/50 animate-pulse rounded-full w-16" />
+                )}
+                {i % 2 === 0 && (
+                  <div className="h-5 bg-muted/50 animate-pulse rounded-full w-20" />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ConversationsList({
   conversations,
   selectedConversationId,
@@ -154,6 +195,12 @@ export function ConversationsList({
   const { formatDateSmart } = useDateFormat();
   const { t } = useT('conversations');
   const { t: tDialogs } = useT('dialogs');
+
+  // Show skeleton when conversations is undefined (loading)
+  if (conversations === undefined) {
+    return <ConversationsListSkeleton />;
+  }
+
   const handleConversationClick = (
     conversation: Conversation,
     event: React.MouseEvent,
@@ -258,7 +305,7 @@ export function ConversationsList({
                       {t(
                         priorityConfig[
                           conversation.priority as keyof typeof priorityConfig
-                        ].translationKey
+                        ].translationKey,
                       )}
                     </Badge>
                   )}
@@ -276,7 +323,7 @@ export function ConversationsList({
                     {t(
                       categoryConfig[
                         conversation.type as keyof typeof categoryConfig
-                      ].translationKey
+                      ].translationKey,
                     )}
                   </Badge>
                 )}

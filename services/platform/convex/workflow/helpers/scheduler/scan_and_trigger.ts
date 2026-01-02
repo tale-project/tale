@@ -22,6 +22,14 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
+    // OPTIMIZATION: Batch load last execution times for all scheduled workflows
+    // to avoid N+1 query problem
+    const wfDefinitionIds = scheduled.map((wf) => wf.wfDefinitionId);
+    const lastExecutionTimesObj = await ctx.runQuery(
+      internal.workflow.scheduler.getLastExecutionTimes,
+      { wfDefinitionIds },
+    );
+
     let triggeredCount = 0;
 
     for (const {
@@ -32,11 +40,8 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
       timezone,
     } of scheduled) {
       try {
-        // Check if workflow should be triggered now (timezone-aware and deduplicated)
-        const lastExecutionMs = await ctx.runQuery(
-          internal.workflow.scheduler.getLastExecutionTime,
-          { wfDefinitionId },
-        );
+        // Get last execution time from batch-loaded object (serialized Map)
+        const lastExecutionMs = lastExecutionTimesObj[wfDefinitionId];
 
         const shouldTrigger = await shouldTriggerWorkflow(
           schedule,

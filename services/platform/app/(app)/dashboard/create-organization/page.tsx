@@ -7,7 +7,8 @@ import { OrganizationForm } from './organization-form';
 import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import Link from 'next/link';
-import { FormSkeleton } from '@/components/skeletons/form-skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Center, VStack, Stack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
@@ -70,9 +71,22 @@ function CreateOrganizationSkeleton() {
           <TaleLogo />
         </div>
       </div>
-      <div className="max-w-md mx-auto px-4">
-        <FormSkeleton fields={3} />
-      </div>
+      <Center className="p-4">
+        <VStack className="w-full max-w-[24rem]">
+          {/* Title */}
+          <Skeleton className="h-6 w-48 mx-auto mb-8" />
+          {/* Form */}
+          <Stack gap={4} className="w-full">
+            {/* Input field */}
+            <Stack gap={2}>
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </Stack>
+            {/* Submit button */}
+            <Skeleton className="h-9 w-full rounded-md" />
+          </Stack>
+        </VStack>
+      </Center>
     </div>
   );
 }

@@ -34,6 +34,19 @@ export const getLastExecutionTime = internalQuery({
 });
 
 /**
+ * Batch version: Get last execution times for multiple workflow definitions
+ */
+export const getLastExecutionTimes = internalQuery({
+  args: { wfDefinitionIds: v.array(v.id('wfDefinitions')) },
+  returns: v.any(), // Map<Id<'wfDefinitions'>, number | null>
+  handler: async (ctx, args) => {
+    const result = await SchedulerHelpers.getLastExecutionTimes(ctx, args);
+    // Convert Map to object for serialization
+    return Object.fromEntries(result);
+  },
+});
+
+/**
  * Trigger a specific workflow manually
  */
 export const triggerWorkflowById = internalAction({

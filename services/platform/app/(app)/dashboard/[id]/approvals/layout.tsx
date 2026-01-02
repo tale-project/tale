@@ -29,7 +29,7 @@ export default async function ApprovalsLayout({
         <ApprovalsNavigation organizationId={organizationId} />
       </StickyHeader>
       <ErrorBoundaryWithParams>
-        <ContentWrapper>{children}</ContentWrapper>
+        <ContentWrapper className="px-4 py-6">{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
     </>
   );

@@ -1,11 +1,9 @@
-import { Suspense } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { ConversationsWrapper } from '../components/conversations-wrapper';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
-import { ListSkeleton } from '@/components/skeletons/list-skeleton';
 import { ActivateConversationsEmptyState } from '../components/activate-conversations-empty-state';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
@@ -97,20 +95,6 @@ async function ConversationsContent({
   );
 }
 
-/** Skeleton for the conversations list */
-function ConversationsSkeleton() {
-  return (
-    <ListSkeleton
-      items={10}
-      itemProps={{
-        showAvatar: true,
-        showSecondary: true,
-        showAction: true,
-      }}
-    />
-  );
-}
-
 export default async function ConversationsStatusPage({
   params,
   searchParams,
@@ -134,19 +118,20 @@ export default async function ConversationsStatusPage({
 
   if (!hasActiveFilters) {
     const [hasConversations, emailProviders] = await Promise.all([
-      fetchQuery(api.conversations.hasConversations, { organizationId }, { token }),
+      fetchQuery(
+        api.conversations.hasConversations,
+        { organizationId },
+        { token },
+      ),
       fetchQuery(api.email_providers.list, { organizationId }, { token }),
     ]);
 
     if (!hasConversations && emailProviders.length === 0) {
-      return <ActivateConversationsEmptyState organizationId={organizationId} />;
+      return (
+        <ActivateConversationsEmptyState organizationId={organizationId} />
+      );
     }
   }
 
-  return (
-    <Suspense fallback={<ConversationsSkeleton />}>
-      <ConversationsContent params={params} searchParams={searchParams} />
-    </Suspense>
-  );
+  return <ConversationsContent params={params} searchParams={searchParams} />;
 }
-

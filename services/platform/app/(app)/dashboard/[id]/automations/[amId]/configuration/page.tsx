@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUpdateAutomationMetadata } from '../../hooks/use-update-automation-metadata';
@@ -28,7 +28,6 @@ interface WorkflowConfig {
 
 export default function ConfigurationPage() {
   const params = useParams();
-  const router = useRouter();
   const amId = params?.amId as Id<'wfDefinitions'>;
   const { user } = useAuth();
 
@@ -81,7 +80,13 @@ export default function ConfigurationPage() {
     if (!workflow) return;
 
     const config = workflow.config as WorkflowConfig;
-    const currentVariables = variables.trim() ? JSON.parse(variables) : {};
+    let currentVariables = {};
+    try {
+      currentVariables = variables.trim() ? JSON.parse(variables) : {};
+    } catch {
+      // Invalid JSON - skip change detection for variables
+      return;
+    }
 
     const changed =
       name !== (workflow.name || '') ||
@@ -90,7 +95,7 @@ export default function ConfigurationPage() {
       maxRetries !== (config?.retryPolicy?.maxRetries || 3) ||
       backoffMs !== (config?.retryPolicy?.backoffMs || 1000) ||
       JSON.stringify(currentVariables) !==
-      JSON.stringify(config?.variables || { environment: 'production' });
+        JSON.stringify(config?.variables || { environment: 'production' });
 
     setHasChanges(changed);
   }, [workflow, name, description, timeout, maxRetries, backoffMs, variables]);
@@ -149,14 +154,6 @@ export default function ConfigurationPage() {
       // await updateWorkflow({ wfDefinitionId: amId, name, description, config: { timeout, retryPolicy, variables } });
 
       return;
-
-      toast({
-        title: tToast('success.saved'),
-        variant: 'success',
-      });
-
-      setHasChanges(false);
-      router.refresh();
     } catch (error) {
       console.error('Failed to save configuration:', error);
       toast({
@@ -169,27 +166,6 @@ export default function ConfigurationPage() {
     }
   };
 
-  const _handleCancel = () => {
-    if (workflow) {
-      setName(workflow.name || '');
-      setDescription(workflow.description || '');
-
-      const config = workflow.config as WorkflowConfig;
-      if (config) {
-        setTimeout(config.timeout || 300000);
-        setMaxRetries(config.retryPolicy?.maxRetries || 3);
-        setBackoffMs(config.retryPolicy?.backoffMs || 1000);
-
-        if (config.variables) {
-          setVariables(JSON.stringify(config.variables, null, 2));
-        } else {
-          setVariables('{\n  "environment": "production"\n}');
-        }
-      }
-    }
-    setHasChanges(false);
-  };
-
   // Show skeleton while loading - matches form layout to prevent CLS
   if (!workflow) {
     return (
@@ -198,7 +174,7 @@ export default function ConfigurationPage() {
           {/* Name */}
           <Stack gap={2}>
             <Skeleton className="h-4 w-12" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-9 w-full" />
           </Stack>
           {/* Description */}
           <Stack gap={2}>
@@ -209,19 +185,19 @@ export default function ConfigurationPage() {
           <Grid cols={2} gap={4}>
             <Stack gap={2}>
               <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-9 w-full" />
               <Skeleton className="h-3 w-48" />
             </Stack>
             <Stack gap={2}>
               <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-9 w-full" />
               <Skeleton className="h-3 w-40" />
             </Stack>
           </Grid>
           {/* Backoff */}
           <Stack gap={2}>
             <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-9 w-full" />
             <Skeleton className="h-3 w-56" />
           </Stack>
           {/* Variables JSON */}
@@ -232,7 +208,7 @@ export default function ConfigurationPage() {
           </Stack>
           {/* Button */}
           <div className="pt-4">
-            <Skeleton className="h-10 w-36" />
+            <Skeleton className="h-9 w-36" />
           </div>
         </Stack>
       </NarrowContainer>

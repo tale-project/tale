@@ -64,7 +64,7 @@ function ChatSkeleton() {
             {/* User message */}
             <div className="flex justify-end">
               <div className="max-w-[80%]">
-                <Skeleton className="h-10 w-48 rounded-2xl" />
+                <Skeleton className="h-9 w-48 rounded-2xl" />
               </div>
             </div>
             {/* Assistant message */}

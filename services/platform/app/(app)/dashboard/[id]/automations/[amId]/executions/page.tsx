@@ -37,8 +37,8 @@ async function ExecutionsSkeleton() {
         customHeader={
           <HStack gap={4} className="justify-between">
             <HStack gap={3}>
-              <Skeleton className="h-10 w-[18.75rem]" />
-              <Skeleton className="h-10 w-24" />
+              <Skeleton className="h-9 w-[18.75rem]" />
+              <Skeleton className="h-9 w-24" />
             </HStack>
           </HStack>
         }
