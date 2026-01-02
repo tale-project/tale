@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { useUpdateThread } from '../hooks/use-update-thread';
 import { cn } from '@/lib/utils/cn';
 import { Input } from '@/components/ui/input';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Stack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { ChatActions } from './chat-actions';
 import { useT } from '@/lib/i18n';

@@ -3,7 +3,7 @@
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Badge } from '@/components/ui/badge';
-import { HStack, Stack } from '@/components/ui/layout';
+import { HStack } from '@/components/ui/layout';
 import striptags from 'striptags';
 import { decode } from 'he';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -107,7 +107,7 @@ const getLastMessagePreview = (conversation: Conversation): string => {
 };
 
 interface ConversationsListProps {
-  conversations: Conversation[];
+  conversations: Conversation[] | undefined;
   selectedConversationId?: string | null;
   onConversationSelect?: (conversation: Conversation) => void;
   onConversationCheck?: (conversationId: string, checked: boolean) => void;

@@ -195,7 +195,7 @@ function findSafeAnchor(text: string, currentPos: number): number {
   const lastCodeBlockEnd = searchText.lastIndexOf('```\n');
 
   // Use whichever is later (closer to currentPos)
-  let bestBoundary = Math.max(lastParagraph, lastCodeBlockEnd);
+  const bestBoundary = Math.max(lastParagraph, lastCodeBlockEnd);
 
   if (bestBoundary !== -1) {
     const absolutePos = searchStart + bestBoundary + (lastCodeBlockEnd > lastParagraph ? 4 : 2);

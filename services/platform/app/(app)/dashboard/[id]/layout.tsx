@@ -56,7 +56,7 @@ export default async function DashboardLayout({
   // Don't redirect - throw an error to show the error boundary
   if (!organization) {
     throw new Error(
-      `Organization ${organizationId} not found, but user has membership`
+      `Organization ${organizationId} not found, but user has membership`,
     );
   }
 

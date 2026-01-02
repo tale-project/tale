@@ -45,7 +45,10 @@ async function DocumentsSkeleton() {
       showHeader
       stickyLayout
       customHeader={
-        <HStack justify="between" className="flex-col sm:flex-row sm:items-center">
+        <HStack
+          justify="between"
+          className="flex-col sm:flex-row sm:items-center"
+        >
           <Skeleton className="h-9 w-full sm:w-[300px]" />
           <Skeleton className="h-9 w-40" />
         </HStack>
@@ -53,7 +56,6 @@ async function DocumentsSkeleton() {
     />
   );
 }
-
 
 interface DocumentsPageProps {
   params: Promise<{ id: string }>;
@@ -138,15 +140,17 @@ async function DocumentsPageContent({
   const ragStatuses = await fetchRagStatuses(fileDocuments);
 
   // Merge RAG statuses into document items
-  const itemsWithRagStatus = (documentInfo.items || []).map((item: DocumentItemResponse) => {
-    const ragInfo = item.type === 'file' ? ragStatuses[item.id] : undefined;
-    return {
-      ...item,
-      ragStatus: ragInfo?.status,
-      ragIndexedAt: ragInfo?.indexedAt,
-      ragError: ragInfo?.error,
-    };
-  });
+  const itemsWithRagStatus = (documentInfo.items || []).map(
+    (item: DocumentItemResponse) => {
+      const ragInfo = item.type === 'file' ? ragStatuses[item.id] : undefined;
+      return {
+        ...item,
+        ragStatus: ragInfo?.status,
+        ragIndexedAt: ragInfo?.indexedAt,
+        ragError: ragInfo?.error,
+      };
+    },
+  );
 
   return (
     <DocumentTable
@@ -177,11 +181,7 @@ export default async function DocumentsPage({
   // If no documents and no search query, show empty state directly
   if (!query?.trim()) {
     const [hasDocuments, hasMsAccount] = await Promise.all([
-      fetchQuery(
-        api.documents.hasDocuments,
-        { organizationId },
-        { token },
-      ),
+      fetchQuery(api.documents.hasDocuments, { organizationId }, { token }),
       hasMicrosoftAccount(),
     ]);
 

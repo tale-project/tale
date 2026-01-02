@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { useFormContext } from 'react-hook-form';
 import { Form } from '@/components/ui/form';
 import { Description } from '@/components/ui/description';
-import { Stack, HStack, VStack, Center } from '@/components/ui/layout';
+import { Stack, HStack, VStack } from '@/components/ui/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';

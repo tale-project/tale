@@ -170,6 +170,7 @@ export function AutomationsTable({
 
   return (
     <DataTable
+      className="py-6 px-4"
       columns={columns}
       data={automations}
       getRowId={(row) => row._id}
