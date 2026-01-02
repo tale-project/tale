@@ -52,7 +52,8 @@ export function SettingsNavigation({
       items={navigationItems}
       userRole={userRole}
       matchMode="exact"
-      className="top-0 py-3 h-12"
+      standalone={false}
+      className="py-3 h-12"
       ariaLabel={tCommon('aria.settingsNavigation')}
     />
   );

@@ -10,6 +10,12 @@ interface PageHeaderProps {
    * @default false
    */
   showBorder?: boolean;
+  /**
+   * When true (default), applies sticky positioning, backdrop blur, and z-index.
+   * When false, renders without sticky/blur for use inside StickyHeader wrapper.
+   * @default true
+   */
+  standalone?: boolean;
 }
 
 /**
@@ -20,12 +26,14 @@ export function PageHeader({
   children,
   className,
   showBorder = false,
+  standalone = true,
 }: PageHeaderProps) {
   return (
     <HStack
       gap={0}
       className={cn(
-        'px-4 py-2 sticky top-0 z-50 bg-background/50 backdrop-blur-md min-h-12 flex-shrink-0',
+        'px-4 py-2 min-h-12 flex-shrink-0',
+        standalone && 'sticky top-0 z-50 bg-background/50 backdrop-blur-md',
         showBorder && 'border-b border-border',
         className,
       )}

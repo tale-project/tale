@@ -39,6 +39,12 @@ export interface TabNavigationProps {
   prefetch?: boolean;
   /** Additional content to render (e.g., buttons, dropdowns) */
   children?: ReactNode;
+  /**
+   * When true (default), applies sticky positioning and z-index.
+   * When false, renders without sticky for use inside StickyHeader wrapper.
+   * @default true
+   */
+  standalone?: boolean;
 }
 
 const hasRequiredRole = (
@@ -60,6 +66,7 @@ export function TabNavigation({
   ariaLabel,
   prefetch,
   children,
+  standalone = true,
 }: TabNavigationProps) {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement | null>(null);
@@ -134,7 +141,8 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'bg-background sticky z-10 border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
+        'border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
+        standalone && 'bg-background sticky z-20',
         className,
       )}
       aria-label={ariaLabel}

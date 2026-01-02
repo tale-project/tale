@@ -173,7 +173,7 @@ export function AutomationNavigation({
     <TabNavigation
       items={navigationItems}
       userRole={userRole}
-      className="top-12"
+      standalone={false}
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
       <div className="flex items-center gap-4 ml-auto">

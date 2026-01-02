@@ -7,6 +7,7 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import { StickyHeader } from '@/components/layout/sticky-header';
 import { getT } from '@/lib/i18n/server';
 
 interface SettingsLayoutProps {
@@ -46,13 +47,15 @@ export default async function SettingsLayout({
 
   return (
     <>
-      <PageHeader>
-        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-      </PageHeader>
-      <SettingsNavigation
-        userRole={userRole}
-        canChangePassword={canChangePassword}
-      />
+      <StickyHeader>
+        <PageHeader standalone={false}>
+          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
+        </PageHeader>
+        <SettingsNavigation
+          userRole={userRole}
+          canChangePassword={canChangePassword}
+        />
+      </StickyHeader>
       <ErrorBoundaryWithParams>
         <ContentWrapper>{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
