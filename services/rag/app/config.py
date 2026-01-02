@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     enable_query_logging: bool = False
 
     # ========================================================================
+    # Job Cleanup Configuration
+    # ========================================================================
+    # TTL in hours for completed jobs before cleanup
+    job_completed_ttl_hours: int = 24
+    # TTL in hours for failed jobs before cleanup
+    job_failed_ttl_hours: int = 72
+    # TTL in hours for orphaned jobs (stuck in running/queued state)
+    job_orphaned_ttl_hours: int = 6
+    # Whether to run job cleanup on service startup
+    job_cleanup_on_startup: bool = True
+
+    # ========================================================================
     # CORS Configuration
     # ========================================================================
     allowed_origins: str = "*"
