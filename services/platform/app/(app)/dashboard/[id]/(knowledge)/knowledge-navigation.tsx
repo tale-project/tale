@@ -65,7 +65,8 @@ export function KnowledgeNavigation({
     <TabNavigation
       items={navigationItems}
       userRole={userRole}
-      className="top-12 z-50 py-2"
+      standalone={false}
+      className="py-2"
     />
   );
 }

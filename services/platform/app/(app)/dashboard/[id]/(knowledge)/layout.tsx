@@ -3,6 +3,7 @@ import { KnowledgeNavigation } from './knowledge-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import { StickyHeader } from '@/components/layout/sticky-header';
 import { getT } from '@/lib/i18n/server';
 
 interface KnowledgeLayoutProps {
@@ -23,10 +24,12 @@ export default async function KnowledgeLayout({ children }: KnowledgeLayoutProps
 
   return (
     <>
-      <PageHeader>
-        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-      </PageHeader>
-      <KnowledgeNavigation />
+      <StickyHeader>
+        <PageHeader standalone={false}>
+          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
+        </PageHeader>
+        <KnowledgeNavigation />
+      </StickyHeader>
       <ErrorBoundaryWithParams>
         <ContentWrapper>{children}</ContentWrapper>
       </ErrorBoundaryWithParams>

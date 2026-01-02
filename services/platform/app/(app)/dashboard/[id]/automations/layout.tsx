@@ -14,6 +14,7 @@ import { AutomationNavigation } from './automation-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { PageHeader } from '@/components/layout/page-header';
+import { StickyHeader } from '@/components/layout/sticky-header';
 import { useT } from '@/lib/i18n';
 
 interface AutomationsLayoutProps {
@@ -91,58 +92,58 @@ export default function AutomationsLayout({
 
   return (
     <>
-      <PageHeader showBorder className="gap-2">
-        <h1 className="text-base font-semibold">
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={handleClickAutomation}
-            className={cn(
-              'text-foreground',
-              automation?.name && 'text-muted-foreground cursor-pointer',
-            )}
-          >
-            {t('title')}&nbsp;&nbsp;
-          </span>
-          {automation?.name && !editMode && (
-            <span className="text-foreground" onClick={() => setEditMode(true)}>
-              /&nbsp;&nbsp;{automation?.name}
+      <StickyHeader>
+        <PageHeader standalone={false} showBorder className="gap-2">
+          <h1 className="text-base font-semibold">
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleClickAutomation}
+              className={cn(
+                'text-foreground',
+                automation?.name && 'text-muted-foreground cursor-pointer',
+              )}
+            >
+              {t('title')}&nbsp;&nbsp;
             </span>
+            {automation?.name && !editMode && (
+              <span className="text-foreground" onClick={() => setEditMode(true)}>
+                /&nbsp;&nbsp;{automation?.name}
+              </span>
+            )}
+          </h1>
+          {editMode && (
+            <Input
+              {...register('name')}
+              defaultValue={automation?.name ?? ''}
+              autoFocus
+              className="w-fit h-6 text-sm"
+              onBlur={handleSubmitAutomationName}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSubmitAutomationName();
+                }
+                if (e.key === 'Escape') {
+                  setEditMode(false);
+                }
+              }}
+            />
           )}
-        </h1>
-        {editMode && (
-          <Input
-            {...register('name')}
-            defaultValue={automation?.name ?? ''}
-            autoFocus
-            className="w-fit h-6 text-sm"
-            onBlur={handleSubmitAutomationName}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSubmitAutomationName();
-              }
-              if (e.key === 'Escape') {
-                setEditMode(false);
-              }
-            }}
-          />
-        )}
-        {automation?.status === 'draft' && (
-          <Badge variant="outline">{tCommon('status.draft')}</Badge>
-        )}
-        {automation?.status === 'active' && (
-          <Badge variant="green">{tCommon('status.active')}</Badge>
-        )}
-        {automation?.status === 'archived' && (
-          <Badge variant="outline">{tCommon('status.archived')}</Badge>
-        )}
-      </PageHeader>
-      {/* Navigation */}
-      <AutomationNavigation
-        automation={automation}
-        userRole={userContext?.member?.role ?? 'Member'}
-      />
-      {/* Main Content */}
+          {automation?.status === 'draft' && (
+            <Badge variant="outline">{tCommon('status.draft')}</Badge>
+          )}
+          {automation?.status === 'active' && (
+            <Badge variant="green">{tCommon('status.active')}</Badge>
+          )}
+          {automation?.status === 'archived' && (
+            <Badge variant="outline">{tCommon('status.archived')}</Badge>
+          )}
+        </PageHeader>
+        <AutomationNavigation
+          automation={automation}
+          userRole={userContext?.member?.role ?? 'Member'}
+        />
+      </StickyHeader>
       <ErrorBoundaryWithParams>{children}</ErrorBoundaryWithParams>
     </>
   );

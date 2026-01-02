@@ -3,6 +3,7 @@ import { connection } from 'next/server';
 import { ApprovalsNavigation } from './approvals-navigation';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import { StickyHeader } from '@/components/layout/sticky-header';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { getT } from '@/lib/i18n/server';
 
@@ -21,10 +22,12 @@ export default async function ApprovalsLayout({
 
   return (
     <>
-      <PageHeader>
-        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-      </PageHeader>
-      <ApprovalsNavigation organizationId={organizationId} />
+      <StickyHeader>
+        <PageHeader standalone={false}>
+          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
+        </PageHeader>
+        <ApprovalsNavigation organizationId={organizationId} />
+      </StickyHeader>
       <ErrorBoundaryWithParams>
         <ContentWrapper>{children}</ContentWrapper>
       </ErrorBoundaryWithParams>

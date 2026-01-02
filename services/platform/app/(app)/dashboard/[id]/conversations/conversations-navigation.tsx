@@ -25,7 +25,8 @@ export function ConversationsNavigation({
   return (
     <TabNavigation
       items={navigationItems}
-      className="top-0 py-3 h-12"
+      standalone={false}
+      className="py-3 h-12"
       prefetch
     />
   );

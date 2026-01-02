@@ -3,6 +3,7 @@ import { ConversationsNavigation } from './conversations-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import { StickyHeader } from '@/components/layout/sticky-header';
 import { getT } from '@/lib/i18n/server';
 
 interface ConversationsLayoutProps {
@@ -19,10 +20,12 @@ export default async function ConversationsLayout({
 
   return (
     <>
-      <PageHeader>
-        <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-      </PageHeader>
-      <ConversationsNavigation organizationId={organizationId} />
+      <StickyHeader>
+        <PageHeader standalone={false}>
+          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
+        </PageHeader>
+        <ConversationsNavigation organizationId={organizationId} />
+      </StickyHeader>
       <ErrorBoundaryWithParams>
         <ContentWrapper>{children}</ContentWrapper>
       </ErrorBoundaryWithParams>
