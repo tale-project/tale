@@ -26,7 +26,7 @@ env:
 jobs:
   build-and-push:
     name: Build and Push Multi-Arch Image
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -134,7 +134,7 @@ jobs:
   test-image:
     name: Test Docker Image
     needs: build-and-push
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       packages: read
 
