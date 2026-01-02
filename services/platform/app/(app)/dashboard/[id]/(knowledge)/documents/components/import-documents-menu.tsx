@@ -9,9 +9,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuLink,
-} from '@/components/ui/navigation-menu';
+} from '@/components/ui/navigation/navigation-menu';
 import { Button } from '@/components/ui/button';
-import { OneDriveIcon } from '@/components/ui/icons';
+import { OneDriveIcon } from '@/components/icons';
 import { HardDrive, Plus } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';

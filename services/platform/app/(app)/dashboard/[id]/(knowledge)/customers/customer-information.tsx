@@ -1,6 +1,6 @@
 'use client';
 
-import { CustomerStatusBadge } from '../customers/customer-status-badge';
+import { CustomerStatusBadge } from './customer-status-badge';
 import { Stack, HStack } from '@/components/ui/layout';
 import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';

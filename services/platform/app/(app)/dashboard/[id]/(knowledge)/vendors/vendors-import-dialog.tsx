@@ -1,7 +1,7 @@
 'use client';
 
 import { FormDialog } from '@/components/ui/dialog';
-import { VendorImportForm } from '@/components/vendor-import-form';
+import { VendorImportForm } from './vendor-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';

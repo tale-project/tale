@@ -7,7 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { Id } from '@/convex/_generated/dataModel';
 import { DocumentIcon } from '@/components/ui/document-icon';
-import { EnterKeyIcon } from '@/components/ui/icons';
+import { EnterKeyIcon } from '@/components/icons';
 import { LoaderCircleIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { compressImage } from '@/lib/utils/compress-image';

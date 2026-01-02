@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ViewDialog } from '@/components/ui/dialog';
 import { Stack } from '@/components/ui/layout';
-import { GmailIcon, OutlookIcon } from '@/components/ui/icons';
+import { GmailIcon, OutlookIcon } from '@/components/icons';
 import { Mail, ChevronRight } from 'lucide-react';
 import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
 import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';

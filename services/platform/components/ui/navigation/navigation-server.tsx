@@ -25,4 +25,3 @@ export function NavigationServer({
   // instead of fetching it again.
   return <Navigation role={role} />;
 }
-

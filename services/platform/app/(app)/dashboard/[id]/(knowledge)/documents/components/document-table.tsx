@@ -12,7 +12,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
-import { OneDriveIcon } from '@/components/ui/icons';
+import { OneDriveIcon } from '@/components/icons';
 import { DocumentItem } from '@/types/documents';
 import { DocumentRowActions } from './document-row-actions';
 import { DocumentPreviewDialog } from './document-preview-dialog';

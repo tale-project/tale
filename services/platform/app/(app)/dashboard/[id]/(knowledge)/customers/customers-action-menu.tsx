@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
-import { CirculyIcon } from '@/components/ui/icons';
+import { CirculyIcon } from '@/components/icons';
 import { ImportCustomersDialog } from './customers-import-dialog';
 import { useT } from '@/lib/i18n';
 

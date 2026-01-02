@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/ui/icons';
+import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/icons';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/card';
@@ -17,7 +17,7 @@ import { useCreateIntegration } from './hooks/use-create-integration';
 import { useUpdateIntegration } from './hooks/use-update-integration';
 import { useTestIntegration } from './hooks/use-test-integration';
 import { useDeleteIntegration } from './hooks/use-delete-integration';
-import { OAuth2Banner } from '@/components/oauth2-banner';
+import { OAuth2Banner } from './oauth2-banner';
 import { useT } from '@/lib/i18n';
 
 // Dynamically import dialog components to reduce initial bundle size

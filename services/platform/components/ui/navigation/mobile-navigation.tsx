@@ -15,10 +15,10 @@ import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
-} from '@/components/ui/navigation-menu';
+} from './navigation-menu';
 import { cn } from '@/lib/utils/cn';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
-import { TaleLogo } from './tale-logo';
+import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import { useT } from '@/lib/i18n';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';

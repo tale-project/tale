@@ -21,7 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useSyncStatus, type FileProcessingStatus } from './sync-status';
-import { MicrosoftReauthButton } from '@/components/auth/microsoft-reauth-button';
+import { MicrosoftReauthButton } from './microsoft-reauth-button';
 import { DocumentIcon } from '@/components/ui/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n';

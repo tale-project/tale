@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu, type DataTableActionMenuItem } from '@/components/ui/data-table';
-import { OneDriveIcon } from '@/components/ui/icons';
+import { OneDriveIcon } from '@/components/icons';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';
 

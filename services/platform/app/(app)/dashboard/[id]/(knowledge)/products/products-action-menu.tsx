@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
-import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
+import { ShopifyIcon, CirculyIcon } from '@/components/icons';
 import { ProductsImportDialog } from './products-import-dialog';
 import { useT } from '@/lib/i18n';
 

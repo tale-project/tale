@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { api } from '@/convex/_generated/api';
-import { NavigationServer } from '@/components/navigation-server';
-import { MobileNavigationServer } from '@/components/mobile-navigation-server';
+import { NavigationServer } from '@/components/ui/navigation/navigation-server';
+import { MobileNavigationServer } from '@/components/ui/navigation/mobile-navigation-server';
 
 export interface DashboardLayoutProps {
   children: ReactNode;

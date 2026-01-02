@@ -6,7 +6,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 import { ThemeProvider } from '@/components/theme-provider';
-import { AppProviders } from '@/components/app-providers';
+import { AppProviders } from './providers/app-providers';
 import { getT } from '@/lib/i18n/server';
 
 const inter = Inter({

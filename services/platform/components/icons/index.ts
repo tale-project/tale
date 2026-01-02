@@ -1,0 +1,11 @@
+export { CirculyIcon } from './circuly-icon';
+export { EnterKeyIcon } from './enter-key-icon';
+export { GmailIcon } from './gmail-icon';
+export { InfoCircleIcon } from './info-circle-icon';
+export { LocaleIcon } from './locale-icon';
+export { MicrosoftIcon } from './microsoft-icon';
+export { OneDriveIcon } from './onedrive-icon';
+export { OutlookIcon } from './outlook-icon';
+export { ProtelIcon } from './protel-icon';
+export { ShopifyIcon } from './shopify-icon';
+export { WebsiteIcon } from './website-icon';

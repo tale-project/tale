@@ -5,7 +5,7 @@ import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { Stack, HStack } from '@/components/ui/layout';
-import { LocaleIcon } from '@/components/ui/icons';
+import { LocaleIcon } from '@/components/icons';
 import { TableTimestampCell } from '@/components/ui/table-date-cell';
 import { VendorRowActions } from './vendor-row-actions';
 import { useT } from '@/lib/i18n';

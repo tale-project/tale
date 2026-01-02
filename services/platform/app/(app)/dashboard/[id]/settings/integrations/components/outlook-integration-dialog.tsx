@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { OutlookIcon } from '@/components/ui/icons';
+import { OutlookIcon } from '@/components/icons';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Shield } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { toast } from '@/hooks/use-toast';

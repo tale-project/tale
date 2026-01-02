@@ -9,9 +9,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuLink,
-} from '@/components/ui/navigation-menu';
+} from '@/components/ui/navigation/navigation-menu';
 import { Button } from '@/components/ui/button';
-import { ShopifyIcon, CirculyIcon } from '@/components/ui/icons';
+import { ShopifyIcon, CirculyIcon } from '@/components/icons';
 import { HardDrive, Plus } from 'lucide-react';
 import { ProductsImportDialog } from './products-import-dialog';
 import { useT } from '@/lib/i18n';

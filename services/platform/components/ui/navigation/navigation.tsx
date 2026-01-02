@@ -5,7 +5,7 @@ import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuList,
-} from '@/components/ui/navigation-menu';
+} from './navigation-menu';
 import { cn } from '@/lib/utils/cn';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
-import { TaleLogo } from './tale-logo';
+import { TaleLogo } from '@/components/tale-logo';
 import { UserButton } from '@/components/auth/user-button';
 import {
   useNavigationItems,
