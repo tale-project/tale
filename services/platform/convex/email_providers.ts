@@ -356,7 +356,7 @@ export const create = action({
 
 /**
  * Create OAuth2 email provider with server-side credentials
- * Fetches OAuth2 credentials from environment variables
+ * Fetches OAuth2 credentials from overrides or environment variables
  */
 export const createOAuth2Provider = action({
   args: {
@@ -387,6 +387,9 @@ export const createOAuth2Provider = action({
         v.literal('both'),
       ),
     ),
+    // Organization-provided OAuth2 credentials (optional)
+    clientId: v.optional(v.string()),
+    clientSecret: v.optional(v.string()),
   },
   returns: v.id('emailProviders'),
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
