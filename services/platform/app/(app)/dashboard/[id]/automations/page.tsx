@@ -2,14 +2,11 @@ import { Suspense } from 'react';
 import { api } from '@/convex/_generated/api';
 
 import { AutomationsTable } from './components/automations-table';
+import { AutomationsTableSkeleton } from './components/automations-table-skeleton';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import {
-  DataTableSkeleton,
-  DataTableEmptyState,
-  DataTableActionMenu,
-} from '@/components/ui/data-table';
+import { DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
 import { Workflow, Sparkles } from 'lucide-react';
 import { AccessDenied } from '@/components/layout/access-denied';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
@@ -37,24 +34,11 @@ interface AutomationsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-/** Skeleton for the automations table with header and rows - matches automations-table.tsx column sizes */
-async function AutomationsSkeleton() {
-  const { t } = await getT('automations');
+/** Skeleton wrapper for SSR Suspense - uses shared columns from AutomationsTableSkeleton */
+function AutomationsSkeleton({ organizationId }: { organizationId: string }) {
   return (
     <ContentWrapper>
-      <DataTableSkeleton
-        className="py-6 px-4"
-        rows={6}
-        columns={[
-          { header: t('columns.automation') }, // No size = expands to fill remaining space
-          { header: t('columns.status'), size: 140 },
-          { header: t('columns.version'), size: 100 },
-          { header: t('columns.created'), size: 140 },
-          { isAction: true, size: 80 },
-        ]}
-        showHeader
-        showFilters
-      />
+      <AutomationsTableSkeleton organizationId={organizationId} />
     </ContentWrapper>
   );
 }
@@ -181,7 +165,7 @@ export default async function AutomationsPage({
   }
 
   return (
-    <Suspense fallback={<AutomationsSkeleton />}>
+    <Suspense fallback={<AutomationsSkeleton organizationId={organizationId} />}>
       <AutomationsPageContent params={params} searchParams={searchParams} />
     </Suspense>
   );

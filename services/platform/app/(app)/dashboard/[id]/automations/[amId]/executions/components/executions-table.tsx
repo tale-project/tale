@@ -17,6 +17,7 @@ import { formatDuration } from '@/lib/utils/format/number';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
 import { executionFilterDefinitions } from '../filter-definitions';
+import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
   preloadedExecutions: Preloaded<
@@ -174,6 +175,9 @@ export function ExecutionsTable({
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 
+  // Use shared table config (columns defined locally due to interactive elements)
+  const { searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useExecutionsTableConfig();
+
   // Use unified URL filters hook with sorting
   const {
     filters: filterValues,
@@ -188,12 +192,12 @@ export function ExecutionsTable({
     isPending,
   } = useUrlFilters({
     filters: executionFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: 'startedAt', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.wf_executions.listExecutionsPaginated,
     preloadedData: preloadedExecutions,
     organizationId: amId, // Using amId as the key since executions are scoped by definition
@@ -392,8 +396,7 @@ export function ExecutionsTable({
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={{
         initialSorting: sorting,
         onSortingChange: setSorting,
@@ -401,7 +404,7 @@ export function ExecutionsTable({
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
-        placeholder: tCommon('search.placeholder'),
+        placeholder: searchPlaceholder,
       }}
       filters={filterConfigs}
       isFiltersLoading={isPending}

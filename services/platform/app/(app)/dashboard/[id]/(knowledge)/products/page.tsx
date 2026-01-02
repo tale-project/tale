@@ -1,10 +1,10 @@
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { ProductTable } from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
+import { ProductTableSkeleton } from './product-table-skeleton';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { DataTableSkeleton } from '@/components/ui/data-table';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { productFilterDefinitions } from './filter-definitions';
@@ -25,25 +25,6 @@ export async function generateMetadata(): Promise<Metadata> {
 interface ProductsPageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
-/** Skeleton for the products table with header and rows - matches product-table.tsx column sizes */
-async function ProductsSkeleton() {
-  const { t } = await getT('tables');
-  return (
-    <DataTableSkeleton
-      rows={10}
-      columns={[
-        { header: t('headers.product'), size: 400 },
-        { header: t('headers.description') },
-        { header: t('headers.stock'), size: 80 },
-        { header: t('headers.updated'), size: 140 },
-        { isAction: true, size: 80 },
-      ]}
-      showHeader
-      showFilters
-    />
-  );
 }
 
 
@@ -125,10 +106,8 @@ export default async function ProductsPage({
     }
   }
 
-  const skeletonFallback = await Promise.resolve(<ProductsSkeleton />);
-
   return (
-    <Suspense fallback={skeletonFallback}>
+    <Suspense fallback={<ProductTableSkeleton organizationId={organizationId} />}>
       <ProductsContent params={params} searchParams={searchParams} />
     </Suspense>
   );

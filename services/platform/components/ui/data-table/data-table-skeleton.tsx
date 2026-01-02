@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -10,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Stack, HStack } from '@/components/ui/layout';
+import { DataTablePagination } from './data-table-pagination';
 import { cn } from '@/lib/utils/cn';
 
 export interface DataTableSkeletonColumn {
@@ -26,47 +29,78 @@ export interface DataTableSkeletonColumn {
 export interface DataTableSkeletonProps {
   /** Number of rows to display */
   rows?: number;
-  /** Column configuration - should match the actual DataTable columns */
-  columns: DataTableSkeletonColumn[];
+  /** Column configuration - accepts TanStack Table columns or simple column config */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[];
   /** Whether to show the header row */
   showHeader?: boolean;
-  /** Whether to show the filter bar skeleton */
-  showFilters?: boolean;
-  /** Custom header content - takes precedence over showFilters */
-  customHeader?: React.ReactNode;
+  /** Search placeholder for search input skeleton */
+  searchPlaceholder?: string;
+  /** Action menu element to render in the header */
+  actionMenu?: ReactNode;
   /** Whether to show the pagination skeleton */
   showPagination?: boolean;
+  /** Page size for pagination display */
+  pageSize?: number;
   /** Additional class name */
   className?: string;
   /** Disable default avatar layout for first column */
   noFirstColumnAvatar?: boolean;
-  /** Enable sticky layout mode (removes table wrapper) */
+  /** Enable sticky layout mode */
   stickyLayout?: boolean;
+}
+
+/** Extract skeleton column info from TanStack Table column definitions */
+function normalizeColumns(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[],
+): DataTableSkeletonColumn[] {
+  return columns.map((col) => {
+    // Check if it's already a simple column config
+    if ('isAction' in col || 'hasAvatar' in col) {
+      return col as DataTableSkeletonColumn;
+    }
+
+    // Convert TanStack Table column definition
+    const tanstackCol = col as ColumnDef<unknown, unknown>;
+    return {
+      header:
+        typeof tanstackCol.header === 'string' ? tanstackCol.header : undefined,
+      size: 'size' in tanstackCol ? (tanstackCol.size as number) : undefined,
+      isAction: (tanstackCol.meta as { isAction?: boolean } | undefined)
+        ?.isAction,
+      hasAvatar: (tanstackCol.meta as { hasAvatar?: boolean } | undefined)
+        ?.hasAvatar,
+    };
+  });
 }
 
 /**
  * Loading skeleton for DataTable.
  *
  * Matches the DataTable layout to prevent CLS during loading.
- * Uses w-full to match the responsive width of the actual DataTable.
+ * Accepts TanStack Table column definitions directly for consistent column widths.
  */
 export function DataTableSkeleton({
-  rows = 5,
+  rows = 10,
   columns,
   showHeader = true,
-  showFilters = false,
-  customHeader,
-  showPagination = false,
+  searchPlaceholder,
+  actionMenu,
+  showPagination = true,
+  pageSize = 10,
   className,
   noFirstColumnAvatar = false,
   stickyLayout = false,
 }: DataTableSkeletonProps) {
+  const normalizedColumns = normalizeColumns(columns);
+
   const tableContent = (
     <Table stickyLayout={stickyLayout}>
       {showHeader && (
         <TableHeader sticky={stickyLayout}>
           <TableRow className="bg-secondary/20">
-            {columns.map((col, i) => (
+            {normalizedColumns.map((col, i) => (
               <TableHead
                 key={i}
                 className="font-medium text-sm text-muted-foreground"
@@ -81,7 +115,7 @@ export function DataTableSkeleton({
       <TableBody>
         {Array.from({ length: rows }).map((_, rowIndex) => (
           <TableRow key={rowIndex}>
-            {columns.map((col, colIndex) => {
+            {normalizedColumns.map((col, colIndex) => {
               const showAvatar =
                 col.hasAvatar === true ||
                 (!noFirstColumnAvatar &&
@@ -117,38 +151,54 @@ export function DataTableSkeleton({
     </Table>
   );
 
-  // For sticky layout, just return the table without wrapping
+  // Build header content with search skeleton and action menu
+  const hasHeader = searchPlaceholder || actionMenu;
+  const headerContent = hasHeader ? (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {searchPlaceholder ? (
+        <HStack gap={3}>
+          <Skeleton className="h-9 w-[18.75rem]" />
+        </HStack>
+      ) : (
+        <div />
+      )}
+      {actionMenu}
+    </div>
+  ) : null;
+
+  // Use real pagination component in loading state
+  const paginationContent = showPagination && (
+    <DataTablePagination
+      currentPage={1}
+      total={0}
+      pageSize={pageSize}
+      totalPages={1}
+      isLoading
+    />
+  );
+
+  // For sticky layout, use flex structure matching DataTable
   if (stickyLayout) {
-    return tableContent;
+    return (
+      <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+        {headerContent && (
+          <div className="flex-shrink-0 pb-4">{headerContent}</div>
+        )}
+        <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
+          {tableContent}
+        </div>
+        {paginationContent && (
+          <div className="flex-shrink-0 pt-6">{paginationContent}</div>
+        )}
+      </div>
+    );
   }
 
   return (
     <Stack gap={4} className={cn('w-full', className)}>
-      {customHeader
-        ? customHeader
-        : showFilters && (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <HStack gap={3}>
-                <Skeleton className="h-9 w-[18.75rem]" />
-                <Skeleton className="size-9" />
-              </HStack>
-              <Skeleton className="h-9 w-40" />
-            </div>
-          )}
-
+      {headerContent}
       {tableContent}
-
-      {showPagination && (
-        <HStack gap={2} justify="between" className="px-2">
-          <Skeleton className="h-4 w-32" />
-          <HStack gap={1}>
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-8 w-8 rounded-md" />
-          </HStack>
-        </HStack>
-      )}
+      {paginationContent}
     </Stack>
   );
 }

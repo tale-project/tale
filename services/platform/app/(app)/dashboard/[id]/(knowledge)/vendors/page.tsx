@@ -1,6 +1,6 @@
 import { VendorsTable } from './vendors-table';
+import { VendorsTableSkeleton } from './vendors-table-skeleton';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -25,25 +25,6 @@ export async function generateMetadata(): Promise<Metadata> {
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
-/** Skeleton for the vendors table with header and rows - matches vendors-table.tsx column sizes */
-async function VendorsSkeleton() {
-  const { t } = await getT('tables');
-  return (
-    <DataTableSkeleton
-      rows={10}
-      columns={[
-        { header: t('headers.name') }, // No size = expands to fill remaining space
-        { header: t('headers.source'), size: 140 },
-        { header: '', size: 100 },
-        { header: t('headers.created'), size: 140 },
-        { isAction: true, size: 140 },
-      ]}
-      showHeader
-      showFilters
-    />
-  );
 }
 
 
@@ -123,10 +104,8 @@ export default async function VendorsPage({
     }
   }
 
-  const skeletonFallback = await Promise.resolve(<VendorsSkeleton />);
-
   return (
-    <Suspense fallback={skeletonFallback}>
+    <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
       <VendorsContent params={params} searchParams={searchParams} />
     </Suspense>
   );

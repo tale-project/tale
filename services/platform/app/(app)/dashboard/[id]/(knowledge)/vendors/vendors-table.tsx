@@ -3,16 +3,10 @@
 import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
 import { Store } from 'lucide-react';
-import { startCase } from '@/lib/utils/string';
-import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
-import { LocaleIcon } from '@/components/ui/icons';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
-import { VendorRowActions } from './vendor-row-actions';
 import { VendorsActionMenu } from './vendors-action-menu';
+import { useVendorsTableConfig } from './use-vendors-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -30,6 +24,9 @@ export function VendorsTable({
   const { t: tVendors } = useT('vendors');
   const { t: tTables } = useT('tables');
 
+  // Use shared table config
+  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useVendorsTableConfig();
+
   // Use unified URL filters hook with sorting
   const {
     filters: filterValues,
@@ -44,12 +41,12 @@ export function VendorsTable({
     isPending,
   } = useUrlFilters({
     filters: vendorFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: '_creationTime', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.vendors.listVendors,
     preloadedData: preloadedVendors,
     organizationId,
@@ -76,70 +73,6 @@ export function VendorsTable({
   });
 
   const vendors = data?.items ?? [];
-
-  // Define columns using TanStack Table
-  const columns = useMemo<ColumnDef<Doc<'vendors'>>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: tTables('headers.name'),
-        size: 408,
-        cell: ({ row }) => (
-          <Stack gap={1}>
-            <span className="font-medium text-sm text-foreground">
-              {row.original.name || ''}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {row.original.email || tTables('cells.noEmail')}
-            </span>
-          </Stack>
-        ),
-      },
-      {
-        accessorKey: 'source',
-        header: tTables('headers.source'),
-        size: 140,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.source
-              ? startCase(row.original.source.toLowerCase())
-              : tTables('cells.unknown')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'locale',
-        header: () => <LocaleIcon className="size-4 text-muted-foreground" />,
-        size: 100,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.locale
-              ? row.original.locale.toUpperCase().slice(0, 2)
-              : 'En'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: '_creationTime',
-        header: () => <span className="text-right w-full block">{tTables('headers.created')}</span>,
-        size: 140,
-        cell: ({ row }) => (
-          <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
-        ),
-      },
-      {
-        id: 'actions',
-        header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
-        size: 140,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <VendorRowActions vendor={row.original} />
-          </HStack>
-        ),
-      },
-    ],
-    [tTables],
-  );
 
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
@@ -181,8 +114,7 @@ export function VendorsTable({
       columns={columns}
       data={vendors}
       getRowId={(row) => row._id}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={{
         initialSorting: sorting,
         onSortingChange: setSorting,
@@ -190,7 +122,7 @@ export function VendorsTable({
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
-        placeholder: tVendors('searchPlaceholder'),
+        placeholder: searchPlaceholder,
       }}
       filters={filterConfigs}
       isFiltersLoading={isPending}

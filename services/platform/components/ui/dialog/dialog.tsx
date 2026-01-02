@@ -35,10 +35,14 @@ const dialogSizeClasses: Record<DialogSize, string> = {
 // Internal Components
 // =============================================================================
 
-function DialogCloseButton() {
+const DialogCloseButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<'button'>
+>((props, ref) => {
   const { t } = useT('common');
-  return <IconButton icon={X} aria-label={t('aria.close')} />;
-}
+  return <IconButton ref={ref} icon={X} aria-label={t('aria.close')} {...props} />;
+});
+DialogCloseButton.displayName = 'DialogCloseButton';
 
 // =============================================================================
 // Dialog Wrapper Component

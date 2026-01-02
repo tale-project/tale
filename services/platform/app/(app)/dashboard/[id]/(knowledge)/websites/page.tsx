@@ -1,6 +1,6 @@
 import { WebsitesTable } from './websites-table';
+import { WebsitesTableSkeleton } from './websites-table-skeleton';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -25,27 +25,6 @@ export async function generateMetadata(): Promise<Metadata> {
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
-/** Skeleton for the websites table with header and rows - matches websites-table.tsx column sizes */
-async function WebsitesSkeleton() {
-  const { t } = await getT('tables');
-
-  return (
-    <DataTableSkeleton
-      rows={10}
-      columns={[
-        { header: t('headers.website') }, // No size = expands to fill remaining space
-        { header: t('headers.title'), size: 192 },
-        { header: t('headers.description'), size: 256 },
-        { header: t('headers.scanned'), size: 128 },
-        { header: t('headers.interval'), size: 96 },
-        { isAction: true, size: 128 },
-      ]}
-      showHeader
-      showFilters
-    />
-  );
 }
 
 
@@ -124,10 +103,8 @@ export default async function WebsitesPage({
     }
   }
 
-  const skeletonFallback = await Promise.resolve(<WebsitesSkeleton />);
-
   return (
-    <Suspense fallback={skeletonFallback}>
+    <Suspense fallback={<WebsitesTableSkeleton organizationId={organizationId} />}>
       <WebsitesContent params={params} searchParams={searchParams} />
     </Suspense>
   );

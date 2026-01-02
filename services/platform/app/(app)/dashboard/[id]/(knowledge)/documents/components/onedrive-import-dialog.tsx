@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DataTable } from '@/components/ui/data-table';
+import { DataTable, DataTableSkeleton } from '@/components/ui/data-table';
 import { Stack, HStack } from '@/components/ui/layout';
 import { toast } from '@/hooks/use-toast';
 import { Search, Home, Loader2, Database, X } from 'lucide-react';
@@ -178,11 +178,21 @@ function OneDriveFileTable({
           description: t('onedrive.folderEmpty'),
         };
 
+  // Show skeleton while loading
+  if (isLoading) {
+    return (
+      <DataTableSkeleton
+        columns={columns}
+        rows={5}
+        showPagination={false}
+      />
+    );
+  }
+
   return (
     <DataTable
       columns={columns}
       data={items}
-      isLoading={isLoading}
       getRowId={(row) => row.id}
       emptyState={emptyState}
     />

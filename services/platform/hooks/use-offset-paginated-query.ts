@@ -103,17 +103,31 @@ export function useOffsetPaginatedQuery<
     return JSON.stringify(queryArgs) !== initialArgsRef.current;
   }, [queryArgs]);
 
+  // Track which queryArgs key we're currently waiting for
+  const currentArgsKey = JSON.stringify(queryArgs);
+  const pendingArgsKeyRef = useRef<string | null>(null);
+
   // Use live query when filters change (skip on initial render to use preloaded data)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const liveResult = useQuery(query, hasChangedFromInitial ? queryArgs : ('skip' as any));
+
+  // When args change, mark as pending until we get a result
+  if (hasChangedFromInitial && pendingArgsKeyRef.current !== currentArgsKey) {
+    pendingArgsKeyRef.current = currentArgsKey;
+  }
+
+  // When we get a live result, clear the pending state for current args
+  if (liveResult !== undefined && pendingArgsKeyRef.current === currentArgsKey) {
+    pendingArgsKeyRef.current = null;
+  }
 
   // Return live data if available, otherwise preloaded data
   const data = (hasChangedFromInitial && liveResult !== undefined
     ? liveResult
     : preloadedResult) as FunctionReturnType<TQuery>;
 
-  // Loading state: true when we've changed from initial and live data isn't ready yet
-  const isLoading = hasChangedFromInitial && liveResult === undefined;
+  // Loading state: true when we have pending args waiting for data
+  const isLoading = pendingArgsKeyRef.current !== null;
 
   return {
     data,

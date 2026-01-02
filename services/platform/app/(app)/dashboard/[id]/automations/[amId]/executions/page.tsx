@@ -2,10 +2,8 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { preloadQuery } from '@/lib/convex-next-server';
 import { ExecutionsTable } from './components/executions-table';
+import { ExecutionsTableSkeleton } from './components/executions-table-skeleton';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
-import { Skeleton } from '@/components/ui/skeleton';
-import { HStack } from '@/components/ui/layout';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams } from '@/lib/pagination/parse-search-params';
 import { executionFilterDefinitions } from './filter-definitions';
@@ -19,30 +17,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** Skeleton for the executions table with header and rows - matches ExecutionsTable layout */
-async function ExecutionsSkeleton() {
-  const { t } = await getT('automations');
+/** Skeleton wrapper for SSR Suspense */
+function ExecutionsSkeleton() {
   return (
     <div className="py-6 px-4">
-      <DataTableSkeleton
-        rows={10}
-        columns={[
-          { header: t('executions.columns.executionId'), size: 160 },
-          { header: t('executions.columns.status'), size: 128 },
-          { header: t('executions.columns.startedAt'), size: 192 },
-          { header: t('executions.columns.duration'), size: 128 },
-          { header: t('executions.columns.triggeredBy'), size: 128 },
-        ]}
-        showHeader
-        customHeader={
-          <HStack gap={4} className="justify-between">
-            <HStack gap={3}>
-              <Skeleton className="h-9 w-[18.75rem]" />
-              <Skeleton className="h-9 w-24" />
-            </HStack>
-          </HStack>
-        }
-      />
+      <ExecutionsTableSkeleton />
     </div>
   );
 }

@@ -1,18 +1,15 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { type Preloaded } from 'convex/react';
 import { Workflow } from 'lucide-react';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DataTable } from '@/components/ui/data-table';
-import { HStack } from '@/components/ui/layout';
-import { Badge } from '@/components/ui/badge';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
 import { AutomationsActionMenu } from './automations-action-menu';
-import { AutomationRowActions } from './automation-row-actions';
+import { useAutomationsTableConfig } from './use-automations-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -33,6 +30,9 @@ export function AutomationsTable({
   const { t: tCommon } = useT('common');
   const { t: tEmpty } = useT('emptyStates');
 
+  // Use shared table config
+  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useAutomationsTableConfig();
+
   // Use unified URL filters hook with sorting
   const {
     filters: filterValues,
@@ -47,12 +47,12 @@ export function AutomationsTable({
     isPending,
   } = useUrlFilters({
     filters: automationFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: '_creationTime', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.wf_definitions.listAutomations,
     preloadedData: preloadedAutomations,
     organizationId,
@@ -87,77 +87,6 @@ export function AutomationsTable({
     router.push(`/dashboard/${organizationId}/automations/${row.original._id}`);
   };
 
-  // Helper function to get status badge color
-  const getStatusBadge = useCallback(
-    (status: string) => {
-      return (
-        <Badge dot variant={status === 'active' ? 'green' : 'outline'}>
-          {status === 'active'
-            ? tCommon('status.published')
-            : tCommon('status.draft')}
-        </Badge>
-      );
-    },
-    [tCommon],
-  );
-
-  // Define columns using TanStack Table
-  const columns = useMemo<ColumnDef<Doc<'wfDefinitions'>>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: tTables('headers.automation'),
-        size: 328,
-        cell: ({ row }) => (
-          <span className="text-sm font-medium text-foreground truncate px-2">
-            {row.original.name}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: tTables('headers.status'),
-        size: 140,
-        cell: ({ row }) => getStatusBadge(row.original.status),
-      },
-      {
-        accessorKey: 'version',
-        header: tTables('headers.version'),
-        size: 100,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.version}
-          </span>
-        ),
-      },
-      {
-        accessorKey: '_creationTime',
-        header: () => (
-          <span className="text-right w-full block">
-            {tTables('headers.created')}
-          </span>
-        ),
-        size: 140,
-        cell: ({ row }) => (
-          <TableTimestampCell
-            timestamp={row.original._creationTime}
-            preset="short"
-          />
-        ),
-      },
-      {
-        id: 'actions',
-        size: 80,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <AutomationRowActions automation={row.original} />
-          </HStack>
-        ),
-      },
-    ],
-    [getStatusBadge, tTables],
-  );
-
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
     () => [
@@ -182,8 +111,7 @@ export function AutomationsTable({
       data={automations}
       getRowId={(row) => row._id}
       onRowClick={handleRowClick}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={{
         initialSorting: sorting,
         onSortingChange: setSorting,
@@ -191,7 +119,7 @@ export function AutomationsTable({
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
-        placeholder: tAutomations('searchPlaceholder'),
+        placeholder: searchPlaceholder,
       }}
       filters={filterConfigs}
       isFiltersLoading={isPending}

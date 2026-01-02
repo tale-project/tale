@@ -3,20 +3,13 @@
 import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
 import { Users } from 'lucide-react';
-import { startCase } from '@/lib/utils/string';
-import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
-import type { Doc } from '@/convex/_generated/dataModel';
 import {
   DataTable,
   useDataTable,
 } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
-import { LocaleIcon } from '@/components/ui/icons';
-import { CustomerStatusBadge } from '@/components/customers/customer-status-badge';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
-import { CustomerRowActions } from './customer-row-actions';
 import { CustomersActionMenu } from './customers-action-menu';
+import { useCustomersTableConfig } from './use-customers-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
@@ -35,11 +28,14 @@ export function CustomersTable({
   const { t: tEmpty } = useT('emptyStates');
   const { t: tCustomers } = useT('customers');
 
+  // Use shared table config
+  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useCustomersTableConfig();
+
   // Use unified URL filters hook with sorting
   const urlFilters = useUrlFilters({
     filters: customerFilterDefinitions,
-    pagination: { defaultPageSize: 10 },
-    sorting: { defaultSort: '_creationTime', defaultDesc: true },
+    pagination: { defaultPageSize: pageSize },
+    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
   const { filters: filterValues, sorting, pagination, setPage, setPageSize } = urlFilters;
@@ -47,7 +43,7 @@ export function CustomersTable({
   // Use the useDataTable hook for search and sorting configs
   const { searchConfig, sortingConfig, clearAll, isPending } = useDataTable({
     urlFilters,
-    search: { placeholder: tCustomers('searchPlaceholder') },
+    search: { placeholder: searchPlaceholder },
   });
 
   // Build filter configs with proper translations
@@ -98,7 +94,7 @@ export function CustomersTable({
   );
 
   // Use paginated query with SSR + real-time updates
-  const { data, isLoading } = useOffsetPaginatedQuery({
+  const { data } = useOffsetPaginatedQuery({
     query: api.customers.listCustomers,
     preloadedData: preloadedCustomers,
     organizationId,
@@ -118,81 +114,12 @@ export function CustomersTable({
 
   const customers = data?.items ?? [];
 
-  // Define columns using TanStack Table
-  const columns = useMemo<ColumnDef<Doc<'customers'>>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: tTables('headers.name'),
-        size: 278,
-        cell: ({ row }) => (
-          <Stack gap={1}>
-            <span className="font-medium text-sm text-foreground">
-              {row.original.name || ''}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {row.original.email || tTables('cells.noEmail')}
-            </span>
-          </Stack>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: tTables('headers.status'),
-        size: 140,
-        cell: ({ row }) => <CustomerStatusBadge status={row.original.status} />,
-      },
-      {
-        accessorKey: 'source',
-        header: tTables('headers.source'),
-        size: 140,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.source
-              ? startCase(row.original.source.toLowerCase())
-              : tTables('cells.unknown')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'locale',
-        header: () => <LocaleIcon className="size-4 text-muted-foreground" />,
-        size: 100,
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground">
-            {row.original.locale || 'en'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: '_creationTime',
-        header: () => <span className="text-right w-full block">{tTables('headers.created')}</span>,
-        size: 140,
-        cell: ({ row }) => (
-          <TableTimestampCell timestamp={row.original._creationTime} preset="short" />
-        ),
-      },
-      {
-        id: 'actions',
-        header: () => <span className="sr-only">{tTables('headers.actions')}</span>,
-        size: 140,
-        cell: ({ row }) => (
-          <HStack justify="end">
-            <CustomerRowActions customer={row.original} />
-          </HStack>
-        ),
-      },
-    ],
-    [tTables],
-  );
-
   return (
     <DataTable
       columns={columns}
       data={customers}
       getRowId={(row) => row._id}
-      isLoading={isLoading}
-      stickyLayout
+      stickyLayout={stickyLayout}
       sorting={sortingConfig}
       search={searchConfig}
       filters={filterConfigs}

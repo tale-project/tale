@@ -1,6 +1,6 @@
 import { CustomersTable } from './customers-table';
+import { CustomersTableSkeleton } from './customers-table-skeleton';
 import { Suspense } from 'react';
-import { DataTableSkeleton } from '@/components/ui/data-table';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
@@ -25,26 +25,6 @@ export async function generateMetadata(): Promise<Metadata> {
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | undefined>>;
-}
-
-/** Skeleton for the customers table with header and rows - matches customers-table.tsx column sizes */
-async function CustomersSkeleton() {
-  const { t } = await getT('tables');
-  return (
-    <DataTableSkeleton
-      rows={10}
-      columns={[
-        { header: t('headers.name') }, // No size = expands to fill remaining space
-        { header: t('headers.status'), size: 140 },
-        { header: t('headers.source'), size: 140 },
-        { header: '', size: 100 },
-        { header: t('headers.created'), size: 140 },
-        { isAction: true, size: 140 },
-      ]}
-      showHeader
-      showFilters
-    />
-  );
 }
 
 
@@ -131,10 +111,8 @@ export default async function CustomersPage({
     }
   }
 
-  const skeletonFallback = await Promise.resolve(<CustomersSkeleton />);
-
   return (
-    <Suspense fallback={skeletonFallback}>
+    <Suspense fallback={<CustomersTableSkeleton organizationId={organizationId} />}>
       <CustomersContent params={params} searchParams={searchParams} />
     </Suspense>
   );

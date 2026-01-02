@@ -70,6 +70,11 @@ export function useCursorPaginatedQuery<
   // Track if we've initialized from preloaded data
   const initializedRef = useRef(false);
 
+  // Track args to detect changes and auto-reset
+  const argsKeyRef = useRef<string>(JSON.stringify(args));
+  const currentArgsKey = JSON.stringify(args);
+  const [isArgsChangeLoading, setIsArgsChangeLoading] = useState(false);
+
   // Use preloaded data for initial render (SSR)
   const preloadedResult = preloadedData
     ? (usePreloadedQuery(preloadedData) as CursorPaginatedResult<TItem> | null)
@@ -92,6 +97,19 @@ export function useCursorPaginatedQuery<
     | CursorPaginatedResult<TItem>
     | undefined;
 
+  // Auto-reset when args change (e.g., filters changed)
+  useEffect(() => {
+    if (currentArgsKey !== argsKeyRef.current) {
+      argsKeyRef.current = currentArgsKey;
+      initializedRef.current = false;
+      setPages([]);
+      setCursor(initialCursor);
+      setIsDone(false);
+      setIsLoadingMore(false);
+      setIsArgsChangeLoading(true);
+    }
+  }, [currentArgsKey, initialCursor]);
+
   // Initialize from preloaded data on first render
   useEffect(() => {
     if (preloadedResult && !initializedRef.current) {
@@ -104,23 +122,33 @@ export function useCursorPaginatedQuery<
     }
   }, [preloadedResult]);
 
-  // Handle live data updates
+  // Handle live data updates (for load more)
   useEffect(() => {
     if (liveResult && initializedRef.current && cursor !== null) {
       setPages((prev) => [...prev, liveResult.page]);
       setIsDone(liveResult.isDone);
       setIsLoadingMore(false);
-      if (!liveResult.isDone) {
-        // Don't auto-update cursor - wait for loadMore to be called
-      }
     }
   }, [liveResult, cursor]);
+
+  // Handle live data after args change (fresh fetch)
+  useEffect(() => {
+    if (liveResult && isArgsChangeLoading) {
+      initializedRef.current = true;
+      setPages([liveResult.page]);
+      setIsDone(liveResult.isDone);
+      setIsArgsChangeLoading(false);
+      if (!liveResult.isDone) {
+        setCursor(liveResult.continueCursor);
+      }
+    }
+  }, [liveResult, isArgsChangeLoading]);
 
   // Flatten all pages into a single array
   const data = useMemo(() => pages.flat(), [pages]);
 
-  // Loading state
-  const isLoading = !initializedRef.current && !preloadedResult;
+  // Loading state: true on initial load (without preloaded data) or when args changed
+  const isLoading = (!initializedRef.current && !preloadedResult) || isArgsChangeLoading;
 
   // Has more items to load
   const hasMore = !isDone;
