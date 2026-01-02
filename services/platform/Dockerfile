@@ -52,6 +52,23 @@ ENV NODE_ENV=production
 # The build uses default/placeholder values; actual values are injected at container start
 RUN npm run build
 
+# Prune unnecessary files from node_modules to reduce image size (~460MB savings)
+# This must be done in the builder stage before copying to runner, because Docker
+# layers are immutable - deleting files in a later layer doesn't reduce image size.
+# 1. musl binaries: Convex base image uses Ubuntu/glibc, musl binaries are not needed
+# 2. SWC compilers: Next.js standalone already includes runtime, build-time compilers not needed
+# 3. TypeScript: Convex deploy uses --typecheck disable, so tsc is not needed
+# 4. Type definitions: Runtime doesn't need .d.ts files
+# 5. Other: test files, source maps, legacy browser fallbacks
+RUN find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true && \
+    rm -rf ./node_modules/@next/swc-linux-x64-gnu 2>/dev/null || true && \
+    rm -rf ./node_modules/@swc/core-linux-x64-gnu 2>/dev/null || true && \
+    rm -rf ./node_modules/typescript 2>/dev/null || true && \
+    rm -rf ./node_modules/@types 2>/dev/null || true && \
+    rm -rf ./node_modules/pdfjs-dist/legacy 2>/dev/null || true && \
+    find ./node_modules -type f -name "*.map" -delete 2>/dev/null || true && \
+    find ./node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" \) -exec rm -rf {} + 2>/dev/null || true
+
 # Note: docker-entrypoint.sh is already copied as part of "COPY . ."
 
 # ============================================================================
@@ -119,8 +136,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 
 
-# Copy full node_modules for Convex deploy (includes all transitive dependencies)
+# Copy pruned node_modules for Convex deploy (includes all transitive dependencies)
 # The @convex-dev/* packages require many dependencies (zod, ai, better-auth, etc.)
+# Note: node_modules was already pruned in the builder stage to remove unnecessary files
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
