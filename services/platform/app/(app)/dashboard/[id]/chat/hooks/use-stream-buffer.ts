@@ -198,7 +198,8 @@ function findSafeAnchor(text: string, currentPos: number): number {
   const bestBoundary = Math.max(lastParagraph, lastCodeBlockEnd);
 
   if (bestBoundary !== -1) {
-    const absolutePos = searchStart + bestBoundary + (lastCodeBlockEnd > lastParagraph ? 4 : 2);
+    const absolutePos =
+      searchStart + bestBoundary + (lastCodeBlockEnd > lastParagraph ? 4 : 2);
 
     // Make sure we're not inside a code block
     const textUpToAnchor = text.slice(0, absolutePos);
@@ -279,7 +280,7 @@ export function useStreamBuffer({
 
       return baseCharsPerFrame * speedMultiplier;
     },
-    [targetCPS, minBufferWords, catchUpMultiplier]
+    [targetCPS, minBufferWords, catchUpMultiplier],
   );
 
   // Update metrics when text changes
@@ -353,7 +354,10 @@ export function useStreamBuffer({
       const frameRatio = normalizedDelta / 16.67; // Ratio compared to 60fps
 
       // Calculate characters to reveal this frame
-      const charsPerFrame = calculateCharsPerFrame(bufferSize, incomingRateRef.current);
+      const charsPerFrame = calculateCharsPerFrame(
+        bufferSize,
+        incomingRateRef.current,
+      );
 
       // Accumulate fractional characters for smooth sub-character precision
       accumulatedCharsRef.current += charsPerFrame * frameRatio;
@@ -395,7 +399,7 @@ export function useStreamBuffer({
       // Continue animation
       animationFrameRef.current = requestAnimationFrame(animate);
     },
-    [calculateCharsPerFrame, prefersReducedMotion]
+    [calculateCharsPerFrame, prefersReducedMotion],
   );
 
   // Handle tab visibility changes
@@ -413,7 +417,7 @@ export function useStreamBuffer({
           // Instantly catch up for most of the hidden duration
           const newDisplayed = Math.min(
             displayedLengthRef.current + catchUpChars,
-            targetTextRef.current.length
+            targetTextRef.current.length,
           );
           displayedLengthRef.current = newDisplayed;
           setDisplayLength(newDisplayed);
@@ -425,7 +429,8 @@ export function useStreamBuffer({
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [targetCPS]);
 
   // Start/restart animation when text changes
@@ -467,7 +472,7 @@ export function useStreamBuffer({
   // Calculate anchor position (memoized to avoid recalculation)
   const anchorPosition = useMemo(
     () => findSafeAnchor(text, displayLength),
-    [text, displayLength]
+    [text, displayLength],
   );
 
   // Calculate progress and buffer size

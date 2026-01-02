@@ -50,7 +50,7 @@ export function useNavigationItems(businessId: string): NavItem[] {
           label: tConversations('status.archived'),
           href: `/dashboard/${businessId}/conversations/archived`,
         },
-      ]
+      ],
     },
     {
       label: tNav('knowledge'),

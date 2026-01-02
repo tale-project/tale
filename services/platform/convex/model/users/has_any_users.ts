@@ -24,4 +24,3 @@ export async function hasAnyUsers(ctx: QueryCtx): Promise<boolean> {
 
   return result && result.page.length > 0;
 }
-

@@ -13,7 +13,7 @@ function AuthInputSkeleton({ showRequirements }: AuthInputSkeletonProps) {
       {/* Label */}
       <Skeleton className="h-4 w-16" />
       {/* Input field */}
-      <Skeleton className="h-11 w-full rounded-md" />
+      <Skeleton className="h-10 w-full rounded-md" />
       {/* Password requirements (only for signup) */}
       {showRequirements && (
         <Stack gap={1} className="mt-1">
@@ -65,7 +65,7 @@ export function AuthFormSkeleton({
           <AuthInputSkeleton showRequirements={showPasswordRequirements} />
 
           {/* Submit Button */}
-          <Skeleton className="h-11 w-full rounded-md" />
+          <Skeleton className="h-10 w-full rounded-md" />
         </Stack>
 
         {/* Microsoft OAuth Button */}
@@ -75,7 +75,7 @@ export function AuthFormSkeleton({
               <div className="flex-1 h-px bg-muted" />
             </HStack>
 
-            <Skeleton className="h-11 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md" />
           </>
         )}
       </Stack>

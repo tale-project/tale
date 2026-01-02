@@ -99,7 +99,7 @@ async function DocumentsPageContent({
   const currentPage = page ? Number.parseInt(page, 10) : 1;
   const pageSize = size ? Number.parseInt(size, 10) : 10;
   const searchQuery = query?.trim();
-  const sortField = sort || '_creationTime';
+  const sortField = sort || 'lastModified';
   const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
 
   // Parallelize independent fetches for better performance

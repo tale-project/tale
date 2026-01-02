@@ -41,7 +41,7 @@ export async function getScheduledWorkflows(
     const orgSteps = await ctx.db
       .query('wfStepDefs')
       .withIndex('by_organizationId_and_stepType_and_order', (q) =>
-        q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1)
+        q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1),
       )
       .collect();
     allFirstSteps.push(...orgSteps);

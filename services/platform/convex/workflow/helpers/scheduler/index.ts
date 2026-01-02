@@ -10,4 +10,3 @@ export {
 export { triggerWorkflowById } from './trigger_workflow_by_id';
 export { scanAndTrigger } from './scan_and_trigger';
 export { shouldTriggerWorkflow } from './should_trigger_workflow';
-

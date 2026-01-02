@@ -23,7 +23,11 @@ export function ProductImportForm({
   hideTabs: _hideTabs,
   organizationId: _organizationId,
 }: ProductImportFormProps) {
-  const { setValue, watch, formState: { errors } } = useFormContext();
+  const {
+    setValue,
+    watch,
+    formState: { errors },
+  } = useFormContext();
   const { t } = useT('products');
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -99,9 +103,7 @@ export function ProductImportForm({
             aria-hidden="true"
             className={cn(
               'absolute border border-dashed border-border inset-0 pointer-events-none rounded-xl',
-              isDragOver
-                ? 'border-blue-300'
-                : 'group-hover:border-blue-300',
+              isDragOver ? 'border-blue-300' : 'group-hover:border-blue-300',
             )}
           />
           <div className="overflow-clip relative shrink-0 size-[40px]">
@@ -147,7 +149,9 @@ export function ProductImportForm({
           </ul>
         </Description>
         {errors.file?.message && (
-          <p className="text-sm text-destructive">{errors.file.message as string}</p>
+          <p className="text-sm text-destructive">
+            {errors.file.message as string}
+          </p>
         )}
         {fileValue && (
           <VStack gap={2} className="border border-border p-3 rounded-xl">

@@ -36,12 +36,14 @@ async function SignUpContent() {
   return <SignUpForm microsoftEnabled={microsoftEnabled} />;
 }
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  const { t } = await getT('auth');
+
   return (
     <Suspense
       fallback={
         <AuthFormSkeleton
-          title="Sign up"
+          title={t('signup.title')}
           showPasswordRequirements
           showMicrosoftButton
         />
