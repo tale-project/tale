@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
 import { OutlookIcon } from '@/components/ui/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
@@ -315,7 +314,7 @@ export function OutlookCreateProviderDialog({
                 </a>
               </div>
 
-              <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} >
+              <Stack gap={4}>
                 <Input
                   id="oauth2-name"
                   label={t('integrations.providerName')}
@@ -344,12 +343,17 @@ export function OutlookCreateProviderDialog({
                   />
                 </Stack>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={isLoading}
+                  onClick={oauth2Form.handleSubmit(handleOAuth2Submit)}
+                >
                   {isLoading
                     ? t('integrations.redirectingToMicrosoft')
                     : t('integrations.continueWithMicrosoft')}
                 </Button>
-              </Form>
+              </Stack>
             </TabsContent>
 
             {/* Password Form */}
@@ -372,7 +376,7 @@ export function OutlookCreateProviderDialog({
                 </a>
               </div>
 
-              <Form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} >
+              <Stack gap={4}>
                 <Input
                   id="name"
                   label={t('integrations.providerName')}
@@ -408,12 +412,17 @@ export function OutlookCreateProviderDialog({
                   label={t('integrations.setAsDefaultProvider')}
                 />
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={isLoading}
+                  onClick={passwordForm.handleSubmit(handlePasswordSubmit)}
+                >
                   {isLoading
                     ? t('integrations.testingAndCreating')
                     : t('integrations.testAndCreate')}
                 </Button>
-              </Form>
+              </Stack>
             </TabsContent>
           </Tabs>
     </FormDialog>

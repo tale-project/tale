@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { FormDialog } from '@/components/ui/dialog';
-import { Form } from '@/components/ui/form';
 import { Description } from '@/components/ui/description';
 import { StatusIndicator } from '@/components/ui/status-indicator';
 import { Stack } from '@/components/ui/layout';
@@ -189,7 +188,7 @@ export function CirculyIntegrationDialog({
         </Stack>
       ) : (
         // Not connected state - show connection form
-        <Form onSubmit={handleSubmit(handleConnect)}>
+        <Stack gap={4}>
           <Input
             label={t('integrations.circuly.username')}
             placeholder={t('integrations.circuly.usernamePlaceholder')}
@@ -212,7 +211,7 @@ export function CirculyIntegrationDialog({
           <Description className="text-xs">
             {t('integrations.circuly.enterCredentials')}
           </Description>
-        </Form>
+        </Stack>
       )}
     </FormDialog>
   );
