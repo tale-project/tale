@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
 import { DataTableActionMenu } from '@/components/ui/data-table';
 import { ImportVendorsDialog } from './vendors-import-dialog';
@@ -15,7 +14,6 @@ interface VendorsActionMenuProps {
 
 export function VendorsActionMenu({ organizationId }: VendorsActionMenuProps) {
   const { t: tVendors } = useT('vendors');
-  const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
 
@@ -52,10 +50,7 @@ export function VendorsActionMenu({ organizationId }: VendorsActionMenuProps) {
         onClose={() => setIsDialogOpen(false)}
         organizationId={organizationId}
         mode={importMode}
-        onSuccess={() => {
-          setIsDialogOpen(false);
-          router.refresh();
-        }}
+        onSuccess={() => setIsDialogOpen(false)}
       />
     </>
   );

@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu, type DataTableActionMenuItem } from '@/components/ui/data-table';
 import { OneDriveIcon } from '@/components/ui/icons';
@@ -24,15 +23,12 @@ export function DocumentsActionMenu({
   hasMicrosoftAccount,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState(false);
 
+  // Data refresh happens automatically via Convex reactivity when documents page uses preloadQuery
   const { uploadFiles, isUploading } = useDocumentUpload({
     organizationId,
-    onSuccess: () => {
-      router.refresh();
-    },
   });
 
   const handleFileSelect = useCallback(() => {
@@ -59,8 +55,7 @@ export function DocumentsActionMenu({
 
   const handleOneDriveSuccess = useCallback(() => {
     setIsOneDriveDialogOpen(false);
-    router.refresh();
-  }, [router]);
+  }, []);
 
   // Build menu items conditionally
   const menuItems = useMemo<DataTableActionMenuItem[]>(() => {

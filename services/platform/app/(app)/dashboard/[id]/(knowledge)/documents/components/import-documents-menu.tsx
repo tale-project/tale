@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -18,9 +17,15 @@ import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';
 
 // Lazy-load OneDrive dialog to avoid MGT bundle size impact and SSR issues
-const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })), {
-  ssr: false,
-});
+const OneDriveImportDialog = dynamic(
+  () =>
+    import('./onedrive-import-dialog').then((mod) => ({
+      default: mod.OneDriveImportDialog,
+    })),
+  {
+    ssr: false,
+  },
+);
 
 interface ImportDocumentsMenuProps {
   organizationId: string;
@@ -32,21 +37,15 @@ export function ImportDocumentsMenu({
   hasMicrosoftAccount,
 }: ImportDocumentsMenuProps) {
   const { t } = useT('documents');
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOneDriveImportDialogOpen, setIsOneDriveImportDialogOpen] =
     useState(false);
-
   const { uploadFiles, isUploading } = useDocumentUpload({
     organizationId,
-    onSuccess: () => {
-      router.refresh();
-    },
   });
 
   const handleUploadComplete = () => {
     setIsOneDriveImportDialogOpen(false);
-    router.refresh();
   };
 
   const handleFileSelect = () => {

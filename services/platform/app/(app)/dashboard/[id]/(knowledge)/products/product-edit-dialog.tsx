@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { FormDialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,7 +33,6 @@ export function ProductEditDialog({
 }: EditProductDialogProps) {
   const { t: tProducts } = useT('products');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
   const updateProduct = useUpdateProduct();
 
   // Form state
@@ -92,7 +90,6 @@ export function ProductEditDialog({
       });
 
       onClose();
-      router.refresh();
     } catch (err) {
       console.error('Update error:', err);
       toast({

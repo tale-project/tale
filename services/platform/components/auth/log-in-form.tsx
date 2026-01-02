@@ -85,7 +85,6 @@ export function LogInForm({
         });
 
         router.push(redirectTo || '/dashboard');
-        router.refresh();
       }
     } catch (error) {
       console.error('Log in error:', error);
