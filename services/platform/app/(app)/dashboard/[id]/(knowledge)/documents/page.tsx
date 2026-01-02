@@ -43,6 +43,7 @@ async function DocumentsSkeleton() {
         { isAction: true, size: 160 },
       ]}
       showHeader
+      stickyLayout
       customHeader={
         <HStack justify="between" className="flex-col sm:flex-row sm:items-center">
           <Skeleton className="h-10 w-full sm:w-[300px]" />
@@ -147,17 +148,9 @@ async function DocumentsPageContent({
     };
   });
 
-  // Extract pagination metadata from response
-  const totalItems = documentInfo.totalItems || 0;
-  const hasNextPage = documentInfo.pagination?.hasNextPage || false;
-
   return (
     <DocumentTable
       items={itemsWithRagStatus}
-      total={totalItems}
-      currentPage={currentPage}
-      hasNextPage={hasNextPage}
-      pageSize={pageSize}
       searchQuery={searchQuery}
       organizationId={organizationId}
       currentFolderPath={folderPath}

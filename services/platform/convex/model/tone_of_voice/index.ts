@@ -12,6 +12,7 @@ export * from './types';
 export * from './get_tone_of_voice';
 export * from './get_example_messages';
 export * from './get_tone_of_voice_with_examples';
+export * from './has_example_messages';
 export * from './load_example_messages_for_generation';
 
 // Mutation operations

@@ -5,8 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { type ColumnDef, type Row, type SortingState } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
-import { Pagination } from '@/components/ui/pagination';
+import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/ui/icons';
@@ -23,10 +22,6 @@ import { useUrlDialog } from '@/hooks/use-url-dialog';
 
 export interface DocumentTableProps {
   items: DocumentItem[];
-  total: number;
-  currentPage: number;
-  hasNextPage: boolean;
-  pageSize: number;
   searchQuery?: string;
   organizationId: string;
   currentFolderPath?: string;
@@ -37,10 +32,6 @@ export interface DocumentTableProps {
 
 export function DocumentTable({
   items,
-  total,
-  currentPage,
-  hasNextPage,
-  pageSize,
   searchQuery,
   organizationId,
   currentFolderPath,
@@ -275,7 +266,7 @@ export function DocumentTable({
   );
 
   return (
-    <Stack gap={4}>
+    <>
       {/* Breadcrumb Navigation */}
       {currentFolderPath && (
         <BreadcrumbNavigation currentFolderPath={currentFolderPath} />
@@ -287,6 +278,7 @@ export function DocumentTable({
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
+        stickyLayout
         sorting={{
           initialSorting: initialSorting,
           onSortingChange: handleSortingChange,
@@ -308,14 +300,6 @@ export function DocumentTable({
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
         }}
-        footer={
-          <Pagination
-            currentPage={currentPage}
-            total={total}
-            pageSize={pageSize}
-            hasNextPage={hasNextPage}
-          />
-        }
       />
 
       {/* Document Preview Dialog */}
@@ -327,6 +311,6 @@ export function DocumentTable({
         documentId={previewDocumentId ?? undefined}
         fileName={previewFileName ?? undefined}
       />
-    </Stack>
+    </>
   );
 }

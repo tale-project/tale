@@ -2,7 +2,7 @@
 
 import type { ReactNode, ComponentType } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { Stack, VStack, Center } from '@/components/ui/layout';
+import { VStack, Center } from '@/components/ui/layout';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;
@@ -25,8 +25,6 @@ export interface DataTableFilteredEmptyStateProps {
   title: string;
   /** Description text */
   description?: string;
-  /** Action menu element (use DataTableActionMenu component) */
-  actionMenu?: ReactNode;
   /** Header content (search, filters) */
   headerContent?: ReactNode;
   /** Whether to use sticky layout */
@@ -54,10 +52,10 @@ export function DataTableEmptyState({
       )}
     >
       <VStack align="center" className="text-center max-w-[24rem]">
-        {Icon && <Icon className="size-6 text-secondary mb-5" />}
-        <div className="text-lg font-semibold leading-tight mb-2">{title}</div>
+        {Icon && <Icon className="size-6 text-secondary mb-4" />}
+        <div className="text-lg font-semibold leading-tight mb-1">{title}</div>
         {description && (
-          <p className="text-sm text-muted-foreground mb-5">{description}</p>
+          <p className={cn('text-sm text-muted-foreground', actionMenu && 'mb-4')}>{description}</p>
         )}
         {actionMenu}
       </VStack>
@@ -69,25 +67,22 @@ export function DataTableEmptyState({
  * Filtered empty state component for DataTable.
  * Shows when filters are applied but no results match.
  * Includes header content (search/filters) and simpler styling.
+ * Note: No action button since it's already in the header.
  */
 export function DataTableFilteredEmptyState({
   title,
   description,
-  actionMenu,
   headerContent,
   stickyLayout = false,
   className,
 }: DataTableFilteredEmptyStateProps) {
   const content = (
-    <Center className={cn('py-16 px-4 text-center', className)}>
-      <Stack gap={2}>
-        <h4 className="text-base font-semibold text-foreground">{title}</h4>
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
-        {actionMenu}
-      </Stack>
-    </Center>
+    <VStack align="center" className={cn('text-center', className)}>
+      <h4 className="text-base font-semibold text-foreground mb-1">{title}</h4>
+      {description && (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      )}
+    </VStack>
   );
 
   // If there's header content, wrap in a container with proper layout
@@ -101,10 +96,17 @@ export function DataTableFilteredEmptyState({
         <div className={cn(stickyLayout && 'flex-shrink-0 pb-4')}>
           {headerContent}
         </div>
-        <div className={cn(stickyLayout && 'flex-1 min-h-0')}>{content}</div>
+        <Center
+          className={cn(
+            'rounded-xl border border-border',
+            stickyLayout ? 'flex-1 min-h-0' : 'py-16',
+          )}
+        >
+          {content}
+        </Center>
       </div>
     );
   }
 
-  return content;
+  return <Center className="py-16">{content}</Center>;
 }
