@@ -166,8 +166,9 @@ jobs:
 
       - name: Test database initialization
         run: |
-          # Start the database
+          # Start the database with memory limits to avoid OOM on GitHub runners
           docker run -d --name test-db --platform ${{ matrix.platform }} \
+            --memory=2g --memory-swap=2g \
             -e DB_PASSWORD=test_password \
             -e DB_NAME=test \
             -e DB_USER=test \
@@ -175,7 +176,7 @@ jobs:
 
           # Wait for database to be ready with timeout
           # ARM64 emulation on AMD64 runners is slow, so we need a longer timeout
-          MAX_ATTEMPTS=60
+          MAX_ATTEMPTS=90
           ATTEMPT=0
           echo "Waiting for database to be ready..."
 
@@ -206,17 +207,12 @@ jobs:
             exit 1
           fi
 
-          # Verify TimescaleDB extension
-          docker exec test-db psql -U test -d test -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
-
-          # Verify tale schema exists
-          docker exec test-db psql -U test -d test -c "\dn tale"
-
-          # Verify metrics table exists
-          docker exec test-db psql -U test -d test -c "\dt tale.metrics"
-
-          # Verify events table exists
-          docker exec test-db psql -U test -d test -c "\dt tale.events"
+          # Run all verifications in a single psql call to minimize memory overhead
+          docker exec test-db psql -U test -d test -c "
+            SELECT 'TimescaleDB' as check, extname, extversion FROM pg_extension WHERE extname = 'timescaledb';
+            SELECT 'Schema' as check, schema_name FROM information_schema.schemata WHERE schema_name = 'tale';
+            SELECT 'Tables' as check, table_name FROM information_schema.tables WHERE table_schema = 'tale';
+          "
 
           # Clean up (ignore errors if container already stopped)
           docker stop test-db || true
