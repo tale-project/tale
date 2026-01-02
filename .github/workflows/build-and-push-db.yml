@@ -188,8 +188,9 @@ jobs:
               exit 1
             fi
 
-            # Try to connect
-            if docker exec test-db pg_isready -U test -d test 2>/dev/null; then
+            # Try to connect to the test database (not just check if PostgreSQL is ready)
+            # This ensures the init scripts have completed and created the database
+            if docker exec test-db psql -U test -d test -c "SELECT 1" > /dev/null 2>&1; then
               echo "✅ Database is ready after $ATTEMPT seconds"
               break
             fi
