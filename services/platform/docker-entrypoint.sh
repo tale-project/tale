@@ -514,8 +514,9 @@ deploy_convex_functions() {
   fi
 
   # Deploy functions
+  # Note: --typecheck disable is used because TypeScript is removed from the Docker image to reduce size
   echo "   Deploying functions..."
-  if npx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --yes 2>&1; then
+  if npx convex deploy --url "http://localhost:${CONVEX_BACKEND_PORT}" --admin-key "$ADMIN_KEY" --typecheck disable --yes 2>&1; then
     echo "✅ Convex functions deployed successfully"
   else
     echo "⚠️  Convex function deployment failed (this may be normal on first run)"
