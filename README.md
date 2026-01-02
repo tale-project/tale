@@ -165,8 +165,11 @@ docker compose down -v
 To view backend data, logs, and manage environment variables, you'll need an admin key:
 
 ```bash
-# Generate an admin key
+# Generate an admin key (standard deployment)
 docker compose exec platform ./generate_admin_key.sh
+
+# For blue-green deployments, use the helper script
+./platform-exec.sh ./generate_admin_key.sh
 ```
 
 The script will display the dashboard URL, deployment URL, and admin key. Follow the instructions shown to log in.
