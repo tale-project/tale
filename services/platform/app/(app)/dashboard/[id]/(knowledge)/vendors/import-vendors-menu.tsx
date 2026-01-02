@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -25,7 +24,6 @@ export function ImportVendorsMenu({
   organizationId,
 }: ImportVendorsMenuProps) {
   const { t } = useT('vendors');
-  const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [importMode, setImportMode] = useState<ImportMode>('manual');
 
@@ -89,10 +87,7 @@ export function ImportVendorsMenu({
         onClose={() => setIsDialogOpen(false)}
         organizationId={organizationId}
         mode={importMode}
-        onSuccess={() => {
-          setIsDialogOpen(false);
-          router.refresh();
-        }}
+        onSuccess={() => setIsDialogOpen(false)}
       />
     </>
   );

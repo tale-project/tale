@@ -13,7 +13,7 @@
 - PREFER named exports. AVOID default exports (only if needed).
 - AVOID index barrel files (only if it makes sense to group).
 
-## React
+## React / Next.js
 
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
 - CONSIDER ALWAYS TO add optimistic updates with `withOptimisticUpdate` for `useMutation`. If you decide to NOT add a optimistic update you need to provide a good reason why and comment the hook.
@@ -21,6 +21,7 @@
 - USE `useMemo`, `useCallback` and `memo` the right moment.
 - DO NOT overuse `useEffect`.
 - USE `cva` if a component has multiple variants.
+- AVOID `router.refresh()`.
 
 ## Convex
 

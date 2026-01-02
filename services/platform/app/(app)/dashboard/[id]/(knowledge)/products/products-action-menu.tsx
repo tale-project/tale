@@ -60,10 +60,7 @@ export function ProductsActionMenu({ organizationId }: ProductsActionMenuProps) 
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
         organizationId={organizationId}
-        onSuccess={() => {
-          setIsUploadDialogOpen(false);
-          router.refresh();
-        }}
+        onSuccess={() => setIsUploadDialogOpen(false)}
       />
     </>
   );

@@ -68,7 +68,6 @@ export function UserButton({
       description: t('userButton.toast.signedOutDescription'),
     });
     router.push('/');
-    router.refresh();
 
     // Sign out in background with error handling
     try {

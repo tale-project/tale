@@ -105,10 +105,7 @@ export function ImportProductsMenu({
         isOpen={isUploadDialogOpen}
         onClose={() => setIsUploadDialogOpen(false)}
         organizationId={organizationId}
-        onSuccess={() => {
-          setIsUploadDialogOpen(false);
-          router.refresh();
-        }}
+        onSuccess={() => setIsUploadDialogOpen(false)}
       />
     </>
   );

@@ -7,7 +7,6 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Stack, HStack } from '@/components/ui/layout';
 import { Edit, Save, X, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
@@ -38,7 +37,6 @@ export function ProductTranslationsEditor({
     fr: translatedNames?.fr || '',
   });
 
-  const router = useRouter();
   const upsertTranslation = useUpsertProductTranslation();
 
   const handleInputChange = (
@@ -73,7 +71,6 @@ export function ProductTranslationsEditor({
       });
 
       setOpen(false);
-      router.refresh();
     } catch (error) {
       console.error('Error updating translations:', error);
       toast({

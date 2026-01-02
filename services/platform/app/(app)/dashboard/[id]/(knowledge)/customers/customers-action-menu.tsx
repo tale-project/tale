@@ -64,10 +64,7 @@ export function CustomersActionMenu({ organizationId }: CustomersActionMenuProps
         onClose={() => setIsDialogOpen(false)}
         organizationId={organizationId}
         mode={importMode}
-        onSuccess={() => {
-          setIsDialogOpen(false);
-          router.refresh();
-        }}
+        onSuccess={() => setIsDialogOpen(false)}
       />
     </>
   );
