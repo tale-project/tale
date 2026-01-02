@@ -9,14 +9,13 @@ export async function loadExampleMessagesForGeneration(
   ctx: QueryCtx,
   args: { organizationId: string },
 ): Promise<Array<ExampleMessageContent>> {
-  const examples = await ctx.db
+  const results: Array<ExampleMessageContent> = [];
+  for await (const example of ctx.db
     .query('exampleMessages')
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
-    )
-    .collect();
-
-  return examples.map((example) => ({
-    content: example.content,
-  }));
+    )) {
+    results.push({ content: example.content });
+  }
+  return results;
 }

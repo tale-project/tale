@@ -9,13 +9,16 @@ export async function getApprovalHistory(
   ctx: QueryCtx,
   args: GetApprovalHistoryArgs,
 ): Promise<Array<ApprovalItem>> {
-  return await ctx.db
+  const approvals: Array<ApprovalItem> = [];
+  for await (const approval of ctx.db
     .query('approvals')
     .withIndex('by_resource', (q) =>
       q.eq('resourceType', args.resourceType).eq('resourceId', args.resourceId),
     )
-    .order('desc')
-    .collect();
+    .order('desc')) {
+    approvals.push(approval);
+  }
+  return approvals;
 }
 
 /**

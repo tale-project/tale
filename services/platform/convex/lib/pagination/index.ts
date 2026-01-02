@@ -17,7 +17,10 @@
  * ```ts
  * import { offsetPaginate } from './lib/pagination';
  *
- * const allItems = await ctx.db.query('items').withIndex('by_org', q => q.eq('orgId', orgId)).collect();
+ * const allItems = [];
+ * for await (const item of ctx.db.query('items').withIndex('by_org', q => q.eq('orgId', orgId))) {
+ *   allItems.push(item);
+ * }
  * const result = offsetPaginate(allItems, { page: 1, pageSize: 20 });
  * ```
  */

@@ -10,10 +10,13 @@ export async function listWorkflowSteps(
   ctx: QueryCtx,
   args: ListWorkflowStepsArgs,
 ): Promise<Array<Doc<'wfStepDefs'>>> {
-  return await ctx.db
+  const steps: Array<Doc<'wfStepDefs'>> = [];
+  for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))
-    .order('asc')
-    .collect();
+    .order('asc')) {
+    steps.push(step);
+  }
+  return steps;
 }
 

@@ -3,6 +3,7 @@
  */
 
 import { QueryCtx } from '../../_generated/server';
+import { Doc } from '../../_generated/dataModel';
 import { ToneOfVoiceWithExamples } from './types';
 
 export async function getToneOfVoiceWithExamples(
@@ -20,12 +21,14 @@ export async function getToneOfVoiceWithExamples(
     return null;
   }
 
-  const examples = await ctx.db
+  const examples: Array<Doc<'exampleMessages'>> = [];
+  for await (const example of ctx.db
     .query('exampleMessages')
     .withIndex('by_toneOfVoiceId', (q) =>
       q.eq('toneOfVoiceId', toneOfVoice._id),
-    )
-    .collect();
+    )) {
+    examples.push(example);
+  }
 
   return {
     toneOfVoice,

@@ -155,25 +155,27 @@ async function getProductsWithSearch(
     args;
 
   // Use search index with optional filters
-  let searchResults: Array<Doc<'products'>>;
+  const searchResults: Array<Doc<'products'>> = [];
 
   if (status !== undefined) {
-    searchResults = await ctx.db
+    for await (const product of ctx.db
       .query('products')
       .withSearchIndex('search_products', (q) =>
         q
           .search('name', searchQuery)
           .eq('organizationId', organizationId)
           .eq('status', status),
-      )
-      .collect();
+      )) {
+      searchResults.push(product);
+    }
   } else {
-    searchResults = await ctx.db
+    for await (const product of ctx.db
       .query('products')
       .withSearchIndex('search_products', (q) =>
         q.search('name', searchQuery).eq('organizationId', organizationId),
-      )
-      .collect();
+      )) {
+      searchResults.push(product);
+    }
   }
 
   // Apply category filter if specified (not in search index)

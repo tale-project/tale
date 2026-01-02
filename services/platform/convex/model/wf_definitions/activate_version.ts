@@ -6,7 +6,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
-import type { Id } from '../../_generated/dataModel';
+import type { Doc, Id } from '../../_generated/dataModel';
 import type { ActivateVersionResult } from './types';
 
 export interface ActivateVersionArgs {
@@ -62,12 +62,14 @@ export async function activateVersion(
   });
 
   // 3. Get all steps from activated version
-  const steps = await ctx.db
+  const steps: Array<Doc<'wfStepDefs'>> = [];
+  for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) =>
       q.eq('wfDefinitionId', args.wfDefinitionId),
-    )
-    .collect();
+    )) {
+    steps.push(step);
+  }
 
   // 4. Find highest version number to create new draft
   let maxVersionNumber = 0;

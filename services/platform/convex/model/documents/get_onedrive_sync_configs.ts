@@ -3,6 +3,7 @@
  */
 
 import type { QueryCtx } from '../../_generated/server';
+import type { Doc } from '../../_generated/dataModel';
 
 export async function getOneDriveSyncConfigs(
   ctx: QueryCtx,
@@ -31,22 +32,24 @@ export async function getOneDriveSyncConfigs(
 }> {
   try {
     // Query sync configs with optional status filter
-    let configs;
+    const configs: Array<Doc<'onedriveSyncConfigs'>> = [];
     if (args.status !== undefined) {
       const statusValue: 'active' | 'inactive' | 'error' = args.status;
-      configs = await ctx.db
+      for await (const config of ctx.db
         .query('onedriveSyncConfigs')
         .withIndex('by_organizationId_and_status', (q) =>
           q.eq('organizationId', args.organizationId).eq('status', statusValue),
-        )
-        .collect();
+        )) {
+        configs.push(config);
+      }
     } else {
-      configs = await ctx.db
+      for await (const config of ctx.db
         .query('onedriveSyncConfigs')
         .withIndex('by_organizationId', (q) =>
           q.eq('organizationId', args.organizationId),
-        )
-        .collect();
+        )) {
+        configs.push(config);
+      }
     }
 
     return {

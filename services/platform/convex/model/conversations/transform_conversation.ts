@@ -46,12 +46,14 @@ export async function transformConversation(
 
   // Load messages for this conversation from conversationMessages
   // We need to handle null deliveredAt values properly - they should come last
-  const messageDocs = await ctx.db
+  const messageDocs: Array<Doc<'conversationMessages'>> = [];
+  for await (const msg of ctx.db
     .query('conversationMessages')
     .withIndex('by_conversationId_and_deliveredAt', (q) =>
       q.eq('conversationId', conversation._id),
-    )
-    .collect();
+    )) {
+    messageDocs.push(msg);
+  }
 
   // Sort messages: first by deliveredAt (null values last), then by _creationTime
   messageDocs.sort((a, b) => {
