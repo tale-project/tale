@@ -322,7 +322,17 @@ cmd_deploy() {
     log_info "Targeting: ${target_color}"
   fi
 
-  # Step 2: Ensure stateful services are running
+  # Step 2: Ensure required Docker volumes exist
+  # Blue-green compose files declare these as external volumes
+  log_step "Ensuring required Docker volumes exist..."
+  for volume in tale_platform-convex-data tale_caddy-data tale_rag-data; do
+    if ! docker volume inspect "$volume" >/dev/null 2>&1; then
+      log_info "Creating volume: ${volume}"
+      docker volume create "$volume"
+    fi
+  done
+
+  # Step 3: Ensure stateful services are running
   # These services run as single instances (not blue-green rotated)
   log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
 
@@ -372,7 +382,7 @@ cmd_deploy() {
     log_warning "Stateful services may not be fully ready, continuing anyway..."
   fi
 
-  # Step 3: Build new version
+  # Step 4: Build new version
   # The compose.{color}.yml files define separate services (platform-blue, platform-green, etc.)
   # so they won't conflict with each other
   log_step "Building ${target_color} containers..."
@@ -384,7 +394,7 @@ cmd_deploy() {
     return 1
   fi
 
-  # Step 4: Start new version
+  # Step 5: Start new version
   # Since blue/green services have different names (platform-blue vs platform-green),
   # starting one color won't affect the other color's containers
   log_step "Starting ${target_color} containers..."
@@ -393,7 +403,7 @@ cmd_deploy() {
     return 1
   fi
 
-  # Step 5: Wait for health
+  # Step 6: Wait for health
   if ! wait_for_health "$target_color"; then
     log_error "New deployment failed health checks!"
     log_warning "Rolling back - stopping ${target_color} containers..."
@@ -401,10 +411,10 @@ cmd_deploy() {
     return 1
   fi
 
-  # Step 6: Reload Caddy (optional - health checks should handle routing)
+  # Step 7: Reload Caddy (optional - health checks should handle routing)
   reload_caddy
 
-  # Step 6.5: Wait for Caddy to route traffic to new services
+  # Step 8: Wait for Caddy to route traffic to new services
   # This ensures Caddy's health checks have detected the new healthy backends
   # before we start draining the old ones
   #
@@ -446,7 +456,7 @@ cmd_deploy() {
     return 1
   fi
 
-  # Step 7: Drain and cleanup old version
+  # Step 9: Drain and cleanup old version
   if [ "$current_color" != "none" ]; then
     log_step "Draining ${current_color} containers (${DRAIN_TIMEOUT}s)..."
 
@@ -464,7 +474,7 @@ cmd_deploy() {
     cleanup_color "$current_color"
   fi
 
-  # Step 8: Save state
+  # Step 10: Save state
   save_deployment_color "$target_color"
 
   echo ""
