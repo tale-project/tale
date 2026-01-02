@@ -16,20 +16,50 @@ export interface ScheduledWorkflow {
 export async function getScheduledWorkflows(
   ctx: QueryCtx,
 ): Promise<ScheduledWorkflow[]> {
-  // Stream active workflows to avoid loading everything into memory at once
-  const activeWorkflows = ctx.db
-    .query('wfDefinitions')
-    .withIndex('by_status', (q) => q.eq('status', 'active'));
+  // OPTIMIZATION: Batch load workflows and their trigger steps to avoid N+1 queries
+  // Load active workflows with pagination limit to prevent timeout
+  const MAX_WORKFLOWS = 100; // Limit to prevent timeout with many workflows
 
+  const activeWorkflows = await ctx.db
+    .query('wfDefinitions')
+    .withIndex('by_status', (q) => q.eq('status', 'active'))
+    .take(MAX_WORKFLOWS);
+
+  if (activeWorkflows.length === 0) {
+    return [];
+  }
+
+  // Batch load all trigger steps for active workflows
+  // Group by organization for efficient querying
+  const workflowIds = new Set(activeWorkflows.map((wf) => wf._id));
+  const orgIds = [...new Set(activeWorkflows.map((wf) => wf.organizationId))];
+
+  const allFirstSteps: any[] = [];
+
+  // Batch query trigger steps per organization
+  for (const orgId of orgIds) {
+    const orgSteps = await ctx.db
+      .query('wfStepDefs')
+      .withIndex('by_organizationId_and_stepType_and_order', (q) =>
+        q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1)
+      )
+      .collect();
+    allFirstSteps.push(...orgSteps);
+  }
+
+  // Create a map of wfDefinitionId -> first step
+  const firstStepMap = new Map();
+  for (const step of allFirstSteps) {
+    if (workflowIds.has(step.wfDefinitionId) && step.order === 1) {
+      firstStepMap.set(step.wfDefinitionId, step);
+    }
+  }
+
+  // Build results without additional queries
   const results: ScheduledWorkflow[] = [];
 
-  for await (const wf of activeWorkflows) {
-    const firstStep = await ctx.db
-      .query('wfStepDefs')
-      .withIndex('by_definition_order', (q) =>
-        q.eq('wfDefinitionId', wf._id).eq('order', 1),
-      )
-      .first();
+  for (const wf of activeWorkflows) {
+    const firstStep = firstStepMap.get(wf._id);
 
     if (!firstStep || firstStep.stepType !== 'trigger') continue;
 
