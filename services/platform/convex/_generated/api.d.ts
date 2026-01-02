@@ -52,7 +52,6 @@ import type * as agent_tools_products_helpers_types from "../agent_tools/product
 import type * as agent_tools_products_product_read_tool from "../agent_tools/products/product_read_tool.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
-import type * as agent_tools_rag_rag_write_tool from "../agent_tools/rag/rag_write_tool.js";
 import type * as agent_tools_threads_context_search_tool from "../agent_tools/threads/context_search_tool.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
@@ -342,6 +341,7 @@ import type * as model_tone_of_voice_generate_tone_of_voice from "../model/tone_
 import type * as model_tone_of_voice_get_example_messages from "../model/tone_of_voice/get_example_messages.js";
 import type * as model_tone_of_voice_get_tone_of_voice from "../model/tone_of_voice/get_tone_of_voice.js";
 import type * as model_tone_of_voice_get_tone_of_voice_with_examples from "../model/tone_of_voice/get_tone_of_voice_with_examples.js";
+import type * as model_tone_of_voice_has_example_messages from "../model/tone_of_voice/has_example_messages.js";
 import type * as model_tone_of_voice_index from "../model/tone_of_voice/index.js";
 import type * as model_tone_of_voice_load_example_messages_for_generation from "../model/tone_of_voice/load_example_messages_for_generation.js";
 import type * as model_tone_of_voice_regenerate_tone_of_voice from "../model/tone_of_voice/regenerate_tone_of_voice.js";
@@ -750,7 +750,6 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/products/product_read_tool": typeof agent_tools_products_product_read_tool;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
-  "agent_tools/rag/rag_write_tool": typeof agent_tools_rag_rag_write_tool;
   "agent_tools/threads/context_search_tool": typeof agent_tools_threads_context_search_tool;
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
@@ -1040,6 +1039,7 @@ declare const fullApi: ApiFromModules<{
   "model/tone_of_voice/get_example_messages": typeof model_tone_of_voice_get_example_messages;
   "model/tone_of_voice/get_tone_of_voice": typeof model_tone_of_voice_get_tone_of_voice;
   "model/tone_of_voice/get_tone_of_voice_with_examples": typeof model_tone_of_voice_get_tone_of_voice_with_examples;
+  "model/tone_of_voice/has_example_messages": typeof model_tone_of_voice_has_example_messages;
   "model/tone_of_voice/index": typeof model_tone_of_voice_index;
   "model/tone_of_voice/load_example_messages_for_generation": typeof model_tone_of_voice_load_example_messages_for_generation;
   "model/tone_of_voice/regenerate_tone_of_voice": typeof model_tone_of_voice_regenerate_tone_of_voice;

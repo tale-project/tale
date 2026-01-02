@@ -64,6 +64,10 @@ export default function AutomationStepsPage() {
     amId ? { wfDefinitionId: amId } : 'skip',
   );
 
+  if (!amId) {
+    return null;
+  }
+
   // Validate automation status is one of the expected values
   const validStatuses = ['draft', 'active', 'inactive', 'archived'] as const;
   const status = validStatuses.includes(
