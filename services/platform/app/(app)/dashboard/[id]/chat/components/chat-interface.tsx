@@ -133,7 +133,6 @@ function ThinkingAnimation({
       customer_read: t('tools.customerRead'),
       product_read: t('tools.productRead'),
       rag_search: t('tools.ragSearch'),
-      rag_write: t('tools.ragWrite'),
       web_read: t('tools.webRead'),
       pdf: t('tools.pdf'),
       image: t('tools.image'),
