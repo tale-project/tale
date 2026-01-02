@@ -10,6 +10,7 @@ import { DocumentIcon } from '@/components/ui/document-icon';
 import { EnterKeyIcon } from '@/components/ui/icons';
 import { LoaderCircleIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { compressImage } from '@/lib/utils/compress-image';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -99,14 +100,31 @@ export function ChatInput({
       setUploadingFiles((prev) => [...prev, fileId]);
 
       try {
+        // Compress images before upload to stay within server memory limits
+        let fileToUpload = file;
+
+        if (file.type.startsWith('image/')) {
+          const compressionResult = await compressImage(file);
+          fileToUpload = compressionResult.file;
+
+          if (compressionResult.wasCompressed) {
+            const savedKB = Math.round(
+              (compressionResult.originalSize - compressionResult.finalSize) / 1024,
+            );
+            console.log(
+              `[ChatInput] Compressed image: ${file.name} (${savedKB}KB saved)`,
+            );
+          }
+        }
+
         // Get upload URL from Convex
         const uploadUrl = await generateUploadUrl();
 
         // Upload file to Convex storage
         const result = await fetch(uploadUrl, {
           method: 'POST',
-          headers: { 'Content-Type': file.type },
-          body: file,
+          headers: { 'Content-Type': fileToUpload.type },
+          body: fileToUpload,
         });
 
         if (!result.ok) {
@@ -118,11 +136,11 @@ export function ChatInput({
         // Create attachment object
         const attachment: FileAttachment = {
           fileId: storageId,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          previewUrl: file.type.startsWith('image/')
-            ? URL.createObjectURL(file)
+          fileName: fileToUpload.name,
+          fileType: fileToUpload.type,
+          fileSize: fileToUpload.size,
+          previewUrl: fileToUpload.type.startsWith('image/')
+            ? URL.createObjectURL(fileToUpload)
             : undefined,
         };
 

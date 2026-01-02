@@ -461,6 +461,8 @@ deploy_convex_functions() {
     "TRUSTED_EMAIL_HEADER"
     "TRUSTED_NAME_HEADER"
     "TRUSTED_ROLE_HEADER"
+    # Debug flag (enables all debug loggers when set to "true")
+    "DEBUG_MODE"
   )
 
   # Incremental sync: only update env vars that have changed

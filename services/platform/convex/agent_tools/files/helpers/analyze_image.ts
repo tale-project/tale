@@ -1,11 +1,15 @@
-'use node';
-
 /**
  * Helper for analyzing images using the vision model.
  * Extracts detailed content from images (text, data, etc.)
+ *
+ * NOTE: We use binary data instead of the SDK's getFile() approach because:
+ * - getFile() returns URLs like https://tale.local/... which are internal URLs
+ * - External vision APIs (OpenRouter, etc.) cannot access these internal URLs
+ * - Binary data embeds the image directly, bypassing URL accessibility issues
+ *
+ * This file runs in V8 runtime (no 'use node' directive) for better compatibility.
  */
 
-import { getFile } from '@convex-dev/agent';
 import { components } from '../../../_generated/api';
 import { createDebugLog } from '../../../lib/debug_log';
 import type { ActionCtx } from '../../../_generated/server';
@@ -14,6 +18,9 @@ import { getVisionModel, createVisionAgent } from './vision_agent';
 import { imageAnalysisCache } from '../../../lib/action_cache';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[ImageAnalysis]');
+
+// Max image size for analysis (1MB to stay within 64MB action limit)
+const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
 
 export interface AnalyzeImageParams {
   /** Convex storage file ID */
@@ -34,7 +41,7 @@ export interface AnalyzeImageResult {
 
 /**
  * Analyze an image using the vision model.
- * Extracts detailed content from the image.
+ * Uses binary data to ensure the image is accessible by external APIs.
  */
 export async function analyzeImage(
   ctx: ActionCtx,
@@ -59,34 +66,24 @@ export async function analyzeImage(
       mimeType,
     });
 
-    // Compute SHA-256 hash for file registration
-    const arrayBuffer = await imageBlob.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const hash = Array.from(new Uint8Array(hashBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    // Register the image file with the agent component
-    const { fileId: agentFileId } = await ctx.runMutation(
-      components.agent.files.addFile,
-      {
-        storageId: fileId as string,
-        hash,
-        mimeType,
-        filename: fileName || 'image-to-analyze',
-      },
-    );
-
-    // Get the proper image part from the agent component
-    const { imagePart } = await getFile(ctx, components.agent, agentFileId);
-
-    if (!imagePart) {
-      throw new Error('Failed to get image part from agent component');
+    // Check if image is too large
+    if (imageBlob.size > MAX_IMAGE_BYTES) {
+      const sizeMB = (imageBlob.size / (1024 * 1024)).toFixed(2);
+      const maxMB = (MAX_IMAGE_BYTES / (1024 * 1024)).toFixed(0);
+      return {
+        success: false,
+        analysis: '',
+        model: visionModelId,
+        error: `Image is too large (${sizeMB}MB). Please upload an image smaller than ${maxMB}MB for analysis.`,
+        fileName,
+      };
     }
 
-    debugLog('analyzeImage got imagePart', { agentFileId });
+    // Convert blob to Uint8Array (AI SDK handles encoding internally)
+    const imageData = new Uint8Array(await imageBlob.arrayBuffer());
 
-    // Create a vision agent
+    debugLog('analyzeImage prepared', { byteLength: imageData.byteLength, mimeType });
+
     const visionAgent = createVisionAgent();
 
     // Create a temporary thread for this analysis
@@ -98,23 +95,31 @@ export async function analyzeImage(
 
     debugLog('analyzeImage calling vision agent', { threadId });
 
-    // Use the agent's generateText with multi-modal content
-    const prompt = question || 'Describe this image in detail, extracting all visible text and information.';
-    const result = await visionAgent.generateText(
-      ctx,
-      { threadId },
-      {
-        prompt: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              imagePart,
-            ],
-          },
-        ],
-      },
-    );
+    const prompt =
+      question ||
+      'Describe this image in detail, extracting all visible text and information.';
+
+    let result;
+    try {
+      result = await visionAgent.generateText(
+        ctx,
+        { threadId },
+        {
+          prompt: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image' as const, image: imageData, mediaType: mimeType },
+                { type: 'text', text: prompt },
+              ],
+            },
+          ],
+        },
+      );
+    } catch (err) {
+      debugLog('generateText error', { error: (err as Error).message });
+      throw err;
+    }
 
     const analysis = result.text || '';
 
