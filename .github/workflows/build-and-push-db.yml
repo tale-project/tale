@@ -166,9 +166,8 @@ jobs:
 
       - name: Test database initialization
         run: |
-          # Start the database with memory limits to avoid OOM on GitHub runners
+          # Start the database
           docker run -d --name test-db --platform ${{ matrix.platform }} \
-            --memory=2g --memory-swap=2g \
             -e DB_PASSWORD=test_password \
             -e DB_NAME=test \
             -e DB_USER=test \
