@@ -290,7 +290,6 @@ export function DataTable<TData>({
           <DataTableFilteredEmptyState
             title={t('search.noResults')}
             description={t('search.tryAdjusting')}
-            actionMenu={actionMenu}
             headerContent={headerContent}
             stickyLayout={stickyLayout}
           />

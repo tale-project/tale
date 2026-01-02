@@ -43,6 +43,19 @@ export const getToneOfVoiceWithExamples = queryWithRLS({
   },
 });
 
+/**
+ * Check if any example messages exist for an organization (for two-phase loading)
+ */
+export const hasExampleMessages = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    return await ToneOfVoiceModel.hasExampleMessages(ctx, args);
+  },
+});
+
 // ==================== MUTATIONS ====================
 
 /**
