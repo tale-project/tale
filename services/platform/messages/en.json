@@ -41,7 +41,8 @@
       "updating": "Updating...",
       "importing": "Importing...",
       "openMenu": "Open menu",
-      "rename": "Rename"
+      "rename": "Rename",
+      "logIn": "Log in"
     },
     "upload": {
       "clickToUpload": "Click to upload",

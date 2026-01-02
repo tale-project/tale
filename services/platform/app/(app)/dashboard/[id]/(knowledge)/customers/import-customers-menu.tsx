@@ -9,9 +9,9 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuLink,
-} from '@/components/ui/navigation-menu';
+} from '@/components/ui/navigation/navigation-menu';
 import { Button } from '@/components/ui/button';
-import { CirculyIcon } from '@/components/ui/icons';
+import { CirculyIcon } from '@/components/icons';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import { ImportCustomersDialog } from './customers-import-dialog';
 import { useT } from '@/lib/i18n';

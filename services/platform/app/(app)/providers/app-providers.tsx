@@ -1,8 +1,8 @@
 'use client';
 
 import { NextIntlClientProvider, type AbstractIntlMessages } from 'next-intl';
-import { ConvexClientProvider } from '@/components/convex-auth-provider';
-import { ReactQueryProvider } from '@/components/react-query-provider';
+import { ConvexClientProvider } from './convex-auth-provider';
+import { ReactQueryProvider } from './react-query-provider';
 
 interface AppProvidersProps {
   children: React.ReactNode;

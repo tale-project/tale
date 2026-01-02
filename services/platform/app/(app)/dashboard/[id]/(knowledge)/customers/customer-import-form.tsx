@@ -4,29 +4,31 @@ import { Input } from '@/components/ui/input';
 import { useFormContext } from 'react-hook-form';
 import { Form } from '@/components/ui/form';
 import { Description } from '@/components/ui/description';
-import { Stack, HStack, VStack, Center } from '@/components/ui/layout';
+import { Stack, HStack, VStack } from '@/components/ui/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { ShopifyIcon } from '@/components/icons';
+import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
-import { DocumentIcon } from './ui/document-icon';
-import { Button } from './ui/button';
+import { DocumentIcon } from '@/components/ui/document-icon';
+import { Button } from '@/components/ui/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
 
-interface VendorImportFormProps {
+interface CustomerImportFormProps {
   hideTabs?: boolean;
   organizationId: string;
   mode?: 'manual' | 'upload';
 }
 
-export type DataSource = Doc<'vendors'>['source'];
+export type DataSource = Doc<'customers'>['source'];
 
-export function VendorImportForm({
+export function CustomerImportForm({
   hideTabs,
-  organizationId: _organizationId,
+  organizationId,
   mode,
-}: VendorImportFormProps) {
-  const { t } = useT('vendors');
+}: CustomerImportFormProps) {
+  const { t } = useT('customers');
   const { t: tCommon } = useT('common');
   const { setValue, watch, register, formState: { errors } } = useFormContext();
   const dataSource: DataSource = mode
@@ -93,26 +95,59 @@ export function VendorImportForm({
           onValueChange={(value) => setValue('dataSource', value)}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-auto grid-cols-3">
+            <TabsTrigger value="circuly">{t('importForm.circuly')}</TabsTrigger>
             <TabsTrigger value="manual_import">{t('importForm.manualEntry')}</TabsTrigger>
             <TabsTrigger value="file_upload">{t('importForm.upload')}</TabsTrigger>
           </TabsList>
         </Tabs>
       )}
+      {dataSource === 'circuly' && (
+        <Link
+          href={`/dashboard/${organizationId}/settings/integrations?tab=shopify`}
+          className="bg-background box-border content-stretch flex gap-[12px] items-center justify-start p-[12px] relative rounded-[8px] size-full cursor-pointer transition-colors hover:bg-secondary/20 text-left"
+        >
+          <div
+            aria-hidden="true"
+            className="absolute border border-border border-solid inset-0 pointer-events-none rounded-[8px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+          />
+          <div className="bg-background relative rounded-[6px] shrink-0 size-[40px]">
+            <div
+              aria-hidden="true"
+              className="absolute border border-border border-solid inset-0 pointer-events-none rounded-[6px]"
+            />
+            <div
+              className="absolute overflow-clip size-[24px] top-1/2 translate-x-[-50%] translate-y-[-50%]"
+              style={{ left: 'calc(50% + 0.5px)' }}
+            >
+              <ShopifyIcon />
+            </div>
+          </div>
+          <div className="items-start justify-start not-italic relative shrink-0">
+            <div className="font-medium relative shrink-0 text-base text-foreground w-full">
+              <p>{t('importForm.fromShopify')}</p>
+            </div>
+            <div className="relative shrink-0 text-sm text-muted-foreground w-full">
+              <p>{t('importForm.syncBusinessData')}</p>
+            </div>
+          </div>
+        </Link>
+      )}
       {dataSource === 'manual_import' && (
         <Stack gap={4}>
           <Textarea
             placeholder={
-              'vendor@example.com\nvendor2@example.com,en\nvendor3@example.com,es'
+              'customer@example.com\ncustomer2@example.com,en\ncustomer3@example.com,zh'
             }
             className="min-h-[200px] font-mono text-sm"
-            errorMessage={errors.vendors?.message as string}
-            {...register('vendors')}
+            errorMessage={errors.customers?.message as string}
+            {...register('customers')}
           />
           <Description className="text-xs">
-            <ul className="list-disc list-outside pl-4 space-y-2">
+            <Stack gap={2} className="list-disc list-outside pl-4">
               <li>{t('importForm.localeHint')}</li>
-            </ul>
+              <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
+            </Stack>
           </Description>
         </Stack>
       )}
@@ -180,15 +215,16 @@ export function VendorImportForm({
             />
           </div>
           <Description className="text-xs">
-            <ul className="list-disc list-outside pl-4 space-y-2">
+            <Stack gap={2} className="list-disc list-outside pl-4">
               <li>{t('importForm.localeHint')}</li>
-            </ul>
+              <li className="text-yellow-600">{t('importForm.churnedNote')}</li>
+            </Stack>
           </Description>
           {errors.file?.message && (
             <p className="text-sm text-destructive">{errors.file.message as string}</p>
           )}
           {fileValue && (
-            <VStack gap={2} className="border border-border p-3 rounded-xl">
+            <VStack gap={2} className="border border-border p-3 relative rounded-xl">
               <HStack gap={3} className="w-full">
                 <HStack gap={2} className="flex-1 min-w-0">
                   <DocumentIcon fileName={fileValue.name} />

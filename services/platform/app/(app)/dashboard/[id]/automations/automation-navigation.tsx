@@ -14,11 +14,11 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuViewport,
-} from '@/components/ui/navigation-menu';
+} from '@/components/ui/navigation/navigation-menu';
 import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/components/ui/tab-navigation';
+} from '@/components/ui/navigation/tab-navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-convex-auth';

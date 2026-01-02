@@ -4,7 +4,7 @@ import { useT } from '@/lib/i18n';
 import {
   TabNavigation,
   type TabNavigationItem,
-} from '@/components/ui/tab-navigation';
+} from '@/components/ui/navigation/tab-navigation';
 
 interface ConversationsNavigationProps {
   organizationId: string;

@@ -5,7 +5,7 @@ import { Loader } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { Doc } from '@/convex/_generated/dataModel';
 import { HStack } from '@/components/ui/layout';
-import { WebsiteIcon } from '@/components/ui/icons';
+import { WebsiteIcon } from '@/components/icons';
 import { TableDateCell } from '@/components/ui/table-date-cell';
 import { WebsiteRowActions } from './website-row-actions';
 import { useT } from '@/lib/i18n';

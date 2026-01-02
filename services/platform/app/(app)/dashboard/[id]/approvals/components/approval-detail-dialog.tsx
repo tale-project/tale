@@ -17,7 +17,7 @@ import { useLocale, useT } from '@/lib/i18n';
 
 const CustomerInfoDialog = dynamic(
   () =>
-    import('@/components/email-table/customer-info-dialog').then((mod) => ({
+    import('@/app/(app)/dashboard/[id]/(knowledge)/customers/customer-info-dialog').then((mod) => ({
       default: mod.CustomerInfoDialog,
     })),
   { ssr: false },

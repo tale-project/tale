@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { FormDialog } from '@/components/ui/dialog';
-import { CustomerImportForm } from '@/components/customer-import-form';
+import { CustomerImportForm } from './customer-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';

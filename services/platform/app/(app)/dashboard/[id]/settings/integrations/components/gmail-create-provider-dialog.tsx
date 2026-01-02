@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form } from '@/components/ui/form';
 import { Stack, HStack } from '@/components/ui/layout';
-import { GmailIcon } from '@/components/ui/icons';
+import { GmailIcon } from '@/components/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';

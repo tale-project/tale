@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Stack, HStack } from '@/components/ui/layout';
-import { AuthFormLayout } from '@/components/layout/auth-form-layout';
+import { AuthFormLayout } from './auth-form-layout';
 
 interface AuthInputSkeletonProps {
   /** Whether to show password requirements list */

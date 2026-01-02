@@ -8,7 +8,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuLink,
-} from '@/components/ui/navigation-menu';
+} from '@/components/ui/navigation/navigation-menu';
 import { Button } from '@/components/ui/button';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import { ImportVendorsDialog } from './vendors-import-dialog';

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Stack, HStack } from '@/components/ui/layout';
-import { OutlookIcon } from '@/components/ui/icons';
+import { OutlookIcon } from '@/components/icons';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';

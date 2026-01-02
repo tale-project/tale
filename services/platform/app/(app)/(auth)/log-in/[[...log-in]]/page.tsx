@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getCurrentUser } from '@/lib/auth/auth-server';
-import { LogInForm } from '@/components/auth/log-in-form';
-import { AuthFormSkeleton } from '@/components/skeletons/auth-skeleton';
+import { LogInForm } from '../log-in-form';
+import { AuthFormSkeleton } from '../../auth-skeleton';
 import { api } from '@/convex/_generated/api';
 import { getT } from '@/lib/i18n/server';
 

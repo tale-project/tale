@@ -6,7 +6,7 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@/components/ui/entity-row-actions';
-import { CustomerInfoDialog } from '@/components/email-table/customer-info-dialog';
+import { CustomerInfoDialog } from './customer-info-dialog';
 import { CustomerEditDialog } from './customer-edit-dialog';
 import { CustomerDeleteDialog } from './customer-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
