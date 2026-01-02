@@ -8,6 +8,9 @@
 import { Agent } from '@convex-dev/agent';
 import { components } from '../../../_generated/api';
 import { openai } from '../../../lib/openai_provider';
+import { createDebugLog } from '../../../lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 
 /**
  * Get the vision model ID from environment variables
@@ -28,6 +31,10 @@ export function getVisionModel(): string {
  */
 export function createVisionAgent(): Agent {
   const visionModelId = getVisionModel();
+  debugLog('Creating vision agent', {
+    model: visionModelId,
+    baseUrl: process.env.OPENAI_BASE_URL,
+  });
   return new Agent(components.agent, {
     name: 'vision-analyzer',
     languageModel: openai.chat(visionModelId),

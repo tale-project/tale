@@ -43,6 +43,10 @@ COPY services/platform/ .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Note: convex/_generated/* files are committed to git and maintained by the dev workflow.
+# Developers must run `npx convex codegen` locally after schema/function changes.
+# The convex deploy at runtime will also regenerate these if needed.
+
 # Build Next.js application
 # Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
 # The build uses default/placeholder values; actual values are injected at container start
