@@ -47,7 +47,7 @@ import {
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
 // RAG configuration constants
-const RAG_TOP_K = 5;
+const RAG_TOP_K = 10;
 const RAG_SIMILARITY_THRESHOLD = 0.3;
 
 type Usage = {
