@@ -351,6 +351,9 @@ cmd_deploy() {
     # Only start db and graph-db, leave proxy alone
     docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
   else
+    # Rebuild proxy to ensure latest image (entrypoint changes, etc.)
+    log_info "Building proxy image..."
+    docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
     docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
   fi
 

@@ -435,9 +435,6 @@ deploy_convex_functions() {
   # Set HOME for npm to work properly
   export HOME=/home/nextjs
 
-  # Set environment variables in Convex deployment
-  echo "   Syncing ALL environment variables to Convex..."
-
   # List of environment variables to sync to Convex
   # These are the variables that Convex functions need access to
   ENV_VARS_TO_SYNC=(
@@ -446,6 +443,9 @@ deploy_convex_functions() {
     "OPENAI_API_KEY"
     "OPENAI_BASE_URL"
     "OPENAI_MODEL"
+    "OPENAI_VISION_MODEL"
+    "OPENAI_CODING_MODEL"
+    "OPENAI_EMBEDDING_MODEL"
     "BETTER_AUTH_SECRET"
     "AUTH_MICROSOFT_ENTRA_ID_ID"
     "AUTH_MICROSOFT_ENTRA_ID_SECRET"
@@ -463,22 +463,53 @@ deploy_convex_functions() {
     "TRUSTED_ROLE_HEADER"
   )
 
-  # Sync each environment variable if it's set
-  for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
-    # Get the value of the environment variable
-    var_value="${!var_name}"
+  # Incremental sync: only update env vars that have changed
+  # This significantly speeds up deployment by avoiding redundant API calls
+  ENV_CACHE_DIR="/app/convex-data/.env_cache"
+  mkdir -p "$ENV_CACHE_DIR"
 
-    if [ -n "$var_value" ]; then
-      echo "   ✓ Setting $var_name"
-      npx convex env set "$var_name" "$var_value" \
-        --url "http://localhost:${CONVEX_BACKEND_PORT}" \
-        --admin-key "$ADMIN_KEY" 2>&1 || true
+  sync_count=0
+  skip_count=0
+  unchanged_count=0
+
+  for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
+    var_value="${!var_name}"
+    cache_file="$ENV_CACHE_DIR/$var_name"
+
+    if [ -z "$var_value" ]; then
+      skip_count=$((skip_count + 1))
+      continue
+    fi
+
+    # Calculate hash of current value
+    current_hash=$(echo -n "$var_value" | sha256sum | cut -d' ' -f1)
+    cached_hash=$(cat "$cache_file" 2>/dev/null || echo "")
+
+    if [ "$current_hash" = "$cached_hash" ]; then
+      unchanged_count=$((unchanged_count + 1))
+      continue
+    fi
+
+    # Value changed or new, sync it
+    local change_type="updated"
+    [ -z "$cached_hash" ] && change_type="new"
+
+    if npx convex env set "$var_name" "$var_value" \
+      --url "http://localhost:${CONVEX_BACKEND_PORT}" \
+      --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
+      echo "$current_hash" > "$cache_file"
+      sync_count=$((sync_count + 1))
+      echo "   ✓ $var_name ($change_type)"
     else
-      echo "   ⏭️  Skipping $var_name (not set)"
+      echo "   ⚠️  Failed to set $var_name"
     fi
   done
 
-  echo "   ✅ Environment variables synced to Convex"
+  if [ $sync_count -eq 0 ] && [ $unchanged_count -gt 0 ]; then
+    echo "   ⏭️  All $unchanged_count env vars unchanged"
+  else
+    echo "   ✅ Synced $sync_count (new/updated), unchanged $unchanged_count, skipped $skip_count"
+  fi
 
   # Deploy functions
   echo "   Deploying functions..."
