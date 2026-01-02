@@ -26,25 +26,12 @@ env:
 jobs:
   build-and-push:
     name: Build and Push Multi-Arch Image
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      # ======================================================================
-      # Cleanup (free disk space on self-hosted runner)
-      # ======================================================================
-      - name: Free disk space
-        run: |
-          echo "=== Disk space before cleanup ==="
-          df -h
-          echo "=== Cleaning up Docker resources ==="
-          docker system prune -af --volumes || true
-          docker builder prune -af || true
-          echo "=== Disk space after cleanup ==="
-          df -h
-
       # ======================================================================
       # Checkout
       # ======================================================================
@@ -129,7 +116,7 @@ jobs:
   test-image:
     name: Test Docker Image
     needs: build-and-push
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       packages: read
 
