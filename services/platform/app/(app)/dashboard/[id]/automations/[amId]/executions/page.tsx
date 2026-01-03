@@ -62,9 +62,7 @@ async function ExecutionsContent({
   );
 
   return (
-    <div className="py-6 px-4">
-      <ExecutionsTable preloadedExecutions={preloadedExecutions} amId={amId} />
-    </div>
+    <ExecutionsTable preloadedExecutions={preloadedExecutions} amId={amId} />
   );
 }
 

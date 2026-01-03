@@ -92,7 +92,7 @@ export function Conversations({
     type: 'individual',
     selectedIds: new Set(),
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkSendMessagesDialog, setBulkSendMessagesDialog] = useState({
     isOpen: false,
     isSending: false,
@@ -197,6 +197,8 @@ export function Conversations({
   }, []);
 
   const handleSendMessages = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -205,6 +207,7 @@ export function Conversations({
       return;
     }
 
+    setIsBulkProcessing(true);
     setBulkSendMessagesDialog({
       isOpen: true,
       isSending: true,
@@ -271,10 +274,14 @@ export function Conversations({
         isOpen: false,
         isSending: false,
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
   };
 
   const handleBulkResolveConversations = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -283,7 +290,7 @@ export function Conversations({
       return;
     }
 
-    setIsLoading(true);
+    setIsBulkProcessing(true);
 
     try {
       const conversationIds = isAllSelection(selectionState)
@@ -312,11 +319,14 @@ export function Conversations({
         title: tConversations('bulk.resolveFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
-    setIsLoading(false);
   };
 
   const handleReopenConversations = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -325,7 +335,7 @@ export function Conversations({
       return;
     }
 
-    setIsLoading(true);
+    setIsBulkProcessing(true);
 
     try {
       const conversationIds = isAllSelection(selectionState)
@@ -354,8 +364,9 @@ export function Conversations({
         title: tConversations('bulk.reopenFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
-    setIsLoading(false);
   };
 
   const selectAllChecked = isSelectAllIndeterminate
@@ -374,135 +385,142 @@ export function Conversations({
 
   return (
     <>
-      <div className="flex justify-stretch size-full flex-1 max-h-full">
-        {/* Left Panel - Conversation List - hidden on mobile when conversation is selected */}
-        <div
-          className={cn(
-            'flex flex-col border-r border-border overflow-y-auto relative',
-            'w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]',
-            selectedConversationId ? 'hidden md:flex' : 'flex',
-          )}
-        >
-          {/* Fixed Search and Filter Section / Action Buttons */}
-          <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
-            {/* Select All Checkbox */}
-            <div className="flex items-center">
-              <Checkbox
-                id="select-all"
-                checked={selectAllChecked}
-                onCheckedChange={handleSelectAll}
-                aria-label={tCommon('aria.selectAll')}
-              />
-            </div>
-
-            {hasSelectedItems ? (
-              /* Action Buttons when items are selected */
-              <>
-                {status === 'open' && (
-                  <Button
-                    size="sm"
-                    onClick={handleApproveSelected}
-                    className="flex-1"
-                  >
-                    {tConversations('bulk.sendMessages')}
-                  </Button>
-                )}
-                {status === 'open' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleBulkResolveConversations}
-                    className="flex-1"
-                  >
-                    {tConversations('bulk.close')}
-                  </Button>
-                )}
-                {status !== 'open' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleReopenConversations}
-                    className="flex-1"
-                  >
-                    {tConversations('bulk.reopen')}
-                  </Button>
-                )}
-              </>
-            ) : (
-              /* Search and Filter when no items are selected */
-              <>
-                {/* Search Input */}
-                <div
-                  className={cn(
-                    'relative flex-1',
-                    isLoadingFilters && 'animate-pulse pointer-events-none',
-                  )}
-                >
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder={tChat('searchConversations')}
-                    size="sm"
-                    className="pl-9 pr-3 bg-transparent shadow-none text-sm"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        applyFilters();
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Filter Dropdown */}
-                <FilterDropdown
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  isLoading={isLoadingFilters}
-                />
-              </>
-            )}
+      {/* Left Panel - Conversation List - hidden on mobile when conversation is selected */}
+      <div
+        className={cn(
+          'flex flex-col border-r border-border overflow-y-auto relative',
+          'w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]',
+          selectedConversationId ? 'hidden md:flex' : 'flex',
+        )}
+      >
+        {/* Fixed Search and Filter Section / Action Buttons */}
+        <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
+          {/* Select All Checkbox */}
+          <div className="flex items-center">
+            <Checkbox
+              id="select-all"
+              checked={selectAllChecked}
+              onCheckedChange={handleSelectAll}
+              aria-label={tCommon('aria.selectAll')}
+            />
           </div>
 
-          {/* Filter Status Indicator */}
-          <FilterStatusIndicator
-            searchQuery={searchQuery}
-            filters={filters}
-            isLoading={isLoadingFilters}
-            onClearSearch={clearSearch}
-            onClearFilter={clearFilter}
-          />
-
-          {/* Scrollable Conversation List */}
-          <ConversationsList
-            conversations={filteredConversations}
-            selectedConversationId={selectedConversationId}
-            onConversationSelect={handleConversationSelect}
-            onConversationCheck={handleConversationCheck}
-            isConversationSelected={isConversationSelected}
-          />
-          {(isLoading || isLoadingFilters) && (
-            <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
-              <div className="flex items-center text-muted-foreground">
-                <Loader2Icon className="size-4 mr-2 animate-spin" />
-                <span className="text-sm">{tConversations('updating')}</span>
+          {hasSelectedItems ? (
+            /* Action Buttons when items are selected */
+            <>
+              {status === 'open' && (
+                <Button
+                  size="sm"
+                  onClick={handleApproveSelected}
+                  disabled={isBulkProcessing}
+                  className="flex-1"
+                >
+                  {tConversations('bulk.sendMessages')}
+                </Button>
+              )}
+              {status === 'open' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBulkResolveConversations}
+                  disabled={isBulkProcessing}
+                  className="flex-1"
+                >
+                  {isBulkProcessing && (
+                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                  )}
+                  {tConversations('bulk.close')}
+                </Button>
+              )}
+              {status !== 'open' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReopenConversations}
+                  disabled={isBulkProcessing}
+                  className="flex-1"
+                >
+                  {isBulkProcessing && (
+                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                  )}
+                  {tConversations('bulk.reopen')}
+                </Button>
+              )}
+            </>
+          ) : (
+            /* Search and Filter when no items are selected */
+            <>
+              {/* Search Input */}
+              <div
+                className={cn(
+                  'relative flex-1',
+                  isLoadingFilters && 'animate-pulse pointer-events-none',
+                )}
+              >
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+                <Input
+                  placeholder={tChat('searchConversations')}
+                  size="sm"
+                  className="pl-9 pr-3 bg-transparent shadow-none text-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      applyFilters();
+                    }
+                  }}
+                />
               </div>
-            </div>
+
+              {/* Filter Dropdown */}
+              <FilterDropdown
+                filters={filters}
+                onFiltersChange={setFilters}
+                isLoading={isLoadingFilters}
+              />
+            </>
           )}
         </div>
 
-        {/* Right Panel - Conversation Details - full width on mobile when conversation is selected */}
-        <div
-          className={cn(
-            'flex-1 min-w-0',
-            selectedConversationId ? 'flex' : 'hidden md:flex',
-          )}
-        >
-          <ConversationPanel
-            selectedConversationId={selectedConversationId}
-            onSelectedConversationChange={setSelectedConversationId}
-          />
-        </div>
+        {/* Filter Status Indicator */}
+        <FilterStatusIndicator
+          searchQuery={searchQuery}
+          filters={filters}
+          isLoading={isLoadingFilters}
+          onClearSearch={clearSearch}
+          onClearFilter={clearFilter}
+        />
+
+        {/* Scrollable Conversation List */}
+        <ConversationsList
+          conversations={filteredConversations}
+          selectedConversationId={selectedConversationId}
+          onConversationSelect={handleConversationSelect}
+          onConversationCheck={handleConversationCheck}
+          isConversationSelected={isConversationSelected}
+        />
+        {(isBulkProcessing || isLoadingFilters) && (
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
+            <div className="flex items-center text-muted-foreground">
+              <Loader2Icon className="size-4 mr-2 animate-spin" />
+              <span className="text-sm">{tConversations('updating')}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Right Panel - Conversation Details - full width on mobile when conversation is selected */}
+      <div
+        className={cn(
+          'flex-1 min-w-0',
+          selectedConversationId ? 'flex' : 'hidden md:flex',
+        )}
+      >
+        <ConversationPanel
+          selectedConversationId={selectedConversationId}
+          onSelectedConversationChange={setSelectedConversationId}
+        />
       </div>
 
       <BulkSendMessagesDialog

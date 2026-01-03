@@ -7,9 +7,9 @@ import type {
   MutationCtx,
   ActionCtx,
 } from '../../../_generated/server';
-import { api } from '../../../_generated/api';
 import type { AuthenticatedUser } from '../types';
 import { UnauthenticatedError } from '../errors';
+import { authComponent } from '../../../auth';
 
 /**
  * Require authenticated user from context
@@ -18,7 +18,7 @@ import { UnauthenticatedError } from '../errors';
 export async function requireAuthenticatedUser(
   ctx: QueryCtx | MutationCtx | ActionCtx,
 ): Promise<AuthenticatedUser> {
-  const authUser = await ctx.runQuery(api.users.getCurrentUser, {});
+  const authUser = await authComponent.getAuthUser(ctx);
 
   if (!authUser || !authUser._id) {
     throw new UnauthenticatedError();

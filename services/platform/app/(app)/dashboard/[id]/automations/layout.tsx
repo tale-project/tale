@@ -54,7 +54,7 @@ export default function AutomationsLayout({
   // Redirect non-admin/non-developer users
   useEffect(() => {
     if (userContext && !isAuthorized) {
-      router.push(`/dashboard/${params.id}`);
+      router.push(`/dashboard/${params.id}/chat`);
     }
   }, [userContext, isAuthorized, router, params.id]);
 
@@ -107,7 +107,18 @@ export default function AutomationsLayout({
               {t('title')}&nbsp;&nbsp;
             </span>
             {automation?.name && !editMode && (
-              <span className="text-foreground" onClick={() => setEditMode(true)}>
+              <span
+                role="button"
+                tabIndex={0}
+                className="text-foreground cursor-pointer"
+                onClick={() => setEditMode(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEditMode(true);
+                  }
+                }}
+              >
                 /&nbsp;&nbsp;{automation?.name}
               </span>
             )}

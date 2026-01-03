@@ -62,7 +62,9 @@ const MobileNavigationItem = ({
         onClick={onClose}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full',
-          isActive ? 'bg-muted text-foreground' : 'hover:bg-muted text-muted-foreground',
+          isActive
+            ? 'bg-muted text-foreground'
+            : 'hover:bg-muted text-muted-foreground',
         )}
       >
         {Icon && <Icon className="size-5 shrink-0" />}
@@ -134,7 +136,7 @@ export function MobileNavigation({ role }: MobileNavigationProps) {
             {/* Header - matches mobile nav height (52px = 8px + 32px + 8px) */}
             <div className="flex-shrink-0 h-[52px] px-4 py-2 border-b border-border flex items-center">
               <Link
-                href={`/dashboard/${businessId}`}
+                href={`/dashboard/${businessId}/chat`}
                 onClick={() => setIsOpen(false)}
                 className="flex items-center"
               >

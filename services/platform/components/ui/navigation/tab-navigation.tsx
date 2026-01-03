@@ -86,9 +86,11 @@ export function TabNavigation({
   const isPathActive = useCallback(
     (item: TabNavigationItem): boolean => {
       const mode = item.matchMode ?? matchMode;
+      // Strip query parameters from href for comparison since pathname doesn't include them
+      const hrefPath = item.href.split('?')[0];
       return mode === 'exact'
-        ? pathname === item.href
-        : pathname.startsWith(item.href);
+        ? pathname === hrefPath
+        : pathname.startsWith(hrefPath);
     },
     [pathname, matchMode],
   );
@@ -141,7 +143,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
+        'relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
         standalone && 'bg-background sticky z-20',
         className,
       )}
@@ -160,7 +162,7 @@ export function TabNavigation({
             prefetch={prefetch}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
-              'h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+              'relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
               isActive
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground',

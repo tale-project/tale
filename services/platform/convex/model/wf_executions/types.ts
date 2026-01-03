@@ -12,11 +12,10 @@ export type WorkflowExecution = Doc<'wfExecutions'>;
 export type ExecutionStatus = WorkflowExecution['status'];
 export type ExecutionVariables = Record<string, unknown>;
 
-export interface DeserializedWorkflowExecution
-  extends Omit<
-    WorkflowExecution,
-    'workflowConfig' | 'stepsConfig' | 'variables'
-  > {
+export interface DeserializedWorkflowExecution extends Omit<
+  WorkflowExecution,
+  'workflowConfig' | 'stepsConfig' | 'variables'
+> {
   workflowConfig: unknown;
   stepsConfig: Record<string, unknown>;
   variables: ExecutionVariables;
@@ -107,4 +106,6 @@ export interface PaginatedExecutionsResult {
   totalPages: number;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
+  /** True if the query hit scan limits and results may be incomplete */
+  hasMore?: boolean;
 }
