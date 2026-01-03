@@ -232,7 +232,8 @@ def delete_job(job_id: str) -> bool:
             return True
         except FileNotFoundError:
             return False
-        except OSError:
+        except OSError as e:
+            logger.warning(f"Failed to delete job file {job_id}: {e}")
             return False
 
 
