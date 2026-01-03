@@ -67,7 +67,7 @@ export function CreateAutomationDialog({
         title: t('toast.created'),
         variant: 'success',
       });
-      router.push(`/dashboard/${organizationId}/automations/${wfDefinitionId}`);
+      router.push(`/dashboard/${organizationId}/automations/${wfDefinitionId}?panel=ai-chat`);
     } catch {
       toast({
         title: t('toast.createFailed'),

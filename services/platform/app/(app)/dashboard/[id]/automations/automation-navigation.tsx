@@ -65,7 +65,7 @@ export function AutomationNavigation({
     ? [
         {
           label: t('navigation.editor'),
-          href: `/dashboard/${organizationId}/automations/${automationId}`,
+          href: `/dashboard/${organizationId}/automations/${automationId}?panel=ai-chat`,
           matchMode: 'exact',
         },
         {
@@ -137,7 +137,7 @@ export function AutomationNavigation({
       });
 
       // Navigate to the draft
-      router.push(`/dashboard/${organizationId}/automations/${result.draftId}`);
+      router.push(`/dashboard/${organizationId}/automations/${result.draftId}?panel=ai-chat`);
 
       // Show appropriate message based on whether it's new or existing
       if (result.isNewDraft) {
@@ -166,7 +166,7 @@ export function AutomationNavigation({
 
   const handleVersionChange = (versionId: string) => {
     const currentPath = pathname.split('/automations/')[0];
-    router.push(`${currentPath}/automations/${versionId}`);
+    router.push(`${currentPath}/automations/${versionId}?panel=ai-chat`);
   };
 
   return (
