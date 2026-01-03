@@ -50,6 +50,7 @@ import {
   generateDocxResponseValidator,
   retryRagIndexingResponseValidator,
   sortOrderValidator,
+  ragInfoValidator,
 } from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
 
@@ -322,6 +323,181 @@ export const listDocumentsByExtension = internalQuery({
   returns: v.array(documentByExtensionItemValidator),
   handler: async (ctx, args) => {
     return await DocumentsModel.listDocumentsByExtension(ctx, args);
+  },
+});
+
+/**
+ * Update document RAG info (internal)
+ *
+ * Updates the ragInfo field on a document to track RAG indexing status.
+ * Called by ragAction after uploading to RAG service.
+ */
+export const updateDocumentRagInfo = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+    ragInfo: ragInfoValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.documentId, { ragInfo: args.ragInfo });
+    return null;
+  },
+});
+
+/**
+ * Calculate polling interval based on attempt number.
+ *
+ * Progressive intervals to cover ~24 hours with 50 attempts:
+ * - Attempts 1-30: 2 minutes each (~60 minutes total)
+ * - Attempts 31-50: Progressive increase from 15 to 129 minutes (~24 hours total)
+ */
+const getPollingInterval = (attempt: number): number => {
+  const MINUTE = 60 * 1000;
+
+  if (attempt < 30) {
+    // First hour: check every 2 minutes
+    return 2 * MINUTE;
+  }
+
+  // After first hour: progressively increase interval
+  // Formula: 15 + (attempt - 30) * 6 minutes
+  // - Attempt 31: 15 minutes
+  // - Attempt 40: 69 minutes
+  // - Attempt 50: 129 minutes
+  return (15 + (attempt - 30) * 6) * MINUTE;
+};
+
+/**
+ * Check RAG job status (internal action)
+ *
+ * Polls RAG service with progressive intervals:
+ * - First check: 10 seconds after upload (scheduled by ragAction)
+ * - Attempts 2-30: every 2 minutes (~1 hour coverage)
+ * - Attempts 31-50: progressive increase from 15 to 129 minutes (~23 hours)
+ * - Maximum 50 attempts, final check at ~24 hours
+ * - Terminates when status is 'completed' or 'failed'
+ */
+export const checkRagJobStatus = internalAction({
+  args: {
+    documentId: v.id('documents'),
+    attempt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const attempt = args.attempt ?? 1;
+    const maxAttempts = 50;
+
+    const document = await ctx.runQuery(internal.documents.getDocumentById, {
+      documentId: args.documentId,
+    });
+
+    if (!document?.ragInfo?.jobId) {
+      return null;
+    }
+
+    // Terminate: status already in terminal state (completed or failed)
+    if (
+      document.ragInfo.status === 'completed' ||
+      document.ragInfo.status === 'failed'
+    ) {
+      return null;
+    }
+
+    // Terminate: max attempts reached
+    if (attempt > maxAttempts) {
+      console.warn(
+        `[checkRagJobStatus] Max attempts (${maxAttempts}) reached for document ${args.documentId}`,
+      );
+      await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
+        documentId: args.documentId,
+        ragInfo: {
+          status: 'failed',
+          jobId: document.ragInfo.jobId,
+          error: `Job status check timed out after ${maxAttempts} attempts`,
+        },
+      });
+      return null;
+    }
+
+    // Query RAG service for job status
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+    const url = `${ragUrl}/api/v1/jobs/${document.ragInfo.jobId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `[checkRagJobStatus] RAG service returned ${response.status} for job ${document.ragInfo.jobId} (attempt ${attempt}/${maxAttempts})`,
+        );
+        // Schedule next attempt on HTTP error
+        await ctx.scheduler.runAfter(
+          getPollingInterval(attempt),
+          internal.documents.checkRagJobStatus,
+          { documentId: args.documentId, attempt: attempt + 1 },
+        );
+        return null;
+      }
+
+      const job = (await response.json()) as {
+        state: 'queued' | 'running' | 'completed' | 'failed';
+        updated_at?: number;
+        error?: string;
+        message?: string;
+      };
+
+      // Terminate: job reached terminal state
+      if (job.state === 'completed' || job.state === 'failed') {
+        await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
+          documentId: args.documentId,
+          ragInfo: {
+            status: job.state,
+            jobId: document.ragInfo.jobId,
+            indexedAt: job.state === 'completed' ? job.updated_at : undefined,
+            error:
+              job.state === 'failed'
+                ? job.error || job.message || 'Unknown error'
+                : undefined,
+          },
+        });
+        return null;
+      }
+
+      // Update status if changed to running
+      if (job.state === 'running' && document.ragInfo.status !== 'running') {
+        await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
+          documentId: args.documentId,
+          ragInfo: {
+            status: 'running',
+            jobId: document.ragInfo.jobId,
+          },
+        });
+      }
+
+      // Schedule next attempt
+      await ctx.scheduler.runAfter(
+        getPollingInterval(attempt),
+        internal.documents.checkRagJobStatus,
+        { documentId: args.documentId, attempt: attempt + 1 },
+      );
+    } catch (error) {
+      console.error(
+        `[checkRagJobStatus] Error checking job status (attempt ${attempt}/${maxAttempts}):`,
+        error,
+      );
+      // Schedule next attempt on network error
+      await ctx.scheduler.runAfter(
+        getPollingInterval(attempt),
+        internal.documents.checkRagJobStatus,
+        { documentId: args.documentId, attempt: attempt + 1 },
+      );
+    }
+
+    return null;
   },
 });
 
@@ -814,3 +990,4 @@ export const retryRagIndexing = action({
     }
   },
 });
+

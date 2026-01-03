@@ -8,12 +8,14 @@ import {
   type Row,
   type SortingState,
 } from '@tanstack/react-table';
+import { usePreloadedQuery } from 'convex/react';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatFileSize } from '@/lib/utils/document-helpers';
 import { OneDriveIcon } from '@/components/icons';
-import { DocumentItem } from '@/types/documents';
+import type { DocumentItem } from '@/types/documents';
+import type { PreloadedDocuments } from '../utils/preload-documents-data';
 import { DocumentRowActions } from './document-row-actions';
 import { DocumentPreviewDialog } from './document-preview-dialog';
 import { DocumentIcon } from '@/components/ui/document-icon';
@@ -25,7 +27,8 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { useUrlDialog } from '@/hooks/use-url-dialog';
 
 export interface DocumentTableProps {
-  items: DocumentItem[];
+  /** Preloaded documents from server for SSR + real-time reactivity */
+  preloadedDocuments: PreloadedDocuments;
   searchQuery?: string;
   organizationId: string;
   currentFolderPath?: string;
@@ -35,7 +38,7 @@ export interface DocumentTableProps {
 }
 
 export function DocumentTable({
-  items,
+  preloadedDocuments,
   searchQuery,
   organizationId,
   currentFolderPath,
@@ -45,6 +48,11 @@ export function DocumentTable({
 }: DocumentTableProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tTables } = useT('tables');
+
+  // Use preloaded data with real-time reactivity
+  // This provides SSR benefits AND automatic updates when data changes
+  const documentsData = usePreloadedQuery(preloadedDocuments);
+  const items = documentsData.items ?? [];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -88,7 +96,9 @@ export function DocumentTable({
   // Update URL when debounced search changes
   useEffect(() => {
     // Skip URL update if the debounced query matches the initial search query
-    if (debouncedQuery === searchQuery) return;
+    // Normalize both to empty string for comparison
+    const normalizedSearchQuery = searchQuery ?? '';
+    if (debouncedQuery === normalizedSearchQuery) return;
 
     const params = new URLSearchParams(baseParams.toString());
     if (debouncedQuery.trim().length > 0) {

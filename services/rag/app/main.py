@@ -40,6 +40,19 @@ async def lifespan(app: FastAPI):
         logger.exception("Failed to initialize cognee")
         # Continue anyway - some endpoints may still work
 
+    # Job cleanup on startup
+    if settings.job_cleanup_on_startup:
+        try:
+            from .services import job_store
+            result = job_store.cleanup_stale_jobs()
+            if result["deleted"] > 0:
+                logger.info(
+                    f"Cleaned up {result['deleted']} stale jobs on startup: "
+                    f"{result['by_reason']}"
+                )
+        except Exception:
+            logger.exception("Failed to cleanup stale jobs on startup")
+
     yield
 
     # Shutdown
