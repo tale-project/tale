@@ -54,13 +54,13 @@ const NavigationItem = ({
 
   const linkProps = item.external
     ? {
-      href: item.href,
-      target: '_blank',
-      rel: 'noopener noreferrer',
-    }
+        href: item.href,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      }
     : {
-      href: item.href,
-    };
+        href: item.href,
+      };
 
   return (
     <>
@@ -110,7 +110,7 @@ export function Navigation({ role }: { role?: string | null }) {
       <div className="flex-shrink-0 py-2 flex items-center justify-center">
         <Link
           className="flex items-center justify-center"
-          href={`/dashboard/${businessId}`}
+          href={`/dashboard/${businessId}/chat`}
         >
           <TaleLogo />
         </Link>

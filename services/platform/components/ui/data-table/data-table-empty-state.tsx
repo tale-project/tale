@@ -55,7 +55,14 @@ export function DataTableEmptyState({
         {Icon && <Icon className="size-6 text-secondary mb-4" />}
         <div className="text-lg font-semibold leading-tight mb-1">{title}</div>
         {description && (
-          <p className={cn('text-sm text-muted-foreground', actionMenu && 'mb-4')}>{description}</p>
+          <p
+            className={cn(
+              'text-sm text-muted-foreground',
+              actionMenu && 'mb-4',
+            )}
+          >
+            {description}
+          </p>
         )}
         {actionMenu}
       </VStack>
@@ -88,11 +95,7 @@ export function DataTableFilteredEmptyState({
   // If there's header content, wrap in a container with proper layout
   if (headerContent) {
     return (
-      <div
-        className={cn(
-          stickyLayout ? 'flex flex-col flex-1 min-h-0' : 'space-y-4',
-        )}
-      >
+      <>
         <div className={cn(stickyLayout && 'flex-shrink-0 pb-4')}>
           {headerContent}
         </div>
@@ -104,7 +107,7 @@ export function DataTableFilteredEmptyState({
         >
           {content}
         </Center>
-      </div>
+      </>
     );
   }
 

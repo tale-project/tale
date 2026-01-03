@@ -164,7 +164,9 @@ export function ConversationHeader({
                 <DotIcon className="flex-shrink-0" />
               </>
             )}
-            <span className="truncate min-w-0">{conversation.title}</span>
+            <span title={conversation.title} className="truncate max-w-xl">
+              {conversation.title}
+            </span>
           </h2>
 
           {/* Metadata */}
