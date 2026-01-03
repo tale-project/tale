@@ -33,7 +33,7 @@ const RadioGroup = forwardRef<
         </Label>
       )}
       <RadioGroupPrimitive.Root
-        className={cn('grid space-2', className)}
+        className={cn('grid gap-2', className)}
         {...props}
         ref={ref}
         required={required}

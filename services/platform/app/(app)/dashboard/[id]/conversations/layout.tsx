@@ -27,7 +27,9 @@ export default async function ConversationsLayout({
         <ConversationsNavigation organizationId={organizationId} />
       </StickyHeader>
       <ErrorBoundaryWithParams>
-        <ContentWrapper>{children}</ContentWrapper>
+        <ContentWrapper className="flex flex-row size-full flex-1 max-h-full">
+          {children}
+        </ContentWrapper>
       </ErrorBoundaryWithParams>
     </>
   );

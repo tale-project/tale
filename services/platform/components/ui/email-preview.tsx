@@ -87,6 +87,135 @@ const ALLOWED_ATTR = [
   'padding-inline-end',
 ];
 
+// Allowlist of safe CSS properties for email rendering
+// Excludes: position, background-image/url (tracking), expression, behavior, -moz-binding
+const ALLOWED_CSS_PROPERTIES = new Set([
+  // Typography
+  'color',
+  'font',
+  'font-family',
+  'font-size',
+  'font-style',
+  'font-weight',
+  'font-variant',
+  'letter-spacing',
+  'line-height',
+  'text-align',
+  'text-decoration',
+  'text-indent',
+  'text-transform',
+  'white-space',
+  'word-spacing',
+  'word-wrap',
+  'word-break',
+  'overflow-wrap',
+  // Box model
+  'margin',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'margin-block-start',
+  'margin-block-end',
+  'margin-inline-start',
+  'margin-inline-end',
+  'padding',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'padding-block-start',
+  'padding-block-end',
+  'padding-inline-start',
+  'padding-inline-end',
+  'border',
+  'border-top',
+  'border-right',
+  'border-bottom',
+  'border-left',
+  'border-width',
+  'border-style',
+  'border-color',
+  'border-radius',
+  'border-collapse',
+  'border-spacing',
+  // Sizing
+  'width',
+  'height',
+  'min-width',
+  'min-height',
+  'max-width',
+  'max-height',
+  // Display & layout (no position/z-index to prevent overlay attacks)
+  'display',
+  'visibility',
+  'opacity',
+  'vertical-align',
+  'float',
+  'clear',
+  'overflow',
+  'overflow-x',
+  'overflow-y',
+  // Background (color only, no images/urls)
+  'background-color',
+  // Table
+  'table-layout',
+  'empty-cells',
+  'caption-side',
+  // List
+  'list-style',
+  'list-style-type',
+  // Flexbox (safe subset)
+  'flex',
+  'flex-direction',
+  'flex-wrap',
+  'justify-content',
+  'align-items',
+  'align-content',
+  'gap',
+  'row-gap',
+  'column-gap',
+]);
+
+/**
+ * Sanitize a CSS style string by only allowing safe properties.
+ * Blocks: url(), expression(), behavior, position, z-index, and other dangerous values.
+ */
+function sanitizeCssStyle(styleString: string): string {
+  const sanitizedParts: string[] = [];
+
+  // Parse style string into property-value pairs
+  const declarations = styleString.split(';');
+
+  for (const declaration of declarations) {
+    const colonIndex = declaration.indexOf(':');
+    if (colonIndex === -1) continue;
+
+    const property = declaration.slice(0, colonIndex).trim().toLowerCase();
+    const value = declaration.slice(colonIndex + 1).trim();
+
+    // Skip if property not in allowlist
+    if (!ALLOWED_CSS_PROPERTIES.has(property)) continue;
+
+    // Block dangerous values: url(), expression(), javascript:, data:, behavior, -moz-binding
+    const lowerValue = value.toLowerCase();
+    if (
+      lowerValue.includes('url(') ||
+      lowerValue.includes('expression(') ||
+      lowerValue.includes('javascript:') ||
+      lowerValue.includes('data:') ||
+      lowerValue.includes('behavior:') ||
+      lowerValue.includes('-moz-binding')
+    ) {
+      continue;
+    }
+
+    sanitizedParts.push(`${property}: ${value}`);
+  }
+
+  return sanitizedParts.join('; ');
+}
+
 export function sanitizePreviewHtml(html: string): string {
   // First, remove plain text quote markers (> at start of lines)
   const processed = html
@@ -98,22 +227,21 @@ export function sanitizePreviewHtml(html: string): string {
     .replace(/(<br\s*\/?>\s*)(&gt;\s*)+/gi, '$1')
     .replace(/(<br\s*\/?>\s*)(>\s*)+/gi, '$1');
 
-  // Add hooks to preserve styles and modify links
-  DOMPurify.addHook('uponSanitizeElement', (node) => {
-    if (node instanceof Element && node.hasAttribute('style')) {
-      const styleAttr = node.getAttribute('style');
-      if (styleAttr) {
-        (node as any).__originalStyle = styleAttr;
-      }
-    }
-  });
-
+  // Add hook to sanitize styles and modify links
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
     if (!(node instanceof Element)) return;
 
-    if ((node as any).__originalStyle) {
-      node.setAttribute('style', (node as any).__originalStyle);
-      delete (node as any).__originalStyle;
+    // Sanitize inline styles through our CSS allowlist
+    if (node.hasAttribute('style')) {
+      const rawStyle = node.getAttribute('style');
+      if (rawStyle) {
+        const sanitizedStyle = sanitizeCssStyle(rawStyle);
+        if (sanitizedStyle) {
+          node.setAttribute('style', sanitizedStyle);
+        } else {
+          node.removeAttribute('style');
+        }
+      }
     }
 
     if (node.tagName === 'A') {
@@ -128,7 +256,6 @@ export function sanitizePreviewHtml(html: string): string {
     ALLOW_DATA_ATTR: false,
   });
 
-  DOMPurify.removeHook('uponSanitizeElement');
   DOMPurify.removeHook('afterSanitizeAttributes');
 
   return sanitized;

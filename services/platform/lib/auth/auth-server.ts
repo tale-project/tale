@@ -33,12 +33,18 @@ async function refreshAuthToken(): Promise<string | undefined> {
     console.log('Refreshing JWT token using session...');
 
     // Call the Better Auth Convex token endpoint to get a fresh JWT
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch(`${siteUrl}/api/auth/convex/token`, {
       method: 'GET',
       headers: {
         Cookie: `${cookieName}=${sessionToken}`,
       },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // 401 means the session itself expired - user needs to log in again
@@ -178,12 +184,18 @@ export async function getAuthToken(): Promise<string | undefined> {
     console.log('Attempting HTTP fallback to /api/auth/convex/token');
 
     // Call the Better Auth Convex token endpoint
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch(`${siteUrl}/api/auth/convex/token`, {
       method: 'GET',
       headers: {
         Cookie: `${cookieName}=${sessionToken}`,
       },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // 401 is expected when session is expired or invalid - don't log as error

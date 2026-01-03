@@ -1,6 +1,13 @@
 'use client';
 
-import { HTMLAttributes, useEffect, useState, forwardRef, memo } from 'react';
+import {
+  HTMLAttributes,
+  useEffect,
+  useState,
+  forwardRef,
+  memo,
+  useCallback,
+} from 'react';
 import ReactDatePicker from 'react-datepicker';
 import {
   Calendar as CalendarIcon,
@@ -33,7 +40,7 @@ interface DateInputHeaderProps {
   nextMonthButtonDisabled: boolean;
 }
 
-function DateInputHeader({
+const DateInputHeader = memo(function DateInputHeader({
   date,
   decreaseMonth,
   increaseMonth,
@@ -44,7 +51,7 @@ function DateInputHeader({
     <div className="flex items-center justify-between px-1 mb-2">
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         disabled={prevMonthButtonDisabled}
         onClick={decreaseMonth}
@@ -57,7 +64,7 @@ function DateInputHeader({
       </p>
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         size="sm"
         disabled={nextMonthButtonDisabled}
         onClick={increaseMonth}
@@ -67,7 +74,7 @@ function DateInputHeader({
       </Button>
     </div>
   );
-}
+});
 
 interface CustomInputProps {
   value?: string;
@@ -91,7 +98,10 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
       )}
     >
       <CalendarIcon
-        className={cn('size-4 text-foreground shrink-0', isLoading && 'hidden')}
+        className={cn(
+          'size-4 text-muted-foreground shrink-0',
+          isLoading && 'hidden',
+        )}
       />
       {isLoading && (
         <Loader2 className="size-4 mr-2 text-foreground animate-spin" />
@@ -131,26 +141,29 @@ export function DatePickerWithRange({
     setEndDate(defaultDate?.to ? startOfDay(defaultDate.to) : null);
   }, [defaultDate?.from, defaultDate?.to, startDate]);
 
-  const handleDateChange = (dates: [Date | null, Date | null]) => {
-    const [start, end] = dates;
+  const handleDateChange = useCallback(
+    (dates: [Date | null, Date | null]) => {
+      const [start, end] = dates;
 
-    // Update local state immediately for optimistic UI
-    setStartDate(start);
-    setEndDate(end);
+      // Update local state immediately for optimistic UI
+      setStartDate(start);
+      setEndDate(end);
 
-    // Only call onChange when both dates are selected or both are cleared
-    if (start && end) {
-      onChange({ from: start, to: end });
-    } else if (!start && !end) {
-      onChange(undefined);
-    }
-  };
+      // Only call onChange when both dates are selected or both are cleared
+      if (start && end) {
+        onChange({ from: start, to: end });
+      } else if (!start && !end) {
+        onChange(undefined);
+      }
+    },
+    [onChange],
+  );
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setStartDate(null);
     setEndDate(null);
     onChange(undefined);
-  };
+  }, [onChange]);
 
   return (
     <div className={cn(styles.wrapper, className)}>
