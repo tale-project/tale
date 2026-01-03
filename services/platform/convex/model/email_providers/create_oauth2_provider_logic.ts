@@ -23,6 +23,8 @@ export interface CreateOAuth2ProviderArgs {
   };
   isDefault: boolean;
   accountType?: 'personal' | 'organizational' | 'both';
+  clientId?: string;
+  clientSecret?: string;
 }
 
 export interface CreateOAuth2ProviderDependencies {
@@ -54,19 +56,35 @@ export interface CreateOAuth2ProviderDependencies {
 }
 
 /**
- * Get OAuth2 credentials from environment variables
+ * Get OAuth2 credentials from overrides or environment variables
  */
-function getOAuth2Credentials(provider: 'gmail' | 'microsoft'): {
+function getOAuth2Credentials(
+  provider: 'gmail' | 'microsoft',
+  overrides?: { clientId?: string; clientSecret?: string },
+): {
   clientId: string;
   clientSecret: string;
 } {
+  // If overrides provided, use them (organization-level credentials)
+  if (overrides?.clientId && overrides?.clientSecret) {
+    return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
+  }
+
+  // Warn if partial credentials provided (indicates user confusion)
+  if (overrides?.clientId || overrides?.clientSecret) {
+    console.warn(
+      'Partial OAuth2 credentials provided. Both clientId and clientSecret are required for org-level credentials. Falling back to environment variables.',
+    );
+  }
+
+  // Otherwise fall back to env vars (platform-level credentials)
   if (provider === 'gmail') {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
       throw new Error(
-        'Missing Google OAuth2 credentials. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
+        'Missing Google OAuth2 credentials. Please provide Client ID and Client Secret, or set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
       );
     }
 
@@ -89,15 +107,18 @@ function getOAuth2Credentials(provider: 'gmail' | 'microsoft'): {
 
 /**
  * Main logic for creating OAuth2 email provider with server-side credentials
- * Fetches OAuth2 credentials from environment variables and encrypts them
+ * Fetches OAuth2 credentials from overrides or environment variables and encrypts them
  */
 export async function createOAuth2ProviderLogic(
   ctx: ActionCtx,
   args: CreateOAuth2ProviderArgs,
   deps: CreateOAuth2ProviderDependencies,
 ): Promise<Doc<'emailProviders'>['_id']> {
-  // Get OAuth2 credentials from environment variables
-  const { clientId, clientSecret } = getOAuth2Credentials(args.provider);
+  // Get OAuth2 credentials from overrides or environment variables
+  const { clientId, clientSecret } = getOAuth2Credentials(args.provider, {
+    clientId: args.clientId,
+    clientSecret: args.clientSecret,
+  });
 
   // Encrypt client secret
   let clientSecretEncrypted: string;
