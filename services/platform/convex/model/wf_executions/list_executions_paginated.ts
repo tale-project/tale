@@ -14,6 +14,10 @@ import {
   MAX_PAGE_SIZE,
 } from '../../lib/pagination';
 
+// Maximum number of documents to scan to prevent "Too many bytes read" error
+// Convex limit is 16MB per query, typical execution doc ~1-5KB, so 2000 is safe
+const MAX_SCAN_LIMIT = 2000;
+
 export async function listExecutionsPaginated(
   ctx: QueryCtx,
   args: ListExecutionsPaginatedArgs,
@@ -64,10 +68,20 @@ export async function listExecutionsPaginated(
     })
     .order('desc');
 
-  // Collect all matching items for total count and pagination
+  // Collect matching items with scan limit to prevent "Too many bytes read" error
   const allMatching: WorkflowExecution[] = [];
+  let scannedCount = 0;
+  let reachedScanLimit = false;
 
   for await (const execution of baseQuery) {
+    scannedCount++;
+
+    // Stop scanning if we hit the limit to prevent memory/byte errors
+    if (scannedCount > MAX_SCAN_LIMIT) {
+      reachedScanLimit = true;
+      break;
+    }
+
     // Apply in-memory filters
     if (statusSet && !statusSet.has(execution.status)) {
       continue;
@@ -90,7 +104,8 @@ export async function listExecutionsPaginated(
     allMatching.push(execution as WorkflowExecution);
   }
 
-  const total = allMatching.length;
+  // If we hit the scan limit, total is approximate (at least this many)
+  const total = reachedScanLimit ? allMatching.length : allMatching.length;
 
   // Apply sorting
   const sortField = args.sortField || 'startedAt';
@@ -116,5 +131,6 @@ export async function listExecutionsPaginated(
     totalPages,
     hasNextPage: page < totalPages,
     hasPreviousPage: page > 1,
+    hasMore: reachedScanLimit,
   };
 }

@@ -92,7 +92,7 @@ export function Conversations({
     type: 'individual',
     selectedIds: new Set(),
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkSendMessagesDialog, setBulkSendMessagesDialog] = useState({
     isOpen: false,
     isSending: false,
@@ -197,6 +197,8 @@ export function Conversations({
   }, []);
 
   const handleSendMessages = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -205,6 +207,7 @@ export function Conversations({
       return;
     }
 
+    setIsBulkProcessing(true);
     setBulkSendMessagesDialog({
       isOpen: true,
       isSending: true,
@@ -271,10 +274,14 @@ export function Conversations({
         isOpen: false,
         isSending: false,
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
   };
 
   const handleBulkResolveConversations = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -283,7 +290,7 @@ export function Conversations({
       return;
     }
 
-    setIsLoading(true);
+    setIsBulkProcessing(true);
 
     try {
       const conversationIds = isAllSelection(selectionState)
@@ -312,11 +319,14 @@ export function Conversations({
         title: tConversations('bulk.resolveFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
-    setIsLoading(false);
   };
 
   const handleReopenConversations = async () => {
+    if (isBulkProcessing) return;
+
     if (!businessId || typeof businessId !== 'string') {
       toast({
         title: tCommon('errors.organizationNotFound'),
@@ -325,7 +335,7 @@ export function Conversations({
       return;
     }
 
-    setIsLoading(true);
+    setIsBulkProcessing(true);
 
     try {
       const conversationIds = isAllSelection(selectionState)
@@ -354,8 +364,9 @@ export function Conversations({
         title: tConversations('bulk.reopenFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsBulkProcessing(false);
     }
-    setIsLoading(false);
   };
 
   const selectAllChecked = isSelectAllIndeterminate
@@ -401,6 +412,7 @@ export function Conversations({
                 <Button
                   size="sm"
                   onClick={handleApproveSelected}
+                  disabled={isBulkProcessing}
                   className="flex-1"
                 >
                   {tConversations('bulk.sendMessages')}
@@ -411,8 +423,12 @@ export function Conversations({
                   size="sm"
                   variant="outline"
                   onClick={handleBulkResolveConversations}
+                  disabled={isBulkProcessing}
                   className="flex-1"
                 >
+                  {isBulkProcessing && (
+                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                  )}
                   {tConversations('bulk.close')}
                 </Button>
               )}
@@ -421,8 +437,12 @@ export function Conversations({
                   size="sm"
                   variant="outline"
                   onClick={handleReopenConversations}
+                  disabled={isBulkProcessing}
                   className="flex-1"
                 >
+                  {isBulkProcessing && (
+                    <Loader2Icon className="size-3.5 mr-1.5 animate-spin" />
+                  )}
                   {tConversations('bulk.reopen')}
                 </Button>
               )}
@@ -480,7 +500,7 @@ export function Conversations({
           onConversationCheck={handleConversationCheck}
           isConversationSelected={isConversationSelected}
         />
-        {(isLoading || isLoadingFilters) && (
+        {(isBulkProcessing || isLoadingFilters) && (
           <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-10 flex items-center justify-center">
             <div className="flex items-center text-muted-foreground">
               <Loader2Icon className="size-4 mr-2 animate-spin" />

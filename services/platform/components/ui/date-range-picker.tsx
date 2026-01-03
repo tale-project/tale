@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  HTMLAttributes,
-  useEffect,
-  useState,
-  forwardRef,
-  memo,
-  useCallback,
-} from 'react';
+import { HTMLAttributes, useState, forwardRef, memo, useCallback } from 'react';
 import ReactDatePicker from 'react-datepicker';
 import {
   Calendar as CalendarIcon,
@@ -125,21 +118,12 @@ export function DatePickerWithRange({
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
 
-  const [startDate, setStartDate] = useState<Date | null>(
+  const [startDate, setStartDate] = useState<Date | null>(() =>
     defaultDate?.from ? startOfDay(defaultDate.from) : null,
   );
-  const [endDate, setEndDate] = useState<Date | null>(
+  const [endDate, setEndDate] = useState<Date | null>(() =>
     defaultDate?.to ? startOfDay(defaultDate.to) : null,
   );
-
-  useEffect(() => {
-    if (startDate) {
-      return;
-    }
-
-    setStartDate(defaultDate?.from ? startOfDay(defaultDate.from) : null);
-    setEndDate(defaultDate?.to ? startOfDay(defaultDate.to) : null);
-  }, [defaultDate?.from, defaultDate?.to, startDate]);
 
   const handleDateChange = useCallback(
     (dates: [Date | null, Date | null]) => {

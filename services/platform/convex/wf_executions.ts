@@ -62,6 +62,7 @@ export const listExecutionsPaginated = query({
     totalPages: v.number(),
     hasNextPage: v.boolean(),
     hasPreviousPage: v.boolean(),
+    hasMore: v.optional(v.boolean()),
   }),
   handler: async (ctx, args) => {
     return await WfExecutionsModel.listExecutionsPaginated(ctx, args);

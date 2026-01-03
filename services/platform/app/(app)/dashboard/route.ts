@@ -35,5 +35,5 @@ export async function GET(request: NextRequest) {
   if (!organizationId) {
     redirect('/dashboard/create-organization');
   }
-  redirect(`/dashboard/${organizationId}`);
+  redirect(`/dashboard/${organizationId}/chat`);
 }

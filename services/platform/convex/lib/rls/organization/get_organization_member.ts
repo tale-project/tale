@@ -41,9 +41,18 @@ export async function getOrganizationMember(
 
   let member = result?.page?.[0];
 
-  // Fallback to email lookup if no direct match
-  // This handles cases where the JWT userId doesn't match the stored userId
+  // Fallback to email lookup if no direct match.
+  // This handles cases where the JWT userId doesn't match the stored userId, which can occur during:
+  // - Account migrations (e.g., user data moved between auth providers)
+  // - Account linking (e.g., social login linked to existing email account)
+  // - Session/JWT created before user record was updated in Better Auth
+  // NOTE: This fallback adds 2 sequential queries when triggered. Monitor frequency in production.
   if (!member && authUser.email) {
+    console.warn('[RLS] Falling back to email lookup for organization member', {
+      organizationId,
+      userId: authUser.userId,
+      email: authUser.email,
+    });
     const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'user',
       paginationOpts: { cursor: null, numItems: 1 },
