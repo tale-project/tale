@@ -84,7 +84,7 @@ export function AutomationsTable({
   const automations = data?.items ?? [];
 
   const handleRowClick = (row: Row<Doc<'wfDefinitions'>>) => {
-    router.push(`/dashboard/${organizationId}/automations/${row.original._id}`);
+    router.push(`/dashboard/${organizationId}/automations/${row.original._id}?panel=ai-chat`);
   };
 
   // Build filter configs for DataTableFilters component
