@@ -16,6 +16,8 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
+from loguru import logger
+
 from ..config import settings
 from ..models import JobStatus, JobState
 
@@ -209,12 +211,12 @@ def list_all_jobs() -> list[JobStatus]:
                 continue
             path = os.path.join(_JOBS_DIR, filename)
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data: Dict[str, Any] = json.load(f)
                 jobs.append(JobStatus(**data))
             except Exception:
-                # Skip corrupted job files
-                pass
+                # Skip corrupted job files but log for debugging
+                logger.debug(f"Skipping corrupted job file: {filename}")
     return jobs
 
 
