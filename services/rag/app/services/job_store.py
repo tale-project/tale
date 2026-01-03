@@ -316,7 +316,7 @@ def cleanup_stale_jobs(
     now = time.time()
     jobs = list_all_jobs()
 
-    deleted_jobs: list[Dict[str, str]] = []
+    deleted_jobs: list[Dict[str, Any]] = []
     by_reason: Dict[str, int] = {
         "completed_expired": 0,
         "failed_expired": 0,
