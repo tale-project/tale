@@ -6,6 +6,8 @@ import { getDocumentInfo } from './helpers/get_document_info';
 import { uploadTextDocument } from './helpers/upload_text_document';
 import { uploadFileDirect } from './helpers/upload_file_direct';
 import { deleteDocumentById } from './helpers/delete_document';
+import { internal } from '../../../_generated/api';
+import type { Id } from '../../../_generated/dataModel';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -88,6 +90,36 @@ export const ragAction: ActionDefinition<RagActionParams> = {
         });
       }
       documentType = documentInfo.type;
+    }
+
+    // Update document ragInfo and schedule status check (for document uploads only)
+    if (
+      processedParams.operation === 'upload_document' &&
+      uploadResult.success &&
+      uploadResult.jobId
+    ) {
+      const documentId = processedParams.recordId as Id<'documents'>;
+
+      try {
+        // Update document with ragInfo = queued
+        await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
+          documentId,
+          ragInfo: {
+            status: 'queued',
+            jobId: uploadResult.jobId,
+          },
+        });
+
+        // Schedule first status check in 10 seconds
+        await ctx.scheduler.runAfter(
+          10 * 1000,
+          internal.documents.checkRagJobStatus,
+          { documentId, attempt: 1 },
+        );
+      } catch (error) {
+        // Log but don't fail the upload - ragInfo update is best-effort
+        console.error('[ragAction] Failed to update ragInfo:', error);
+      }
     }
 
     // Return result with execution metadata

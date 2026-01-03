@@ -18,6 +18,16 @@ export async function transformToDocumentItem(
     url = fileUrl ?? undefined;
   }
 
+  // Extract RAG status from ragInfo field
+  const ragInfo = (document as any).ragInfo as
+    | {
+        status: 'queued' | 'running' | 'completed' | 'failed';
+        jobId?: string;
+        indexedAt?: number;
+        error?: string;
+      }
+    | undefined;
+
   return {
     id: document._id,
     name:
@@ -51,5 +61,9 @@ export async function transformToDocumentItem(
     isDirectlySelected: (document.metadata as { isDirectlySelected?: boolean })
       ?.isDirectlySelected,
     url,
+    // RAG status from database (if available)
+    ragStatus: ragInfo?.status,
+    ragIndexedAt: ragInfo?.indexedAt,
+    ragError: ragInfo?.error,
   };
 }

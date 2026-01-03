@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Loader2,
   CircleCheck,
@@ -16,12 +16,7 @@ import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import type { RagStatus } from '@/types/documents';
 import { retryRagIndexing } from '../actions/retry-rag-indexing';
-import { fetchSingleRagStatus } from '../actions/fetch-single-rag-status';
 import { useDateFormat } from '@/hooks/use-date-format';
-
-// Statuses that indicate indexing is in progress and should auto-refresh
-const IN_PROGRESS_STATUSES: RagStatus[] = ['pending', 'queued', 'running'];
-const POLL_INTERVAL_MS = 3000; // Poll every 3 seconds
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
@@ -29,10 +24,8 @@ interface RagStatusBadgeProps {
   indexedAt?: number;
   /** Error message (for failed status) */
   error?: string;
-  /** Document ID (required for retry functionality and polling) */
+  /** Document ID (required for retry functionality) */
   documentId?: string;
-  /** Timestamp (in milliseconds) when the document was last modified (for staleness check) */
-  lastModified?: number;
 }
 
 const statusConfig: Record<
@@ -73,29 +66,16 @@ const statusConfig: Record<
 };
 
 export function RagStatusBadge({
-  status: initialStatus,
-  indexedAt: initialIndexedAt,
-  error: initialError,
+  status,
+  indexedAt,
+  error,
   documentId,
-  lastModified,
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
-
-  // Local state for polling - initialized from props
-  const [currentStatus, setCurrentStatus] = useState(initialStatus);
-  const [currentIndexedAt, setCurrentIndexedAt] = useState(initialIndexedAt);
-  const [currentError, setCurrentError] = useState(initialError);
-
-  // Sync local state when props change (e.g., from parent re-render)
-  useEffect(() => {
-    setCurrentStatus(initialStatus);
-    setCurrentIndexedAt(initialIndexedAt);
-    setCurrentError(initialError);
-  }, [initialStatus, initialIndexedAt, initialError]);
 
   // Get translated label for status
   const getStatusLabel = useCallback(
@@ -114,31 +94,6 @@ export function RagStatusBadge({
     [t],
   );
 
-  // Fetch status from server and update local state
-  const pollStatus = useCallback(async () => {
-    if (!documentId) return;
-
-    try {
-      const result = await fetchSingleRagStatus(documentId, lastModified);
-      setCurrentStatus(result.status);
-      setCurrentIndexedAt(result.indexedAt);
-      setCurrentError(result.error);
-    } catch {
-      // Silently fail polling - don't interrupt user experience
-    }
-  }, [documentId, lastModified]);
-
-  // Auto-poll for status updates when indexing is in progress
-  useEffect(() => {
-    if (!currentStatus || !documentId || !IN_PROGRESS_STATUSES.includes(currentStatus)) {
-      return;
-    }
-
-    const intervalId = setInterval(pollStatus, POLL_INTERVAL_MS);
-
-    return () => clearInterval(intervalId);
-  }, [currentStatus, documentId, pollStatus]);
-
   const handleRetry = async () => {
     if (!documentId) {
       toast({
@@ -156,8 +111,7 @@ export function RagStatusBadge({
           title: t('rag.toast.indexingStarted'),
           description: t('rag.toast.indexingQueued'),
         });
-        // Update local state to show pending status, then polling will take over
-        setCurrentStatus('pending');
+        // Status will update automatically via Convex real-time subscription
       } else {
         toast({
           title: t('rag.toast.retryFailed'),
@@ -175,16 +129,10 @@ export function RagStatusBadge({
     }
   };
 
-  // Use local state for rendering
-  const status = currentStatus;
-  const indexedAt = currentIndexedAt;
-  const error = currentError;
+  // Treat undefined/null status as 'not_indexed' - show Index button
+  const effectiveStatus: RagStatus = status || 'not_indexed';
 
-  if (!status) {
-    return <span className="text-muted-foreground text-sm">—</span>;
-  }
-
-  const config = statusConfig[status];
+  const config = statusConfig[effectiveStatus];
   const Icon = config.icon;
 
   const content = (
@@ -192,14 +140,14 @@ export function RagStatusBadge({
       className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
     >
       <Icon
-        className={`size-3.5 ${status === 'running' ? 'animate-spin' : ''} ${config.iconClassName || ''}`}
+        className={`size-3.5 ${effectiveStatus === 'running' ? 'animate-spin' : ''} ${config.iconClassName || ''}`}
       />
-      {getStatusLabel(status)}
+      {getStatusLabel(effectiveStatus)}
     </span>
   );
 
   // Show clickable dialog with indexed date for completed status
-  if (status === 'completed') {
+  if (effectiveStatus === 'completed') {
     const indexedDate = indexedAt ? new Date(indexedAt * 1000) : null;
     const formattedDate = indexedDate
       ? formatDate(indexedDate, 'long')
@@ -213,7 +161,7 @@ export function RagStatusBadge({
           className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
         >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {getStatusLabel(status)}
+          {getStatusLabel(effectiveStatus)}
         </button>
         <ViewDialog
           open={isCompletedDialogOpen}
@@ -235,7 +183,7 @@ export function RagStatusBadge({
   }
 
   // Show failed status with inline retry button
-  if (status === 'failed') {
+  if (effectiveStatus === 'failed') {
     return (
       <span className="inline-flex items-center gap-1.5">
         <button
@@ -244,7 +192,7 @@ export function RagStatusBadge({
           className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
         >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {getStatusLabel(status)}
+          {getStatusLabel(effectiveStatus)}
         </button>
         <ViewDialog
           open={isFailedDialogOpen}
@@ -280,7 +228,7 @@ export function RagStatusBadge({
   }
 
   // Show stale status with prominent reindex button
-  if (status === 'stale') {
+  if (effectiveStatus === 'stale') {
     return (
       <span className="inline-flex items-center gap-2">
         <span
@@ -312,15 +260,15 @@ export function RagStatusBadge({
     );
   }
 
-  // Show not_indexed status with Index button
-  if (status === 'not_indexed') {
+  // Show not_indexed status (or undefined) with Index button
+  if (effectiveStatus === 'not_indexed') {
     return (
       <span className="inline-flex items-center gap-2">
         <span
           className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
         >
           <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {getStatusLabel(status)}
+          {getStatusLabel(effectiveStatus)}
         </span>
         <Button
           size="icon"

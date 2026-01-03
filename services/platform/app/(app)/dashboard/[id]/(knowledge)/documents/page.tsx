@@ -1,17 +1,12 @@
 import { Suspense } from 'react';
-import { fetchQuery } from '@/lib/convex-next-server';
-import { api } from '@/convex/_generated/api';
 import { DocumentTable } from './components/document-table';
-import { Logger } from '@/lib/logger';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { fetchRagStatuses } from './actions/fetch-rag-statuses';
 import { hasMicrosoftAccount } from '@/lib/microsoft-graph-client';
-import type { DocumentItemResponse } from '@/convex/model/documents/types';
 import { DataTableSkeleton } from '@/components/ui/data-table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DocumentsEmptyState } from './components/documents-empty-state';
 import { getT } from '@/lib/i18n/server';
+import { preloadDocumentsData } from './utils/preload-documents-data';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic
@@ -24,8 +19,6 @@ export async function generateMetadata(): Promise<Metadata> {
     description: t('documents.description'),
   };
 }
-
-const logger = new Logger('documents');
 
 /** Skeleton for the documents table with header and rows - matches DocumentTable layout */
 async function DocumentsSkeleton() {
@@ -95,58 +88,26 @@ async function DocumentsPageContent({
   const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
 
   // Parallelize independent fetches for better performance
-  const [documentInfo, hasMsAccount] = await Promise.all([
-    fetchQuery(
-      api.documents.getDocuments,
-      {
-        organizationId: organizationId as string,
-        page: currentPage,
-        size: pageSize,
-        query: searchQuery || '',
-        folderPath: folderPath || '',
-        sortField,
-        sortOrder: sortDirection,
-      },
-      { token },
-    ),
+  // Use preloadQuery for SSR + real-time reactivity via usePreloadedQuery
+  const [preloadedDocuments, hasMsAccount] = await Promise.all([
+    preloadDocumentsData({
+      organizationId,
+      page: currentPage,
+      size: pageSize,
+      query: searchQuery || '',
+      folderPath: folderPath || '',
+      sortField,
+      sortOrder: sortDirection,
+    }),
     // Check if user has Microsoft account connected for OneDrive import
     hasMicrosoftAccount(),
   ]);
 
-  if (!documentInfo.success) {
-    logger.error('Failed to get documents info:', {
-      error: documentInfo.error,
-      organizationId,
-    });
-  }
-
-  // Fetch RAG statuses for all file documents (not folders)
-  // This must be sequential since it depends on documentInfo
-  const fileDocuments = (documentInfo.items || [])
-    .filter((item: DocumentItemResponse) => item.type === 'file')
-    .map((item: DocumentItemResponse) => ({
-      id: item.id,
-      lastModified: item.lastModified ?? 0,
-    }));
-
-  const ragStatuses = await fetchRagStatuses(fileDocuments);
-
-  // Merge RAG statuses into document items
-  const itemsWithRagStatus = (documentInfo.items || []).map(
-    (item: DocumentItemResponse) => {
-      const ragInfo = item.type === 'file' ? ragStatuses[item.id] : undefined;
-      return {
-        ...item,
-        ragStatus: ragInfo?.status,
-        ragIndexedAt: ragInfo?.indexedAt,
-        ragError: ragInfo?.error,
-      };
-    },
-  );
-
+  // RAG status is now stored in the database and returned via getDocuments
+  // DocumentTable uses usePreloadedQuery for SSR + real-time updates
   return (
     <DocumentTable
-      items={itemsWithRagStatus}
+      preloadedDocuments={preloadedDocuments}
       searchQuery={searchQuery}
       organizationId={organizationId}
       currentFolderPath={folderPath}
@@ -166,27 +127,8 @@ export default async function DocumentsPage({
     redirect('/log-in');
   }
 
-  const { id: organizationId } = await params;
-  const { query } = await searchParams;
-
-  // Two-phase loading: check if documents exist before showing skeleton
-  // If no documents and no search query, show empty state directly
-  if (!query?.trim()) {
-    const [hasDocuments, hasMsAccount] = await Promise.all([
-      fetchQuery(api.documents.hasDocuments, { organizationId }, { token }),
-      hasMicrosoftAccount(),
-    ]);
-
-    if (!hasDocuments) {
-      return (
-        <DocumentsEmptyState
-          organizationId={organizationId}
-          hasMicrosoftAccount={hasMsAccount}
-        />
-      );
-    }
-  }
-
+  // Always render DocumentTable - it handles empty state via DataTable's built-in emptyState
+  // This ensures real-time reactivity via usePreloadedQuery when documents are uploaded
   const skeletonFallback = await Promise.resolve(<DocumentsSkeleton />);
 
   return (

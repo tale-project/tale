@@ -20,6 +20,21 @@ export const ragStatusValidator = v.union(
 );
 
 /**
+ * RAG info validator - stored status of document in RAG service
+ */
+export const ragInfoValidator = v.object({
+  status: v.union(
+    v.literal('queued'),
+    v.literal('running'),
+    v.literal('completed'),
+    v.literal('failed'),
+  ),
+  jobId: v.optional(v.string()),
+  indexedAt: v.optional(v.number()),
+  error: v.optional(v.string()),
+});
+
+/**
  * Source provider validator
  */
 export const sourceProviderValidator = v.union(
@@ -101,6 +116,7 @@ export const documentRecordValidator = v.object({
   metadata: v.optional(v.any()),
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
+  ragInfo: v.optional(ragInfoValidator),
 });
 
 /**

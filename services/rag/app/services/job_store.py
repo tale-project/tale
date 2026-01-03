@@ -16,6 +16,8 @@ import threading
 import time
 from typing import Any, Dict, Optional
 
+from loguru import logger
+
 from ..config import settings
 from ..models import JobStatus, JobState
 
@@ -190,3 +192,158 @@ def clear_all_jobs() -> int:
                 except OSError:
                     pass
     return count
+
+
+def list_all_jobs() -> list[JobStatus]:
+    """List all job statuses from disk.
+
+    Returns a list of all JobStatus objects. Corrupted job files are skipped.
+    """
+    jobs: list[JobStatus] = []
+    with _LOCK:
+        try:
+            filenames = os.listdir(_JOBS_DIR)
+        except OSError:
+            return jobs
+
+        for filename in filenames:
+            if not filename.endswith(".json"):
+                continue
+            path = os.path.join(_JOBS_DIR, filename)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data: Dict[str, Any] = json.load(f)
+                jobs.append(JobStatus(**data))
+            except Exception:
+                # Skip corrupted job files but log for debugging
+                logger.debug(f"Skipping corrupted job file: {filename}")
+    return jobs
+
+
+def delete_job(job_id: str) -> bool:
+    """Delete a single job status file from disk.
+
+    Returns True if the job was deleted, False if it did not exist.
+    """
+    path = _job_path(job_id)
+    with _LOCK:
+        try:
+            os.remove(path)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            logger.warning(f"Failed to delete job file {job_id}: {e}")
+            return False
+
+
+def get_job_stats() -> Dict[str, Any]:
+    """Get statistics about jobs.
+
+    Returns a dictionary with:
+    - total: Total number of jobs
+    - by_state: Count of jobs by state
+    - stale: Count of stale jobs (jobs that would be cleaned up with default TTLs)
+    - oldest_by_state: Age in hours of oldest job by state
+    """
+    now = time.time()
+    jobs = list_all_jobs()
+
+    by_state: Dict[str, int] = {
+        JobState.QUEUED.value: 0,
+        JobState.RUNNING.value: 0,
+        JobState.COMPLETED.value: 0,
+        JobState.FAILED.value: 0,
+    }
+    oldest_by_state: Dict[str, Optional[float]] = {
+        JobState.QUEUED.value: None,
+        JobState.RUNNING.value: None,
+        JobState.COMPLETED.value: None,
+        JobState.FAILED.value: None,
+    }
+    stale_count = 0
+
+    for job in jobs:
+        state_key = job.state.value
+        by_state[state_key] += 1
+
+        age_hours = (now - job.updated_at) / 3600
+        current_oldest = oldest_by_state[state_key]
+        if current_oldest is None or age_hours > current_oldest:
+            oldest_by_state[state_key] = round(age_hours, 2)
+
+        # Check if stale using default TTLs
+        if job.state == JobState.COMPLETED and age_hours > settings.job_completed_ttl_hours:
+            stale_count += 1
+        elif job.state == JobState.FAILED and age_hours > settings.job_failed_ttl_hours:
+            stale_count += 1
+        elif job.state in (JobState.QUEUED, JobState.RUNNING) and age_hours > settings.job_orphaned_ttl_hours:
+            stale_count += 1
+
+    return {
+        "total": len(jobs),
+        "by_state": by_state,
+        "stale": stale_count,
+        "oldest_by_state": oldest_by_state,
+    }
+
+
+def cleanup_stale_jobs(
+    *,
+    completed_ttl_hours: Optional[float] = None,
+    failed_ttl_hours: Optional[float] = None,
+    orphaned_ttl_hours: Optional[float] = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Clean up stale jobs based on TTL settings.
+
+    Args:
+        completed_ttl_hours: TTL for completed jobs (uses config default if None)
+        failed_ttl_hours: TTL for failed jobs (uses config default if None)
+        orphaned_ttl_hours: TTL for orphaned running/queued jobs (uses config default if None)
+        dry_run: If True, only report what would be deleted without deleting
+
+    Returns a dictionary with:
+    - scanned: Total number of jobs scanned
+    - deleted: Number of jobs deleted (or would be deleted if dry_run)
+    - by_reason: Count of deletions by reason (completed_expired, failed_expired, orphaned)
+    - deleted_jobs: List of deleted job IDs with reasons
+    """
+    ttl_completed = completed_ttl_hours if completed_ttl_hours is not None else settings.job_completed_ttl_hours
+    ttl_failed = failed_ttl_hours if failed_ttl_hours is not None else settings.job_failed_ttl_hours
+    ttl_orphaned = orphaned_ttl_hours if orphaned_ttl_hours is not None else settings.job_orphaned_ttl_hours
+
+    now = time.time()
+    jobs = list_all_jobs()
+
+    deleted_jobs: list[Dict[str, Any]] = []
+    by_reason: Dict[str, int] = {
+        "completed_expired": 0,
+        "failed_expired": 0,
+        "orphaned": 0,
+    }
+
+    for job in jobs:
+        age_hours = (now - job.updated_at) / 3600
+        reason: Optional[str] = None
+
+        if job.state == JobState.COMPLETED and age_hours > ttl_completed:
+            reason = "completed_expired"
+        elif job.state == JobState.FAILED and age_hours > ttl_failed:
+            reason = "failed_expired"
+        elif job.state in (JobState.QUEUED, JobState.RUNNING) and age_hours > ttl_orphaned:
+            reason = "orphaned"
+
+        if reason:
+            by_reason[reason] += 1
+            deleted_jobs.append({"job_id": job.job_id, "reason": reason, "age_hours": round(age_hours, 2)})
+            if not dry_run:
+                delete_job(job.job_id)
+
+    return {
+        "scanned": len(jobs),
+        "deleted": len(deleted_jobs),
+        "by_reason": by_reason,
+        "deleted_jobs": deleted_jobs,
+        "dry_run": dry_run,
+    }
