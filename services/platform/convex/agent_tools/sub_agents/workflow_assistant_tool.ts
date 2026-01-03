@@ -98,7 +98,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         prompt += `## Context:\n`;
         prompt += `- Organization ID: ${organizationId}\n`;
         if (threadId) {
-          prompt += `- Thread ID: ${threadId} (use this for linking approvals)\n`;
+          prompt += `- Parent Thread ID: ${threadId}\n`;
         }
         if (userId) {
           prompt += `- User ID: ${userId}\n`;
@@ -114,17 +114,30 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         });
 
         console.log('[workflow_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
 
-        // Use the new sub-thread for the generation
-        // Note: maxSteps is configured in createWorkflowAgent (20 for delegation mode)
+        // Extend the context with parentThreadId so that tools (like create_workflow)
+        // can link approvals to the parent thread instead of the sub-thread
+        const contextWithParentThread = {
+          ...ctx,
+          parentThreadId: threadId,
+        };
+
+        // Use the new sub-thread for the generation, but pass the parent threadId
+        // in the context so that approvals are linked to the parent thread
+        // Note: maxSteps is configured in createWorkflowAgent (8 for delegation mode)
+        // This lower limit helps fail faster when the model generates invalid JSON
+        const generationStartTime = Date.now();
         const result = await workflowAgent.generateText(
-          ctx,
+          contextWithParentThread,
           { threadId: subThreadId, userId },
           { prompt },
         );
+        const generationDurationMs = Date.now() - generationStartTime;
 
         // Log the result to understand what we're getting
         console.log('[workflow_assistant_tool] Result:', JSON.stringify({
+          durationMs: generationDurationMs,
           text: result.text,
           textLength: result.text?.length ?? 0,
           finishReason: result.finishReason,

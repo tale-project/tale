@@ -14,15 +14,15 @@ import type { ToolDefinition } from '../types';
 import {
   listPredefinedWorkflows,
   getPredefinedWorkflow,
-  type WorkflowReadListPredefinedResult,
   type WorkflowReadGetPredefinedResult,
 } from './helpers/read_predefined_workflows';
+import { getSyntaxReference } from './helpers/syntax_reference';
 
 const workflowExamplesArgs = z.object({
   operation: z
-    .enum(['list_predefined', 'get_predefined'])
+    .enum(['list_predefined', 'get_predefined', 'get_syntax_reference'])
     .describe(
-      "Operation to perform: 'list_predefined' to list all predefined workflows, 'get_predefined' to get a specific workflow definition",
+      "Operation to perform: 'list_predefined' to list workflows, 'get_predefined' to get a workflow definition, 'get_syntax_reference' to get syntax documentation",
     ),
   // For get_predefined operation
   workflowKey: z
@@ -31,43 +31,75 @@ const workflowExamplesArgs = z.object({
     .describe(
       "Required for 'get_predefined': The workflow key (e.g., 'shopifySyncProducts', 'emailSyncImap', 'generalProductRecommendation'). Use list_predefined to see available keys.",
     ),
+  // For get_syntax_reference operation
+  category: z
+    .enum([
+      'quick_start',
+      'common_patterns',
+      'trigger',
+      'llm',
+      'action',
+      'condition',
+      'loop',
+      'email',
+      'entity_processing',
+      'variables',
+    ])
+    .optional()
+    .describe(
+      "For 'get_syntax_reference': Category of syntax to retrieve. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: 'trigger', 'llm', 'action', 'condition', 'loop', 'email', 'entity_processing', 'variables'.",
+    ),
 });
 
 export const workflowExamplesTool: ToolDefinition = {
   name: 'workflow_examples',
   tool: createTool({
-    description: `Access predefined workflow examples to learn patterns and copy configurations.
+    description: `Access workflow syntax reference and predefined examples.
 
-OPERATIONS:
-• 'list_predefined': List all predefined workflow templates with their names, descriptions, and step counts. Use this to discover available examples.
-• 'get_predefined': Get the complete definition of a specific predefined workflow including all steps and configurations. Use this to study how workflows are structured and copy patterns.
+**⭐ RECOMMENDED WORKFLOW FOR CREATING NEW WORKFLOWS:**
+1. FIRST: get_syntax_reference(category='quick_start') - Get decision tree and avoid common mistakes
+2. THEN: get_syntax_reference(category='common_patterns') - Get skeleton configs for your pattern
+3. OPTIONALLY: get_predefined(workflowKey='...') - Study a similar complete workflow
+4. FINALLY: Create workflow using the patterns learned
 
-WORKFLOW CATEGORIES:
-• Data Sync: shopifySyncProducts, shopifySyncCustomers, circulySyncCustomers, circulySyncProducts, emailSyncImap, onedriveSync
-• Business Logic: generalProductRecommendation, generalCustomerStatusAssessment, conversationAutoReply, productRecommendationEmail
-• RAG Sync: documentRagSync, productRagSync, customerRagSync, workflowRagSync, websitePagesRagSync
-• Website: websiteScan
+**OPERATIONS:**
+• 'get_syntax_reference': Get syntax by category (START HERE)
+• 'list_predefined': List all workflow templates with descriptions
+• 'get_predefined': Get complete workflow definition to study
 
-BEST PRACTICES:
-• Use 'list_predefined' first to see all available examples
-• Use 'get_predefined' to study similar workflows before creating new ones
-• Copy step configurations from predefined workflows to ensure correct structure
+**SYNTAX CATEGORIES (for get_syntax_reference):**
+• ⭐ 'quick_start': Decision tree, common mistakes, step type reference
+• ⭐ 'common_patterns': Pattern skeletons (Entity Processing, Email, LLM Analysis, Data Sync, RAG)
+• 'trigger': Trigger step config (manual, scheduled, webhook)
+• 'llm': LLM step config (requires name + systemPrompt)
+• 'action': Action types (workflow_processing_records, customer, approval, etc.)
+• 'condition': JEXL condition expressions
+• 'loop': Loop step for iteration (data sync, NOT entity processing)
+• 'email': Email sending pattern (conversation + approval)
+• 'entity_processing': One-at-a-time processing pattern
+• 'variables': Variable syntax and JEXL filters
 
-CRITICAL: PROCESSING MULTIPLE RECORDS PATTERN
-For workflows that process multiple customers/products (e.g., "send emails to all inactive customers"):
-• MUST use 'workflow_processing_records' action type with find_unprocessed/record_processed operations
-• Process ONE record per workflow run (scheduled trigger runs repeatedly)
-• See 'generalCustomerStatusAssessment' or 'productRecommendationEmail' for reference patterns
-• NEVER loop through all records at once - use the one-at-a-time pattern with scheduling`,
+**PREDEFINED WORKFLOW CATEGORIES:**
+• Entity Processing: generalCustomerStatusAssessment, productRecommendationEmail, conversationAutoReply
+• Data Sync: shopifySyncProducts, shopifySyncCustomers, emailSyncImap, onedriveSync
+• RAG Sync: documentRagSync, productRagSync, customerRagSync
+• LLM Analysis: generalProductRecommendation, productRelationshipAnalysis`,
     args: workflowExamplesArgs,
-    handler: async (
-      _ctx,
-      args,
-    ): Promise<
-      WorkflowReadListPredefinedResult | WorkflowReadGetPredefinedResult
-    > => {
+    handler: async (_ctx, args) => {
       if (args.operation === 'list_predefined') {
         return listPredefinedWorkflows();
+      }
+
+      if (args.operation === 'get_syntax_reference') {
+        if (!args.category) {
+          return {
+            operation: 'get_syntax_reference',
+            found: false,
+            syntax:
+              "Missing required 'category'. START with 'quick_start' for decision tree, then 'common_patterns' for skeletons. Other options: trigger, llm, action, condition, loop, email, entity_processing, variables.",
+          };
+        }
+        return getSyntaxReference({ category: args.category });
       }
 
       // operation === 'get_predefined'

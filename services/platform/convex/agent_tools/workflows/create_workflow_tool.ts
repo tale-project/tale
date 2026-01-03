@@ -64,20 +64,28 @@ export const createWorkflowTool = {
   name: 'create_workflow' as const,
   tool: createTool({
     description: `Create a new workflow definition with all steps.
-IMPORTANT: This operation requires user approval before the workflow is created. An approval card will be shown in the chat for the user to review and approve.
-Before using this tool, ALWAYS call workflow_examples first to find similar workflows and copy their config structure to avoid schema validation errors.
 
-CRITICAL PATTERN - Processing Multiple Records:
-When creating workflows that process multiple customers/products (e.g., "send email to all inactive customers"):
-• NEVER loop through all records at once
-• ALWAYS use 'workflow_processing_records' action type:
-  1. Step with type='action', config.type='workflow_processing_records', config.parameters.operation='find_unprocessed' to get ONE record
-  2. Process that single record (LLM analysis, create conversation, etc.)
-  3. Step with type='action', config.type='workflow_processing_records', config.parameters.operation='record_processed' to mark done
-  4. Workflow runs on schedule (e.g., every 5 minutes) and processes one record per run
-• config.parameters.tableName: 'customers' or 'products'
-• config.parameters.backoffHours: hours before a record can be reprocessed
-• Reference 'generalCustomerStatusAssessment' or 'productRecommendationEmail' workflows as examples`,
+**⭐ BEFORE USING THIS TOOL:**
+1. Call workflow_examples(operation='get_syntax_reference', category='quick_start')
+2. Call workflow_examples(operation='get_syntax_reference', category='common_patterns')
+3. Optionally study a similar workflow with get_predefined
+
+**CRITICAL JSON RULES:**
+• Use ONLY double quotes (") for ALL strings - NEVER single quotes (')
+• Escape quotes inside strings: \\"
+• Escape newlines: \\n
+• Do NOT include control characters or tabs in strings
+• Verify JSON structure before calling this tool
+
+**WORKFLOW CREATION:**
+• This requires user approval - an approval card will be shown
+• nextSteps goes at step level, NOT inside config
+• LLM steps require: name + systemPrompt
+• Action steps require: config.type
+
+**ENTITY PROCESSING PATTERN:**
+Use workflow_processing_records (find_unprocessed → process → record_processed)
+Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
     args: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z
@@ -97,7 +105,11 @@ When creating workflows that process multiple customers/products (e.g., "send em
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      const { organizationId, threadId } = ctx;
+      // Use parentThreadId if available (when running as sub-agent), otherwise use threadId
+      // This ensures approvals are linked to the parent conversation thread
+      const ctxWithParent = ctx as ToolCtx & { parentThreadId?: string };
+      const { organizationId, threadId: currentThreadId, parentThreadId } = ctxWithParent;
+      const threadId = parentThreadId ?? currentThreadId;
 
       if (!organizationId) {
         return {

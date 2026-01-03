@@ -70,11 +70,32 @@ const stepConfigSchema = z.object({
 export const saveWorkflowDefinitionTool = {
   name: 'save_workflow_definition' as const,
   tool: createTool({
-    description:
-      'Save or update an entire workflow definition (metadata + all steps) in one atomic operation. ' +
-      'Use this when you have regenerated all steps for a workflow and want to replace any existing steps in the database. ' +
-      'IMPORTANT: Before using this tool, ALWAYS call search_workflow_examples first to find similar workflows and copy their config structure to avoid schema validation errors. ' +
-      'When the assistant is connected to a specific automation, it should prefer updating that draft workflow instead of creating a new one.',
+    description: `Save or update an entire workflow definition (metadata + all steps) in one atomic operation.
+
+**WHEN TO USE:**
+- Use this when you need to replace ALL steps for an existing workflow
+- For single step updates, use update_workflow_step instead (more efficient)
+
+**REQUIRED WORKFLOW:**
+1. Call workflow_examples(operation='get_syntax_reference') to get syntax documentation
+2. Call workflow_examples(operation='get_predefined') to study similar workflows
+3. Build your workflow config and steps following the patterns
+4. Call this tool with complete workflow definition
+
+**STEP STRUCTURE:**
+Each step requires: stepSlug, name, stepType, order, config, nextSteps
+- stepSlug: snake_case unique identifier (e.g., "find_customers")
+- stepType: trigger | llm | action | condition | loop
+- config: Configuration object (varies by stepType)
+- nextSteps: Route to next steps (e.g., {success: "next_step", failure: "error"})
+
+**KEY PATTERNS:**
+- Entity Processing: trigger -> find_unprocessed -> condition -> process -> record_processed
+- Email Sending: See workflow_examples(operation='get_syntax_reference', category='email')
+- Use 'noop' in nextSteps to gracefully end workflow
+
+**VALIDATION:**
+Built-in validation checks stepTypes, required fields, and nextSteps references.`,
     args: z.object({
       workflowConfig: workflowConfigSchema,
       stepsConfig: z

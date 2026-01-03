@@ -65,6 +65,7 @@ import type * as agent_tools_workflows_helpers_read_predefined_workflows from ".
 import type * as agent_tools_workflows_helpers_read_version_history from "../agent_tools/workflows/helpers/read_version_history.js";
 import type * as agent_tools_workflows_helpers_read_workflow_examples from "../agent_tools/workflows/helpers/read_workflow_examples.js";
 import type * as agent_tools_workflows_helpers_read_workflow_structure from "../agent_tools/workflows/helpers/read_workflow_structure.js";
+import type * as agent_tools_workflows_helpers_syntax_reference from "../agent_tools/workflows/helpers/syntax_reference.js";
 import type * as agent_tools_workflows_helpers_types from "../agent_tools/workflows/helpers/types.js";
 import type * as agent_tools_workflows_save_workflow_definition_tool from "../agent_tools/workflows/save_workflow_definition_tool.js";
 import type * as agent_tools_workflows_update_workflow_step_tool from "../agent_tools/workflows/update_workflow_step_tool.js";
@@ -692,6 +693,7 @@ import type * as workflow_helpers_validation_variables_step_schemas from "../wor
 import type * as workflow_helpers_validation_variables_types from "../workflow/helpers/validation/variables/types.js";
 import type * as workflow_helpers_validation_variables_validate from "../workflow/helpers/validation/variables/validate.js";
 import type * as workflow_helpers_variables_decrypt_inline_secrets from "../workflow/helpers/variables/decrypt_inline_secrets.js";
+import type * as workflow_instructions_core_instructions from "../workflow/instructions/core_instructions.js";
 import type * as workflow_nodes from "../workflow/nodes.js";
 import type * as workflow_scheduler from "../workflow/scheduler.js";
 import type * as workflow_types_execution from "../workflow/types/execution.js";
@@ -767,6 +769,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/workflows/helpers/read_version_history": typeof agent_tools_workflows_helpers_read_version_history;
   "agent_tools/workflows/helpers/read_workflow_examples": typeof agent_tools_workflows_helpers_read_workflow_examples;
   "agent_tools/workflows/helpers/read_workflow_structure": typeof agent_tools_workflows_helpers_read_workflow_structure;
+  "agent_tools/workflows/helpers/syntax_reference": typeof agent_tools_workflows_helpers_syntax_reference;
   "agent_tools/workflows/helpers/types": typeof agent_tools_workflows_helpers_types;
   "agent_tools/workflows/save_workflow_definition_tool": typeof agent_tools_workflows_save_workflow_definition_tool;
   "agent_tools/workflows/update_workflow_step_tool": typeof agent_tools_workflows_update_workflow_step_tool;
@@ -1394,6 +1397,7 @@ declare const fullApi: ApiFromModules<{
   "workflow/helpers/validation/variables/types": typeof workflow_helpers_validation_variables_types;
   "workflow/helpers/validation/variables/validate": typeof workflow_helpers_validation_variables_validate;
   "workflow/helpers/variables/decrypt_inline_secrets": typeof workflow_helpers_variables_decrypt_inline_secrets;
+  "workflow/instructions/core_instructions": typeof workflow_instructions_core_instructions;
   "workflow/nodes": typeof workflow_nodes;
   "workflow/scheduler": typeof workflow_scheduler;
   "workflow/types/execution": typeof workflow_types_execution;
