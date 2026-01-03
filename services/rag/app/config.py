@@ -7,6 +7,7 @@ OPENAI_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
 
 import os
 from typing import Optional
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -92,11 +93,11 @@ class Settings(BaseSettings):
     # TTL in hours for completed jobs before cleanup (14 days)
     # Note: RAG status is now persisted in Convex database, so job files
     # are only needed for debugging. Safe to clean up after 14 days.
-    job_completed_ttl_hours: int = 336
+    job_completed_ttl_hours: int = Field(default=336, ge=0)
     # TTL in hours for failed jobs before cleanup (14 days)
-    job_failed_ttl_hours: int = 336
+    job_failed_ttl_hours: int = Field(default=336, ge=0)
     # TTL in hours for orphaned jobs (stuck in running/queued state)
-    job_orphaned_ttl_hours: int = 24
+    job_orphaned_ttl_hours: int = Field(default=24, ge=0)
     # Whether to run job cleanup on service startup
     job_cleanup_on_startup: bool = True
 
