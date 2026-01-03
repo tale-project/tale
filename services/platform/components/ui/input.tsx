@@ -9,7 +9,7 @@ import { useT } from '@/lib/i18n';
 import { Label } from './label';
 
 const inputVariants = cva(
-  'flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+  'flex w-full rounded-lg focus:border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       size: {
@@ -21,7 +21,7 @@ const inputVariants = cva(
     defaultVariants: {
       size: 'default',
     },
-  }
+  },
 );
 
 type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
@@ -46,7 +46,7 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
       id: providedId,
       ...props
     },
-    ref
+    ref,
   ) => {
     const { t } = useT('common');
     const generatedId = useId();
@@ -79,7 +79,7 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
                 inputVariants({ size }),
                 'pr-10',
                 errorClassName,
-                className
+                className,
               )}
               ref={ref}
               required={required}
@@ -88,7 +88,9 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
             />
             <button
               type="button"
-              aria-label={show ? t('aria.hidePassword') : t('aria.showPassword')}
+              aria-label={
+                show ? t('aria.hidePassword') : t('aria.showPassword')
+              }
               aria-pressed={show}
               className="absolute inset-y-0 right-2 my-auto inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
               onClick={() => setShow((v) => !v)}
@@ -125,7 +127,7 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
             inputVariants({ size }),
             'ring-1 ring-border focus-visible:ring-primary',
             errorClassName,
-            className
+            className,
           )}
           ref={ref}
           required={required}
@@ -140,7 +142,7 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
         )}
       </div>
     );
-  }
+  },
 );
 Input.displayName = 'Input';
 

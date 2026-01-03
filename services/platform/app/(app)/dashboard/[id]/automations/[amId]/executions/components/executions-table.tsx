@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { useQuery } from 'convex/react';
 import { Copy, Check } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { parseISO, formatISO } from 'date-fns';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
@@ -176,7 +177,13 @@ export function ExecutionsTable({
   const { t: tTables } = useT('tables');
 
   // Use shared table config (columns defined locally due to interactive elements)
-  const { searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useExecutionsTableConfig();
+  const {
+    searchPlaceholder,
+    stickyLayout,
+    pageSize,
+    defaultSort,
+    defaultSortDesc,
+  } = useExecutionsTableConfig();
 
   // Use unified URL filters hook with sorting
   const {
@@ -222,7 +229,11 @@ export function ExecutionsTable({
       dateFrom: f.dateRange?.from || undefined,
       dateTo: f.dateRange?.to || undefined,
       sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+      sortOrder: sorting[0]
+        ? sorting[0].desc
+          ? ('desc' as const)
+          : ('asc' as const)
+        : undefined,
     }),
   });
 
@@ -382,8 +393,12 @@ export function ExecutionsTable({
   const handleDateRangeChange = useCallback(
     (range: { from?: Date; to?: Date } | undefined) => {
       setFilter('dateRange', {
-        from: range?.from?.toISOString().split('T')[0],
-        to: range?.to?.toISOString().split('T')[0],
+        from: range?.from
+          ? formatISO(range.from, { representation: 'date' })
+          : undefined,
+        to: range?.to
+          ? formatISO(range.to, { representation: 'date' })
+          : undefined,
       });
     },
     [setFilter],
@@ -391,6 +406,7 @@ export function ExecutionsTable({
 
   return (
     <DataTable
+      className="py-6 px-4"
       columns={columns}
       data={executions}
       getRowId={(row) => row._id}
@@ -411,10 +427,10 @@ export function ExecutionsTable({
       onClearFilters={clearAll}
       dateRange={{
         from: filterValues.dateRange?.from
-          ? new Date(filterValues.dateRange.from)
+          ? parseISO(filterValues.dateRange.from)
           : undefined,
         to: filterValues.dateRange?.to
-          ? new Date(filterValues.dateRange.to)
+          ? parseISO(filterValues.dateRange.to)
           : undefined,
         onChange: handleDateRangeChange,
       }}

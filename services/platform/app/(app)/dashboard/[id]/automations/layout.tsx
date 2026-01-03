@@ -53,8 +53,15 @@ export default function AutomationsLayout({
 
   // Redirect non-admin/non-developer users
   useEffect(() => {
+    console.log('[Automations Layout] Auth Check:', {
+      userContext,
+      userRole,
+      isAuthorized,
+      willRedirect: userContext && !isAuthorized,
+    });
     if (userContext && !isAuthorized) {
-      router.push(`/dashboard/${params.id}`);
+      console.log('[Automations Layout] Redirecting to chat - unauthorized');
+      router.push(`/dashboard/${params.id}/chat`);
     }
   }, [userContext, isAuthorized, router, params.id]);
 
@@ -107,7 +114,10 @@ export default function AutomationsLayout({
               {t('title')}&nbsp;&nbsp;
             </span>
             {automation?.name && !editMode && (
-              <span className="text-foreground" onClick={() => setEditMode(true)}>
+              <span
+                className="text-foreground"
+                onClick={() => setEditMode(true)}
+              >
                 /&nbsp;&nbsp;{automation?.name}
               </span>
             )}
