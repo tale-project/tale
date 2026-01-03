@@ -70,6 +70,13 @@ function getOAuth2Credentials(
     return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
   }
 
+  // Warn if partial credentials provided (indicates user confusion)
+  if (overrides?.clientId || overrides?.clientSecret) {
+    console.warn(
+      'Partial OAuth2 credentials provided. Both clientId and clientSecret are required for org-level credentials. Falling back to environment variables.',
+    );
+  }
+
   // Otherwise fall back to env vars (platform-level credentials)
   if (provider === 'gmail') {
     const clientId = process.env.GOOGLE_CLIENT_ID;
