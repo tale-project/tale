@@ -402,6 +402,58 @@ REMINDER: All of these are action steps with stepType: "action". The "type" fiel
 }
 \`\`\`
 
+**SENDING EMAILS FROM WORKFLOWS:**
+
+IMPORTANT: Workflows DO NOT have a direct "send_email" action. Use the conversation + approval pattern:
+
+1. Create conversation with email content in metadata (channel: 'email', direction: 'outbound')
+2. Create approval linked to the conversation (resourceType: 'conversations')
+3. System automatically sends email when approval is approved
+
+\`\`\`
+// Step 1: Create conversation with email metadata
+{
+  stepType: 'action',
+  config: {
+    type: 'conversation',
+    parameters: {
+      operation: 'create',
+      customerId: '{{customerId}}',
+      subject: '{{emailSubject}}',
+      channel: 'email',
+      direction: 'outbound',
+      metadata: {
+        emailSubject: '{{emailSubject}}',
+        emailBody: '{{emailBody}}',        // HTML or Markdown content
+        emailPreview: '{{emailPreview}}',  // Preview text
+        customerEmail: '{{customerEmail}}', // Recipient
+      },
+    },
+  },
+}
+
+// Step 2: Create approval for email review
+{
+  stepType: 'action',
+  config: {
+    type: 'approval',
+    parameters: {
+      operation: 'create_approval',
+      resourceType: 'conversations',  // Links to the conversation
+      resourceId: '{{steps.create_conversation.output.data._id}}',
+      priority: 'medium',
+      description: 'Review email before sending',
+    },
+  },
+}
+\`\`\`
+
+Required metadata fields: emailSubject, emailBody, customerEmail
+Optional: emailPreview, emailCc, emailBcc
+
+ALWAYS check the 'product_recommendation_email' predefined workflow as a reference for email sending patterns:
+\`workflow_examples(operation='get_predefined', workflowKey='productRecommendationEmail')\`
+
 **LLM with Tools:**
 \`\`\`
 // stepType: "llm"

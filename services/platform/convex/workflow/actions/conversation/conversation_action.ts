@@ -108,8 +108,19 @@ type ConversationActionParams =
 export const conversationAction: ActionDefinition<ConversationActionParams> = {
   type: 'conversation',
   title: 'Conversation Operation',
-  description:
-    'Execute conversation-specific operations (create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.',
+  description: `Execute conversation-specific operations (create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
+
+FOR EMAIL WORKFLOWS:
+When creating outbound email conversations, include these metadata fields:
+- emailSubject: Subject line (required)
+- emailBody: HTML or Markdown body content (required)
+- customerEmail: Recipient email address (required)
+- emailPreview: Preview text for inbox (optional)
+- emailCc: CC recipients (optional)
+- emailBcc: BCC recipients (optional)
+
+Then create an approval with resourceType: 'conversations' to trigger sending when approved.
+See 'product_recommendation_email' predefined workflow for complete example.`,
   parametersValidator: v.union(
     // create: Create a new conversation
     v.object({

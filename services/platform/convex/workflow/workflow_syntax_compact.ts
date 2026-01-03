@@ -165,6 +165,76 @@ Ops: upload_all_workflows
 Params: timeout? (default: 120000ms)
 Output: \`{ data: { ...result, executionTimeMs } }\`
 
+## EMAIL SENDING PATTERN
+
+Workflows DO NOT have a direct "send_email" action. Use the conversation + approval pattern:
+
+### Step 1: Create Conversation with Email Metadata
+\`\`\`
+{
+  stepType: 'action',
+  config: {
+    type: 'conversation',
+    parameters: {
+      operation: 'create',
+      customerId: '{{customerId}}',
+      subject: '{{emailSubject}}',
+      channel: 'email',
+      direction: 'outbound',
+      metadata: {
+        emailSubject: '{{emailSubject}}',
+        emailBody: '{{emailBody}}',        // HTML or Markdown content
+        emailPreview: '{{emailPreview}}',  // Preview text for inbox
+        customerEmail: '{{customerEmail}}', // Recipient email address
+      },
+    },
+  },
+}
+\`\`\`
+
+### Step 2: Create Approval for Email Review
+\`\`\`
+{
+  stepType: 'action',
+  config: {
+    type: 'approval',
+    parameters: {
+      operation: 'create_approval',
+      resourceType: 'conversations',
+      resourceId: '{{steps.create_conversation.output.data._id}}',
+      priority: 'medium',
+      description: 'Review email before sending',
+      metadata: {
+        customerEmail: '{{customerEmail}}',
+        emailBody: '{{emailBody}}',
+      },
+    },
+  },
+}
+\`\`\`
+
+### How It Works
+- Approval appears in dashboard for human review
+- When user approves, system automatically sends the email via sendMessageViaEmail()
+- Email sent via organization's default email provider (OAuth2 or password auth)
+- Conversation tracks the email thread for replies
+
+### Required Metadata Fields
+- emailSubject: Email subject line
+- emailBody: HTML or Markdown email body content
+- customerEmail: Recipient email address
+
+### Optional Metadata Fields
+- emailPreview: Preview text shown in inbox
+- emailCc: CC recipients (comma-separated or array)
+- emailBcc: BCC recipients (comma-separated or array)
+
+### Example Workflow
+See 'product_recommendation_email' predefined workflow for complete implementation:
+\`\`\`
+workflow_examples(operation='get_predefined', workflowKey='productRecommendationEmail')
+\`\`\`
+
 ## Variable Syntax
 - Simple: {{variableName}}
 - Nested: {{customer.email}}

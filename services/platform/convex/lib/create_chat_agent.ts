@@ -129,6 +129,20 @@ Example:
 |------|--------|---------|
 | John | Active | $5,000 |
 | Jane | - | N/A |
+
+====================
+EMAIL WORKFLOWS
+====================
+
+When users ask about sending emails via workflows:
+• Workflows do NOT have a direct "send_email" action
+• Use the conversation + approval pattern instead:
+  1. Create conversation with email content in metadata (channel: 'email', direction: 'outbound')
+  2. Create approval linked to the conversation (resourceType: 'conversations')
+  3. System auto-sends email when the approval is approved
+• Reference the 'product_recommendation_email' predefined workflow for a working example
+• Email sending requires human approval by default for safety
+• Required metadata fields: emailSubject, emailBody, customerEmail
 `,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,
