@@ -22,6 +22,20 @@ export default defineSchema({
       v.union(v.literal('onedrive'), v.literal('upload')),
     ),
     externalItemId: v.optional(v.string()),
+    // RAG indexing status - tracks status of document in RAG service
+    ragInfo: v.optional(
+      v.object({
+        status: v.union(
+          v.literal('queued'),
+          v.literal('running'),
+          v.literal('completed'),
+          v.literal('failed'),
+        ),
+        jobId: v.optional(v.string()),
+        indexedAt: v.optional(v.number()),
+        error: v.optional(v.string()),
+      }),
+    ),
     metadata: v.optional(v.any()),
   })
     .index('by_organizationId', ['organizationId'])

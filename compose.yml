@@ -126,8 +126,10 @@ services:
       context: .
       dockerfile: services/crawler/Dockerfile
 
-    # No port mapping needed - only accessed by platform service
-    # internally via http://crawler:8002
+    # Port mapping: host:container (for development)
+    # Access Crawler API at localhost:8002
+    ports:
+      - '8002:8002'
 
     # Environment file
     # Create a .env file in the project root with your configuration
@@ -178,8 +180,10 @@ services:
       context: .
       dockerfile: services/rag/Dockerfile
 
-    # No port mapping needed - only accessed by platform service
-    # internally via http://rag:8001
+    # Port mapping: host:container (for development)
+    # Access RAG API at localhost:8001
+    ports:
+      - '8001:8001'
 
     # Volume mounts
     # Persist cognee data
@@ -329,8 +333,10 @@ services:
       context: .
       dockerfile: services/search/Dockerfile
 
-    # No port mapping needed - only accessed by platform service
-    # internally via http://search:8080
+    # Port mapping: host:container (for development)
+    # Access SearXNG at localhost:8080
+    ports:
+      - '8080:8080'
 
     # Environment file
     env_file:

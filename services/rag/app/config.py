@@ -89,12 +89,14 @@ class Settings(BaseSettings):
     # ========================================================================
     # Job Cleanup Configuration
     # ========================================================================
-    # TTL in hours for completed jobs before cleanup
-    job_completed_ttl_hours: int = 24
-    # TTL in hours for failed jobs before cleanup
-    job_failed_ttl_hours: int = 72
+    # TTL in hours for completed jobs before cleanup (14 days)
+    # Note: RAG status is now persisted in Convex database, so job files
+    # are only needed for debugging. Safe to clean up after 14 days.
+    job_completed_ttl_hours: int = 336
+    # TTL in hours for failed jobs before cleanup (14 days)
+    job_failed_ttl_hours: int = 336
     # TTL in hours for orphaned jobs (stuck in running/queued state)
-    job_orphaned_ttl_hours: int = 6
+    job_orphaned_ttl_hours: int = 24
     # Whether to run job cleanup on service startup
     job_cleanup_on_startup: bool = True
 
