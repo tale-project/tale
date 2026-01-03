@@ -32,6 +32,8 @@ type OAuth2FormData = {
   name: string;
   isDefault: boolean;
   useApiSending: boolean;
+  clientId: string;
+  clientSecret: string;
 };
 
 type AuthMethod = 'oauth2' | 'password';
@@ -70,6 +72,8 @@ export function GmailCreateProviderDialog({
         name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
         isDefault: z.boolean(),
         useApiSending: z.boolean(),
+        clientId: z.string().min(1, tCommon('validation.required', { field: t('integrations.googleClientId') })),
+        clientSecret: z.string().min(1, tCommon('validation.required', { field: t('integrations.googleClientSecret') })),
       }),
     [t, tCommon],
   );
@@ -99,6 +103,8 @@ export function GmailCreateProviderDialog({
       name: '',
       isDefault: false,
       useApiSending: true, // Default to API sending for OAuth2
+      clientId: '',
+      clientSecret: '',
     },
   });
 
@@ -130,6 +136,8 @@ export function GmailCreateProviderDialog({
           secure: true,
         },
         isDefault: data.isDefault,
+        clientId: data.clientId,
+        clientSecret: data.clientSecret,
       });
 
       // Step 2: Generate OAuth2 authorization URL
@@ -293,10 +301,10 @@ export function GmailCreateProviderDialog({
         <TabsContent value="oauth2" className="mt-0">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
             <p className="text-xs text-blue-700 mb-2">
-              {t('integrations.oauth2GoogleInfo')}
+              {t('integrations.googleOAuthCredentialsInfo')}
             </p>
             <a
-              href="https://support.google.com/cloud/answer/6158849"
+              href="https://console.cloud.google.com/apis/credentials"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
@@ -307,6 +315,23 @@ export function GmailCreateProviderDialog({
           </div>
 
           <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} >
+            <Input
+              id="oauth2-client-id"
+              label={t('integrations.googleClientId')}
+              {...oauth2Form.register('clientId')}
+              placeholder={t('integrations.googleClientIdPlaceholder')}
+              errorMessage={oauth2Form.formState.errors.clientId?.message}
+            />
+
+            <Input
+              id="oauth2-client-secret"
+              type="password"
+              label={t('integrations.googleClientSecret')}
+              {...oauth2Form.register('clientSecret')}
+              placeholder={t('integrations.googleClientSecretPlaceholder')}
+              errorMessage={oauth2Form.formState.errors.clientSecret?.message}
+            />
+
             <Input
               id="oauth2-name"
               label={t('integrations.providerName')}
