@@ -53,7 +53,7 @@ export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
       )}
       {!loading && !error && (
         <div
-          className="prose w-full bg-white text-gray-800 aspect-[1/1.4] max-w-2xl mx-auto"
+          className="prose w-full aspect-[1/1.4] max-w-2xl mx-auto"
           dangerouslySetInnerHTML={{ __html: html }}
         />
       )}

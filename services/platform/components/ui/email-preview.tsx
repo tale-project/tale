@@ -2,6 +2,7 @@
 
 import { CSSProperties, useMemo, useState } from 'react';
 import DOMPurify from 'dompurify';
+import { cn } from '@/lib/utils/cn';
 
 export interface EmailPreviewProps {
   html: string;
@@ -97,9 +98,24 @@ export function sanitizePreviewHtml(html: string): string {
     .replace(/(<br\s*\/?>\s*)(&gt;\s*)+/gi, '$1')
     .replace(/(<br\s*\/?>\s*)(>\s*)+/gi, '$1');
 
-  // Add hook to modify links to open in new tab
+  // Add hooks to preserve styles and modify links
+  DOMPurify.addHook('uponSanitizeElement', (node) => {
+    if (node instanceof Element && node.hasAttribute('style')) {
+      const styleAttr = node.getAttribute('style');
+      if (styleAttr) {
+        (node as any).__originalStyle = styleAttr;
+      }
+    }
+  });
+
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-    // Set all links to open in a new tab
+    if (!(node instanceof Element)) return;
+
+    if ((node as any).__originalStyle) {
+      node.setAttribute('style', (node as any).__originalStyle);
+      delete (node as any).__originalStyle;
+    }
+
     if (node.tagName === 'A') {
       node.setAttribute('target', '_blank');
       node.setAttribute('rel', 'noopener noreferrer');
@@ -112,7 +128,7 @@ export function sanitizePreviewHtml(html: string): string {
     ALLOW_DATA_ATTR: false,
   });
 
-  // Remove the hook after sanitization to avoid affecting other parts of the app
+  DOMPurify.removeHook('uponSanitizeElement');
   DOMPurify.removeHook('afterSanitizeAttributes');
 
   return sanitized;
@@ -137,11 +153,7 @@ function splitQuotedContent(html: string): { main: string; quoted: string } {
   return { main: html, quoted: '' };
 }
 
-export function EmailPreview({
-  html,
-  className,
-  style,
-}: EmailPreviewProps) {
+export function EmailPreview({ html, className, style }: EmailPreviewProps) {
   const [showQuoted, setShowQuoted] = useState(false);
 
   const { sanitizedMain, sanitizedQuoted } = useMemo(() => {
@@ -156,7 +168,7 @@ export function EmailPreview({
 
   // Behaves like a normal div container element; height follows content unless constrained by parent styles
   return (
-    <div className={className} style={style}>
+    <div className={cn('min-w-0', className)} style={style}>
       {/* Scoped styles to restore UA defaults to descendants and keep images responsive, while inheriting bubble text styles */}
       <style
         dangerouslySetInnerHTML={{
@@ -167,6 +179,15 @@ export function EmailPreview({
               line-height: 1.5;
               word-wrap: break-word;
               overflow-wrap: break-word;
+              /* Default email background and text color for emails without explicit styling */
+              background-color: white;
+              color: black;
+              /* Add padding to create visual separation from container */
+              padding: 1rem;
+              border-radius: 0.375rem;
+              /* Prevent content from expanding beyond container */
+              overflow-x: auto;
+              max-width: 100%;
             }
 
             /* Responsive images - use inline-block so they respect parent text-align */
@@ -178,8 +199,9 @@ export function EmailPreview({
 
             /* Table styles for email layouts */
             [data-preview-sandbox] table {
-              border-collapse: collapse;
               border-spacing: 0;
+              /* Use separate borders to allow padding on table elements */
+              border-collapse: separate;
             }
 
             /* Make table cells wrap and break content */

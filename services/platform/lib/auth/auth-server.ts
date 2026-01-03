@@ -6,6 +6,70 @@ import { createAuth } from '@/convex/auth';
 // Dynamic import of betterAuth moved inside getAuthToken() to enable PPR/cacheComponents.
 // Static imports of betterAuth cause prerender failures due to crypto.getRandomValues() usage.
 import { cookies } from 'next/headers';
+
+/**
+ * Refresh the Convex JWT token using the current Better Auth session.
+ * This is called automatically when a JWT expires but the session is still valid.
+ *
+ * @returns A new JWT token if the session is valid, undefined otherwise
+ */
+async function refreshAuthToken(): Promise<string | undefined> {
+  try {
+    const cookieStore = await cookies();
+    const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+    const isHttps = siteUrl.startsWith('https://');
+
+    const cookieName = isHttps
+      ? '__Secure-better-auth.session_token'
+      : 'better-auth.session_token';
+
+    const sessionToken = cookieStore.get(cookieName)?.value;
+
+    if (!sessionToken) {
+      console.log('No session token found, cannot refresh JWT');
+      return undefined;
+    }
+
+    console.log('Refreshing JWT token using session...');
+
+    // Call the Better Auth Convex token endpoint to get a fresh JWT
+    const response = await fetch(`${siteUrl}/api/auth/convex/token`, {
+      method: 'GET',
+      headers: {
+        Cookie: `${cookieName}=${sessionToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      // 401 means the session itself expired - user needs to log in again
+      if (response.status === 401) {
+        console.log(
+          'Session expired, cannot refresh JWT (user needs to re-login)',
+        );
+      } else {
+        console.error(
+          'Failed to refresh JWT:',
+          response.status,
+          await response.text(),
+        );
+      }
+      return undefined;
+    }
+
+    const data = await response.json();
+    if (data?.token) {
+      console.log('JWT token refreshed successfully');
+      return data.token;
+    }
+
+    console.error('No token in refresh response:', data);
+    return undefined;
+  } catch (error) {
+    console.error('JWT refresh failed:', error);
+    return undefined;
+  }
+}
+
 /**
  * Get the current authenticated user from server-side context.
  * Returns null if no user is authenticated.
@@ -24,12 +88,28 @@ export async function getCurrentUser() {
     return user || null;
   } catch (error) {
     // Treat Convex Unauthenticated errors (e.g. invalid/expired JWT) as
-    // an unauthenticated session so callers (like requireAuth) can
-    // gracefully redirect to the login page.
+    // a signal to refresh the JWT if a valid session exists
     if (error instanceof Error && error.message.includes('Unauthenticated')) {
       console.warn(
-        'Convex auth token invalid or expired in getCurrentUser; treating as unauthenticated',
+        'Convex auth token invalid or expired, attempting to refresh JWT',
       );
+
+      // Try to refresh the JWT using the session
+      const refreshedToken = await refreshAuthToken();
+      if (refreshedToken) {
+        try {
+          const user = await fetchQuery(
+            api.users.getCurrentUser,
+            {},
+            { token: refreshedToken },
+          );
+          return user || null;
+        } catch (retryError) {
+          console.error('Failed to get user after JWT refresh:', retryError);
+          return null;
+        }
+      }
+
       return null;
     }
 
@@ -63,9 +143,8 @@ export async function getAuthToken(): Promise<string | undefined> {
   try {
     // Dynamic import AFTER connection() to defer betterAuth initialization to request time.
     // This enables PPR/cacheComponents by avoiding crypto.getRandomValues() during prerender.
-    const { getToken: getTokenNextjs } = await import(
-      '@convex-dev/better-auth/nextjs'
-    );
+    const { getToken: getTokenNextjs } =
+      await import('@convex-dev/better-auth/nextjs');
     // First, try the standard Next.js token getter
     const token = await getTokenNextjs(createAuth);
     if (token) {
@@ -107,12 +186,17 @@ export async function getAuthToken(): Promise<string | undefined> {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(
-        'Failed to fetch JWT from Better Auth:',
-        response.status,
-        errorText,
-      );
+      // 401 is expected when session is expired or invalid - don't log as error
+      if (response.status === 401) {
+        console.log('No valid session found (401 from /api/auth/convex/token)');
+      } else {
+        const errorText = await response.text();
+        console.error(
+          'Failed to fetch JWT from Better Auth:',
+          response.status,
+          errorText,
+        );
+      }
       return undefined;
     }
 
