@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n';
 import { MessageBubble } from './message-bubble';
 import { ChatInput } from './chat-input';
 import { IntegrationApprovalCard } from './integration-approval-card';
+import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
@@ -25,6 +26,10 @@ import {
   useIntegrationApprovals,
   type IntegrationApproval,
 } from '../hooks/use-integration-approvals';
+import {
+  useWorkflowCreationApprovals,
+  type WorkflowCreationApproval,
+} from '../hooks/use-workflow-creation-approvals';
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -359,12 +364,16 @@ export function ChatInterface({
   // Fetch integration approvals for this thread
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
 
+  // Fetch workflow creation approvals for this thread
+  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(threadId);
+
   // Create a merged list of messages and approvals
   // Approvals are positioned right after their associated message (by messageId)
   // Only show approvals whose associated message is currently loaded (handles pagination)
   type ChatItem =
     | { type: 'message'; data: ChatMessage }
-    | { type: 'approval'; data: IntegrationApproval };
+    | { type: 'approval'; data: IntegrationApproval }
+    | { type: 'workflow_approval'; data: WorkflowCreationApproval };
 
   const mergedChatItems = useMemo((): ChatItem[] => {
     const items: ChatItem[] = [];
@@ -384,19 +393,30 @@ export function ChatInterface({
       items.push({ type: 'message', data: message });
     }
 
-    // Filter approvals:
+    // Filter integration approvals:
     // 1. Must have a messageId (pending approvals without messageId are hidden until stream completes)
     // 2. The associated message must be currently loaded (handles pagination)
-    const filteredApprovals = (integrationApprovals || []).filter((approval) => {
+    const filteredIntegrationApprovals = (integrationApprovals || []).filter((approval) => {
       // Must have a messageId to be displayed
       if (!approval.messageId) return false;
       // Only show if the associated message is currently loaded
       return loadedMessageIds.has(approval.messageId);
     });
 
-    // Add filtered approvals
-    for (const approval of filteredApprovals) {
+    // Add filtered integration approvals
+    for (const approval of filteredIntegrationApprovals) {
       items.push({ type: 'approval', data: approval });
+    }
+
+    // Filter workflow creation approvals with same criteria
+    const filteredWorkflowApprovals = (workflowCreationApprovals || []).filter((approval) => {
+      if (!approval.messageId) return false;
+      return loadedMessageIds.has(approval.messageId);
+    });
+
+    // Add filtered workflow creation approvals
+    for (const approval of filteredWorkflowApprovals) {
+      items.push({ type: 'workflow_approval', data: approval });
     }
 
     // Sort items:
@@ -407,12 +427,14 @@ export function ChatInterface({
         if (item.type === 'message') {
           return item.data._creationTime || item.data.timestamp.getTime();
         }
-        // For approvals, position after the associated message
+        // For approvals (both integration and workflow), position after the associated message
         const approval = item.data;
         const messageTime = messageTimeMap.get(approval.messageId!);
         if (messageTime !== undefined) {
           // Add 0.1ms offset to ensure approval appears after its message
-          return messageTime + 0.1;
+          // Add 0.01 more for workflow approvals to maintain consistent ordering
+          const offset = item.type === 'workflow_approval' ? 0.11 : 0.1;
+          return messageTime + offset;
         }
         // Fallback (should not happen since we filtered above)
         return approval._creationTime;
@@ -422,7 +444,7 @@ export function ChatInterface({
     });
 
     return items;
-  }, [threadMessages, integrationApprovals]);
+  }, [threadMessages, integrationApprovals, workflowCreationApprovals]);
 
   // Convex mutations
   const createThread = useCreateThread();
@@ -688,8 +710,8 @@ export function ChatInterface({
                       }}
                     />
                   ) : null;
-                } else {
-                  // Render approval card
+                } else if (item.type === 'approval') {
+                  // Render integration approval card
                   const approval = item.data;
                   return (
                     <div
@@ -697,6 +719,23 @@ export function ChatInterface({
                       className="flex justify-start"
                     >
                       <IntegrationApprovalCard
+                        approvalId={approval._id}
+                        status={approval.status}
+                        metadata={approval.metadata}
+                        executedAt={approval.executedAt}
+                        executionError={approval.executionError}
+                      />
+                    </div>
+                  );
+                } else {
+                  // Render workflow creation approval card
+                  const approval = item.data;
+                  return (
+                    <div
+                      key={`workflow-approval-${approval._id}`}
+                      className="flex justify-start"
+                    >
+                      <WorkflowCreationApprovalCard
                         approvalId={approval._id}
                         status={approval.status}
                         metadata={approval.metadata}

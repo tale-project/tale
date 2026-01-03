@@ -51,7 +51,14 @@ WORKFLOW CATEGORIES:
 BEST PRACTICES:
 • Use 'list_predefined' first to see all available examples
 • Use 'get_predefined' to study similar workflows before creating new ones
-• Copy step configurations from predefined workflows to ensure correct structure`,
+• Copy step configurations from predefined workflows to ensure correct structure
+
+CRITICAL: PROCESSING MULTIPLE RECORDS PATTERN
+For workflows that process multiple customers/products (e.g., "send emails to all inactive customers"):
+• MUST use 'workflow_processing_records' action type with find_unprocessed/record_processed operations
+• Process ONE record per workflow run (scheduled trigger runs repeatedly)
+• See 'generalCustomerStatusAssessment' or 'productRecommendationEmail' for reference patterns
+• NEVER loop through all records at once - use the one-at-a-time pattern with scheduling`,
     args: workflowExamplesArgs,
     handler: async (
       _ctx,

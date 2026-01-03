@@ -52,9 +52,13 @@ import type * as agent_tools_products_helpers_types from "../agent_tools/product
 import type * as agent_tools_products_product_read_tool from "../agent_tools/products/product_read_tool.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
+import type * as agent_tools_sub_agents_workflow_assistant_tool from "../agent_tools/sub_agents/workflow_assistant_tool.js";
 import type * as agent_tools_threads_context_search_tool from "../agent_tools/threads/context_search_tool.js";
 import type * as agent_tools_tool_registry from "../agent_tools/tool_registry.js";
 import type * as agent_tools_types from "../agent_tools/types.js";
+import type * as agent_tools_workflows_create_workflow_approval from "../agent_tools/workflows/create_workflow_approval.js";
+import type * as agent_tools_workflows_create_workflow_tool from "../agent_tools/workflows/create_workflow_tool.js";
+import type * as agent_tools_workflows_execute_approved_workflow_creation from "../agent_tools/workflows/execute_approved_workflow_creation.js";
 import type * as agent_tools_workflows_helpers_read_active_version_steps from "../agent_tools/workflows/helpers/read_active_version_steps.js";
 import type * as agent_tools_workflows_helpers_read_all_workflows from "../agent_tools/workflows/helpers/read_all_workflows.js";
 import type * as agent_tools_workflows_helpers_read_predefined_workflows from "../agent_tools/workflows/helpers/read_predefined_workflows.js";
@@ -448,8 +452,8 @@ import type * as model_workflow_processing_records_constants from "../model/work
 import type * as model_workflow_processing_records_find_and_claim_unprocessed from "../model/workflow_processing_records/find_and_claim_unprocessed.js";
 import type * as model_workflow_processing_records_get_latest_processed_creation_time from "../model/workflow_processing_records/get_latest_processed_creation_time.js";
 import type * as model_workflow_processing_records_get_processing_record_by_id from "../model/workflow_processing_records/get_processing_record_by_id.js";
+import type * as model_workflow_processing_records_get_table_indexes from "../model/workflow_processing_records/get_table_indexes.js";
 import type * as model_workflow_processing_records_index from "../model/workflow_processing_records/index.js";
-import type * as model_workflow_processing_records_index_registry from "../model/workflow_processing_records/index_registry.js";
 import type * as model_workflow_processing_records_index_selection_group_conditions_by_field from "../model/workflow_processing_records/index_selection/group_conditions_by_field.js";
 import type * as model_workflow_processing_records_index_selection_index from "../model/workflow_processing_records/index_selection/index.js";
 import type * as model_workflow_processing_records_index_selection_score_index from "../model/workflow_processing_records/index_selection/score_index.js";
@@ -750,9 +754,13 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/products/product_read_tool": typeof agent_tools_products_product_read_tool;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
+  "agent_tools/sub_agents/workflow_assistant_tool": typeof agent_tools_sub_agents_workflow_assistant_tool;
   "agent_tools/threads/context_search_tool": typeof agent_tools_threads_context_search_tool;
   "agent_tools/tool_registry": typeof agent_tools_tool_registry;
   "agent_tools/types": typeof agent_tools_types;
+  "agent_tools/workflows/create_workflow_approval": typeof agent_tools_workflows_create_workflow_approval;
+  "agent_tools/workflows/create_workflow_tool": typeof agent_tools_workflows_create_workflow_tool;
+  "agent_tools/workflows/execute_approved_workflow_creation": typeof agent_tools_workflows_execute_approved_workflow_creation;
   "agent_tools/workflows/helpers/read_active_version_steps": typeof agent_tools_workflows_helpers_read_active_version_steps;
   "agent_tools/workflows/helpers/read_all_workflows": typeof agent_tools_workflows_helpers_read_all_workflows;
   "agent_tools/workflows/helpers/read_predefined_workflows": typeof agent_tools_workflows_helpers_read_predefined_workflows;
@@ -1146,8 +1154,8 @@ declare const fullApi: ApiFromModules<{
   "model/workflow_processing_records/find_and_claim_unprocessed": typeof model_workflow_processing_records_find_and_claim_unprocessed;
   "model/workflow_processing_records/get_latest_processed_creation_time": typeof model_workflow_processing_records_get_latest_processed_creation_time;
   "model/workflow_processing_records/get_processing_record_by_id": typeof model_workflow_processing_records_get_processing_record_by_id;
+  "model/workflow_processing_records/get_table_indexes": typeof model_workflow_processing_records_get_table_indexes;
   "model/workflow_processing_records/index": typeof model_workflow_processing_records_index;
-  "model/workflow_processing_records/index_registry": typeof model_workflow_processing_records_index_registry;
   "model/workflow_processing_records/index_selection/group_conditions_by_field": typeof model_workflow_processing_records_index_selection_group_conditions_by_field;
   "model/workflow_processing_records/index_selection/index": typeof model_workflow_processing_records_index_selection_index;
   "model/workflow_processing_records/index_selection/score_index": typeof model_workflow_processing_records_index_selection_score_index;

@@ -35,7 +35,7 @@ export function createChatAgent(options?: {
       'pptx',
       'customer_read',
       'product_read',
-      'workflow_read',
+      'workflow_assistant', // Single entry point for all workflow operations
       'integration',
       'integration_introspect',
       'verify_approval',
@@ -131,18 +131,23 @@ Example:
 | Jane | - | N/A |
 
 ====================
-EMAIL WORKFLOWS
+WORKFLOW OPERATIONS
 ====================
 
-When users ask about sending emails via workflows:
-• Workflows do NOT have a direct "send_email" action
-• Use the conversation + approval pattern instead:
-  1. Create conversation with email content in metadata (channel: 'email', direction: 'outbound')
-  2. Create approval linked to the conversation (resourceType: 'conversations')
-  3. System auto-sends email when the approval is approved
-• Reference the 'product_recommendation_email' predefined workflow for a working example
-• Email sending requires human approval by default for safety
-• Required metadata fields: emailSubject, emailBody, customerEmail
+For ANY workflow-related request, use the workflow_assistant tool.
+This includes: listing workflows, viewing details, creating new workflows,
+modifying existing ones, or asking questions about workflow syntax.
+
+The workflow_assistant is a specialized expert that handles all workflow operations.
+Simply pass the user's request - it will handle everything including showing
+approval cards when creating new workflows.
+
+Examples of when to use workflow_assistant:
+• "List my workflows" / "列出我的 workflows"
+• "Create a workflow that sends emails daily" / "创建一个每天发邮件的 workflow"
+• "Modify the trigger schedule of customer-sync workflow"
+• "What is workflow_processing_records?" / "workflow_processing_records 是什么？"
+• "Show me workflow examples" / "给我看 workflow 示例"
 `,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,

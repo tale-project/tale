@@ -20,19 +20,19 @@ export function createWorkflowAgent(options?: {
   convexToolNames?: ToolName[];
   /** Dynamic workflow context to append to the system prompt */
   workflowContext?: string;
+  /** Delegation mode - used when called as a sub-agent from Chat Agent */
+  delegationMode?: boolean;
 }) {
   const withTools = options?.withTools ?? true;
-  const maxSteps = options?.maxSteps ?? 30;
+  const delegationMode = options?.delegationMode ?? false;
+  const maxSteps = options?.maxSteps ?? (delegationMode ? 20 : 30);
   const workflowContext = options?.workflowContext;
 
   // Build tool inputs (Convex tool names)
   let convexToolNames: ToolName[] = [];
 
   if (withTools) {
-    // Default workflow tools
-    // Note: read-only workflow operations like get_structure, list_all are handled by the "workflow_read" tool.
-    // Predefined workflow examples are accessed via "workflow_examples" tool.
-    // Note: validation is now built into save_workflow_definition and update_workflow_step tools.
+    // Default workflow tools for standalone mode
     const defaultWorkflowTools: ToolName[] = [
       'workflow_read', // get_structure, list_all, get_active_version_steps, list_version_history
       'workflow_examples', // list_predefined, get_predefined - access predefined workflow templates
@@ -41,11 +41,24 @@ export function createWorkflowAgent(options?: {
       'database_schema', // Introspect table schemas for writing filterExpressions
     ];
 
-    // Combine with any additional tools requested
-    convexToolNames = options?.convexToolNames ?? defaultWorkflowTools;
+    // Delegation mode tools - includes create_workflow for approval flow
+    const delegationTools: ToolName[] = [
+      'workflow_read',
+      'workflow_examples',
+      'update_workflow_step',
+      'save_workflow_definition',
+      'create_workflow', // Create workflow with approval card
+      'database_schema',
+    ];
+
+    // Use delegation tools when in delegation mode, otherwise use default or custom tools
+    convexToolNames = delegationMode
+      ? delegationTools
+      : (options?.convexToolNames ?? defaultWorkflowTools);
 
     debugLog('createWorkflowAgent Loaded tools', {
       convexCount: convexToolNames.length,
+      delegationMode,
     });
   }
 
@@ -597,14 +610,64 @@ This workflow helps re-engage inactive customers. Would you like me to modify an
 - Handle errors gracefully and explain what went wrong
 - **Remember**: For business logic workflows, LLM is the core. Action steps are just for simple data fetch/store. Don't try to make users understand table schemas - let AI handle the complexity.`;
 
-  // Append workflow context to system prompt if provided
-  const finalInstructions = workflowContext
-    ? `${baseInstructions}\n\n${workflowContext}`
+  // Delegation mode instructions - concise but with full syntax reference
+  const delegationInstructions = `You are a workflow automation expert handling requests delegated from the main Chat Agent.
+
+**YOUR CAPABILITIES:**
+- List and query existing workflows (workflow_read)
+- Browse predefined workflow templates (workflow_examples)
+- Design and create new workflows (create_workflow - shows approval card)
+- Modify existing workflows (update_workflow_step, save_workflow_definition)
+- Explain workflow concepts and syntax
+
+**WORKFLOW SYNTAX REFERENCE:**
+${WORKFLOW_SYNTAX_COMPACT}
+
+**KEY PATTERNS:**
+1. Entity Processing: One entity per execution, use workflow_processing_records with find_unprocessed/record_processed
+2. Email Sending: Use conversation + approval pattern (no direct send_email action)
+   - Create conversation with channel: 'email', direction: 'outbound'
+   - Include metadata: emailSubject, emailBody, customerEmail
+   - Create approval linked to conversation (resourceType: 'conversations')
+3. LLM-First: Use LLM steps for business logic, action steps for simple CRUD
+
+**RESPONSE GUIDELINES:**
+- Be concise and direct
+- When creating workflows, ALWAYS use workflow_examples first to find similar patterns
+- Use create_workflow tool to create workflows (it will show an approval card to the user)
+- After successfully using create_workflow, append "APPROVAL_CREATED:<approvalId>" to your response
+- For listing/query results, format data in tables when appropriate
+- Don't over-explain unless the user asks for details
+
+**TOOL USAGE:**
+- workflow_read: List workflows, get structure, get step details
+- workflow_examples: Find similar workflow templates before creating new ones
+- create_workflow: Create new workflow with approval flow
+- update_workflow_step: Modify single step in existing workflow
+- save_workflow_definition: Save/update entire workflow
+- database_schema: Check table schemas for filterExpression in workflow_processing_records`;
+
+  // Select instructions based on mode
+  const selectedInstructions = delegationMode
+    ? delegationInstructions
     : baseInstructions;
 
+  // Append workflow context to system prompt if provided
+  const finalInstructions = workflowContext
+    ? `${selectedInstructions}\n\n${workflowContext}`
+    : selectedInstructions;
+
+  // OPENAI_CODING_MODEL is required for workflow agent
+  const model = (process.env.OPENAI_CODING_MODEL || '').trim();
+  if (!model) {
+    throw new Error(
+      'OPENAI_CODING_MODEL environment variable is required for Workflow Agent but is not set',
+    );
+  }
+
   const agentConfig = createAgentConfig({
-    name: 'workflow-assistant',
-    model: process.env.OPENAI_CODING_MODEL || 'gpt-5.1',
+    name: delegationMode ? 'workflow-assistant-delegated' : 'workflow-assistant',
+    model,
     instructions: finalInstructions,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,

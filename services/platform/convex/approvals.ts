@@ -275,6 +275,34 @@ export const getPendingIntegrationApprovalsForThread = queryWithRLS({
   },
 });
 
+/**
+ * Get workflow creation approvals for a thread (public)
+ */
+export const getWorkflowCreationApprovalsForThread = queryWithRLS({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.array(ApprovalsModel.approvalItemValidator),
+  handler: async (ctx, args) => {
+    // Use the by_threadId_status_resourceType index for efficient querying
+    // This returns all workflow_creation approvals (pending, approved, rejected) for this thread
+    // Limit to 100 approvals per thread (reasonable upper bound for a single chat)
+    const query = ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q.eq('threadId', args.threadId),
+      )
+      .filter((q) => q.eq(q.field('resourceType'), 'workflow_creation'));
+
+    const approvals = [];
+    for await (const approval of query) {
+      approvals.push(approval);
+      if (approvals.length >= 100) break;
+    }
+    return approvals;
+  },
+});
+
 // =============================================================================
 // PUBLIC ACTIONS (for integration approvals)
 // =============================================================================
@@ -327,6 +355,64 @@ export const executeApprovedIntegrationOperation = action({
     const result: unknown = await ctx.runAction(
       internal.agent_tools.integrations.execute_approved_operation
         .executeApprovedOperation,
+      {
+        approvalId,
+        approvedBy,
+      },
+    );
+
+    return result;
+  },
+});
+
+/**
+ * Execute an approved workflow creation (public action)
+ *
+ * This action is called from the frontend when a user approves a workflow
+ * creation. It first updates the approval status to 'approved' and then
+ * creates the workflow.
+ */
+export const executeApprovedWorkflowCreation = action({
+  args: {
+    approvalId: v.id('approvals'),
+    approvedBy: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args): Promise<unknown> => {
+    const { approvalId, approvedBy } = args;
+
+    // Get the approval to validate it's for a workflow creation
+    const approval = await ctx.runQuery(internal.approvals.getApprovalInternal, {
+      approvalId,
+    });
+
+    if (!approval) {
+      throw new Error('Approval not found');
+    }
+
+    if (approval.status !== 'pending') {
+      throw new Error(
+        `Cannot execute workflow creation: approval status is "${approval.status}", expected "pending"`,
+      );
+    }
+
+    if (approval.resourceType !== 'workflow_creation') {
+      throw new Error(
+        `Invalid approval type: expected "workflow_creation", got "${approval.resourceType}"`,
+      );
+    }
+
+    // Update the approval status to approved
+    await ctx.runMutation(internal.approvals.updateApprovalStatus, {
+      approvalId,
+      status: 'approved',
+      approvedBy,
+    });
+
+    // Execute the workflow creation via internal action
+    const result: unknown = await ctx.runAction(
+      internal.agent_tools.workflows.execute_approved_workflow_creation
+        .executeApprovedWorkflowCreation,
       {
         approvalId,
         approvedBy,
