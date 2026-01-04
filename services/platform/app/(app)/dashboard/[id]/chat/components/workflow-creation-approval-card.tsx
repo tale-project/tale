@@ -35,6 +35,24 @@ interface WorkflowCreationApprovalCardProps {
   className?: string;
 }
 
+// Pure helper function - moved outside component to avoid recreation on each render
+const getStepTypeBadgeVariant = (stepType: string): 'blue' | 'green' | 'orange' | 'yellow' | 'outline' => {
+  switch (stepType) {
+    case 'trigger':
+      return 'blue';
+    case 'llm':
+      return 'yellow';
+    case 'action':
+      return 'green';
+    case 'condition':
+      return 'orange';
+    case 'loop':
+      return 'blue';
+    default:
+      return 'outline';
+  }
+};
+
 /**
  * Card component for displaying workflow creation approvals in chat
  */
@@ -95,24 +113,6 @@ function WorkflowCreationApprovalCardComponent({
       console.error('Failed to reject:', err);
     } finally {
       setIsRejecting(false);
-    }
-  };
-
-  // Get step type badge color
-  const getStepTypeBadgeVariant = (stepType: string): 'blue' | 'green' | 'orange' | 'yellow' | 'outline' => {
-    switch (stepType) {
-      case 'trigger':
-        return 'blue';
-      case 'llm':
-        return 'yellow';
-      case 'action':
-        return 'green';
-      case 'condition':
-        return 'orange';
-      case 'loop':
-        return 'blue';
-      default:
-        return 'outline';
     }
   };
 
