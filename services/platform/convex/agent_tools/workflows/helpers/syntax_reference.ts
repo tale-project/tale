@@ -456,7 +456,7 @@ export function getSyntaxReference(opts: { category: string }): {
   found: boolean;
   syntax: string;
 } {
-  const category = opts.category || 'all';
+  const category = opts.category;
   const syntax = SYNTAX_MODULES[category];
 
   if (!syntax) {
