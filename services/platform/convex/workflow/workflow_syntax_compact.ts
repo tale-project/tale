@@ -215,7 +215,7 @@ Workflows DO NOT have a direct "send_email" action. Use the conversation + appro
 
 ### How It Works
 - Approval appears in dashboard for human review
-- When user approves, system automatically sends the email via sendMessageViaEmail()
+- When user approves, system automatically sends the email
 - Email sent via organization's default email provider (OAuth2 or password auth)
 - Conversation tracks the email thread for replies
 
