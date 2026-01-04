@@ -27,6 +27,9 @@ import { integrationIntrospectTool } from './integrations/integration_introspect
 import { verifyApprovalTool } from './integrations/verify_approval_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
 import { workflowAssistantTool } from './sub_agents/workflow_assistant_tool';
+import { webAssistantTool } from './sub_agents/web_assistant_tool';
+import { documentAssistantTool } from './sub_agents/document_assistant_tool';
+import { integrationAssistantTool } from './sub_agents/integration_assistant_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -56,6 +59,9 @@ export const TOOL_NAMES = [
   'verify_approval',
   'database_schema',
   'workflow_assistant',
+  'web_assistant',
+  'document_assistant',
+  'integration_assistant',
 ] as const;
 
 /**
@@ -83,6 +89,9 @@ export const TOOL_REGISTRY = [
   verifyApprovalTool,
   databaseSchemaTool,
   workflowAssistantTool,
+  webAssistantTool,
+  documentAssistantTool,
+  integrationAssistantTool,
 ] as const;
 
 /**
