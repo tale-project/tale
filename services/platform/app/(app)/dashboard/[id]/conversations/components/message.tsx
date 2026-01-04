@@ -13,10 +13,6 @@ function getDeliveryIcon(status: string) {
   switch (status) {
     case 'queued':
       return <Clock className="size-3" />;
-    case 'sent':
-      return <Check className="size-3" />;
-    case 'delivered':
-      return <CheckCheck className="size-3" />;
     case 'failed':
       return <AlertCircle className="size-3" />;
     default:
@@ -39,7 +35,7 @@ export function Message({ message }: MessageProps) {
               'max-w-[40rem] relative overflow-x-auto bg-white',
               message.isCustomer
                 ? 'text-foreground'
-                : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-6',
+                : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-2',
             )}
           >
             {(() => {
@@ -88,7 +84,7 @@ export function Message({ message }: MessageProps) {
               'text-xs flex items-center gap-1.5 justify-end text-nowrap',
               message.isCustomer
                 ? 'text-muted-foreground text-left'
-                : 'text-muted-foreground/70 text-right absolute -bottom-4 right-0',
+                : 'text-muted-foreground/70 text-right mb-4',
             )}
           >
             {formatMessageTime(message.timestamp)}
