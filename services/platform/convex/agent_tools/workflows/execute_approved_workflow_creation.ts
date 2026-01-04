@@ -150,12 +150,15 @@ export const updateWorkflowApprovalWithResult = internalMutation({
 
     const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
 
+    // executedAt stored at both record level (for indexing/queries) and in metadata
+    // (for self-contained approval context). Using single timestamp for consistency.
+    const now = Date.now();
     await ctx.db.patch(args.approvalId, {
-      executedAt: Date.now(),
+      executedAt: now,
       executionError: args.executionError || undefined,
       metadata: {
         ...metadata,
-        executedAt: Date.now(),
+        executedAt: now,
         createdWorkflowId: args.createdWorkflowId || undefined,
         executionError: args.executionError || undefined,
       },
