@@ -12,6 +12,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createIntegrationAgent } from '../../lib/create_integration_agent';
 import { internal } from '../../_generated/api';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 
 /** Roles that are allowed to use the integration assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -126,12 +127,18 @@ EXAMPLES:
 
         console.log('[integration_assistant_tool] Calling integrationAgent.generateText');
 
-        // Create a sub-thread for context isolation
-        const { threadId: subThreadId } = await integrationAgent.createThread(ctx, {
-          userId,
-        });
+        // Get or create a sub-thread for this parent thread + sub-agent combination
+        // Reusing the thread allows the sub-agent to maintain context across calls
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId!,
+            subAgentType: 'integration_assistant',
+            userId,
+          },
+        );
 
-        console.log('[integration_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[integration_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
         console.log('[integration_assistant_tool] Parent thread for approvals:', threadId);
 
         // Extend context with parentThreadId for approval card linking

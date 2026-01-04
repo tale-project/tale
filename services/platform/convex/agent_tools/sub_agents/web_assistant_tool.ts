@@ -10,6 +10,7 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createWebAgent } from '../../lib/create_web_agent';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 
 export const webAssistantTool = {
   name: 'web_assistant' as const,
@@ -91,12 +92,18 @@ EXAMPLES:
 
         console.log('[web_assistant_tool] Calling webAgent.generateText');
 
-        // Create a sub-thread for context isolation
-        const { threadId: subThreadId } = await webAgent.createThread(ctx, {
-          userId,
-        });
+        // Get or create a sub-thread for this parent thread + sub-agent combination
+        // Reusing the thread allows the sub-agent to maintain context across calls
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId!,
+            subAgentType: 'web_assistant',
+            userId,
+          },
+        );
 
-        console.log('[web_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[web_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
 
         const generationStartTime = Date.now();
         const result = await webAgent.generateText(

@@ -11,6 +11,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createWorkflowAgent } from '../../lib/create_workflow_agent';
 import { internal } from '../../_generated/api';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 
 /** Roles that are allowed to use the workflow assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -129,13 +130,18 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         console.log('[workflow_assistant_tool] Calling workflowAgent.generateText');
         console.log('[workflow_assistant_tool] Prompt:', prompt);
 
-        // Create a new temporary thread for the sub-agent to avoid conflicts
-        // with the parent thread that's currently being processed
-        const { threadId: subThreadId } = await workflowAgent.createThread(ctx, {
-          userId,
-        });
+        // Get or create a sub-thread for this parent thread + sub-agent combination
+        // Reusing the thread allows the sub-agent to maintain context across calls
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId!,
+            subAgentType: 'workflow_assistant',
+            userId,
+          },
+        );
 
-        console.log('[workflow_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[workflow_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
         console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
 
         // Extend the context with parentThreadId so that tools (like create_workflow)

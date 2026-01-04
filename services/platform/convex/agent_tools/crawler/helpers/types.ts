@@ -66,6 +66,33 @@ export type WebReadSearchResult = {
 };
 
 // =============================================================================
+// SEARCH AND FETCH TYPES (Combined operation)
+// =============================================================================
+
+export interface FetchedPageContent {
+  url: string;
+  title?: string;
+  content: string;
+  word_count: number;
+  success: boolean;
+  error?: string;
+}
+
+export type WebReadSearchAndFetchResult = {
+  operation: 'search_and_fetch';
+  success: boolean;
+  query: string;
+  /** Search results metadata (all results from search) */
+  search_results: SearchResult[];
+  total_search_results: number;
+  /** Fetched page contents (top N results, fetched in parallel) */
+  fetched_pages: FetchedPageContent[];
+  pages_fetched: number;
+  pages_failed: number;
+  suggestions?: string[];
+};
+
+// =============================================================================
 // SEARXNG API TYPES
 // =============================================================================
 

@@ -10,6 +10,7 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createDocumentAgent } from '../../lib/create_document_agent';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 
 export const documentAssistantTool = {
   name: 'document_assistant' as const,
@@ -100,12 +101,18 @@ EXAMPLES:
 
         console.log('[document_assistant_tool] Calling documentAgent.generateText');
 
-        // Create a sub-thread for context isolation
-        const { threadId: subThreadId } = await documentAgent.createThread(ctx, {
-          userId,
-        });
+        // Get or create a sub-thread for this parent thread + sub-agent combination
+        // Reusing the thread allows the sub-agent to maintain context across calls
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId!,
+            subAgentType: 'document_assistant',
+            userId,
+          },
+        );
 
-        console.log('[document_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[document_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
 
         const generationStartTime = Date.now();
         const result = await documentAgent.generateText(
