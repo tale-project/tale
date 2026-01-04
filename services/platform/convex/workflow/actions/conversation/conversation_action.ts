@@ -111,7 +111,7 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
   description: `Execute conversation-specific operations (create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
 
 FOR EMAIL WORKFLOWS:
-When creating outbound email conversations, include these metadata fields:
+When creating outbound email conversations, include these fields in the metadata object:
 - emailSubject: Subject line (required)
 - emailBody: HTML or Markdown body content (required)
 - customerEmail: Recipient email address (required)
