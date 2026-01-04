@@ -27,7 +27,11 @@ from tenacity import (
 from ...config import settings
 from ...models import SearchType as ApiSearchType
 from ..vision import extract_text_from_document, is_vision_supported
-from .cleanup import cleanup_legacy_site_packages_data, cleanup_missing_local_files_data
+from .cleanup import (
+    cleanup_legacy_site_packages_data,
+    cleanup_missing_local_files_data,
+    migrate_vector_dimensions,
+)
 from .utils import normalize_add_result, normalize_search_results
 
 # Standard logging adapter for tenacity (it doesn't support loguru directly)
@@ -69,6 +73,10 @@ class CogneeService:
     def __init__(self) -> None:
         """Initialize the cognee service."""
         self.initialized = False
+        # Cached LLM configuration and reusable OpenAI client
+        # Created once during initialize() to avoid per-request overhead
+        self._llm_config: dict[str, Any] | None = None
+        self._openai_client: AsyncOpenAI | None = None
 
     async def initialize(self) -> None:
         """Initialize cognee with configuration."""
@@ -76,6 +84,11 @@ class CogneeService:
             # Cognee 0.3.5+ uses environment variables for configuration
             # All configuration is done in config.py at import time
             # Mark as initialized - cognee will auto-initialize on first use
+
+            # Check and migrate vector tables if embedding dimensions have changed.
+            # This must run BEFORE any document ingestion to prevent dimension
+            # mismatch errors like "expected 3072 dimensions, not 2560".
+            await migrate_vector_dimensions()
 
             # Clean up any legacy data rows that still point at the old
             # site-packages/.data_storage path so cognify() doesn't crash
@@ -87,6 +100,16 @@ class CogneeService:
             # example after rebuilding the container without a persistent
             # volume mounted at /app/data).
             await cleanup_missing_local_files_data()
+
+            # Cache LLM configuration and create reusable OpenAI client
+            # This avoids per-request overhead from config parsing and connection setup
+            self._llm_config = settings.get_llm_config()
+            self._openai_client = AsyncOpenAI(
+                api_key=self._llm_config["api_key"],
+                base_url=self._llm_config["base_url"],
+                timeout=60.0,
+            )
+            logger.info("OpenAI client initialized with connection pooling")
 
             self.initialized = True
             logger.info("Cognee initialized successfully")
@@ -394,19 +417,16 @@ class CogneeService:
             else:
                 user_message = query
 
-            # Get LLM configuration
-            llm_config = settings.get_llm_config()
-
-            # Create OpenAI client with timeout
-            client = AsyncOpenAI(
-                api_key=llm_config.get("api_key"),
-                base_url=llm_config.get("base_url"),
-                timeout=60.0,  # 60 second timeout to prevent hanging requests
-            )
+            # Use cached LLM configuration and reusable OpenAI client
+            # This avoids per-request overhead from config parsing and connection setup
+            llm_config = self._llm_config
+            if llm_config is None or self._openai_client is None:
+                raise RuntimeError("CogneeService not initialized. Call initialize() first.")
 
             # Build completion kwargs
+            # model is guaranteed to be set by get_llm_config() validation
             completion_kwargs: dict[str, Any] = {
-                "model": llm_config.get("model", "gpt-4o"),
+                "model": llm_config["model"],
                 "messages": [
                     {"role": "system", "content": final_system_prompt},
                     {"role": "user", "content": user_message},
@@ -424,8 +444,8 @@ class CogneeService:
             elif llm_config.get("max_tokens") is not None:
                 completion_kwargs["max_tokens"] = llm_config["max_tokens"]
 
-            # Generate response using OpenAI client
-            completion = await client.chat.completions.create(**completion_kwargs)
+            # Generate response using reusable OpenAI client (connection pooling)
+            completion = await self._openai_client.chat.completions.create(**completion_kwargs)
             if not completion.choices:
                 raise ValueError("LLM returned empty choices array")
             response = completion.choices[0].message.content or ""
