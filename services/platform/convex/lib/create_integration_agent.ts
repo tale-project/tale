@@ -21,6 +21,7 @@ export function createIntegrationAgent(options?: {
 
   const convexToolNames: ToolName[] = [
     'integration',
+    'integration_batch',
     'integration_introspect',
     'verify_approval',
   ];

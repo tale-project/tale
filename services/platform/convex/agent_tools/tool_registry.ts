@@ -23,6 +23,7 @@ import { docxTool } from './files/docx_tool';
 import { resourceCheckTool } from './files/resource_check_tool';
 import { contextSearchTool } from './threads/context_search_tool';
 import { integrationTool } from './integrations/integration_tool';
+import { integrationBatchTool } from './integrations/integration_batch_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 import { verifyApprovalTool } from './integrations/verify_approval_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
@@ -55,6 +56,7 @@ export const TOOL_NAMES = [
   'generate_excel',
   'context_search',
   'integration',
+  'integration_batch',
   'integration_introspect',
   'verify_approval',
   'database_schema',
@@ -85,6 +87,7 @@ export const TOOL_REGISTRY = [
   resourceCheckTool,
   contextSearchTool,
   integrationTool,
+  integrationBatchTool,
   integrationIntrospectTool,
   verifyApprovalTool,
   databaseSchemaTool,

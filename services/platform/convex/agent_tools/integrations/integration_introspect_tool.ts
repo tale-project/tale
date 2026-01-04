@@ -98,8 +98,18 @@ WORKFLOW:
             name === 'introspect_tables'
               ? 'List all tables in the database'
               : 'Get columns for a specific table. Requires params: { schemaName: "...", tableName: "..." }',
-          query: '', // Introspection ops don't have user-visible queries
           isIntrospection: true,
+        }));
+
+        // Strip SQL queries from operations to reduce token usage.
+        // AI only needs operation metadata (name, description, parameters) to select and call operations.
+        // The actual SQL query is only needed at execution time by the integration tool.
+        const operationSummaries = sqlOperations.map((op: any) => ({
+          name: op.name,
+          title: op.title,
+          description: op.description,
+          parametersSchema: op.parametersSchema,
+          operationType: op.operationType,
         }));
 
         return {
@@ -108,7 +118,7 @@ WORKFLOW:
           title: integration.title,
           description: integration.description,
           engine: sqlConfig.engine,
-          operations: [...introspectionOps, ...sqlOperations],
+          operations: [...introspectionOps, ...operationSummaries],
         } as IntegrationIntrospectionResult;
       }
 

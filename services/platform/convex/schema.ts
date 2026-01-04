@@ -931,6 +931,13 @@ export default defineSchema({
     cachedInputTokens: v.optional(v.number()),
     reasoning: v.optional(v.string()), // Reasoning text if available
     providerMetadata: v.optional(v.any()), // Additional provider-specific data
+    durationMs: v.optional(v.number()), // Total response time in milliseconds
+    subAgentUsage: v.optional(v.array(v.object({
+      toolName: v.string(),
+      inputTokens: v.optional(v.number()),
+      outputTokens: v.optional(v.number()),
+      totalTokens: v.optional(v.number()),
+    }))), // Token usage from sub-agent calls
   })
     .index('by_messageId', ['messageId'])
     .index('by_threadId', ['threadId']),

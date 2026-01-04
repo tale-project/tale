@@ -57,6 +57,11 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
       approvalCreated?: boolean;
       approvalId?: string;
       error?: string;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
     }> => {
       const { organizationId, threadId, userId } = ctx;
 
@@ -118,7 +123,24 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         if (args.workflowId) {
           prompt += `## Target Workflow ID: ${args.workflowId}\n\n`;
         }
+
+        // Format current date/time clearly for the model
+        const now = new Date();
+        const currentDate = now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const currentTime = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZoneName: 'short',
+        });
+
         prompt += `## Context:\n`;
+        prompt += `- **Current Date**: ${currentDate}\n`;
+        prompt += `- **Current Time**: ${currentTime}\n`;
         prompt += `- Organization ID: ${organizationId}\n`;
         if (threadId) {
           prompt += `- Parent Thread ID: ${threadId}\n`;
@@ -178,6 +200,11 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
+          usage: result.usage ? {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+          } : undefined,
         };
       } catch (error) {
         console.error('[workflow_assistant_tool] Error:', error);

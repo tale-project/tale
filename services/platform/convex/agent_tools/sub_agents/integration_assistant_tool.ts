@@ -13,6 +13,7 @@ import type { ToolDefinition } from '../types';
 import { createIntegrationAgent } from '../../lib/create_integration_agent';
 import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { formatIntegrationsForContext } from './helpers/format_integrations';
 
 /** Roles that are allowed to use the integration assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -67,6 +68,11 @@ EXAMPLES:
       approvalCreated?: boolean;
       approvalId?: string;
       error?: string;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
     }> => {
       const { organizationId, threadId, userId } = ctx;
 
@@ -108,6 +114,13 @@ EXAMPLES:
       try {
         const integrationAgent = createIntegrationAgent();
 
+        // Load available integrations for this organization
+        // This is critical - sub-agents need to know what integrations exist
+        const integrationsList = await ctx.runQuery(internal.integrations.listInternal, {
+          organizationId,
+        });
+        const integrationsInfo = formatIntegrationsForContext(integrationsList);
+
         // Build the prompt with context
         let prompt = `## User Request:\n${args.userRequest}\n\n`;
         if (args.integrationName) {
@@ -116,7 +129,29 @@ EXAMPLES:
         if (args.operation) {
           prompt += `## Requested Operation: ${args.operation}\n\n`;
         }
+
+        // Include available integrations in the prompt
+        if (integrationsInfo) {
+          prompt += `## Available Integrations:\n${integrationsInfo}\n\n`;
+        }
+
+        // Format current date/time clearly for the model
+        const now = new Date();
+        const currentDate = now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const currentTime = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZoneName: 'short',
+        });
+
         prompt += `## Context:\n`;
+        prompt += `- **Current Date**: ${currentDate}\n`;
+        prompt += `- **Current Time**: ${currentTime}\n`;
         prompt += `- Organization ID: ${organizationId}\n`;
         if (threadId) {
           prompt += `- Parent Thread ID: ${threadId}\n`;
@@ -125,7 +160,7 @@ EXAMPLES:
           prompt += `- User ID: ${userId}\n`;
         }
 
-        console.log('[integration_assistant_tool] Calling integrationAgent.generateText');
+        console.log('[integration_assistant_tool] Calling integrationAgent.generateText with', integrationsList.length, 'integrations');
 
         // Get or create a sub-thread for this parent thread + sub-agent combination
         // Reusing the thread allows the sub-agent to maintain context across calls
@@ -173,6 +208,11 @@ EXAMPLES:
           response: result.text,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
+          usage: result.usage ? {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+          } : undefined,
         };
       } catch (error) {
         console.error('[integration_assistant_tool] Error:', error);

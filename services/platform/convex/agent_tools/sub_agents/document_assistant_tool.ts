@@ -62,6 +62,11 @@ EXAMPLES:
       success: boolean;
       response: string;
       error?: string;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
     }> => {
       const { organizationId, threadId, userId } = ctx;
 
@@ -96,7 +101,24 @@ EXAMPLES:
         if (args.fileName) {
           prompt += `## File Name: ${args.fileName}\n\n`;
         }
+
+        // Format current date/time clearly for the model
+        const now = new Date();
+        const currentDate = now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const currentTime = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZoneName: 'short',
+        });
+
         prompt += `## Context:\n`;
+        prompt += `- **Current Date**: ${currentDate}\n`;
+        prompt += `- **Current Time**: ${currentTime}\n`;
         prompt += `- Organization ID: ${organizationId}\n`;
 
         console.log('[document_assistant_tool] Calling documentAgent.generateText');
@@ -132,6 +154,11 @@ EXAMPLES:
         return {
           success: true,
           response: result.text,
+          usage: result.usage ? {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+          } : undefined,
         };
       } catch (error) {
         console.error('[document_assistant_tool] Error:', error);

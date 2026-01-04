@@ -88,6 +88,17 @@ export const generateAgentResponse = internalAction({
       }),
     ),
     reasoning: v.optional(v.string()),
+    durationMs: v.optional(v.number()),
+    subAgentUsage: v.optional(
+      v.array(
+        v.object({
+          toolName: v.string(),
+          inputTokens: v.optional(v.number()),
+          outputTokens: v.optional(v.number()),
+          totalTokens: v.optional(v.number()),
+        }),
+      ),
+    ),
   }),
   handler: async (ctx, args) => {
     return await generateAgentResponseModel(ctx, args);
@@ -119,6 +130,17 @@ export const onChatComplete = internalMutation({
         }),
       ),
       reasoning: v.optional(v.string()),
+      durationMs: v.optional(v.number()),
+      subAgentUsage: v.optional(
+        v.array(
+          v.object({
+            toolName: v.string(),
+            inputTokens: v.optional(v.number()),
+            outputTokens: v.optional(v.number()),
+            totalTokens: v.optional(v.number()),
+          }),
+        ),
+      ),
     }),
   },
   returns: v.null(),

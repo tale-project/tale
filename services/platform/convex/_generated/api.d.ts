@@ -41,7 +41,9 @@ import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_too
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
 import type * as agent_tools_integrations_create_integration_approval from "../agent_tools/integrations/create_integration_approval.js";
 import type * as agent_tools_integrations_execute_approved_operation from "../agent_tools/integrations/execute_approved_operation.js";
+import type * as agent_tools_integrations_execute_batch_integration_internal from "../agent_tools/integrations/execute_batch_integration_internal.js";
 import type * as agent_tools_integrations_execute_integration_internal from "../agent_tools/integrations/execute_integration_internal.js";
+import type * as agent_tools_integrations_integration_batch_tool from "../agent_tools/integrations/integration_batch_tool.js";
 import type * as agent_tools_integrations_integration_introspect_tool from "../agent_tools/integrations/integration_introspect_tool.js";
 import type * as agent_tools_integrations_integration_tool from "../agent_tools/integrations/integration_tool.js";
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
@@ -54,6 +56,7 @@ import type * as agent_tools_products_product_read_tool from "../agent_tools/pro
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
 import type * as agent_tools_sub_agents_document_assistant_tool from "../agent_tools/sub_agents/document_assistant_tool.js";
+import type * as agent_tools_sub_agents_helpers_format_integrations from "../agent_tools/sub_agents/helpers/format_integrations.js";
 import type * as agent_tools_sub_agents_helpers_get_or_create_sub_thread from "../agent_tools/sub_agents/helpers/get_or_create_sub_thread.js";
 import type * as agent_tools_sub_agents_helpers_types from "../agent_tools/sub_agents/helpers/types.js";
 import type * as agent_tools_sub_agents_instructions_document_instructions from "../agent_tools/sub_agents/instructions/document_instructions.js";
@@ -757,7 +760,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
   "agent_tools/integrations/create_integration_approval": typeof agent_tools_integrations_create_integration_approval;
   "agent_tools/integrations/execute_approved_operation": typeof agent_tools_integrations_execute_approved_operation;
+  "agent_tools/integrations/execute_batch_integration_internal": typeof agent_tools_integrations_execute_batch_integration_internal;
   "agent_tools/integrations/execute_integration_internal": typeof agent_tools_integrations_execute_integration_internal;
+  "agent_tools/integrations/integration_batch_tool": typeof agent_tools_integrations_integration_batch_tool;
   "agent_tools/integrations/integration_introspect_tool": typeof agent_tools_integrations_integration_introspect_tool;
   "agent_tools/integrations/integration_tool": typeof agent_tools_integrations_integration_tool;
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
@@ -770,6 +775,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
   "agent_tools/sub_agents/document_assistant_tool": typeof agent_tools_sub_agents_document_assistant_tool;
+  "agent_tools/sub_agents/helpers/format_integrations": typeof agent_tools_sub_agents_helpers_format_integrations;
   "agent_tools/sub_agents/helpers/get_or_create_sub_thread": typeof agent_tools_sub_agents_helpers_get_or_create_sub_thread;
   "agent_tools/sub_agents/helpers/types": typeof agent_tools_sub_agents_helpers_types;
   "agent_tools/sub_agents/instructions/document_instructions": typeof agent_tools_sub_agents_instructions_document_instructions;
