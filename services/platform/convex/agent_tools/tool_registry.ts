@@ -14,6 +14,7 @@ import { workflowReadTool } from './workflows/workflow_read_tool';
 import { workflowExamplesTool } from './workflows/workflow_examples_tool';
 import { updateWorkflowStepTool } from './workflows/update_workflow_step_tool';
 import { saveWorkflowDefinitionTool } from './workflows/save_workflow_definition_tool';
+import { createWorkflowTool } from './workflows/create_workflow_tool';
 import { generateExcelTool } from './files/generate_excel_tool';
 import { pdfTool } from './files/pdf_tool';
 import { imageTool } from './files/image_tool';
@@ -25,6 +26,7 @@ import { integrationTool } from './integrations/integration_tool';
 import { integrationIntrospectTool } from './integrations/integration_introspect_tool';
 import { verifyApprovalTool } from './integrations/verify_approval_tool';
 import { databaseSchemaTool } from './database/database_schema_tool';
+import { workflowAssistantTool } from './sub_agents/workflow_assistant_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -46,12 +48,14 @@ export const TOOL_NAMES = [
   'workflow_examples',
   'update_workflow_step',
   'save_workflow_definition',
+  'create_workflow',
   'generate_excel',
   'context_search',
   'integration',
   'integration_introspect',
   'verify_approval',
   'database_schema',
+  'workflow_assistant',
 ] as const;
 
 /**
@@ -66,6 +70,7 @@ export const TOOL_REGISTRY = [
   workflowExamplesTool,
   updateWorkflowStepTool,
   saveWorkflowDefinitionTool,
+  createWorkflowTool,
   generateExcelTool,
   pdfTool,
   imageTool,
@@ -77,6 +82,7 @@ export const TOOL_REGISTRY = [
   integrationIntrospectTool,
   verifyApprovalTool,
   databaseSchemaTool,
+  workflowAssistantTool,
 ] as const;
 
 /**

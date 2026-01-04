@@ -33,7 +33,9 @@ export function validateLlmStep(
     typeof llmConfig.name !== 'string' ||
     llmConfig.name.trim() === ''
   ) {
-    errors.push('LLM step requires "name" field');
+    errors.push(
+      'LLM step requires "name" field. FIX: Add { name: "Descriptive Step Name", systemPrompt: "...", ... }',
+    );
   }
 
   if (
@@ -41,7 +43,16 @@ export function validateLlmStep(
     typeof llmConfig.systemPrompt !== 'string' ||
     llmConfig.systemPrompt.trim() === ''
   ) {
-    errors.push('LLM step requires "systemPrompt" field');
+    // Check if they used "prompt" instead
+    if ('prompt' in llmConfig) {
+      errors.push(
+        'LLM step requires "systemPrompt" not "prompt". FIX: Rename "prompt" to "systemPrompt"',
+      );
+    } else {
+      errors.push(
+        'LLM step requires "systemPrompt" field. FIX: Add { name: "...", systemPrompt: "You are an expert...", userPrompt: "..." }',
+      );
+    }
   }
 
   // Validate outputFormat and outputSchema relationship
@@ -52,14 +63,14 @@ export function validateLlmStep(
   if (isJsonFormat && !hasOutputSchema) {
     // JSON output format requires an output schema
     errors.push(
-      'LLM step with "outputFormat": "json" requires "outputSchema" to be provided',
+      'LLM step with "outputFormat": "json" requires "outputSchema". FIX: Add outputSchema: { type: "object", properties: {...}, required: [...] }',
     );
   }
 
   if (hasOutputSchema && !isJsonFormat) {
     // outputSchema requires outputFormat: 'json'
     errors.push(
-      'LLM step with "outputSchema" requires "outputFormat" to be "json"',
+      'LLM step with "outputSchema" requires "outputFormat": "json". FIX: Add "outputFormat": "json" to config',
     );
   }
 

@@ -24,8 +24,8 @@
  */
 
 import type { TableName } from '../types';
-import type { IndexConfig } from '../index_registry';
-import { getTableIndexes } from '../index_registry';
+import type { IndexConfig } from '../get_table_indexes';
+import { getTableIndexes } from '../get_table_indexes';
 import { parseFilterExpression } from '../parse_filter_expression';
 import type { IndexSelectionResult, ScoringResult } from './types';
 import { groupConditionsByField } from './group_conditions_by_field';
@@ -61,6 +61,20 @@ export function selectOptimalIndex(
   // Parse the filter expression
   const { conditions, hasComplexConditions } =
     parseFilterExpression(filterExpression);
+
+  // Fast path: Direct _id lookup is always optimal
+  const idCondition = conditions.find(
+    (c) => c.field === '_id' && c.operator === '==',
+  );
+  if (idCondition) {
+    return {
+      index: { name: 'by_id', fields: ['_id'], isBuiltIn: true },
+      indexValues: { _id: idCondition.value },
+      requiresPostFilter: conditions.length > 1 || hasComplexConditions,
+      indexableConditions: [idCondition],
+      postFilterConditions: conditions.filter((c) => c !== idCondition),
+    };
+  }
 
   // Group conditions by field
   const conditionsByField = groupConditionsByField(conditions);

@@ -16,7 +16,19 @@ export interface IndexConfig {
   name: string;
   /** Fields covered by this index (in order) */
   fields: string[];
+  /** Whether this is a Convex built-in index (by_creation_time, by_id) */
+  isBuiltIn?: boolean;
 }
+
+/**
+ * Convex built-in indexes available on every table.
+ * - by_creation_time: indexes on _creationTime field
+ * - by_id: indexes on _id field (reserved)
+ */
+export const BUILTIN_INDEXES: IndexConfig[] = [
+  { name: 'by_creation_time', fields: ['_creationTime'], isBuiltIn: true },
+  { name: 'by_id', fields: ['_id'], isBuiltIn: true },
+];
 
 /**
  * Registry of available indexes per table.
@@ -120,10 +132,12 @@ export const TABLE_INDEXES: Record<TableName, IndexConfig[]> = {
 };
 
 /**
- * Get available indexes for a table
+ * Get available indexes for a table.
+ * Includes both custom indexes defined in TABLE_INDEXES and Convex built-in indexes.
  */
 export function getTableIndexes(tableName: TableName): IndexConfig[] {
-  return TABLE_INDEXES[tableName] || [
+  const customIndexes = TABLE_INDEXES[tableName] || [
     { name: 'by_organizationId', fields: ['organizationId'] },
   ];
+  return [...customIndexes, ...BUILTIN_INDEXES];
 }
