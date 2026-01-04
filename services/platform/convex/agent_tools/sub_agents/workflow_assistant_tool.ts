@@ -134,25 +134,13 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         );
         const generationDurationMs = Date.now() - generationStartTime;
 
-        // Log the result to understand what we're getting
-        console.log('[workflow_assistant_tool] Result:', JSON.stringify({
+        // Log summary (detailed step logging removed to reduce log volume)
+        console.log('[workflow_assistant_tool] Result:', {
           durationMs: generationDurationMs,
-          text: result.text,
           textLength: result.text?.length ?? 0,
           finishReason: result.finishReason,
           stepsCount: result.steps?.length ?? 0,
-          // Log step details to see if there were tool calls
-          steps: result.steps?.map((step, i) => ({
-            index: i,
-            finishReason: step.finishReason,
-            hasText: !!step.text,
-            textLength: step.text?.length ?? 0,
-            textPreview: step.text?.substring(0, 200) ?? '',
-            toolCalls: step.toolCalls?.length ?? 0,
-            toolCallNames: step.toolCalls?.map((tc) => tc.toolName) ?? [],
-            toolResults: step.toolResults?.length ?? 0,
-          })),
-        }, null, 2));
+        });
 
         // Check if an approval was created
         const approvalMatch = result.text.match(/APPROVAL_CREATED:(\w+)/);
