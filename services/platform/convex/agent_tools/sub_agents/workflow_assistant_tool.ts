@@ -10,6 +10,10 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createWorkflowAgent } from '../../lib/create_workflow_agent';
+import { internal } from '../../_generated/api';
+
+/** Roles that are allowed to use the workflow assistant tool */
+const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
 export const workflowAssistantTool = {
   name: 'workflow_assistant' as const,
@@ -70,6 +74,24 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           response: '',
           error: 'Either threadId or userId is required',
         };
+      }
+
+      // Check user role - only admin, developer, and owner can use this tool
+      if (userId) {
+        const userRole = await ctx.runQuery(internal.member.getMemberRoleInternal, {
+          userId,
+          organizationId,
+        });
+
+        const normalizedRole = (userRole ?? 'member').toLowerCase();
+        if (!ALLOWED_ROLES.includes(normalizedRole as typeof ALLOWED_ROLES[number])) {
+          console.log('[workflow_assistant_tool] Access denied for role:', normalizedRole);
+          return {
+            success: false,
+            response: '',
+            error: `Access denied: The workflow assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
+          };
+        }
       }
 
       try {
