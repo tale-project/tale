@@ -125,8 +125,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
 
         // Use the new sub-thread for the generation, but pass the parent threadId
         // in the context so that approvals are linked to the parent thread
-        // Note: maxSteps is configured in createWorkflowAgent (8 for delegation mode)
-        // This lower limit helps fail faster when the model generates invalid JSON
+        // Note: maxSteps is configured in createWorkflowAgent (20 for delegation mode)
         const generationStartTime = Date.now();
         const result = await workflowAgent.generateText(
           contextWithParentThread,
