@@ -64,13 +64,15 @@ export function validateStepConfig(stepDef: StepDefinitionInput): StepConfigVali
 
   // 3. Validate step type
   if (!stepDef.stepType) {
-    errors.push('Step type is required');
+    errors.push(
+      `Step type is required. FIX: Add stepType = "trigger" | "llm" | "action" | "condition" | "loop"`,
+    );
     return { valid: false, errors, warnings };
   }
 
   if (!isValidStepType(stepDef.stepType)) {
     errors.push(
-      `Invalid step type "${stepDef.stepType}". Must be one of: ${VALID_STEP_TYPES.join(', ')}`
+      `Invalid step type "${stepDef.stepType}". FIX: Use one of: ${VALID_STEP_TYPES.join(', ')}. Note: "customer", "product", "approval" are ACTION TYPES (use stepType="action" with config.type="${stepDef.stepType}")`,
     );
     return { valid: false, errors, warnings };
   }

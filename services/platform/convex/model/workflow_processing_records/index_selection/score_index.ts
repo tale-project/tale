@@ -22,7 +22,7 @@
  * @returns Score and values to use for this index
  */
 
-import type { IndexConfig } from '../index_registry';
+import type { IndexConfig } from '../get_table_indexes';
 import type { FilterCondition } from '../ast_helpers';
 import type { ScoringResult } from './types';
 
@@ -42,6 +42,42 @@ export function scoreIndex(
       // Always have organizationId
       values[field] = organizationId;
       score += 1;
+      continue;
+    }
+
+    // Handle _creationTime field (Convex built-in index)
+    if (field === '_creationTime') {
+      const creationTimeConditions = conditionsByField.get('_creationTime');
+      if (creationTimeConditions?.length) {
+        const comparisonCondition = creationTimeConditions.find((c) =>
+          ['>', '<', '>=', '<='].includes(c.operator),
+        );
+        if (comparisonCondition) {
+          indexableConditions.push(comparisonCondition);
+          score += 5; // Same as other comparisons
+          hitComparison = true;
+          // Add remaining conditions to post-filter
+          creationTimeConditions
+            .filter((c) => c !== comparisonCondition)
+            .forEach((c) => postFilterConditions.push(c));
+        }
+      }
+      continue;
+    }
+
+    // Handle _id field (Convex built-in index)
+    if (field === '_id') {
+      const idConditions = conditionsByField.get('_id');
+      const equalityCondition = idConditions?.find((c) => c.operator === '==');
+      if (equalityCondition) {
+        values[field] = equalityCondition.value;
+        indexableConditions.push(equalityCondition);
+        score += 15; // Higher score - direct lookup is most efficient
+        // Add remaining conditions to post-filter
+        idConditions
+          ?.filter((c) => c !== equalityCondition)
+          .forEach((c) => postFilterConditions.push(c));
+      }
       continue;
     }
 

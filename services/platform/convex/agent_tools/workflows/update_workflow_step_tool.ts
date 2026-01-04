@@ -22,78 +22,26 @@ const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 export const updateWorkflowStepTool = {
   name: 'update_workflow_step' as const,
   tool: createTool({
-    description: `Update an existing workflow step. Use this to modify step configuration, name, or connections.
+    description: `Update an existing workflow step configuration.
 
-**CRITICAL JSON FORMATTING RULES:**
-1. When passing long strings (especially prompts), ensure proper JSON escaping of special characters
-2. Escape all double quotes inside strings with backslash: \\"
-3. Escape all backslashes: \\\\
-4. Escape newlines as \\n, not literal line breaks
-5. Test your JSON structure is valid before calling this tool
+**REQUIRED STEPS:**
+1. Call workflow_read(operation='get_step', stepId='...') to get current config
+2. Modify config based on current values (keep ALL required fields)
+3. Call this tool with stepRecordId and updates
 
-**CRITICAL STRUCTURE RULES:**
-1. 'config' and 'nextSteps' are SEPARATE fields in the 'updates' object - NEVER nest nextSteps inside config!
-2. For ACTION steps, 'config' MUST include the 'type' field (e.g., "customer", "product")
+**CRITICAL RULES:**
+• nextSteps goes in updates.nextSteps, NOT inside updates.config
+• For action steps: config MUST include 'type' field
+• Include stepType in updates when updating config
 
-**CORRECT structure:**
-{
-  stepRecordId: "...",
-  updates: {
-    config: { type: "customer", parameters: {...} },  // config contains step-specific settings
-    nextSteps: { success: "next_step_slug" }          // nextSteps is SEPARATE, at same level as config
-  }
-}
+**STRUCTURE:**
+{ stepRecordId: "...", updates: { stepType: "...", config: {...}, nextSteps: {...} } }
 
-**WRONG structure (will cause validation error):**
-{
-  stepRecordId: "...",
-  updates: {
-    config: {
-      parameters: {...},
-      nextSteps: { success: "..." }  // WRONG! nextSteps should NOT be inside config!
-    }
-  }
-}
+**JSON RULES:**
+• Escape quotes: \\" | Escape backslashes: \\\\ | Newlines: \\n
 
-**Examples of updating config:**
-
-1. **Update trigger schedule:**
-   {
-     stepRecordId: "...",
-     updates: {
-       config: { schedule: "0 */4 * * *", timezone: "UTC", type: "scheduled" }
-     }
-   }
-
-2. **Update LLM prompt:**
-   {
-     stepRecordId: "...",
-     updates: {
-       config: { name: "Analyze Customer", systemPrompt: "...", userPrompt: "..." }
-     }
-   }
-
-3. **Update action parameters (MUST include 'type'):**
-   {
-     stepRecordId: "...",
-     updates: {
-       config: { type: "customer", parameters: { operation: "update", ... } },
-       nextSteps: { success: "next_step" }
-     }
-   }
-
-**IMPORTANT RULES:**
-- **CRITICAL: You MUST first call workflow_read with operation='get_step' to get the current step details**
-- When updating config, you MUST pass the COMPLETE config object with ALL required fields from the current step
-- When updating config, you SHOULD include the stepType in updates.stepType (get it from the current step via get_step)
-- For ACTION steps: config MUST have 'type' field (action type like "customer", "product")
-- nextSteps goes at updates.nextSteps, NOT inside updates.config
-
-**REQUIRED WORKFLOW:**
-1. Call workflow_read(operation='get_step', stepId='<step_id>') to get current step
-2. Extract step.stepType and step.config from result
-3. Modify only the fields you need to change in config
-4. Call update_workflow_step with stepType and complete modified config`,
+**SYNTAX HELP:**
+workflow_examples(operation='get_syntax_reference', category='trigger|llm|action|condition|loop')`,
     args: z.object({
       stepRecordId: z
         .string()
@@ -112,46 +60,7 @@ export const updateWorkflowStepTool = {
             .any()
             .optional()
             .describe(
-              `Updated configuration object. Must include ALL required fields for the step type.
-
-Examples by step type:
-
-TRIGGER (scheduled):
-{ schedule: "0 */4 * * *", timezone: "UTC", type: "scheduled" }
-- schedule: cron expression (e.g., "0 */4 * * *" = every 4 hours at minute 0)
-- timezone: IANA timezone (e.g., "UTC", "America/New_York")
-- type: "scheduled" for cron-based triggers
-
-TRIGGER (manual):
-{ type: "manual" }
-- type: "manual" for on-demand triggers
-
-LLM (AI agent):
-{ name: "Analyze Customer", systemPrompt: "You are a customer analyst...", userPrompt: "Analyze this customer data", temperature: 0.7, tools: ["product_get", "customer_get"] }
-- name: human-readable name for this LLM step (REQUIRED)
-- systemPrompt: system instructions/role definition for the AI agent (REQUIRED, not "prompt")
-- userPrompt: specific task prompt for this execution (OPTIONAL but recommended - separates role from task)
-- temperature: creativity level (0.0-1.0) (optional)
-- tools: array of tool names the agent can use (optional)
-- outputFormat: "text" or "json" (optional)
-- maxSteps: maximum tool calling iterations (optional)
-- Model selection: The model is configured globally via the OPENAI_MODEL environment variable (required; no default) and cannot be customized per step. Do NOT include a 'model' field in the step config.
-
-ACTION (registered action):
-{ type: "customer", parameters: { operation: "search", query: "{{steps.previous_step.output}}", limit: 10 } }
-- type: the action type (e.g., "customer", "product", "conversation", "shopify")
-- parameters: input parameters (can use {{steps.stepSlug.field}} for dynamic values)
-  - For most actions, include "operation" to specify the operation (e.g., "search", "get_by_id", "create", "update")
-
-CONDITION (branching):
-{ expression: "{{steps.previous_step.count}} > 10" }
-- expression: JEXL expression that evaluates to boolean
-- Use {{steps.stepSlug.field}} to reference previous step outputs
-
-LOOP (iteration):
-{ items: "{{steps.previous_step.customers}}", itemVariable: "customer" }
-- items: array to iterate over (can use {{steps.stepSlug.field}})
-- itemVariable: name to reference current item in loop body`,
+              'Updated config object. Must include ALL required fields for the step type. For LLM: name + systemPrompt. For action: type + parameters. Use workflow_examples(get_syntax_reference) for detailed syntax.',
             ),
           nextSteps: z
             .any()

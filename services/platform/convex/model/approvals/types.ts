@@ -43,6 +43,33 @@ export interface IntegrationOperationMetadata {
   executionResult?: unknown;
 }
 
+/**
+ * Metadata for workflow creation approvals
+ */
+export interface WorkflowCreationMetadata {
+  workflowName: string;
+  workflowDescription?: string;
+  workflowConfig: {
+    name: string;
+    description?: string;
+    version?: string;
+    workflowType?: 'predefined';
+    config?: Record<string, unknown>;
+  };
+  stepsConfig: Array<{
+    stepSlug: string;
+    name: string;
+    stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
+    order: number;
+    config: Record<string, unknown>;
+    nextSteps: Record<string, string>;
+  }>;
+  requestedAt: number;
+  executedAt?: number;
+  createdWorkflowId?: string;
+  executionError?: string;
+}
+
 export interface CreateApprovalArgs {
   organizationId: string;
   resourceType: ApprovalResourceType;

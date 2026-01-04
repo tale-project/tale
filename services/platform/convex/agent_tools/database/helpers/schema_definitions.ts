@@ -2,7 +2,7 @@
  * Static schema definitions for tables supported by workflow_processing_records
  *
  * These definitions tell the AI what fields are available for filterExpressions.
- * Derived from schema.ts and index_registry.ts.
+ * Derived from schema.ts and get_table_indexes.ts.
  */
 
 import type { TableSchemaDefinition } from './types';

@@ -12,7 +12,7 @@ export { BACKOFF_NEVER_REPROCESS } from './constants';
 export { calculateCutoffTimestamp } from './calculate_cutoff_timestamp';
 
 // Smart index selection
-export { getTableIndexes, type IndexConfig } from './index_registry';
+export { getTableIndexes, type IndexConfig } from './get_table_indexes';
 export { parseFilterExpression, type ParsedFilterExpression } from './parse_filter_expression';
 export { selectOptimalIndex, type IndexSelectionResult } from './index_selection';
 

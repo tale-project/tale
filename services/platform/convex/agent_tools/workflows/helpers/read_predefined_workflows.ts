@@ -4,6 +4,69 @@
 
 import { workflows } from '../../../predefined_workflows';
 
+/**
+ * Workflow categories and use cases for agent guidance
+ */
+const WORKFLOW_METADATA: Record<string, { category: string; useCases: string[] }> = {
+  // Entity Processing - process one entity at a time
+  generalCustomerStatusAssessment: {
+    category: 'entity_processing',
+    useCases: ['customer analysis', 'status assessment', 'churn prediction'],
+  },
+  generalProductRecommendation: {
+    category: 'entity_processing',
+    useCases: ['product recommendations', 'AI recommendations', 'personalization'],
+  },
+  productRecommendationEmail: {
+    category: 'entity_processing',
+    useCases: ['email campaigns', 'product recommendations', 'email sending'],
+  },
+  conversationAutoReply: {
+    category: 'entity_processing',
+    useCases: ['auto reply', 'customer support', 'conversation handling'],
+  },
+  conversationAutoArchive: {
+    category: 'entity_processing',
+    useCases: ['archiving', 'cleanup', 'conversation management'],
+  },
+  productRelationshipAnalysis: {
+    category: 'entity_processing',
+    useCases: ['product analysis', 'relationship mapping', 'cross-sell'],
+  },
+
+  // RAG Sync - sync data to knowledge base
+  documentRagSync: {
+    category: 'rag_sync',
+    useCases: ['RAG', 'knowledge base', 'document sync'],
+  },
+  productRagSync: {
+    category: 'rag_sync',
+    useCases: ['RAG', 'product sync', 'knowledge base'],
+  },
+  customerRagSync: {
+    category: 'rag_sync',
+    useCases: ['RAG', 'customer sync', 'knowledge base'],
+  },
+
+  // Data Sync - sync external data with pagination
+  shopifySyncProducts: {
+    category: 'data_sync',
+    useCases: ['Shopify', 'product sync', 'e-commerce', 'pagination'],
+  },
+  shopifySyncCustomers: {
+    category: 'data_sync',
+    useCases: ['Shopify', 'customer sync', 'e-commerce', 'pagination'],
+  },
+  emailSyncImap: {
+    category: 'data_sync',
+    useCases: ['email sync', 'IMAP', 'inbox sync'],
+  },
+  onedriveSyncWorkflow: {
+    category: 'data_sync',
+    useCases: ['OneDrive', 'file sync', 'document sync'],
+  },
+};
+
 type WorkflowDefinition = {
   workflowConfig: {
     name: string;
@@ -25,12 +88,15 @@ type WorkflowDefinition = {
 export type WorkflowReadListPredefinedResult = {
   operation: 'list_predefined';
   count: number;
+  categorySummary: string;
   workflows: Array<{
     key: string;
     name: string;
     description: string;
     version: string;
     stepCount: number;
+    category: string;
+    useCases: string[];
   }>;
 };
 
@@ -47,18 +113,35 @@ export type WorkflowReadGetPredefinedResult = {
  */
 export function listPredefinedWorkflows(): WorkflowReadListPredefinedResult {
   const workflowEntries = Object.entries(workflows) as [string, WorkflowDefinition][];
-  
-  const workflowList = workflowEntries.map(([key, wf]) => ({
-    key,
-    name: wf.workflowConfig.name,
-    description: wf.workflowConfig.description || 'No description',
-    version: wf.workflowConfig.version || '1.0.0',
-    stepCount: wf.stepsConfig.length,
-  }));
+
+  const workflowList = workflowEntries.map(([key, wf]) => {
+    const metadata = WORKFLOW_METADATA[key] || { category: 'other', useCases: [] };
+    return {
+      key,
+      name: wf.workflowConfig.name,
+      description: wf.workflowConfig.description || 'No description',
+      version: wf.workflowConfig.version || '1.0.0',
+      stepCount: wf.stepsConfig.length,
+      category: metadata.category,
+      useCases: metadata.useCases,
+    };
+  });
+
+  // Group by category for summary
+  const byCategory = workflowList.reduce((acc, wf) => {
+    if (!acc[wf.category]) acc[wf.category] = [];
+    acc[wf.category].push(wf.key);
+    return acc;
+  }, {} as Record<string, string[]>);
+
+  const categorySummary = Object.entries(byCategory)
+    .map(([cat, keys]) => `${cat}: ${keys.join(', ')}`)
+    .join(' | ');
 
   return {
     operation: 'list_predefined',
     count: workflowList.length,
+    categorySummary,
     workflows: workflowList,
   };
 }

@@ -16,7 +16,9 @@ export function validateActionStep(config: Record<string, unknown>): ValidationR
 
   // Action type is required
   if (!('type' in config)) {
-    errors.push('Action type is required for action steps');
+    errors.push(
+      'Action step requires "type" field in config. FIX: Add config.type = "customer" | "product" | "approval" | "workflow_processing_records" | "set_variables" | "integration" | "conversation"',
+    );
     return { valid: false, errors, warnings };
   }
 

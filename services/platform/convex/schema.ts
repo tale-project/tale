@@ -779,6 +779,7 @@ export default defineSchema({
       v.literal('conversations'),
       v.literal('product_recommendation'),
       v.literal('integration_operation'),
+      v.literal('workflow_creation'),
     ),
     resourceId: v.string(),
 
