@@ -54,6 +54,8 @@ function WorkflowCreationApprovalCardComponent({
   const [error, setError] = useState<string | null>(null);
   const [showSteps, setShowSteps] = useState(false);
 
+  // No optimistic update: approval triggers external workflow creation action with
+  // side effects that cannot be safely rolled back if the mutation fails.
   const updateApprovalStatus = useMutation(api.approvals.updateApprovalStatusPublic);
   const executeApprovedWorkflow = useAction(
     api.approvals.executeApprovedWorkflowCreation
