@@ -476,8 +476,23 @@ export function getSyntaxReference(opts: { category: string }): {
   };
 }
 
+// Category descriptions - kept in sync with SYNTAX_MODULES keys
+const SYNTAX_CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  quick_start: '⭐ START HERE: Decision tree and common mistakes to avoid',
+  common_patterns: '⭐ Pattern skeletons: Entity Processing, Email, LLM Analysis, Data Sync, RAG',
+  trigger: 'Trigger step configuration (manual, scheduled, webhook)',
+  llm: 'LLM step configuration (AI agent with tools)',
+  action: 'Action step types and parameters',
+  condition: 'Condition step with JEXL expressions',
+  loop: 'Loop step for iteration',
+  email: 'Email sending pattern (conversation + approval)',
+  entity_processing: 'One-at-a-time entity processing pattern',
+  variables: 'Variable syntax and JEXL filters',
+};
+
 /**
  * List available syntax categories
+ * Dynamically derived from SYNTAX_MODULES to prevent drift
  */
 export function listSyntaxCategories(): {
   operation: 'list_syntax_categories';
@@ -485,17 +500,9 @@ export function listSyntaxCategories(): {
 } {
   return {
     operation: 'list_syntax_categories',
-    categories: [
-      { key: 'quick_start', description: '⭐ START HERE: Decision tree and common mistakes to avoid' },
-      { key: 'common_patterns', description: '⭐ Pattern skeletons: Entity Processing, Email, LLM Analysis, Data Sync, RAG' },
-      { key: 'trigger', description: 'Trigger step configuration (manual, scheduled, webhook)' },
-      { key: 'llm', description: 'LLM step configuration (AI agent with tools)' },
-      { key: 'action', description: 'Action step types and parameters' },
-      { key: 'condition', description: 'Condition step with JEXL expressions' },
-      { key: 'loop', description: 'Loop step for iteration' },
-      { key: 'email', description: 'Email sending pattern (conversation + approval)' },
-      { key: 'entity_processing', description: 'One-at-a-time entity processing pattern' },
-      { key: 'variables', description: 'Variable syntax and JEXL filters' },
-    ],
+    categories: Object.keys(SYNTAX_MODULES).map((key) => ({
+      key,
+      description: SYNTAX_CATEGORY_DESCRIPTIONS[key] ?? 'No description available',
+    })),
   };
 }
