@@ -186,6 +186,9 @@ export async function searchAndFetch(
     total_duration_ms: totalDuration,
   });
 
+  // Note: success=true indicates the operation completed (search worked).
+  // Partial page fetch failures are expected and tracked in pages_failed.
+  // Callers should check pages_failed and fetched_pages[].success for per-page outcomes.
   return {
     operation: 'search_and_fetch',
     success: true,
