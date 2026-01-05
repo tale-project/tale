@@ -24,6 +24,13 @@ export const saveMessageMetadata = mutation({
     cachedInputTokens: v.optional(v.number()),
     reasoning: v.optional(v.string()),
     providerMetadata: v.optional(v.any()),
+    durationMs: v.optional(v.number()),
+    subAgentUsage: v.optional(v.array(v.object({
+      toolName: v.string(),
+      inputTokens: v.optional(v.number()),
+      outputTokens: v.optional(v.number()),
+      totalTokens: v.optional(v.number()),
+    }))),
   },
   returns: v.id('messageMetadata'),
   handler: async (ctx, args) => {
@@ -45,6 +52,8 @@ export const saveMessageMetadata = mutation({
         cachedInputTokens: args.cachedInputTokens,
         reasoning: args.reasoning,
         providerMetadata: args.providerMetadata,
+        durationMs: args.durationMs,
+        subAgentUsage: args.subAgentUsage,
       });
       return existingMetadata._id;
     }
@@ -62,6 +71,8 @@ export const saveMessageMetadata = mutation({
       cachedInputTokens: args.cachedInputTokens,
       reasoning: args.reasoning,
       providerMetadata: args.providerMetadata,
+      durationMs: args.durationMs,
+      subAgentUsage: args.subAgentUsage,
     });
 
     return metadataId;
@@ -88,6 +99,13 @@ export const getMessageMetadata = query({
       cachedInputTokens: v.optional(v.number()),
       reasoning: v.optional(v.string()),
       providerMetadata: v.optional(v.any()),
+      durationMs: v.optional(v.number()),
+      subAgentUsage: v.optional(v.array(v.object({
+        toolName: v.string(),
+        inputTokens: v.optional(v.number()),
+        outputTokens: v.optional(v.number()),
+        totalTokens: v.optional(v.number()),
+      }))),
     }),
     v.null(),
   ),
@@ -113,6 +131,8 @@ export const getMessageMetadata = query({
       cachedInputTokens: metadata.cachedInputTokens,
       reasoning: metadata.reasoning,
       providerMetadata: metadata.providerMetadata,
+      durationMs: metadata.durationMs,
+      subAgentUsage: metadata.subAgentUsage,
     };
   },
 });

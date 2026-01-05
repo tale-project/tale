@@ -2,6 +2,9 @@ import { openai } from './openai_provider';
 import { Agent } from '@convex-dev/agent';
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
 import type { ToolName } from '../agent_tools/tool_registry';
+import { createDebugLog } from './debug_log';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 
 /**
  * Create a general Agent configuration object compatible with @convex-dev/agent.
@@ -39,6 +42,28 @@ export function createAgentConfig(opts: {
 
   const hasAnyTools = Object.keys(mergedTools).length > 0;
 
+  // DEBUG: Log tool definitions size for token analysis
+  // Tool definitions are sent to the model and consume input tokens
+  if (hasAnyTools) {
+    const toolNames = Object.keys(mergedTools);
+    // Estimate tool definition tokens by serializing to JSON
+    // This gives us a rough idea of how much the tool definitions cost
+    const toolDefsJson = JSON.stringify(mergedTools, (key, value) => {
+      // Skip function values (handlers) as they're not sent to the model
+      if (typeof value === 'function') return '[Function]';
+      return value;
+    });
+    // Rough token estimate: ~4 chars per token for JSON
+    const estimatedToolTokens = Math.ceil(toolDefsJson.length / 4);
+    debugLog('Tool definitions analysis', {
+      agentName: opts.name,
+      toolCount: toolNames.length,
+      toolNames,
+      toolDefsJsonLength: toolDefsJson.length,
+      estimatedToolTokens,
+    });
+  }
+
   // Augment instructions to ensure a final assistant message after any tool use
   const suffixParts: string[] = [
     'If you use any tools, you must always conclude by producing a final assistant message with the answer.',
@@ -51,6 +76,14 @@ export function createAgentConfig(opts: {
   const finalInstructions = [opts.instructions, suffixParts.join(' ')]
     .filter(Boolean)
     .join('\n\n');
+
+  // DEBUG: Log system instructions size
+  const estimatedInstructionTokens = Math.ceil(finalInstructions.length / 4);
+  debugLog('System instructions analysis', {
+    agentName: opts.name,
+    instructionsLength: finalInstructions.length,
+    estimatedInstructionTokens,
+  });
 
   const envModel = (process.env.OPENAI_MODEL || '').trim();
   const model = opts.model ?? envModel;

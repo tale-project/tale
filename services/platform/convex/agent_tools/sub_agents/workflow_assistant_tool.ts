@@ -11,6 +11,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createWorkflowAgent } from '../../lib/create_workflow_agent';
 import { internal } from '../../_generated/api';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 
 /** Roles that are allowed to use the workflow assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -56,6 +57,11 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
       approvalCreated?: boolean;
       approvalId?: string;
       error?: string;
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+      };
     }> => {
       const { organizationId, threadId, userId } = ctx;
 
@@ -67,12 +73,12 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         };
       }
 
-      // Agent SDK requires either userId or threadId to be specified
-      if (!threadId && !userId) {
+      // Sub-thread creation requires a parent threadId to link to
+      if (!threadId) {
         return {
           success: false,
           response: '',
-          error: 'Either threadId or userId is required',
+          error: 'threadId is required for workflow_assistant to create sub-threads',
         };
       }
 
@@ -117,7 +123,24 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         if (args.workflowId) {
           prompt += `## Target Workflow ID: ${args.workflowId}\n\n`;
         }
+
+        // Format current date/time clearly for the model
+        const now = new Date();
+        const currentDate = now.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+        const currentTime = now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZoneName: 'short',
+        });
+
         prompt += `## Context:\n`;
+        prompt += `- **Current Date**: ${currentDate}\n`;
+        prompt += `- **Current Time**: ${currentTime}\n`;
         prompt += `- Organization ID: ${organizationId}\n`;
         if (threadId) {
           prompt += `- Parent Thread ID: ${threadId}\n`;
@@ -129,13 +152,18 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         console.log('[workflow_assistant_tool] Calling workflowAgent.generateText');
         console.log('[workflow_assistant_tool] Prompt:', prompt);
 
-        // Create a new temporary thread for the sub-agent to avoid conflicts
-        // with the parent thread that's currently being processed
-        const { threadId: subThreadId } = await workflowAgent.createThread(ctx, {
-          userId,
-        });
+        // Get or create a sub-thread for this parent thread + sub-agent combination
+        // Reusing the thread allows the sub-agent to maintain context across calls
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId,
+            subAgentType: 'workflow_assistant',
+            userId,
+          },
+        );
 
-        console.log('[workflow_assistant_tool] Created sub-thread:', subThreadId);
+        console.log('[workflow_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
         console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
 
         // Extend the context with parentThreadId so that tools (like create_workflow)
@@ -172,6 +200,11 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
+          usage: result.usage ? {
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            totalTokens: result.usage.totalTokens,
+          } : undefined,
         };
       } catch (error) {
         console.error('[workflow_assistant_tool] Error:', error);

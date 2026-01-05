@@ -334,9 +334,9 @@ services:
       dockerfile: services/search/Dockerfile
 
     # Port mapping: host:container (for development)
-    # Access SearXNG at localhost:8080
+    # Access SearXNG at localhost:8003
     ports:
-      - '8080:8080'
+      - '8003:8080'
 
     # Environment file
     env_file:

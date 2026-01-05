@@ -91,6 +91,8 @@ export async function onChatComplete(
         reasoningTokens: result.usage.reasoningTokens,
         cachedInputTokens: result.usage.cachedInputTokens,
         reasoning: result.reasoning,
+        durationMs: result.durationMs,
+        subAgentUsage: result.subAgentUsage,
       });
       debugLog('onChatComplete metadata saved', {
         messageId: firstAssistantMessage._id,

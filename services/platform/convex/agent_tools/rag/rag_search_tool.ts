@@ -45,8 +45,10 @@ export const ragSearchTool = {
   tool: createTool({
     description: `Search the knowledge base using semantic/vector similarity search.
 
+PERFORMANCE TIP: Use SMALL top_k values (3-5) for faster responses. Larger values significantly slow down processing.
+
 IMPORTANT LIMITATIONS:
-• Returns only the TOP matching chunks (default 10, max 20)
+• Returns only the TOP matching chunks (default 5, max 20)
 • NOT suitable for: counting records, listing all items, aggregate queries
 • For counting/listing/filtering, use database tools (customer_read, product_read, workflow_read) instead
 
@@ -61,13 +63,13 @@ WHEN NOT TO USE:
 • "List all products" → Use product_read with operation='list'
 • "Show customers with status=churned" → Use customer_read with filtering
 
-TOP_K GUIDANCE:
-• Use top_k=10 (default) for most queries
-• Use top_k=20 for comprehensive queries like:
-  - "List all chapters/sections/topics in this document"
-  - "Give me a complete summary/overview"
+TOP_K GUIDANCE (IMPORTANT - affects response speed):
+• top_k=3-5: RECOMMENDED for most queries - fast response, high-quality results
+• top_k=10: Only when you need broader context (slower)
+• top_k=15-20: Only for comprehensive enumeration queries (much slower):
+  - "List ALL chapters/sections/topics"
+  - "Give me a COMPLETE summary/overview"
   - "What are ALL the key points?"
-  - Enumeration questions that need full document coverage
 
 Returns the most relevant document chunks based on semantic similarity to your query.`,
     args: z.object({
@@ -75,7 +77,7 @@ Returns the most relevant document chunks based on semantic similarity to your q
       top_k: z
         .number()
         .optional()
-        .describe('Number of results to return (default: 5, max: 20)'),
+        .describe('Number of results (default: 5, max: 20). Use 3-5 for best performance. Only increase for comprehensive queries.'),
       similarity_threshold: z
         .number()
         .optional()
@@ -101,10 +103,14 @@ Returns the most relevant document chunks based on semantic similarity to your q
 
       const url = `${ragServiceUrl}/api/v1/search`;
 
+      // Default similarity_threshold of 0.3 balances recall and precision:
+      // - Lower values (< 0.3) include more marginal matches, increasing noise
+      // - Higher values (> 0.5) filter too aggressively, missing relevant results
+      // - 0.3 is a common baseline for embedding-based search with cosine similarity
       const payload = {
         query: args.query,
-        top_k: args.top_k || 10,
-        similarity_threshold: args.similarity_threshold || 0.0001,
+        top_k: args.top_k || 5,
+        similarity_threshold: args.similarity_threshold ?? 0.3,
         include_metadata: args.include_metadata !== false,
       };
 
