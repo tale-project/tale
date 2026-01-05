@@ -103,10 +103,14 @@ Returns the most relevant document chunks based on semantic similarity to your q
 
       const url = `${ragServiceUrl}/api/v1/search`;
 
+      // Default similarity_threshold of 0.3 balances recall and precision:
+      // - Lower values (< 0.3) include more marginal matches, increasing noise
+      // - Higher values (> 0.5) filter too aggressively, missing relevant results
+      // - 0.3 is a common baseline for embedding-based search with cosine similarity
       const payload = {
         query: args.query,
         top_k: args.top_k || 5,
-        similarity_threshold: args.similarity_threshold || 0.3,
+        similarity_threshold: args.similarity_threshold ?? 0.3,
         include_metadata: args.include_metadata !== false,
       };
 
