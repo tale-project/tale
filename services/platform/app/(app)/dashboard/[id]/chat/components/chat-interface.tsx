@@ -13,7 +13,7 @@ import { IntegrationApprovalCard } from './integration-approval-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { cn } from '@/lib/utils/cn';
 import { uuidv7 } from 'uuidv7';
-import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
+import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import { useCreateThread } from '../hooks/use-create-thread';
@@ -366,7 +366,8 @@ export function ChatInterface({
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
 
   // Fetch workflow creation approvals for this thread
-  const { approvals: workflowCreationApprovals } = useWorkflowCreationApprovals(threadId);
+  const { approvals: workflowCreationApprovals } =
+    useWorkflowCreationApprovals(threadId);
 
   // Create a merged list of messages and approvals
   // Approvals are positioned right after their associated message (by messageId)
@@ -397,12 +398,14 @@ export function ChatInterface({
     // Filter integration approvals:
     // 1. Must have a messageId (pending approvals without messageId are hidden until stream completes)
     // 2. The associated message must be currently loaded (handles pagination)
-    const filteredIntegrationApprovals = (integrationApprovals || []).filter((approval) => {
-      // Must have a messageId to be displayed
-      if (!approval.messageId) return false;
-      // Only show if the associated message is currently loaded
-      return loadedMessageIds.has(approval.messageId);
-    });
+    const filteredIntegrationApprovals = (integrationApprovals || []).filter(
+      (approval) => {
+        // Must have a messageId to be displayed
+        if (!approval.messageId) return false;
+        // Only show if the associated message is currently loaded
+        return loadedMessageIds.has(approval.messageId);
+      },
+    );
 
     // Add filtered integration approvals
     for (const approval of filteredIntegrationApprovals) {
@@ -410,10 +413,12 @@ export function ChatInterface({
     }
 
     // Filter workflow creation approvals with same criteria
-    const filteredWorkflowApprovals = (workflowCreationApprovals || []).filter((approval) => {
-      if (!approval.messageId) return false;
-      return loadedMessageIds.has(approval.messageId);
-    });
+    const filteredWorkflowApprovals = (workflowCreationApprovals || []).filter(
+      (approval) => {
+        if (!approval.messageId) return false;
+        return loadedMessageIds.has(approval.messageId);
+      },
+    );
 
     // Add filtered workflow creation approvals
     for (const approval of filteredWorkflowApprovals) {
@@ -488,13 +493,14 @@ export function ChatInterface({
     setOptimisticMessage,
   ]);
 
-  // Scroll handling
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Auto-scroll handling - respects user intent (stops if user scrolls up)
+  const { containerRef, contentRef, scrollToBottom, isAtBottom } =
+    useAutoScroll({
+      enabled: isLoading,
+      threshold: 100,
+    });
+
   const aiResponseAreaRef = useRef<HTMLDivElement>(null);
-  const { throttledScrollToBottom, cleanup } = useThrottledScroll({
-    delay: 16,
-  });
-  const _messageCount = threadMessages?.length ?? 0;
 
   // Track when we should scroll to position AI response at top
   const shouldScrollToAIRef = useRef(false);
@@ -517,7 +523,7 @@ export function ChatInterface({
         behavior: 'smooth',
       });
     }
-  }, []);
+  }, [containerRef]);
 
   useEffect(() => {
     // When loading starts (AI response begins), scroll to position it at top
@@ -530,28 +536,47 @@ export function ChatInterface({
     }
   }, [isLoading, scrollToAIResponse]);
 
+  // Setup scroll listener for "scroll to bottom" button visibility
   useEffect(() => {
-    // Setup scroll listener for "scroll to bottom" button
     const container = containerRef.current;
-    if (container) {
-      const checkScroll = () => {
-        const { scrollTop, scrollHeight, clientHeight } = container;
-        setShowScrollButton(scrollHeight - scrollTop - clientHeight >= 100);
-      };
-      container.addEventListener('scroll', checkScroll);
-      return () => {
-        container.removeEventListener('scroll', checkScroll);
-        cleanup();
-      };
-    }
-    return cleanup;
-  }, [cleanup]);
+    if (!container) return;
 
-  const scrollToBottom = () => {
-    if (containerRef.current) {
-      throttledScrollToBottom(containerRef.current, 'smooth');
+    const checkScroll = () => {
+      setShowScrollButton(!isAtBottom());
+    };
+
+    container.addEventListener('scroll', checkScroll, { passive: true });
+    return () => container.removeEventListener('scroll', checkScroll);
+  }, [containerRef, isAtBottom]);
+
+  // Scroll to bottom when navigating to a conversation with existing messages
+  const hasScrolledOnLoadRef = useRef(false);
+  useEffect(() => {
+    // Only scroll once per thread when messages first load
+    if (
+      threadId &&
+      threadMessages.length > 0 &&
+      !hasScrolledOnLoadRef.current &&
+      containerRef.current
+    ) {
+      hasScrolledOnLoadRef.current = true;
+      // Use instant scroll for initial load (no animation)
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: 'instant',
+      });
     }
-  };
+
+    // Reset the flag when threadId changes
+    if (!threadId) {
+      hasScrolledOnLoadRef.current = false;
+    }
+  }, [threadId, threadMessages.length, containerRef]);
+
+  // Reset scroll flag when navigating to a different thread
+  useEffect(() => {
+    hasScrolledOnLoadRef.current = false;
+  }, [threadId]);
 
   const handleSendMessage = async (
     message: string,
@@ -632,8 +657,7 @@ export function ChatInterface({
       clearChatState();
       setInputValue('');
       toast({
-        title:
-          error instanceof Error ? error.message : t('toast.sendFailed'),
+        title: error instanceof Error ? error.message : t('toast.sendFailed'),
         variant: 'destructive',
       });
     }
@@ -645,8 +669,9 @@ export function ChatInterface({
         ref={containerRef}
         className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto"
       >
-        {/* Messages area */}
+        {/* Messages area - contentRef enables auto-scroll on content growth */}
         <div
+          ref={contentRef}
           className={cn(
             'flex-1 overflow-y-visible p-8',
             !threadId &&
@@ -762,8 +787,9 @@ export function ChatInterface({
               )}
 
               {/* AI Response area - ref used for scroll positioning */}
+              {/* Hide ThinkingAnimation once AI starts outputting text content */}
               <div ref={aiResponseAreaRef}>
-                {isLoading && (
+                {isLoading && !streamingMessage?.text && (
                   <ThinkingAnimation
                     threadId={threadId}
                     streamingMessage={streamingMessage}
