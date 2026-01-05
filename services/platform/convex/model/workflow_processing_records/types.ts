@@ -10,6 +10,7 @@ export type TableName =
   | 'products'
   | 'documents'
   | 'conversations'
+  | 'conversationMessages'
   | 'approvals'
   | 'onedriveSyncConfigs'
   | 'websitePages'

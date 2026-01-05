@@ -182,6 +182,20 @@ jexlInstance.addTransform(
   },
 );
 
+// Add filterBy transform to filter array by field value (supports any value type)
+jexlInstance.addTransform(
+  'filterBy',
+  (arr: unknown[], fieldPath: string, value: unknown) => {
+    if (!isArray(arr)) return [];
+
+    return arr.filter((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const fieldValue = get(item as Record<string, unknown>, fieldPath);
+      return fieldValue === value;
+    });
+  },
+);
+
 // Add hasOverlap transform to check if two arrays have any common elements
 jexlInstance.addTransform('hasOverlap', (arr1: unknown[], arr2: unknown[]) => {
   // Check if two arrays have any overlapping values (array intersection)

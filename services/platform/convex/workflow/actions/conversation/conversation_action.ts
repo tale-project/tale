@@ -69,6 +69,10 @@ type ConversationActionParams =
       metadata?: Record<string, unknown>;
     }
   | {
+      operation: 'get_by_id';
+      conversationId: Id<'conversations'>;
+    }
+  | {
       operation: 'query_messages';
       paginationOpts: { numItems: number; cursor: string | null };
       conversationId?: Id<'conversations'>;
@@ -108,7 +112,7 @@ type ConversationActionParams =
 export const conversationAction: ActionDefinition<ConversationActionParams> = {
   type: 'conversation',
   title: 'Conversation Operation',
-  description: `Execute conversation-specific operations (create, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
+  description: `Execute conversation-specific operations (create, get_by_id, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
 
 FOR EMAIL WORKFLOWS:
 When creating outbound email conversations, include these fields in the metadata object:
@@ -134,6 +138,11 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       direction: v.optional(directionValidator),
       providerId: v.optional(v.id('emailProviders')),
       metadata: v.optional(v.any()),
+    }),
+    // get_by_id: Get a conversation by ID
+    v.object({
+      operation: v.literal('get_by_id'),
+      conversationId: v.id('conversations'),
     }),
     // query_messages: Query conversation messages with pagination
     v.object({
@@ -200,6 +209,13 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           direction: params.direction,
           providerId: params.providerId,
           metadata: params.metadata,
+        });
+      }
+
+      case 'get_by_id': {
+        const { internal } = await import('../../../_generated/api');
+        return await ctx.runQuery(internal.conversations.getConversationById, {
+          conversationId: params.conversationId,
         });
       }
 
