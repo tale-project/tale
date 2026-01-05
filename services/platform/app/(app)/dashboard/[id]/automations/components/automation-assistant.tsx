@@ -187,10 +187,11 @@ export function AutomationAssistant({
   );
 
   // Load thread messages when threadId is available using useUIMessages for file parts support
+  // Reduced initial load to prevent query timeouts - see: https://github.com/tale-project/tale/issues/85
   const { results: uiMessages } = useUIMessages(
     api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 50, stream: true },
+    { initialNumItems: 10, stream: true },
   );
 
   // Load threadId from workflow metadata when workflow is loaded
