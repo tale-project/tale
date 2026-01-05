@@ -14,6 +14,7 @@ const tableNameValidator = v.union(
   v.literal('products'),
   v.literal('documents'),
   v.literal('conversations'),
+  v.literal('conversationMessages'),
   v.literal('approvals'),
   v.literal('onedriveSyncConfigs'),
   v.literal('websitePages'),

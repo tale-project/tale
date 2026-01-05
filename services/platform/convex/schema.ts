@@ -551,6 +551,10 @@ export default defineSchema({
       'organizationId',
       'deliveredAt',
     ])
+    .index('by_organizationId_and_direction', [
+      'organizationId',
+      'direction',
+    ])
     .index('by_organizationId_and_externalMessageId', [
       'organizationId',
       'externalMessageId',

@@ -1,41 +1,44 @@
 /**
  * Conversation Auto-Reply Workflow
  *
- * This workflow automatically finds one open conversation, checks if it needs a reply,
+ * This workflow automatically finds one unprocessed inbound message, checks if it needs a reply,
  * generates an AI-powered reply in markdown format using the organization's tone of voice,
  * and creates an approval record.
  *
  * High-level flow:
- * 1) Query for one open conversation
- * 2) Query the organization's tone of voice
- * 3) Use LLM to check if the conversation needs a reply AND classify conversation type
- * 4) Update conversation type if needed (only if type is missing or "general")
- * 5) If reply needed, use LLM to generate a reply in markdown format following the brand tone
- * 6) Create an approval record for the generated reply
+ * 1) Query for one unprocessed inbound conversation message
+ * 2) Check if this message is the latest inbound message in its conversation
+ * 3) If not latest, skip and mark as processed
+ * 4) Query the organization's tone of voice
+ * 5) Use LLM to check if the conversation needs a reply AND classify conversation type
+ * 6) Update conversation type if needed (only if type is missing or "general")
+ * 7) If reply needed, use LLM to generate a reply in markdown format following the brand tone
+ * 8) Create an approval record for the generated reply
  *
  * Key features:
+ * - Tracks at message level (not conversation level) for real-time response
  * - AI-powered reply detection and generation
  * - Intelligent conversation type classification
  * - Brand tone of voice integration
  * - Markdown-formatted responses
  * - Approval workflow for human review
- * - Processes one conversation per execution
+ * - Processes one message per execution
  */
 
 export const conversationAutoReplyWorkflow = {
   workflowConfig: {
     name: 'Conversation Auto-Reply',
     description:
-      'Automatically find one unprocessed open conversation, check if it needs a reply, generate AI-powered response in markdown format, and create approval record',
+      'Automatically find one unprocessed inbound message, check if it needs a reply, generate AI-powered response in markdown format, and create approval record',
     workflowType: 'predefined',
-    version: '1.0.0',
+    version: '2.0.0',
     config: {
-      timeout: 120000, // 2 minutes timeout for single conversation
+      timeout: 120000, // 2 minutes timeout for single message
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
         organizationId: 'org_demo',
         workflowId: 'conversationAutoReply',
-        backoffHours: 168, // Only process conversations not processed in last 168 hours (7 days)
+        backoffHours: -1, // BACKOFF_NEVER_REPROCESS - each message processed once
       },
     },
   },
@@ -52,50 +55,50 @@ export const conversationAutoReplyWorkflow = {
         // schedule: '0 */2 * * *', // Every 2 hours
         // timezone: 'UTC',
       },
-      nextSteps: { success: 'find_unprocessed_conversation' },
+      nextSteps: { success: 'find_unprocessed_inbound_message' },
     },
 
-    // Step 2: Find Unprocessed Open Conversation
-    // Uses filterExpression with smart index selection
+    // Step 2: Find Unprocessed Inbound Message
     {
-      stepSlug: 'find_unprocessed_conversation',
-      name: 'Find Unprocessed Open Conversation',
+      stepSlug: 'find_unprocessed_inbound_message',
+      name: 'Find Unprocessed Inbound Message',
       stepType: 'action',
       order: 2,
       config: {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'find_unprocessed',
-          tableName: 'conversations',
+          tableName: 'conversationMessages',
           backoffHours: '{{backoffHours}}',
-          filterExpression: 'status == "open"',
+          filterExpression: 'direction == "inbound"',
         },
       },
       nextSteps: {
-        success: 'check_has_conversation',
+        success: 'check_has_message',
       },
     },
 
-    // Step 3: Check if We Have a Conversation to Process
+    // Step 3: Check if We Have a Message to Process
     {
-      stepSlug: 'check_has_conversation',
-      name: 'Check Has Conversation',
+      stepSlug: 'check_has_message',
+      name: 'Check Has Message',
       stepType: 'condition',
       order: 3,
       config: {
-        expression: 'steps.find_unprocessed_conversation.output.data != null',
-        description: 'Check if an unprocessed open conversation was found',
+        expression:
+          'steps.find_unprocessed_inbound_message.output.data != null',
+        description: 'Check if an unprocessed inbound message was found',
       },
       nextSteps: {
-        true: 'extract_conversation_data',
+        true: 'extract_message_data',
         false: 'noop',
       },
     },
 
-    // Step 4: Extract Conversation Data
+    // Step 4: Extract Message Data
     {
-      stepSlug: 'extract_conversation_data',
-      name: 'Extract Conversation Data',
+      stepSlug: 'extract_message_data',
+      name: 'Extract Message Data',
       stepType: 'action',
       order: 4,
       config: {
@@ -103,29 +106,19 @@ export const conversationAutoReplyWorkflow = {
         parameters: {
           variables: [
             {
+              name: 'currentMessageId',
+              value:
+                '{{steps.find_unprocessed_inbound_message.output.data._id}}',
+            },
+            {
               name: 'currentConversationId',
               value:
-                '{{steps.find_unprocessed_conversation.output.data._id}}',
+                '{{steps.find_unprocessed_inbound_message.output.data.conversationId}}',
             },
             {
-              name: 'currentConversationSubject',
+              name: 'currentMessageDeliveredAt',
               value:
-                '{{steps.find_unprocessed_conversation.output.data.subject}}',
-            },
-            {
-              name: 'currentConversationCustomerId',
-              value:
-                '{{steps.find_unprocessed_conversation.output.data.customerId}}',
-            },
-            {
-              name: 'currentConversationCreationTime',
-              value:
-                '{{steps.find_unprocessed_conversation.output.data._creationTime}}',
-            },
-            {
-              name: 'currentConversationType',
-              value:
-                '{{steps.find_unprocessed_conversation.output.data.type}}',
+                '{{steps.find_unprocessed_inbound_message.output.data.deliveredAt}}',
             },
           ],
         },
@@ -153,16 +146,104 @@ export const conversationAutoReplyWorkflow = {
         },
       },
       nextSteps: {
+        success: 'find_latest_inbound_message',
+      },
+    },
+
+    // Step 6: Find Latest Inbound Message ID
+    {
+      stepSlug: 'find_latest_inbound_message',
+      name: 'Find Latest Inbound Message',
+      stepType: 'action',
+      order: 6,
+      config: {
+        type: 'set_variables',
+        parameters: {
+          variables: [
+            {
+              name: 'latestInboundMessageId',
+              value:
+                '{{(steps.query_conversation_messages.output.data.page|filterBy("direction", "inbound")|sort("deliveredAt", "desc")|first)._id}}',
+            },
+          ],
+        },
+      },
+      nextSteps: {
+        success: 'check_is_latest_inbound',
+      },
+    },
+
+    // Step 7: Check if Current Message is Latest Inbound
+    {
+      stepSlug: 'check_is_latest_inbound',
+      name: 'Check Is Latest Inbound',
+      stepType: 'condition',
+      order: 7,
+      config: {
+        expression: 'currentMessageId == latestInboundMessageId',
+        description:
+          'Check if current message is the latest inbound message in conversation',
+      },
+      nextSteps: {
+        true: 'query_conversation',
+        false: 'record_message_processed', // Skip but mark as processed
+      },
+    },
+
+    // Step 8: Query Conversation Details
+    {
+      stepSlug: 'query_conversation',
+      name: 'Query Conversation',
+      stepType: 'action',
+      order: 8,
+      config: {
+        type: 'conversation',
+        parameters: {
+          operation: 'get_by_id',
+          conversationId: '{{currentConversationId}}',
+        },
+      },
+      nextSteps: {
+        success: 'extract_conversation_data',
+      },
+    },
+
+    // Step 9: Extract Conversation Data
+    {
+      stepSlug: 'extract_conversation_data',
+      name: 'Extract Conversation Data',
+      stepType: 'action',
+      order: 9,
+      config: {
+        type: 'set_variables',
+        parameters: {
+          variables: [
+            {
+              name: 'currentConversationSubject',
+              value: '{{steps.query_conversation.output.data.subject}}',
+            },
+            {
+              name: 'currentConversationCustomerId',
+              value: '{{steps.query_conversation.output.data.customerId}}',
+            },
+            {
+              name: 'currentConversationType',
+              value: '{{steps.query_conversation.output.data.type}}',
+            },
+          ],
+        },
+      },
+      nextSteps: {
         success: 'query_tone_of_voice',
       },
     },
 
-    // Step 6: Query Tone of Voice
+    // Step 10: Query Tone of Voice
     {
       stepSlug: 'query_tone_of_voice',
       name: 'Query Tone of Voice',
       stepType: 'action',
-      order: 6,
+      order: 10,
       config: {
         type: 'tone_of_voice',
         parameters: {
@@ -174,12 +255,12 @@ export const conversationAutoReplyWorkflow = {
       },
     },
 
-    // Step 7: LLM Check if Reply is Needed AND Classify Conversation Type
+    // Step 11: LLM Check if Reply is Needed AND Classify Conversation Type
     {
       stepSlug: 'check_needs_reply',
       name: 'Check if Reply is Needed and Classify Type',
       stepType: 'llm',
-      order: 7,
+      order: 11,
       config: {
         name: 'Reply Necessity Checker and Type Classifier',
         temperature: 0.2,
@@ -296,12 +377,12 @@ Note: Set should_update_type to true only if the current type is missing, empty,
       },
     },
 
-    // Step 8: Check if We Should Update Conversation Type
+    // Step 12: Check if We Should Update Conversation Type
     {
       stepSlug: 'check_should_update_type',
       name: 'Check Should Update Type',
       stepType: 'condition',
-      order: 8,
+      order: 12,
       config: {
         expression:
           'steps.check_needs_reply.output.data.should_update_type == true',
@@ -314,12 +395,12 @@ Note: Set should_update_type to true only if the current type is missing, empty,
       },
     },
 
-    // Step 9: Update Conversation Type
+    // Step 13: Update Conversation Type
     {
       stepSlug: 'update_conversation_type',
       name: 'Update Conversation Type',
       stepType: 'action',
-      order: 9,
+      order: 13,
       config: {
         type: 'conversation',
         parameters: {
@@ -335,38 +416,35 @@ Note: Set should_update_type to true only if the current type is missing, empty,
       },
     },
 
-    // Step 10: Evaluate if Reply is Needed
+    // Step 14: Evaluate if Reply is Needed
     {
       stepSlug: 'evaluate_needs_reply',
       name: 'Evaluate Needs Reply',
       stepType: 'condition',
-      order: 10,
+      order: 14,
       config: {
         expression: 'steps.check_needs_reply.output.data.needs_reply == true',
         description: 'Check if LLM determined that a reply is needed',
       },
       nextSteps: {
         true: 'generate_reply',
-        false: 'record_processed',
+        false: 'record_message_processed',
       },
     },
 
-    // Step 11: LLM Generate Reply in Markdown
+    // Step 15: LLM Generate Reply in Markdown
     {
       stepSlug: 'generate_reply',
       name: 'Generate Reply',
       stepType: 'llm',
-      order: 11,
+      order: 15,
       config: {
         name: 'Reply Generator',
         temperature: 0.7,
         maxTokens: 20000,
         maxSteps: 10,
         outputFormat: 'text',
-        tools: [
-          'customer_read',
-          'product_read',
-        ],
+        tools: ['customer_read', 'product_read'],
         systemPrompt: `You are John, a friendly and helpful customer service representative. Write natural, conversational replies that are warm, helpful, and genuinely human.
 
 YOUR IDENTITY:
@@ -452,12 +530,12 @@ Task: As John, generate a warm and professional reply in markdown format that ad
       },
     },
 
-    // Step 12: Create Approval Record
+    // Step 16: Create Approval Record
     {
       stepSlug: 'create_approval',
       name: 'Create Approval Record',
       stepType: 'action',
-      order: 12,
+      order: 16,
       config: {
         type: 'approval',
         parameters: {
@@ -470,27 +548,30 @@ Task: As John, generate a warm and professional reply in markdown format that ad
           metadata: {
             emailBody: '{{steps.generate_reply.output.data}}',
             customerId: '{{currentConversationCustomerId}}',
+            messageId: '{{currentMessageId}}',
           },
         },
       },
       nextSteps: {
-        success: 'record_processed',
+        success: 'record_message_processed',
       },
     },
 
-    // Step 13: Record Conversation as Processed
+    // Step 17: Record Message as Processed
     {
-      stepSlug: 'record_processed',
-      name: 'Record Conversation as Processed',
+      stepSlug: 'record_message_processed',
+      name: 'Record Message as Processed',
       stepType: 'action',
-      order: 13,
+      order: 17,
       config: {
         type: 'workflow_processing_records',
         parameters: {
           operation: 'record_processed',
-          tableName: 'conversations',
-          recordId: '{{currentConversationId}}',
+          tableName: 'conversationMessages',
+          recordId: '{{currentMessageId}}',
           metadata: {
+            conversationId: '{{currentConversationId}}',
+            wasLatestInbound: '{{currentMessageId == latestInboundMessageId}}',
             needsReply: '{{steps.check_needs_reply.output.data.needs_reply}}',
             urgency: '{{steps.check_needs_reply.output.data.urgency}}',
             reason: '{{steps.check_needs_reply.output.data.reason}}',
@@ -508,6 +589,16 @@ Task: As John, generate a warm and professional reply in markdown format that ad
       nextSteps: {
         success: 'noop',
       },
+    },
+
+    // Step 18: No Operation (End)
+    {
+      stepSlug: 'noop',
+      name: 'No Operation',
+      stepType: 'noop',
+      order: 18,
+      config: {},
+      nextSteps: {},
     },
   ],
 };
