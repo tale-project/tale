@@ -71,11 +71,11 @@ export function formatIntegrationsForContext(integrations: Integration[]): strin
  * Handles both SQL and REST API integrations.
  */
 function getOperationsFromIntegration(integration: Integration): OperationSummary[] {
-  const type = integration.type || 'rest_api';
+  const type = integration.type ?? 'rest_api';
 
   if (type === 'sql') {
-    // SQL integration
-    const sqlOps = (integration as any).sqlOperations || [];
+    // SQL integration - sqlOperations is defined on the integration schema
+    const sqlOps = integration.sqlOperations ?? [];
 
     // Built-in introspection operations (always available for SQL)
     const introspectionOps: OperationSummary[] = [
@@ -84,7 +84,7 @@ function getOperationsFromIntegration(integration: Integration): OperationSummar
     ];
 
     // Format user-defined SQL operations
-    const userOps: OperationSummary[] = sqlOps.map((op: any) => ({
+    const userOps: OperationSummary[] = sqlOps.map((op) => ({
       name: op.name,
       title: op.title,
       description: op.description,
@@ -95,14 +95,14 @@ function getOperationsFromIntegration(integration: Integration): OperationSummar
     return [...introspectionOps, ...userOps];
   }
 
-  // REST API integration
-  const connector = (integration as any).connector;
+  // REST API integration - connector is defined on the integration schema
+  const connector = integration.connector;
   if (connector?.operations) {
-    return connector.operations.map((op: any) => ({
+    return connector.operations.map((op) => ({
       name: op.name,
       title: op.title,
       description: op.description,
-      operationType: op.operationType,
+      // operationType is not available on connector operations in schema
       parametersSchema: op.parametersSchema,
     }));
   }
