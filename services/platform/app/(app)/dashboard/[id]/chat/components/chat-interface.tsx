@@ -308,7 +308,8 @@ export function ChatInterface({
   const userDraftMessage = optimisticMessage?.content || '';
 
   // Fetch thread messages with streaming support
-  // Use pagination to handle large threads (50+ messages)
+  // Use pagination to handle large threads - reduced initial load to prevent query timeouts
+  // See: https://github.com/tale-project/tale/issues/85
   const {
     results: uiMessages,
     loadMore,
@@ -316,7 +317,7 @@ export function ChatInterface({
   } = useUIMessages(
     api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 50, stream: true },
+    { initialNumItems: 10, stream: true },
   );
 
   // Track pagination state for loading more messages
