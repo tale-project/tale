@@ -121,9 +121,13 @@ body {
    * This prevents layout shifts when:
    * - Newlines are revealed
    * - Text wraps to new lines
+   *
+   * overflow-anchor: none disables browser scroll anchoring which causes
+   * scroll position jumps when content height changes during streaming.
    */
   .streaming-text-container {
     position: relative;
+    overflow-anchor: none;
   }
 
   /*
