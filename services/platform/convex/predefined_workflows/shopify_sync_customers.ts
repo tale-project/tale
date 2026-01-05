@@ -166,6 +166,7 @@ export const shopifySyncCustomersWorkflow = {
           name: '{{loop.item.first_name}} {{loop.item.last_name}}',
           email: '{{loop.item.email}}',
           externalId: '{{loop.item.id}}',
+          source: 'shopify',
           metadata: {
             shopify: '{{loop.item}}',
             syncedAt: '{{now}}',

@@ -8,9 +8,7 @@
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import { paginateWithFilter, type CursorPaginatedResult } from '../../lib/pagination';
-
-type CustomerStatus = 'active' | 'churned' | 'potential';
-type CustomerSource = 'manual_import' | 'file_upload' | 'circuly';
+import type { CustomerStatus, CustomerSource } from './types';
 
 export interface QueryCustomersArgs {
   organizationId: string;
