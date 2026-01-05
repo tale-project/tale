@@ -25,8 +25,6 @@ interface VendorEditDialogProps {
   asChild?: boolean;
 }
 
-const LOCALE_CODES = ['en', 'de', 'es', 'fr', 'it', 'nl', 'pt', 'zh'] as const;
-
 export function VendorEditDialog({
   vendor,
   isOpen,
@@ -38,11 +36,16 @@ export function VendorEditDialog({
   const updateVendor = useUpdateVendor();
 
   const localeOptions = useMemo(
-    () =>
-      LOCALE_CODES.map((code) => ({
-        value: code,
-        label: tGlobal(`languages.${code}`),
-      })),
+    () => [
+      { value: 'en', label: tGlobal('languages.en') },
+      { value: 'de', label: tGlobal('languages.de') },
+      { value: 'es', label: tGlobal('languages.es') },
+      { value: 'fr', label: tGlobal('languages.fr') },
+      { value: 'it', label: tGlobal('languages.it') },
+      { value: 'nl', label: tGlobal('languages.nl') },
+      { value: 'pt', label: tGlobal('languages.pt') },
+      { value: 'zh', label: tGlobal('languages.zh') },
+    ],
     [tGlobal],
   );
 
