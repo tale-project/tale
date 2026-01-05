@@ -566,11 +566,6 @@ export function ChatInterface({
         behavior: 'instant',
       });
     }
-
-    // Reset the flag when threadId changes
-    if (!threadId) {
-      hasScrolledOnLoadRef.current = false;
-    }
   }, [threadId, threadMessages.length, containerRef]);
 
   // Reset scroll flag when navigating to a different thread

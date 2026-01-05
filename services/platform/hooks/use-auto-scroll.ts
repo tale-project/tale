@@ -88,12 +88,22 @@ export function useAutoScroll({
       behavior: 'smooth',
     });
 
-    // Reset flag after scroll completes
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        isProgrammaticScrollRef.current = false;
-      });
-    });
+    // Reset flag after scroll completes using scrollend event or fallback timeout
+    const clearProgrammaticFlag = () => {
+      isProgrammaticScrollRef.current = false;
+    };
+
+    // Check if scrollend event is supported
+    if ('onscrollend' in container) {
+      const handleScrollEnd = () => {
+        clearProgrammaticFlag();
+        container.removeEventListener('scrollend', handleScrollEnd);
+      };
+      container.addEventListener('scrollend', handleScrollEnd, { once: true });
+    } else {
+      // Fallback for browsers without scrollend support
+      setTimeout(clearProgrammaticFlag, 400);
+    }
   }, []);
 
   /**
