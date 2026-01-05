@@ -131,7 +131,7 @@ export function LogInForm({
               disabled={isSubmitting}
               autoComplete="email"
               errorMessage={errors.email?.message}
-              className="border-border shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
+              className="shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)]"
               {...form.register('email')}
             />
 
