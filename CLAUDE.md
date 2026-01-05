@@ -36,3 +36,14 @@
 - USE snake_case for files, functions, and variables.
 - ORGANIZE code into modules: `routes/`, `services/`, `models/`, `utils/` as needed.
 - PREFER type hints for function signatures.
+
+## Accessibility (WCAG 2.1 Level AA)
+
+- ALWAYS CONSIDER semantic HTML elements (`<button>`, `<nav>`, `<main>`, `<header>`, `<footer>`, `<article>`, `<section>`).
+- ALWAYS provide text alternatives for non-text content (`alt` for images, `aria-label` for icon buttons).
+- ENSURE all interactive elements are keyboard accessible and have visible focus states.
+- USE proper heading hierarchy (`h1` → `h2` → `h3`), never skip heading levels.
+- ALWAYS associate form labels with inputs using `htmlFor` or wrapping.
+- PROVIDE clear error messages that identify the field and describe how to fix the issue.
+- AVOID using color alone to convey information.
+- USE `aria-live` regions for dynamic content updates.

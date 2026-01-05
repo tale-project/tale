@@ -19,6 +19,7 @@ export function CustomerFilter() {
   const { t: tCustomers } = useT('customers');
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
+  const { t: tGlobal } = useT('global');
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<
     Record<FilterSectionKey, boolean>
@@ -111,17 +112,22 @@ export function CustomerFilter() {
           }
           active={statusFilters.length > 0}
         >
-          {['active', 'potential', 'churned', 'lost'].map((status) => (
-            <label key={status} className="cursor-pointer">
+          {[
+            { value: 'active', label: tCustomers('filter.status.active') },
+            { value: 'potential', label: tCustomers('filter.status.potential') },
+            { value: 'churned', label: tCustomers('filter.status.churned') },
+            { value: 'lost', label: tCustomers('filter.status.lost') },
+          ].map((status) => (
+            <label key={status.value} className="cursor-pointer">
               <HStack gap={2}>
                 <Checkbox
-                  checked={statusFilters.includes(status)}
+                  checked={statusFilters.includes(status.value)}
                   onCheckedChange={(checked) =>
-                    handleFilterChange('status', status, !!checked)
+                    handleFilterChange('status', status.value, !!checked)
                   }
                 />
-                <span className="text-sm text-muted-foreground capitalize">
-                  {status}
+                <span className="text-sm text-muted-foreground">
+                  {status.label}
                 </span>
               </HStack>
             </label>
@@ -174,17 +180,26 @@ export function CustomerFilter() {
           active={localeFilters.length > 0}
         >
           <Grid cols={2} gap={2}>
-            {['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'zh'].map((locale) => (
-              <label key={locale} className="cursor-pointer">
+            {[
+              { value: 'en', label: tGlobal('languageCodes.en') },
+              { value: 'es', label: tGlobal('languageCodes.es') },
+              { value: 'fr', label: tGlobal('languageCodes.fr') },
+              { value: 'de', label: tGlobal('languageCodes.de') },
+              { value: 'it', label: tGlobal('languageCodes.it') },
+              { value: 'pt', label: tGlobal('languageCodes.pt') },
+              { value: 'nl', label: tGlobal('languageCodes.nl') },
+              { value: 'zh', label: tGlobal('languageCodes.zh') },
+            ].map((locale) => (
+              <label key={locale.value} className="cursor-pointer">
                 <HStack gap={2}>
                   <Checkbox
-                    checked={localeFilters.includes(locale)}
+                    checked={localeFilters.includes(locale.value)}
                     onCheckedChange={(checked) =>
-                      handleFilterChange('locale', locale, !!checked)
+                      handleFilterChange('locale', locale.value, !!checked)
                     }
                   />
-                  <span className="text-sm text-muted-foreground uppercase">
-                    {locale}
+                  <span className="text-sm text-muted-foreground">
+                    {locale.label}
                   </span>
                 </HStack>
               </label>
