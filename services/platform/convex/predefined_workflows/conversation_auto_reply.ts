@@ -14,6 +14,7 @@
  * 6) Update conversation type if needed (only if type is missing or "general")
  * 7) If reply needed, use LLM to generate a reply in markdown format following the brand tone
  * 8) Create an approval record for the generated reply
+ * 9) Record the message as processed
  *
  * Key features:
  * - Tracks at message level (not conversation level) for real-time response
@@ -557,7 +558,7 @@ Task: As John, generate a warm and professional reply in markdown format that ad
       },
     },
 
-    // Step 17: Record Message as Processed
+    // Step 17: Record Message as Processed (Final Step)
     {
       stepSlug: 'record_message_processed',
       name: 'Record Message as Processed',
@@ -587,18 +588,8 @@ Task: As John, generate a warm and professional reply in markdown format that ad
         },
       },
       nextSteps: {
-        success: 'noop',
+        success: 'noop', // 'noop' is a special keyword to end the workflow
       },
-    },
-
-    // Step 18: No Operation (End)
-    {
-      stepSlug: 'noop',
-      name: 'No Operation',
-      stepType: 'noop',
-      order: 18,
-      config: {},
-      nextSteps: {},
     },
   ],
 };

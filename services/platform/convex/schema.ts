@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { stepConfigValidator } from './workflow/types/nodes';
+import { dataSourceValidator } from './model/common/validators';
 
 // Minimal core schema with flexible metadata using v.any().
 // Core entities: documents, products, customers, integrations, tasks, chats.
@@ -115,12 +116,8 @@ export default defineSchema({
       ),
     ),
 
-    // Data source: shopify, circuly, manual, import, etc.
-    source: v.union(
-      v.literal('manual_import'),
-      v.literal('file_upload'),
-      v.literal('circuly'),
-    ),
+    // Data source - uses dataSourceValidator from common/validators
+    source: dataSourceValidator,
 
     // Customer locale/language preference
     locale: v.optional(v.string()),
@@ -158,12 +155,8 @@ export default defineSchema({
     phone: v.optional(v.string()),
     externalId: v.optional(v.union(v.string(), v.number())),
 
-    // Data source: manual_import, file_upload, circuly
-    source: v.union(
-      v.literal('manual_import'),
-      v.literal('file_upload'),
-      v.literal('circuly'),
-    ),
+    // Data source - uses dataSourceValidator from common/validators
+    source: dataSourceValidator,
 
     // Vendor locale/language preference
     locale: v.optional(v.string()),

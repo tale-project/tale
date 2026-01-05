@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { DataSource } from '../common/validators';
 
 export interface CreateCustomerPublicArgs {
   organizationId: string;
@@ -11,7 +12,7 @@ export interface CreateCustomerPublicArgs {
   email: string;
   externalId?: string;
   status: 'active' | 'churned' | 'potential';
-  source: 'manual_import' | 'file_upload' | 'circuly';
+  source: DataSource;
   locale?: string;
   address?: {
     street?: string;

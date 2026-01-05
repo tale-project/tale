@@ -12,9 +12,9 @@ import {
   type IndexConfig,
   type OffsetPaginatedResult,
 } from '../../lib/query_builder';
+import type { CustomerSource } from './types';
 
 type CustomerStatus = 'active' | 'churned' | 'potential' | 'lost';
-type CustomerSource = 'manual_import' | 'file_upload' | 'circuly';
 
 export interface GetCustomersArgs {
   organizationId: string;

@@ -6,12 +6,13 @@ import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { getCustomerByEmail } from './get_customer_by_email';
 import { createCustomer, type CreateCustomerArgs } from './create_customer';
+import type { DataSource } from '../common/validators';
 
 export interface FindOrCreateCustomerArgs {
   organizationId: string;
   email: string;
   name?: string;
-  source: 'manual_import' | 'file_upload' | 'circuly';
+  source: DataSource;
   status?: 'active' | 'churned' | 'potential';
   metadata?: unknown;
 }

@@ -38,6 +38,7 @@ import {
   customerSourceValidator,
   customerAddressValidator,
 } from '../../../model/customers/validators';
+import type { DataSource } from '../../../model/common/validators';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
@@ -81,7 +82,7 @@ type CustomerActionParams =
       email?: string;
       externalId?: string | number;
       status?: 'active' | 'churned' | 'potential';
-      source: 'manual_import' | 'file_upload' | 'circuly';
+      source: DataSource;
       locale?: string;
       address?: CustomerAddress;
       metadata?: Record<string, unknown>;
