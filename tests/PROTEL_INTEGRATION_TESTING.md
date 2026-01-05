@@ -18,7 +18,7 @@ Tests the Protel PMS SQL integration covering:
 
 - Kill any processes using port 3000: `lsof -ti:3000 | xargs -r kill -9 2>/dev/null || true`
 - Docker and Docker Compose installed
-- Access to `.test.env` file with Protel test credentials (project root)
+- Access to `.env` file with Protel test credentials (project root)
 - Browser automation capability (Playwright MCP tools)
 - Node.js with dependencies installed in `services/platform`
 
@@ -27,7 +27,7 @@ Tests the Protel PMS SQL integration covering:
 cd /home/larry/Documents/tale/services/platform && npm ci
 ```
 
-**Protel Credentials (from `.test.env`):**
+**Protel Credentials (from `.env`):**
 
 | Variable | Description |
 |----------|-------------|
@@ -170,7 +170,7 @@ docker compose up --build -d
 |--------|------------|
 | Navigate to Settings > Integrations | `06_integrations_page.png` |
 | Click Protel PMS card | `07_protel_dialog.png` |
-| Fill credentials from `.test.env` (Server, Port: 1433, Database, Username, Password) | `08_protel_credentials_filled.png` |
+| Fill credentials from `.env` (Server, Port: 1433, Database, Username, Password) | `08_protel_credentials_filled.png` |
 | Click Connect, wait 5-15 sec | `09_protel_connected.png` |
 
 **Verification:** Protel shows "Connected" with server address.
@@ -346,7 +346,7 @@ Report:
 | Issue | Action |
 |-------|--------|
 | Connection timeout | Verify server reachable, check firewall |
-| Authentication failed | Verify credentials in `.test.env` |
+| Authentication failed | Verify credentials in `.env` |
 | Empty query results | May be expected (no arrivals today, etc.) |
 | AI doesn't use Protel | Ensure integration connected before testing |
 | SQL errors | Check database name, verify SQL Server running |
