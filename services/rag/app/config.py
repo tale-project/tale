@@ -221,13 +221,15 @@ class Settings(BaseSettings):
             )
         try:
             dimensions = int(dimensions_str)
-            if dimensions <= 0:
-                raise ValueError("EMBEDDING_DIMENSIONS must be a positive integer.")
-            return dimensions
-        except ValueError as e:
+        except ValueError:
             raise ValueError(
                 f"EMBEDDING_DIMENSIONS must be a valid positive integer, got: {dimensions_str!r}"
-            ) from e
+            )
+        if dimensions <= 0:
+            raise ValueError(
+                f"EMBEDDING_DIMENSIONS must be a positive integer, got: {dimensions}"
+            )
+        return dimensions
 
     def get_vision_model(self) -> str:
         """Get the Vision model for OCR and image description.

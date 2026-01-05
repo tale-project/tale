@@ -32,8 +32,15 @@ async def periodic_gc_cleanup() -> None:
     operation that should not block individual requests.
     """
     while True:
-        await asyncio.sleep(60)
-        cleanup_memory(context="periodic cleanup")
+        try:
+            await asyncio.sleep(60)
+            cleanup_memory(context="periodic cleanup")
+        except asyncio.CancelledError:
+            # Task is being cancelled during shutdown, re-raise to exit cleanly
+            raise
+        except Exception:
+            # Log but don't crash - GC cleanup is non-critical
+            logger.exception("Error in periodic GC cleanup")
 
 
 @asynccontextmanager

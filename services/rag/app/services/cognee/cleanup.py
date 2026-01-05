@@ -39,28 +39,26 @@ async def migrate_vector_dimensions() -> None:
     try:
         import asyncpg
 
-        # Parse database URL
+        # Parse database URL using urlparse for robustness
         db_url = settings.get_database_url()
-        # Remove scheme prefix
-        if db_url.startswith("postgresql://"):
-            db_url_parsed = db_url.replace("postgresql://", "")
-        elif db_url.startswith("postgres://"):
-            db_url_parsed = db_url.replace("postgres://", "")
-        else:
+        parsed = urlparse(db_url)
+
+        if parsed.scheme not in ("postgresql", "postgres"):
             logger.warning(
-                "Unsupported database URL scheme, skipping vector dimension migration"
+                "Unsupported database URL scheme '{}', skipping vector dimension migration",
+                parsed.scheme,
             )
             return
 
-        # Parse connection params: user:pass@host:port/db
-        userpass, hostport_db = db_url_parsed.split("@")
-        user, password = userpass.split(":")
-        hostport, db = hostport_db.split("/")
-        host, port = hostport.split(":") if ":" in hostport else (hostport, "5432")
+        user = parsed.username or ""
+        password = parsed.password or ""
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 5432
+        db = parsed.path.lstrip("/") if parsed.path else ""
 
         conn = await asyncpg.connect(
             host=host,
-            port=int(port),
+            port=port,
             database=db,
             user=user,
             password=password,
