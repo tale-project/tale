@@ -12,12 +12,16 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
-import type { Doc } from '../../../_generated/dataModel';
 import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
 import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
+import {
+  type Integration,
+  getIntegrationType,
+  isSqlIntegration,
+} from '../../../model/integrations/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -65,7 +69,7 @@ export const integrationAction: ActionDefinition<{
     const integration = (await ctx.runQuery!(
       internal.integrations.getByNameInternal,
       { organizationId, name },
-    )) as Doc<'integrations'> | null;
+    )) as Integration | null;
 
     if (!integration) {
       throw new Error(
@@ -74,10 +78,10 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 2. Check integration type and route accordingly
-    const integrationType = (integration as any).type || 'rest_api'; // Default to rest_api for backward compatibility
+    const integrationType = getIntegrationType(integration);
 
     // Handle SQL integrations
-    if (integrationType === 'sql') {
+    if (integrationType === 'sql' && isSqlIntegration(integration)) {
       return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId, messageId);
     }
 

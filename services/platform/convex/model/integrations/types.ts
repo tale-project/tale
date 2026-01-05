@@ -3,6 +3,7 @@
  */
 
 import type { Infer } from 'convex/values';
+import type { Doc } from '../../_generated/dataModel';
 import {
   apiKeyAuthEncryptedValidator,
   apiKeyAuthValidator,
@@ -71,3 +72,79 @@ export interface DecryptedCredentials {
 // =============================================================================
 
 export const SHOPIFY_API_VERSION = '2024-01';
+
+// =============================================================================
+// TYPED INTEGRATION INTERFACES
+// =============================================================================
+
+/**
+ * Base integration type alias for Doc<'integrations'>.
+ * Use the type guards below to narrow to specific integration types.
+ */
+export type Integration = Doc<'integrations'>;
+
+/**
+ * SQL Integration - integration with type='sql' and required SQL-specific fields.
+ * Use `isSqlIntegration()` to safely narrow to this type.
+ */
+export interface SqlIntegration extends Integration {
+  type: 'sql';
+  sqlConnectionConfig: SqlConnectionConfig;
+  sqlOperations: SqlOperation[];
+}
+
+/**
+ * REST API Integration - integration with type='rest_api' and connector config.
+ * Use `isRestApiIntegration()` to safely narrow to this type.
+ */
+export interface RestApiIntegration extends Integration {
+  type: 'rest_api';
+  connector: ConnectorConfig;
+}
+
+// =============================================================================
+// TYPE GUARDS
+// =============================================================================
+
+/**
+ * Type guard to check if an integration is an SQL integration.
+ * Narrows the type to SqlIntegration when true.
+ *
+ * @example
+ * if (isSqlIntegration(integration)) {
+ *   // integration.sqlConnectionConfig is now typed
+ *   const engine = integration.sqlConnectionConfig.engine;
+ * }
+ */
+export function isSqlIntegration(integration: Integration): integration is SqlIntegration {
+  return (
+    integration.type === 'sql' &&
+    integration.sqlConnectionConfig !== undefined &&
+    integration.sqlOperations !== undefined
+  );
+}
+
+/**
+ * Type guard to check if an integration is a REST API integration with connector.
+ * Narrows the type to RestApiIntegration when true.
+ *
+ * @example
+ * if (isRestApiIntegration(integration)) {
+ *   // integration.connector is now typed
+ *   const operations = integration.connector.operations;
+ * }
+ */
+export function isRestApiIntegration(integration: Integration): integration is RestApiIntegration {
+  return (
+    (integration.type === 'rest_api' || integration.type === undefined) &&
+    integration.connector !== undefined
+  );
+}
+
+/**
+ * Gets the integration type, defaulting to 'rest_api' for backward compatibility.
+ * Use this instead of directly accessing integration.type to handle legacy integrations.
+ */
+export function getIntegrationType(integration: Integration): IntegrationType {
+  return integration.type ?? 'rest_api';
+}
