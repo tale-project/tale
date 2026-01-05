@@ -6,7 +6,7 @@
  * then reuse for all operations in the batch.
  */
 
-import { internalAction } from '../../_generated/server';
+import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v } from 'convex/values';
 import type { Doc } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
@@ -16,8 +16,24 @@ import { getIntrospectTablesQuery } from '../../workflow/actions/integration/hel
 import { getIntrospectColumnsQuery } from '../../workflow/actions/integration/helpers/get_introspect_columns_query';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
 import { decryptSqlCredentials } from '../../workflow/actions/integration/helpers/decrypt_sql_credentials';
-import { requiresApproval, getOperationType } from '../../workflow/actions/integration/helpers/detect_write_operation';
+import { requiresApproval, getOperationType, type OperationConfig } from '../../workflow/actions/integration/helpers/detect_write_operation';
 import { validateRequiredParameters } from '../../workflow/actions/integration/helpers/validate_required_parameters';
+
+/** Extended type for SQL operation with query */
+interface SqlOperationConfig extends OperationConfig {
+  query: string;
+  description?: string;
+  parametersSchema?: {
+    type?: string;
+    properties?: Record<string, {
+      type?: string;
+      description?: string;
+      required?: boolean;
+      default?: unknown;
+    }>;
+    required?: string[];
+  };
+}
 
 /** Single operation result */
 interface OperationResult {
@@ -89,7 +105,7 @@ export const executeBatchIntegrationInternal = internalAction({
       };
     }
 
-    const integrationType = (integration as any).type || 'rest_api';
+    const integrationType = integration.type ?? 'rest_api';
 
     // For SQL integrations, optimize by decrypting credentials once
     if (integrationType === 'sql') {
@@ -106,15 +122,15 @@ export const executeBatchIntegrationInternal = internalAction({
  * Execute batch SQL operations with shared credentials
  */
 async function executeSqlBatch(
-  ctx: any,
+  ctx: ActionCtx,
   integration: Doc<'integrations'>,
-  operations: Array<{ id?: string; operation: string; params?: any }>,
+  operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
   threadId: string | undefined,
   messageId: string | undefined,
   startTime: number,
 ) {
-  const sqlConnectionConfig = (integration as any).sqlConnectionConfig;
-  const sqlOperations = (integration as any).sqlOperations || [];
+  const sqlConnectionConfig = integration.sqlConnectionConfig;
+  const sqlOperations = (integration.sqlOperations ?? []) as SqlOperationConfig[];
 
   if (!sqlConnectionConfig) {
     return {
@@ -168,7 +184,7 @@ async function executeSqlBatch(
         // Handle introspection operations
         let query: string;
         let queryParams: Record<string, unknown> = params;
-        let operationConfig: any = null;
+        let operationConfig: SqlOperationConfig | undefined;
 
         if (isIntrospectionOperation(op.operation)) {
           if (op.operation === 'introspect_tables') {
@@ -190,12 +206,12 @@ async function executeSqlBatch(
           }
         } else {
           // User-defined operation
-          operationConfig = sqlOperations.find((sqlOp: any) => sqlOp.name === op.operation);
+          operationConfig = sqlOperations.find((sqlOp) => sqlOp.name === op.operation);
 
           if (!operationConfig) {
             const availableOps = [
               ...getIntrospectionOperations(),
-              ...sqlOperations.map((sqlOp: any) => sqlOp.name),
+              ...sqlOperations.map((sqlOp) => sqlOp.name),
             ].join(', ');
             throw new Error(`Operation "${op.operation}" not found. Available: ${availableOps}`);
           }
@@ -210,7 +226,7 @@ async function executeSqlBatch(
             const approvalId = await ctx.runMutation(
               internal.agent_tools.integrations.create_integration_approval.createIntegrationApproval,
               {
-                organizationId: (integration as any).organizationId,
+                organizationId: integration.organizationId,
                 integrationId: integration._id,
                 integrationName: integration.name,
                 integrationType: 'sql',
@@ -334,9 +350,9 @@ async function executeSqlBatch(
  * Falls back to the standard integrationAction for each operation
  */
 async function executeRestApiBatch(
-  ctx: any,
+  ctx: ActionCtx,
   integration: Doc<'integrations'>,
-  operations: Array<{ id?: string; operation: string; params?: any }>,
+  operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
   organizationId: string,
   threadId: string | undefined,
   messageId: string | undefined,
@@ -365,16 +381,23 @@ async function executeRestApiBatch(
 
         const duration = Date.now() - opStartTime;
 
+        // Use type narrowing with 'in' operator for safe property access
         if (result && typeof result === 'object' && 'requiresApproval' in result && result.requiresApproval) {
+          const approvalId = 'approvalId' in result ? String(result.approvalId) : undefined;
           return {
             id: op.id,
             operation: op.operation,
             success: true,
             requiresApproval: true,
-            approvalId: (result as any).approvalId,
+            approvalId,
             duration,
-          } as OperationResult;
+          };
         }
+
+        // Extract rowCount safely using type narrowing
+        const rowCount = result && typeof result === 'object' && 'rowCount' in result
+          ? (result.rowCount as number | undefined)
+          : undefined;
 
         return {
           id: op.id,
@@ -382,8 +405,8 @@ async function executeRestApiBatch(
           success: true,
           data: result,
           duration,
-          rowCount: (result as any)?.rowCount,
-        } as OperationResult;
+          rowCount,
+        };
       } catch (error) {
         return {
           id: op.id,
