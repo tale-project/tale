@@ -73,12 +73,12 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         };
       }
 
-      // Agent SDK requires either userId or threadId to be specified
-      if (!threadId && !userId) {
+      // Sub-thread creation requires a parent threadId to link to
+      if (!threadId) {
         return {
           success: false,
           response: '',
-          error: 'Either threadId or userId is required',
+          error: 'threadId is required for workflow_assistant to create sub-threads',
         };
       }
 
@@ -157,7 +157,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
-            parentThreadId: threadId!,
+            parentThreadId: threadId,
             subAgentType: 'workflow_assistant',
             userId,
           },

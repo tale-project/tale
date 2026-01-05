@@ -72,12 +72,12 @@ EXAMPLES:
         };
       }
 
-      // Agent SDK requires either userId or threadId
-      if (!threadId && !userId) {
+      // Sub-thread creation requires a parent threadId to link to
+      if (!threadId) {
         return {
           success: false,
           response: '',
-          error: 'Either threadId or userId is required',
+          error: 'threadId is required for web_assistant to create sub-threads',
         };
       }
 
@@ -119,7 +119,7 @@ EXAMPLES:
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
-            parentThreadId: threadId!,
+            parentThreadId: threadId,
             subAgentType: 'web_assistant',
             userId,
           },

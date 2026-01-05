@@ -84,12 +84,12 @@ EXAMPLES:
         };
       }
 
-      // Role check requires userId - cannot verify role with only threadId
-      if (!userId) {
+      // Sub-thread creation and role check requires both threadId and userId
+      if (!threadId || !userId) {
         return {
           success: false,
           response: '',
-          error: 'userId is required for integration_assistant to verify role permissions',
+          error: 'Both threadId and userId are required for integration_assistant',
         };
       }
 
@@ -165,7 +165,7 @@ EXAMPLES:
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
-            parentThreadId: threadId!,
+            parentThreadId: threadId,
             subAgentType: 'integration_assistant',
             userId,
           },
