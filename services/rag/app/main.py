@@ -75,6 +75,17 @@ async def lifespan(app: FastAPI):
 
     # Start periodic GC cleanup task (replaces per-request middleware)
     gc_task = asyncio.create_task(periodic_gc_cleanup())
+
+    def _on_gc_task_done(task: asyncio.Task) -> None:
+        """Log if the GC task exits unexpectedly."""
+        try:
+            task.result()  # Will raise if task failed
+        except asyncio.CancelledError:
+            pass  # Expected during shutdown
+        except Exception:
+            logger.exception("Periodic GC cleanup task died unexpectedly")
+
+    gc_task.add_done_callback(_on_gc_task_done)
     logger.info("Started periodic GC cleanup task (60s interval)")
 
     yield
