@@ -144,7 +144,7 @@ export function DataTableFilters({
                 <FilterButton hasActiveFilters={totalActiveFilters > 0} isLoading={isLoading} />
               </div>
             </PopoverTrigger>
-            <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <PopoverContent className="space-y-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
               <div className="flex items-center justify-between p-2">
                 <h4 className="text-sm font-semibold text-foreground">{t('labels.filters')}</h4>
                 {totalActiveFilters > 0 && (

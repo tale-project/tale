@@ -116,7 +116,7 @@ export function FilterDropdown({
           />
         </div>
       </PopoverTrigger>
-      <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="space-y-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <div className="flex items-center justify-between p-2">
           <h4 className="text-sm font-semibold text-foreground">{t('filters.title')}</h4>
