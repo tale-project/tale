@@ -1,0 +1,32 @@
+{
+  "global": {
+    "languages": {
+      "en": "English",
+      "de": "Deutsch",
+      "es": "Español",
+      "fr": "Français",
+      "it": "Italiano",
+      "nl": "Nederlands",
+      "pt": "Português",
+      "zh": "中文"
+    },
+    "languageCodes": {
+      "en": "EN",
+      "de": "DE",
+      "es": "ES",
+      "fr": "FR",
+      "it": "IT",
+      "nl": "NL",
+      "pt": "PT",
+      "zh": "ZH"
+    },
+    "providers": {
+      "gmail": "Gmail",
+      "outlook": "Outlook",
+      "shopify": "Shopify",
+      "circuly": "Circuly",
+      "protel": "Protel PMS",
+      "oneDrive": "OneDrive"
+    }
+  }
+}

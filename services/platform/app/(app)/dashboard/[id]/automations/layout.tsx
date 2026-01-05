@@ -10,7 +10,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useUpdateAutomation } from './hooks/use-update-automation';
 import { ReactNode, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { AutomationNavigation } from './automation-navigation';
+import { AutomationNavigation } from './components/automation-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { PageHeader } from '@/components/layout/page-header';

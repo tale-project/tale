@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { ToneOfVoiceForm } from './tone-of-voice-form';
+import { ToneOfVoiceForm } from './components/tone-of-voice-form';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';

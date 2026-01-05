@@ -229,7 +229,7 @@ export function OneDriveImportDialog({
   );
   const [folderPath, setFolderPath] = useState<
     Array<{ id: string | undefined; name: string }>
-  >([{ id: undefined, name: 'OneDrive' }]);
+  >([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
 
   // React Query for OneDrive files and folders
   const {

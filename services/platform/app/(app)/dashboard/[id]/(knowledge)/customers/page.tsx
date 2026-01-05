@@ -1,5 +1,5 @@
-import { CustomersTable } from './customers-table';
-import { CustomersTableSkeleton } from './customers-table-skeleton';
+import { CustomersTable } from './components/customers-table';
+import { CustomersTableSkeleton } from './components/customers-table-skeleton';
 import { Suspense } from 'react';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { customerFilterDefinitions } from './filter-definitions';
-import { CustomersEmptyState } from './customers-empty-state';
+import { CustomersEmptyState } from './components/customers-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic

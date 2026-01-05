@@ -15,8 +15,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
-import { TaleLogo } from '@/components/tale-logo';
-import { UserButton } from '@/components/auth/user-button';
+import { TaleLogo } from '@/components/ui/logo/tale-logo';
+import { UserButton } from '@/components/user-button';
 import {
   useNavigationItems,
   hasRequiredRole,

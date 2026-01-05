@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { HStack, Spacer } from '@/components/ui/layout';
 import { StatusPage } from '@/components/ui/status-page';
 import Link from 'next/link';
-import { TaleLogoText } from '@/components/tale-logo-text';
+import { TaleLogoText } from '@/components/ui/logo/tale-logo-text';
 import { getT } from '@/lib/i18n/server';
 
 export default async function NotFound() {

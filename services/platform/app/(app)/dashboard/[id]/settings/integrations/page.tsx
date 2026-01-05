@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { getAuthToken } from '@/lib/auth/auth-server';
-import { Integrations } from './integrations';
+import { Integrations } from './components/integrations';
 import { redirect } from 'next/navigation';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';

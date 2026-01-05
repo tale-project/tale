@@ -115,7 +115,12 @@
       "expandRow": "Expand row",
       "collapseRow": "Collapse row",
       "dropFilesHere": "Drop files here to attach",
-      "addStep": "Add step"
+      "addStep": "Add step",
+      "required": "required",
+      "valid": "valid",
+      "invalid": "invalid",
+      "validationRequirements": "Validation requirements",
+      "validationStatus": "{message}: {status}"
     },
     "pagination": {
       "rowsPerPage": "Rows per page",
@@ -970,6 +975,8 @@
       "messagePlaceholder": "Type your message...",
       "attachFiles": "Attach files",
       "automationDetails": "Automation Details",
+      "fallbackImage": "Image",
+      "fallbackFile": "File",
       "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
       "welcomeActive": "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
@@ -1023,6 +1030,8 @@
     "title": "Conversations",
     "messagePlaceholder": "Type a message",
     "suggestEditsPlaceholder": "Suggest edits to the text (optional)",
+    "fallbackImageAttachment": "Image attachment",
+    "fallbackAttachment": "Attachment",
     "status": {
       "open": "Open",
       "closed": "Closed",
@@ -1207,6 +1216,17 @@
       "approve": "Approve"
     }
   },
+  "integrationApproval": {
+    "approve": "Approve",
+    "reject": "Reject",
+    "executedSuccessfully": "Executed successfully",
+    "approveTooltip": "Approve and execute this operation",
+    "rejectTooltip": "Reject this operation",
+    "statusApprovedFailed": "This operation was approved but failed during execution.",
+    "statusApprovedSuccess": "This operation was approved and executed successfully.",
+    "statusRejected": "This operation was rejected.",
+    "moreParameters": "+{count} more"
+  },
   "chat": {
     "title": "Chat",
     "imagePreview": "Image preview",
@@ -1270,6 +1290,12 @@
       "txt": "TXT",
       "file": "FILE"
     },
+    "fallback": {
+      "image": "Image",
+      "file": "File",
+      "attachment": "Attachment",
+      "imageAttachment": "Image attachment"
+    },
     "toolStatus": {
       "ragSearch": "Searching knowledge base",
       "contextSearch": "Searching for related topics"
@@ -1288,6 +1314,7 @@
       "cached": "Cached",
       "noMetadata": "Token usage and model information are not available for this message."
     },
+    "loadOlderMessages": "Load older messages",
     "history": {
       "recent": "Recent",
       "loading": "Loading chats...",
