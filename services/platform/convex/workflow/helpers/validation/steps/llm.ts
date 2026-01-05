@@ -6,6 +6,7 @@
 
 import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
 import type { ValidationResult } from '../types';
+import { TOOL_NAMES } from '../../../../agent_tools/tool_registry';
 
 /**
  * Validate an LLM step configuration
@@ -89,6 +90,26 @@ export function validateLlmStep(
   // Model is now resolved from environment (OPENAI_MODEL) and cannot be
   // customized per step, so we intentionally do not validate a model field.
   // Any provided model value will be ignored at execution time.
+
+  // Validate tools array if provided
+  if ('tools' in llmConfig && llmConfig.tools != null) {
+    const tools = llmConfig.tools;
+    if (!Array.isArray(tools)) {
+      errors.push(
+        'LLM step "tools" must be an array of tool names. FIX: Use tools: ["customer_read", "product_read", ...]',
+      );
+    } else {
+      const validToolNames = new Set<string>(TOOL_NAMES);
+      const invalidTools = tools.filter(
+        (t) => typeof t !== 'string' || !validToolNames.has(t),
+      );
+      if (invalidTools.length > 0) {
+        errors.push(
+          `LLM step has invalid tool names: ${JSON.stringify(invalidTools)}. Valid tools are: ${TOOL_NAMES.join(', ')}`,
+        );
+      }
+    }
+  }
 
   return { valid: errors.length === 0, errors, warnings };
 }

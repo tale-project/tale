@@ -87,7 +87,7 @@ AI analyzes data, outputs JSON, then condition branches based on result.
 
 **LLM Step with JSON Output:**
 \`\`\`json
-{ "stepSlug": "analyze", "stepType": "llm", "config": { "name": "Analyzer", "systemPrompt": "You are an expert analyst. Analyze the data and return a structured decision.", "userPrompt": "Analyze: {{data}}", "temperature": 0.3, "maxTokens": 2000, "maxSteps": 10, "outputFormat": "json", "outputSchema": { "type": "object", "properties": { "decision": { "type": "string", "enum": ["approve", "reject", "review"] }, "reasoning": { "type": "string" } }, "required": ["decision", "reasoning"] }, "tools": ["rag_search", "customer_search", "product_get"] }, "nextSteps": { "success": "check_decision" } }
+{ "stepSlug": "analyze", "stepType": "llm", "config": { "name": "Analyzer", "systemPrompt": "You are an expert analyst. Analyze the data and return a structured decision.", "userPrompt": "Analyze: {{data}}", "temperature": 0.3, "maxTokens": 2000, "maxSteps": 10, "outputFormat": "json", "outputSchema": { "type": "object", "properties": { "decision": { "type": "string", "enum": ["approve", "reject", "review"] }, "reasoning": { "type": "string" } }, "required": ["decision", "reasoning"] }, "tools": ["rag_search", "customer_read", "product_read"] }, "nextSteps": { "success": "check_decision" } }
 \`\`\`
 
 ### Pattern 4: Data Sync with Pagination
@@ -161,16 +161,16 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   "userPrompt": "Analyze this customer: {{steps.get_customer.output.data}}",
   "temperature": 0.7,
   "maxTokens": 2000,
-  "tools": ["product_get", "list_products"],
+  "tools": ["customer_read", "product_read"],
   "outputFormat": "json"
 }
 \`\`\`
 
 **Available Tools for LLM Steps:**
-- customer_search, customer_get
-- product_get, list_products
-- rag_search (knowledge base)
-- conversation_query`,
+- customer_read: Fetch customer by ID, email, or list all (operation: get_by_id, get_by_email, list)
+- product_read: Fetch product by ID or list all (operation: get_by_id, list)
+- rag_search: Search knowledge base
+- context_search: Search conversation context`,
 
   action: `## Action Step (stepType: 'action')
 

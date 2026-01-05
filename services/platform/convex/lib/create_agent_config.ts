@@ -120,6 +120,12 @@ export function createAgentConfig(opts: {
 
   const hasMaxTokens = typeof opts.maxTokens === 'number';
 
+  // Default maxSteps to 10 when tools are configured but maxSteps is not set.
+  // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
+  // and can cause models to "simulate" tool calls as XML text output.
+  const effectiveMaxSteps =
+    hasAnyTools && typeof opts.maxSteps !== 'number' ? 10 : opts.maxSteps;
+
   return {
     name: opts.name,
     instructions: finalInstructions,
@@ -129,7 +135,9 @@ export function createAgentConfig(opts: {
       ? { providerOptions: { openai: { maxOutputTokens: opts.maxTokens } } }
       : {}),
     ...(hasAnyTools ? { tools: mergedTools } : {}),
-    ...(typeof opts.maxSteps === 'number' ? { maxSteps: opts.maxSteps } : {}),
+    ...(typeof effectiveMaxSteps === 'number'
+      ? { maxSteps: effectiveMaxSteps }
+      : {}),
     // Add text embedding model for vector search
     ...(embeddingModel
       ? { textEmbeddingModel: openai.embedding(embeddingModel) }

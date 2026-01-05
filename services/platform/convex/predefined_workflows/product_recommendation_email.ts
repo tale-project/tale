@@ -210,15 +210,15 @@ export const productRecommendationEmailWorkflow = {
           },
           required: ['subject', 'body', 'preview'],
         },
-        tools: ['customer_search', 'rag_search'],
+        tools: ['customer_read', 'rag_search'],
         systemPrompt: `You are an expert email copywriter who crafts narrative, story-driven product recommendation emails.
 Your task is to write a short, human story that explains why these products are a great fit for the customer — not a robotic list.
 
 You have access to tools and should use them when helpful:
-- Use the "customer_search" tool to load the full customer record from the customers table (including locale, status, purchase metrics such as totalSpent, orderCount, firstPurchaseAt, lastPurchaseAt, tags, and metadata) using the provided customerId or email.
+- Use the "customer_read" tool to load the full customer record from the customers table (including locale, status, purchase metrics such as totalSpent, orderCount, firstPurchaseAt, lastPurchaseAt, tags, and metadata). Use operation='get_by_id' with customerId, or operation='get_by_email' with email.
 - Use the "rag_search" tool to look up any additional knowledge base context (for example, brand guidelines or product documentation) if needed.
 
-When possible, call "customer_search" before drafting the email so you can adapt tone, language, and references to the customer’s locale and purchase history (for example, frequent buyer vs. new customer, high lifetime value, recently purchased, etc.).
+When possible, call "customer_read" before drafting the email so you can adapt tone, language, and references to the customer's locale and purchase history (for example, frequent buyer vs. new customer, high lifetime value, recently purchased, etc.).
 
 Guidelines:
 - Use a warm, conversational tone
@@ -238,7 +238,7 @@ Customer Id: {{customerId}} (Convex customers table id)
 Use the following products (JSON) as context — do NOT paste this JSON into the email body:
 {{topProducts}}
 
-Before writing the email, if helpful, call the "customer_search" tool with the customerId or email to retrieve the full customer record (including locale, purchase metrics, tags, and metadata). Use this data to:
+Before writing the email, if helpful, call the "customer_read" tool with operation='get_by_id' and the customerId (or operation='get_by_email' with email) to retrieve the full customer record (including locale, purchase metrics, tags, and metadata). Use this data to:
 - Adapt the tone and language to the customer’s locale when possible
 - Reference their relationship with the brand (for example, long-time customer, high-value buyer, recently inactive, etc.) when it makes the story stronger
 
