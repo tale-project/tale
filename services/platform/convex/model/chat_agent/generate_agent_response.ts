@@ -17,10 +17,6 @@ import {
   type MessageContentPart,
 } from '../../lib/attachments/index';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
-import {
-  queryRagContext,
-  type RecentMessage,
-} from '../../agent_tools/rag/query_rag_context';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 // Context management
@@ -45,10 +41,6 @@ import {
 } from '../../lib/error_classification';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
-
-// RAG configuration constants
-const RAG_TOP_K = 10;
-const RAG_SIMILARITY_THRESHOLD = 0.3;
 
 type Usage = {
   inputTokens?: number;
@@ -81,6 +73,13 @@ export interface GenerateAgentResponseResult {
   provider: string;
   usage?: Usage;
   reasoning?: string;
+  durationMs?: number;
+  subAgentUsage?: Array<{
+    toolName: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  }>;
 }
 
 /**
@@ -133,56 +132,23 @@ export async function generateAgentResponse(
   try {
     const userQuery = messageText || '';
 
-    // First, fetch recent messages for RAG context expansion (P1 improvement)
-    // This enables context-aware query that resolves pronouns and references
-    const recentMessagesResult = await listMessages(ctx, components.agent, {
-      threadId,
-      paginationOpts: { cursor: null, numItems: 6 }, // Get recent messages for context
-      excludeToolMessages: true, // Only user/assistant messages for context
-    });
-
-    // Convert to RecentMessage format for RAG query expansion
-    const recentMessages: RecentMessage[] = recentMessagesResult.page
-      .filter((m: MessageDoc) => m.message?.role === 'user' || m.message?.role === 'assistant')
-      .map((m: MessageDoc) => ({
-        role: m.message!.role as 'user' | 'assistant',
-        content: typeof m.message!.content === 'string'
-          ? m.message!.content
-          : Array.isArray(m.message!.content)
-            ? m.message!.content
-                .filter((p: unknown) => p && typeof p === 'object' && 'text' in p)
-                .map((p: unknown) => (p as { text: string }).text)
-                .join(' ')
-            : '',
-      }))
-      .filter((m: RecentMessage) => m.content.trim().length > 0)
-      .reverse(); // Chronological order (oldest first)
-
-    // Load context summary, RAG context, and integrations in parallel for faster startup
-    // All operations are independent and can run concurrently
-    const [initialContextSummary, ragContext, integrationsList] = await Promise.all([
+    // Load context summary and integrations in parallel for faster startup
+    // RAG is no longer pre-loaded - AI uses rag_search tool on-demand to reduce token usage
+    const [initialContextSummary, integrationsList] = await Promise.all([
       // Load any existing incremental summary for this thread
       loadContextSummary(ctx, threadId),
-      // Query RAG service for relevant context (only if there's a meaningful query)
-      // Now includes recent conversation context for better query expansion
-      userQuery.trim()
-        ? queryRagContext(
-            userQuery,
-            RAG_TOP_K,
-            RAG_SIMILARITY_THRESHOLD,
-            undefined, // No abort signal - rely on platform timeouts
-            recentMessages, // Pass recent messages for context-aware expansion
-          )
-        : Promise.resolve(undefined),
       // Load available integrations for this organization
       ctx.runQuery(internal.integrations.listInternal, { organizationId }),
     ]);
 
+    // RAG context is no longer injected - AI uses rag_search tool when needed
+    const ragContext: string | undefined = undefined;
+
     debugLog('Initial context loaded', {
       threadId,
       hasSummary: !!initialContextSummary,
-      hasRagContext: !!ragContext,
-      ragContextLength: ragContext?.length ?? 0,
+      hasRagContext: false,
+      ragContextLength: 0,
       attachmentCount: attachments?.length ?? 0,
       integrationsCount: integrationsList?.length ?? 0,
     });
@@ -205,6 +171,23 @@ export async function generateAgentResponse(
         })
         .join('\n');
     }
+
+    // DEBUG: Log token breakdown for each context component
+    debugLog('Token breakdown analysis', {
+      threadId,
+      userQueryTokens: estimateTokens(userQuery),
+      contextSummaryTokens: contextSummary ? estimateTokens(contextSummary) : 0,
+      ragContextTokens: 0, // RAG is now on-demand via rag_search tool
+      integrationsInfoTokens: integrationsInfo ? estimateTokens(integrationsInfo) : 0,
+      integrationsInfoLength: integrationsInfo?.length ?? 0,
+      // Log raw lengths for comparison
+      rawLengths: {
+        userQuery: userQuery.length,
+        contextSummary: contextSummary?.length ?? 0,
+        ragContext: 0,
+        integrationsInfo: integrationsInfo?.length ?? 0,
+      },
+    });
 
     // P1: Proactive context overflow detection
     // Check if we're approaching context limits and summarize if needed
@@ -531,13 +514,103 @@ export async function generateAgentResponse(
       `generateAgentResponse completed in ${(elapsedMs / 1000).toFixed(1)}s for thread ${threadId}`,
     );
 
-    const steps = (result.steps ?? []) as Array<{ [key: string]: any }>;
-    const toolCalls = steps
-      .filter((step) => step.type === 'tool-call')
-      .map((step) => ({
-        toolName: String(step.toolName ?? 'unknown'),
-        status: String(step.result?.success ? 'completed' : 'failed'),
-      }));
+    // DEBUG: Log actual vs estimated token usage for analysis
+    const actualInputTokens = result.usage?.inputTokens ?? 0;
+    const estimatedContextTokens = prioritizedContexts.reduce((sum, c) => sum + c.tokens, 0);
+    debugLog('Token usage comparison', {
+      threadId,
+      actual: {
+        inputTokens: actualInputTokens,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        totalTokens: result.usage?.totalTokens ?? 0,
+      },
+      estimated: {
+        contextTokens: estimatedContextTokens,
+        userQueryTokens: estimateTokens(userQuery),
+        // Note: Tool definitions and system instructions are logged in create_agent_config.ts
+        // The difference between actual and estimated gives us insight into SDK overhead
+      },
+      difference: {
+        unexplainedTokens: actualInputTokens - estimatedContextTokens - estimateTokens(userQuery),
+        note: 'unexplainedTokens includes: tool definitions, system instructions, recent messages, SDK overhead',
+      },
+    });
+
+    // AI SDK steps: each step is a generation round with toolCalls[] and toolResults[] arrays
+    // Agent SDK stores tool results in `output` field (directly as the result object, not wrapped)
+    type StepWithTools = {
+      toolCalls?: Array<{ toolName: string }>;
+      toolResults?: Array<{
+        toolName: string;
+        result?: unknown;  // May be undefined if SDK normalized it
+        output?: unknown;  // Agent SDK puts the tool's return value here directly
+      }>;
+      // Additional properties for debugging/error reporting
+      finishReason?: string;
+      text?: string;
+      content?: string | unknown[];
+      providerMetadata?: { error?: unknown; openai?: { error?: unknown } };
+      warnings?: unknown[];
+    };
+    const steps = (result.steps ?? []) as StepWithTools[];
+
+    // Sub-agent tool names for usage extraction
+    const subAgentToolNames = ['workflow_assistant', 'web_assistant', 'document_assistant', 'integration_assistant'];
+
+    // Extract tool calls from all steps
+    // Agent SDK stores tool results in output field directly (not wrapped in {type, value})
+    const toolCalls: Array<{ toolName: string; status: string }> = [];
+    for (const step of steps) {
+      const stepToolCalls = step.toolCalls ?? [];
+      const stepToolResults = step.toolResults ?? [];
+
+      for (const toolCall of stepToolCalls) {
+        const matchingResult = stepToolResults.find(r => r.toolName === toolCall.toolName);
+        // Check both direct result and output for success field
+        const directSuccess = (matchingResult?.result as { success?: boolean } | undefined)?.success;
+        const outputSuccess = (matchingResult?.output as { success?: boolean } | undefined)?.success;
+        const isSuccess = directSuccess ?? outputSuccess ?? true;
+        toolCalls.push({
+          toolName: toolCall.toolName,
+          status: isSuccess !== false ? 'completed' : 'failed',
+        });
+      }
+    }
+
+    // Extract sub-agent usage from tool results
+    // Sub-agent tools (workflow_assistant, web_assistant, etc.) return usage in their results
+    // Agent SDK stores result directly in output field: { success, response, usage }
+    const subAgentUsage: Array<{
+      toolName: string;
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    }> = [];
+
+    for (const step of steps) {
+      const stepToolResults = step.toolResults ?? [];
+      for (const toolResult of stepToolResults) {
+        if (subAgentToolNames.includes(toolResult.toolName)) {
+          // Tool results can be in different places depending on SDK version:
+          // 1. toolResult.result.usage - direct AI SDK format
+          // 2. toolResult.output.usage - Agent SDK stores result directly in output
+          // 3. toolResult.output.value.usage - Agent SDK normalized format
+          type UsageData = { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+          const directResult = toolResult.result as { usage?: UsageData } | undefined;
+          const outputDirect = toolResult.output as unknown as { usage?: UsageData } | undefined;
+          const outputValue = (toolResult.output as { value?: { usage?: UsageData } } | undefined)?.value;
+          const toolUsage = directResult?.usage ?? outputDirect?.usage ?? outputValue?.usage;
+          if (toolUsage) {
+            subAgentUsage.push({
+              toolName: toolResult.toolName,
+              inputTokens: toolUsage.inputTokens,
+              outputTokens: toolUsage.outputTokens,
+              totalTokens: toolUsage.totalTokens,
+            });
+          }
+        }
+      }
+    }
 
     const envModel = (process.env.OPENAI_MODEL || '').trim();
     if (!envModel) {
@@ -627,6 +700,8 @@ export async function generateAgentResponse(
       provider: 'openai',
       usage: result.usage,
       reasoning: (result as { reasoningText?: string }).reasoningText,
+      durationMs: Date.now() - startTime,
+      subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
     };
 
     // Call completion handler to save metadata and schedule summarization

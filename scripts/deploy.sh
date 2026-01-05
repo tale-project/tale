@@ -11,7 +11,8 @@
 #   ./scripts/deploy.sh deploy    # Deploy new version
 #   ./scripts/deploy.sh rollback  # Rollback to previous version
 #   ./scripts/deploy.sh status    # Show current deployment status
-#   ./scripts/deploy.sh cleanup   # Remove old containers
+#   ./scripts/deploy.sh cleanup   # Remove inactive containers
+#   ./scripts/deploy.sh reset     # Remove ALL blue-green containers
 #
 # REQUIREMENTS:
 #   - Docker and Docker Compose
@@ -608,9 +609,9 @@ cmd_status() {
   echo ""
 }
 
-# Cleanup all blue-green containers
+# Cleanup inactive blue-green containers (preserves active deployment)
 cmd_cleanup() {
-  log_step "Cleaning up all deployment containers..."
+  log_step "Cleaning up inactive deployment containers..."
 
   local current_color
   current_color=$(detect_current_color)
@@ -629,6 +630,98 @@ cmd_cleanup() {
   log_success "Cleanup complete"
 }
 
+# Reset: Remove ALL blue-green containers and state
+# Use this to return to normal docker compose mode
+cmd_reset() {
+  log_step "Resetting blue-green deployment state..."
+  log_warning "This will remove ALL blue and green containers!"
+  echo ""
+
+  # Check if there are any blue-green containers running
+  local has_blue=false
+  local has_green=false
+
+  for service in $ROTATABLE_SERVICE_BASES; do
+    if docker ps -a --format '{{.Names}}' | grep -q "^tale-${service}-blue$"; then
+      has_blue=true
+    fi
+    if docker ps -a --format '{{.Names}}' | grep -q "^tale-${service}-green$"; then
+      has_green=true
+    fi
+  done
+
+  if [ "$has_blue" = "false" ] && [ "$has_green" = "false" ]; then
+    log_info "No blue-green containers found"
+    # Still clean up state file if it exists
+    if [ -f "$STATE_FILE" ]; then
+      rm -f "$STATE_FILE"
+      log_info "Removed deployment state file"
+    fi
+    log_success "Reset complete - ready for normal docker compose"
+    return 0
+  fi
+
+  # Show what will be removed
+  echo "  The following containers will be removed:"
+  echo ""
+  if [ "$has_blue" = "true" ]; then
+    echo -e "  ${BLUE}Blue:${NC}"
+    for service in $ROTATABLE_SERVICE_BASES; do
+      local container_name="tale-${service}-blue"
+      if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        local status
+        status=$(docker inspect --format='{{.State.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+        echo "    - ${container_name} (${status})"
+      fi
+    done
+  fi
+  if [ "$has_green" = "true" ]; then
+    echo -e "  ${GREEN}Green:${NC}"
+    for service in $ROTATABLE_SERVICE_BASES; do
+      local container_name="tale-${service}-green"
+      if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        local status
+        status=$(docker inspect --format='{{.State.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+        echo "    - ${container_name} (${status})"
+      fi
+    done
+  fi
+  echo ""
+
+  # Prompt for confirmation unless --force flag is passed
+  if [ "${1:-}" != "--force" ] && [ "${1:-}" != "-f" ]; then
+    echo -n "  Are you sure you want to continue? [y/N] "
+    read -r confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+      log_info "Reset cancelled"
+      return 0
+    fi
+  fi
+
+  echo ""
+
+  # Stop and remove all blue-green containers
+  if [ "$has_blue" = "true" ]; then
+    cleanup_color "blue" true
+  fi
+  if [ "$has_green" = "true" ]; then
+    cleanup_color "green" true
+  fi
+
+  # Remove state file
+  if [ -f "$STATE_FILE" ]; then
+    rm -f "$STATE_FILE"
+    log_info "Removed deployment state file"
+  fi
+
+  echo ""
+  log_success "Reset complete!"
+  echo ""
+  echo "  You can now use normal docker compose commands:"
+  echo "    docker compose up -d"
+  echo ""
+}
+
 # Show usage
 cmd_help() {
   echo ""
@@ -641,7 +734,8 @@ cmd_help() {
   echo "  deploy    Deploy a new version (zero-downtime)"
   echo "  rollback  Rollback to previous version"
   echo "  status    Show current deployment status"
-  echo "  cleanup   Remove inactive containers"
+  echo "  cleanup   Remove inactive containers (preserves active deployment)"
+  echo "  reset     Remove ALL blue-green containers and return to normal mode"
   echo "  help      Show this help message"
   echo ""
   echo "ENVIRONMENT VARIABLES:"
@@ -659,6 +753,12 @@ cmd_help() {
   echo "  # Quick rollback after failed deployment"
   echo "  ./scripts/deploy.sh rollback"
   echo ""
+  echo "  # Remove all blue-green containers (return to docker compose mode)"
+  echo "  ./scripts/deploy.sh reset"
+  echo ""
+  echo "  # Force reset without confirmation"
+  echo "  ./scripts/deploy.sh reset --force"
+  echo ""
 }
 
 # ============================================================================
@@ -667,6 +767,7 @@ cmd_help() {
 
 main() {
   local command="${1:-help}"
+  shift || true  # Remove command from arguments
 
   # Change to project root
   cd "$PROJECT_ROOT"
@@ -683,6 +784,9 @@ main() {
       ;;
     cleanup)
       cmd_cleanup
+      ;;
+    reset)
+      cmd_reset "$@"
       ;;
     help|--help|-h)
       cmd_help

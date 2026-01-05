@@ -25,20 +25,19 @@ export function createChatAgent(options?: {
 
   if (withTools) {
     // If no specific Convex tools are requested, use a focused default tool set
+    // Direct tools are kept for fast, bounded-output queries
+    // Sub-agents handle high-context operations (web pages, documents, integrations)
     const defaultToolNames: ToolName[] = [
-      'rag_search',
-      'web_read',
-      'pdf',
-      'image',
-      'generate_excel',
-      'docx',
-      'pptx',
+      // Direct tools (fast, bounded output)
       'customer_read',
       'product_read',
+      'rag_search',
+      'context_search',
+      // Sub-agents (context isolation for large outputs)
+      'web_assistant', // Replaces web_read - isolates web page content (20K-50K tokens)
+      'document_assistant', // Replaces pdf, image, docx, pptx, generate_excel - isolates document content
+      'integration_assistant', // Replaces integration, integration_introspect, verify_approval - isolates DB results
       'workflow_assistant', // Single entry point for all workflow operations
-      'integration',
-      'integration_introspect',
-      'verify_approval',
     ];
     convexToolNames = options?.convexToolNames ?? defaultToolNames;
 
@@ -75,24 +74,32 @@ CORE PRINCIPLES
 1) DATA SOURCE SELECTION
 
 Choose the right tool based on your goal:
-• DATABASE TOOLS (customer_read, product_read, workflow_read): For counting, listing, filtering, aggregates, getting by ID/email
+
+DIRECT TOOLS (fast, bounded output):
+• customer_read, product_read: For counting, listing, filtering, aggregates, getting by ID/email
 • rag_search: For semantic search, knowledge base lookups, policies, documentation
-• web_read: For public/real-world info (weather, prices, news) - requires search then fetch_url
-• integration tools: For external systems (check [INTEGRATIONS] context for available integrations)
+• context_search: For searching the current conversation thread
+
+SUB-AGENTS (context isolation for large outputs):
+• web_assistant: For public/real-world info (weather, prices, news, web pages)
+• document_assistant: For parsing PDFs, Word docs, PowerPoints, generating files, analyzing images
+• integration_assistant: For external systems (check [INTEGRATIONS] context for available integrations)
+• workflow_assistant: For all workflow operations
 
 Each tool's description contains detailed guidance on when and how to use it.
 
 METADATA FIELDS:
 When looking for custom attributes not in standard fields (subscription date, plan type, loyalty points, etc.), include 'metadata' in the fields array. The metadata field contains custom attributes imported from external systems.
 
-2) EXTERNAL INTEGRATIONS
+2) SUB-AGENT DELEGATION
 
-Available integrations are listed in the [INTEGRATIONS] context section. Workflow:
-1. Check [INTEGRATIONS] for available integration names
-2. Use integration_introspect to discover operations
-3. Use integration tool to execute operations
+For complex operations, delegate to specialized sub-agents:
+• web_assistant: Handles web search and URL fetching. Describe what info you need.
+• document_assistant: Handles file parsing/generation. Provide file details.
+• integration_assistant: Handles external systems. Requires admin/developer role for write operations.
+• workflow_assistant: Handles all workflow CRUD operations.
 
-See the integration and verify_approval tool descriptions for detailed write operation workflows.
+Simply describe the task - each sub-agent has specialized tools and instructions.
 
 3) NO HALLUCINATIONS
 

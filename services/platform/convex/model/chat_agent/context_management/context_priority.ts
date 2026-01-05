@@ -197,12 +197,12 @@ export function buildPrioritizedContexts(params: {
 }): PrioritizedContext[] {
   const contexts: PrioritizedContext[] = [];
 
-  // Thread ID is mandatory and highest priority
+  // System info is mandatory and highest priority (thread ID + current time)
   contexts.push(
     createPrioritizedContext(
-      'thread_id',
+      'system_info',
       ContextPriority.THREAD_ID,
-      `[SYSTEM] Current thread ID: ${params.threadId}`,
+      `[SYSTEM] Current thread ID: ${params.threadId}\nCurrent time: ${new Date().toISOString()}`,
       { canTrim: false },
     ),
   );
@@ -289,11 +289,10 @@ export function prioritizedContextsToMessages(
     let sectionName: string;
     let sectionContent: string;
 
-    if (ctx.id === 'thread_id') {
-      // Extract thread ID from "[SYSTEM] Current thread ID: xxx"
-      const match = content.match(/Current thread ID:\s*(.+)/);
-      sectionName = 'thread_id';
-      sectionContent = match ? match[1].trim() : content;
+    if (ctx.id === 'system_info') {
+      // Extract system info (thread ID + current time) from "[SYSTEM] ..."
+      sectionName = 'system_info';
+      sectionContent = content.replace(/^\[SYSTEM\]\s*/i, '').trim();
     } else if (ctx.id === 'context_summary') {
       sectionName = 'conversation_summary';
       sectionContent = content.replace(/^\[CONTEXT\]\s*Previous Conversation Summary:\s*/i, '').trim();

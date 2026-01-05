@@ -141,44 +141,45 @@ def _patch_litellm_embedding() -> None:
 def setup_cognee_environment() -> None:
     """Set up environment variables for cognee BEFORE importing it.
 
+    All required configuration must come from get_llm_config() which validates
+    that required environment variables are set. No hardcoded defaults.
+
     Structured output framework:
 
     We default to BAML (``STRUCTURED_OUTPUT_FRAMEWORK=baml``) for structured
     outputs because BAML's schema-aligned parsing works well across a wide
-    range of models (GPT-4, GPT-5, etc.) without requiring native tool-calling
-    support.
+    range of models without requiring native tool-calling support.
 
     Note on temperature: Cognee's default ``BAML_LLM_TEMPERATURE`` is 0.0,
-    which newer GPT-5 models reject. We therefore set it to 1.0 (the model
+    which newer models reject. We therefore set it to 1.0 (the model
     default) unless an operator explicitly overrides it.
+
+    Raises:
+        ValueError: If required environment variables are not set.
     """
+    # get_llm_config() validates all required env vars and raises ValueError if missing
     llm_config = settings.get_llm_config()
-    openai_api_key = llm_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
 
-    if not openai_api_key:
-        raise ValueError("OpenAI API key is not set. Please set OPENAI_API_KEY in .env file.")
-
-    base_url = (
-        llm_config.get("base_url")
-        or os.environ.get("OPENAI_BASE_URL")
-        or "https://api.openai.com/v1"
-    )
-    model = os.environ.get("LLM_MODEL") or llm_config.get("model", "gpt-4o")
-    embedding_model = os.environ.get("EMBEDDING_MODEL") or llm_config.get(
-        "embedding_model", "text-embedding-3-small"
-    )
+    # These are guaranteed to be set by get_llm_config()
+    openai_api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model = llm_config["model"]
+    embedding_model = llm_config["embedding_model"]
 
     # For Cognee + LiteLLM, when using an OpenAI-compatible endpoint (like OpenRouter)
     # make sure the model string encodes the provider so LiteLLM can route correctly.
-    # Only add 'openai/' prefix if the model doesn't already have a provider prefix
-    # (models with provider prefix have format 'provider/model-name', e.g. 'moonshotai/kimi-k2')
+    # We ALWAYS add 'openai/' prefix for non-OpenAI endpoints because:
+    # 1. LiteLLM uses the prefix to determine the API protocol (openai-compatible)
+    # 2. OpenRouter model names like 'qwen/qwen3-embedding-4b' are NOT LiteLLM providers
+    # 3. The 'openai/' prefix tells LiteLLM to use the OpenAI-compatible API at base_url
     cognee_llm_model = model
     cognee_embedding_model = embedding_model
     if "api.openai.com" not in base_url:
-        # Only add openai/ prefix if model doesn't already have a provider prefix (contains '/')
-        if not model.startswith("openai/") and "/" not in model:
+        # Always add openai/ prefix for non-OpenAI endpoints
+        # This tells LiteLLM to use OpenAI-compatible protocol with OPENAI_BASE_URL
+        if not model.startswith("openai/"):
             cognee_llm_model = f"openai/{model}"
-        if not embedding_model.startswith("openai/") and "/" not in embedding_model:
+        if not embedding_model.startswith("openai/"):
             cognee_embedding_model = f"openai/{embedding_model}"
 
     # Set LLM environment variables for Cognee
@@ -195,10 +196,18 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("EMBEDDING_API_KEY", openai_api_key)
     os.environ.setdefault("EMBEDDING_ENDPOINT", base_url)
 
+    # Set embedding dimensions for Cognee's vector storage
+    # This must match the output dimensions of the embedding model
+    embedding_dimensions = settings.get_embedding_dimensions()
+    os.environ.setdefault("EMBEDDING_DIMENSIONS", str(embedding_dimensions))
+
     # Configure BAML for structured outputs (knowledge graph extraction)
     # Use BAML_LLM_MODEL to specify a different model for extraction if needed.
     # This is useful when the main model is a "thinking" model that causes JSON truncation.
-    baml_model = os.environ.get("BAML_LLM_MODEL") or cognee_llm_model
+    # IMPORTANT: BAML sends requests directly to BAML_LLM_ENDPOINT (OpenRouter),
+    # so it needs the ORIGINAL model name WITHOUT 'openai/' prefix.
+    # (The 'openai/' prefix is only for LiteLLM's internal routing)
+    baml_model = os.environ.get("BAML_LLM_MODEL") or model  # Use original model, not cognee_llm_model
     os.environ.setdefault("STRUCTURED_OUTPUT_FRAMEWORK", "baml")
     os.environ.setdefault("BAML_LLM_PROVIDER", provider)
     os.environ["BAML_LLM_MODEL"] = baml_model  # Use direct assignment to respect env override
@@ -211,18 +220,13 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
-        "LLM configured - Provider: {}, Model: {}, Embedding: {}, BAML: {}",
+        "LLM configured - Provider: {}, Model: {}, Embedding: {} (dim={}), BAML: {}",
         provider,
         cognee_llm_model,
         cognee_embedding_model,
+        embedding_dimensions,
         baml_model,
     )
-
-    if "openai" not in base_url and embedding_model == "text-embedding-3-small":
-        logger.warning(
-            "Using default OpenAI embedding model with non-OpenAI base URL {}",
-            base_url,
-        )
 
     _setup_database_config()
     _setup_vector_and_graph_config()

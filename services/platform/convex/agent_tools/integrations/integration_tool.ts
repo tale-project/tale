@@ -102,15 +102,21 @@ IMPORTANT NOTES:
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {
-      const { organizationId, threadId, messageId } = ctx;
+      // Extract parentThreadId from extended context (set by integration_assistant_tool)
+      // This ensures approval cards are linked to the parent thread, not the sub-thread
+      const ctxWithParent = ctx as ToolCtx & { parentThreadId?: string };
+      const { organizationId, threadId: currentThreadId, messageId, parentThreadId } = ctxWithParent;
+      const threadId = parentThreadId ?? currentThreadId;
 
       // Debug: Log context availability in tool context
       console.log('[integration_tool] Tool context check:', {
         hasOrganizationId: !!organizationId,
         hasThreadId: !!threadId,
         hasMessageId: !!messageId,
-        threadId: threadId,
-        messageId: messageId,
+        threadId,
+        parentThreadId,
+        currentThreadId,
+        messageId,
         contextKeys: Object.keys(ctx).filter(k => !k.startsWith('run')),
       });
 

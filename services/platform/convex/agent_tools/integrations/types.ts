@@ -40,6 +40,19 @@ export interface RestApiIntrospectionResult {
 }
 
 /**
+ * Summary of an SQL operation (without the actual SQL query).
+ * Used for introspection results to reduce token usage.
+ */
+export interface SqlOperationSummary {
+  name: string;
+  title?: string;
+  description?: string;
+  parametersSchema?: SqlOperation['parametersSchema'];
+  operationType?: 'read' | 'write';
+  isIntrospection?: boolean;
+}
+
+/**
  * Integration introspection result for SQL integrations
  */
 export interface SqlIntrospectionResult {
@@ -48,7 +61,7 @@ export interface SqlIntrospectionResult {
   title?: string;
   description?: string;
   engine: 'mssql' | 'postgres' | 'mysql';
-  operations: Array<SqlOperation & { isIntrospection?: boolean }>;
+  operations: SqlOperationSummary[];
 }
 
 /**
@@ -69,4 +82,60 @@ export interface IntegrationListResult {
     type: 'rest_api' | 'sql';
     status: string;
   }>;
+}
+
+// =============================================================================
+// BATCH OPERATION TYPES
+// =============================================================================
+
+/**
+ * Single operation result within a batch
+ */
+export interface BatchOperationItemResult {
+  /** Optional ID provided by caller for tracking */
+  id?: string;
+  /** Operation name that was executed */
+  operation: string;
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** Result data if successful */
+  data?: unknown;
+  /** Error message if failed */
+  error?: string;
+  /** Execution time in milliseconds */
+  duration?: number;
+  /** Number of rows returned (for SQL operations) */
+  rowCount?: number;
+  /** True if this operation requires approval */
+  requiresApproval?: boolean;
+  /** Approval ID if approval was created */
+  approvalId?: string;
+}
+
+/**
+ * Statistics for a batch operation
+ */
+export interface BatchOperationStats {
+  /** Total execution time in milliseconds */
+  totalTime: number;
+  /** Number of successful operations */
+  successCount: number;
+  /** Number of failed operations */
+  failureCount: number;
+  /** Number of operations requiring approval */
+  approvalCount?: number;
+}
+
+/**
+ * Result from executing a batch of integration operations
+ */
+export interface BatchOperationResult {
+  /** True if all operations succeeded (no failures) */
+  success: boolean;
+  /** Integration name */
+  integration: string;
+  /** Results for each operation */
+  results: BatchOperationItemResult[];
+  /** Aggregate statistics */
+  stats: BatchOperationStats;
 }

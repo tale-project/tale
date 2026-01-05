@@ -1,5 +1,6 @@
 """Main FastAPI application for Tale RAG service."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -21,6 +22,25 @@ logging.basicConfig(
     level=settings.log_level.upper(),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+
+async def periodic_gc_cleanup() -> None:
+    """Background task: perform GC cleanup every 60 seconds.
+
+    This replaces the per-request GC middleware which caused significant latency.
+    Periodic cleanup is much more efficient as gc.collect() is a stop-the-world
+    operation that should not block individual requests.
+    """
+    while True:
+        try:
+            await asyncio.sleep(60)
+            cleanup_memory(context="periodic cleanup")
+        except asyncio.CancelledError:
+            # Task is being cancelled during shutdown, re-raise to exit cleanly
+            raise
+        except Exception:
+            # Log but don't crash - GC cleanup is non-critical
+            logger.exception("Error in periodic GC cleanup")
 
 
 @asynccontextmanager
@@ -53,9 +73,29 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("Failed to cleanup stale jobs on startup")
 
+    # Start periodic GC cleanup task (replaces per-request middleware)
+    gc_task = asyncio.create_task(periodic_gc_cleanup())
+
+    def _on_gc_task_done(task: asyncio.Task) -> None:
+        """Log if the GC task exits unexpectedly."""
+        try:
+            task.result()  # Will raise if task failed
+        except asyncio.CancelledError:
+            pass  # Expected during shutdown
+        except Exception:
+            logger.exception("Periodic GC cleanup task died unexpectedly")
+
+    gc_task.add_done_callback(_on_gc_task_done)
+    logger.info("Started periodic GC cleanup task (60s interval)")
+
     yield
 
     # Shutdown
+    gc_task.cancel()
+    try:
+        await gc_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Shutting down Tale RAG service...")
 
 
@@ -82,19 +122,8 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def memory_cleanup_middleware(request: Request, call_next):
-    """Middleware that runs basic memory cleanup after each HTTP request.
-
-    This helps keep long-running RAG workers from accumulating unreachable
-    Python objects over time. It does not guarantee RSS will shrink for every
-    request, but it reduces long-term growth.
-    """
-    try:
-        response = await call_next(request)
-        return response
-    finally:
-        cleanup_memory(context=f"after request {request.url.path}")
+# Note: Per-request GC middleware was removed for performance.
+# GC cleanup is now performed periodically (every 60s) in the lifespan startup.
 
 
 # Exception handlers
