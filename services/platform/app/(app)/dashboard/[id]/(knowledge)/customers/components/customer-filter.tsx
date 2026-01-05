@@ -84,7 +84,7 @@ export function CustomerFilter() {
           <FilterButton hasActiveFilters={totalFilters > 0} isLoading={false} />
         </div>
       </PopoverTrigger>
-      <PopoverContent align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent className="space-y-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         {/* Header */}
         <HStack className="justify-between p-2">
           <h4 className="text-sm font-semibold text-foreground">{tCustomers('filter.title')}</h4>
