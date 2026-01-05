@@ -1,9 +1,12 @@
+'use client';
+
 import { cn } from '@/lib/utils/cn';
 import Image from 'next/image';
 import type { Message as MessageType } from '../types';
 import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
 import { EmailPreview } from '@/components/ui/email-preview';
 import { Clock, CheckCheck, Check, AlertCircle } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
 interface MessageProps {
   message: MessageType;
@@ -21,6 +24,7 @@ function getDeliveryIcon(status: string) {
 }
 
 export function Message({ message }: MessageProps) {
+  const { t } = useT('conversations');
   return (
     <div className="flex flex-col">
       <div
@@ -56,8 +60,8 @@ export function Message({ message }: MessageProps) {
                       src={attachment.url}
                       alt={
                         attachment.type === 'image'
-                          ? attachment.alt || 'Image attachment'
-                          : 'Attachment'
+                          ? attachment.alt || t('fallbackImageAttachment')
+                          : t('fallbackAttachment')
                       }
                       width={460}
                       height={300}

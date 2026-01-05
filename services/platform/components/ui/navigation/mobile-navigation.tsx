@@ -18,8 +18,8 @@ import {
 } from './navigation-menu';
 import { cn } from '@/lib/utils/cn';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
-import { TaleLogo } from '@/components/tale-logo';
-import { UserButton } from '@/components/auth/user-button';
+import { TaleLogo } from '@/components/ui/logo/tale-logo';
+import { UserButton } from '@/components/user-button';
 import { useT } from '@/lib/i18n';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import {

@@ -22,6 +22,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useT } from '@/lib/i18n';
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -43,6 +44,7 @@ function IntegrationApprovalCardComponent({
   executionError,
   className,
 }: IntegrationApprovalCardProps) {
+  const { t } = useT('integrationApproval');
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +162,7 @@ function IntegrationApprovalCardComponent({
             {formatParameters(metadata.parameters)}
             {Object.keys(metadata.parameters).length > 3 && (
               <div className="text-xs text-muted-foreground">
-                +{Object.keys(metadata.parameters).length - 3} more
+                {t('moreParameters', { count: Object.keys(metadata.parameters).length - 3 })}
               </div>
             )}
           </div>
@@ -178,7 +180,7 @@ function IntegrationApprovalCardComponent({
       {status === 'approved' && executedAt && !executionError && (
         <div className="text-xs text-green-600 flex items-center gap-1 mb-3">
           <CheckCircle className="size-3" />
-          Executed successfully
+          {t('executedSuccessfully')}
         </div>
       )}
 
@@ -216,10 +218,10 @@ function IntegrationApprovalCardComponent({
                   ) : (
                     <CheckCircle className="size-4 mr-1" />
                   )}
-                  Approve
+                  {t('approve')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Approve and execute this operation</TooltipContent>
+              <TooltipContent>{t('approveTooltip')}</TooltipContent>
             </Tooltip>
 
             <Tooltip>
@@ -236,10 +238,10 @@ function IntegrationApprovalCardComponent({
                   ) : (
                     <XCircle className="size-4 mr-1" />
                   )}
-                  Reject
+                  {t('reject')}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Reject this operation</TooltipContent>
+              <TooltipContent>{t('rejectTooltip')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -249,10 +251,10 @@ function IntegrationApprovalCardComponent({
       {!isPending && (
         <div className="text-xs text-muted-foreground">
           {status === 'approved' && executionError
-            ? 'This operation was approved but failed during execution.'
+            ? t('statusApprovedFailed')
             : status === 'approved'
-              ? 'This operation was approved and executed successfully.'
-              : 'This operation was rejected.'}
+              ? t('statusApprovedSuccess')
+              : t('statusRejected')}
         </div>
       )}
     </div>

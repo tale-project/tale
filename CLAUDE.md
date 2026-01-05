@@ -22,9 +22,17 @@
 - DO NOT overuse `useEffect`.
 - USE `cva` if a component has multiple variants.
 - AVOID `router.refresh()`.
+- **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
+- **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
 
 ## Convex
 
 - CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
 - CONSIDER TO use rate limiting and action caching.
 - DO NOT use `.collect()`, use `for await (const ... of ...)` instead.
+
+## Python
+
+- USE snake_case for files, functions, and variables.
+- ORGANIZE code into modules: `routes/`, `services/`, `models/`, `utils/` as needed.
+- PREFER type hints for function signatures.

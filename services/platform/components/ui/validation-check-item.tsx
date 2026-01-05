@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { HStack } from '@/components/ui/layout';
+import { useT } from '@/lib/i18n';
 
 export interface ValidationCheckItemProps {
   /** Whether the validation check passes */
@@ -23,7 +24,9 @@ export const ValidationCheckItem = React.memo(function ValidationCheckItem({
   message,
   className,
 }: ValidationCheckItemProps) {
+  const { t } = useT('common');
   const Icon = isValid ? Check : X;
+  const status = isValid ? t('aria.valid') : t('aria.invalid');
 
   return (
     <HStack
@@ -31,7 +34,7 @@ export const ValidationCheckItem = React.memo(function ValidationCheckItem({
       align="center"
       className={cn('text-sm', className)}
       role="listitem"
-      aria-label={`${message}: ${isValid ? 'valid' : 'invalid'}`}
+      aria-label={t('aria.validationStatus', { message, status })}
     >
       <Icon
         className={cn(
@@ -71,11 +74,12 @@ export const ValidationCheckList = React.memo(function ValidationCheckList({
   items,
   className,
 }: ValidationCheckListProps) {
+  const { t } = useT('common');
   return (
     <ul
       className={cn('space-y-1', className)}
       role="list"
-      aria-label="Validation requirements"
+      aria-label={t('aria.validationRequirements')}
     >
       {items.map((item, index) => (
         <li key={index}>

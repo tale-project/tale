@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Stack } from '@/components/ui/layout';
 import { Select } from '@/components/ui/select';
-import { Banner } from '@/components/banner';
+import { Banner } from '@/components/ui/banner';
 import { toast } from '@/hooks/use-toast';
 import { useUpdateMemberRole } from '../hooks/use-update-member-role';
 import { useT } from '@/lib/i18n';

@@ -685,10 +685,10 @@ export function ChatInterface({
                     {isLoadingMore ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Loading...
+                        {t('history.loading')}
                       </>
                     ) : (
-                      'Load older messages'
+                      t('loadOlderMessages')
                     )}
                   </Button>
                 </div>

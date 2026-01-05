@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { api } from '@/convex/_generated/api';
-import { SettingsNavigation } from './settings-navigation';
+import { SettingsNavigation } from './components/settings-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';

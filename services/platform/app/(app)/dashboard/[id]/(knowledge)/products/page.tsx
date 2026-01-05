@@ -1,6 +1,6 @@
 import { getAuthToken } from '@/lib/auth/auth-server';
-import { ProductTable } from '@/app/(app)/dashboard/[id]/(knowledge)/products/product-table';
-import { ProductTableSkeleton } from './product-table-skeleton';
+import { ProductTable } from './components/product-table';
+import { ProductTableSkeleton } from './components/product-table-skeleton';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { Suspense } from 'react';
@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { productFilterDefinitions } from './filter-definitions';
-import { ProductsEmptyState } from './products-empty-state';
+import { ProductsEmptyState } from './components/products-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic

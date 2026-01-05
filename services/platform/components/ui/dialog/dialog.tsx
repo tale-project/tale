@@ -40,7 +40,9 @@ const DialogCloseButton = React.forwardRef<
   React.ComponentPropsWithoutRef<'button'>
 >((props, ref) => {
   const { t } = useT('common');
-  return <IconButton ref={ref} icon={X} aria-label={t('aria.close')} {...props} />;
+  return (
+    <IconButton ref={ref} icon={X} aria-label={t('aria.close')} {...props} />
+  );
 });
 DialogCloseButton.displayName = 'DialogCloseButton';
 

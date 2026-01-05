@@ -589,7 +589,7 @@ export function AutomationAssistant({
                           >
                             <Image
                               src={part.url}
-                              alt={part.filename || 'Image'}
+                              alt={part.filename || t('assistant.fallbackImage')}
                               className="size-full object-cover"
                               width={44}
                               height={44}
@@ -609,7 +609,7 @@ export function AutomationAssistant({
                             />
                             <div className="flex flex-col min-w-0 flex-1">
                               <div className="text-sm font-medium text-foreground truncate">
-                                {part.filename || 'File'}
+                                {part.filename || t('assistant.fallbackFile')}
                               </div>
                             </div>
                           </a>

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { ConversationsNavigation } from './conversations-navigation';
+import { ConversationsNavigation } from './components/conversations-navigation';
 import { ErrorBoundaryWithParams } from '@/components/error-boundary';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';

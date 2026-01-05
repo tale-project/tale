@@ -1,5 +1,5 @@
-import { WebsitesTable } from './websites-table';
-import { WebsitesTableSkeleton } from './websites-table-skeleton';
+import { WebsitesTable } from './components/websites-table';
+import { WebsitesTableSkeleton } from './components/websites-table-skeleton';
 import { Suspense } from 'react';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { websiteFilterDefinitions } from './filter-definitions';
-import { WebsitesEmptyState } from './websites-empty-state';
+import { WebsitesEmptyState } from './components/websites-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic

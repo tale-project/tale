@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { UserButton } from '@/components/auth/user-button';
-import { TaleLogoText } from '@/components/tale-logo-text';
+import { UserButton } from '@/components/user-button';
+import { TaleLogoText } from '@/components/ui/logo/tale-logo-text';
 import { HStack, Spacer } from '@/components/ui/layout';
 import { DashboardErrorBoundary } from '@/components/error-boundary';
 

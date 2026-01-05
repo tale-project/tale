@@ -1,5 +1,5 @@
-import { VendorsTable } from './vendors-table';
-import { VendorsTableSkeleton } from './vendors-table-skeleton';
+import { VendorsTable } from './components/vendors-table';
+import { VendorsTableSkeleton } from './components/vendors-table-skeleton';
 import { Suspense } from 'react';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { vendorFilterDefinitions } from './filter-definitions';
-import { VendorsEmptyState } from './vendors-empty-state';
+import { VendorsEmptyState } from './components/vendors-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic

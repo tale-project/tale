@@ -16,8 +16,15 @@ export default getRequestConfig(async () => {
   // - Get from user preferences in database
   const locale = defaultLocale;
 
+  // Load locale-specific and global messages in parallel
+  const [localeMessages, globalMessages] = await Promise.all([
+    import(`@/messages/${locale}.json`).then((m) => m.default),
+    import('@/messages/global.json').then((m) => m.default),
+  ]);
+
   return {
     locale,
-    messages: (await import(`@/messages/${locale}.json`)).default,
+    // Merge global messages (same across all locales) with locale-specific messages
+    messages: { ...globalMessages, ...localeMessages },
   };
 });

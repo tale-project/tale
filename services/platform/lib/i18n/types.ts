@@ -5,12 +5,13 @@
  * These types enable autocomplete and type-checking for translation keys.
  */
 
-import type messages from '@/messages/en.json';
+import type localeMessages from '@/messages/en.json';
+import type globalMessages from '@/messages/global.json';
 
 /**
- * The shape of our translation messages
+ * The shape of our translation messages (locale-specific + global)
  */
-export type Messages = typeof messages;
+export type Messages = typeof globalMessages & typeof localeMessages;
 
 /**
  * Available translation namespaces (top-level keys in messages)
