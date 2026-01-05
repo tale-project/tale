@@ -84,31 +84,29 @@ EXAMPLES:
         };
       }
 
-      // Agent SDK requires either userId or threadId
-      if (!threadId && !userId) {
+      // Role check requires userId - cannot verify role with only threadId
+      if (!userId) {
         return {
           success: false,
           response: '',
-          error: 'Either threadId or userId is required',
+          error: 'userId is required for integration_assistant to verify role permissions',
         };
       }
 
       // Check user role - only admin and developer can use this tool
-      if (userId) {
-        const userRole = await ctx.runQuery(internal.member.getMemberRoleInternal, {
-          userId,
-          organizationId,
-        });
+      const userRole = await ctx.runQuery(internal.member.getMemberRoleInternal, {
+        userId,
+        organizationId,
+      });
 
-        const normalizedRole = (userRole ?? 'member').toLowerCase();
-        if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
-          console.log('[integration_assistant_tool] Access denied for role:', normalizedRole);
-          return {
-            success: false,
-            response: '',
-            error: `Access denied: The integration assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
-          };
-        }
+      const normalizedRole = (userRole ?? 'member').toLowerCase();
+      if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
+        console.log('[integration_assistant_tool] Access denied for role:', normalizedRole);
+        return {
+          success: false,
+          response: '',
+          error: `Access denied: The integration assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
+        };
       }
 
       try {
