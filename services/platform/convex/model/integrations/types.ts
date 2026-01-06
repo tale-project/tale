@@ -94,11 +94,14 @@ export interface SqlIntegration extends Integration {
 }
 
 /**
- * REST API Integration - integration with type='rest_api' and connector config.
+ * REST API Integration - integration with type='rest_api' (or undefined for legacy) and connector config.
  * Use `isRestApiIntegration()` to safely narrow to this type.
+ *
+ * Note: type can be undefined for backward compatibility with legacy integrations
+ * that were created before the type field was added.
  */
 export interface RestApiIntegration extends Integration {
-  type: 'rest_api';
+  type: 'rest_api' | undefined;
   connector: ConnectorConfig;
 }
 
