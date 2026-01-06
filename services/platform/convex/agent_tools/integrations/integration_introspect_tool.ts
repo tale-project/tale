@@ -10,10 +10,10 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
-import type { Doc } from '../../_generated/dataModel';
 import type { IntegrationIntrospectionResult } from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
+import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
 const integrationIntrospectArgs = z.object({
   integrationName: z
@@ -68,10 +68,10 @@ WORKFLOW:
       }
 
       // Fetch the specific integration
-      const integration = (await ctx.runQuery(
+      const integration = await ctx.runQuery(
         internal.integrations.getByNameInternal,
         { organizationId, name: args.integrationName },
-      )) as Doc<'integrations'> | null;
+      );
 
       if (!integration) {
         throw new Error(
@@ -80,12 +80,9 @@ WORKFLOW:
         );
       }
 
-      const integrationType = (integration as any).type || 'rest_api';
-
       // Handle SQL integrations
-      if (integrationType === 'sql') {
-        const sqlConfig = (integration as any).sqlConnectionConfig;
-        const sqlOperations = (integration as any).sqlOperations || [];
+      if (isSqlIntegration(integration)) {
+        const { sqlConnectionConfig, sqlOperations } = integration;
 
         // Get introspection operation names (always available for SQL)
         const introspectionOpNames = getIntrospectionOperations();
@@ -104,7 +101,7 @@ WORKFLOW:
         // Strip SQL queries from operations to reduce token usage.
         // AI only needs operation metadata (name, description, parameters) to select and call operations.
         // The actual SQL query is only needed at execution time by the integration tool.
-        const operationSummaries = sqlOperations.map((op: any) => ({
+        const operationSummaries = sqlOperations.map((op) => ({
           name: op.name,
           title: op.title,
           description: op.description,
@@ -117,13 +114,13 @@ WORKFLOW:
           integrationName: integration.name,
           title: integration.title,
           description: integration.description,
-          engine: sqlConfig.engine,
+          engine: sqlConnectionConfig.engine,
           operations: [...introspectionOps, ...operationSummaries],
         } as IntegrationIntrospectionResult;
       }
 
       // Handle REST API integrations
-      let connectorConfig = (integration as any).connector;
+      let connectorConfig = integration.connector;
 
       if (!connectorConfig) {
         // Fallback to predefined integration
