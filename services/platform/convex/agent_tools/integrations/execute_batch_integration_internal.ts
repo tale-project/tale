@@ -17,13 +17,9 @@ import { getIntrospectionOperations } from '../../workflow/actions/integration/h
 import { decryptSqlCredentials } from '../../workflow/actions/integration/helpers/decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from '../../workflow/actions/integration/helpers/detect_write_operation';
 import { validateRequiredParameters } from '../../workflow/actions/integration/helpers/validate_required_parameters';
-import {
-  type Integration,
-  type SqlIntegration,
-  type SqlOperation,
-  getIntegrationType,
-  isSqlIntegration,
-} from '../../model/integrations/types';
+import type { Integration, SqlIntegration, SqlOperation } from '../../model/integrations/types';
+import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
+import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
 /** Single operation result */
 interface OperationResult {
