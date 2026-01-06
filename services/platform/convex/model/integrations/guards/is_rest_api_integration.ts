@@ -12,6 +12,7 @@ import type { Integration, RestApiIntegration } from '../types';
  */
 export function isRestApiIntegration(integration: Integration): integration is RestApiIntegration {
   return (
+    // Accept undefined type for backward compatibility with legacy integrations
     (integration.type === 'rest_api' || integration.type === undefined) &&
     integration.connector !== undefined
   );
