@@ -17,7 +17,6 @@ import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
-import { getIntegrationType } from '../../../model/integrations/utils/get_integration_type';
 import { isSqlIntegration } from '../../../model/integrations/guards/is_sql_integration';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -75,10 +74,8 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 2. Check integration type and route accordingly
-    const integrationType = getIntegrationType(integration);
-
     // Handle SQL integrations
-    if (integrationType === 'sql' && isSqlIntegration(integration)) {
+    if (isSqlIntegration(integration)) {
       return await executeSqlIntegration(ctx, integration, operation, opParams, skipApprovalCheck, threadId, messageId);
     }
 
