@@ -13,7 +13,6 @@ import { internal } from '../../_generated/api';
 import type { IntegrationIntrospectionResult } from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
-import type { Integration } from '../../model/integrations/types';
 import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
 import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
@@ -70,10 +69,10 @@ WORKFLOW:
       }
 
       // Fetch the specific integration
-      const integration = (await ctx.runQuery(
+      const integration = await ctx.runQuery(
         internal.integrations.getByNameInternal,
         { organizationId, name: args.integrationName },
-      )) as Integration | null;
+      );
 
       if (!integration) {
         throw new Error(

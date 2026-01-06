@@ -21,6 +21,32 @@ import type { Integration, SqlIntegration, SqlOperation } from '../../model/inte
 import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
 import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
+/** Single operation result validator */
+const operationResultValidator = v.object({
+  id: v.optional(v.string()),
+  operation: v.string(),
+  success: v.boolean(),
+  data: v.optional(v.any()),
+  error: v.optional(v.string()),
+  duration: v.optional(v.number()),
+  rowCount: v.optional(v.number()),
+  requiresApproval: v.optional(v.boolean()),
+  approvalId: v.optional(v.string()),
+});
+
+/** Batch result validator */
+const batchResultValidator = v.object({
+  success: v.boolean(),
+  integration: v.string(),
+  results: v.array(operationResultValidator),
+  stats: v.object({
+    totalTime: v.number(),
+    successCount: v.number(),
+    failureCount: v.number(),
+    approvalCount: v.number(),
+  }),
+});
+
 /** Single operation result */
 interface OperationResult {
   id?: string;
@@ -32,6 +58,19 @@ interface OperationResult {
   rowCount?: number;
   requiresApproval?: boolean;
   approvalId?: string;
+}
+
+/** Batch result type */
+interface BatchResult {
+  success: boolean;
+  integration: string;
+  results: OperationResult[];
+  stats: {
+    totalTime: number;
+    successCount: number;
+    failureCount: number;
+    approvalCount: number;
+  };
 }
 
 /**
@@ -56,7 +95,8 @@ export const executeBatchIntegrationInternal = internalAction({
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  returns: batchResultValidator,
+  handler: async (ctx, args): Promise<BatchResult> => {
     const { organizationId, integrationName, operations, threadId, messageId } = args;
     const startTime = Date.now();
 
@@ -67,10 +107,10 @@ export const executeBatchIntegrationInternal = internalAction({
     });
 
     // 1. Load integration config ONCE
-    const integration = (await ctx.runQuery(
+    const integration = await ctx.runQuery(
       internal.integrations.getByNameInternal,
       { organizationId, name: integrationName },
-    )) as Integration | null;
+    );
 
     if (!integration) {
       return {

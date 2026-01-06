@@ -17,7 +17,6 @@ import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
-import type { Integration } from '../../../model/integrations/types';
 import { getIntegrationType } from '../../../model/integrations/utils/get_integration_type';
 import { isSqlIntegration } from '../../../model/integrations/guards/is_sql_integration';
 
@@ -64,10 +63,10 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 1. Load the integration from database by name
-    const integration = (await ctx.runQuery!(
+    const integration = await ctx.runQuery!(
       internal.integrations.getByNameInternal,
       { organizationId, name },
-    )) as Integration | null;
+    );
 
     if (!integration) {
       throw new Error(
