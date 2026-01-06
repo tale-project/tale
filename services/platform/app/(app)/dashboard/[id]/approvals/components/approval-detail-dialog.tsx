@@ -17,9 +17,11 @@ import { useLocale, useT } from '@/lib/i18n';
 
 const CustomerInfoDialog = dynamic(
   () =>
-    import('@/app/(app)/dashboard/[id]/(knowledge)/customers/components/customer-info-dialog').then((mod) => ({
-      default: mod.CustomerInfoDialog,
-    })),
+    import('@/app/(app)/dashboard/[id]/(knowledge)/customers/components/customer-info-dialog').then(
+      (mod) => ({
+        default: mod.CustomerInfoDialog,
+      }),
+    ),
   { ssr: false },
 );
 
@@ -58,9 +60,9 @@ export function ApprovalDetailDialog({
     api.customers.getCustomerByEmail,
     approvalDetail?.customer.email
       ? {
-        email: approvalDetail.customer.email,
-        organizationId: approvalDetail.organizationId,
-      }
+          email: approvalDetail.customer.email,
+          organizationId: approvalDetail.organizationId,
+        }
       : 'skip',
   );
 
@@ -92,33 +94,35 @@ export function ApprovalDetailDialog({
 
   const visibleProducts = sortedProducts.slice(0, 3);
 
-  const footer = approvalDetail.status === 'pending' ? (
-    <div className="flex gap-3 w-full">
-      <Button
-        onClick={() => onReject?.(approvalDetail._id)}
-        disabled={isApproving || isRejecting}
-        variant="outline"
-        className="flex-1"
-      >
-        {t('detail.reject')}
-      </Button>
-      <Button
-        onClick={() => onApprove?.(approvalDetail._id)}
-        disabled={isApproving || isRejecting}
-        className="flex-1"
-      >
-        {t('detail.approve')}
-      </Button>
-    </div>
-  ) : undefined;
+  const footer =
+    approvalDetail.status === 'pending' ? (
+      <div className="flex gap-3 w-full">
+        <Button
+          onClick={() => onReject?.(approvalDetail._id)}
+          disabled={isApproving || isRejecting}
+          variant="outline"
+          className="flex-1"
+        >
+          {t('detail.reject')}
+        </Button>
+        <Button
+          onClick={() => onApprove?.(approvalDetail._id)}
+          disabled={isApproving || isRejecting}
+          className="flex-1"
+        >
+          {t('detail.approve')}
+        </Button>
+      </div>
+    ) : undefined;
 
   return (
     <>
       <Dialog
         open={open}
+        size="md"
         onOpenChange={onOpenChange}
         title={t('detail.title')}
-        className="w-full max-w-[376px] max-h-[90vh] overflow-hidden p-0 gap-0"
+        className="w-full max-h-[90vh] overflow-hidden p-0 gap-0 flex flex-col"
         footer={footer}
         footerClassName="p-4 border-t border-border bg-background"
         customHeader={
@@ -133,7 +137,7 @@ export function ApprovalDetailDialog({
         <Stack
           gap={10}
           className={cn(
-            'p-4 max-h-[calc(90vh-88px)] overflow-y-auto',
+            'p-4 max-h-[calc(100%-88px)] overflow-y-auto',
             approvalDetail.status === 'pending' && 'pb-4',
           )}
         >
@@ -164,9 +168,12 @@ export function ApprovalDetailDialog({
                     'outline'
                   }
                 >
-                  {(approvalDetail.status === 'pending' && t('detail.statusPending')) ||
-                    (approvalDetail.status === 'approved' && t('detail.statusApproved')) ||
-                    (approvalDetail.status === 'rejected' && t('detail.statusRejected')) ||
+                  {(approvalDetail.status === 'pending' &&
+                    t('detail.statusPending')) ||
+                    (approvalDetail.status === 'approved' &&
+                      t('detail.statusApproved')) ||
+                    (approvalDetail.status === 'rejected' &&
+                      t('detail.statusRejected')) ||
                     t('detail.statusPending')}
                 </Badge>
               </HStack>
