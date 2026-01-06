@@ -295,6 +295,8 @@ import type * as model_integrations_get_decrypted_credentials from "../model/int
 import type * as model_integrations_get_integration from "../model/integrations/get_integration.js";
 import type * as model_integrations_get_integration_by_name from "../model/integrations/get_integration_by_name.js";
 import type * as model_integrations_get_workflows_for_integration from "../model/integrations/get_workflows_for_integration.js";
+import type * as model_integrations_guards_is_rest_api_integration from "../model/integrations/guards/is_rest_api_integration.js";
+import type * as model_integrations_guards_is_sql_integration from "../model/integrations/guards/is_sql_integration.js";
 import type * as model_integrations_index from "../model/integrations/index.js";
 import type * as model_integrations_list_integrations from "../model/integrations/list_integrations.js";
 import type * as model_integrations_run_health_check from "../model/integrations/run_health_check.js";
@@ -306,6 +308,7 @@ import type * as model_integrations_types from "../model/integrations/types.js";
 import type * as model_integrations_update_integration_internal from "../model/integrations/update_integration_internal.js";
 import type * as model_integrations_update_integration_logic from "../model/integrations/update_integration_logic.js";
 import type * as model_integrations_update_sync_stats from "../model/integrations/update_sync_stats.js";
+import type * as model_integrations_utils_get_integration_type from "../model/integrations/utils/get_integration_type.js";
 import type * as model_integrations_validators from "../model/integrations/validators.js";
 import type * as model_members_index from "../model/members/index.js";
 import type * as model_members_validators from "../model/members/validators.js";
@@ -1014,6 +1017,8 @@ declare const fullApi: ApiFromModules<{
   "model/integrations/get_integration": typeof model_integrations_get_integration;
   "model/integrations/get_integration_by_name": typeof model_integrations_get_integration_by_name;
   "model/integrations/get_workflows_for_integration": typeof model_integrations_get_workflows_for_integration;
+  "model/integrations/guards/is_rest_api_integration": typeof model_integrations_guards_is_rest_api_integration;
+  "model/integrations/guards/is_sql_integration": typeof model_integrations_guards_is_sql_integration;
   "model/integrations/index": typeof model_integrations_index;
   "model/integrations/list_integrations": typeof model_integrations_list_integrations;
   "model/integrations/run_health_check": typeof model_integrations_run_health_check;
@@ -1025,6 +1030,7 @@ declare const fullApi: ApiFromModules<{
   "model/integrations/update_integration_internal": typeof model_integrations_update_integration_internal;
   "model/integrations/update_integration_logic": typeof model_integrations_update_integration_logic;
   "model/integrations/update_sync_stats": typeof model_integrations_update_sync_stats;
+  "model/integrations/utils/get_integration_type": typeof model_integrations_utils_get_integration_type;
   "model/integrations/validators": typeof model_integrations_validators;
   "model/members/index": typeof model_members_index;
   "model/members/validators": typeof model_members_validators;

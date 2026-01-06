@@ -198,3 +198,44 @@ export const testConnectionResultValidator = v.object({
   success: v.boolean(),
   message: v.string(),
 });
+
+/**
+ * Sync stats validator
+ */
+export const syncStatsValidator = v.object({
+  totalRecords: v.optional(v.number()),
+  lastSyncCount: v.optional(v.number()),
+  failedSyncCount: v.optional(v.number()),
+});
+
+/**
+ * Integration document validator - matches the schema in schema.ts
+ * Used for typed query returns to avoid `as` type assertions
+ */
+export const integrationDocValidator = v.object({
+  _id: v.id('integrations'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  name: v.string(),
+  title: v.string(),
+  description: v.optional(v.string()),
+  type: v.optional(integrationTypeValidator),
+  status: statusValidator,
+  isActive: v.boolean(),
+  authMethod: authMethodValidator,
+  apiKeyAuth: v.optional(apiKeyAuthEncryptedValidator),
+  basicAuth: v.optional(basicAuthEncryptedValidator),
+  oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
+  connectionConfig: v.optional(connectionConfigValidator),
+  lastSyncedAt: v.optional(v.number()),
+  lastTestedAt: v.optional(v.number()),
+  lastSuccessAt: v.optional(v.number()),
+  lastErrorAt: v.optional(v.number()),
+  errorMessage: v.optional(v.string()),
+  syncStats: v.optional(syncStatsValidator),
+  capabilities: v.optional(capabilitiesValidator),
+  connector: v.optional(connectorConfigValidator),
+  sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
+  sqlOperations: v.optional(v.array(sqlOperationValidator)),
+  metadata: v.optional(v.any()),
+});

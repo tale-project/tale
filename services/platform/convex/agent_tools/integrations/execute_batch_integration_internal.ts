@@ -8,7 +8,6 @@
 
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v } from 'convex/values';
-import type { Doc } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 import type { SqlExecutionResult } from '../../node_only/sql/types';
 import { isIntrospectionOperation } from '../../workflow/actions/integration/helpers/is_introspection_operation';
@@ -16,24 +15,37 @@ import { getIntrospectTablesQuery } from '../../workflow/actions/integration/hel
 import { getIntrospectColumnsQuery } from '../../workflow/actions/integration/helpers/get_introspect_columns_query';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
 import { decryptSqlCredentials } from '../../workflow/actions/integration/helpers/decrypt_sql_credentials';
-import { requiresApproval, getOperationType, type OperationConfig } from '../../workflow/actions/integration/helpers/detect_write_operation';
+import { requiresApproval, getOperationType } from '../../workflow/actions/integration/helpers/detect_write_operation';
 import { validateRequiredParameters } from '../../workflow/actions/integration/helpers/validate_required_parameters';
+import type { Integration, SqlIntegration, SqlOperation } from '../../model/integrations/types';
+import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
+import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
-/** Extended type for SQL operation with query */
-interface SqlOperationConfig extends OperationConfig {
-  query: string;
-  description?: string;
-  parametersSchema?: {
-    type?: string;
-    properties?: Record<string, {
-      type?: string;
-      description?: string;
-      required?: boolean;
-      default?: unknown;
-    }>;
-    required?: string[];
-  };
-}
+/** Single operation result validator */
+const operationResultValidator = v.object({
+  id: v.optional(v.string()),
+  operation: v.string(),
+  success: v.boolean(),
+  data: v.optional(v.any()),
+  error: v.optional(v.string()),
+  duration: v.optional(v.number()),
+  rowCount: v.optional(v.number()),
+  requiresApproval: v.optional(v.boolean()),
+  approvalId: v.optional(v.string()),
+});
+
+/** Batch result validator */
+const batchResultValidator = v.object({
+  success: v.boolean(),
+  integration: v.string(),
+  results: v.array(operationResultValidator),
+  stats: v.object({
+    totalTime: v.number(),
+    successCount: v.number(),
+    failureCount: v.number(),
+    approvalCount: v.number(),
+  }),
+});
 
 /** Single operation result */
 interface OperationResult {
@@ -46,6 +58,19 @@ interface OperationResult {
   rowCount?: number;
   requiresApproval?: boolean;
   approvalId?: string;
+}
+
+/** Batch result type */
+interface BatchResult {
+  success: boolean;
+  integration: string;
+  results: OperationResult[];
+  stats: {
+    totalTime: number;
+    successCount: number;
+    failureCount: number;
+    approvalCount: number;
+  };
 }
 
 /**
@@ -70,7 +95,8 @@ export const executeBatchIntegrationInternal = internalAction({
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  returns: batchResultValidator,
+  handler: async (ctx, args): Promise<BatchResult> => {
     const { organizationId, integrationName, operations, threadId, messageId } = args;
     const startTime = Date.now();
 
@@ -81,10 +107,10 @@ export const executeBatchIntegrationInternal = internalAction({
     });
 
     // 1. Load integration config ONCE
-    const integration = (await ctx.runQuery(
+    const integration = await ctx.runQuery(
       internal.integrations.getByNameInternal,
       { organizationId, name: integrationName },
-    )) as Doc<'integrations'> | null;
+    );
 
     if (!integration) {
       return {
@@ -105,10 +131,10 @@ export const executeBatchIntegrationInternal = internalAction({
       };
     }
 
-    const integrationType = integration.type ?? 'rest_api';
+    const integrationType = getIntegrationType(integration);
 
     // For SQL integrations, optimize by decrypting credentials once
-    if (integrationType === 'sql') {
+    if (integrationType === 'sql' && isSqlIntegration(integration)) {
       return executeSqlBatch(ctx, integration, operations, threadId, messageId, startTime);
     }
 
@@ -123,33 +149,13 @@ export const executeBatchIntegrationInternal = internalAction({
  */
 async function executeSqlBatch(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: SqlIntegration,
   operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
   threadId: string | undefined,
   messageId: string | undefined,
   startTime: number,
 ) {
-  const sqlConnectionConfig = integration.sqlConnectionConfig;
-  const sqlOperations = (integration.sqlOperations ?? []) as SqlOperationConfig[];
-
-  if (!sqlConnectionConfig) {
-    return {
-      success: false,
-      integration: integration.name,
-      results: operations.map((op) => ({
-        id: op.id,
-        operation: op.operation,
-        success: false,
-        error: `SQL integration "${integration.name}" is missing sqlConnectionConfig`,
-      })),
-      stats: {
-        totalTime: Date.now() - startTime,
-        successCount: 0,
-        failureCount: operations.length,
-        approvalCount: 0,
-      },
-    };
-  }
+  const { sqlConnectionConfig, sqlOperations } = integration;
 
   // 2. Decrypt credentials ONCE
   let credentials: { username: string; password: string };
@@ -184,7 +190,7 @@ async function executeSqlBatch(
         // Handle introspection operations
         let query: string;
         let queryParams: Record<string, unknown> = params;
-        let operationConfig: SqlOperationConfig | undefined;
+        let operationConfig: SqlOperation | undefined;
 
         if (isIntrospectionOperation(op.operation)) {
           if (op.operation === 'introspect_tables') {
@@ -351,7 +357,7 @@ async function executeSqlBatch(
  */
 async function executeRestApiBatch(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: Integration,
   operations: Array<{ id?: string; operation: string; params?: Record<string, unknown> }>,
   organizationId: string,
   threadId: string | undefined,

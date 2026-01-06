@@ -33,7 +33,7 @@ export const get = queryWithRLS({
   args: {
     integrationId: v.id('integrations'),
   },
-  returns: v.union(v.any(), v.null()),
+  returns: v.union(IntegrationsModel.integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
     return await IntegrationsModel.getIntegration(ctx, args.integrationId);
   },
@@ -60,7 +60,7 @@ export const getByNameInternal = internalQuery({
     organizationId: v.string(),
     name: v.string(),
   },
-  returns: v.union(v.any(), v.null()),
+  returns: v.union(IntegrationsModel.integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
     return await IntegrationsModel.getIntegrationByName(ctx, args);
   },
@@ -186,7 +186,7 @@ export const getIntegrationInternal = internalQuery({
   args: {
     integrationId: v.id('integrations'),
   },
-  returns: v.union(v.any(), v.null()),
+  returns: v.union(IntegrationsModel.integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
     return await IntegrationsModel.getIntegration(ctx, args.integrationId);
   },

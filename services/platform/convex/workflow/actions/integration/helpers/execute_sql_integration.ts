@@ -5,7 +5,6 @@
  */
 
 import type { ActionCtx } from '../../../../_generated/server';
-import type { Doc } from '../../../../_generated/dataModel';
 import { internal } from '../../../../_generated/api';
 import type { SqlExecutionResult } from '../../../../node_only/sql/types';
 import { createDebugLog } from '../../../../lib/debug_log';
@@ -16,6 +15,7 @@ import { getIntrospectionOperations } from './get_introspection_operations';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
 import { validateRequiredParameters } from './validate_required_parameters';
+import { type SqlIntegration, type SqlOperation } from '../../../../model/integrations/types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -37,13 +37,13 @@ export interface ApprovalRequiredResult {
  */
 export async function executeSqlIntegration(
   ctx: ActionCtx,
-  integration: Doc<'integrations'>,
+  integration: SqlIntegration,
   operation: string,
   params: Record<string, unknown>,
   skipApprovalCheck: boolean = false,
   threadId?: string,
   messageId?: string,
-): Promise<any> {
+): Promise<unknown> {
   // Debug: Log context received by SQL integration executor
   debugLog('Received context:', {
     hasThreadId: threadId !== undefined,
@@ -54,8 +54,7 @@ export async function executeSqlIntegration(
     integrationName: integration.name,
   });
 
-  const sqlConnectionConfig = (integration as any).sqlConnectionConfig;
-  const sqlOperations = (integration as any).sqlOperations || [];
+  const { sqlConnectionConfig, sqlOperations } = integration;
 
   if (!sqlConnectionConfig) {
     throw new Error(
@@ -66,7 +65,7 @@ export async function executeSqlIntegration(
   // Handle system introspection operations
   let query: string;
   let queryParams: Record<string, unknown> = params;
-  let operationConfig: any = null;
+  let operationConfig: SqlOperation | undefined;
 
   if (isIntrospectionOperation(operation)) {
     // System introspection operations - never require approval
@@ -97,11 +96,11 @@ export async function executeSqlIntegration(
   } else {
     // User-defined operation
     operationConfig = sqlOperations.find(
-      (op: any) => op.name === operation,
+      (op) => op.name === operation,
     );
 
     if (!operationConfig) {
-      const userOps = sqlOperations.map((op: any) => op.name);
+      const userOps = sqlOperations.map((op) => op.name);
       const introspectionOps = getIntrospectionOperations();
       const availableOps = [...userOps, ...introspectionOps].join(', ');
       throw new Error(
@@ -127,7 +126,7 @@ export async function executeSqlIntegration(
         internal.agent_tools.integrations.create_integration_approval
           .createIntegrationApproval,
         {
-          organizationId: (integration as any).organizationId,
+          organizationId: integration.organizationId,
           integrationId: integration._id,
           integrationName: integration.name,
           integrationType: 'sql',
