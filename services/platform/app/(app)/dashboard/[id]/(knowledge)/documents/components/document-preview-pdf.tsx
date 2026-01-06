@@ -237,7 +237,7 @@ const PDFViewer = ({ url }: { url: string }) => {
               max={Math.max(1, totalPages)}
               value={pageNum}
               onChange={onPageInputChange}
-              className="w-10 appearance-none rounded-md bg-background text-sm text-center px-2 py-1 ring-1 ring-white/20 focus:outline-none focus:ring-white/40"
+              className="w-10 appearance-none rounded-md bg-background text-sm text-center py-1 ring-1 ring-white/20 focus:outline-none focus:ring-white/40"
             />
             <div>/</div>
             <div className="w-4 text-center text-sm tabular-nums">
@@ -262,7 +262,9 @@ const PDFViewer = ({ url }: { url: string }) => {
           </div>
         </div>
         {!pdfDoc && (
-          <div className="mt-4 text-gray-500 text-center">{t('preview.loading')}</div>
+          <div className="mt-4 text-gray-500 text-center">
+            {t('preview.loading')}
+          </div>
         )}
       </div>
     </>
