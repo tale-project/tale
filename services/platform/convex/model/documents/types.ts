@@ -8,8 +8,10 @@ import {
   documentItemValidator,
   documentListResponseValidator,
   documentRecordValidator,
+  ragInfoValidator,
   ragStatusValidator,
   sourceProviderValidator,
+  sourceModeValidator,
 } from './validators';
 
 // =============================================================================
@@ -17,10 +19,32 @@ import {
 // =============================================================================
 
 export type RagStatus = Infer<typeof ragStatusValidator>;
+export type RagInfo = Infer<typeof ragInfoValidator>;
 export type SourceProvider = Infer<typeof sourceProviderValidator>;
+export type SourceMode = Infer<typeof sourceModeValidator>;
 export type DocumentItemResponse = Infer<typeof documentItemValidator>;
 export type DocumentListResponse = Infer<typeof documentListResponseValidator>;
 export type DocumentRecord = Infer<typeof documentRecordValidator>;
+
+/**
+ * Document metadata structure stored in the metadata field.
+ * This provides type-safe access to common metadata properties.
+ */
+export interface DocumentMetadata {
+  name?: string;
+  type?: 'file' | 'folder';
+  size?: number;
+  mimeType?: string;
+  extension?: string;
+  storagePath?: string;
+  sourceProvider?: SourceProvider;
+  sourceMode?: SourceMode;
+  lastModified?: number;
+  syncConfigId?: string;
+  isDirectlySelected?: boolean;
+  oneDriveId?: string;
+  oneDriveItemId?: string;
+}
 
 // =============================================================================
 // MANUAL TYPES (no corresponding validator)

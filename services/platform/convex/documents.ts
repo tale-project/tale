@@ -759,15 +759,20 @@ export const uploadFile = action({
       );
 
       // 5. Build document metadata
+      // Type the metadata for safe property access
+      interface UploadMetadata {
+        sourceProvider?: 'onedrive' | 'upload';
+        sourceMode?: 'auto' | 'manual';
+        oneDriveId?: string;
+        oneDriveItemId?: string;
+      }
+      const typedMetadata = args.metadata as UploadMetadata | undefined;
       const providerFromMetadata =
-        (args.metadata as any)?.sourceProvider === 'onedrive'
-          ? 'onedrive'
-          : 'upload';
+        typedMetadata?.sourceProvider === 'onedrive' ? 'onedrive' : 'upload';
       const modeFromMetadata =
-        (args.metadata as any)?.sourceMode === 'auto' ? 'auto' : 'manual';
+        typedMetadata?.sourceMode === 'auto' ? 'auto' : 'manual';
       const externalItemId =
-        (args.metadata as any)?.oneDriveId ??
-        (args.metadata as any)?.oneDriveItemId;
+        typedMetadata?.oneDriveId ?? typedMetadata?.oneDriveItemId;
       const documentMetadata = {
         name: args.fileName,
         type: 'file' as const,

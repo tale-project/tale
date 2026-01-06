@@ -11,6 +11,7 @@ import { v } from 'convex/values';
 import { action, query } from './_generated/server';
 import * as OrganizationsModel from './model/organizations';
 import { saveDefaultWorkflows } from './model/organizations/save_default_workflows';
+import type { BetterAuthOrganization } from './model/members/types';
 
 // =============================================================================
 // PUBLIC QUERY OPERATIONS
@@ -61,15 +62,15 @@ export const getOrganization = query({
       }
 
       // Shape result to match the public validator (exclude system fields like _creationTime)
+      const org = organization as BetterAuthOrganization;
       const shaped = {
-        _id: String((organization as any)._id),
-        name: (organization as any).name as string,
-        slug: (organization as any).slug as string,
-        logo: (organization as any).logo ?? undefined,
-        createdAt: Number((organization as any).createdAt),
-        ...(((organization as any).metadata === null ||
-          typeof (organization as any).metadata === 'string') && {
-          metadata: (organization as any).metadata as string | null,
+        _id: String(org._id),
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo ?? undefined,
+        createdAt: Number(org.createdAt),
+        ...((org.metadata === null || typeof org.metadata === 'string') && {
+          metadata: org.metadata,
         }),
       };
 

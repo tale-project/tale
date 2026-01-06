@@ -3,13 +3,18 @@ import { queryWithRLS, mutationWithRLS, getAuthenticatedUser } from './lib/rls';
 import { query, internalQuery } from './_generated/server';
 import { components } from './_generated/api';
 
-// Import validators from model
+// Import validators and types from model
 import {
   sortOrderValidator,
   memberListItemValidator,
   memberContextValidator,
   addMemberResponseValidator,
 } from './model/members/validators';
+import type {
+  BetterAuthMember,
+  BetterAuthUser,
+  BetterAuthCreateResult,
+} from './model/members/types';
 
 /**
  * Public query to get user ID by email (for adding existing users to organizations).
@@ -72,7 +77,7 @@ export const listByOrganization = queryWithRLS({
 
     // Enrich with user info for email/displayName
     const enriched = await Promise.all(
-      members.map(async (m: any) => {
+      (members as BetterAuthMember[]).map(async (m) => {
         const userRes = await ctx.runQuery(
           components.betterAuth.adapter.findMany,
           {
@@ -81,15 +86,15 @@ export const listByOrganization = queryWithRLS({
             where: [{ field: '_id', value: m.userId, operator: 'eq' }],
           },
         );
-        const user = userRes?.page?.[0];
+        const user = userRes?.page?.[0] as BetterAuthUser | undefined;
         return {
-          _id: m._id as string,
-          _creationTime: m.createdAt as number,
-          organizationId: m.organizationId as string,
-          identityId: m.userId as string,
-          email: user?.email as string | undefined,
-          role: m.role as string | undefined,
-          displayName: (user?.name as string | undefined) ?? undefined,
+          _id: m._id,
+          _creationTime: m.createdAt,
+          organizationId: m.organizationId,
+          identityId: m.userId,
+          email: user?.email,
+          role: m.role,
+          displayName: user?.name ?? undefined,
           metadata: undefined,
         };
       }),
@@ -148,15 +153,7 @@ export const getCurrentMemberContext = queryWithRLS({
       ],
     });
 
-    let member = memberRes?.page?.[0] as
-      | {
-          _id: string;
-          organizationId: string;
-          userId: string;
-          role?: string;
-          createdAt: number;
-        }
-      | undefined;
+    let member = memberRes?.page?.[0] as BetterAuthMember | undefined;
 
     // Fallback to email lookup if no direct match
     if (!member && authUser.email) {
@@ -182,7 +179,7 @@ export const getCurrentMemberContext = queryWithRLS({
             { field: 'userId', value: user._id, operator: 'eq' },
           ],
         });
-        member = memberRes?.page?.[0] as any;
+        member = memberRes?.page?.[0] as BetterAuthMember | undefined;
       }
     }
 
@@ -266,11 +263,11 @@ export const addMember = mutationWithRLS({
         ],
       },
     );
-    const currentMember = currentMemberRes?.page?.[0] as any;
+    const currentMember = currentMemberRes?.page?.[0] as BetterAuthMember | undefined;
     if (!currentMember) {
       throw new Error('You are not a member of this organization');
     }
-    const callerRole = (currentMember.role ?? '').toLowerCase();
+    const callerRole = currentMember.role.toLowerCase();
     if (callerRole !== 'admin') {
       throw new Error('Only Admins can add members');
     }
@@ -344,8 +341,8 @@ export const addMember = mutationWithRLS({
         },
       },
     );
-    const memberId: string =
-      (created as any)?._id ?? (created as any)?.id ?? String(created);
+    const createdResult = created as BetterAuthCreateResult;
+    const memberId = createdResult._id ?? createdResult.id ?? String(created);
 
     return { memberId };
   },
@@ -374,7 +371,7 @@ export const updateMemberRole = mutationWithRLS({
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
       },
     );
-    const member = memberRes?.page?.[0] as any;
+    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
     if (!member) {
       throw new Error('Member not found');
     }
@@ -390,7 +387,7 @@ export const updateMemberRole = mutationWithRLS({
     }
 
     // If demoting an admin, ensure at least 2 admins will remain
-    const newRole = (args.role ?? '').toLowerCase();
+    const newRole = args.role.toLowerCase();
     const isDemotionFromAdmin = member.role === 'admin' && newRole !== 'admin';
     if (isDemotionFromAdmin) {
       const adminsRes = await ctx.runQuery(
@@ -453,7 +450,7 @@ export const removeMember = mutationWithRLS({
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
       },
     );
-    const member = memberRes?.page?.[0] as any;
+    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
     if (!member) {
       throw new Error('Member not found');
     }
@@ -494,7 +491,7 @@ export const removeMember = mutationWithRLS({
     }
 
     // Check if this user is a member of any other organizations
-    const userId = member.userId as string;
+    const userId = member.userId;
     if (userId) {
       const otherMembershipsRes = await ctx.runQuery(
         components.betterAuth.adapter.findMany,
@@ -551,7 +548,7 @@ export const getMemberRoleInternal = internalQuery({
       ],
     });
 
-    const member = memberRes?.page?.[0] as { role?: string } | undefined;
+    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
     return member?.role ?? null;
   },
 });

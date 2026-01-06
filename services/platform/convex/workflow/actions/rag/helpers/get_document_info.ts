@@ -2,6 +2,7 @@ import type { RagActionParams } from './types';
 import type { ActionCtx } from '../../../../_generated/server';
 import { api, internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
+import type { DocumentRecord, DocumentMetadata } from '../../../../model/documents/types';
 
 /**
  * Document information without downloading content
@@ -29,26 +30,22 @@ export async function getDocumentInfo(
     throw new Error('recordId is required');
   }
 
-  const getDocumentResult = await ctx.runQuery?.(
-    internal.documents.getDocumentById,
-    {
-      documentId: params.recordId as Id<'documents'>,
-    },
-  );
+  const document = await ctx.runQuery?.(internal.documents.getDocumentById, {
+    documentId: params.recordId as Id<'documents'>,
+  });
 
-  if (!getDocumentResult) {
+  if (!document) {
     throw new Error(`Document not found: ${params.recordId}`);
   }
 
-  const document = getDocumentResult as Record<string, unknown>;
-  const baseMetadata =
-    (document.metadata as Record<string, unknown> | undefined) || {};
-  const organizationId = document.organizationId as string | undefined;
+  // Type the metadata for safe access
+  const baseMetadata = (document.metadata as DocumentMetadata | undefined) || {};
+  const organizationId = document.organizationId;
 
   // Check if document has file content
   if (document.fileId) {
     const fileUrl = await ctx.runQuery?.(api.file.getFileUrl, {
-      fileId: document.fileId as Id<'_storage'>,
+      fileId: document.fileId,
     });
 
     if (!fileUrl) {
@@ -57,17 +54,13 @@ export async function getDocumentInfo(
 
     return {
       type: 'file',
-      fileUrl: fileUrl as string,
-      filename:
-        (baseMetadata.name as string) ||
-        (document.title as string) ||
-        'document',
-      contentType:
-        (baseMetadata.contentType as string) || 'application/octet-stream',
+      fileUrl,
+      filename: baseMetadata.name || document.title || 'document',
+      contentType: baseMetadata.mimeType || 'application/octet-stream',
       metadata: {
         recordId: params.recordId,
         organizationId,
-        title: document.title as string,
+        title: document.title,
         ...baseMetadata,
       },
     };
@@ -77,11 +70,11 @@ export async function getDocumentInfo(
   if (document.content) {
     return {
       type: 'text',
-      content: document.content as string,
+      content: document.content,
       metadata: {
         recordId: params.recordId,
         organizationId,
-        title: document.title as string,
+        title: document.title,
         ...baseMetadata,
       },
     };
