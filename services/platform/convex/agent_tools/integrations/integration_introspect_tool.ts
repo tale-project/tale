@@ -13,7 +13,6 @@ import { internal } from '../../_generated/api';
 import type { IntegrationIntrospectionResult } from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
-import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
 import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
 const integrationIntrospectArgs = z.object({
@@ -81,10 +80,8 @@ WORKFLOW:
         );
       }
 
-      const integrationType = getIntegrationType(integration);
-
       // Handle SQL integrations
-      if (integrationType === 'sql' && isSqlIntegration(integration)) {
+      if (isSqlIntegration(integration)) {
         const { sqlConnectionConfig, sqlOperations } = integration;
 
         // Get introspection operation names (always available for SQL)
