@@ -1,46 +1,25 @@
 'use client';
 
 import { ConvexReactClient } from 'convex/react';
-import { ReactNode, useState, useEffect } from 'react';
+import { type ReactNode } from 'react';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { authClient } from '@/lib/auth-client';
 
 /**
- * Get the Convex WebSocket URL.
- * Derives from window.location.origin at runtime, appending /ws_api.
+ * Get the Convex WebSocket URL from environment variable.
+ * Falls back to localhost for development.
  */
 function getConvexUrl(): string {
-  return `${window.location.origin}/ws_api`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  return `${siteUrl.replace(/\/+$/, '')}/ws_api`;
 }
 
-// Singleton client instance - only created in browser
-let convexClient: ConvexReactClient | null = null;
-
-function getConvexClient(): ConvexReactClient {
-  if (!convexClient) {
-    const url = getConvexUrl();
-    convexClient = new ConvexReactClient(url, { expectAuth: true });
-  }
-  return convexClient;
-}
+// Singleton client instance - created once per browser session
+const convexClient = new ConvexReactClient(getConvexUrl(), { expectAuth: true });
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
-  // Track whether we're mounted on the client
-  const [client, setClient] = useState<ConvexReactClient | null>(null);
-
-  useEffect(() => {
-    // Only runs on the client after hydration - safe to use Math.random() here
-    setClient(getConvexClient());
-  }, []);
-
-  // During SSR or before hydration, render nothing to avoid Math.random() during prerender
-  if (!client) {
-    return null;
-  }
-
-  // Wire Better Auth tokens into Convex client
   return (
-    <ConvexBetterAuthProvider client={client} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
       {children}
     </ConvexBetterAuthProvider>
   );
