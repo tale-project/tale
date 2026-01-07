@@ -182,13 +182,18 @@ export async function autoSummarizeIfNeededModel(
         : JSON.stringify(m.message!.content);
 
       // For tool messages, try to extract the tool name from content
+      // Message content can include tool-result parts with toolName
+      interface ToolResultPart {
+        type: string;
+        toolName?: string;
+      }
       let toolName: string | undefined;
       if (role === 'tool' && Array.isArray(m.message!.content)) {
-        const toolPart = m.message!.content.find(
-          (p: any) => p.type === 'tool-result' && p.toolName
+        const toolPart = (m.message!.content as ToolResultPart[]).find(
+          (p) => p.type === 'tool-result' && p.toolName
         );
         if (toolPart) {
-          toolName = (toolPart as any).toolName;
+          toolName = toolPart.toolName;
         }
       }
 

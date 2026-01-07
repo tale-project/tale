@@ -8,6 +8,7 @@ import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { api, internal } from '../../_generated/api';
 import websiteScanWorkflow from '../../predefined_workflows/website_scan';
+import { toPredefinedWorkflowPayload } from '../wf_definitions/types';
 
 export interface ProvisionWebsiteScanWorkflowArgs {
   organizationId: string;
@@ -68,28 +69,29 @@ export async function provisionWebsiteScanWorkflow(
   };
 
   const workflowName = `Website Scan - ${websiteDomain}`;
-  const workflowConfig = {
-    ...websiteScanWorkflow.workflowConfig,
-    name: workflowName,
-    config: {
-      ...(websiteScanWorkflow.workflowConfig.config || {}),
-      variables,
-    },
-  } as any;
 
-  const stepsConfig = (websiteScanWorkflow.stepsConfig as any[]).map((step) =>
-    step.stepType === 'trigger'
-      ? { ...step, config: { type: 'scheduled', schedule, timezone } }
-      : step,
+  // Use toPredefinedWorkflowPayload to handle type bridging from loose predefined workflow types
+  const payload = toPredefinedWorkflowPayload(
+    websiteScanWorkflow,
+    {
+      name: workflowName,
+      config: {
+        ...(websiteScanWorkflow.workflowConfig.config || {}),
+        variables,
+      },
+    },
+    (step) =>
+      step.stepType === 'trigger'
+        ? { ...step, config: { type: 'scheduled', schedule, timezone } }
+        : step,
   );
 
   const saved = await ctx.runMutation(
     internal.wf_definitions.createWorkflowWithSteps,
     {
       organizationId: args.organizationId,
-      workflowConfig,
-      stepsConfig,
-    } as any,
+      ...payload,
+    },
   );
 
   // Newly created workflows start as drafts; publish immediately.

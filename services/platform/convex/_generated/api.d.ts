@@ -311,6 +311,7 @@ import type * as model_integrations_update_sync_stats from "../model/integration
 import type * as model_integrations_utils_get_integration_type from "../model/integrations/utils/get_integration_type.js";
 import type * as model_integrations_validators from "../model/integrations/validators.js";
 import type * as model_members_index from "../model/members/index.js";
+import type * as model_members_types from "../model/members/types.js";
 import type * as model_members_validators from "../model/members/validators.js";
 import type * as model_onedrive_create_sync_configs_logic from "../model/onedrive/create_sync_configs_logic.js";
 import type * as model_onedrive_get_user_token_logic from "../model/onedrive/get_user_token_logic.js";
@@ -1033,6 +1034,7 @@ declare const fullApi: ApiFromModules<{
   "model/integrations/utils/get_integration_type": typeof model_integrations_utils_get_integration_type;
   "model/integrations/validators": typeof model_integrations_validators;
   "model/members/index": typeof model_members_index;
+  "model/members/types": typeof model_members_types;
   "model/members/validators": typeof model_members_validators;
   "model/onedrive/create_sync_configs_logic": typeof model_onedrive_create_sync_configs_logic;
   "model/onedrive/get_user_token_logic": typeof model_onedrive_get_user_token_logic;

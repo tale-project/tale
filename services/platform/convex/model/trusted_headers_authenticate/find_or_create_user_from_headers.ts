@@ -5,6 +5,12 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
+import type {
+  BetterAuthUser,
+  BetterAuthMember,
+  BetterAuthOrganization,
+  BetterAuthCreateResult,
+} from '../members/types';
 
 export interface FindOrCreateUserFromHeadersArgs {
   email: string;
@@ -50,7 +56,7 @@ export async function findOrCreateUserFromHeaders(
 
   if (existingUserResult && existingUserResult.page.length > 0) {
     // User exists
-    const existingUser = existingUserResult.page[0] as any;
+    const existingUser = existingUserResult.page[0] as BetterAuthUser;
     userId = existingUser._id;
 
     // Update user's name if it changed
@@ -93,7 +99,7 @@ export async function findOrCreateUserFromHeaders(
     );
 
     if (memberResult && memberResult.page.length > 0) {
-      const member = memberResult.page[0] as any;
+      const member = memberResult.page[0] as BetterAuthMember;
       organizationId = member.organizationId;
 
       // Update member's role if it changed
@@ -134,10 +140,8 @@ export async function findOrCreateUserFromHeaders(
       },
     );
 
-    userId =
-      (createResult as any)?._id ??
-      (createResult as any)?.id ??
-      String(createResult);
+    const created = createResult as BetterAuthCreateResult;
+    userId = created._id ?? created.id ?? String(createResult);
 
     // If there's already an organization in the system, attach this new
     // trusted-headers user to that existing organization instead of
@@ -162,8 +166,8 @@ export async function findOrCreateUserFromHeaders(
     );
 
     if (existingAdminMemberResult && existingAdminMemberResult.page.length > 0) {
-      const existingAdminMember = existingAdminMemberResult.page[0] as any;
-      const existingOrgId = existingAdminMember.organizationId as string;
+      const existingAdminMember = existingAdminMemberResult.page[0] as BetterAuthMember;
+      const existingOrgId = existingAdminMember.organizationId;
       organizationId = existingOrgId;
 
       // Add the new user as a member of the existing organization, using
@@ -196,10 +200,8 @@ export async function findOrCreateUserFromHeaders(
         },
       );
 
-      const newOrgId: string =
-        (orgResult as any)?._id ??
-        (orgResult as any)?.id ??
-        String(orgResult);
+      const createdOrg = orgResult as BetterAuthCreateResult;
+      const newOrgId = createdOrg._id ?? createdOrg.id ?? String(orgResult);
       organizationId = newOrgId;
 
       await ctx.runMutation(components.betterAuth.adapter.create, {

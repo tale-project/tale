@@ -61,11 +61,12 @@ export async function executeStepByType(
       });
 
     case 'llm':
+      // Config is validated at runtime by the handler's llmStepConfigValidator
       return await ctx.runAction(internal.workflow.nodes.executeLLMNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'llm' as const,
-          config: stepDef.config as any,
+          config: stepDef.config,
           organizationId: stepDef.organizationId,
         },
         variables,

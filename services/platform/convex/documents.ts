@@ -18,6 +18,7 @@ import { queryWithRLS, mutationWithRLS } from './lib/rls';
 import { cursorPaginationOptsValidator } from './lib/pagination';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import type { DocumentMetadata } from './model/documents/types';
 import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
 
 // Import model functions and validators
@@ -153,15 +154,12 @@ export const generateExcelInternal = internalAction({
 
     // 2. Upload the base64-encoded Excel file to Convex storage using the
     // same helper used elsewhere in the documents model.
-    const uploadResult = await DocumentsModel.uploadBase64ToStorage(
-      ctx as any,
-      {
-        fileName,
-        contentType:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        dataBase64: fileBase64,
-      },
-    );
+    const uploadResult = await DocumentsModel.uploadBase64ToStorage(ctx, {
+      fileName,
+      contentType:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      dataBase64: fileBase64,
+    });
 
     return {
       success: uploadResult.success,
@@ -759,14 +757,8 @@ export const uploadFile = action({
       );
 
       // 5. Build document metadata
-      // Type the metadata for safe property access
-      interface UploadMetadata {
-        sourceProvider?: 'onedrive' | 'upload';
-        sourceMode?: 'auto' | 'manual';
-        oneDriveId?: string;
-        oneDriveItemId?: string;
-      }
-      const typedMetadata = args.metadata as UploadMetadata | undefined;
+      // Use DocumentMetadata type for safe property access
+      const typedMetadata: DocumentMetadata | undefined = args.metadata;
       const providerFromMetadata =
         typedMetadata?.sourceProvider === 'onedrive' ? 'onedrive' : 'upload';
       const modeFromMetadata =

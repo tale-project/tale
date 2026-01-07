@@ -2,8 +2,8 @@
  * Save default workflows when creating an organization
  */
 
-import { ActionCtx } from '../../_generated/server';
-import { Id } from '../../_generated/dataModel';
+import type { ActionCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 import documentRagSync from '../../predefined_workflows/document_rag_sync';
 import onedriveSync from '../../predefined_workflows/onedrive_sync';
@@ -11,6 +11,10 @@ import generalCustomerStatusAssessmentWorkflow from '../../predefined_workflows/
 import generalProductRecommendationWorkflow from '../../predefined_workflows/general_product_recommendation';
 import productRecommendationEmailWorkflow from '../../predefined_workflows/product_recommendation_email';
 import conversationAutoArchiveWorkflow from '../../predefined_workflows/conversation_auto_archive';
+import {
+  toPredefinedWorkflowPayload,
+  type PredefinedWorkflowDefinition,
+} from '../wf_definitions/types';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -38,74 +42,72 @@ export async function saveDefaultWorkflows(
   const workflowIds: Id<'wfDefinitions'>[] = [];
 
   // Define workflows to save with their schedules
-  const workflowsToSave = [
+  const workflowsToSave: Array<{
+    workflow: PredefinedWorkflowDefinition;
+    schedule: string;
+    timezone: string;
+  }> = [
     {
-      workflow: documentRagSync,
+      workflow: documentRagSync as PredefinedWorkflowDefinition,
       schedule: '*/20 * * * *', // Every 20 minutes
       timezone: 'UTC',
     },
     {
-      workflow: onedriveSync,
+      workflow: onedriveSync as PredefinedWorkflowDefinition,
       schedule: '0 */1 * * *', // Every hour
       timezone: 'UTC',
     },
     {
-      workflow: generalCustomerStatusAssessmentWorkflow,
+      workflow: generalCustomerStatusAssessmentWorkflow as PredefinedWorkflowDefinition,
       schedule: '0 */6 * * *', // Every 6 hours
       timezone: 'UTC',
     },
     {
-      workflow: generalProductRecommendationWorkflow,
+      workflow: generalProductRecommendationWorkflow as PredefinedWorkflowDefinition,
       schedule: '0 */12 * * *', // Every 12 hours
       timezone: 'UTC',
     },
     {
-      workflow: productRecommendationEmailWorkflow,
+      workflow: productRecommendationEmailWorkflow as PredefinedWorkflowDefinition,
       schedule: '0 10 * * *', // Every day at 10 AM
       timezone: 'UTC',
     },
     {
-      workflow: conversationAutoArchiveWorkflow,
+      workflow: conversationAutoArchiveWorkflow as PredefinedWorkflowDefinition,
       schedule: '0 0 * * *', // Daily at midnight
       timezone: 'UTC',
     },
   ];
 
   for (const { workflow, schedule, timezone } of workflowsToSave) {
-    // Update workflow config with organization-specific data
-    const workflowConfig = {
-      ...(workflow.workflowConfig as unknown as Record<string, unknown>),
-      config: {
-        ...(workflow.workflowConfig as any).config,
-        variables: {
-          ...(workflow.workflowConfig as any).config?.variables,
-          organizationId: args.organizationId,
+    const baseConfig = workflow.workflowConfig.config ?? {};
+
+    // Convert predefined workflow to strict API payload types
+    const payload = toPredefinedWorkflowPayload(
+      workflow,
+      {
+        config: {
+          ...baseConfig,
+          variables: {
+            ...((baseConfig as { variables?: Record<string, unknown> })
+              .variables ?? {}),
+            organizationId: args.organizationId,
+          },
         },
       },
-    };
+      // Transform trigger steps to enable scheduling
+      (step) =>
+        step.stepType === 'trigger'
+          ? { ...step, config: { type: 'scheduled', schedule, timezone } }
+          : step,
+    );
 
-    // Update the trigger step to enable scheduling
-    const stepsConfig = (workflow.stepsConfig as any[]).map((step) => {
-      if (step.stepType === 'trigger') {
-        return {
-          ...step,
-          config: {
-            type: 'scheduled',
-            schedule: schedule,
-            timezone: timezone,
-          },
-        };
-      }
-      return step;
-    });
-
-    // Save the workflow (creation only)
+    // Save the workflow
     const result = await ctx.runMutation(
       internal.wf_definitions.createWorkflowWithSteps,
       {
         organizationId: args.organizationId,
-        workflowConfig: workflowConfig as any,
-        stepsConfig: stepsConfig as any,
+        ...payload,
       },
     );
 
@@ -119,7 +121,7 @@ export async function saveDefaultWorkflows(
     workflowIds.push(result.workflowId);
 
     debugLog(
-      `Organization Setup Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
+      `Organization Setup Saved workflow: ${payload.workflowConfig.name} (${result.workflowId})`,
     );
   }
 

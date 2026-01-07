@@ -2,11 +2,12 @@
  * Save related workflows when creating an integration
  */
 
-import { ActionCtx } from '../../_generated/server';
-import { Id } from '../../_generated/dataModel';
+import type { ActionCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
-import { ConnectionConfig } from './types';
+import type { ConnectionConfig } from './types';
 import { getWorkflowsForIntegration } from './get_workflows_for_integration';
+import { toPredefinedWorkflowPayload } from '../wf_definitions/types';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -41,45 +42,45 @@ export async function saveRelatedWorkflows(
   for (let i = 0; i < workflows.length; i++) {
     const workflow = workflows[i];
     const schedule = schedules[i];
+    const baseConfig = workflow.workflowConfig.config ?? {};
 
-    // Update workflow config with organization-specific data
-    const workflowConfig = {
-      ...(workflow.workflowConfig as unknown as Record<string, unknown>),
-      config: {
-        ...(workflow.workflowConfig as any).config,
-        variables: {
-          ...(workflow.workflowConfig as any).config?.variables,
-          organizationId: args.organizationId,
-          // Add integration-specific variables
-          ...(args.name === 'shopify' && args.connectionConfig?.domain
-            ? { shopifyDomain: args.connectionConfig.domain }
-            : {}),
+    // Convert predefined workflow to strict API payload types
+    const payload = toPredefinedWorkflowPayload(
+      workflow,
+      {
+        config: {
+          ...baseConfig,
+          variables: {
+            ...((baseConfig as { variables?: Record<string, unknown> })
+              .variables ?? {}),
+            organizationId: args.organizationId,
+            // Add integration-specific variables
+            ...(args.name === 'shopify' && args.connectionConfig?.domain
+              ? { shopifyDomain: args.connectionConfig.domain }
+              : {}),
+          },
         },
       },
-    };
+      // Transform trigger steps to enable scheduling
+      (step) =>
+        step.stepType === 'trigger'
+          ? {
+              ...step,
+              config: {
+                type: 'scheduled',
+                schedule: schedule.schedule,
+                timezone: schedule.timezone,
+              },
+            }
+          : step,
+    );
 
-    // Update the trigger step to enable scheduling
-    const stepsConfig = (workflow.stepsConfig as any[]).map((step) => {
-      if (step.stepType === 'trigger') {
-        return {
-          ...step,
-          config: {
-            type: 'scheduled',
-            schedule: schedule.schedule,
-            timezone: schedule.timezone,
-          },
-        };
-      }
-      return step;
-    });
-
-    // Save the workflow (creation only)
+    // Save the workflow
     const result = await ctx.runMutation(
       internal.wf_definitions.createWorkflowWithSteps,
       {
         organizationId: args.organizationId,
-        workflowConfig: workflowConfig as any,
-        stepsConfig: stepsConfig as any,
+        ...payload,
       },
     );
 
@@ -93,7 +94,7 @@ export async function saveRelatedWorkflows(
     workflowIds.push(result.workflowId);
 
     debugLog(
-      `Integration Workflows Saved workflow: ${(workflowConfig as any).name} (${result.workflowId})`,
+      `Integration Workflows Saved workflow: ${payload.workflowConfig.name} (${result.workflowId})`,
     );
   }
 

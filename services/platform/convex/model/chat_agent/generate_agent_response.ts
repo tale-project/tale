@@ -730,7 +730,9 @@ export async function generateAgentResponse(
     // Log sanitized error details to help diagnose provider issues like
     // AI_APICallError without leaking sensitive request data.
     // NOTE: We only log high-level metadata (status, type, code, message).
-    const err = error as any;
+    // Use Record<string, unknown> to safely access optional properties on unknown error types
+    const err = error as Record<string, unknown>;
+    const cause = err?.cause as Record<string, unknown> | undefined;
     console.error('[chat_agent] generateAgentResponse error', {
       threadId,
       elapsedMs,
@@ -740,8 +742,8 @@ export async function generateAgentResponse(
       type: err?.type,
       code: err?.code,
       // Capture response body for API errors (helps debug schema issues)
-      responseBody: err?.responseBody ?? err?.data ?? err?.cause?.responseBody,
-      cause: err?.cause?.message,
+      responseBody: err?.responseBody ?? err?.data ?? cause?.responseBody,
+      cause: cause?.message,
     });
 
     // Classify the error for logging purposes

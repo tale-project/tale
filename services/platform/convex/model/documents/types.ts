@@ -44,6 +44,12 @@ export interface DocumentMetadata {
   isDirectlySelected?: boolean;
   oneDriveId?: string;
   oneDriveItemId?: string;
+  /** Timestamp when the source file was last modified (for sync tracking) */
+  sourceModifiedAt?: number;
+  /** Item path in OneDrive for folder syncs */
+  itemPath?: string;
+  /** Timestamp when the file was last synced */
+  syncedAt?: number;
 }
 
 // =============================================================================

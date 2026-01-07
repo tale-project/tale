@@ -6,6 +6,7 @@
  * 2. Offset-based: For traditional page navigation
  */
 
+import type { GenericValidator } from 'convex/values';
 import { v } from 'convex/values';
 
 // ============================================================================
@@ -42,9 +43,9 @@ export const cursorPaginationOptsValidator = v.object({
 /**
  * Creates a validator for cursor paginated results
  */
-export function cursorPaginatedResultValidator<T>(itemValidator: T) {
+export function cursorPaginatedResultValidator(itemValidator: GenericValidator) {
   return v.object({
-    page: v.array(itemValidator as any),
+    page: v.array(itemValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   });
@@ -86,9 +87,9 @@ export const offsetPaginationOptsValidator = v.object({
 /**
  * Creates a validator for offset paginated results
  */
-export function offsetPaginatedResultValidator<T>(itemValidator: T) {
+export function offsetPaginatedResultValidator(itemValidator: GenericValidator) {
   return v.object({
-    items: v.array(itemValidator as any),
+    items: v.array(itemValidator),
     total: v.number(),
     page: v.number(),
     pageSize: v.number(),

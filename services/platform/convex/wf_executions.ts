@@ -10,6 +10,7 @@ import {
   action,
 } from './_generated/server';
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import * as WfExecutionsModel from './model/wf_executions';
 
 // =============================================================================
@@ -144,13 +145,13 @@ export const getExecutionStepJournal = query({
  */
 export const cancelExecution = action({
   args: {
-    handle: v.string(),
+    handle: v.id('wfExecutions'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Reuse failExecution model logic with a fixed 'cancelled' error
-    await WfExecutionsModel.failExecution(ctx as any, {
-      executionId: args.handle as any,
+    // Call internal mutation to properly cancel the execution
+    await ctx.runMutation(internal.wf_executions.failExecution, {
+      executionId: args.handle,
       error: 'cancelled',
     });
     return null;

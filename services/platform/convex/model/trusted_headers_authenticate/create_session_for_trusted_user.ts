@@ -5,6 +5,7 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
+import type { BetterAuthSession } from '../members/types';
 
 export interface CreateSessionForTrustedUserArgs {
   userId: string;
@@ -45,7 +46,7 @@ export async function createSessionForTrustedUser(
     );
 
     if (existingSessionResult && existingSessionResult.page.length > 0) {
-      const existingSession = existingSessionResult.page[0] as any;
+      const existingSession = existingSessionResult.page[0] as BetterAuthSession;
 
       // If the session belongs to a DIFFERENT user, delete it
       if (existingSession.userId !== args.userId) {
@@ -109,7 +110,7 @@ export async function createSessionForTrustedUser(
 
   // If we have a valid session for this user, reuse it
   if (userSessionResult && userSessionResult.page.length > 0) {
-    const session = userSessionResult.page[0] as any;
+    const session = userSessionResult.page[0] as BetterAuthSession;
     if (session.expiresAt > now) {
       await ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {

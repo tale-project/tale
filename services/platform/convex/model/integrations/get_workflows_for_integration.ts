@@ -8,12 +8,7 @@ import shopifySyncCustomers from '../../predefined_workflows/shopify_sync_custom
 import circulySyncCustomers from '../../predefined_workflows/circuly_sync_customers';
 import circulySyncProducts from '../../predefined_workflows/circuly_sync_products';
 import circulySyncSubscriptions from '../../predefined_workflows/circuly_sync_subscriptions';
-
-// Local types used in return structure
-type WorkflowDef = {
-  workflowConfig: unknown;
-  stepsConfig: unknown[];
-};
+import type { PredefinedWorkflowDefinition } from '../wf_definitions/types';
 
 type WorkflowScheduleConfig = {
   schedule: string; // Cron expression
@@ -24,13 +19,16 @@ type WorkflowScheduleConfig = {
  * Get workflows for an integration by name
  */
 export function getWorkflowsForIntegration(name: string): {
-  workflows: Array<WorkflowDef>;
+  workflows: PredefinedWorkflowDefinition[];
   schedules: WorkflowScheduleConfig[];
 } {
   switch (name) {
     case 'shopify':
       return {
-        workflows: [shopifySyncProducts, shopifySyncCustomers],
+        workflows: [
+          shopifySyncProducts as PredefinedWorkflowDefinition,
+          shopifySyncCustomers as PredefinedWorkflowDefinition,
+        ],
         schedules: [
           { schedule: '0 */6 * * *', timezone: 'UTC' }, // Products: Every 6 hours
           { schedule: '0 */6 * * *', timezone: 'UTC' }, // Customers: Every 6 hours
@@ -40,9 +38,9 @@ export function getWorkflowsForIntegration(name: string): {
     case 'circuly':
       return {
         workflows: [
-          circulySyncCustomers,
-          circulySyncProducts,
-          circulySyncSubscriptions,
+          circulySyncCustomers as PredefinedWorkflowDefinition,
+          circulySyncProducts as PredefinedWorkflowDefinition,
+          circulySyncSubscriptions as PredefinedWorkflowDefinition,
         ],
         schedules: [
           { schedule: '0 2 * * *', timezone: 'UTC' }, // Customers: Daily at 2 AM

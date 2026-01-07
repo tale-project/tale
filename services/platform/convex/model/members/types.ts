@@ -43,6 +43,20 @@ export interface BetterAuthOrganization {
 }
 
 /**
+ * Better Auth Session record from the adapter
+ */
+export interface BetterAuthSession {
+  _id: string;
+  userId: string;
+  token: string;
+  expiresAt: number;
+  createdAt: number;
+  updatedAt: number;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+/**
  * Better Auth adapter findMany result
  */
 export interface BetterAuthFindManyResult<T> {

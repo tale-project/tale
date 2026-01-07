@@ -5,6 +5,12 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 
+/** Metadata shape for OneDrive documents */
+interface OneDriveMetadata extends Record<string, unknown> {
+  oneDriveItemId?: string;
+  oneDriveId?: string;
+}
+
 export interface UploadAndCreateDocResult {
   success: boolean;
   fileId?: Id<'_storage'>;
@@ -65,6 +71,10 @@ export async function uploadAndCreateDocumentLogic(
     // Store in Convex storage
     const storageId = await deps.storageStore(blob);
 
+    // Type-safe access to OneDrive-specific metadata fields
+    const typedMetadata = args.metadata as OneDriveMetadata;
+    const externalItemId = typedMetadata.oneDriveItemId ?? typedMetadata.oneDriveId;
+
     // If updating an existing document, patch it instead of creating a new one
     if (args.documentIdToUpdate) {
       await deps.updateDocument({
@@ -74,9 +84,7 @@ export async function uploadAndCreateDocumentLogic(
         mimeType: args.contentType,
         metadata: args.metadata,
         sourceProvider: 'onedrive',
-        externalItemId:
-          (args.metadata as any)?.oneDriveItemId ??
-          (args.metadata as any)?.oneDriveId,
+        externalItemId,
       });
 
       return {
@@ -95,9 +103,7 @@ export async function uploadAndCreateDocumentLogic(
       mimeType: args.contentType,
       metadata: args.metadata,
       sourceProvider: 'onedrive',
-      externalItemId:
-        (args.metadata as any)?.oneDriveItemId ??
-        (args.metadata as any)?.oneDriveId,
+      externalItemId,
     });
 
     return { success: true, fileId: storageId, documentId };
