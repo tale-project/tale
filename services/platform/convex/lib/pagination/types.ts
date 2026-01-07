@@ -41,9 +41,10 @@ export const cursorPaginationOptsValidator = v.object({
 });
 
 /**
- * Creates a validator for cursor paginated results
+ * Creates a validator for cursor paginated results.
+ * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function cursorPaginatedResultValidator(itemValidator: GenericValidator) {
+export function cursorPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
   return v.object({
     page: v.array(itemValidator),
     isDone: v.boolean(),
@@ -85,9 +86,10 @@ export const offsetPaginationOptsValidator = v.object({
 });
 
 /**
- * Creates a validator for offset paginated results
+ * Creates a validator for offset paginated results.
+ * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function offsetPaginatedResultValidator(itemValidator: GenericValidator) {
+export function offsetPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
   return v.object({
     items: v.array(itemValidator),
     total: v.number(),
