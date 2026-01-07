@@ -3,15 +3,6 @@ import { convexClient } from '@convex-dev/better-auth/client/plugins';
 import { organizationClient } from 'better-auth/client/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 
-// // Validate required environment variables
-// const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-// if (!appUrl) {
-//   throw new Error(
-//     'NEXT_PUBLIC_APP_URL is not set. Please add it to your .env.local file. ' +
-//       'Example: NEXT_PUBLIC_APP_URL=http://localhost:3000',
-//   );
-// }
-
 // Mirror minimal access control on the client for type-safe checks
 const statement = {
   content: ['read', 'write'],

@@ -1,17 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Center, VStack } from '@/components/ui/layout';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getFileExtension } from '@/lib/utils/document-helpers';
-import { Image } from 'lucide-react';
-import { Download, Loader2 } from 'lucide-react';
-import { useMemo } from 'react';
-import { DocumentPreviewPDF } from './document-preview-pdf';
-import { DocumentPreviewDocx } from './document-preview-docx';
-import { DocumentPreviewXlsx } from './document-preview-xlsx';
+import { Image, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
+
+// Dynamically load document preview components to reduce initial bundle
+// PDF viewer loads pdfjs from CDN, DOCX uses mammoth (~200KB), XLSX uses xlsx (~300KB)
+const DocumentPreviewPDF = dynamic(() => import('./document-preview-pdf').then((m) => m.DocumentPreviewPDF), {
+  loading: () => <PreviewSkeleton />,
+});
+const DocumentPreviewDocx = dynamic(() => import('./document-preview-docx').then((m) => m.DocumentPreviewDocx), {
+  loading: () => <PreviewSkeleton />,
+});
+const DocumentPreviewXlsx = dynamic(() => import('./document-preview-xlsx').then((m) => m.DocumentPreviewXlsx), {
+  loading: () => <PreviewSkeleton />,
+});
+
+function PreviewSkeleton() {
+  return (
+    <Center className="flex-1 p-6">
+      <Skeleton className="w-full max-w-2xl h-[600px]" />
+    </Center>
+  );
+}
 
 export interface DocumentPreviewProps {
   url: string;
