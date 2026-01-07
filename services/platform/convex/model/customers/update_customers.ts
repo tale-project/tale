@@ -19,6 +19,14 @@ import { set, merge } from 'lodash';
 
 import type { UpdateCustomersResult } from './types';
 
+/**
+ * Type guard to check if a value is a plain record object.
+ * Returns false for null, arrays, and non-objects.
+ */
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
 export interface UpdateCustomersArgs {
   customerId?: Id<'customers'>;
   organizationId?: string;
@@ -96,8 +104,10 @@ export async function updateCustomers(
     // Handle metadata updates with lodash
     if (args.updates.metadata) {
       // customer.metadata is stored as v.any() in schema
-      const existingMetadata =
-        (customer.metadata as Record<string, unknown> | undefined) ?? {};
+      // Use type guard to safely access existing metadata
+      const existingMetadata = isPlainRecord(customer.metadata)
+        ? customer.metadata
+        : {};
       const updatedMetadata: Record<string, unknown> = {
         ...existingMetadata,
       };
@@ -107,21 +117,11 @@ export async function updateCustomers(
           // Use lodash.set for dot-notation keys
           set(updatedMetadata, key, value);
         } else {
-          // For top-level keys, use merge for objects
+          // For top-level keys, use merge for objects if both are plain records
           const existingValue = updatedMetadata[key];
-          const isValueObject =
-            typeof value === 'object' && value !== null && !Array.isArray(value);
-          const isExistingObject =
-            typeof existingValue === 'object' &&
-            existingValue !== null &&
-            !Array.isArray(existingValue);
 
-          if (isValueObject && isExistingObject) {
-            updatedMetadata[key] = merge(
-              {},
-              existingValue as Record<string, unknown>,
-              value as Record<string, unknown>,
-            );
+          if (isPlainRecord(value) && isPlainRecord(existingValue)) {
+            updatedMetadata[key] = merge({}, existingValue, value);
           } else {
             updatedMetadata[key] = value;
           }

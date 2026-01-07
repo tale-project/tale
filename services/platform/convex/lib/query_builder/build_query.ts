@@ -151,8 +151,12 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
     filterFunctions.length > 0 ? combineFilters(...filterFunctions) : () => true;
 
   // Collect all matching items (needed for total count)
-  const matchingItems: T[] = [];
+  // Note: Convex query results always include system fields (_id, _creationTime)
+  // The cast is necessary because the query iterator returns GenericDocument
+  // but we know the concrete type T at runtime
+  const matchingItems: (T & DocumentWithSystemFields)[] = [];
   for await (const item of query) {
+    // Safe cast: Convex guarantees _id and _creationTime exist on all documents
     const doc = item as T & DocumentWithSystemFields;
     if (combinedFilter(doc)) {
       matchingItems.push(doc);
@@ -161,15 +165,25 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
 
   // Apply custom sort if different from index sort
   if (sort && sort.field !== '_creationTime') {
+    // Validate sort field exists on first item (runtime check)
+    if (matchingItems.length > 0 && !(sort.field in matchingItems[0])) {
+      throw new Error(`Sort field "${sort.field}" does not exist on documents`);
+    }
+
     matchingItems.sort((a, b) => {
-      // Dynamic field access for sorting - field name comes from runtime config
-      const aRecord = a as Record<string, unknown>;
-      const bRecord = b as Record<string, unknown>;
-      const aValue = aRecord[sort.field] as string | number | boolean | null;
-      const bValue = bRecord[sort.field] as string | number | boolean | null;
+      // Dynamic field access for sorting - field name validated above
+      const aValue = (a as Record<string, unknown>)[sort.field];
+      const bValue = (b as Record<string, unknown>)[sort.field];
       const multiplier = sort.order === 'asc' ? 1 : -1;
-      if (aValue !== null && bValue !== null && aValue > bValue) return multiplier;
-      if (aValue !== null && bValue !== null && aValue < bValue) return -multiplier;
+
+      // Handle null/undefined values - sort them to the end
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+
+      // Compare values
+      if (aValue > bValue) return multiplier;
+      if (aValue < bValue) return -multiplier;
       return 0;
     });
   }

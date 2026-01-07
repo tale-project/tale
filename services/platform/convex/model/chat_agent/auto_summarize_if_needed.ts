@@ -28,6 +28,15 @@ import { createDebugLog } from '../../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[Summarization]');
 
 /**
+ * Shape of a tool-result part in message content.
+ * Used when extracting tool names from tool messages.
+ */
+interface ToolResultPart {
+  type: string;
+  toolName?: string;
+}
+
+/**
  * Minimum number of messages required before summarization.
  * We need at least a couple of messages to make summarization worthwhile.
  */
@@ -183,10 +192,6 @@ export async function autoSummarizeIfNeededModel(
 
       // For tool messages, try to extract the tool name from content
       // Message content can include tool-result parts with toolName
-      interface ToolResultPart {
-        type: string;
-        toolName?: string;
-      }
       let toolName: string | undefined;
       if (role === 'tool' && Array.isArray(m.message!.content)) {
         const toolPart = (m.message!.content as ToolResultPart[]).find(
