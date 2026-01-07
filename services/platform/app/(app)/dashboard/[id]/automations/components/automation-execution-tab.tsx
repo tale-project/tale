@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useStartWorkflow } from '../hooks/use-start-workflow';
@@ -30,18 +30,32 @@ interface AutomationTemplate {
 }
 
 interface ExecutionRecord {
-  _id: string;
+  _id: Id<'wfExecutions'>;
   status: 'completed' | 'failed' | 'running' | 'pending';
   startedAt: number;
-  triggeredBy: string;
+  triggeredBy?: string;
   waitingFor?: string;
+}
+
+function isAutomationTemplate(data: unknown): data is AutomationTemplate {
+  return (
+    data !== null &&
+    typeof data === 'object' &&
+    '_id' in data &&
+    'name' in data &&
+    'status' in data
+  );
+}
+
+function isExecutionRecordArray(data: unknown): data is ExecutionRecord[] {
+  return Array.isArray(data);
 }
 
 interface AutomationExecutionTabProps {
   organizationId: string;
-  selectedAutomation: string | null;
-  selectedExecution: string | null;
-  setSelectedExecution: (id: string | null) => void;
+  selectedAutomation: Id<'wfDefinitions'> | null;
+  selectedExecution: Id<'wfExecutions'> | null;
+  setSelectedExecution: (id: Id<'wfExecutions'> | null) => void;
   setPollingHandle: (handle: string | null) => void;
 }
 
@@ -57,22 +71,30 @@ export function AutomationExecutionTab({
   const [executionInput, setExecutionInput] = useState('{}');
 
   // Queries
-  const selectedAutomationData = useQuery(
+  const automationQueryResult = useQuery(
     api.wf_definitions.getWorkflowPublic,
     selectedAutomation
-      ? { wfDefinitionId: selectedAutomation as Id<'wfDefinitions'> }
+      ? { wfDefinitionId: selectedAutomation }
       : 'skip',
-  ) as AutomationTemplate | undefined;
+  );
+  const selectedAutomationData = useMemo(
+    () => (isAutomationTemplate(automationQueryResult) ? automationQueryResult : undefined),
+    [automationQueryResult],
+  );
 
-  const executions = useQuery(
+  const executionsQueryResult = useQuery(
     api.wf_executions.listExecutions,
     selectedAutomation
       ? {
-        wfDefinitionId: selectedAutomation as Id<'wfDefinitions'>,
+        wfDefinitionId: selectedAutomation,
         limit: 10,
       }
       : 'skip',
-  ) as ExecutionRecord[] | undefined;
+  );
+  const executions = useMemo(
+    () => (isExecutionRecordArray(executionsQueryResult) ? executionsQueryResult : undefined),
+    [executionsQueryResult],
+  );
 
   // Mutations
   const startAutomation = useStartWorkflow();
@@ -97,7 +119,7 @@ export function AutomationExecutionTab({
 
       const executionHandle = await startAutomation({
         organizationId,
-        wfDefinitionId: selectedAutomation as Id<'wfDefinitions'>,
+        wfDefinitionId: selectedAutomation,
         input,
         triggeredBy: 'manual',
       });
@@ -176,8 +198,7 @@ export function AutomationExecutionTab({
 
                         const result = await startAutomation({
                           organizationId,
-                          wfDefinitionId:
-                            selectedAutomation as Id<'wfDefinitions'>,
+                          wfDefinitionId: selectedAutomation,
                           input,
                           triggeredBy: 'test',
                           triggerData: {
@@ -273,7 +294,7 @@ export function AutomationExecutionTab({
                             </span>
                           </HStack>
                           <p className="text-sm mt-1">
-                            {t('execution.history.triggeredBy', { source: execution.triggeredBy })}
+                            {t('execution.history.triggeredBy', { source: execution.triggeredBy ?? 'unknown' })}
                           </p>
                           {execution.waitingFor && (
                             <p className="text-sm text-amber-600">
