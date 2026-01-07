@@ -4,7 +4,7 @@ import React, { Component, ReactNode, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Stack, Center, HStack } from '@/components/ui/layout';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useT } from '@/lib/i18n';
 
 type ErrorSize = 'default' | 'compact';
@@ -34,9 +34,10 @@ function ErrorDisplay({
   header?: ReactNode;
 }) {
   const { t } = useT('common');
+  const router = useRouter();
 
   const reset = () => {
-    window.location.reload();
+    router.refresh();
   };
 
   useEffect(() => {

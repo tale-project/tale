@@ -16,15 +16,12 @@ import { HardDrive, Plus } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';
 
-// Lazy-load OneDrive dialog to avoid MGT bundle size impact and SSR issues
+// Lazy-load OneDrive dialog to reduce initial bundle size
 const OneDriveImportDialog = dynamic(
   () =>
     import('./onedrive-import-dialog').then((mod) => ({
       default: mod.OneDriveImportDialog,
     })),
-  {
-    ssr: false,
-  },
 );
 
 interface ImportDocumentsMenuProps {

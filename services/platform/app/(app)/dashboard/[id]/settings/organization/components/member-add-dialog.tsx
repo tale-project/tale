@@ -17,6 +17,7 @@ import { useCreateMember } from '../hooks/use-create-member';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import { getConvexUrl } from '@/lib/get-site-url';
 
 // Type for the form data
 type AddMemberFormData = {
@@ -126,9 +127,7 @@ export function AddMemberDialog({
       let isNewUser = false;
 
       // First, check if user already exists
-      // Derive Convex URL from current origin (routes through Next.js proxy)
-      const convexUrl = `${window.location.origin}/ws_api`;
-      const client = new ConvexHttpClient(convexUrl);
+      const client = new ConvexHttpClient(getConvexUrl());
 
       const existingUserId = await client.query(api.member.getUserIdByEmail, {
         email: data.email,

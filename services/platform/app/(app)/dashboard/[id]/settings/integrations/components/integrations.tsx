@@ -23,51 +23,30 @@ import { useT } from '@/lib/i18n';
 // Dynamically import dialog components to reduce initial bundle size
 const ShopifyIntegrationDialog = dynamic(
   () => import('./shopify-integration-dialog').then(mod => ({ default: mod.ShopifyIntegrationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const CirculyIntegrationDialog = dynamic(
   () => import('./circuly-integration-dialog').then(mod => ({ default: mod.CirculyIntegrationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const CirculyDisconnectConfirmationDialog = dynamic(
   () => import('./circuly-disconnect-confirmation-dialog').then(mod => ({ default: mod.CirculyDisconnectConfirmationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const ShopifyDisconnectConfirmationDialog = dynamic(
   () => import('./shopify-disconnect-confirmation-dialog').then(mod => ({ default: mod.ShopifyDisconnectConfirmationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const EmailIntegrationDialog = dynamic(
   () => import('./email-integration-dialog').then(mod => ({ default: mod.EmailIntegrationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const ProtelIntegrationDialog = dynamic(
   () => import('./protel-integration-dialog').then(mod => ({ default: mod.ProtelIntegrationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 const ProtelDisconnectConfirmationDialog = dynamic(
   () => import('./protel-disconnect-confirmation-dialog').then(mod => ({ default: mod.ProtelDisconnectConfirmationDialog })),
-  {
-    ssr: false,
-  },
 );
 
 interface IntegrationsProps {

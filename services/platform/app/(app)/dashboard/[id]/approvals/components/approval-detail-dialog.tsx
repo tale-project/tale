@@ -22,7 +22,6 @@ const CustomerInfoDialog = dynamic(
         default: mod.CustomerInfoDialog,
       }),
     ),
-  { ssr: false },
 );
 
 const RecommendationIcon = () => (

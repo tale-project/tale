@@ -25,6 +25,7 @@ import { useTestEmailProvider } from '../hooks/use-test-email-provider';
 import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
 import { useDateFormat } from '@/hooks/use-date-format';
 import { useT } from '@/lib/i18n';
+import { getSiteUrl } from '@/lib/get-site-url';
 
 interface GmailIntegrationDialogProps {
   open?: boolean;
@@ -123,8 +124,7 @@ export function GmailIntegrationDialog({
 
   const handleAuthorize = async (providerId: string) => {
     try {
-      // Pass the current origin to preserve the hostname (localhost vs 127.0.0.1)
-      const redirectUri = `${window.location.origin}/api/auth/oauth2/callback`;
+      const redirectUri = `${getSiteUrl()}/api/auth/oauth2/callback`;
       const authUrl = await generateAuthUrl({
         emailProviderId: providerId as Id<'emailProviders'>,
         organizationId: organizationId as string,
