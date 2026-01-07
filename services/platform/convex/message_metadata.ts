@@ -25,6 +25,7 @@ export const saveMessageMetadata = mutation({
     reasoning: v.optional(v.string()),
     providerMetadata: v.optional(v.any()),
     durationMs: v.optional(v.number()),
+    timeToFirstTokenMs: v.optional(v.number()),
     subAgentUsage: v.optional(v.array(v.object({
       toolName: v.string(),
       inputTokens: v.optional(v.number()),
@@ -53,6 +54,7 @@ export const saveMessageMetadata = mutation({
         reasoning: args.reasoning,
         providerMetadata: args.providerMetadata,
         durationMs: args.durationMs,
+        timeToFirstTokenMs: args.timeToFirstTokenMs,
         subAgentUsage: args.subAgentUsage,
       });
       return existingMetadata._id;
@@ -72,6 +74,7 @@ export const saveMessageMetadata = mutation({
       reasoning: args.reasoning,
       providerMetadata: args.providerMetadata,
       durationMs: args.durationMs,
+      timeToFirstTokenMs: args.timeToFirstTokenMs,
       subAgentUsage: args.subAgentUsage,
     });
 
@@ -100,6 +103,7 @@ export const getMessageMetadata = query({
       reasoning: v.optional(v.string()),
       providerMetadata: v.optional(v.any()),
       durationMs: v.optional(v.number()),
+      timeToFirstTokenMs: v.optional(v.number()),
       subAgentUsage: v.optional(v.array(v.object({
         toolName: v.string(),
         inputTokens: v.optional(v.number()),
@@ -132,6 +136,7 @@ export const getMessageMetadata = query({
       reasoning: metadata.reasoning,
       providerMetadata: metadata.providerMetadata,
       durationMs: metadata.durationMs,
+      timeToFirstTokenMs: metadata.timeToFirstTokenMs,
       subAgentUsage: metadata.subAgentUsage,
     };
   },

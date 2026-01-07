@@ -14,6 +14,8 @@ export interface MessageMetadata {
   reasoningTokens?: number;
   cachedInputTokens?: number;
   reasoning?: string;
+  durationMs?: number;
+  timeToFirstTokenMs?: number;
 }
 
 export function useMessageMetadata(messageId: string | null) {
@@ -33,6 +35,8 @@ export function useMessageMetadata(messageId: string | null) {
           reasoningTokens: metadata.reasoningTokens,
           cachedInputTokens: metadata.cachedInputTokens,
           reasoning: metadata.reasoning,
+          durationMs: metadata.durationMs,
+          timeToFirstTokenMs: metadata.timeToFirstTokenMs,
         }
       : undefined,
     isLoading: metadata === undefined && messageId !== null,

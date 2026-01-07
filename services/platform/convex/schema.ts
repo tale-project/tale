@@ -929,6 +929,7 @@ export default defineSchema({
     reasoning: v.optional(v.string()), // Reasoning text if available
     providerMetadata: v.optional(v.any()), // Additional provider-specific data
     durationMs: v.optional(v.number()), // Total response time in milliseconds
+    timeToFirstTokenMs: v.optional(v.number()), // Time to first token in milliseconds
     subAgentUsage: v.optional(v.array(v.object({
       toolName: v.string(),
       inputTokens: v.optional(v.number()),

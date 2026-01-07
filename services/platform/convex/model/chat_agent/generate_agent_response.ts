@@ -74,6 +74,7 @@ export interface GenerateAgentResponseResult {
   usage?: Usage;
   reasoning?: string;
   durationMs?: number;
+  timeToFirstTokenMs?: number;
   subAgentUsage?: Array<{
     toolName: string;
     inputTokens?: number;
@@ -403,6 +404,9 @@ export async function generateAgentResponse(
       }
     }
 
+    // Track time to first token (TTFT) - critical UX metric for perceived responsiveness
+    let firstTokenTime: number | null = null;
+
     // Use streamText with saveStreamDeltas for real-time UI updates
     // This allows the UI to show tool calls as they happen
     //
@@ -423,6 +427,12 @@ export async function generateAgentResponse(
         // If we have attachments, use prompt to override the stored message content
         // This allows multi-modal content without storing the large base64 data
         ...(promptContent ? { prompt: promptContent } : {}),
+        // Capture time to first token when we receive the first text-delta chunk
+        onChunk: ({ chunk }: { chunk: { type: string } }) => {
+          if (firstTokenTime === null && chunk.type === 'text-delta') {
+            firstTokenTime = Date.now();
+          }
+        },
       },
       {
         contextOptions: {
@@ -692,6 +702,9 @@ export async function generateAgentResponse(
       );
     }
 
+    // Calculate time to first token (undefined if no text was generated, e.g., tool-only responses)
+    const timeToFirstTokenMs = firstTokenTime ? firstTokenTime - startTime : undefined;
+
     const chatResult = {
       threadId,
       text: responseText,
@@ -701,6 +714,7 @@ export async function generateAgentResponse(
       usage: result.usage,
       reasoning: (result as { reasoningText?: string }).reasoningText,
       durationMs: Date.now() - startTime,
+      timeToFirstTokenMs,
       subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
     };
 
