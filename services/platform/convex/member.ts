@@ -267,7 +267,7 @@ export const addMember = mutationWithRLS({
     if (!currentMember) {
       throw new Error('You are not a member of this organization');
     }
-    const callerRole = currentMember.role.toLowerCase();
+    const callerRole = (currentMember.role ?? 'member').toLowerCase();
     if (callerRole !== 'admin') {
       throw new Error('Only Admins can add members');
     }
