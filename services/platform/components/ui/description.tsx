@@ -8,7 +8,7 @@ interface DescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
   muted?: boolean;
 }
 
-const Description = forwardRef<HTMLParagraphElement, DescriptionProps>(
+export const Description = forwardRef<HTMLParagraphElement, DescriptionProps>(
   ({ className, muted = true, ...props }, ref) => (
     <p
       ref={ref}
@@ -23,4 +23,3 @@ const Description = forwardRef<HTMLParagraphElement, DescriptionProps>(
 );
 Description.displayName = 'Description';
 
-export { Description };

@@ -8,7 +8,7 @@ import { forwardRef } from 'react';
 import { ComponentRef } from 'react';
 
 // Fast tooltip provider with reduced delays
-const TooltipProvider = ({
+export const TooltipProvider = ({
   children,
   ...props
 }: ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>) => (
@@ -17,11 +17,11 @@ const TooltipProvider = ({
   </TooltipPrimitive.Provider>
 );
 
-const Tooltip = TooltipPrimitive.Root;
+export const Tooltip = TooltipPrimitive.Root;
 
-const TooltipTrigger = TooltipPrimitive.Trigger;
+export const TooltipTrigger = TooltipPrimitive.Trigger;
 
-const TooltipContent = forwardRef<
+export const TooltipContent = forwardRef<
   ComponentRef<typeof TooltipPrimitive.Content>,
   ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => (
@@ -37,4 +37,3 @@ const TooltipContent = forwardRef<
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

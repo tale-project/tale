@@ -5,9 +5,9 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils/cn';
 import { ComponentPropsWithoutRef, ComponentRef, forwardRef } from 'react';
 
-const Tabs = TabsPrimitive.Root;
+export const Tabs = TabsPrimitive.Root;
 
-const TabsList = forwardRef<
+export const TabsList = forwardRef<
   ComponentRef<typeof TabsPrimitive.List>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
@@ -22,7 +22,7 @@ const TabsList = forwardRef<
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
-const TabsTrigger = forwardRef<
+export const TabsTrigger = forwardRef<
   ComponentRef<typeof TabsPrimitive.Trigger>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
 >(({ className, ...props }, ref) => (
@@ -37,7 +37,7 @@ const TabsTrigger = forwardRef<
 ));
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
-const TabsContent = forwardRef<
+export const TabsContent = forwardRef<
   ComponentRef<typeof TabsPrimitive.Content>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
@@ -52,4 +52,3 @@ const TabsContent = forwardRef<
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
-export { Tabs, TabsList, TabsTrigger, TabsContent };

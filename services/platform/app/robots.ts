@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next';
+import { getSiteUrl } from '@/lib/get-site-url';
 
-const baseUrl = process.env.SITE_URL || 'https://app.tale.dev';
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const baseUrl = await getSiteUrl();
 
-export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {

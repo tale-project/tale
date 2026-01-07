@@ -5,9 +5,28 @@ set -e
 # Caddy Entrypoint Script
 # ============================================================================
 # This script:
-# 1. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
-# 2. Ensures self-signed CA certificates are readable by other containers
+# 1. Derives SITE_URL from USE_SSL and HOST environment variables
+# 2. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
+# 3. Ensures self-signed CA certificates are readable by other containers
 # ============================================================================
+
+# ============================================================================
+# Derive SITE_URL from USE_SSL and HOST
+# ============================================================================
+HOST="${HOST:-tale.local}"
+USE_SSL="${USE_SSL:-true}"
+
+if [ "$USE_SSL" = "true" ]; then
+  SITE_URL="https://${HOST}"
+else
+  SITE_URL="http://${HOST}"
+fi
+export SITE_URL
+
+echo "Domain Configuration:"
+echo "  HOST: ${HOST}"
+echo "  USE_SSL: ${USE_SSL}"
+echo "  SITE_URL: ${SITE_URL}"
 
 # Source and destination for Caddyfile
 # We copy to /config (writable volume) because /etc/caddy is read-only in the image

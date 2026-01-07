@@ -389,7 +389,7 @@ services:
   #   - To trust certs: docker exec tale-proxy caddy trust
   #
   # For production with HTTPS:
-  #   - Set SITE_URL=https://yourdomain.com in .env
+  #   - Set HOST=yourdomain.com and USE_SSL=true in .env
   #   - Set TLS_MODE=letsencrypt
   #   - Access: https://yourdomain.com (trusted Let's Encrypt cert)
   #

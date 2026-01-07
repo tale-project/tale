@@ -1,19 +1,30 @@
 'use client';
 
 import { ConvexReactClient } from 'convex/react';
-import { type ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react';
 import { authClient } from '@/lib/auth-client';
-import { getConvexUrl } from '@/lib/get-site-url';
 
-// Singleton client instance - created once per browser session
-const convexClient = new ConvexReactClient(getConvexUrl(), {
-  expectAuth: true,
-});
+interface ConvexClientProviderProps {
+  children: ReactNode;
+  convexUrl: string;
+}
 
-export function ConvexClientProvider({ children }: { children: ReactNode }) {
+export function ConvexClientProvider({
+  children,
+  convexUrl,
+}: ConvexClientProviderProps) {
+  // Use ref to ensure client is only created once per component lifecycle
+  const clientRef = useRef<ConvexReactClient | null>(null);
+
+  if (!clientRef.current) {
+    clientRef.current = new ConvexReactClient(convexUrl, {
+      expectAuth: true,
+    });
+  }
+
   return (
-    <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
+    <ConvexBetterAuthProvider client={clientRef.current} authClient={authClient}>
       {children}
     </ConvexBetterAuthProvider>
   );

@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils/cn';
  * Form - Semantic form element with consistent vertical spacing
  * Use for wrapping form fields with proper layout and accessibility
  */
-const Form = forwardRef<HTMLFormElement, FormHTMLAttributes<HTMLFormElement>>(
+export const Form = forwardRef<HTMLFormElement, FormHTMLAttributes<HTMLFormElement>>(
   ({ className, ...props }, ref) => (
     <form ref={ref} className={cn('space-y-5', className)} {...props} />
   ),
@@ -18,7 +18,7 @@ Form.displayName = 'Form';
  * FormRow - Arranges form fields horizontally with responsive breakpoints
  * Stacks vertically on mobile, side-by-side on larger screens
  */
-const FormRow = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+export const FormRow = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
@@ -33,11 +33,10 @@ FormRow.displayName = 'FormRow';
  * FormGroup - Container for a single form field with consistent spacing
  * Wraps individual form elements for proper layout
  */
-const FormGroup = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+export const FormGroup = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn('space-y-1.5', className)} {...props} />
   ),
 );
 FormGroup.displayName = 'FormGroup';
 
-export { Form, FormRow, FormGroup };

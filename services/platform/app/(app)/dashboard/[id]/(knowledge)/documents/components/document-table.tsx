@@ -12,7 +12,7 @@ import { usePreloadedQuery } from 'convex/react';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
-import { formatFileSize } from '@/lib/utils/document-helpers';
+import { formatBytes } from '@/lib/utils/format/number';
 import { OneDriveIcon } from '@/components/icons';
 import type { DocumentItem } from '@/types/documents';
 import type { PreloadedDocuments } from '../utils/preload-documents-data';
@@ -213,7 +213,7 @@ export function DocumentTable({
         cell: ({ row }) =>
           row.original.type === 'folder'
             ? '—'
-            : formatFileSize(row.original.size ?? 0),
+            : formatBytes(row.original.size ?? 0),
       },
       {
         id: 'source',

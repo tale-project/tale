@@ -71,8 +71,8 @@ Once Tale is running, you can:
 Ready to go live? Update your `.env` file:
 
 ```bash
-SITE_URL=https://yourdomain.com
 HOST=yourdomain.com
+USE_SSL=true
 TLS_MODE=letsencrypt
 ```
 

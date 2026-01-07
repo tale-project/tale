@@ -8,7 +8,7 @@ export type FileParseResult<T> = {
   errors: string[];
 };
 
-export type CSVParseOptions = {
+type CSVParseOptions = {
   /** Column delimiter (default: comma) */
   delimiter?: string;
   /** Whether the first row contains headers (default: false) */
@@ -20,7 +20,7 @@ export type CSVParseOptions = {
 /**
  * Parse CSV text into rows of string arrays.
  */
-export function parseCSVText(
+function parseCSVText(
   csvText: string,
   options: CSVParseOptions = {}
 ): string[][] {
@@ -69,7 +69,7 @@ export function parseCSVWithMapper<T>(
 /**
  * Read a file as text.
  */
-export function readFileAsText(file: File): Promise<string> {
+function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -88,7 +88,7 @@ export function readFileAsText(file: File): Promise<string> {
 /**
  * Read a file as ArrayBuffer (for Excel files).
  */
-export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -108,7 +108,7 @@ export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
  * Parse an Excel file and return the data as array of records.
  * Dynamically imports xlsx to reduce initial bundle size.
  */
-export async function parseExcelFile(
+async function parseExcelFile(
   file: File
 ): Promise<Array<Record<string, unknown>>> {
   const XLSX = await import('xlsx');
@@ -122,14 +122,14 @@ export async function parseExcelFile(
 /**
  * Check if a file is a CSV file based on extension.
  */
-export function isCSVFile(file: File): boolean {
+function isCSVFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.csv');
 }
 
 /**
  * Check if a file is an Excel file based on extension.
  */
-export function isExcelFile(file: File): boolean {
+function isExcelFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return name.endsWith('.xlsx') || name.endsWith('.xls');
 }
@@ -183,7 +183,7 @@ export async function parseImportFile<T>(
 /**
  * Get a value from an Excel record with case-insensitive key matching.
  */
-export function getExcelValue<T = string>(
+function getExcelValue<T = string>(
   record: Record<string, unknown>,
   ...keys: string[]
 ): T | undefined {

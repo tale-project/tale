@@ -129,7 +129,7 @@ export function getStatusBadgeClasses(status?: string | null): string {
 /**
  * Workflow step type to badge variant mapping.
  */
-export type StepTypeBadgeVariant =
+type StepTypeBadgeVariant =
   | 'trigger'
   | 'action'
   | 'condition'
@@ -149,7 +149,7 @@ const stepTypeBadgeVariantMap: Record<StepTypeBadgeVariant, BadgeVariant> = {
 /**
  * Get badge color classes for a workflow step type.
  */
-export function getStepTypeBadgeClasses(stepType?: string | null): string {
+function getStepTypeBadgeClasses(stepType?: string | null): string {
   const normalizedType = (stepType || '').toLowerCase() as StepTypeBadgeVariant;
   const variant = stepTypeBadgeVariantMap[normalizedType] || 'muted';
   return getBadgeColorClasses(variant);
@@ -158,7 +158,7 @@ export function getStepTypeBadgeClasses(stepType?: string | null): string {
 /**
  * RAG status to badge variant mapping.
  */
-export type RagStatusBadgeVariant =
+type RagStatusBadgeVariant =
   | 'indexed'
   | 'pending'
   | 'processing'
@@ -176,7 +176,7 @@ const ragStatusBadgeVariantMap: Record<RagStatusBadgeVariant, BadgeVariant> = {
 /**
  * Get badge color classes for a RAG status.
  */
-export function getRagStatusBadgeClasses(status?: string | null): string {
+function getRagStatusBadgeClasses(status?: string | null): string {
   const normalizedStatus = (status || '').toLowerCase() as RagStatusBadgeVariant;
   const variant = ragStatusBadgeVariantMap[normalizedStatus] || 'muted';
   return getBadgeColorClasses(variant);
@@ -185,7 +185,7 @@ export function getRagStatusBadgeClasses(status?: string | null): string {
 /**
  * Priority to badge variant mapping.
  */
-export type PriorityBadgeVariant = 'high' | 'medium' | 'low' | 'urgent';
+type PriorityBadgeVariant = 'high' | 'medium' | 'low' | 'urgent';
 
 const priorityBadgeVariantMap: Record<PriorityBadgeVariant, BadgeVariant> = {
   urgent: 'error',
@@ -197,7 +197,7 @@ const priorityBadgeVariantMap: Record<PriorityBadgeVariant, BadgeVariant> = {
 /**
  * Get badge color classes for a priority level.
  */
-export function getPriorityBadgeClasses(priority?: string | null): string {
+function getPriorityBadgeClasses(priority?: string | null): string {
   const normalizedPriority = (priority || '').toLowerCase() as PriorityBadgeVariant;
   const variant = priorityBadgeVariantMap[normalizedPriority] || 'muted';
   return getBadgeColorClasses(variant);

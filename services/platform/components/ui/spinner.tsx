@@ -27,4 +27,3 @@ export function Spinner({ size, className }: SpinnerProps) {
   return <div className={cn(spinnerVariants({ size }), className)} />;
 }
 
-export { spinnerVariants };

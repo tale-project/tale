@@ -22,13 +22,7 @@ import { jexlInstance } from '../../lib/variables/jexl_instance';
 import type { ParsedFilterExpression } from './ast_helpers';
 import { traverseAST } from './ast_helpers';
 
-// Re-export types and helpers for convenience
-export type {
-  ComparisonOperator,
-  FilterCondition,
-  ParsedFilterExpression,
-} from './ast_helpers';
-export { isSimpleField } from './ast_helpers';
+export * from './ast_helpers';
 
 /**
  * Parse a filter expression using JEXL AST to extract indexable conditions.

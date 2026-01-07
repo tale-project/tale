@@ -10,8 +10,7 @@ export function formatConversationDateHeader(timestamp: string, locale: string =
   return formatDateHeader(timestamp, { locale });
 }
 
-// Export for backward compatibility
-export { formatDateHeader } from '@/lib/utils/date/format';
+export * from '@/lib/utils/date/format';
 
 /**
  * Format timestamp for email display using relative time to avoid timezone issues

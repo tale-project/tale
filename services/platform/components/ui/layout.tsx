@@ -39,7 +39,7 @@ interface StackProps extends HTMLAttributes<HTMLDivElement> {
   gap?: Gap;
 }
 
-const Stack = forwardRef<HTMLDivElement, StackProps>(
+export const Stack = forwardRef<HTMLDivElement, StackProps>(
   ({ gap = 4, className, ...props }, ref) => (
     <div
       ref={ref}
@@ -78,7 +78,7 @@ const justifyClasses = {
   evenly: 'justify-evenly',
 };
 
-const HStack = forwardRef<HTMLDivElement, HStackProps>(
+export const HStack = forwardRef<HTMLDivElement, HStackProps>(
   ({ gap = 4, align = 'center', justify = 'start', wrap = false, className, ...props }, ref) => (
     <div
       ref={ref}
@@ -105,7 +105,7 @@ interface VStackProps extends HTMLAttributes<HTMLDivElement> {
   justify?: 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly';
 }
 
-const VStack = forwardRef<HTMLDivElement, VStackProps>(
+export const VStack = forwardRef<HTMLDivElement, VStackProps>(
   ({ gap = 4, align = 'stretch', justify = 'start', className, ...props }, ref) => (
     <div
       ref={ref}
@@ -180,7 +180,7 @@ const xlColClasses = {
   6: 'xl:grid-cols-6',
 };
 
-const Grid = forwardRef<HTMLDivElement, GridProps>(
+export const Grid = forwardRef<HTMLDivElement, GridProps>(
   ({ cols = 1, sm, md, lg, xl, gap = 4, className, ...props }, ref) => (
     <div
       ref={ref}
@@ -203,7 +203,7 @@ Grid.displayName = 'Grid';
 /**
  * Center - Centers content both horizontally and vertically
  */
-const Center = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+export const Center = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
@@ -217,7 +217,7 @@ Center.displayName = 'Center';
 /**
  * Spacer - Flexible space that expands to fill available space
  */
-const Spacer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+export const Spacer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn('flex-1', className)} {...props} />
   ),
@@ -228,7 +228,7 @@ Spacer.displayName = 'Spacer';
  * NarrowContainer - Centered container with max-width 576px and horizontal padding 16px
  * Use for forms and configuration pages that need a narrow, centered layout
  */
-const NarrowContainer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+export const NarrowContainer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
@@ -239,5 +239,4 @@ const NarrowContainer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 );
 NarrowContainer.displayName = 'NarrowContainer';
 
-export { Stack, HStack, VStack, Grid, Center, Spacer, NarrowContainer };
 export type { Gap };

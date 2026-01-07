@@ -10,14 +10,18 @@ env_normalize_common() {
   export PORT="${PORT:-3000}"
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
-  # Domain configuration - auto-derive URLs
-  # SITE_URL should include the protocol (e.g., "http://localhost", "https://demo.tale.dev")
-  local base_url="${SITE_URL:-http://localhost}"
+  # Domain configuration - derive SITE_URL from HOST and USE_SSL
+  # HOST is the hostname without protocol (e.g., "tale.local", "demo.tale.dev")
+  # USE_SSL determines if we use https:// or http://
+  local host="${HOST:-localhost}"
+  local use_ssl="${USE_SSL:-true}"
+  local protocol="http"
 
-  # Ensure SITE_URL includes a protocol, if not, add http:// as default
-  if [[ ! "$base_url" =~ ^https?:// ]]; then
-    base_url="http://${base_url}"
+  if [[ "$use_ssl" == "true" ]]; then
+    protocol="https"
   fi
+
+  local base_url="${protocol}://${host}"
 
 	  # Database configuration
 	  # Auto-construct POSTGRES_URL from DB_PASSWORD if not explicitly set

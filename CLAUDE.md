@@ -12,6 +12,9 @@
 - ALWAYS put imports at the top and exports at the bottom. Keep them sorted correctly.
 - PREFER named exports. AVOID default exports (only if needed).
 - AVOID index barrel files (only if it makes sense to group).
+- PREFER `export const/let`, `export function`, `export class` etc. instead of `export { ... }`.
+- PREFER `export * from` instead of `export { ... } from`.
+- DO NOT export if not needed outside the module.
 
 ## React / Next.js
 

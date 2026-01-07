@@ -17,7 +17,7 @@ interface LabelProps
   error?: boolean;
 }
 
-const Label = forwardRef<ComponentRef<typeof LabelPrimitive.Root>, LabelProps>(
+export const Label = forwardRef<ComponentRef<typeof LabelPrimitive.Root>, LabelProps>(
   ({ className, required, error, children, ...props }, ref) => {
     const { t } = useT('common');
     return (
@@ -38,4 +38,3 @@ const Label = forwardRef<ComponentRef<typeof LabelPrimitive.Root>, LabelProps>(
 );
 Label.displayName = LabelPrimitive.Root.displayName;
 
-export { Label };

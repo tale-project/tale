@@ -18,7 +18,7 @@ interface RadioGroupProps extends ComponentPropsWithoutRef<
   label?: string;
 }
 
-const RadioGroup = forwardRef<
+export const RadioGroup = forwardRef<
   ComponentRef<typeof RadioGroupPrimitive.Root>,
   RadioGroupProps
 >(({ className, label, required, id: providedId, ...props }, ref) => {
@@ -50,7 +50,7 @@ interface RadioGroupItemProps extends ComponentPropsWithoutRef<
   label?: string;
 }
 
-const RadioGroupItem = forwardRef<
+export const RadioGroupItem = forwardRef<
   ComponentRef<typeof RadioGroupPrimitive.Item>,
   RadioGroupItemProps
 >(({ className, label, id: providedId, ...props }, ref) => {
@@ -88,4 +88,3 @@ const RadioGroupItem = forwardRef<
 });
 RadioGroupItem.displayName = RadioGroupPrimitive.Item.displayName;
 
-export { RadioGroup, RadioGroupItem };

@@ -27,17 +27,6 @@
  * ```
  */
 
-// Client exports (default)
-export { useT, useTranslations, useLocale } from './client';
-
-// Configuration
-export {
-  locales,
-  defaultLocale,
-  dayjsLocaleMap,
-  isSupportedLocale,
-  type Locale,
-} from './config';
-
-// Types
+export * from './client';
+export * from './config';
 export type { Namespace, Messages } from './types';

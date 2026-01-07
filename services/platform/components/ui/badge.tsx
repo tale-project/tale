@@ -39,7 +39,7 @@ export interface BadgeProps
   children: React.ReactNode;
 }
 
-function Badge({
+export function Badge({
   className,
   variant,
   icon: Icon,
@@ -66,4 +66,3 @@ function Badge({
   );
 }
 
-export { Badge, badgeVariants };

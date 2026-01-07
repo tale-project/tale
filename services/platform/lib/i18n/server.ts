@@ -42,5 +42,4 @@ export async function getLocale() {
   return getNextIntlLocale();
 }
 
-// Re-export for convenience
 export { getT as getTranslations };

@@ -1,13 +1,14 @@
 import type { MetadataRoute } from 'next';
-
-const baseUrl = process.env.SITE_URL || 'https://app.tale.dev';
+import { getSiteUrl } from '@/lib/get-site-url';
 
 const baseSitemap: Partial<MetadataRoute.Sitemap[number]> = {
   changeFrequency: 'weekly',
   priority: 0.8,
 };
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl = await getSiteUrl();
+
   return [
     {
       ...baseSitemap,

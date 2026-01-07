@@ -13,7 +13,7 @@ interface CheckboxProps
   required?: boolean;
 }
 
-const Checkbox = React.forwardRef<
+export const Checkbox = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
   CheckboxProps
 >(({ className, onCheckedChange, checked, label, required, id: providedId, ...rest }, ref) => {
@@ -71,4 +71,3 @@ const Checkbox = React.forwardRef<
 });
 Checkbox.displayName = CheckboxPrimitive.Root.displayName;
 
-export { Checkbox };

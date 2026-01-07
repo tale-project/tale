@@ -36,7 +36,7 @@ interface StatusPageProps extends HTMLAttributes<HTMLDivElement> {
  * />
  * ```
  */
-const StatusPage = forwardRef<HTMLDivElement, StatusPageProps>(
+export const StatusPage = forwardRef<HTMLDivElement, StatusPageProps>(
   (
     {
       header,
@@ -121,4 +121,3 @@ const StatusPage = forwardRef<HTMLDivElement, StatusPageProps>(
 );
 StatusPage.displayName = 'StatusPage';
 
-export { StatusPage };

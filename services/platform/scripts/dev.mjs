@@ -72,17 +72,15 @@ function envNormalizeCommon() {
   if (!process.env.PORT) process.env.PORT = '3000';
   if (!process.env.HOSTNAME) process.env.HOSTNAME = '0.0.0.0';
 
-  // Domain configuration - ensure protocol and add port for localhost
+  // Domain configuration - derive SITE_URL from HOST and USE_SSL
   const port = process.env.PORT || '3000';
-  let baseUrl = process.env.SITE_URL || 'http://localhost';
+  const host = process.env.HOST || 'localhost';
+  const useSsl = process.env.USE_SSL || 'false';
+  const protocol = useSsl === 'true' ? 'https' : 'http';
 
-  // Ensure protocol
-  if (!/^https?:\/\//i.test(baseUrl)) {
-    baseUrl = `http://${baseUrl}`;
-  }
-
-  // Add port for localhost if not already present
-  if (baseUrl === 'http://localhost') {
+  // For localhost, add port to the URL
+  let baseUrl = `${protocol}://${host}`;
+  if (host === 'localhost') {
     baseUrl = `${baseUrl}:${port}`;
   }
 

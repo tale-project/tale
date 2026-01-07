@@ -20,22 +20,6 @@ export function getSyncStatus(
 }
 
 /**
- * Format file size in human readable format
- * @param sizeBytes - File size in bytes
- * @returns Formatted size string
- */
-export function formatFileSize(sizeBytes: number): string {
-  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) return '—';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(
-    Math.floor(Math.log(sizeBytes) / Math.log(1024)),
-    units.length - 1,
-  );
-  const value = sizeBytes / Math.pow(1024, i);
-  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
-/**
  * Get file extension from filename
  * @param filename - Name of the file
  * @returns File extension in uppercase
@@ -66,7 +50,7 @@ export function getFileExtension(filename: string): string {
  * @param filename - Name of the file
  * @returns File type category
  */
-export function getFileTypeCategory(
+function getFileTypeCategory(
   filename: string,
 ): 'document' | 'image' | 'archive' | 'other' {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -89,7 +73,7 @@ export function getFileTypeCategory(
  * @param metadata - File metadata object
  * @returns Folder path or fallback message
  */
-export function getFolderPath(metadata: Record<string, any>): string {
+function getFolderPath(metadata: Record<string, any>): string {
   if (!metadata || typeof metadata !== 'object') return '—';
 
   // Try different possible path fields
@@ -120,7 +104,7 @@ export function getFolderPath(metadata: Record<string, any>): string {
  * @param storagePath - Full storage path of the file
  * @returns Extracted folder path or fallback message
  */
-export function extractPathFromStoragePath(storagePath: string): string {
+function extractPathFromStoragePath(storagePath: string): string {
   if (!storagePath || typeof storagePath !== 'string') return '—';
 
   // Remove the business ID prefix and filename to get the folder path

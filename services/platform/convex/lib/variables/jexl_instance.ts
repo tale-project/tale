@@ -21,7 +21,7 @@ import {
 /**
  * Configure JEXL instance with custom transforms for workflow use cases
  */
-const jexlInstance = new jexl.Jexl();
+export const jexlInstance = new jexl.Jexl();
 
 // Add custom transforms for common string operations
 jexlInstance.addTransform('upper', (val: string) => toUpper(toString(val)));
@@ -326,4 +326,3 @@ jexlInstance.addTransform(
   },
 );
 
-export { jexlInstance };

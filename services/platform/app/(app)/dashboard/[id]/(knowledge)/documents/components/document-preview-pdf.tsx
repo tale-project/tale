@@ -15,7 +15,7 @@ type PdfJsLib = {
   GlobalWorkerOptions: typeof import('pdfjs-dist/types/src/pdf').GlobalWorkerOptions;
 };
 
-const PDFViewer = ({ url }: { url: string }) => {
+export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   const { t } = useT('documents');
   const { t: tCommon } = useT('common');
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
@@ -271,4 +271,3 @@ const PDFViewer = ({ url }: { url: string }) => {
   );
 };
 
-export { PDFViewer as DocumentPreviewPDF };
