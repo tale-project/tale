@@ -16,6 +16,8 @@ interface MessageMetadata {
   reasoningTokens?: number;
   cachedInputTokens?: number;
   reasoning?: string;
+  durationMs?: number;
+  timeToFirstTokenMs?: number;
 }
 
 interface MessageInfoDialogProps {
@@ -118,6 +120,33 @@ export function MessageInfoDialog({
                         </div>
                       </Stack>
                     )}
+                </Grid>
+              </Field>
+            )}
+
+            {(metadata.durationMs !== undefined || metadata.timeToFirstTokenMs !== undefined) && (
+              <Field label={t('messageInfo.performance')}>
+                <Grid cols={2} gap={2} className="text-sm">
+                  {metadata.durationMs !== undefined && (
+                    <Stack gap={0}>
+                      <div className="text-xs text-muted-foreground">
+                        {t('messageInfo.duration')}
+                      </div>
+                      <div className="font-medium">
+                        {(metadata.durationMs / 1000).toFixed(2)}s
+                      </div>
+                    </Stack>
+                  )}
+                  {metadata.timeToFirstTokenMs !== undefined && (
+                    <Stack gap={0}>
+                      <div className="text-xs text-muted-foreground">
+                        {t('messageInfo.timeToFirstToken')}
+                      </div>
+                      <div className="font-medium">
+                        {(metadata.timeToFirstTokenMs / 1000).toFixed(2)}s
+                      </div>
+                    </Stack>
+                  )}
                 </Grid>
               </Field>
             )}

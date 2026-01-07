@@ -92,6 +92,7 @@ export async function onChatComplete(
         cachedInputTokens: result.usage.cachedInputTokens,
         reasoning: result.reasoning,
         durationMs: result.durationMs,
+        timeToFirstTokenMs: result.timeToFirstTokenMs,
         subAgentUsage: result.subAgentUsage,
       });
       debugLog('onChatComplete metadata saved', {
