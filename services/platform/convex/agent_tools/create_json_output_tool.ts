@@ -11,6 +11,7 @@
 
 import { createTool } from '@convex-dev/agent';
 import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
+import type { z } from 'zod';
 import type { JsonSchemaDefinition } from '../workflow/types/nodes';
 
 /**
@@ -39,9 +40,10 @@ export function createJsonOutputTool(
   outputSchema: JsonSchemaDefinition,
 ): JsonOutputToolResult {
   // Convert JSON Schema to Zod schema
+  // Type cast through unknown to break recursive type inference in createTool
   const zodSchema = JSONSchemaToZod.convert(
     outputSchema as Parameters<typeof JSONSchemaToZod.convert>[0],
-  );
+  ) as unknown as z.ZodTypeAny;
 
   // Closure to capture the output
   let capturedOutput: unknown = null;

@@ -2,12 +2,11 @@
 # fastapi, uvicorn, pydantic, and pydantic-settings versions are determined by cognee dependency
 
 # Cognee - RAG framework
-# Updated to latest version to fix UUID TypeError in graph processing
 # Includes baml extras for structured output
-cognee[baml]==0.4.0
+cognee[baml]==0.5.1
 
 # Additional dependencies for cognee
-# Note: openai version is determined by cognee's dependencies (requires <2.0.1)
+# Note: openai version is determined by cognee's dependencies
 # langchain versions are determined by cognee's dependencies
 
 # Enable document support in unstructured
@@ -15,28 +14,22 @@ cognee[baml]==0.4.0
 # - docx: Word documents (.doc, .docx)
 # - pptx: PowerPoint presentations (.ppt, .pptx)
 # Note: PDF support removed - now handled by PyMuPDF + Vision API
-unstructured[xlsx,docx,pptx]==0.18.21
+unstructured[xlsx,docx,pptx]==0.18.26
 
 # PyMuPDF for PDF text extraction (no system dependencies)
 # Replaces tesseract/poppler with lightweight pure-Python solution
-PyMuPDF>=1.24.0
+PyMuPDF>=1.26.0
 
 # Database drivers (for cognee storage and PGVector)
 asyncpg==0.31.0
 psycopg2-binary==2.9.11
-pgvector==0.3.6
+pgvector==0.4.2
 
 # Utilities
 python-multipart==0.0.20
 python-dotenv==1.2.1
 loguru==0.7.3
 httpx==0.28.1
-aiofiles>=23.0.0,<24.0.0
+aiofiles>=24.0.0
 tenacity>=8.0.0
-
-# Web crawling (for automatic website discovery and crawling)
-# NOTE: crawl4ai is currently disabled due to dependency conflict with cognee
-# crawl4ai>=0.4.0 requires aiofiles>=24.1.0, but cognee==0.3.6 requires aiofiles<24.0.0
-# The website crawling feature will be unavailable until this conflict is resolved
-# crawl4ai>=0.4.0
 

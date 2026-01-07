@@ -21,7 +21,7 @@ const batchOperationSchema = z.object({
     .string()
     .describe('Operation name to execute'),
   params: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe('Operation-specific parameters'),
 });

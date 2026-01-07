@@ -1,24 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { FormDialog } from '@/components/ui/dialog';
-import { Form } from '@/components/ui/form';
 import { HStack } from '@/components/ui/layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 
-type ProtelFormValues = {
-  server: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-};
+const protelSchema = z.object({
+  server: z.string().min(1).max(255),
+  port: z.number().min(1).max(65535),
+  database: z.string().min(1).max(128),
+  username: z.string().min(1).max(128),
+  password: z.string().min(1).max(128),
+});
+
+type ProtelFormValues = z.infer<typeof protelSchema>;
 
 interface ProtelIntegrationDialogProps {
   open?: boolean;
@@ -41,20 +41,7 @@ export function ProtelIntegrationDialog({
   onDisconnect,
 }: ProtelIntegrationDialogProps) {
   const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
   const isConnected = !!credentials?.server;
-
-  const protelSchema = useMemo(
-    () =>
-      z.object({
-        server: z.string().min(1).max(255),
-        port: z.coerce.number().min(1).max(65535),
-        database: z.string().min(1).max(128),
-        username: z.string().min(1).max(128),
-        password: z.string().min(1).max(128),
-      }),
-    [],
-  );
 
   const {
     register,
@@ -183,7 +170,7 @@ export function ProtelIntegrationDialog({
               disabled={isSubmitting}
               errorMessage={errors.port?.message}
               className="flex-1"
-              {...register('port')}
+              {...register('port', { valueAsNumber: true })}
             />
           </HStack>
 

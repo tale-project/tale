@@ -24,7 +24,7 @@ const integrationArgs = z.object({
       'Operation name to execute on the integration (e.g., "list_orders", "get_customers", "get_reservations"). For SQL integrations, you can use special introspection operations: "introspect_tables" to list all tables, or "introspect_columns" to see columns in a table.',
     ),
   params: z
-    .record(z.unknown())
+    .record(z.string(), z.unknown())
     .optional()
     .describe(
       'Operation-specific parameters as a key-value object. For SQL introspection operations, use: {"schemaName": "dbo", "tableName": "Customers"} for introspect_columns. Check the integration definition or use integration_introspect tool to see required parameters.',
