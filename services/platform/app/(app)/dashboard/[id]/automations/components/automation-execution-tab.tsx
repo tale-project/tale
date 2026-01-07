@@ -309,7 +309,7 @@ export function AutomationExecutionTab({
                               variant="outline"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                cancelExecution({ handle: execution._id });
+                                cancelExecution({ executionId: execution._id });
                               }}
                             >
                               <Square className="size-4" />
