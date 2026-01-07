@@ -4,11 +4,14 @@
  * Sub-threads are stored in the parent thread's summary field for O(1) lookup.
  * This enables thread reuse so sub-agents can maintain conversation context
  * across multiple calls within the same parent thread.
+ *
+ * This helper delegates to an atomic internal mutation to prevent race conditions
+ * when concurrent requests attempt to create sub-threads for the same parent.
  */
 
 import type { ActionCtx } from '../../../_generated/server';
-import { components } from '../../../_generated/api';
-import type { SubAgentType, ThreadSummaryWithSubThreads } from './types';
+import { internal } from '../../../_generated/api';
+import type { SubAgentType } from './types';
 
 interface GetOrCreateSubThreadArgs {
   parentThreadId: string;
@@ -36,6 +39,9 @@ interface GetOrCreateSubThreadResult {
  * ```
  *
  * When a sub-thread is reused, the Convex Agent SDK automatically loads its message history.
+ *
+ * This function uses an atomic mutation to ensure that concurrent requests for the same
+ * parent thread and sub-agent type will not create duplicate sub-threads.
  */
 export async function getOrCreateSubThread(
   ctx: ActionCtx,
@@ -43,76 +49,11 @@ export async function getOrCreateSubThread(
 ): Promise<GetOrCreateSubThreadResult> {
   const { parentThreadId, subAgentType, userId } = args;
 
-  // 1. Get parent thread to read its summary
-  const parentThread = await ctx.runQuery(components.agent.threads.getThread, {
-    threadId: parentThreadId,
+  // Delegate to atomic internal mutation to prevent race conditions
+  // The mutation handles read-check-create-update in a single transaction
+  return await ctx.runMutation(internal.threads.getOrCreateSubThreadAtomic, {
+    parentThreadId,
+    subAgentType,
+    userId,
   });
-
-  if (!parentThread) {
-    throw new Error(`Parent thread not found: ${parentThreadId}`);
-  }
-
-  // 2. Parse summary to find existing sub-thread mapping
-  let summary: ThreadSummaryWithSubThreads = {};
-  if (parentThread.summary) {
-    try {
-      summary = JSON.parse(parentThread.summary) as ThreadSummaryWithSubThreads;
-    } catch {
-      // Invalid JSON, start fresh
-      console.warn(
-        `[getOrCreateSubThread] Invalid summary JSON in parent thread ${parentThreadId}`,
-      );
-    }
-  }
-
-  const existingSubThreadId = summary.subThreads?.[subAgentType];
-
-  // 3. If we have an existing sub-thread ID, verify it's still active
-  if (existingSubThreadId) {
-    const subThread = await ctx.runQuery(components.agent.threads.getThread, {
-      threadId: existingSubThreadId,
-    });
-
-    if (subThread?.status === 'active') {
-      console.log(
-        `[getOrCreateSubThread] Reusing existing sub-thread for ${subAgentType}: ${existingSubThreadId}`,
-      );
-      return { threadId: existingSubThreadId, isNew: false };
-    }
-
-    // Sub-thread was archived or deleted, will create a new one
-    console.log(
-      `[getOrCreateSubThread] Sub-thread ${existingSubThreadId} is no longer active, creating new one`,
-    );
-  }
-
-  // 4. Create new sub-thread with parentThreadIds for relationship tracking
-  const newThread = await ctx.runMutation(
-    components.agent.threads.createThread,
-    {
-      userId,
-      title: `Sub-thread: ${subAgentType}`,
-      parentThreadIds: [parentThreadId],
-    },
-  );
-
-  console.log(
-    `[getOrCreateSubThread] Created new sub-thread for ${subAgentType}: ${newThread._id}`,
-  );
-
-  // 5. Update parent thread's summary with the new sub-thread mapping
-  const updatedSummary: ThreadSummaryWithSubThreads = {
-    ...summary,
-    subThreads: {
-      ...summary.subThreads,
-      [subAgentType]: newThread._id,
-    },
-  };
-
-  await ctx.runMutation(components.agent.threads.updateThread, {
-    threadId: parentThreadId,
-    patch: { summary: JSON.stringify(updatedSummary) },
-  });
-
-  return { threadId: newThread._id, isNew: true };
 }

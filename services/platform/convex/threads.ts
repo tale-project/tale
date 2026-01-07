@@ -6,7 +6,7 @@
  */
 
 import { paginationOptsValidator } from 'convex/server';
-import { query, mutation } from './_generated/server';
+import { query, mutation, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
 import { vStreamArgs } from '@convex-dev/agent';
 import { validateOrganizationAccess, getAuthenticatedUser } from './lib/rls';
@@ -18,6 +18,8 @@ import {
   threadMessagesResponseValidator,
   threadListItemValidator,
   latestToolMessageValidator,
+  subAgentTypeValidator,
+  getOrCreateSubThreadResultValidator,
 } from './model/threads/validators';
 
 /**
@@ -157,5 +159,26 @@ export const getThreadMessagesStreaming = query({
       paginationOpts: args.paginationOpts,
       streamArgs: args.streamArgs,
     });
+  },
+});
+
+/**
+ * Atomically get or create a sub-thread for a given parent thread and sub-agent type.
+ * Internal mutation used by sub-agents to ensure thread uniqueness.
+ */
+export const getOrCreateSubThreadAtomic = internalMutation({
+  args: {
+    parentThreadId: v.string(),
+    subAgentType: subAgentTypeValidator,
+    userId: v.optional(v.string()),
+  },
+  returns: getOrCreateSubThreadResultValidator,
+  handler: async (ctx, args) => {
+    return await ThreadsModel.getOrCreateSubThread(
+      ctx,
+      args.parentThreadId,
+      args.subAgentType,
+      args.userId,
+    );
   },
 });
