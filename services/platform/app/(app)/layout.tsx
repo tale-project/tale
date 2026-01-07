@@ -64,7 +64,7 @@ export default async function RootLayout({
   const siteUrl = await getSiteUrl();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale}>
       <body className={`${inter.variable} antialiased`}>
         <ThemeProvider
           attribute="class"
