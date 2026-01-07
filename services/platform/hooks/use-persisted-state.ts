@@ -40,34 +40,21 @@ function isValidType<T>(value: unknown, initialValue: T): value is T {
 }
 
 export function usePersistedState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    // Always return initialValue during SSR
-    if (!isBrowser) return initialValue;
-
-    const item = getItem<T>(key);
-
-    // Validate the retrieved item against the expected type
-    if (item !== undefined && isValidType(item, initialValue)) {
-      return item;
-    }
-
-    return initialValue;
-  });
-
+  // Always initialize with initialValue to ensure SSR/CSR consistency
+  // localStorage is only read in useEffect after hydration
+  const [value, setValue] = useState<T>(initialValue);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Handle hydration
+  // Handle hydration - read from localStorage only after mount
   useEffect(() => {
-    if (!isHydrated) {
-      setIsHydrated(true);
+    setIsHydrated(true);
 
-      // Re-check localStorage after hydration
-      const item = getItem<T>(key);
-      if (item !== undefined && isValidType(item, initialValue)) {
-        setValue(item);
-      }
+    // Read from localStorage after hydration
+    const item = getItem<T>(key);
+    if (item !== undefined && isValidType(item, initialValue)) {
+      setValue(item);
     }
-  }, [key, initialValue, isHydrated]);
+  }, [key, initialValue]);
 
   // Persist value changes
   useEffect(() => {

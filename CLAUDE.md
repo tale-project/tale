@@ -29,6 +29,7 @@
 - **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
 - AVOID CSR-only approaches, AVOID ssr: false, ALWAYS optimize for SSR.
 - CONSIDER using `dynamic` for large imports.
+- AVOID hydration issues (server-client mismatches).
 
 ## Convex
 

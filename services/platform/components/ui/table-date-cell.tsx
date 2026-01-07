@@ -62,6 +62,8 @@ export const TableDateCell = React.memo(function TableDateCell({
     : date;
 
   const formatted = formatDate(dateObj, { preset, locale });
+  // Use formatDate for title to ensure SSR/CSR consistency
+  const titleText = formatDate(dateObj, { preset: 'long', locale });
 
   return (
     <span
@@ -70,7 +72,7 @@ export const TableDateCell = React.memo(function TableDateCell({
         alignRight && 'text-right block',
         className
       )}
-      title={dateObj.toLocaleString()}
+      title={titleText}
     >
       {formatted}
     </span>
