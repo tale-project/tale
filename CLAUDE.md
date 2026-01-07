@@ -4,6 +4,7 @@
 - ALWAYS ensure that you follow the existing design.
 - ALL pages should be optimized for accessibility (Level AA).
 - ALWAYS write filenames in dash-case (generally) and snake_case (for Convex and Python).
+- ALWAYS use sentence case in translations.
 
 ## TypeScript
 

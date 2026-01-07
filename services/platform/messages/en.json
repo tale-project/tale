@@ -176,11 +176,6 @@
       "title": "Page not found",
       "description": "The page you're looking for may have been moved or no longer exists.",
       "goHome": "Go back home"
-    },
-    "deviceCompatibility": {
-      "title": "Device Not Supported",
-      "description": "Please use a device with a larger screen for the best experience.",
-      "signOut": "Sign Out"
     }
   },
   "navigation": {
@@ -271,7 +266,7 @@
       "stock": "Stock",
       "document": "Document",
       "size": "Size",
-      "ragStatus": "RAG Status",
+      "ragStatus": "RAG status",
       "locale": "Locale",
       "website": "Website",
       "title": "Title",
@@ -424,7 +419,7 @@
       }
     },
     "microsoft": {
-      "grantPermissions": "Grant Microsoft Permissions",
+      "grantPermissions": "Grant Microsoft permissions",
       "reauthenticate": "Re-authenticate with Microsoft",
       "signIn": "Sign in with Microsoft",
       "redirecting": "Redirecting..."
@@ -535,8 +530,8 @@
         "name": "Email",
         "description": "Send and receive emails via Gmail, Outlook, or custom SMTP."
       },
-      "emailIntegration": "Email Integration",
-      "chooseEmailProvider": "Choose Email Provider",
+      "emailIntegration": "Email integration",
+      "chooseEmailProvider": "Choose email provider",
       "connectOAuth": "Connect with OAuth2 (recommended) or app password",
       "connectMicrosoft": "Connect Microsoft Outlook or Office 365 account",
       "configureCustom": "Configure a custom SMTP/IMAP email server",
@@ -566,12 +561,12 @@
       "updateSuccessful": "Update successful",
       "updateFailed": "Update failed",
       "gmail": {
-        "namePlaceholder": "e.g., Gmail Work Account",
+        "namePlaceholder": "e.g., Gmail work account",
         "emailPlaceholder": "your-email@gmail.com",
         "passwordPlaceholder": "16-character app password"
       },
       "outlook": {
-        "namePlaceholder": "e.g., Outlook Work Account",
+        "namePlaceholder": "e.g., Outlook work account",
         "emailPlaceholder": "your-email@outlook.com",
         "passwordPlaceholder": "App password from Microsoft"
       },
@@ -583,17 +578,17 @@
         "usernamePlaceholder": "Enter your Circuly username",
         "passwordPlaceholder": "Enter your Circuly password",
         "connectedToCirculy": "Connected to Circuly",
-        "connectedUsername": "Connected Username",
+        "connectedUsername": "Connected username",
         "connected": "Connected",
         "syncingData": "Your Circuly account is connected and syncing subscription data.",
-        "username": "Circuly Username",
-        "password": "Circuly Password",
+        "username": "Circuly username",
+        "password": "Circuly password",
         "enterCredentials": "Enter your Circuly credentials to sync subscription and customer data.",
         "updating": "Updating...",
         "update": "Update",
         "connecting": "Connecting...",
         "connect": "Connect",
-        "connectedAccount": "Connected Account:",
+        "connectedAccount": "Connected account:",
         "disconnectQuestion": "Are you sure you want to disconnect the Circuly integration?",
         "disconnectWarning": "Warning: Disconnecting Circuly will stop all data synchronization and product recommendations. You will need to reconnect to resume these features.",
         "yesDisconnect": "Yes, Disconnect"
@@ -612,7 +607,7 @@
         "update": "Update",
         "connecting": "Connecting...",
         "connect": "Connect",
-        "connectedStore": "Connected Store:",
+        "connectedStore": "Connected store:",
         "disconnectQuestion": "Are you sure you want to disconnect the Shopify integration?",
         "disconnectWarning": "Warning: Disconnecting Shopify will stop all data synchronization for products, orders, and customers. You will need to reconnect to resume these features.",
         "yesDisconnect": "Yes, Disconnect"
@@ -654,27 +649,27 @@
       },
       "clickToCopy": "Click to copy",
       "failedToCopy": "Failed to copy to clipboard",
-      "comingSoon": "(Coming Soon)",
+      "comingSoon": "(Coming soon)",
       "customSMTP": "Custom SMTP",
       "moreOptions": "More options",
       "testing": "Testing...",
       "test": "Test",
-      "setAsDefault": "Set as Default",
+      "setAsDefault": "Set as default",
       "default": "Default",
       "noProvidersYet": "No email providers configured yet",
       "addProviderToStart": "Add Gmail, Outlook, or a custom SMTP provider to get started",
-      "addEmailProvider": "Add Email Provider",
+      "addEmailProvider": "Add email provider",
       "authorize": "Authorize",
       "oauth2": "OAuth2",
-      "notAuthorized": "Not Authorized",
+      "notAuthorized": "Not authorized",
       "password": "Password",
       "created": "Created",
       "noOutlookProviders": "No Outlook providers configured yet",
       "noGmailProviders": "No Gmail providers configured yet",
-      "addOutlookProvider": "Add Outlook Provider",
+      "addOutlookProvider": "Add Outlook provider",
       "addGmailProvider": "Add Gmail provider",
       "account": "Account",
-      "sendMethod": "Send Method",
+      "sendMethod": "Send method",
       "apiGmailGraph": "API (Gmail/Graph)",
       "smtp": "SMTP",
       "imap": "IMAP",
@@ -683,7 +678,7 @@
       "tls": "TLS",
       "providerName": "Provider name",
       "oauth2Tab": "OAuth2",
-      "appPasswordTab": "App Password",
+      "appPasswordTab": "App password",
       "setAsDefaultProvider": "Set as default email provider",
       "continueWithGoogle": "Continue with Google",
       "redirectingToGoogle": "Redirecting to Google...",
@@ -691,27 +686,27 @@
       "redirectingToMicrosoft": "Redirecting to Microsoft...",
       "testAndCreate": "Test & create provider",
       "useApiSending": "Use API sending (recommended - no port blocking)",
-      "apiSending": "API Sending",
+      "apiSending": "API sending",
       "providerGmail": "Gmail",
       "providerOutlook": "Outlook",
-      "gmailAddress": "Gmail Address",
+      "gmailAddress": "Gmail address",
       "emailAddress": "Email address",
       "appPassword": "App password",
-      "oauth2Authentication": "OAuth2 Authentication",
+      "oauth2Authentication": "OAuth2 authentication",
       "oauth2GoogleInfo": "You'll be redirected to Google to authorize access. This method works with Google security defaults and is more secure than password authentication.",
       "oauth2MicrosoftInfo": "You'll be redirected to Microsoft to authorize access. This method works with Microsoft 365 security defaults and is more secure than password authentication.",
-      "googleClientId": "Google Client ID",
+      "googleClientId": "Google client ID",
       "googleClientIdPlaceholder": "xxx.apps.googleusercontent.com",
-      "googleClientSecret": "Google Client Secret",
+      "googleClientSecret": "Google client secret",
       "googleClientSecretPlaceholder": "Your OAuth 2.0 client secret",
       "googleOAuthCredentialsInfo": "Enter your Google Cloud OAuth 2.0 credentials. Create these in the Google Cloud Console under APIs & Services > Credentials > Create OAuth client ID.",
-      "googleOAuth2Guide": "Google OAuth2 Setup Guide",
-      "microsoftOAuth2Guide": "Microsoft OAuth2 Setup Guide",
+      "googleOAuth2Guide": "Google OAuth2 setup guide",
+      "microsoftOAuth2Guide": "Microsoft OAuth2 setup guide",
       "gmailAppPasswordInfo": "Use Gmail App Passwords for quick setup. Requires 2FA enabled on your Google account.",
-      "googleAppPasswordsGuide": "Google App Passwords Guide",
-      "outlookLimitedAvailability": "⚠️ Limited Availability",
+      "googleAppPasswordsGuide": "Google App Passwords guide",
+      "outlookLimitedAvailability": "⚠️ Limited availability",
       "outlookSecurityWarning": "Microsoft 365 security defaults block password authentication. This may not work for your account.",
-      "microsoftAppPasswordsGuide": "Microsoft App Passwords Guide",
+      "microsoftAppPasswordsGuide": "Microsoft App Passwords guide",
       "recommended": "Recommended"
     },
     "form": {
@@ -821,26 +816,26 @@
       },
       "filters": {
         "title": "Filters",
-        "dateRange": "Date Range",
+        "dateRange": "Date range",
         "status": "Status",
         "allStatus": "All status",
-        "triggeredBy": "Triggered By",
+        "triggeredBy": "Triggered by",
         "allTriggers": "All triggers"
       }
     },
     "execution": {
       "control": {
-        "title": "Execution Control",
+        "title": "Execution control",
         "description": "Start and control automation executions"
       },
       "selectedAutomation": "Selected automation",
       "inputLabel": "Input data (JSON)",
-      "startButton": "Start Execution",
+      "startButton": "Start execution",
       "testButton": "Test",
       "mustBeActive": "Automation must be active to start execution",
       "selectToStart": "Select an automation from the Templates tab to start execution",
       "history": {
-        "title": "Execution History",
+        "title": "Execution history",
         "description": "Recent executions for selected automation",
         "loading": "Loading executions...",
         "noExecutions": "No executions found for this automation",
@@ -890,7 +885,7 @@
       "toolbar": {
         "focus": "Focus",
         "aiAssistant": "AI assistant",
-        "testAutomation": "Test Automation"
+        "testAutomation": "Test automation"
       }
     },
     "stepTypes": {
@@ -906,7 +901,7 @@
     },
     "sidePanel": {
       "aiAssistant": "AI Assistant",
-      "testAutomation": "Test Automation",
+      "testAutomation": "Test automation",
       "stepTooltip": "{stepType} step",
       "end": "End"
     },
@@ -937,7 +932,7 @@
       "confirmMessage": "Are you sure you want to delete the step",
       "warning": "Warning",
       "warningMessage": "This may break your automation if other steps depend on this one. Make sure to update any references in other steps' \"Next Steps\" configuration.",
-      "stepSlug": "Step Slug:",
+      "stepSlug": "Step slug:",
       "type": "Type:",
       "order": "Order:",
       "deleting": "Deleting...",
@@ -969,10 +964,10 @@
       "deleteFailed": "Failed to delete automation"
     },
     "templates": {
-      "newAutomation": "New Automation",
+      "newAutomation": "New automation",
       "createNewTemplate": "Create a new automation template",
       "fillDetails": "Fill in the details for your new workflow.",
-      "automationTemplates": "Automation Templates",
+      "automationTemplates": "Automation templates",
       "manageExisting": "Manage existing automation templates",
       "loading": "Loading automations...",
       "noAutomationsFound": "No automations found. Create your first automation above.",
@@ -989,7 +984,7 @@
     "assistant": {
       "messagePlaceholder": "Type your message...",
       "attachFiles": "Attach files",
-      "automationDetails": "Automation Details",
+      "automationDetails": "Automation details",
       "fallbackImage": "Image",
       "fallbackFile": "File",
       "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
@@ -1014,8 +1009,8 @@
       "inputLabel": "Test input (JSON)",
       "inputDescription": "Provide input data in JSON format for the automation execution",
       "tip": "💡 Test executions create real automation runs. Monitor progress in the Executions tab.",
-      "runTest": "Run Test",
-      "runningTest": "Running Test...",
+      "runTest": "Run test",
+      "runningTest": "Running test...",
       "toast": {
         "invalidJson": "Invalid JSON",
         "invalidJsonDescription": "Please provide valid JSON input",
@@ -1027,17 +1022,17 @@
     },
     "monitoring": {
       "selectAutomation": "Select an automation to view statistics",
-      "realtimeStatus": "Real-time Status",
+      "realtimeStatus": "Real-time status",
       "liveMonitoring": "Live execution monitoring",
       "monitoringExecution": "Monitoring execution: {handle}",
-      "stopMonitoring": "Stop Monitoring",
+      "stopMonitoring": "Stop monitoring",
       "startAutomation": "Start an automation execution to see real-time status",
-      "executionStatistics": "Execution Statistics",
+      "executionStatistics": "Execution statistics",
       "performanceMetrics": "Performance metrics for selected automation",
       "loadingStats": "Loading stats...",
-      "totalExecutions": "Total Executions",
-      "successRate": "Success Rate",
-      "avgDuration": "Avg Duration",
+      "totalExecutions": "Total executions",
+      "successRate": "Success rate",
+      "avgDuration": "Avg duration",
       "failures": "Failures"
     }
   },
@@ -1064,12 +1059,12 @@
       "churnSurvey": "Churn survey"
     },
     "improvement": {
-      "title": "Message Improvement Preview",
+      "title": "Message improvement preview",
       "description": "Review the AI-improved version and accept or reject the changes",
       "original": "Original",
       "improved": "Improved",
       "reject": "Reject",
-      "accept": "Accept Changes"
+      "accept": "Accept changes"
     },
     "bulkSend": {
       "title": "Send {count} Messages",
@@ -1117,7 +1112,7 @@
       "backToEditor": "Back to editor",
       "improving": "Improving...",
       "improveWithAi": "Improve with AI",
-      "generateImprovement": "Generate Improvement"
+      "generateImprovement": "Generate improvement"
     },
     "panel": {
       "uploadFailed": "Failed to upload attachments. Please try again.",
@@ -1151,9 +1146,9 @@
       "badges": {
         "search": "Search: \"{query}\"",
         "applyingFilters": "Applying filters...",
-        "lowPriority": "Low Priority",
-        "mediumPriority": "Medium Priority",
-        "highPriority": "High Priority"
+        "lowPriority": "Low priority",
+        "mediumPriority": "Medium priority",
+        "highPriority": "High priority"
       }
     },
     "activate": {
@@ -1174,7 +1169,7 @@
       "approved": "Approved",
       "confidence": "Confidence",
       "unknown": "Unknown",
-      "unknownCustomer": "Unknown Customer"
+      "unknownCustomer": "Unknown customer"
     },
     "types": {
       "reviewReply": "Review reply",
@@ -1316,12 +1311,12 @@
       "contextSearch": "Searching for related topics"
     },
     "messageInfo": {
-      "title": "Message Information",
+      "title": "Message information",
       "description": "Details about this AI response",
       "timestamp": "Timestamp",
       "messageId": "Message ID",
       "model": "Model",
-      "tokenUsage": "Token Usage",
+      "tokenUsage": "Token usage",
       "input": "Input",
       "output": "Output",
       "total": "Total",
@@ -1329,7 +1324,7 @@
       "cached": "Cached",
       "performance": "Performance",
       "duration": "Duration",
-      "timeToFirstToken": "Time to First Token",
+      "timeToFirstToken": "Time to first token",
       "noMetadata": "Token usage and model information are not available for this message."
     },
     "loadOlderMessages": "Load older messages",
@@ -1337,7 +1332,7 @@
       "recent": "Recent",
       "loading": "Loading chats...",
       "empty": "No chats yet",
-      "untitled": "Untitled Chat",
+      "untitled": "Untitled chat",
       "toast": {
         "titleEmpty": "Chat title cannot be empty",
         "renameFailed": "Failed to rename chat"
@@ -1465,13 +1460,13 @@
       "selectDescription": "Choose which OneDrive files or folders to import",
       "importSettings": "Import settings",
       "settingsDescription": "Choose how to import your {count} selected {count, plural, one {item} other {items}} from OneDrive.",
-      "microsoftNotConnected": "Microsoft Account Not Connected",
+      "microsoftNotConnected": "Microsoft account not connected",
       "microsoftNotConnectedDescription": "To access your OneDrive files, you need to link your Microsoft account with OneDrive permissions.",
       "folderEmpty": "This folder is empty.",
       "loadFailed": "Failed to load OneDrive items",
-      "oneTimeImport": "One-time Import",
+      "oneTimeImport": "One-time import",
       "oneTimeDescription": "Import files once and store them in your workspace",
-      "syncImport": "Sync Import",
+      "syncImport": "Sync import",
       "syncDescription": "Keep files automatically synchronized",
       "importCount": "Import ({count})",
       "importItem": "{type, select, one-time {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
@@ -1523,33 +1518,33 @@
       },
       "dialog": {
         "indexed": {
-          "title": "Document Indexed",
+          "title": "Document indexed",
           "description": "This document has been successfully indexed and is available for RAG search.",
           "indexedOn": "Indexed on:"
         },
         "failed": {
-          "title": "Indexing Failed",
+          "title": "Indexing failed",
           "description": "The document could not be indexed for RAG search.",
-          "errorDetails": "Error Details:",
+          "errorDetails": "Error details:",
           "unknownError": "Unknown error occurred"
         }
       }
     },
     "sync": {
-      "title": "OneDrive to Storage Sync",
+      "title": "OneDrive to storage sync",
       "syncingToStorage": "Syncing files to storage...",
       "pleaseWait": "Please wait while files are being processed...",
-      "processingFiles": "Processing Files ({count} total):",
+      "processingFiles": "Processing files ({count} total):",
       "error": "Error",
-      "syncCompleted": "Sync Completed",
-      "syncCompletedWithErrors": "Sync Completed with Errors",
+      "syncCompleted": "Sync completed",
+      "syncCompletedWithErrors": "Sync completed with errors",
       "filesProcessed": "{count} files processed",
-      "successfullySynced": "Successfully Synced ({count})",
-      "failedToSync": "Failed to Sync ({count})",
-      "storageLocation": "Storage Location",
+      "successfullySynced": "Successfully synced ({count})",
+      "failedToSync": "Failed to sync ({count})",
+      "storageLocation": "Storage location",
       "storageDescription": "Files have been synced to your storage bucket. You can access them through the storage dashboard or API.",
-      "syncError": "Sync Error",
-      "retryFailedFiles": "Retry Failed Files"
+      "syncError": "Sync error",
+      "retryFailedFiles": "Retry failed files"
     }
   },
   "products": {
@@ -1577,7 +1572,7 @@
       "description": "No products match your search criteria"
     },
     "edit": {
-      "title": "Edit Product",
+      "title": "Edit product",
       "description": "Update product information. Required fields are marked with *",
       "namePlaceholder": "Enter product name",
       "descriptionPlaceholder": "Enter product description",
@@ -1587,7 +1582,7 @@
       "imageUrlPlaceholder": "https://example.com/image.jpg",
       "currencyPlaceholder": "USD",
       "labels": {
-        "name": "Product Name",
+        "name": "Product name",
         "description": "Description",
         "imageUrl": "Image URL",
         "price": "Price",
@@ -1606,10 +1601,10 @@
     "translations": {
       "title": "Edit product translations",
       "enterTranslation": "Enter {language} translation...",
-      "originalProductName": "Original Product Name",
-      "englishTranslation": "English Translation",
-      "germanTranslation": "German Translation",
-      "frenchTranslation": "French Translation",
+      "originalProductName": "Original product name",
+      "englishTranslation": "English translation",
+      "germanTranslation": "German translation",
+      "frenchTranslation": "French translation",
       "toast": {
         "success": "Product translations updated",
         "error": "Failed to update translations"
@@ -1646,9 +1641,9 @@
         "price": "Price",
         "stock": "Stock",
         "category": "Category",
-        "lastUpdated": "Last Updated",
+        "lastUpdated": "Last updated",
         "tags": "Tags",
-        "fullDescription": "Full Description",
+        "fullDescription": "Full description",
         "source": "Source",
         "productId": "Product ID"
       }
@@ -1676,7 +1671,7 @@
     "uploadCustomers": "Upload customers",
     "importForm": {
       "circuly": "Circuly",
-      "manualEntry": "Manual Entry",
+      "manualEntry": "Manual entry",
       "upload": "Upload",
       "fromShopify": "From Shopify",
       "syncBusinessData": "Sync business data",
@@ -1685,8 +1680,8 @@
     },
     "editCustomer": "Edit customer",
     "deleteCustomer": "Delete customer",
-    "viewDetails": "View Details",
-    "viewSubscriptions": "View Subscriptions",
+    "viewDetails": "View details",
+    "viewSubscriptions": "View subscriptions",
     "importMenu": {
       "importCustomers": "Import customers",
       "fromDevice": "From your device",
@@ -1731,13 +1726,13 @@
     "addVendors": "Add vendors",
     "uploadVendors": "Upload vendors",
     "importForm": {
-      "manualEntry": "Manual Entry",
+      "manualEntry": "Manual entry",
       "upload": "Upload",
       "localeHint": "You can use the following supported locales: en, fr, de, zh, as well as extended formats like en-US, de-DE, and de-CH."
     },
     "editVendor": "Edit vendor",
     "deleteVendor": "Delete vendor",
-    "viewDetails": "View Vendor Details",
+    "viewDetails": "View vendor details",
     "importMenu": {
       "importVendors": "Import vendors",
       "fromDevice": "From your device",
@@ -1768,8 +1763,8 @@
     "filter": {
       "title": "Filters",
       "source": {
-        "manual": "Manual Import",
-        "upload": "File Upload",
+        "manual": "Manual import",
+        "upload": "File upload",
         "circuly": "Circuly"
       }
     },
@@ -1826,11 +1821,11 @@
     "adding": "Adding...",
     "saving": "Saving...",
     "viewDialog": {
-      "title": "Website Details",
+      "title": "Website details",
       "domain": "Domain",
       "status": "Status",
-      "scanInterval": "Scan Interval",
-      "lastScanned": "Last Scanned",
+      "scanInterval": "Scan interval",
+      "lastScanned": "Last scanned",
       "notScannedYet": "Not scanned yet",
       "titleField": "Title",
       "description": "Description",
