@@ -145,13 +145,13 @@ export const getExecutionStepJournal = query({
  */
 export const cancelExecution = action({
   args: {
-    handle: v.id('wfExecutions'),
+    executionId: v.id('wfExecutions'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     // Call internal mutation to properly cancel the execution
     await ctx.runMutation(internal.wf_executions.failExecution, {
-      executionId: args.handle,
+      executionId: args.executionId,
       error: 'cancelled',
     });
     return null;
