@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
-import * as mammoth from 'mammoth';
 import { useT } from '@/lib/i18n';
+// Note: mammoth is dynamically imported to reduce initial bundle size (~200KB)
 
 interface DocumentPreviewDocxProps {
   url: string;
@@ -25,6 +25,8 @@ export function DocumentPreviewDocx({ url }: DocumentPreviewDocxProps) {
         if (!res.ok)
           throw new Error(`Failed to fetch document (${res.status})`);
         const ab = await res.arrayBuffer();
+        // Dynamically import mammoth to reduce bundle size
+        const mammoth = await import('mammoth');
         const result = await mammoth.convertToHtml({ arrayBuffer: ab });
         const sanitized = DOMPurify.sanitize(result.value || '');
         if (!isCancelled) setHtml(sanitized);

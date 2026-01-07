@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/icons';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -19,35 +18,13 @@ import { useTestIntegration } from '../hooks/use-test-integration';
 import { useDeleteIntegration } from '../hooks/use-delete-integration';
 import { OAuth2Banner } from './oauth2-banner';
 import { useT } from '@/lib/i18n';
-
-// Dynamically import dialog components to reduce initial bundle size
-const ShopifyIntegrationDialog = dynamic(
-  () => import('./shopify-integration-dialog').then(mod => ({ default: mod.ShopifyIntegrationDialog })),
-);
-
-const CirculyIntegrationDialog = dynamic(
-  () => import('./circuly-integration-dialog').then(mod => ({ default: mod.CirculyIntegrationDialog })),
-);
-
-const CirculyDisconnectConfirmationDialog = dynamic(
-  () => import('./circuly-disconnect-confirmation-dialog').then(mod => ({ default: mod.CirculyDisconnectConfirmationDialog })),
-);
-
-const ShopifyDisconnectConfirmationDialog = dynamic(
-  () => import('./shopify-disconnect-confirmation-dialog').then(mod => ({ default: mod.ShopifyDisconnectConfirmationDialog })),
-);
-
-const EmailIntegrationDialog = dynamic(
-  () => import('./email-integration-dialog').then(mod => ({ default: mod.EmailIntegrationDialog })),
-);
-
-const ProtelIntegrationDialog = dynamic(
-  () => import('./protel-integration-dialog').then(mod => ({ default: mod.ProtelIntegrationDialog })),
-);
-
-const ProtelDisconnectConfirmationDialog = dynamic(
-  () => import('./protel-disconnect-confirmation-dialog').then(mod => ({ default: mod.ProtelDisconnectConfirmationDialog })),
-);
+import { ShopifyIntegrationDialog } from './shopify-integration-dialog';
+import { CirculyIntegrationDialog } from './circuly-integration-dialog';
+import { CirculyDisconnectConfirmationDialog } from './circuly-disconnect-confirmation-dialog';
+import { ShopifyDisconnectConfirmationDialog } from './shopify-disconnect-confirmation-dialog';
+import { EmailIntegrationDialog } from './email-integration-dialog';
+import { ProtelIntegrationDialog } from './protel-integration-dialog';
+import { ProtelDisconnectConfirmationDialog } from './protel-disconnect-confirmation-dialog';
 
 interface IntegrationsProps {
   organizationId: string;

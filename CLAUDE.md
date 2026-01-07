@@ -25,6 +25,7 @@
 - **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
 - **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
 - AVOID CSR-only approaches, AVOID ssr: false, ALWAYS optimize for SSR.
+- CONSIDER using `dynamic` for large imports.
 
 ## Convex
 
