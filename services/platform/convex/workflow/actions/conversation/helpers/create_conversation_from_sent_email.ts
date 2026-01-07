@@ -281,7 +281,7 @@ export async function createConversationFromSentEmail(
         customerId: customerResult.customerId,
         externalMessageId: rootEmail.messageId,
         subject: rootEmail.subject || '(no subject)',
-        status: (params.status || 'open') as ConversationStatus,
+        status: params.status ?? 'open',
         priority: params.priority,
         type: params.type || 'general',
         channel: 'email',

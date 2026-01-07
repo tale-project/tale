@@ -4,6 +4,8 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
+import type { StepConfig } from '../../workflow/types/nodes';
+import type { WorkflowConfig } from './types';
 
 export interface SaveManualConfigurationArgs {
   organizationId: string;
@@ -12,14 +14,14 @@ export interface SaveManualConfigurationArgs {
     description?: string;
     version?: string;
     workflowType?: 'predefined';
-    config?: unknown;
+    config?: WorkflowConfig;
   };
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
     stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
     order: number;
-    config: unknown;
+    config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
 }
@@ -42,7 +44,7 @@ export async function saveManualConfiguration(
     versionNumber: 1,
     status: 'draft',
     workflowType: args.workflowConfig.workflowType ?? 'predefined',
-    config: (args.workflowConfig.config as any) ?? {},
+    config: args.workflowConfig.config ?? {},
     metadata: {
       createdAt: Date.now(),
       createdBy: 'user', // TODO: get from auth context
@@ -63,7 +65,7 @@ export async function saveManualConfiguration(
       name: stepConfig.name,
       stepType: stepConfig.stepType,
       order: stepConfig.order,
-      config: stepConfig.config as any,
+      config: stepConfig.config,
       nextSteps: stepConfig.nextSteps,
       organizationId: args.organizationId,
     });

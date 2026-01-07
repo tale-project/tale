@@ -5,7 +5,8 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { validateWorkflowSteps } from '../../workflow/helpers/validation/validate_workflow_steps';
-import type { WorkflowConfig } from './types';
+import type { WorkflowConfig, WorkflowType } from './types';
+import type { StepConfig } from '../../workflow/types/nodes';
 import { createWorkflowDraft } from './create_workflow_draft';
 
 export interface CreateWorkflowWithStepsArgs {
@@ -14,15 +15,15 @@ export interface CreateWorkflowWithStepsArgs {
     name: string;
     description?: string;
     version?: string;
-    workflowType?: 'predefined';
-    config?: WorkflowConfig | unknown;
+    workflowType?: WorkflowType;
+    config?: WorkflowConfig;
   };
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
     stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
     order: number;
-    config: unknown;
+    config: StepConfig;
     nextSteps: Record<string, string>;
   }>;
 }
@@ -37,7 +38,7 @@ export async function createWorkflowWithSteps(
   args: CreateWorkflowWithStepsArgs,
 ): Promise<CreateWorkflowWithStepsResult> {
   // Validate workflow steps configuration before saving
-  validateWorkflowSteps(args.stepsConfig as any);
+  validateWorkflowSteps(args.stepsConfig);
 
   // Create a new draft workflow, enforcing name uniqueness per organization
   const workflowId: Id<'wfDefinitions'> = await createWorkflowDraft(ctx, {
@@ -45,7 +46,7 @@ export async function createWorkflowWithSteps(
     name: args.workflowConfig.name,
     description: args.workflowConfig.description,
     category: undefined,
-    config: (args.workflowConfig.config as WorkflowConfig | undefined) || {},
+    config: args.workflowConfig.config ?? {},
     createdBy: 'system',
     autoCreateFirstStep: false,
   });
@@ -58,7 +59,7 @@ export async function createWorkflowWithSteps(
       name: stepConfig.name,
       stepType: stepConfig.stepType,
       order: stepConfig.order,
-      config: stepConfig.config as any,
+      config: stepConfig.config,
       nextSteps: stepConfig.nextSteps,
       organizationId: args.organizationId,
     });

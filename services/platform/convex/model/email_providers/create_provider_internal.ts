@@ -67,6 +67,9 @@ export async function createProviderInternal(
     }
   }
 
+  // Type assertion not needed - interface matches Doc<'emailProviders'>['oauth2Auth']
+  const oauth2Auth: Doc<'emailProviders'>['oauth2Auth'] = args.oauth2Auth;
+
   const providerId = await ctx.db.insert('emailProviders', {
     organizationId: args.organizationId,
     name: args.name,
@@ -74,7 +77,7 @@ export async function createProviderInternal(
     authMethod: args.authMethod,
     sendMethod: args.sendMethod,
     passwordAuth: args.passwordAuth,
-    oauth2Auth: args.oauth2Auth as any,
+    oauth2Auth,
     smtpConfig: args.smtpConfig,
     imapConfig: args.imapConfig,
     isDefault: isDefault,

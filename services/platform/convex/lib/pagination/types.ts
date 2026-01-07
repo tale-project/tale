@@ -6,6 +6,7 @@
  * 2. Offset-based: For traditional page navigation
  */
 
+import type { GenericValidator } from 'convex/values';
 import { v } from 'convex/values';
 
 // ============================================================================
@@ -40,11 +41,12 @@ export const cursorPaginationOptsValidator = v.object({
 });
 
 /**
- * Creates a validator for cursor paginated results
+ * Creates a validator for cursor paginated results.
+ * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function cursorPaginatedResultValidator<T>(itemValidator: T) {
+export function cursorPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
   return v.object({
-    page: v.array(itemValidator as any),
+    page: v.array(itemValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   });
@@ -84,11 +86,12 @@ export const offsetPaginationOptsValidator = v.object({
 });
 
 /**
- * Creates a validator for offset paginated results
+ * Creates a validator for offset paginated results.
+ * Generic preserves the concrete validator type for proper Infer<> inference.
  */
-export function offsetPaginatedResultValidator<T>(itemValidator: T) {
+export function offsetPaginatedResultValidator<V extends GenericValidator>(itemValidator: V) {
   return v.object({
-    items: v.array(itemValidator as any),
+    items: v.array(itemValidator),
     total: v.number(),
     page: v.number(),
     pageSize: v.number(),

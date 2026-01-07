@@ -5,6 +5,12 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
+import type {
+  BetterAuthCreateResult,
+  BetterAuthFindManyResult,
+  BetterAuthMember,
+  BetterAuthUser,
+} from '../members/types';
 
 export interface FindOrCreateUserFromHeadersArgs {
   email: string;
@@ -27,9 +33,8 @@ export async function findOrCreateUserFromHeaders(
   const role = args.role.toLowerCase().trim();
 
   // Check if user already exists in Better Auth
-  const existingUserResult = await ctx.runQuery(
-    components.betterAuth.adapter.findMany,
-    {
+  const existingUserResult: BetterAuthFindManyResult<BetterAuthUser> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'user',
       paginationOpts: {
         cursor: null,
@@ -42,15 +47,14 @@ export async function findOrCreateUserFromHeaders(
           operator: 'eq',
         },
       ],
-    },
-  );
+    });
 
   let userId: string;
   let organizationId: string | null = null;
 
   if (existingUserResult && existingUserResult.page.length > 0) {
     // User exists
-    const existingUser = existingUserResult.page[0] as any;
+    const existingUser = existingUserResult.page[0];
     userId = existingUser._id;
 
     // Update user's name if it changed
@@ -74,9 +78,8 @@ export async function findOrCreateUserFromHeaders(
     }
 
     // Find their organization membership
-    const memberResult = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const memberResult: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: {
           cursor: null,
@@ -89,11 +92,10 @@ export async function findOrCreateUserFromHeaders(
             operator: 'eq',
           },
         ],
-      },
-    );
+      });
 
     if (memberResult && memberResult.page.length > 0) {
-      const member = memberResult.page[0] as any;
+      const member = memberResult.page[0];
       organizationId = member.organizationId;
 
       // Update member's role if it changed
@@ -118,7 +120,7 @@ export async function findOrCreateUserFromHeaders(
   } else {
     // User doesn't exist - create them
     // Note: We create user without password since auth is handled externally
-    const createResult = await ctx.runMutation(
+    const createResult: BetterAuthCreateResult = await ctx.runMutation(
       components.betterAuth.adapter.create,
       {
         input: {
@@ -134,18 +136,14 @@ export async function findOrCreateUserFromHeaders(
       },
     );
 
-    userId =
-      (createResult as any)?._id ??
-      (createResult as any)?.id ??
-      String(createResult);
+    userId = createResult._id ?? createResult.id ?? String(createResult);
 
     // If there's already an organization in the system, attach this new
     // trusted-headers user to that existing organization instead of
     // creating a brand new one. This keeps all SSO users in the same org
     // by default.
-    const existingAdminMemberResult = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const existingAdminMemberResult: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: {
           cursor: null,
@@ -158,12 +156,11 @@ export async function findOrCreateUserFromHeaders(
             operator: 'eq',
           },
         ],
-      },
-    );
+      });
 
     if (existingAdminMemberResult && existingAdminMemberResult.page.length > 0) {
-      const existingAdminMember = existingAdminMemberResult.page[0] as any;
-      const existingOrgId = existingAdminMember.organizationId as string;
+      const existingAdminMember = existingAdminMemberResult.page[0];
+      const existingOrgId = existingAdminMember.organizationId;
       organizationId = existingOrgId;
 
       // Add the new user as a member of the existing organization, using
@@ -182,7 +179,7 @@ export async function findOrCreateUserFromHeaders(
     } else {
       // No existing organization yet (first trusted-headers user) - create
       // a default organization for them and make them admin.
-      const orgResult = await ctx.runMutation(
+      const orgResult: BetterAuthCreateResult = await ctx.runMutation(
         components.betterAuth.adapter.create,
         {
           input: {
@@ -196,10 +193,7 @@ export async function findOrCreateUserFromHeaders(
         },
       );
 
-      const newOrgId: string =
-        (orgResult as any)?._id ??
-        (orgResult as any)?.id ??
-        String(orgResult);
+      const newOrgId = orgResult._id ?? orgResult.id ?? String(orgResult);
       organizationId = newOrgId;
 
       await ctx.runMutation(components.betterAuth.adapter.create, {

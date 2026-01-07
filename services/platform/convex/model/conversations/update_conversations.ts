@@ -56,8 +56,8 @@ export async function updateConversations(
     // Build the patch object
     const patch: Record<string, unknown> = {};
 
-    // Copy direct field updates from args.updates
-    const updates = args.updates as Record<string, unknown>;
+    // Copy direct field updates from args.updates (now properly typed)
+    const { updates } = args;
     if (updates.customerId !== undefined) patch.customerId = updates.customerId;
     if (updates.subject !== undefined) patch.subject = updates.subject;
     if (updates.status !== undefined) patch.status = updates.status;
@@ -66,31 +66,31 @@ export async function updateConversations(
 
     // Handle metadata updates with lodash
     if (updates.metadata) {
+      // conversation.metadata is stored as v.any() in schema
       const existingMetadata =
-        (conversation.metadata as Record<string, unknown>) ?? {};
+        (conversation.metadata as Record<string, unknown> | undefined) ?? {};
       const updatedMetadata: Record<string, unknown> = {
         ...existingMetadata,
       };
 
-      for (const [key, value] of Object.entries(
-        updates.metadata as Record<string, unknown>,
-      )) {
+      for (const [key, value] of Object.entries(updates.metadata)) {
         if (key.includes('.')) {
           // Use lodash.set for dot-notation keys
           set(updatedMetadata, key, value);
         } else {
           // For top-level keys, use merge for objects
-          if (
-            typeof value === 'object' &&
-            value !== null &&
-            !Array.isArray(value) &&
-            typeof updatedMetadata[key] === 'object' &&
-            updatedMetadata[key] !== null &&
-            !Array.isArray(updatedMetadata[key])
-          ) {
+          const existingValue = updatedMetadata[key];
+          const isValueObject =
+            typeof value === 'object' && value !== null && !Array.isArray(value);
+          const isExistingObject =
+            typeof existingValue === 'object' &&
+            existingValue !== null &&
+            !Array.isArray(existingValue);
+
+          if (isValueObject && isExistingObject) {
             updatedMetadata[key] = merge(
               {},
-              updatedMetadata[key] as Record<string, unknown>,
+              existingValue as Record<string, unknown>,
               value as Record<string, unknown>,
             );
           } else {

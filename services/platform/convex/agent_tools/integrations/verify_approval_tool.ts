@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
+import type { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 
 const verifyApprovalArgs = z.object({
@@ -69,11 +70,12 @@ Returns:
 
       try {
         // Query the approval from the database
+        // The ID comes from LLM output, so we cast it to the expected type
+        // The query will throw if the ID format is invalid
         const approval = await ctx.runQuery(
           internal.approvals.getApprovalInternal,
           {
-            // Cast to Id<'approvals'> - the query will handle invalid IDs gracefully
-            approvalId: approvalId as any,
+            approvalId: approvalId as Id<'approvals'>,
           },
         );
 

@@ -44,7 +44,8 @@ export async function updateProvider(
   }
 
   // Build update object with only provided fields
-  const updateData: Record<string, unknown> = {};
+  // Use Partial<Doc<>> to avoid type assertion on patch
+  const updateData: Partial<Doc<'emailProviders'>> = {};
   if (args.name !== undefined) updateData.name = args.name;
   if (args.isDefault !== undefined) updateData.isDefault = args.isDefault;
   if (args.smtpConfig !== undefined) updateData.smtpConfig = args.smtpConfig;
@@ -62,7 +63,7 @@ export async function updateProvider(
     };
   }
 
-  await ctx.db.patch(providerId, updateData as any);
+  await ctx.db.patch(providerId, updateData);
   return null;
 }
 

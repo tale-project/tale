@@ -18,18 +18,20 @@ export async function executeStepByType(
   ): Record<string, unknown> {
     const maxLoopDepth = 8;
 
-    function trimLoop(loopVar: any, depth: number): any {
+    function trimLoop(loopVar: unknown, depth: number): unknown {
       if (!loopVar || typeof loopVar !== 'object') return loopVar;
       if (depth >= maxLoopDepth) {
-        const { parent: _parent, ...rest } = loopVar as Record<string, unknown>;
+        const loopObj = loopVar as Record<string, unknown>;
+        const { parent: _parent, ...rest } = loopObj;
         return { ...rest, parent: undefined };
       }
+      const loopObj = loopVar as Record<string, unknown>;
       const result: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(loopVar as Record<string, unknown>)) {
+      for (const [k, v] of Object.entries(loopObj)) {
         if (k === 'parent') {
           result.parent = trimLoop(v, depth + 1);
         } else {
-          result[k] = v as unknown;
+          result[k] = v;
         }
       }
       return result;
@@ -61,11 +63,12 @@ export async function executeStepByType(
       });
 
     case 'llm':
+      // Config is validated at runtime by the handler's llmStepConfigValidator
       return await ctx.runAction(internal.workflow.nodes.executeLLMNode, {
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'llm' as const,
-          config: stepDef.config as any,
+          config: stepDef.config,
           organizationId: stepDef.organizationId,
         },
         variables,

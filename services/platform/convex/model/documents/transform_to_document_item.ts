@@ -4,7 +4,7 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import type { DocumentItemResponse } from './types';
+import type { DocumentItemResponse, DocumentMetadata } from './types';
 import { extractExtension } from './extract_extension';
 
 export async function transformToDocumentItem(
@@ -18,52 +18,37 @@ export async function transformToDocumentItem(
     url = fileUrl ?? undefined;
   }
 
-  // Extract RAG status from ragInfo field
-  const ragInfo = (document as any).ragInfo as
-    | {
-        status: 'queued' | 'running' | 'completed' | 'failed';
-        jobId?: string;
-        indexedAt?: number;
-        error?: string;
-      }
-    | undefined;
+  // Type the metadata field for safer access
+  const metadata = document.metadata as DocumentMetadata | undefined;
+
+  // Normalize source mode value
+  const normalizeSourceMode = (m: string | undefined): 'auto' | 'manual' =>
+    m === 'auto' || m === 'manual' ? m : m === 'sync' ? 'auto' : 'manual';
+
+  // Normalize type value
+  const normalizeType = (t: string | undefined): 'file' | 'folder' =>
+    t === 'file' || t === 'folder' ? t : 'file';
 
   return {
     id: document._id,
-    name:
-      document.title ??
-      (document.metadata as { name?: string })?.name ??
-      'Untitled',
-    type: ((document.metadata as { type?: string })?.type ?? 'file') as
-      | 'file'
-      | 'folder',
-    size: (document.metadata as { size?: number })?.size,
-    mimeType:
-      document.mimeType ??
-      (document.metadata as { mimeType?: string })?.mimeType,
+    name: document.title ?? metadata?.name ?? 'Untitled',
+    type: normalizeType(metadata?.type),
+    size: metadata?.size,
+    mimeType: document.mimeType ?? metadata?.mimeType,
     extension:
       document.extension ??
-      (document.metadata as { extension?: string })?.extension ??
+      metadata?.extension ??
       extractExtension(document.title),
-    storagePath: (document.metadata as { storagePath?: string })?.storagePath,
-    sourceProvider: ((document as any).sourceProvider ??
-      (document.metadata as { sourceProvider?: string })?.sourceProvider ??
-      'upload') as 'onedrive' | 'upload',
-    sourceMode: ((m) =>
-      m === 'auto' || m === 'manual' ? m : m === 'sync' ? 'auto' : 'manual')(
-      (document.metadata as { sourceMode?: string })?.sourceMode,
-    ) as 'auto' | 'manual',
-    lastModified:
-      (document.metadata as { lastModified?: number })?.lastModified ??
-      document._creationTime,
-    syncConfigId: (document.metadata as { syncConfigId?: string })
-      ?.syncConfigId,
-    isDirectlySelected: (document.metadata as { isDirectlySelected?: boolean })
-      ?.isDirectlySelected,
+    storagePath: metadata?.storagePath,
+    sourceProvider: document.sourceProvider ?? metadata?.sourceProvider ?? 'upload',
+    sourceMode: normalizeSourceMode(metadata?.sourceMode),
+    lastModified: metadata?.lastModified ?? document._creationTime,
+    syncConfigId: metadata?.syncConfigId,
+    isDirectlySelected: metadata?.isDirectlySelected,
     url,
     // RAG status from database (if available)
-    ragStatus: ragInfo?.status,
-    ragIndexedAt: ragInfo?.indexedAt,
-    ragError: ragInfo?.error,
+    ragStatus: document.ragInfo?.status,
+    ragIndexedAt: document.ragInfo?.indexedAt,
+    ragError: document.ragInfo?.error,
   };
 }

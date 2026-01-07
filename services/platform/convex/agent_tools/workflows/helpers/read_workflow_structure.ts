@@ -7,10 +7,11 @@ export async function readWorkflowStructure(
   ctx: ToolCtx,
   args: { workflowId: string },
 ): Promise<WorkflowReadGetStructureResult> {
-  const workflowId = args.workflowId as Id<'wfDefinitions'>;
+  // Cast string to Id at the boundary - validated by Convex runtime
+  const wfDefinitionId = args.workflowId as Id<'wfDefinitions'>;
 
   const workflow = await ctx.runQuery(internal.wf_definitions.getWorkflow, {
-    wfDefinitionId: workflowId,
+    wfDefinitionId,
   });
 
   if (!workflow) {
@@ -18,7 +19,7 @@ export async function readWorkflowStructure(
   }
 
   const steps = await ctx.runQuery(internal.wf_step_defs.listWorkflowSteps, {
-    wfDefinitionId: workflowId,
+    wfDefinitionId,
   });
 
   return {

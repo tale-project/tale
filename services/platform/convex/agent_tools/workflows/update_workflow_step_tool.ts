@@ -247,11 +247,13 @@ Please try again with a properly structured JSON object. Ensure all field names 
         }
       }
 
+      // stepRecordId comes from LLM, cast to expected ID type
+      // updates is v.any() in the handler, so no assertion needed
       const updatedStep = (await ctx.runMutation(
         internal.wf_step_defs.updateStep,
         {
           stepRecordId: args.stepRecordId as Id<'wfStepDefs'>,
-          updates: sanitizedUpdates as any,
+          updates: sanitizedUpdates,
         },
       )) as Doc<'wfStepDefs'> | null;
 

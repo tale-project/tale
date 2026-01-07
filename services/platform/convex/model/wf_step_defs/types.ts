@@ -5,6 +5,7 @@
 import type { Infer } from 'convex/values';
 import type { Doc } from '../../_generated/dataModel';
 import { stepTypeValidator } from './validators';
+import type { StepConfig } from '../../workflow/types/nodes';
 
 // =============================================================================
 // INFERRED TYPES (from validators)
@@ -22,7 +23,7 @@ export interface CreateStepArgs {
   name: string;
   stepType: StepType;
   order: number;
-  config: unknown;
+  config: StepConfig;
   nextSteps: Record<string, string>;
   organizationId: string;
 }

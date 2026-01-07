@@ -17,9 +17,7 @@ export async function deleteWorkflow(
     return null;
   }
 
-  const rootVersionId = (workflow as any).rootVersionId as
-    | Id<'wfDefinitions'>
-    | undefined;
+  const rootVersionId = workflow.rootVersionId;
 
   // If this is the root version (rootVersionId points to this document), delete the whole family.
   if (rootVersionId && rootVersionId === workflow._id) {
