@@ -11,10 +11,8 @@ import { VALID_STEP_TYPES, isValidStepType, type StepType } from './constants';
 import { type StepDefinitionInput, type StepConfigValidationResult, isConfigObject } from './types';
 import { validateStepByType } from './steps';
 
-// Re-export types and utilities for backward compatibility
-export type { StepType } from './constants';
-export { VALID_STEP_TYPES, VALID_TRIGGER_TYPES, isValidStepType, type TriggerType } from './constants';
-export type { StepDefinitionInput, StepConfigValidationResult } from './types';
+export * from './constants';
+export * from './types';
 
 // =============================================================================
 // STEP SLUG VALIDATION

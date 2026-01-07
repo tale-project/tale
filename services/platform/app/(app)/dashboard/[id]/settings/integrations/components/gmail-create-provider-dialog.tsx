@@ -15,7 +15,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useT } from '@/lib/i18n';
-import { getSiteUrl } from '@/lib/get-site-url';
+import { useSiteUrl } from '@/lib/site-url-context';
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
 import { useTestEmailConnection } from '../hooks/use-test-email-connection';
@@ -54,6 +54,7 @@ export function GmailCreateProviderDialog({
 }: GmailCreateProviderDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const siteUrl = useSiteUrl();
 
   // Create Zod schemas with translated validation messages
   const passwordSchema = useMemo(
@@ -142,7 +143,7 @@ export function GmailCreateProviderDialog({
       });
 
       // Step 2: Generate OAuth2 authorization URL
-      const redirectUri = `${getSiteUrl()}/api/auth/oauth2/callback`;
+      const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
 
       const authUrl = await generateAuthUrl({
         emailProviderId: providerId,

@@ -17,7 +17,7 @@ import { useCreateMember } from '../hooks/use-create-member';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
-import { getConvexUrl } from '@/lib/get-site-url';
+import { useConvexUrl } from '@/lib/site-url-context';
 
 // Type for the form data
 type AddMemberFormData = {
@@ -43,6 +43,7 @@ export function AddMemberDialog({
   const { t: tCommon } = useT('common');
   const { t: tAuth } = useT('auth');
   const { t: tToast } = useT('toast');
+  const convexUrl = useConvexUrl();
 
   // Create Zod schema with translated validation messages
   const addMemberSchema = useMemo(
@@ -127,7 +128,7 @@ export function AddMemberDialog({
       let isNewUser = false;
 
       // First, check if user already exists
-      const client = new ConvexHttpClient(getConvexUrl());
+      const client = new ConvexHttpClient(convexUrl);
 
       const existingUserId = await client.query(api.member.getUserIdByEmail, {
         email: data.email,

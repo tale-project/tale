@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 import { cn } from '@/lib/utils/cn';
 
-const buttonVariants = cva(
+export const buttonVariants = cva(
   'inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 leading-none ring-offset-background',
   {
     variants: {
@@ -52,7 +52,7 @@ export interface ButtonProps
   iconClassName?: string;
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       className,
@@ -110,7 +110,7 @@ export interface LinkButtonProps
  * A Link component styled as a button.
  * Use this instead of wrapping Button with asChild around Link.
  */
-const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
+export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
   (
     { className, variant, size, icon: Icon, iconClassName, children, ...props },
     ref,
@@ -131,4 +131,3 @@ const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
 );
 LinkButton.displayName = 'LinkButton';
 
-export { Button, LinkButton, buttonVariants };

@@ -11,7 +11,7 @@ interface SwitchProps
   label?: string;
 }
 
-const Switch = forwardRef<ComponentRef<typeof SwitchPrimitive.Root>, SwitchProps>(
+export const Switch = forwardRef<ComponentRef<typeof SwitchPrimitive.Root>, SwitchProps>(
   ({ className, label, required, id: providedId, ...props }, ref) => {
     const generatedId = useId();
     const id = providedId ?? generatedId;
@@ -53,4 +53,3 @@ const Switch = forwardRef<ComponentRef<typeof SwitchPrimitive.Root>, SwitchProps
 );
 Switch.displayName = SwitchPrimitive.Root.displayName;
 
-export { Switch };

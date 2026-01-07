@@ -21,7 +21,7 @@ const alertVariants = cva(
   },
 );
 
-const Alert = forwardRef<
+export const Alert = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
 >(({ className, variant, ...props }, ref) => (
@@ -34,7 +34,7 @@ const Alert = forwardRef<
 ));
 Alert.displayName = 'Alert';
 
-const AlertTitle = forwardRef<
+export const AlertTitle = forwardRef<
   HTMLParagraphElement,
   HTMLAttributes<HTMLHeadingElement>
 >(({ className, ...props }, ref) => (
@@ -46,7 +46,7 @@ const AlertTitle = forwardRef<
 ));
 AlertTitle.displayName = 'AlertTitle';
 
-const AlertDescription = forwardRef<
+export const AlertDescription = forwardRef<
   HTMLParagraphElement,
   HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
@@ -58,4 +58,3 @@ const AlertDescription = forwardRef<
 ));
 AlertDescription.displayName = 'AlertDescription';
 
-export { Alert, AlertTitle, AlertDescription };

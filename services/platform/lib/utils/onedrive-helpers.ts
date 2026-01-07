@@ -5,7 +5,7 @@ import type { DriveItem } from '@/types/microsoft-graph';
  */
 
 // File category types for type safety
-export type FileCategory = 'folder' | 'image' | 'document' | 'text' | 'other';
+type FileCategory = 'folder' | 'image' | 'document' | 'text' | 'other';
 
 /**
  * Sanitize file path for storage
@@ -87,7 +87,7 @@ export function isFolder(item: DriveItem): boolean {
  * Get file extension from a filename string
  * Handles edge cases: dotfiles, trailing dots, empty names
  */
-export function getExtension(name: string): string {
+function getExtension(name: string): string {
   if (!name) return '';
 
   const lastDotIndex = name.lastIndexOf('.');
@@ -107,7 +107,7 @@ export function getExtension(name: string): string {
  * Get file extension from a drive item
  * Uses the centralized getExtension helper
  */
-export function getFileExtension(item: DriveItem): string {
+function getFileExtension(item: DriveItem): string {
   if (!isFile(item)) return '';
   return getExtension(item.name);
 }
@@ -115,7 +115,7 @@ export function getFileExtension(item: DriveItem): string {
 /**
  * Check if a file is a text file based on MIME type
  */
-export function isTextFile(item: DriveItem): boolean {
+function isTextFile(item: DriveItem): boolean {
   if (!isFile(item) || !item.file?.mimeType) return false;
 
   const mimeType = item.file.mimeType.toLowerCase();
@@ -134,7 +134,7 @@ export function isTextFile(item: DriveItem): boolean {
 /**
  * Check if a file is an image
  */
-export function isImageFile(item: DriveItem): boolean {
+function isImageFile(item: DriveItem): boolean {
   if (!isFile(item) || !item.file?.mimeType) return false;
 
   return item.file.mimeType.startsWith('image/');
@@ -143,7 +143,7 @@ export function isImageFile(item: DriveItem): boolean {
 /**
  * Check if a file is a document (Word, Excel, PowerPoint, PDF)
  */
-export function isDocumentFile(item: DriveItem): boolean {
+function isDocumentFile(item: DriveItem): boolean {
   if (!isFile(item) || !item.file?.mimeType) return false;
 
   const mimeType = item.file.mimeType.toLowerCase();
@@ -190,7 +190,7 @@ export function formatDate(dateString: string): string {
 /**
  * Get file type category
  */
-export function getFileCategory(item: DriveItem): FileCategory {
+function getFileCategory(item: DriveItem): FileCategory {
   if (isFolder(item)) return 'folder';
   if (isImageFile(item)) return 'image';
   if (isDocumentFile(item)) return 'document';

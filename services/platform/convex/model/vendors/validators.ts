@@ -6,7 +6,7 @@ import { v } from 'convex/values';
 
 import { dataSourceValidator } from '../common/validators';
 
-export { sortOrderValidator } from '../common/validators';
+export * from '../common/validators';
 
 /**
  * Vendor source validator (alias for dataSourceValidator)

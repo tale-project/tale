@@ -32,7 +32,7 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     required?: boolean;
   };
 
-const Input = forwardRef<HTMLInputElement, BaseProps>(
+export const Input = forwardRef<HTMLInputElement, BaseProps>(
   (
     {
       className,
@@ -141,4 +141,3 @@ const Input = forwardRef<HTMLInputElement, BaseProps>(
 );
 Input.displayName = 'Input';
 
-export { Input, inputVariants };

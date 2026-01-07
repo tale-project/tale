@@ -10,7 +10,7 @@ interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   errorMessage?: string;
 }
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
+export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, required, errorMessage, id: providedId, ...props }, ref) => {
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
@@ -44,4 +44,3 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 Textarea.displayName = 'Textarea';
 
-export { Textarea };

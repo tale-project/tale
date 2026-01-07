@@ -36,7 +36,7 @@ export interface SelectProps
   sideOffset?: number;
 }
 
-const Select = forwardRef<
+export const Select = forwardRef<
   ComponentRef<typeof SelectPrimitive.Trigger>,
   SelectProps
 >(
@@ -136,4 +136,3 @@ const Select = forwardRef<
 );
 Select.displayName = 'Select';
 
-export { Select };

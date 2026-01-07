@@ -607,7 +607,7 @@ function MessageBubbleComponent({
 }
 
 // Memoize to prevent re-renders when parent state changes (e.g., typing in input)
-const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
+export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
   // Only re-render if message content or relevant properties changed
   return (
     prevProps.message.id === nextProps.message.id &&
@@ -619,4 +619,3 @@ const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
   );
 });
 
-export { MessageBubble };

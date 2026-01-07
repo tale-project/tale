@@ -2,9 +2,7 @@
  * OneDrive Model - Business logic for OneDrive operations
  */
 
-// Export validators
 export * from './validators';
-
 export * from './get_user_token_logic';
 export * from './refresh_token_logic';
 export * from './read_file_logic';

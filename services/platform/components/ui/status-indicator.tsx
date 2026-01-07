@@ -38,7 +38,7 @@ const sizeClasses: Record<'sm' | 'md' | 'lg', string> = {
   lg: 'w-2.5 h-2.5',
 };
 
-const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
+export const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
   (
     {
       variant = 'success',
@@ -74,5 +74,4 @@ const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
 );
 StatusIndicator.displayName = 'StatusIndicator';
 
-export { StatusIndicator };
 export type { StatusVariant };

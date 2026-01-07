@@ -40,6 +40,3 @@ export function useT<N extends Namespace>(namespace: N) {
 export function useLocale() {
   return useNextIntlLocale();
 }
-
-// Re-export for convenience
-export { useT as useTranslations };

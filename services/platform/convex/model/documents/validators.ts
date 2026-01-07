@@ -4,7 +4,7 @@
 
 import { v } from 'convex/values';
 
-export { sortOrderValidator } from '../common/validators';
+export * from '../common/validators';
 
 /**
  * RAG status validator

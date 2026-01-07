@@ -9,7 +9,7 @@ import { ComponentProps } from 'react';
 
 export type CalendarProps = ComponentProps<typeof DayPicker>;
 
-function Calendar({
+export function Calendar({
   className,
   classNames,
   showOutsideDays = true,
@@ -67,4 +67,3 @@ function Calendar({
 }
 Calendar.displayName = 'Calendar';
 
-export { Calendar };

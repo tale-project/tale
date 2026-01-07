@@ -21,7 +21,7 @@ interface FieldProps extends HTMLAttributes<HTMLDivElement> {
  * <Field label="Status"><Badge>Active</Badge></Field>
  * ```
  */
-const Field = forwardRef<HTMLDivElement, FieldProps>(
+export const Field = forwardRef<HTMLDivElement, FieldProps>(
   ({ label, children, className, ...props }, ref) => (
     <div ref={ref} className={className} {...props}>
       <h4 className="text-sm font-medium text-muted-foreground mb-1">
@@ -50,11 +50,10 @@ interface FieldGroupProps extends HTMLAttributes<HTMLDivElement> {
  * </FieldGroup>
  * ```
  */
-const FieldGroup = forwardRef<HTMLDivElement, FieldGroupProps>(
+export const FieldGroup = forwardRef<HTMLDivElement, FieldGroupProps>(
   ({ gap = 4, className, ...props }, ref) => (
     <Stack ref={ref} gap={gap} className={className} {...props} />
   ),
 );
 FieldGroup.displayName = 'FieldGroup';
 
-export { Field, FieldGroup };

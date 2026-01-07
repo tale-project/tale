@@ -161,7 +161,7 @@ export async function compressImage(
 /**
  * Compress multiple image files.
  */
-export async function compressImages(
+async function compressImages(
   files: File[],
   options: CompressImageOptions = {},
 ): Promise<CompressImageResult[]> {

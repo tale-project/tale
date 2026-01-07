@@ -11,14 +11,10 @@ import { protelIntegration } from './protel';
 import type { PredefinedIntegration } from './types';
 
 // Individual integration exports
-export { shopifyIntegration } from './shopify';
-export { circulyIntegration } from './circuly';
-export { protelIntegration } from './protel';
-export type {
-  PredefinedIntegration,
-  SqlOperation,
-  SqlConnectionConfig,
-} from './types';
+export * from './shopify';
+export * from './circuly';
+export * from './protel';
+export * from './types';
 
 // All predefined integrations as an array for iteration
 export const predefinedIntegrations: PredefinedIntegration[] = [

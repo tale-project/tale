@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppProviders } from './providers/app-providers';
 import { getT } from '@/lib/i18n/server';
+import { getSiteUrl } from '@/lib/get-site-url';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -15,11 +16,9 @@ const inter = Inter({
   weight: ['400', '500', '600', '700'],
 });
 
-// Derive app URL from SITE_URL (server-side) or fallback for local dev
-const appUrl = process.env.SITE_URL || 'http://localhost:3000';
-
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
+  const appUrl = await getSiteUrl();
 
   return {
     metadataBase: new URL(appUrl),
@@ -62,6 +61,7 @@ export default async function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   const locale = await getLocale();
   const messages = await getMessages();
+  const siteUrl = await getSiteUrl();
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -72,7 +72,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <AppProviders locale={locale} messages={messages}>
+          <AppProviders locale={locale} messages={messages} siteUrl={siteUrl}>
             {children}
           </AppProviders>
           <Toaster />

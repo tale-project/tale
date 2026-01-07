@@ -1,20 +1,18 @@
+'use server';
+
 /**
- * Get the site URL for client-side usage.
- * Uses NEXT_PUBLIC_SITE_URL environment variable with fallback to window.location.origin.
- * This provides consistency in production while maintaining flexibility in development.
+ * Server action to get the site URL.
+ * Reads SITE_URL from environment variable (set by env.sh from USE_SSL and HOST).
+ * This is a server action and can only be called from server components or other server actions.
  */
-export function getSiteUrl(): string {
-  // Use environment variable if available (works during SSR and CSR)
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
+export async function getSiteUrl(): Promise<string> {
+  const siteUrl = process.env.SITE_URL;
+
+  if (siteUrl) {
+    return siteUrl.replace(/\/+$/, '');
   }
 
-  // Fallback to window.location.origin for client-side
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-
-  // Final fallback for SSR without env var
+  // Fallback for development without env var
   return 'http://localhost:3000';
 }
 
@@ -22,6 +20,8 @@ export function getSiteUrl(): string {
  * Get the Convex WebSocket URL.
  * Uses getSiteUrl() to derive the WebSocket endpoint.
  */
-export function getConvexUrl(): string {
-  return `${getSiteUrl()}/ws_api`;
+export async function getConvexUrl(): Promise<string> {
+  const siteUrl = await getSiteUrl();
+  return `${siteUrl}/ws_api`;
 }
+

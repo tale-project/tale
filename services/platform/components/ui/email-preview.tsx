@@ -216,7 +216,7 @@ function sanitizeCssStyle(styleString: string): string {
   return sanitizedParts.join('; ');
 }
 
-export function sanitizePreviewHtml(html: string): string {
+function sanitizePreviewHtml(html: string): string {
   // First, remove plain text quote markers (> at start of lines)
   const processed = html
     // Remove &gt; entities at the start of lines (with optional spaces)

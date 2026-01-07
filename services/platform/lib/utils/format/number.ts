@@ -89,7 +89,7 @@ export function formatDuration(
  * formatPercentage(0.1234) // "12%" (en)
  * formatPercentage(0.1234, 'en', 1) // "12.3%"
  */
-export function formatPercentage(
+function formatPercentage(
   value: number,
   locale: string = defaultLocale,
   decimals: number = 0,
@@ -116,7 +116,7 @@ export function formatPercentage(
  * formatCompact(1234567) // "1.2M" (en)
  * formatCompact(1234567, 'de') // "1,2 Mio."
  */
-export function formatCompact(
+function formatCompact(
   value: number,
   locale: string = defaultLocale,
 ): string {

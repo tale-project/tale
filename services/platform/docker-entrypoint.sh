@@ -171,6 +171,8 @@ else
 fi
 
 echo "🔍 Environment after normalization:"
+echo "   HOST=${HOST}"
+echo "   USE_SSL=${USE_SSL}"
 echo "   SITE_URL=${SITE_URL}"
 echo "   PORT=${PORT}"
 

@@ -5,9 +5,9 @@ import * as PopoverPrimitive from '@radix-ui/react-popover';
 
 import { cn } from '@/lib/utils/cn';
 
-const Popover = PopoverPrimitive.Root;
+export const Popover = PopoverPrimitive.Root;
 
-const PopoverTrigger = PopoverPrimitive.Trigger;
+export const PopoverTrigger = PopoverPrimitive.Trigger;
 
 type PopoverContentProps = {
   className?: string;
@@ -18,7 +18,7 @@ type PopoverContentProps = {
   'className' | 'align' | 'sideOffset'
 >;
 
-const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
+export const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
   ({ className, align = 'center', sideOffset = 4, ...props }, ref) => (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -38,4 +38,3 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
 >;
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverTrigger, PopoverContent };

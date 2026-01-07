@@ -23,7 +23,7 @@ const iconSizeClasses = {
   6: 'size-6',
 } as const;
 
-const IconButton = forwardRef<
+export const IconButton = forwardRef<
   HTMLButtonElement,
   IconButtonProps & ComponentPropsWithoutRef<'button'>
 >(
@@ -59,4 +59,3 @@ const IconButton = forwardRef<
 );
 IconButton.displayName = 'IconButton';
 
-export { IconButton };
