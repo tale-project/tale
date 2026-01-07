@@ -75,3 +75,21 @@ export const latestToolMessageValidator = v.object({
   status: toolStatusValidator,
   timestamp: v.union(v.number(), v.null()),
 });
+
+/**
+ * Sub-agent type validator for sub-thread management
+ */
+export const subAgentTypeValidator = v.union(
+  v.literal('web_assistant'),
+  v.literal('document_assistant'),
+  v.literal('integration_assistant'),
+  v.literal('workflow_assistant'),
+);
+
+/**
+ * Get or create sub-thread result validator
+ */
+export const getOrCreateSubThreadResultValidator = v.object({
+  threadId: v.string(),
+  isNew: v.boolean(),
+});
