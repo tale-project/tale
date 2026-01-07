@@ -89,6 +89,7 @@ export const generateAgentResponse = internalAction({
     ),
     reasoning: v.optional(v.string()),
     durationMs: v.optional(v.number()),
+    timeToFirstTokenMs: v.optional(v.number()),
     subAgentUsage: v.optional(
       v.array(
         v.object({
@@ -131,6 +132,7 @@ export const onChatComplete = internalMutation({
       ),
       reasoning: v.optional(v.string()),
       durationMs: v.optional(v.number()),
+      timeToFirstTokenMs: v.optional(v.number()),
       subAgentUsage: v.optional(
         v.array(
           v.object({

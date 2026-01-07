@@ -1327,6 +1327,9 @@
       "total": "Total",
       "reasoning": "Reasoning",
       "cached": "Cached",
+      "performance": "Performance",
+      "duration": "Duration",
+      "timeToFirstToken": "Time to First Token",
       "noMetadata": "Token usage and model information are not available for this message."
     },
     "loadOlderMessages": "Load older messages",
