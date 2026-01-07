@@ -22,7 +22,7 @@
 
 # Global options
 {
-	default_sni {$DOMAIN_HOST:tale.local}
+	default_sni {$HOST:tale.local}
 }
 
 # HTTP health check endpoint (for Docker healthcheck)
@@ -37,7 +37,7 @@
 	}
 }
 
-{$DOMAIN:https://tale.local} {
+{$SITE_URL:https://tale.local} {
 	# TLS Configuration - This line is replaced by entrypoint based on TLS_MODE
 	# DO NOT MODIFY - entrypoint will replace this placeholder
 	# TLS_PLACEHOLDER

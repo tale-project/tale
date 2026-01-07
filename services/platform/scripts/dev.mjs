@@ -74,7 +74,7 @@ function envNormalizeCommon() {
 
   // Domain configuration - ensure protocol and add port for localhost
   const port = process.env.PORT || '3000';
-  let baseUrl = process.env.DOMAIN || 'http://localhost';
+  let baseUrl = process.env.SITE_URL || 'http://localhost';
 
   // Ensure protocol
   if (!/^https?:\/\//i.test(baseUrl)) {

@@ -389,7 +389,7 @@ services:
   #   - To trust certs: docker exec tale-proxy caddy trust
   #
   # For production with HTTPS:
-  #   - Set DOMAIN=https://yourdomain.com in .env
+  #   - Set SITE_URL=https://yourdomain.com in .env
   #   - Set TLS_MODE=letsencrypt
   #   - Access: https://yourdomain.com (trusted Let's Encrypt cert)
   #
@@ -458,12 +458,12 @@ services:
     networks:
       internal:
         # Hairpin NAT resolution via network alias
-        # This allows containers to resolve DOMAIN_HOST to the proxy container
+        # This allows containers to resolve HOST to the proxy container
         # via Docker's internal DNS, solving the hairpin NAT issue.
         # Use app.localhost (or another real hostname) instead of localhost
         # because localhost is always in /etc/hosts and can't be overridden.
         aliases:
-          - ${DOMAIN_HOST:-tale.local}
+          - ${HOST:-tale.local}
 
 # ============================================================================
 # Volumes

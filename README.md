@@ -71,8 +71,8 @@ Once Tale is running, you can:
 Ready to go live? Update your `.env` file:
 
 ```bash
-DOMAIN=https://yourdomain.com
-DOMAIN_HOST=yourdomain.com
+SITE_URL=https://yourdomain.com
+HOST=yourdomain.com
 TLS_MODE=letsencrypt
 ```
 
@@ -190,7 +190,7 @@ The admin key is required every time you open the dashboard. Keep it secure—an
 ## Need Help?
 
 - **Logs**: `docker compose logs -f` to see what's happening
-- **Health checks**: Visit `{DOMAIN}/api/health`
+- **Health checks**: Visit `{SITE_URL}/api/health`
 - **Convex Dashboard**: Generate admin key (see above) for backend data and logs
 - **Detailed docs**: Check `services/*/README.md` for each component
 

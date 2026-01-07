@@ -435,9 +435,9 @@ cmd_deploy() {
 
   # Verify traffic is being served through proxy
   # Note: -k flag accepts self-signed certs (TLS_MODE=selfsigned in local dev)
-  # Load DOMAIN_HOST from .env file (defaults to tale.local for local dev)
+  # Load HOST from .env file (defaults to tale.local for local dev)
   local domain_host
-  domain_host=$(grep -E "^DOMAIN_HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
   domain_host="${domain_host:-tale.local}"
 
   local caddy_verify_attempts=0
