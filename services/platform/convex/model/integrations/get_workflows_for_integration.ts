@@ -25,10 +25,7 @@ export function getWorkflowsForIntegration(name: string): {
   switch (name) {
     case 'shopify':
       return {
-        workflows: [
-          shopifySyncProducts as PredefinedWorkflowDefinition,
-          shopifySyncCustomers as PredefinedWorkflowDefinition,
-        ],
+        workflows: [shopifySyncProducts, shopifySyncCustomers],
         schedules: [
           { schedule: '0 */6 * * *', timezone: 'UTC' }, // Products: Every 6 hours
           { schedule: '0 */6 * * *', timezone: 'UTC' }, // Customers: Every 6 hours
@@ -38,9 +35,9 @@ export function getWorkflowsForIntegration(name: string): {
     case 'circuly':
       return {
         workflows: [
-          circulySyncCustomers as PredefinedWorkflowDefinition,
-          circulySyncProducts as PredefinedWorkflowDefinition,
-          circulySyncSubscriptions as PredefinedWorkflowDefinition,
+          circulySyncCustomers,
+          circulySyncProducts,
+          circulySyncSubscriptions,
         ],
         schedules: [
           { schedule: '0 2 * * *', timezone: 'UTC' }, // Customers: Daily at 2 AM

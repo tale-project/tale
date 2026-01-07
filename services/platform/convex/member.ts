@@ -11,9 +11,10 @@ import {
   addMemberResponseValidator,
 } from './model/members/validators';
 import type {
+  BetterAuthCreateResult,
+  BetterAuthFindManyResult,
   BetterAuthMember,
   BetterAuthUser,
-  BetterAuthCreateResult,
 } from './model/members/types';
 
 /**
@@ -31,20 +32,21 @@ export const getUserIdByEmail = query({
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     // Query Better Auth's user table to find user by email
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: {
-        cursor: null,
-        numItems: 1,
-      },
-      where: [
-        {
-          field: 'email',
-          value: args.email,
-          operator: 'eq',
+    const result: BetterAuthFindManyResult<BetterAuthUser> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'user',
+        paginationOpts: {
+          cursor: null,
+          numItems: 1,
         },
-      ],
-    });
+        where: [
+          {
+            field: 'email',
+            value: args.email,
+            operator: 'eq',
+          },
+        ],
+      });
 
     if (result && result.page.length > 0) {
       // Return Better Auth's internal user ID (_id)
@@ -64,29 +66,28 @@ export const listByOrganization = queryWithRLS({
   returns: v.array(memberListItemValidator),
   handler: async (ctx, args) => {
     // RLS handles authorization automatically
-    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1000 },
-      where: [
-        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-      ],
-    });
+    const result: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1000 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+        ],
+      });
 
     const members = result?.page ?? [];
     const searchLower = args.search?.trim().toLowerCase();
 
     // Enrich with user info for email/displayName
     const enriched = await Promise.all(
-      (members as BetterAuthMember[]).map(async (m) => {
-        const userRes = await ctx.runQuery(
-          components.betterAuth.adapter.findMany,
-          {
+      members.map(async (m) => {
+        const userRes: BetterAuthFindManyResult<BetterAuthUser> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
             model: 'user',
             paginationOpts: { cursor: null, numItems: 1 },
             where: [{ field: '_id', value: m.userId, operator: 'eq' }],
-          },
-        );
-        const user = userRes?.page?.[0] as BetterAuthUser | undefined;
+          });
+        const user = userRes?.page?.[0];
         return {
           _id: m._id,
           _creationTime: m.createdAt,
@@ -144,42 +145,42 @@ export const getCurrentMemberContext = queryWithRLS({
     }
 
     // Try to find membership by userId
-    let memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [
-        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-        { field: 'userId', value: authUser.userId, operator: 'eq' },
-      ],
-    });
+    const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          { field: 'userId', value: authUser.userId, operator: 'eq' },
+        ],
+      });
 
-    let member = memberRes?.page?.[0] as BetterAuthMember | undefined;
+    let member = memberRes?.page?.[0];
 
     // Fallback to email lookup if no direct match
     if (!member && authUser.email) {
-      const userRes = await ctx.runQuery(
-        components.betterAuth.adapter.findMany,
-        {
+      const userRes: BetterAuthFindManyResult<BetterAuthUser> =
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
           model: 'user',
           paginationOpts: { cursor: null, numItems: 1 },
           where: [{ field: 'email', value: authUser.email, operator: 'eq' }],
-        },
-      );
+        });
       const user = userRes?.page?.[0];
       if (user?._id) {
-        memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-          model: 'member',
-          paginationOpts: { cursor: null, numItems: 1 },
-          where: [
-            {
-              field: 'organizationId',
-              value: args.organizationId,
-              operator: 'eq',
-            },
-            { field: 'userId', value: user._id, operator: 'eq' },
-          ],
-        });
-        member = memberRes?.page?.[0] as BetterAuthMember | undefined;
+        const memberByEmailRes: BetterAuthFindManyResult<BetterAuthMember> =
+          await ctx.runQuery(components.betterAuth.adapter.findMany, {
+            model: 'member',
+            paginationOpts: { cursor: null, numItems: 1 },
+            where: [
+              {
+                field: 'organizationId',
+                value: args.organizationId,
+                operator: 'eq',
+              },
+              { field: 'userId', value: user._id, operator: 'eq' },
+            ],
+          });
+        member = memberByEmailRes?.page?.[0];
       }
     }
 
@@ -194,11 +195,12 @@ export const getCurrentMemberContext = queryWithRLS({
     }
 
     // Load user details for email/displayName
-    const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-    });
+    const userRes: BetterAuthFindManyResult<BetterAuthUser> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'user',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+      });
     const user = userRes?.page?.[0];
 
     const role = (member.role ?? 'member').toLowerCase();
@@ -248,9 +250,8 @@ export const addMember = mutationWithRLS({
     }
 
     // Ensure the caller is a member and has admin privileges
-    const currentMemberRes = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const currentMemberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
@@ -261,9 +262,8 @@ export const addMember = mutationWithRLS({
           },
           { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
-      },
-    );
-    const currentMember = currentMemberRes?.page?.[0] as BetterAuthMember | undefined;
+      });
+    const currentMember = currentMemberRes?.page?.[0];
     if (!currentMember) {
       throw new Error('You are not a member of this organization');
     }
@@ -327,7 +327,7 @@ export const addMember = mutationWithRLS({
 
     // Create member record in Better Auth
     const normalizedRole = (args.role ?? 'member').toLowerCase();
-    const created = await ctx.runMutation(
+    const createdResult: BetterAuthCreateResult = await ctx.runMutation(
       components.betterAuth.adapter.create,
       {
         input: {
@@ -341,8 +341,7 @@ export const addMember = mutationWithRLS({
         },
       },
     );
-    const createdResult = created as BetterAuthCreateResult;
-    const memberId = createdResult._id ?? createdResult.id ?? String(created);
+    const memberId = createdResult._id ?? createdResult.id ?? String(createdResult);
 
     return { memberId };
   },
@@ -363,15 +362,13 @@ export const updateMemberRole = mutationWithRLS({
       );
     }
     // Load the target member
-    const memberRes = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
-      },
-    );
-    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
+      });
+    const member = memberRes?.page?.[0];
     if (!member) {
       throw new Error('Member not found');
     }
@@ -390,9 +387,8 @@ export const updateMemberRole = mutationWithRLS({
     const newRole = args.role.toLowerCase();
     const isDemotionFromAdmin = member.role === 'admin' && newRole !== 'admin';
     if (isDemotionFromAdmin) {
-      const adminsRes = await ctx.runQuery(
-        components.betterAuth.adapter.findMany,
-        {
+      const adminsRes: BetterAuthFindManyResult<BetterAuthMember> =
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
           model: 'member',
           paginationOpts: { cursor: null, numItems: 1000 },
           where: [
@@ -403,8 +399,7 @@ export const updateMemberRole = mutationWithRLS({
             },
             { field: 'role', value: 'admin', operator: 'eq' },
           ],
-        },
-      );
+        });
       const currentAdminCount = adminsRes?.page?.length ?? 0;
       if (currentAdminCount <= 2) {
         throw new Error(
@@ -442,15 +437,13 @@ export const removeMember = mutationWithRLS({
       );
     }
     // Load the target member
-    const memberRes = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
-      },
-    );
-    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
+      });
+    const member = memberRes?.page?.[0];
     if (!member) {
       throw new Error('Member not found');
     }
@@ -467,9 +460,8 @@ export const removeMember = mutationWithRLS({
 
     // If removing an admin, ensure at least 2 admins will remain
     if (member.role === 'admin') {
-      const adminsRes = await ctx.runQuery(
-        components.betterAuth.adapter.findMany,
-        {
+      const adminsRes: BetterAuthFindManyResult<BetterAuthMember> =
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
           model: 'member',
           paginationOpts: { cursor: null, numItems: 1000 },
           where: [
@@ -480,8 +472,7 @@ export const removeMember = mutationWithRLS({
             },
             { field: 'role', value: 'admin', operator: 'eq' },
           ],
-        },
-      );
+        });
       const currentAdminCount = adminsRes?.page?.length ?? 0;
       if (currentAdminCount <= 2) {
         throw new Error(
@@ -493,14 +484,12 @@ export const removeMember = mutationWithRLS({
     // Check if this user is a member of any other organizations
     const userId = member.userId;
     if (userId) {
-      const otherMembershipsRes = await ctx.runQuery(
-        components.betterAuth.adapter.findMany,
-        {
+      const otherMembershipsRes: BetterAuthFindManyResult<BetterAuthMember> =
+        await ctx.runQuery(components.betterAuth.adapter.findMany, {
           model: 'member',
           paginationOpts: { cursor: null, numItems: 2 },
           where: [{ field: 'userId', value: userId, operator: 'eq' }],
-        },
-      );
+        });
 
       // If this is their only organization membership, delete the user account
       if ((otherMembershipsRes?.page?.length ?? 0) <= 1) {
@@ -539,16 +528,17 @@ export const getMemberRoleInternal = internalQuery({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'member',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [
-        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
-        { field: 'userId', value: args.userId, operator: 'eq' },
-      ],
-    });
+    const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          { field: 'userId', value: args.userId, operator: 'eq' },
+        ],
+      });
 
-    const member = memberRes?.page?.[0] as BetterAuthMember | undefined;
+    const member = memberRes?.page?.[0];
     return member?.role ?? null;
   },
 });

@@ -43,13 +43,13 @@ export async function saveRelatedWorkflows(
     addAccountEmail: boolean;
   }> = [
     {
-      def: emailSyncImap as PredefinedWorkflowDefinition,
+      def: emailSyncImap,
       schedule: '*/5 * * * *',
       timezone: 'UTC',
       addAccountEmail: true,
     },
     {
-      def: conversationAutoReply as PredefinedWorkflowDefinition,
+      def: conversationAutoReply,
       schedule: '*/10 * * * *',
       timezone: 'UTC',
       addAccountEmail: false,
