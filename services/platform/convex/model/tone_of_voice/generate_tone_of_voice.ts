@@ -56,7 +56,6 @@ export async function generateToneOfVoice(
             'A well-formatted, comprehensive tone of voice description with proper line breaks',
           ),
       }),
-      mode: 'json',
       prompt: `Analyze these message examples and generate a comprehensive tone of voice description for the brand.
 
 IMPORTANT: You must respond with ONLY a JSON object in this exact format:

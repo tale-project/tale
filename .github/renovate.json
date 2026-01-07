@@ -67,19 +67,6 @@
       "enabled": false
     },
     {
-      "description": "Keep tailwindcss at v3 - v4 has breaking changes that require significant refactoring",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchPackageNames": [
-        "tailwindcss"
-      ],
-      "matchFileNames": [
-        "services/platform/package.json"
-      ],
-      "allowedVersions": "<4"
-    },
-    {
       "description": "Pin @convex-dev/workpool to 0.3.0 - must match peer dependency requirement of @convex-dev/workflow",
       "matchManagers": [
         "npm"
