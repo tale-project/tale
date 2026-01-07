@@ -113,6 +113,7 @@ export const updateApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
+    // Cast metadata - this mutation is only called for integration_operation approvals
     const metadata = (approval.metadata || {}) as IntegrationOperationMetadata;
 
     await ctx.db.patch(args.approvalId, {

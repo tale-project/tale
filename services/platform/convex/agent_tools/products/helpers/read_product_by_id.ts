@@ -1,5 +1,5 @@
 import type { ToolCtx } from '@convex-dev/agent';
-import type { Id } from '../../../_generated/dataModel';
+import type { Doc, Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
 import { defaultGetFields, type ProductReadGetByIdResult } from './types';
 
@@ -18,8 +18,11 @@ export async function readProductById(
     productId: args.productId,
   });
 
+  // Cast string to Id at the boundary - validated by Convex runtime
+  const productId = args.productId as Id<'products'>;
+
   const product = await ctx.runQuery(internal.products.getProductById, {
-    productId: args.productId as Id<'products'>,
+    productId,
   });
 
   if (!product) {
@@ -36,13 +39,13 @@ export async function readProductById(
 
   const fields = args.fields ?? defaultGetFields;
 
+  // Build output with selected fields - product type is known from query
   const out: Record<string, unknown> = {};
-  const productRecord = product as Record<string, unknown>;
   for (const f of fields) {
-    out[f] = productRecord[f];
+    out[f] = product[f as keyof Doc<'products'>];
   }
   if (!('_id' in out)) {
-    out._id = productRecord._id;
+    out._id = product._id;
   }
 
   const presentKeys = Object.keys(out).filter((k) => out[k] !== undefined);

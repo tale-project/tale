@@ -95,8 +95,9 @@ export async function updateCustomers(
 
     // Handle metadata updates with lodash
     if (args.updates.metadata) {
+      // customer.metadata is stored as v.any() in schema
       const existingMetadata =
-        (customer.metadata as Record<string, unknown>) ?? {};
+        (customer.metadata as Record<string, unknown> | undefined) ?? {};
       const updatedMetadata: Record<string, unknown> = {
         ...existingMetadata,
       };
@@ -107,17 +108,18 @@ export async function updateCustomers(
           set(updatedMetadata, key, value);
         } else {
           // For top-level keys, use merge for objects
-          if (
-            typeof value === 'object' &&
-            value !== null &&
-            !Array.isArray(value) &&
-            typeof updatedMetadata[key] === 'object' &&
-            updatedMetadata[key] !== null &&
-            !Array.isArray(updatedMetadata[key])
-          ) {
+          const existingValue = updatedMetadata[key];
+          const isValueObject =
+            typeof value === 'object' && value !== null && !Array.isArray(value);
+          const isExistingObject =
+            typeof existingValue === 'object' &&
+            existingValue !== null &&
+            !Array.isArray(existingValue);
+
+          if (isValueObject && isExistingObject) {
             updatedMetadata[key] = merge(
               {},
-              updatedMetadata[key] as Record<string, unknown>,
+              existingValue as Record<string, unknown>,
               value as Record<string, unknown>,
             );
           } else {

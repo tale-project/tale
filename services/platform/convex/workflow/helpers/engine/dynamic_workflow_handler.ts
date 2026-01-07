@@ -3,8 +3,9 @@
  */
 
 import type { WorkflowCtx } from '@convex-dev/workflow';
+import type { RetryBehavior } from '@convex-dev/workpool';
 import { internal } from '../../../_generated/api';
-import type { Id } from '../../../_generated/dataModel';
+import type { Doc, Id } from '../../../_generated/dataModel';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -13,16 +14,15 @@ const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 export type DynamicWorkflowArgs = {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
-  workflowDefinition: any;
-  steps: Array<any>;
-  input?: any;
+  workflowDefinition: Doc<'wfDefinitions'>;
+  steps: Array<Doc<'wfStepDefs'>>;
+  input?: Record<string, unknown>;
   triggeredBy: string;
-  triggerData?: any;
+  triggerData?: Record<string, unknown>;
   resumeFromStepSlug?: string;
-  resumeVariables?: any;
+  resumeVariables?: Record<string, unknown>;
   threadId?: string;
 };
-import type { RetryBehavior } from '@convex-dev/workpool';
 
 function buildRetryBehaviorFromPolicy(policy?: {
   maxRetries: number;
@@ -93,12 +93,13 @@ export async function handleDynamicWorkflow(
     }
 
     // Determine retry policy: step-level override > workflow-level default
-    const workflowRetryPolicy = (args.workflowDefinition?.config?.retryPolicy ??
-      null) as { maxRetries: number; backoffMs: number } | null;
-    const stepRetryPolicy = (stepDef.config?.retryPolicy ?? null) as {
-      maxRetries: number;
-      backoffMs: number;
-    } | null;
+    // Access retryPolicy safely - not all step config types have it
+    const workflowRetryPolicy = args.workflowDefinition?.config?.retryPolicy ?? null;
+    const stepConfig = stepDef.config as Record<string, unknown> | undefined;
+    const stepRetryPolicy =
+      stepConfig && typeof stepConfig === 'object' && 'retryPolicy' in stepConfig
+        ? (stepConfig.retryPolicy as { maxRetries: number; backoffMs: number } | null)
+        : null;
     const effectiveRetryPolicy =
       stepRetryPolicy ?? workflowRetryPolicy ?? undefined;
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
@@ -127,8 +128,9 @@ export async function handleDynamicWorkflow(
     let nextStepSlug: string | null = null;
 
     // Check if there's an explicit nextSteps mapping for this port
-    const map = (stepDef.nextSteps || {}) as Record<string, string>;
-    nextStepSlug = map[stepResult.port] ?? null;
+    // nextSteps is typed as Record<string, string> in schema
+    const nextStepsMap = stepDef.nextSteps ?? {};
+    nextStepSlug = nextStepsMap[stepResult.port] ?? null;
 
     // Handle special 'noop' keyword - means do nothing and end workflow
     if (nextStepSlug === 'noop') {
@@ -139,12 +141,12 @@ export async function handleDynamicWorkflow(
       break;
     }
 
-    const hasAnyMapping = Object.keys(map).length > 0;
+    const hasAnyMapping = Object.keys(nextStepsMap).length > 0;
 
     if (hasAnyMapping && nextStepSlug === null) {
       throw new Error(
         `No next step for port '${stepResult.port}' on step '${stepDef.stepSlug}'. Available ports: ${Object.keys(
-          map,
+          nextStepsMap,
         ).join(', ')}`,
       );
     }
