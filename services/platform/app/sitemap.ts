@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const baseUrl = process.env.DOMAIN || 'https://app.tale.dev';
+const baseUrl = process.env.SITE_URL || 'https://app.tale.dev';
 
 const baseSitemap: Partial<MetadataRoute.Sitemap[number]> = {
   changeFrequency: 'weekly',

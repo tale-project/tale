@@ -11,10 +11,10 @@ env_normalize_common() {
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
   # Domain configuration - auto-derive URLs
-  # DOMAIN should include the protocol (e.g., "http://localhost", "https://demo.tale.dev")
-  local base_url="${DOMAIN:-http://localhost}"
+  # SITE_URL should include the protocol (e.g., "http://localhost", "https://demo.tale.dev")
+  local base_url="${SITE_URL:-http://localhost}"
 
-  # Ensure DOMAIN includes a protocol, if not, add http:// as default
+  # Ensure SITE_URL includes a protocol, if not, add http:// as default
   if [[ ! "$base_url" =~ ^https?:// ]]; then
     base_url="http://${base_url}"
   fi

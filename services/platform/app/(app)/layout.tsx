@@ -15,9 +15,8 @@ const inter = Inter({
   weight: ['400', '500', '600', '700'],
 });
 
-// Derive app URL from DOMAIN (server-side) or fallback for local dev
-const appUrl =
-  process.env.DOMAIN || process.env.SITE_URL || 'http://localhost:3000';
+// Derive app URL from SITE_URL (server-side) or fallback for local dev
+const appUrl = process.env.SITE_URL || 'http://localhost:3000';
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');

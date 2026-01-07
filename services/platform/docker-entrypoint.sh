@@ -171,7 +171,6 @@ else
 fi
 
 echo "🔍 Environment after normalization:"
-echo "   DOMAIN=${DOMAIN}"
 echo "   SITE_URL=${SITE_URL}"
 echo "   PORT=${PORT}"
 
