@@ -25,10 +25,14 @@ export async function transformToDocumentItem(
   const normalizeSourceMode = (m: string | undefined): 'auto' | 'manual' =>
     m === 'auto' || m === 'manual' ? m : m === 'sync' ? 'auto' : 'manual';
 
+  // Normalize type value
+  const normalizeType = (t: string | undefined): 'file' | 'folder' =>
+    t === 'file' || t === 'folder' ? t : 'file';
+
   return {
     id: document._id,
     name: document.title ?? metadata?.name ?? 'Untitled',
-    type: (metadata?.type ?? 'file') as 'file' | 'folder',
+    type: normalizeType(metadata?.type),
     size: metadata?.size,
     mimeType: document.mimeType ?? metadata?.mimeType,
     extension:
