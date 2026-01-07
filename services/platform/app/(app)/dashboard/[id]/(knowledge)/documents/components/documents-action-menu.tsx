@@ -8,10 +8,10 @@ import { OneDriveIcon } from '@/components/icons';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n';
 
-// Lazy-load OneDrive dialog to avoid MGT bundle size impact and SSR issues
-const OneDriveImportDialog = dynamic(() => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })), {
-  ssr: false,
-});
+// Lazy-load OneDrive dialog to reduce initial bundle size
+const OneDriveImportDialog = dynamic(
+  () => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })),
+);
 
 export interface DocumentsActionMenuProps {
   organizationId: string;
