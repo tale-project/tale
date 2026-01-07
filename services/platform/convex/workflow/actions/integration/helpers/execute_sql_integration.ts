@@ -140,8 +140,8 @@ export async function executeSqlIntegration(
         },
       );
 
-      // Return approval required result
-      return {
+      // Return approval required result - object literal satisfies interface
+      const approvalResult: ApprovalRequiredResult = {
         requiresApproval: true,
         approvalId,
         integrationName: integration.name,
@@ -149,7 +149,8 @@ export async function executeSqlIntegration(
         operationTitle: operationConfig.title || operation,
         operationType,
         parameters: params,
-      } as ApprovalRequiredResult;
+      };
+      return approvalResult;
     }
   }
 
@@ -166,6 +167,7 @@ export async function executeSqlIntegration(
     `Executing SQL ${sqlConnectionConfig.engine} query: ${operation} on ${sqlConnectionConfig.server}/${sqlConnectionConfig.database} (write: ${isWriteOperation})`,
   );
 
+  // Cast result from runAction - type validated by action's returns validator
   const result = (await ctx.runAction!(
     internal.node_only.sql.execute_query_internal.executeQueryInternal,
     {

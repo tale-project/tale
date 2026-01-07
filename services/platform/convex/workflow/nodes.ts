@@ -6,8 +6,9 @@
  */
 
 import { internalAction } from '../_generated/server';
+import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
-import type { StepExecutionResult } from './types';
+import type { LLMNodeConfig, StepExecutionResult } from './types';
 import {
   triggerNodeConfigValidator,
   llmStepConfigValidator,
@@ -19,6 +20,20 @@ import * as ConditionNodeHelpers from './helpers/nodes/condition/execute_conditi
 import * as LoopNodeHelpers from './helpers/nodes/loop/execute_loop_node';
 import * as LLMNodeHelpers from './helpers/nodes/llm/execute_llm_node';
 import * as TriggerNodeHelpers from './helpers/nodes/trigger/execute_trigger_node';
+
+/** Type for the validated LLM step config (either direct or wrapped) */
+type LLMStepConfig = Infer<typeof llmStepConfigValidator>;
+
+/**
+ * Normalize LLM config - extract LLMNodeConfig from either shape.
+ * The validator accepts both direct LLMNodeConfig and { llmNode: LLMNodeConfig }.
+ */
+function normalizeLLMConfig(config: LLMStepConfig): LLMNodeConfig {
+  if ('llmNode' in config) {
+    return config.llmNode;
+  }
+  return config;
+}
 
 // =============================================================================
 // VALIDATORS
@@ -118,7 +133,8 @@ export const executeLLMNode = internalAction({
     stepDef: v.object({
       stepSlug: v.string(),
       stepType: v.literal('llm'),
-      config: llmStepConfigValidator,
+      // Accept loose type from caller - validation/normalization happens in handler
+      config: v.any(),
       organizationId: v.string(),
     }),
     variables: v.record(v.string(), v.any()),
@@ -127,9 +143,12 @@ export const executeLLMNode = internalAction({
   },
   returns: stepExecutionResultValidator,
   handler: async (ctx, args): Promise<StepExecutionResult> => {
+    // Normalize config - extract LLMNodeConfig from either direct or wrapped shape
+    // The config is validated/normalized here so callers don't need type assertions
+    const llmConfig = normalizeLLMConfig(args.stepDef.config as LLMStepConfig);
     return await LLMNodeHelpers.executeLLMNode(
       ctx,
-      args.stepDef.config as any,
+      llmConfig,
       args.variables,
       args.executionId,
       args.stepDef.organizationId,

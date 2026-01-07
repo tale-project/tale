@@ -253,13 +253,14 @@ async function executeSqlBatch(
               requiresApproval: true,
               approvalId,
               duration: Date.now() - opStartTime,
-            } as OperationResult;
+            };
           }
         }
 
         // Execute SQL query
         const isWriteOperation = operationConfig ? getOperationType(operationConfig) === 'write' : false;
 
+        // Cast result from runAction - type validated by action's returns validator
         const result = (await ctx.runAction(
           internal.node_only.sql.execute_query_internal.executeQueryInternal,
           {
@@ -300,7 +301,7 @@ async function executeSqlBatch(
           },
           duration: Date.now() - opStartTime,
           rowCount: result.rowCount,
-        } as OperationResult;
+        };
       } catch (error) {
         return {
           id: op.id,
@@ -308,7 +309,7 @@ async function executeSqlBatch(
           success: false,
           error: error instanceof Error ? error.message : String(error),
           duration: Date.now() - opStartTime,
-        } as OperationResult;
+        };
       }
     }),
   );

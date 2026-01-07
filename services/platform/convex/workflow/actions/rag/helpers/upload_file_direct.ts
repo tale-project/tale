@@ -10,6 +10,18 @@ export interface UploadFileDirectArgs {
 }
 
 /**
+ * RAG API upload response structure
+ */
+interface RagApiUploadResponse {
+  document_id?: string;
+  id?: string;
+  queued?: boolean;
+  job_id?: string;
+  success?: boolean;
+  chunks_created?: number;
+}
+
+/**
  * Upload file document to RAG service by downloading from URL and uploading directly
  *
  * This approach downloads the file from Convex storage and uploads it directly
@@ -52,8 +64,10 @@ export async function uploadFileDirect({
   }
 
   // Add document_id if provided in metadata (mapped from recordId)
-  if (metadata?.recordId) {
-    formData.append('document_id', metadata.recordId as string);
+  const recordIdFromMetadata =
+    typeof metadata?.recordId === 'string' ? metadata.recordId : undefined;
+  if (recordIdFromMetadata) {
+    formData.append('document_id', recordIdFromMetadata);
   }
 
   // Step 3: Upload to RAG service
@@ -75,17 +89,17 @@ export async function uploadFileDirect({
     throw new Error(`RAG service error: ${response.status} ${errorText}`);
   }
 
-  const result = (await response.json()) as Record<string, unknown>;
+  const result = (await response.json()) as RagApiUploadResponse;
 
-  const ragDocumentId = (result.document_id as string) || (result.id as string);
-  const queued = (result.queued as boolean) ?? false;
-  const jobId = (result.job_id as string) || undefined;
+  const ragDocumentId = result.document_id || result.id;
+  const queued = result.queued ?? false;
+  const jobId = result.job_id;
 
   return {
-    success: (result.success as boolean | undefined) ?? true,
-    recordId: (metadata?.recordId as string) || ragDocumentId || 'unknown',
+    success: result.success ?? true,
+    recordId: recordIdFromMetadata || ragDocumentId || 'unknown',
     ragDocumentId,
-    chunksCreated: (result.chunks_created as number) || 0,
+    chunksCreated: result.chunks_created || 0,
     processingTimeMs: Date.now() - startTime,
     timestamp: Date.now(),
     queued,

@@ -15,13 +15,13 @@ export async function buildStepsMap(
   result: StepExecutionResult,
 ): Promise<Record<string, unknown>> {
   // Build the map starting with the current step's output
-  const allSteps = {
+  const allSteps: Record<string, unknown> = {
     [stepDef.stepSlug]: {
       stepType: stepDef.stepType,
       name: stepDef.name,
       output: result.output,
     },
-  } as Record<string, unknown>;
+  };
 
   // Load existing steps from execution variables, resolving from storage if needed
   const rawExecution = await ctx.runQuery(
@@ -31,15 +31,15 @@ export async function buildStepsMap(
     },
   );
 
+  // Type guard for checking if value is a record
+  const isRecord = (val: unknown): val is Record<string, unknown> =>
+    val !== null && typeof val === 'object' && !Array.isArray(val);
+
   let existingVars: Record<string, unknown> = {};
   if (rawExecution?.variables) {
     try {
-      const parsed = JSON.parse(rawExecution.variables) as unknown;
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        (parsed as Record<string, unknown>)['_storageRef']
-      ) {
+      const parsed: unknown = JSON.parse(rawExecution.variables);
+      if (isRecord(parsed) && parsed['_storageRef']) {
         // Variables are stored in Convex storage, fetch full JSON
         existingVars = await deserializeVariablesInAction(
           ctx as unknown as {
@@ -47,8 +47,8 @@ export async function buildStepsMap(
           },
           rawExecution.variables,
         );
-      } else if (parsed && typeof parsed === 'object') {
-        existingVars = parsed as Record<string, unknown>;
+      } else if (isRecord(parsed)) {
+        existingVars = parsed;
       }
     } catch (_err) {
       // Ignore parse errors; treat as no existing vars
@@ -56,15 +56,13 @@ export async function buildStepsMap(
     }
   }
 
-  const stepsFromExisting = (existingVars['steps'] ?? {}) as Record<
-    string,
-    unknown
-  >;
-  if (stepsFromExisting && typeof stepsFromExisting === 'object') {
-    for (const [sid, sinfo] of Object.entries(stepsFromExisting)) {
-      if (sid !== stepDef.stepSlug) {
-        allSteps[sid] = sinfo;
-      }
+  const stepsFromExisting = isRecord(existingVars['steps'])
+    ? existingVars['steps']
+    : {};
+  // Merge existing steps (excluding current step which we just added)
+  for (const [sid, sinfo] of Object.entries(stepsFromExisting)) {
+    if (sid !== stepDef.stepSlug) {
+      allSteps[sid] = sinfo;
     }
   }
 

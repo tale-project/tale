@@ -31,10 +31,19 @@ export interface ErrorClassification {
  * - Overloaded/capacity issues
  */
 export function classifyError(error: unknown): ErrorClassification {
-  const err = error as Record<string, unknown>;
-  const message = String(err?.message ?? '').toLowerCase();
-  const status = (err?.status ?? err?.statusCode) as number | undefined;
-  const code = err?.code as string | undefined;
+  // Type-safe property access for unknown error objects
+  const isObject = (val: unknown): val is Record<string, unknown> =>
+    val !== null && typeof val === 'object';
+
+  const err = isObject(error) ? error : {};
+  const message = String(err.message ?? '').toLowerCase();
+  const status =
+    typeof err.status === 'number'
+      ? err.status
+      : typeof err.statusCode === 'number'
+        ? err.statusCode
+        : undefined;
+  const code = typeof err.code === 'string' ? err.code : undefined;
 
   // Authentication/authorization errors - won't succeed on retry
   if (status === 401 || status === 403) {

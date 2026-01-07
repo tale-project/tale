@@ -8,6 +8,9 @@ import type { UpdateStepArgs } from './types';
 import { validateStepConfig } from '../../workflow/helpers/validation/validate_step_config';
 import { merge } from 'lodash';
 
+/** Partial update type for wfStepDefs - used for ctx.db.patch */
+type StepDefPatch = Partial<Omit<Doc<'wfStepDefs'>, '_id' | '_creationTime'>>;
+
 export async function updateStep(
   ctx: MutationCtx,
   args: UpdateStepArgs,
@@ -54,7 +57,8 @@ export async function updateStep(
     }
   }
 
-  await ctx.db.patch(args.stepRecordId, args.updates as any);
+  // Cast to StepDefPatch - runtime validation already performed above
+  await ctx.db.patch(args.stepRecordId, args.updates as StepDefPatch);
 
   const updated = await ctx.db.get(args.stepRecordId);
   return updated as Doc<'wfStepDefs'> | null;

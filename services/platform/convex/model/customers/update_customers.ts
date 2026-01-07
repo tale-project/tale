@@ -19,6 +19,14 @@ import { set, merge } from 'lodash';
 
 import type { UpdateCustomersResult } from './types';
 
+/**
+ * Type guard to check if a value is a plain record object.
+ * Returns false for null, arrays, and non-objects.
+ */
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
 export interface UpdateCustomersArgs {
   customerId?: Id<'customers'>;
   organizationId?: string;
@@ -95,8 +103,11 @@ export async function updateCustomers(
 
     // Handle metadata updates with lodash
     if (args.updates.metadata) {
-      const existingMetadata =
-        (customer.metadata as Record<string, unknown>) ?? {};
+      // customer.metadata is stored as v.any() in schema
+      // Use type guard to safely access existing metadata
+      const existingMetadata = isPlainRecord(customer.metadata)
+        ? customer.metadata
+        : {};
       const updatedMetadata: Record<string, unknown> = {
         ...existingMetadata,
       };
@@ -106,20 +117,11 @@ export async function updateCustomers(
           // Use lodash.set for dot-notation keys
           set(updatedMetadata, key, value);
         } else {
-          // For top-level keys, use merge for objects
-          if (
-            typeof value === 'object' &&
-            value !== null &&
-            !Array.isArray(value) &&
-            typeof updatedMetadata[key] === 'object' &&
-            updatedMetadata[key] !== null &&
-            !Array.isArray(updatedMetadata[key])
-          ) {
-            updatedMetadata[key] = merge(
-              {},
-              updatedMetadata[key] as Record<string, unknown>,
-              value as Record<string, unknown>,
-            );
+          // For top-level keys, use merge for objects if both are plain records
+          const existingValue = updatedMetadata[key];
+
+          if (isPlainRecord(value) && isPlainRecord(existingValue)) {
+            updatedMetadata[key] = merge({}, existingValue, value);
           } else {
             updatedMetadata[key] = value;
           }

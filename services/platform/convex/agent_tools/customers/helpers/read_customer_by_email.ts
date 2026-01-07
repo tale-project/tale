@@ -1,6 +1,7 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByEmailResult } from './types';
+import type { Customer } from '../../../model/customers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -45,13 +46,13 @@ export async function readCustomerByEmail(
 
   const fields = args.fields ?? defaultGetFields;
 
+  // Build output with selected fields - customer type is known from query
   const out: Record<string, unknown> = {};
-  const customerRecord = customer as Record<string, unknown>;
   for (const f of fields) {
-    out[f] = customerRecord[f];
+    out[f] = customer[f as keyof Customer];
   }
   if (!('_id' in out)) {
-    out._id = customerRecord._id;
+    out._id = customer._id;
   }
 
   const presentKeys = Object.keys(out).filter((k) => out[k] !== undefined);

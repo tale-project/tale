@@ -15,6 +15,10 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import type {
+  DocumentRecord,
+  DocumentMetadata,
+} from '../../../model/documents/types';
 
 // Common field validators
 const filesValidator = v.array(
@@ -247,26 +251,26 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         }
 
         // Build a map of existing documents by OneDrive item id for this org
-        const existingByItemId = new Map<string, any>();
+        const existingByItemId = new Map<string, DocumentRecord>();
         let cursor: string | null = null;
         // Paginate through existing onedrive_sync documents
-         
+
         while (true) {
-          const res = (await ctx.runQuery!(internal.documents.queryDocuments, {
+          const res: {
+            page: DocumentRecord[];
+            isDone: boolean;
+            continueCursor: string;
+          } = await ctx.runQuery!(internal.documents.queryDocuments, {
             organizationId,
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },
-          })) as {
-            page: any[];
-            isDone: boolean;
-            continueCursor: string;
-          };
+          });
           for (const doc of res.page) {
-            const meta = (doc as any).metadata ?? {};
+            const meta = (doc.metadata ?? {}) as DocumentMetadata;
             const key =
-              ((doc as any).externalItemId as string | undefined) ??
-              ((meta as any).oneDriveItemId as string | undefined) ??
-              ((meta as any).oneDriveId as string | undefined);
+              doc.externalItemId ??
+              meta.oneDriveItemId ??
+              meta.oneDriveId;
             if (key) existingByItemId.set(key, doc);
           }
           if (res.isDone) break;
@@ -283,11 +287,10 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
           try {
             const existing = existingByItemId.get(f.id);
             const lastModified = f.lastModified;
-            const prevModified = existing
-              ? (((existing as any).metadata || {}).sourceModifiedAt as
-                  | number
-                  | undefined)
+            const existingMeta = existing
+              ? ((existing.metadata ?? {}) as DocumentMetadata)
               : undefined;
+            const prevModified = existingMeta?.sourceModifiedAt;
 
             if (
               existing &&
@@ -313,7 +316,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             const fileMimeType = readRes.mimeType;
 
             // Merge metadata
-            const baseMeta = existing ? (existing as any).metadata || {} : {};
+            const baseMeta = existingMeta ?? {};
             const metadata: Record<string, unknown> = {
               ...baseMeta,
               oneDriveItemId: f.id,
@@ -336,10 +339,8 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 contentType:
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
-                documentIdToUpdate: existing
-                  ? (existing as any)._id
-                  : undefined,
-              } as any,
+                documentIdToUpdate: existing?._id,
+              },
             );
 
             if (!uploadRes.success) {

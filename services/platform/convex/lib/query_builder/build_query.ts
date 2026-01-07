@@ -8,6 +8,7 @@
  */
 
 import type { GenericDocument } from 'convex/server';
+import type { GenericId } from 'convex/values';
 import type { QueryCtx } from '../../_generated/server';
 import {
   selectOptimalIndex,
@@ -27,12 +28,21 @@ import type {
 } from './types';
 
 /**
+ * A document with Convex system fields (_id and _creationTime).
+ * All documents returned from queries have these fields.
+ */
+interface DocumentWithSystemFields extends GenericDocument {
+  _id: GenericId<string>;
+  _creationTime: number;
+}
+
+/**
  * Options for building a paginated query
  */
 export interface BuildPaginatedQueryOptions<T extends GenericDocument> {
   /** Convex query context */
   ctx: QueryCtx;
-  /** Table name to query */
+  /** Table name to query (dynamic - validated at runtime) */
   table: string;
   /** Organization ID (required for multi-tenant queries) */
   organizationId: string;
@@ -100,9 +110,12 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
   );
 
   // Build base query with selected index
+  // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (ctx.db as any).query(table);
 
   // Apply index conditions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query = query.withIndex(indexName, (q: any) => {
     let builder = q;
     for (const field of indexedFields) {
@@ -138,19 +151,37 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
     filterFunctions.length > 0 ? combineFilters(...filterFunctions) : () => true;
 
   // Collect all matching items (needed for total count)
-  const matchingItems: T[] = [];
+  // Note: Convex query results always include system fields (_id, _creationTime)
+  // The cast is necessary because the query iterator returns GenericDocument
+  // but we know the concrete type T at runtime
+  const matchingItems: (T & DocumentWithSystemFields)[] = [];
   for await (const item of query) {
-    if (combinedFilter(item as T)) {
-      matchingItems.push(item as T);
+    // Safe cast: Convex guarantees _id and _creationTime exist on all documents
+    const doc = item as T & DocumentWithSystemFields;
+    if (combinedFilter(doc)) {
+      matchingItems.push(doc);
     }
   }
 
   // Apply custom sort if different from index sort
   if (sort && sort.field !== '_creationTime') {
+    // Validate sort field exists on first item (runtime check)
+    if (matchingItems.length > 0 && !(sort.field in matchingItems[0])) {
+      throw new Error(`Sort field "${sort.field}" does not exist on documents`);
+    }
+
     matchingItems.sort((a, b) => {
-      const aValue = (a as any)[sort.field];
-      const bValue = (b as any)[sort.field];
+      // Dynamic field access for sorting - field name validated above
+      const aValue = (a as Record<string, unknown>)[sort.field];
+      const bValue = (b as Record<string, unknown>)[sort.field];
       const multiplier = sort.order === 'asc' ? 1 : -1;
+
+      // Handle null/undefined values - sort them to the end
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return 1;
+      if (bValue == null) return -1;
+
+      // Compare values
       if (aValue > bValue) return multiplier;
       if (aValue < bValue) return -multiplier;
       return 0;
@@ -222,9 +253,12 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
   );
 
   // Build base query with selected index
+  // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (ctx.db as any).query(table);
 
   // Apply index conditions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query = query.withIndex(indexName, (q: any) => {
     let builder = q;
     for (const field of indexedFields) {
@@ -256,25 +290,26 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
 
   // Cursor-based pagination with early termination
   const { numItems, cursor } = pagination;
-  const items: T[] = [];
+  const items: (T & DocumentWithSystemFields)[] = [];
   let foundCursor = cursor === null;
   let hasMore = false;
 
   for await (const item of query) {
+    const docWithId = item as T & DocumentWithSystemFields;
     // Skip until we find the cursor position
     if (!foundCursor) {
-      if ((item as any)._id === cursor) {
+      if (docWithId._id === cursor) {
         foundCursor = true;
       }
       continue;
     }
 
     // Apply filter
-    if (!combinedFilter(item as T)) {
+    if (!combinedFilter(docWithId)) {
       continue;
     }
 
-    items.push(item as T);
+    items.push(docWithId);
 
     // Fetch numItems + 1 to determine hasMore
     if (items.length > numItems) {
@@ -287,7 +322,7 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
   return {
     page: items,
     isDone: !hasMore,
-    continueCursor: items.length > 0 ? (items[items.length - 1] as any)._id : '',
+    continueCursor: items.length > 0 ? items[items.length - 1]._id : '',
   };
 }
 

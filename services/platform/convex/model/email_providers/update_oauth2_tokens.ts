@@ -53,13 +53,14 @@ export async function updateOAuth2Tokens(
   }
 
   // Update OAuth2 auth with new tokens (and tokenUrl if newly derived)
-  const updatedOAuth2Auth = {
+  // Type matches Doc<'emailProviders'>['oauth2Auth'] from spreading existing oauth2Auth
+  const updatedOAuth2Auth: Doc<'emailProviders'>['oauth2Auth'] = {
     ...provider.oauth2Auth,
     accessTokenEncrypted: args.accessTokenEncrypted,
     refreshTokenEncrypted: args.refreshTokenEncrypted,
     tokenExpiry: args.tokenExpiry,
     ...(tokenUrl ? { tokenUrl } : {}),
-  } as any;
+  };
 
   await ctx.db.patch(args.emailProviderId, {
     oauth2Auth: updatedOAuth2Auth,

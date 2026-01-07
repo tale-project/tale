@@ -11,6 +11,7 @@ import {
 } from './_generated/server';
 import * as WfDefinitionsModel from './model/wf_definitions';
 import * as WfStepDefsModel from './model/wf_step_defs';
+import { stepConfigValidator } from './workflow/types/nodes';
 import { normalizePaginationOptions, calculatePaginationMeta } from './lib/pagination';
 
 // =============================================================================
@@ -90,7 +91,7 @@ export const getWorkflowByName = internalQuery({
   },
   returns: v.union(v.any(), v.null()),
   handler: async (ctx, args) => {
-    return await WfDefinitionsModel.getWorkflowByName(ctx, args as any);
+    return await WfDefinitionsModel.getWorkflowByName(ctx, args);
   },
 });
 
@@ -321,7 +322,7 @@ export const createWorkflowWithStepsPublic = mutation({
       description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(WfDefinitionsModel.workflowTypeValidator),
-      config: v.optional(v.any()),
+      config: v.optional(WfDefinitionsModel.workflowConfigValidator),
     }),
     stepsConfig: v.array(
       v.object({
@@ -329,7 +330,7 @@ export const createWorkflowWithStepsPublic = mutation({
         name: v.string(),
         stepType: WfStepDefsModel.stepTypeValidator,
         order: v.number(),
-        config: v.any(),
+        config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
     ),
@@ -339,7 +340,7 @@ export const createWorkflowWithStepsPublic = mutation({
     stepIds: v.array(v.id('wfStepDefs')),
   }),
   handler: async (ctx, args) => {
-    return await WfDefinitionsModel.createWorkflowWithSteps(ctx, args as any);
+    return await WfDefinitionsModel.createWorkflowWithSteps(ctx, args);
   },
 });
 
@@ -354,7 +355,7 @@ export const createWorkflowWithSteps = internalMutation({
       description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(WfDefinitionsModel.workflowTypeValidator),
-      config: v.optional(v.any()),
+      config: v.optional(WfDefinitionsModel.workflowConfigValidator),
     }),
     stepsConfig: v.array(
       v.object({
@@ -362,7 +363,7 @@ export const createWorkflowWithSteps = internalMutation({
         name: v.string(),
         stepType: WfStepDefsModel.stepTypeValidator,
         order: v.number(),
-        config: v.any(),
+        config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
     ),
@@ -372,7 +373,7 @@ export const createWorkflowWithSteps = internalMutation({
     stepIds: v.array(v.id('wfStepDefs')),
   }),
   handler: async (ctx, args) => {
-    return await WfDefinitionsModel.createWorkflowWithSteps(ctx, args as any);
+    return await WfDefinitionsModel.createWorkflowWithSteps(ctx, args);
   },
 });
 
@@ -387,7 +388,7 @@ export const saveWorkflowWithSteps = internalMutation({
       description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(WfDefinitionsModel.workflowTypeValidator),
-      config: v.optional(v.any()),
+      config: v.optional(WfDefinitionsModel.workflowConfigValidator),
     }),
     stepsConfig: v.array(
       v.object({
@@ -395,7 +396,7 @@ export const saveWorkflowWithSteps = internalMutation({
         name: v.string(),
         stepType: WfStepDefsModel.stepTypeValidator,
         order: v.number(),
-        config: v.any(),
+        config: stepConfigValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
     ),
@@ -405,7 +406,7 @@ export const saveWorkflowWithSteps = internalMutation({
     stepIds: v.array(v.id('wfStepDefs')),
   }),
   handler: async (ctx, args) => {
-    return await WfDefinitionsModel.saveWorkflowWithSteps(ctx, args as any);
+    return await WfDefinitionsModel.saveWorkflowWithSteps(ctx, args);
   },
 });
 

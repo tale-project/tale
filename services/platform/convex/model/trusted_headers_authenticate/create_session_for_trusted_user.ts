@@ -5,6 +5,10 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
+import type {
+  BetterAuthFindManyResult,
+  BetterAuthSession,
+} from '../members/types';
 
 export interface CreateSessionForTrustedUserArgs {
   userId: string;
@@ -26,9 +30,8 @@ export async function createSessionForTrustedUser(
 
   // If there's an existing session token, check if it belongs to a different user
   if (args.existingSessionToken) {
-    const existingSessionResult = await ctx.runQuery(
-      components.betterAuth.adapter.findMany,
-      {
+    const existingSessionResult: BetterAuthFindManyResult<BetterAuthSession> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
         model: 'session',
         paginationOpts: {
           cursor: null,
@@ -41,11 +44,10 @@ export async function createSessionForTrustedUser(
             operator: 'eq',
           },
         ],
-      },
-    );
+      });
 
     if (existingSessionResult && existingSessionResult.page.length > 0) {
-      const existingSession = existingSessionResult.page[0] as any;
+      const existingSession = existingSessionResult.page[0];
 
       // If the session belongs to a DIFFERENT user, delete it
       if (existingSession.userId !== args.userId) {
@@ -89,9 +91,8 @@ export async function createSessionForTrustedUser(
   }
 
   // Look for any existing valid session for this user
-  const userSessionResult = await ctx.runQuery(
-    components.betterAuth.adapter.findMany,
-    {
+  const userSessionResult: BetterAuthFindManyResult<BetterAuthSession> =
+    await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'session',
       paginationOpts: {
         cursor: null,
@@ -104,12 +105,11 @@ export async function createSessionForTrustedUser(
           operator: 'eq',
         },
       ],
-    },
-  );
+    });
 
   // If we have a valid session for this user, reuse it
   if (userSessionResult && userSessionResult.page.length > 0) {
-    const session = userSessionResult.page[0] as any;
+    const session = userSessionResult.page[0];
     if (session.expiresAt > now) {
       await ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {

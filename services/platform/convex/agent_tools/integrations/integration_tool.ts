@@ -143,7 +143,7 @@ IMPORTANT NOTES:
         );
 
         // Check if approval is required (write operation)
-        // Type guard for approval result
+        // Type guard for approval result - check property existence and value type-safely
         const isApprovalResult = (r: unknown): r is {
           requiresApproval: true;
           approvalId: string;
@@ -152,7 +152,9 @@ IMPORTANT NOTES:
           operationType: 'read' | 'write';
           parameters: Record<string, unknown>;
         } => {
-          return r !== null && typeof r === 'object' && 'requiresApproval' in r && (r as any).requiresApproval === true;
+          if (r === null || typeof r !== 'object') return false;
+          const obj = r as Record<string, unknown>;
+          return obj.requiresApproval === true;
         };
 
         if (isApprovalResult(result)) {

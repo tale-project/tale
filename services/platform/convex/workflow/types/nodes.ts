@@ -2,6 +2,7 @@
  * Node Type Definitions
  */
 
+import type { Infer } from 'convex/values';
 import { v } from 'convex/values';
 
 // =============================================================================
@@ -290,3 +291,6 @@ export const stepConfigValidator = v.union(
   actionNodeConfigValidator,
   loopNodeConfigValidator,
 );
+
+/** Inferred type from stepConfigValidator */
+export type StepConfig = Infer<typeof stepConfigValidator>;

@@ -65,7 +65,7 @@ export async function publishDraft(
 
   // 4. Create new draft (version + 1)
   const newVersionNumber = workflow.versionNumber + 1;
-  const rootVersionId = (workflow as any).rootVersionId;
+  const rootVersionId = workflow.rootVersionId;
   const newDraftId = await ctx.db.insert('wfDefinitions', {
     organizationId: workflow.organizationId,
     name: workflow.name,
@@ -75,7 +75,7 @@ export async function publishDraft(
     version: `v${newVersionNumber}`,
     versionNumber: newVersionNumber,
     status: 'draft',
-    workflowType: (workflow as any).workflowType ?? 'predefined',
+    workflowType: workflow.workflowType,
 
     config: workflow.config,
 

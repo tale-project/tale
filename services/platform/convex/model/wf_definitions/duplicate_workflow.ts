@@ -28,7 +28,7 @@ export async function duplicateWorkflow(
     organizationId: source.organizationId,
     name: args.newName || `${source.name} (Copy)`,
     description: source.description,
-    category: (source as any).category,
+    category: source.category,
     version: 'v1',
     versionNumber: 1,
     status: 'draft',

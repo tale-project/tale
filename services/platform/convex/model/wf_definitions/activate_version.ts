@@ -108,13 +108,13 @@ export async function activateVersion(
   }
 
   // 6. Create new draft based on activated version
-  const rootVersionId = (workflow as any).rootVersionId;
+  const rootVersionId = workflow.rootVersionId;
   const newDraftId = await ctx.db.insert('wfDefinitions', {
     organizationId: workflow.organizationId,
     name: workflow.name,
     description: workflow.description,
     category: workflow.category,
-    workflowType: (workflow as any).workflowType ?? 'predefined',
+    workflowType: workflow.workflowType,
 
     version: `v${newVersionNumber}`,
     versionNumber: newVersionNumber,

@@ -66,8 +66,8 @@ export const generateExcelInternal = internalAction({
 
     // Generate buffer and convert to base64 so it can be safely returned to the
     // default-runtime action, which will handle storage upload.
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    const fileBase64 = (buffer as any).toString('base64');
+    const buffer: Buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const fileBase64 = buffer.toString('base64');
 
     const finalFileName = `${args.fileName}.xlsx`;
 

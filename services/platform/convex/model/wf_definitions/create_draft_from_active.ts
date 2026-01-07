@@ -58,15 +58,13 @@ export async function createDraftFromActive(
 
   // Create new draft version
   const newVersionNumber = activeWorkflow.versionNumber + 1;
-  const rootVersionId = (activeWorkflow as any).rootVersionId as
-    | Id<'wfDefinitions'>
-    | undefined;
+  const rootVersionId = activeWorkflow.rootVersionId;
 
   const draftId = await ctx.db.insert('wfDefinitions', {
     organizationId: activeWorkflow.organizationId,
     name: activeWorkflow.name,
     description: activeWorkflow.description,
-    category: (activeWorkflow as any).category,
+    category: activeWorkflow.category,
     version: `v${newVersionNumber}`,
     versionNumber: newVersionNumber,
     status: 'draft',
@@ -93,8 +91,8 @@ export async function createDraftFromActive(
       order: step.order,
       nextSteps: step.nextSteps,
       config: step.config,
-      inputMapping: (step as any).inputMapping,
-      outputMapping: (step as any).outputMapping,
+      inputMapping: step.inputMapping,
+      outputMapping: step.outputMapping,
       metadata: step.metadata,
     });
   }

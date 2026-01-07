@@ -47,7 +47,7 @@ export async function createStep(
     name: args.name,
     stepType: args.stepType,
     order: args.order,
-    config: args.config as any,
+    config: args.config,
     nextSteps: args.nextSteps,
     organizationId: args.organizationId,
   });

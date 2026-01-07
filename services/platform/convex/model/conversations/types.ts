@@ -53,13 +53,23 @@ export interface CreateConversationArgs {
   metadata?: unknown;
 }
 
+/** Partial updates for conversation fields */
+export interface ConversationUpdates {
+  customerId?: Id<'customers'>;
+  subject?: string;
+  status?: ConversationStatus;
+  priority?: ConversationPriority;
+  type?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface UpdateConversationsArgs {
   conversationId?: Id<'conversations'>;
   organizationId?: string;
   status?: ConversationStatus;
   priority?: ConversationPriority;
 
-  updates: unknown;
+  updates: ConversationUpdates;
 }
 
 export interface UpdateConversationsResult {
