@@ -15,7 +15,7 @@ loguru==0.7.3
 httpx==0.28.1
 
 # Document conversion (Playwright is already installed via crawl4ai)
-markdown==3.7
+markdown==3.10
 
 # Office document generation
 python-pptx==1.0.2      # PPTX parsing and generation
