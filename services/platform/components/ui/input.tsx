@@ -140,4 +140,3 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
   },
 );
 Input.displayName = 'Input';
-
