@@ -5,7 +5,7 @@
 # with configurable HTTPS support (self-signed or Let's Encrypt)
 # ============================================================================
 
-FROM caddy:2.10-alpine
+FROM caddy:2.11-alpine
 
 # Copy Caddyfile
 COPY services/proxy/Caddyfile /etc/caddy/Caddyfile
