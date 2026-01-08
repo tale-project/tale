@@ -1,4 +1,4 @@
-fastapi==0.122.1
+fastapi==0.128.0
 uvicorn==0.40.0
 kuzu==0.11.3
 pydantic==2.12.5
