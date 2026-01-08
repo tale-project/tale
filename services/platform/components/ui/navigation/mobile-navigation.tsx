@@ -133,8 +133,8 @@ export function MobileNavigation({ role }: MobileNavigationProps) {
             <SheetDescription>{t('actions.openMenu')}</SheetDescription>
           </VisuallyHidden.Root>
           <NavigationMenu className="flex flex-col bg-background h-full max-w-none w-full">
-            {/* Header - matches mobile nav height (52px = 8px + 32px + 8px) */}
-            <div className="flex-shrink-0 h-[52px] px-4 py-2 border-b border-border flex items-center">
+            {/* Header - matches mobile nav height */}
+            <div className="flex-shrink-0 h-[var(--nav-size)] px-4 py-2 border-b border-border flex items-center">
               <Link
                 href={`/dashboard/${businessId}/chat`}
                 onClick={() => setIsOpen(false)}
@@ -156,8 +156,8 @@ export function MobileNavigation({ role }: MobileNavigationProps) {
                 ))}
               </NavigationMenuList>
             </div>
-            {/* Footer - matches header height (52px = 8px + 32px + 8px) */}
-            <div className="flex-shrink-0 h-[52px] px-4 py-2 border-t border-border flex items-center">
+            {/* Footer - matches header height */}
+            <div className="flex-shrink-0 h-[var(--nav-size)] px-4 py-2 border-t border-border flex items-center">
               <UserButton label={tNav('settings')} />
             </div>
           </NavigationMenu>

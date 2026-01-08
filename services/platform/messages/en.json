@@ -1293,6 +1293,7 @@
     "uploadedSuccessfully": "{filename} uploaded successfully",
     "uploadFailed": "Upload failed",
     "failedToUpload": "Failed to upload {filename}",
+    "removeAttachment": "Remove attachment",
     "fileTypes": {
       "image": "IMG",
       "pdf": "PDF",

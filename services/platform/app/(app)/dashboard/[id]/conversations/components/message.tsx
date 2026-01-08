@@ -5,7 +5,7 @@ import { Image } from '@/components/ui/image';
 import type { Message as MessageType } from '../types';
 import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
 import { EmailPreview } from '@/components/ui/email-preview';
-import { Clock, CheckCheck, Check, AlertCircle } from 'lucide-react';
+import { Clock, AlertCircle } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
 interface MessageProps {
@@ -36,10 +36,10 @@ export function Message({ message }: MessageProps) {
         <div className="relative">
           <div
             className={cn(
-              'max-w-[40rem] relative overflow-x-auto bg-white',
+              'max-w-[40rem] relative overflow-x-auto p-2 rounded-2xl shadow-sm mb-2',
               message.isCustomer
-                ? 'text-foreground'
-                : 'p-4 rounded-2xl shadow-sm bg-muted text-foreground mb-2',
+                ? 'bg-white text-foreground'
+                : 'bg-muted text-foreground',
             )}
           >
             {(() => {

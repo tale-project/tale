@@ -320,7 +320,7 @@ export function ConversationPanel({
         </div>
 
         {/* Skeleton Message Editor */}
-        <div className="sticky bottom-0 z-50 bg-background">
+        <div className="sticky bottom-0 z-50 bg-background px-2">
           <div className="max-w-3xl mx-auto w-full px-4 py-4">
             <div className="h-32 w-full bg-muted/40 animate-pulse rounded-lg border border-border" />
           </div>
@@ -405,7 +405,7 @@ export function ConversationPanel({
           ))
         )}
       </div>
-      <div className="sticky bottom-0 z-50 bg-background">
+      <div className="sticky bottom-0 z-50 bg-background px-2">
         {conversation.status === 'open' ? (
           <div ref={messageComposerRef} className="max-w-3xl mx-auto w-full">
             <MessageEditor

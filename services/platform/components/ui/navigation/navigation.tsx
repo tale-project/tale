@@ -106,8 +106,8 @@ export function Navigation({ role }: { role?: string | null }) {
 
   return (
     <NavigationMenu className="flex flex-col bg-background border-border h-full">
-      {/* Header - logo with 8px padding top/bottom */}
-      <div className="flex-shrink-0 py-2 flex items-center justify-center">
+      {/* Header - logo with 12px padding top/bottom */}
+      <div className="flex-shrink-0 py-3 flex items-center justify-center">
         <Link
           className="flex items-center justify-center"
           href={`/dashboard/${businessId}/chat`}
@@ -124,7 +124,7 @@ export function Navigation({ role }: { role?: string | null }) {
         </NavigationMenuList>
       </div>
       {/* Footer - matches header padding */}
-      <div className="flex-shrink-0 py-2 flex items-center justify-center">
+      <div className="flex-shrink-0 py-3 flex items-center justify-center">
         <UserButton tooltipText={t('settingsAndMore')} />
       </div>
     </NavigationMenu>

@@ -1,14 +1,14 @@
 import { VendorsTable } from './components/vendors-table';
 import { VendorsTableSkeleton } from './components/vendors-table-skeleton';
+import { VendorsPageWrapper } from './components/vendors-page-wrapper';
 import { Suspense } from 'react';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
-import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
+import { parseSearchParams } from '@/lib/pagination/parse-search-params';
 import { vendorFilterDefinitions } from './filter-definitions';
-import { VendorsEmptyState } from './components/vendors-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic
@@ -26,7 +26,6 @@ interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
-
 
 interface VendorsContentProps {
   params: Promise<{ id: string }>;
@@ -74,10 +73,7 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   );
 }
 
-export default async function VendorsPage({
-  params,
-  searchParams,
-}: PageProps) {
+export default async function VendorsPage({ params, searchParams }: PageProps) {
   const token = await getAuthToken();
   if (!token) {
     redirect('/log-in');
@@ -86,27 +82,24 @@ export default async function VendorsPage({
   const { id: organizationId } = await params;
   const rawSearchParams = await searchParams;
 
-  // Parse filters to check for active filters
-  const { filters } = parseSearchParams(rawSearchParams, vendorFilterDefinitions);
-  const hasFilters = hasActiveFilters(filters, vendorFilterDefinitions);
-
-  // Two-phase loading: check if vendors exist before showing skeleton
-  // If no vendors and no filters active, show empty state directly
-  if (!hasFilters) {
-    const hasVendors = await fetchQuery(
-      api.vendors.hasVendors,
-      { organizationId },
-      { token },
-    );
-
-    if (!hasVendors) {
-      return <VendorsEmptyState organizationId={organizationId} />;
-    }
-  }
+  // Fetch initial hasVendors state for SSR
+  // Always fetch to ensure accurate state, regardless of filters
+  const initialHasVendors = await fetchQuery(
+    api.vendors.hasVendors,
+    { organizationId },
+    { token },
+  );
 
   return (
-    <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
-      <VendorsContent params={params} searchParams={searchParams} />
-    </Suspense>
+    <VendorsPageWrapper
+      organizationId={organizationId}
+      initialHasVendors={initialHasVendors}
+    >
+      <Suspense
+        fallback={<VendorsTableSkeleton organizationId={organizationId} />}
+      >
+        <VendorsContent params={params} searchParams={searchParams} />
+      </Suspense>
+    </VendorsPageWrapper>
   );
 }
