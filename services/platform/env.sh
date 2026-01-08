@@ -10,18 +10,10 @@ env_normalize_common() {
   export PORT="${PORT:-3000}"
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"
 
-  # Domain configuration - derive SITE_URL from HOST and USE_SSL
+  # Domain configuration
   # HOST is the hostname without protocol (e.g., "tale.local", "demo.tale.dev")
-  # USE_SSL determines if we use https:// or http://
+  # SITE_URL is the full canonical URL with protocol (required)
   local host="${HOST:-localhost}"
-  local use_ssl="${USE_SSL:-true}"
-  local protocol="http"
-
-  if [[ "$use_ssl" == "true" ]]; then
-    protocol="https"
-  fi
-
-  local base_url="${protocol}://${host}"
 
 	  # Database configuration
 	  # Auto-construct POSTGRES_URL from DB_PASSWORD if not explicitly set
@@ -57,9 +49,13 @@ env_normalize_common() {
   # AI provider keys
   export OPENAI_API_KEY="${OPENAI_API_KEY}"
 
-  # Site URL - the canonical base URL for the platform
+  # Site URL - the canonical base URL for the platform (required)
   # All other URLs (Convex HTTP API, WebSocket API, etc.) are derived from this in code
-  export SITE_URL="${SITE_URL:-${base_url}}"
+  if [ -z "${SITE_URL:-}" ]; then
+    echo "Error: SITE_URL is required. Set it in your .env file." >&2
+    exit 1
+  fi
+  export SITE_URL="${SITE_URL}"
 }
 
 # Ensure INSTANCE_SECRET exists; if not, set an insecure local default.

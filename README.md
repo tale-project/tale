@@ -72,7 +72,7 @@ Ready to go live? Update your `.env` file:
 
 ```bash
 HOST=yourdomain.com
-USE_SSL=true
+SITE_URL=https://yourdomain.com
 TLS_MODE=letsencrypt
 ```
 
