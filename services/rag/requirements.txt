@@ -18,7 +18,7 @@ unstructured[xlsx,docx,pptx]==0.18.26
 
 # PyMuPDF for PDF text extraction (no system dependencies)
 # Replaces tesseract/poppler with lightweight pure-Python solution
-PyMuPDF>=1.26.0
+PyMuPDF==1.26.7
 
 # Database drivers (for cognee storage and PGVector)
 asyncpg==0.31.0
@@ -30,6 +30,6 @@ python-multipart==0.0.20
 python-dotenv==1.2.1
 loguru==0.7.3
 httpx==0.28.1
-aiofiles>=24.0.0
-tenacity>=8.0.0
+aiofiles==25.1.0
+tenacity==9.1.2
 
