@@ -981,7 +981,12 @@ class PptxService:
         primary_color,
         secondary_color,
     ):
-        """Create a slide from layout (used when no template is provided)."""
+        """
+        Create a slide from layout (used when no template is provided).
+
+        Returns:
+            pptx.slide.Slide: The created slide.
+        """
         title = content.get("title", "")
         subtitle = content.get("subtitle", "")
         text_content = content.get("textContent", [])
