@@ -1,0 +1,42 @@
+name: Build Graph DB (PR)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/graph-db/**'
+      - '.github/workflows/build-graph-db-pr.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/graph-db
+          file: services/graph-db/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+
+      - name: Build summary
+        run: |
+          echo "## Docker Image Build Successful! ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The Graph DB Docker image built successfully." >> $GITHUB_STEP_SUMMARY
