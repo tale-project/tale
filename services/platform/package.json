@@ -71,7 +71,7 @@
     "jose": "6.1.2",
     "lodash": "4.17.21",
     "lucide-react": "0.555.0",
-    "mailparser": "3.9.0",
+    "mailparser": "3.9.1",
     "mammoth": "1.11.0",
     "mssql": "12.2.0",
     "mustache": "4.2.0",
