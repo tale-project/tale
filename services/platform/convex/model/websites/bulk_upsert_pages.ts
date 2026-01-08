@@ -17,37 +17,58 @@ export async function bulkUpsertPages(
   ctx: MutationCtx,
   args: BulkUpsertPagesArgs,
 ): Promise<BulkUpsertPagesResult> {
-  const result: BulkUpsertPagesResult = {
-    created: 0,
-    updated: 0,
-    total: args.pages.length,
-  };
-
   const now = Date.now();
 
-  for (const page of args.pages) {
-    // Check if page already exists
-    const existingPage = await ctx.db
-      .query('websitePages')
-      .withIndex('by_organizationId_and_url', (q) =>
-        q.eq('organizationId', args.organizationId).eq('url', page.url),
-      )
-      .unique();
+  // Batch query all existing pages in parallel
+  const existingPages = await Promise.all(
+    args.pages.map((page) =>
+      ctx.db
+        .query('websitePages')
+        .withIndex('by_organizationId_and_url', (q) =>
+          q.eq('organizationId', args.organizationId).eq('url', page.url),
+        )
+        .unique(),
+    ),
+  );
 
-    if (existingPage) {
-      // Update existing page
-      await ctx.db.patch(existingPage._id, {
+  // Build a map of URL -> existing page ID
+  const existingPageMap = new Map<string, Id<'websitePages'>>();
+  for (let i = 0; i < args.pages.length; i++) {
+    const existing = existingPages[i];
+    if (existing) {
+      existingPageMap.set(args.pages[i].url, existing._id);
+    }
+  }
+
+  // Separate pages into updates and inserts
+  const updates: Array<{ id: Id<'websitePages'>; page: (typeof args.pages)[0] }> = [];
+  const inserts: Array<(typeof args.pages)[0]> = [];
+
+  for (const page of args.pages) {
+    const existingId = existingPageMap.get(page.url);
+    if (existingId) {
+      updates.push({ id: existingId, page });
+    } else {
+      inserts.push(page);
+    }
+  }
+
+  // Execute updates and inserts in parallel
+  await Promise.all([
+    // Batch updates
+    ...updates.map(({ id, page }) =>
+      ctx.db.patch(id, {
         title: page.title,
         content: page.content,
         wordCount: page.wordCount,
         lastCrawledAt: now,
         metadata: page.metadata,
         structuredData: page.structuredData,
-      });
-      result.updated++;
-    } else {
-      // Create new page
-      await ctx.db.insert('websitePages', {
+      }),
+    ),
+    // Batch inserts
+    ...inserts.map((page) =>
+      ctx.db.insert('websitePages', {
         organizationId: args.organizationId,
         websiteId: args.websiteId as Id<'websites'>,
         url: page.url,
@@ -57,10 +78,13 @@ export async function bulkUpsertPages(
         lastCrawledAt: now,
         metadata: page.metadata,
         structuredData: page.structuredData,
-      });
-      result.created++;
-    }
-  }
+      }),
+    ),
+  ]);
 
-  return result;
+  return {
+    created: inserts.length,
+    updated: updates.length,
+    total: args.pages.length,
+  };
 }

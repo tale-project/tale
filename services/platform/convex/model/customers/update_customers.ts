@@ -85,56 +85,57 @@ export async function updateCustomers(
     }
   }
 
-  // Apply updates to each customer
-  const updatedIds: Array<Id<'customers'>> = [];
+  // Build patches for each customer
+  const patches: Array<{ id: Id<'customers'>; patch: Record<string, unknown> }> =
+    customersToUpdate.map((customer) => {
+      const patch: Record<string, unknown> = {};
 
-  for (const customer of customersToUpdate) {
-    // Build the patch object
-    const patch: Record<string, unknown> = {};
+      // Copy direct field updates
+      if (args.updates.name !== undefined) patch.name = args.updates.name;
+      if (args.updates.email !== undefined) patch.email = args.updates.email;
+      if (args.updates.status !== undefined) patch.status = args.updates.status;
+      if (args.updates.source !== undefined) patch.source = args.updates.source;
+      if (args.updates.locale !== undefined) patch.locale = args.updates.locale;
+      if (args.updates.address !== undefined)
+        patch.address = args.updates.address;
 
-    // Copy direct field updates
-    if (args.updates.name !== undefined) patch.name = args.updates.name;
-    if (args.updates.email !== undefined) patch.email = args.updates.email;
-    if (args.updates.status !== undefined) patch.status = args.updates.status;
-    if (args.updates.source !== undefined) patch.source = args.updates.source;
-    if (args.updates.locale !== undefined) patch.locale = args.updates.locale;
-    if (args.updates.address !== undefined)
-      patch.address = args.updates.address;
+      // Handle metadata updates with lodash
+      if (args.updates.metadata) {
+        // customer.metadata is stored as v.any() in schema
+        // Use type guard to safely access existing metadata
+        const existingMetadata = isPlainRecord(customer.metadata)
+          ? customer.metadata
+          : {};
+        const updatedMetadata: Record<string, unknown> = {
+          ...existingMetadata,
+        };
 
-    // Handle metadata updates with lodash
-    if (args.updates.metadata) {
-      // customer.metadata is stored as v.any() in schema
-      // Use type guard to safely access existing metadata
-      const existingMetadata = isPlainRecord(customer.metadata)
-        ? customer.metadata
-        : {};
-      const updatedMetadata: Record<string, unknown> = {
-        ...existingMetadata,
-      };
-
-      for (const [key, value] of Object.entries(args.updates.metadata)) {
-        if (key.includes('.')) {
-          // Use lodash.set for dot-notation keys
-          set(updatedMetadata, key, value);
-        } else {
-          // For top-level keys, use merge for objects if both are plain records
-          const existingValue = updatedMetadata[key];
-
-          if (isPlainRecord(value) && isPlainRecord(existingValue)) {
-            updatedMetadata[key] = merge({}, existingValue, value);
+        for (const [key, value] of Object.entries(args.updates.metadata)) {
+          if (key.includes('.')) {
+            // Use lodash.set for dot-notation keys
+            set(updatedMetadata, key, value);
           } else {
-            updatedMetadata[key] = value;
+            // For top-level keys, use merge for objects if both are plain records
+            const existingValue = updatedMetadata[key];
+
+            if (isPlainRecord(value) && isPlainRecord(existingValue)) {
+              updatedMetadata[key] = merge({}, existingValue, value);
+            } else {
+              updatedMetadata[key] = value;
+            }
           }
         }
+
+        patch.metadata = updatedMetadata;
       }
 
-      patch.metadata = updatedMetadata;
-    }
+      return { id: customer._id, patch };
+    });
 
-    // Apply the patch
-    await ctx.db.patch(customer._id, patch);
-    updatedIds.push(customer._id);
-  }
+  // Apply all patches in parallel
+  await Promise.all(patches.map(({ id, patch }) => ctx.db.patch(id, patch)));
+
+  const updatedIds = patches.map(({ id }) => id);
 
   return {
     success: true,

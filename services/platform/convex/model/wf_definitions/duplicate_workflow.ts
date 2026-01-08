@@ -48,22 +48,30 @@ export async function duplicateWorkflow(
     rootVersionId: newWorkflowId,
   });
 
-  // Copy steps from the source workflow
+  // Collect steps from the source workflow
+  const steps: Array<Doc<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.wfDefinitionId))) {
-    await ctx.db.insert('wfStepDefs', {
-      organizationId: step.organizationId,
-      wfDefinitionId: newWorkflowId,
-      stepSlug: step.stepSlug, // stepSlug uniqueness is per workflow
-      name: step.name,
-      stepType: step.stepType,
-      order: step.order,
-      config: step.config,
-      nextSteps: step.nextSteps,
-      metadata: step.metadata,
-    });
+    steps.push(step);
   }
+
+  // Copy all steps in parallel
+  await Promise.all(
+    steps.map((step) =>
+      ctx.db.insert('wfStepDefs', {
+        organizationId: step.organizationId,
+        wfDefinitionId: newWorkflowId,
+        stepSlug: step.stepSlug, // stepSlug uniqueness is per workflow
+        name: step.name,
+        stepType: step.stepType,
+        order: step.order,
+        config: step.config,
+        nextSteps: step.nextSteps,
+        metadata: step.metadata,
+      }),
+    ),
+  );
 
   return newWorkflowId;
 }

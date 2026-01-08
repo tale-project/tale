@@ -30,17 +30,21 @@ export async function updateProvider(
     throw new Error('Email provider not found');
   }
 
-  // If setting as default, unset other defaults
+  // If setting as default, unset other defaults in parallel
   if (args.isDefault) {
+    const providerIdsToUnset: Array<Doc<'emailProviders'>['_id']> = [];
     for await (const existingProvider of ctx.db
       .query('emailProviders')
       .withIndex('by_organizationId_and_isDefault', (q) =>
         q.eq('organizationId', provider.organizationId).eq('isDefault', true),
       )) {
       if (existingProvider._id !== providerId) {
-        await ctx.db.patch(existingProvider._id, { isDefault: false });
+        providerIdsToUnset.push(existingProvider._id);
       }
     }
+    await Promise.all(
+      providerIdsToUnset.map((id) => ctx.db.patch(id, { isDefault: false })),
+    );
   }
 
   // Build update object with only provided fields

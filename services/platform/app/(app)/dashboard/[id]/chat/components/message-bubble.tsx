@@ -30,7 +30,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Dialog } from '@/components/ui/dialog';
-import Image from 'next/image';
+import { Image } from '@/components/ui/image';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -361,7 +361,6 @@ const MarkdownImage = memo(function MarkdownImage(
           width={384}
           height={384}
           className="max-w-[24rem] max-h-[24rem] w-auto object-contain rounded-lg"
-          unoptimized
         />
       </span>
       <Dialog
@@ -378,7 +377,6 @@ const MarkdownImage = memo(function MarkdownImage(
           width={1920}
           height={1080}
           className="max-h-[80dvh] w-auto object-contain rounded-lg"
-          unoptimized
         />
       </Dialog>
     </>

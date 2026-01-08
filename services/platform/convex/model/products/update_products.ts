@@ -164,70 +164,71 @@ export async function updateProducts(
     });
   }
 
-  // Apply updates to each product
-  const updatedIds: Array<Id<'products'>> = [];
+  // Build patches for each product
+  const patches: Array<{ id: Id<'products'>; patch: Record<string, unknown> }> =
+    productsToUpdate.map((product) => {
+      const patch: Record<string, unknown> = {};
 
-  for (const product of productsToUpdate) {
-    // Build the patch object
-    const patch: Record<string, unknown> = {};
+      // Copy direct field updates
+      if (args.updates.name !== undefined) patch.name = args.updates.name;
+      if (args.updates.description !== undefined)
+        patch.description = args.updates.description;
+      if (args.updates.imageUrl !== undefined)
+        patch.imageUrl = args.updates.imageUrl;
+      if (args.updates.stock !== undefined) patch.stock = args.updates.stock;
+      if (args.updates.price !== undefined) patch.price = args.updates.price;
+      if (args.updates.currency !== undefined)
+        patch.currency = args.updates.currency;
+      if (args.updates.category !== undefined)
+        patch.category = args.updates.category;
+      if (args.updates.tags !== undefined) patch.tags = args.updates.tags;
+      if (args.updates.status !== undefined) patch.status = args.updates.status;
+      if (args.updates.externalId !== undefined)
+        patch.externalId = args.updates.externalId;
 
-    // Copy direct field updates
-    if (args.updates.name !== undefined) patch.name = args.updates.name;
-    if (args.updates.description !== undefined)
-      patch.description = args.updates.description;
-    if (args.updates.imageUrl !== undefined)
-      patch.imageUrl = args.updates.imageUrl;
-    if (args.updates.stock !== undefined) patch.stock = args.updates.stock;
-    if (args.updates.price !== undefined) patch.price = args.updates.price;
-    if (args.updates.currency !== undefined)
-      patch.currency = args.updates.currency;
-    if (args.updates.category !== undefined)
-      patch.category = args.updates.category;
-    if (args.updates.tags !== undefined) patch.tags = args.updates.tags;
-    if (args.updates.status !== undefined) patch.status = args.updates.status;
-    if (args.updates.externalId !== undefined)
-      patch.externalId = args.updates.externalId;
+      // Handle metadata updates with lodash
+      if (args.updates.metadata) {
+        const existingMetadata =
+          (product.metadata as Record<string, unknown>) ?? {};
+        const updatedMetadata: Record<string, unknown> = {
+          ...existingMetadata,
+        };
 
-    // Handle metadata updates with lodash
-    if (args.updates.metadata) {
-      const existingMetadata =
-        (product.metadata as Record<string, unknown>) ?? {};
-      const updatedMetadata: Record<string, unknown> = {
-        ...existingMetadata,
-      };
-
-      for (const [key, value] of Object.entries(args.updates.metadata)) {
-        if (key.includes('.')) {
-          // Use lodash.set for dot-notation keys
-          set(updatedMetadata, key, value);
-        } else {
-          // For top-level keys, use merge for objects
-          if (
-            typeof value === 'object' &&
-            value !== null &&
-            !Array.isArray(value) &&
-            typeof updatedMetadata[key] === 'object' &&
-            updatedMetadata[key] !== null &&
-            !Array.isArray(updatedMetadata[key])
-          ) {
-            updatedMetadata[key] = merge(
-              {},
-              updatedMetadata[key] as Record<string, unknown>,
-              value as Record<string, unknown>,
-            );
+        for (const [key, value] of Object.entries(args.updates.metadata)) {
+          if (key.includes('.')) {
+            // Use lodash.set for dot-notation keys
+            set(updatedMetadata, key, value);
           } else {
-            updatedMetadata[key] = value;
+            // For top-level keys, use merge for objects
+            if (
+              typeof value === 'object' &&
+              value !== null &&
+              !Array.isArray(value) &&
+              typeof updatedMetadata[key] === 'object' &&
+              updatedMetadata[key] !== null &&
+              !Array.isArray(updatedMetadata[key])
+            ) {
+              updatedMetadata[key] = merge(
+                {},
+                updatedMetadata[key] as Record<string, unknown>,
+                value as Record<string, unknown>,
+              );
+            } else {
+              updatedMetadata[key] = value;
+            }
           }
         }
+
+        patch.metadata = updatedMetadata;
       }
 
-      patch.metadata = updatedMetadata;
-    }
+      return { id: product._id, patch };
+    });
 
-    // Apply the patch
-    await ctx.db.patch(product._id, patch);
-    updatedIds.push(product._id);
-  }
+  // Apply all patches in parallel
+  await Promise.all(patches.map(({ id, patch }) => ctx.db.patch(id, patch)));
+
+  const updatedIds = patches.map(({ id }) => id);
 
   return {
     success: true,

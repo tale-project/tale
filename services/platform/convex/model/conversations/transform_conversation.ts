@@ -15,7 +15,25 @@ export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
 ): Promise<ConversationItem> {
-  // Get customer data if customerId exists
+  // Load customer and messages in parallel (pending approval loaded later to avoid unused fetch)
+  const [customerDoc, messageDocs] = await Promise.all([
+    conversation.customerId
+      ? ctx.db.get(conversation.customerId)
+      : Promise.resolve(null),
+    (async () => {
+      const docs: Array<Doc<'conversationMessages'>> = [];
+      for await (const msg of ctx.db
+        .query('conversationMessages')
+        .withIndex('by_conversationId_and_deliveredAt', (q) =>
+          q.eq('conversationId', conversation._id),
+        )) {
+        docs.push(msg);
+      }
+      return docs;
+    })(),
+  ]);
+
+  // Build customer info from fetched data
   let customer: CustomerInfo = {
     id: conversation.customerId || 'unknown',
     name: 'Unknown Customer',
@@ -26,33 +44,19 @@ export async function transformConversation(
     created_at: new Date(conversation._creationTime).toISOString(),
   };
 
-  if (conversation.customerId) {
-    const customerDoc = await ctx.db.get(conversation.customerId);
-    if (customerDoc) {
-      const customerStatus =
-        (customerDoc.metadata as { status?: string })?.status || 'active';
-      customer = {
-        id: customerDoc._id,
-        name: customerDoc.name || 'Unknown Customer',
-        email: customerDoc.email || 'unknown@example.com',
-        locale: (customerDoc.metadata as { locale?: string })?.locale || 'en',
-        status: customerStatus,
-        source:
-          (customerDoc.metadata as { source?: string })?.source || 'unknown',
-        created_at: new Date(customerDoc._creationTime).toISOString(),
-      };
-    }
-  }
-
-  // Load messages for this conversation from conversationMessages
-  // We need to handle null deliveredAt values properly - they should come last
-  const messageDocs: Array<Doc<'conversationMessages'>> = [];
-  for await (const msg of ctx.db
-    .query('conversationMessages')
-    .withIndex('by_conversationId_and_deliveredAt', (q) =>
-      q.eq('conversationId', conversation._id),
-    )) {
-    messageDocs.push(msg);
+  if (customerDoc) {
+    const customerStatus =
+      (customerDoc.metadata as { status?: string })?.status || 'active';
+    customer = {
+      id: customerDoc._id,
+      name: customerDoc.name || 'Unknown Customer',
+      email: customerDoc.email || 'unknown@example.com',
+      locale: (customerDoc.metadata as { locale?: string })?.locale || 'en',
+      status: customerStatus,
+      source:
+        (customerDoc.metadata as { source?: string })?.source || 'unknown',
+      created_at: new Date(customerDoc._creationTime).toISOString(),
+    };
   }
 
   // Sort messages: first by deliveredAt (null values last), then by _creationTime

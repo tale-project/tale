@@ -10,34 +10,60 @@ export async function bulkReopenConversations(
   ctx: MutationCtx,
   conversationIds: Array<Id<'conversations'>>,
 ): Promise<BulkOperationResult> {
-  let successCount = 0;
-  let failedCount = 0;
+  // Batch fetch all conversations in parallel
+  const conversations = await Promise.all(
+    conversationIds.map((id) => ctx.db.get(id)),
+  );
+
+  // Build patches for valid conversations
+  const patches: Array<{
+    id: Id<'conversations'>;
+    patch: Record<string, unknown>;
+  }> = [];
   const errors: string[] = [];
 
-  for (const conversationId of conversationIds) {
-    try {
-      const conversation = await ctx.db.get(conversationId);
-      if (!conversation) {
-        failedCount++;
-        errors.push(`Conversation ${conversationId} not found`);
-        continue;
-      }
+  for (let i = 0; i < conversationIds.length; i++) {
+    const conversationId = conversationIds[i];
+    const conversation = conversations[i];
 
-      const metadata = (conversation.metadata as Record<string, unknown>) || {};
-      const { _resolved_at, _resolved_by, ...restMetadata } = metadata;
+    if (!conversation) {
+      errors.push(`Conversation ${conversationId} not found`);
+      continue;
+    }
 
-      await ctx.db.patch(conversationId, {
+    const metadata = (conversation.metadata as Record<string, unknown>) || {};
+    const { _resolved_at, _resolved_by, ...restMetadata } = metadata;
+
+    patches.push({
+      id: conversationId,
+      patch: {
         status: 'open',
         metadata: restMetadata,
-      });
+      },
+    });
+  }
+
+  // Apply all patches in parallel
+  const results = await Promise.allSettled(
+    patches.map(({ id, patch }) => ctx.db.patch(id, patch)),
+  );
+
+  // Count successes and failures from patch results
+  let successCount = 0;
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'fulfilled') {
       successCount++;
-    } catch (error) {
-      failedCount++;
+    } else {
       errors.push(
-        `Failed to reopen ${conversationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to reopen ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
       );
     }
   }
 
-  return { successCount, failedCount, errors };
+  return {
+    successCount,
+    failedCount: conversationIds.length - successCount,
+    errors,
+  };
 }

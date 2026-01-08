@@ -9,9 +9,11 @@ export async function reorderSteps(
   ctx: MutationCtx,
   args: ReorderStepsArgs,
 ): Promise<null> {
-  for (const { stepRecordId, newOrder } of args.stepOrders) {
-    await ctx.db.patch(stepRecordId, { order: newOrder });
-  }
+  await Promise.all(
+    args.stepOrders.map(({ stepRecordId, newOrder }) =>
+      ctx.db.patch(stepRecordId, { order: newOrder }),
+    ),
+  );
   return null;
 }
 

@@ -89,22 +89,24 @@ export async function publishDraft(
     },
   });
 
-  // 5. Copy steps to new draft
-  for (const step of steps) {
-    await ctx.db.insert('wfStepDefs', {
-      organizationId: step.organizationId,
-      wfDefinitionId: newDraftId,
-      stepSlug: step.stepSlug,
-      name: step.name,
-      stepType: step.stepType,
-      order: step.order,
-      nextSteps: step.nextSteps,
-      config: step.config,
-      inputMapping: step.inputMapping,
-      outputMapping: step.outputMapping,
-      metadata: step.metadata,
-    });
-  }
+  // 5. Copy steps to new draft in parallel
+  await Promise.all(
+    steps.map((step) =>
+      ctx.db.insert('wfStepDefs', {
+        organizationId: step.organizationId,
+        wfDefinitionId: newDraftId,
+        stepSlug: step.stepSlug,
+        name: step.name,
+        stepType: step.stepType,
+        order: step.order,
+        nextSteps: step.nextSteps,
+        config: step.config,
+        inputMapping: step.inputMapping,
+        outputMapping: step.outputMapping,
+        metadata: step.metadata,
+      }),
+    ),
+  );
 
   return {
     activeVersionId: args.wfDefinitionId,

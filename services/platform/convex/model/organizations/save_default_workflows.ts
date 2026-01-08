@@ -39,8 +39,6 @@ export async function saveDefaultWorkflows(
     `Organization Setup Saving default workflows for organization ${args.organizationId}...`,
   );
 
-  const workflowIds: Id<'wfDefinitions'>[] = [];
-
   // Define workflows to save with their schedules
   const workflowsToSave: Array<{
     workflow: PredefinedWorkflowDefinition;
@@ -79,11 +77,11 @@ export async function saveDefaultWorkflows(
     },
   ];
 
-  for (const { workflow, schedule, timezone } of workflowsToSave) {
+  // Prepare all workflow payloads
+  const payloads = workflowsToSave.map(({ workflow, schedule, timezone }) => {
     const baseConfig = workflow.workflowConfig.config ?? {};
 
-    // Convert predefined workflow to strict API payload types
-    const payload = toPredefinedWorkflowPayload(
+    return toPredefinedWorkflowPayload(
       workflow,
       {
         config: {
@@ -101,27 +99,34 @@ export async function saveDefaultWorkflows(
           ? { ...step, config: { type: 'scheduled', schedule, timezone } }
           : step,
     );
+  });
 
-    // Save the workflow
-    const result = await ctx.runMutation(
-      internal.wf_definitions.createWorkflowWithSteps,
-      {
+  // Create all workflows in parallel
+  const results = await Promise.all(
+    payloads.map((payload) =>
+      ctx.runMutation(internal.wf_definitions.createWorkflowWithSteps, {
         organizationId: args.organizationId,
         ...payload,
-      },
-    );
+      }),
+    ),
+  );
 
-    // Ensure status is active (not draft) for auto-saved workflows
-    await ctx.runMutation(internal.wf_definitions.updateWorkflowStatus, {
-      wfDefinitionId: result.workflowId,
-      status: 'active',
-      updatedBy: 'system',
-    });
+  const workflowIds = results.map((r) => r.workflowId);
 
-    workflowIds.push(result.workflowId);
+  // Activate all workflows in parallel
+  await Promise.all(
+    workflowIds.map((workflowId) =>
+      ctx.runMutation(internal.wf_definitions.updateWorkflowStatus, {
+        wfDefinitionId: workflowId,
+        status: 'active',
+        updatedBy: 'system',
+      }),
+    ),
+  );
 
+  for (let i = 0; i < payloads.length; i++) {
     debugLog(
-      `Organization Setup Saved workflow: ${payload.workflowConfig.name} (${result.workflowId})`,
+      `Organization Setup Saved workflow: ${payloads[i].workflowConfig.name} (${workflowIds[i]})`,
     );
   }
 

@@ -29,8 +29,9 @@
 - **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
 - **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
 - AVOID CSR-only approaches, AVOID ssr: false, ALWAYS optimize for SSR.
-- CONSIDER using `dynamic` for large imports.
+- CONSIDER using `dynamic` for large external packages BUT DO NOT over use it.
 - AVOID hydration issues (server-client mismatches).
+- DO NOT use `next/image`. USE the custom `Image` component from `@/components/ui/image` instead.
 
 ## Convex
 

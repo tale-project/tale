@@ -13,37 +13,63 @@ export async function bulkCloseConversations(
     resolvedBy?: string;
   },
 ): Promise<BulkOperationResult> {
-  let successCount = 0;
-  let failedCount = 0;
+  // Batch fetch all conversations in parallel
+  const conversations = await Promise.all(
+    args.conversationIds.map((id) => ctx.db.get(id)),
+  );
+
+  // Build patches for valid conversations
+  const patches: Array<{
+    id: Id<'conversations'>;
+    patch: Record<string, unknown>;
+  }> = [];
   const errors: string[] = [];
 
-  for (const conversationId of args.conversationIds) {
-    try {
-      const conversation = await ctx.db.get(conversationId);
-      if (!conversation) {
-        failedCount++;
-        errors.push(`Conversation ${conversationId} not found`);
-        continue;
-      }
+  for (let i = 0; i < args.conversationIds.length; i++) {
+    const conversationId = args.conversationIds[i];
+    const conversation = conversations[i];
 
-      const existingMetadata =
-        (conversation.metadata as Record<string, unknown>) || {};
-      await ctx.db.patch(conversationId, {
+    if (!conversation) {
+      errors.push(`Conversation ${conversationId} not found`);
+      continue;
+    }
+
+    const existingMetadata =
+      (conversation.metadata as Record<string, unknown>) || {};
+    patches.push({
+      id: conversationId,
+      patch: {
         status: 'closed',
         metadata: {
           ...existingMetadata,
           resolved_at: new Date().toISOString(),
           resolved_by: args.resolvedBy,
         },
-      });
+      },
+    });
+  }
+
+  // Apply all patches in parallel
+  const results = await Promise.allSettled(
+    patches.map(({ id, patch }) => ctx.db.patch(id, patch)),
+  );
+
+  // Count successes and failures from patch results
+  let successCount = 0;
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'fulfilled') {
       successCount++;
-    } catch (error) {
-      failedCount++;
+    } else {
       errors.push(
-        `Failed to close ${conversationId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to close ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
       );
     }
   }
 
-  return { successCount, failedCount, errors };
+  return {
+    successCount,
+    failedCount: args.conversationIds.length - successCount,
+    errors,
+  };
 }
