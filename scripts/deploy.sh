@@ -425,7 +425,15 @@ cmd_deploy() {
   # Caddy uses health_passes=2 and health_interval=2s, so we need at least 4s
   # after Docker marks the container healthy before Caddy will route to it.
   # We add extra buffer for safety.
-  log_step "Waiting for Caddy to detect ${target_color} as healthy..."
+  log_step "Verifying traffic routing through proxy..."
+
+  # Load HOST from .env file (defaults to tale.local for local dev)
+  local domain_host
+  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host="${domain_host:-tale.local}"
+
+  log_info "Testing endpoint: https://${domain_host}/api/health"
+  log_info "This verifies Caddy can route external traffic to the new ${target_color} services"
 
   # Wait for Caddy's health checks (health_interval=2s * health_passes=2 = 4s minimum)
   # Plus extra buffer for network latency and processing
@@ -435,26 +443,34 @@ cmd_deploy() {
 
   # Verify traffic is being served through proxy
   # Note: -k flag accepts self-signed certs (TLS_MODE=selfsigned in local dev)
-  # Load HOST from .env file (defaults to tale.local for local dev)
-  local domain_host
-  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
-  domain_host="${domain_host:-tale.local}"
-
   local caddy_verify_attempts=0
   local caddy_verify_max=5
+  local curl_error=""
   while [ "$caddy_verify_attempts" -lt "$caddy_verify_max" ]; do
-    if curl -sf -o /dev/null -k --max-time 3 "https://${domain_host}/api/health" 2>/dev/null; then
+    curl_error=$(curl -sf -k --max-time 3 "https://${domain_host}/api/health" 2>&1) && {
       log_success "Proxy is serving traffic successfully"
       break
-    fi
+    }
     caddy_verify_attempts=$((caddy_verify_attempts + 1))
-    echo "   Retry ${caddy_verify_attempts}/${caddy_verify_max}..."
+    echo "   Attempt ${caddy_verify_attempts}/${caddy_verify_max} failed, retrying in 2s..."
     sleep 2
   done
 
   if [ "$caddy_verify_attempts" -ge "$caddy_verify_max" ]; then
+    echo ""
     log_error "Could not verify proxy routing after ${caddy_verify_max} attempts"
     log_error "Refusing to drain old containers - new services may not be serving traffic"
+    echo ""
+    echo -e "   ${YELLOW}Possible causes:${NC}"
+    echo "   1. DNS not configured - '${domain_host}' doesn't resolve to this server"
+    echo "   2. Firewall blocking port 443"
+    echo "   3. Caddy failed to obtain TLS certificate"
+    echo ""
+    echo -e "   ${YELLOW}Debug steps:${NC}"
+    echo "   - Check DNS: nslookup ${domain_host}"
+    echo "   - Test locally: curl -k https://localhost/api/health"
+    echo "   - Check Caddy logs: docker logs tale-proxy --tail 50"
+    echo ""
     log_warning "Rolling back - stopping ${target_color} containers..."
     cleanup_color "$target_color" true
     return 1
