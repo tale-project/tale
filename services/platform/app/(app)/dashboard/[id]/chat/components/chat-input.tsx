@@ -1,7 +1,13 @@
 'use client';
 
 import { Textarea } from '@/components/ui/textarea';
-import { ComponentPropsWithoutRef, useRef, useState, useMemo, useCallback } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from 'react';
 import { X, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
@@ -57,7 +63,8 @@ export function ChatInput({
 
     // Store a copy of attachments before clearing (for passing to parent)
     // DON'T revoke preview URLs - they're needed for optimistic message display
-    const attachmentsToSend = attachments.length > 0 ? [...attachments] : undefined;
+    const attachmentsToSend =
+      attachments.length > 0 ? [...attachments] : undefined;
 
     // Clear attachments state IMMEDIATELY (before async operations start)
     setAttachments([]);
@@ -109,7 +116,8 @@ export function ChatInput({
 
           if (compressionResult.wasCompressed) {
             const savedKB = Math.round(
-              (compressionResult.originalSize - compressionResult.finalSize) / 1024,
+              (compressionResult.originalSize - compressionResult.finalSize) /
+                1024,
             );
             console.log(
               `[ChatInput] Compressed image: ${file.name} (${savedKB}KB saved)`,
@@ -211,9 +219,13 @@ export function ChatInput({
           // Create a meaningful filename with timestamp
           const extension = item.type.split('/')[1] || 'png';
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const renamedFile = new File([file], `pasted-image-${timestamp}.${extension}`, {
-            type: file.type,
-          });
+          const renamedFile = new File(
+            [file],
+            `pasted-image-${timestamp}.${extension}`,
+            {
+              type: file.type,
+            },
+          );
           imageFiles.push(renamedFile);
         }
       }
@@ -273,7 +285,7 @@ export function ChatInput({
       />
 
       {/* Main input container */}
-      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
+      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2">
         <div
           className={`flex relative flex-col gap-2 bg-background rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0 ${
             isDragOver ? 'border-primary bg-primary/5' : ''
@@ -287,62 +299,62 @@ export function ChatInput({
             <div className="flex flex-wrap gap-1 mb-2">
               {/* Image attachments - small square thumbnails */}
               {imageAttachments.map((attachment) => (
-                  <div key={attachment.fileId} className="relative group">
-                    <div className="size-11 rounded-lg bg-secondary/20 overflow-hidden">
-                      {attachment.previewUrl ? (
-                        <img
-                          src={attachment.previewUrl}
-                          alt={attachment.fileName}
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <div className="size-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                          <span className="text-xs text-blue-600">
-                            {tChat('fileTypes.image')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Remove button - appears on hover */}
-                    <button
-                      onClick={() => removeAttachment(attachment.fileId)}
-                      className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="size-3 text-muted-foreground" />
-                    </button>
+                <div key={attachment.fileId} className="relative group">
+                  <div className="size-11 rounded-lg bg-secondary/20 overflow-hidden">
+                    {attachment.previewUrl ? (
+                      <img
+                        src={attachment.previewUrl}
+                        alt={attachment.fileName}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <div className="size-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+                        <span className="text-xs text-blue-600">
+                          {tChat('fileTypes.image')}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  {/* Remove button - appears on hover */}
+                  <button
+                    onClick={() => removeAttachment(attachment.fileId)}
+                    className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="size-3 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
 
               {/* File attachments - horizontal cards */}
               {fileAttachments.map((attachment) => (
-                  <div
-                    key={attachment.fileId}
-                    className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[216px]"
-                  >
-                    <DocumentIcon fileName={attachment.fileName} />
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <div className="text-sm font-medium text-foreground truncate ellipsis ">
-                        {attachment.fileName}
-                      </div>
-                      <div className="text-xs text-muted-foreground/50">
-                        {attachment.fileType === 'application/pdf'
-                          ? tChat('fileTypes.pdf')
-                          : attachment.fileType.includes('word')
-                            ? tChat('fileTypes.doc')
-                            : attachment.fileType === 'text/plain'
-                              ? tChat('fileTypes.txt')
-                              : tChat('fileTypes.file')}
-                      </div>
+                <div
+                  key={attachment.fileId}
+                  className="relative group bg-secondary/20 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[216px]"
+                >
+                  <DocumentIcon fileName={attachment.fileName} />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground truncate ellipsis ">
+                      {attachment.fileName}
                     </div>
-                    {/* Remove button - appears on hover */}
-                    <button
-                      onClick={() => removeAttachment(attachment.fileId)}
-                      className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="size-3 text-muted-foreground" />
-                    </button>
+                    <div className="text-xs text-muted-foreground/50">
+                      {attachment.fileType === 'application/pdf'
+                        ? tChat('fileTypes.pdf')
+                        : attachment.fileType.includes('word')
+                          ? tChat('fileTypes.doc')
+                          : attachment.fileType === 'text/plain'
+                            ? tChat('fileTypes.txt')
+                            : tChat('fileTypes.file')}
+                    </div>
                   </div>
-                ))}
+                  {/* Remove button - appears on hover */}
+                  <button
+                    onClick={() => removeAttachment(attachment.fileId)}
+                    className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="size-3 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
 
               {/* Uploading files */}
               {uploadingFiles.map((fileId) => (
