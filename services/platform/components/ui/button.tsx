@@ -27,7 +27,8 @@ export const buttonVariants = cva(
           'ring-1 ring-border shadow-sm hover:bg-accent hover:text-accent-foreground bg-transparent',
         secondary:
           'bg-muted text-secondary-foreground shadow-sm ring-1 ring-border hover:ring-muted-foreground',
-        ghost: 'text-secondary-foreground hover:bg-accent hover:text-accent-foreground',
+        ghost:
+          'text-secondary-foreground hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary px-0 py-1 relative after:content-[""] after:block after:w-full after:h-[1px] after:transition-all after:duration-300 after:ease-in-out after:absolute after:bottom-0 after:left-0 hover:after:bg-primary',
         primary:
           'outline outline-white/20 bg-gradient-to-b from-[rgba(255,255,255,0.16)0%] from-0% to-white/0 to-100% bg-[#0561E6] shadow-[0_0_0_1px_#023173,0_1px_2px_0_#023173] text-white',
@@ -130,4 +131,3 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
   },
 );
 LinkButton.displayName = 'LinkButton';
-

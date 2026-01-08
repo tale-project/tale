@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
-import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
+import { parseSearchParams } from '@/lib/pagination/parse-search-params';
 import { vendorFilterDefinitions } from './filter-definitions';
 import type { Metadata } from 'next';
 
@@ -26,7 +26,6 @@ interface PageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
-
 
 interface VendorsContentProps {
   params: Promise<{ id: string }>;
@@ -74,10 +73,7 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   );
 }
 
-export default async function VendorsPage({
-  params,
-  searchParams,
-}: PageProps) {
+export default async function VendorsPage({ params, searchParams }: PageProps) {
   const token = await getAuthToken();
   if (!token) {
     redirect('/log-in');
@@ -86,25 +82,22 @@ export default async function VendorsPage({
   const { id: organizationId } = await params;
   const rawSearchParams = await searchParams;
 
-  // Parse filters to check for active filters
-  const { filters } = parseSearchParams(rawSearchParams, vendorFilterDefinitions);
-  const hasFilters = hasActiveFilters(filters, vendorFilterDefinitions);
-
   // Fetch initial hasVendors state for SSR
-  const initialHasVendors = hasFilters
-    ? true // If filters are active, assume vendors exist
-    : await fetchQuery(
-        api.vendors.hasVendors,
-        { organizationId },
-        { token },
-      );
+  // Always fetch to ensure accurate state, regardless of filters
+  const initialHasVendors = await fetchQuery(
+    api.vendors.hasVendors,
+    { organizationId },
+    { token },
+  );
 
   return (
     <VendorsPageWrapper
       organizationId={organizationId}
       initialHasVendors={initialHasVendors}
     >
-      <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
+      <Suspense
+        fallback={<VendorsTableSkeleton organizationId={organizationId} />}
+      >
         <VendorsContent params={params} searchParams={searchParams} />
       </Suspense>
     </VendorsPageWrapper>

@@ -151,7 +151,9 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
                 side="bottom"
                 className="py-1.5"
               >
-                {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
+                {isHistoryOpen || isMobileHistoryOpen
+                  ? tChat('hideHistory')
+                  : tChat('showHistory')}
                 <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
                   {historyShortcut}
                 </span>
