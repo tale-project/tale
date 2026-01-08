@@ -509,7 +509,7 @@ class PptxService:
 
         return filled
 
-    def _clone_slide(self, prs: Presentation, source_slide) -> Any:
+    def _clone_slide(self, prs: Presentation, source_slide):
         """
         Clone a slide with all its shapes and relationships.
 
@@ -518,6 +518,9 @@ class PptxService:
 
         Important: We need to remove the default shapes that come from the layout
         before copying shapes from the source slide to avoid duplicates.
+
+        Returns:
+            pptx.slide.Slide: The cloned slide added to the presentation.
         """
         from copy import deepcopy
         from lxml import etree
