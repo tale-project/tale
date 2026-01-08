@@ -2,8 +2,9 @@
 Data models for the Tale Crawler service.
 """
 
-from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, Field, HttpUrl
 
 # Valid Playwright wait_until values
 WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
@@ -16,8 +17,8 @@ class PageContent(BaseModel):
     title: Optional[str] = Field(None, description="Page title")
     content: str = Field(..., description="Extracted text content")
     word_count: int = Field(..., description="Number of words in content")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
-    structured_data: Optional[Dict[str, Any]] = Field(None, description="Structured data (price, images, etc.)")
+    metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
+    structured_data: Optional[dict[str, Any]] = Field(None, description="Structured data (price, images, etc.)")
 
 
 class DiscoverRequest(BaseModel):
@@ -35,7 +36,7 @@ class DiscoveredUrl(BaseModel):
 
     url: str = Field(..., description="The discovered URL")
     status: str = Field(..., description="Status of the URL (e.g., 'valid')")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class DiscoverResponse(BaseModel):
@@ -44,14 +45,14 @@ class DiscoverResponse(BaseModel):
     success: bool = Field(..., description="Whether the discovery was successful")
     domain: str = Field(..., description="The domain that was searched")
     urls_discovered: int = Field(..., description="Number of URLs discovered")
-    urls: List[DiscoveredUrl] = Field(default_factory=list, description="Discovered URLs")
+    urls: list[DiscoveredUrl] = Field(default_factory=list, description="Discovered URLs")
     error: Optional[str] = Field(None, description="Error message if discovery failed")
 
 
 class FetchUrlsRequest(BaseModel):
     """Request to fetch content from specific URLs."""
 
-    urls: List[str] = Field(..., description="List of URLs to fetch content from", min_length=1, max_length=100)
+    urls: list[str] = Field(..., description="List of URLs to fetch content from", min_length=1, max_length=100)
     word_count_threshold: int = Field(100, description="Minimum word count for content", ge=0)
 
 
@@ -61,7 +62,7 @@ class FetchUrlsResponse(BaseModel):
     success: bool = Field(..., description="Whether the fetch was successful")
     urls_requested: int = Field(..., description="Number of URLs requested")
     urls_fetched: int = Field(..., description="Number of URLs successfully fetched")
-    pages: List[PageContent] = Field(default_factory=list, description="Fetched page contents")
+    pages: list[PageContent] = Field(default_factory=list, description="Fetched page contents")
     error: Optional[str] = Field(None, description="Error message if fetch failed")
 
 
@@ -159,8 +160,8 @@ class UrlToImageRequest(BaseModel):
 class TableData(BaseModel):
     """Table data for PPTX generation."""
 
-    headers: List[str] = Field(default_factory=list, description="Column headers")
-    rows: List[List[str]] = Field(default_factory=list, description="Table data rows")
+    headers: list[str] = Field(default_factory=list, description="Column headers")
+    rows: list[list[str]] = Field(default_factory=list, description="Table data rows")
 
 
 class SlideContent(BaseModel):
@@ -168,9 +169,9 @@ class SlideContent(BaseModel):
 
     title: Optional[str] = Field(None, description="Slide title")
     subtitle: Optional[str] = Field(None, description="Slide subtitle (for title slides)")
-    textContent: Optional[List[str]] = Field(None, description="Text paragraphs")
-    bulletPoints: Optional[List[str]] = Field(None, description="Bullet point items")
-    tables: Optional[List[TableData]] = Field(None, description="Tables to add to the slide")
+    textContent: Optional[list[str]] = Field(None, description="Text paragraphs")
+    bulletPoints: Optional[list[str]] = Field(None, description="Bullet point items")
+    tables: Optional[list[TableData]] = Field(None, description="Tables to add to the slide")
 
 
 # ==================== PPTX Generation Models ====================
@@ -194,9 +195,9 @@ class DocxSection(BaseModel):
     type: str = Field(..., description="Section type: heading, paragraph, bullets, numbered, table, quote, code")
     text: Optional[str] = Field(None, description="Text content (for heading, paragraph, quote, code)")
     level: Optional[int] = Field(None, description="Heading level (1-9)")
-    items: Optional[List[str]] = Field(None, description="List items (for bullets, numbered)")
-    headers: Optional[List[str]] = Field(None, description="Table headers")
-    rows: Optional[List[List[Any]]] = Field(None, description="Table rows")
+    items: Optional[list[str]] = Field(None, description="List items (for bullets, numbered)")
+    headers: Optional[list[str]] = Field(None, description="Table headers")
+    rows: Optional[list[list[Any]]] = Field(None, description="Table rows")
 
 
 class DocxContent(BaseModel):
@@ -204,7 +205,7 @@ class DocxContent(BaseModel):
 
     title: str = Field(..., description="Document title")
     subtitle: Optional[str] = Field(None, description="Document subtitle")
-    sections: List[DocxSection] = Field(default_factory=list, description="Document sections")
+    sections: list[DocxSection] = Field(default_factory=list, description="Document sections")
 
 
 class GenerateDocxRequest(BaseModel):
@@ -235,5 +236,5 @@ class ParseFileResponse(BaseModel):
     page_count: Optional[int] = Field(None, description="Number of pages (PDF)")
     paragraph_count: Optional[int] = Field(None, description="Number of paragraphs (DOCX)")
     slide_count: Optional[int] = Field(None, description="Number of slides (PPTX)")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Document metadata")
+    metadata: Optional[dict[str, Any]] = Field(None, description="Document metadata")
     error: Optional[str] = Field(None, description="Error message if parsing failed")
