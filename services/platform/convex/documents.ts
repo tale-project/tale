@@ -43,8 +43,7 @@ import {
   deleteFromRagResponseValidator,
   uploadFileResponseValidator,
   createOneDriveSyncConfigResponseValidator,
-  analyzePptxResponseValidator,
-  slideContentDataValidator,
+  slideContentValidator,
   pptxBrandingDataValidator,
   generatePptxResponseValidator,
   docxContentValidator,
@@ -852,21 +851,6 @@ export const createOneDriveSyncConfig = mutationWithRLS({
 // =============================================================================
 
 /**
- * Analyze a PPTX template to extract its full content via the crawler service.
- */
-export const analyzePptxInternal = internalAction({
-  args: {
-    templateStorageId: v.id('_storage'),
-  },
-  returns: analyzePptxResponseValidator,
-  handler: async (ctx, args) => {
-    return await DocumentsModel.analyzePptx(ctx, {
-      templateStorageId: args.templateStorageId,
-    });
-  },
-});
-
-/**
  * Generate a PPTX from content via the crawler service.
  *
  * When templateStorageId is provided, uses the template as a base, preserving
@@ -875,7 +859,7 @@ export const analyzePptxInternal = internalAction({
 export const generatePptxInternal = internalAction({
   args: {
     fileName: v.string(),
-    slidesContent: v.array(slideContentDataValidator),
+    slidesContent: v.array(slideContentValidator),
     branding: v.optional(pptxBrandingDataValidator),
     templateStorageId: v.id('_storage'),
   },
