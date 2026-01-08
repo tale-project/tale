@@ -434,8 +434,8 @@ class PptxService:
                 try:
                     ph_type = shape.placeholder_format.type
                     placeholder_types.append(f"{ph_type} ({shape.placeholder_format.idx})")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Could not read placeholder type: {e}")
         logger.debug(f"Available placeholders: {placeholder_types}")
 
         for shape in slide.shapes:
