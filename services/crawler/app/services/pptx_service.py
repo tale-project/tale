@@ -589,7 +589,6 @@ class PptxService:
     def _find_template_slide_for_clone(
         self,
         template_slides: List[Any],
-        content: Dict[str, Any],
     ) -> Optional[Any]:
         """
         Find a template slide to clone (only for title slides).
@@ -883,7 +882,7 @@ class PptxService:
                 # Decide strategy: clone for title slides, layout-based for content slides
                 if self._should_clone_slide(content, idx):
                     # Title slide - clone to preserve decorations
-                    source_slide = self._find_template_slide_for_clone(template_slides, content)
+                    source_slide = self._find_template_slide_for_clone(template_slides)
                     if source_slide:
                         logger.info(f"Cloning title slide for content idx={idx}")
                         new_slide = self._clone_slide(prs, source_slide)
