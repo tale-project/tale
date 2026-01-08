@@ -5,6 +5,7 @@
 - ALL pages should be optimized for accessibility (Level AA).
 - ALWAYS write filenames in dash-case (generally) and snake_case (for Convex and Python).
 - ALWAYS use sentence case in translations.
+- NEVER delete, remove, or clear databases, caches, state files, or any persistent data without EXPLICIT user permission. This includes local development databases (e.g., SQLite files, Convex local backend state), cache directories, and configuration state. Always ask first before any destructive action.
 
 ## TypeScript
 

@@ -15,12 +15,13 @@ interface AuthFormLayoutProps {
  */
 export function AuthFormLayout({ title, children }: AuthFormLayoutProps) {
   return (
-    <div className="relative mx-4 sm:mx-8">
-      <VStack gap={8} className="mx-auto w-full max-w-[24.875rem] px-4 relative">
+    <div className="relative">
+      <VStack
+        gap={8}
+        className="mx-auto w-full max-w-[24.875rem] px-4 relative"
+      >
         <Stack gap={2} className="text-center">
-          <h1 className="text-[20px] font-semibold tracking-[-0.12px]">
-            {title}
-          </h1>
+          <h1 className="text-xl font-semibold tracking-[-0.12px]">{title}</h1>
         </Stack>
         {children}
       </VStack>

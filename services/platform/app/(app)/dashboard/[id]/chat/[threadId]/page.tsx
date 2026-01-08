@@ -22,7 +22,7 @@ interface AIConversationPageProps {
 function ChatInputSkeleton() {
   return (
     <div className="max-w-[var(--chat-max-width)] mx-auto w-full sticky bottom-0 z-50">
-      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
+      <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2">
         <div className="flex relative flex-col gap-2 bg-background rounded-t-2xl pt-3 px-4 border border-muted-foreground/50 border-b-0">
           {/* Textarea placeholder */}
           <Skeleton className="h-[100px] w-full bg-transparent" />

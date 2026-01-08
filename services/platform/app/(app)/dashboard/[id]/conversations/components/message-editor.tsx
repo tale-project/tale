@@ -181,7 +181,7 @@ function MilkdownEditorInner({
       // Listen to editor updates & focus/blur via Milkdown listener API
       editor.on((listener) => {
         // Update local state whenever markdown changes
-        listener.markdownUpdated((ctx, markdown) => {
+        listener.markdownUpdated((_ctx, markdown) => {
           setMessage(markdown);
           setHasContent(markdown.trim().length > 0);
         });
@@ -320,14 +320,14 @@ function MilkdownEditorInner({
           // Save the HTML message (conversation-panel will pass it as html and derive text)
           await onSave(html, attachedFiles);
 
-          // Clear attachments
+          // Only clear after successful send to preserve content on error
           setAttachedFiles([]);
-          // Clear editor content by setting it to empty string
           setMessage('');
           setProgrammaticContent('');
           setIsImproveMode(false);
           setImproveInstruction('');
         } catch (error) {
+          // Content is preserved - user can retry sending
           console.error('Failed to send message:', error);
           toast({
             title: tConversations('editor.sendFailed'),
@@ -392,7 +392,7 @@ function MilkdownEditorInner({
   };
 
   return (
-    <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0">
+    <div className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2">
       <div className="bg-background rounded-t-[0.875rem] relative px-3 pt-1 border border-muted-foreground/50 border-b-0">
         {/* Editor Container */}
         <div
@@ -417,7 +417,9 @@ function MilkdownEditorInner({
                       <ChevronLeft className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{tConversations('editor.backToEditor')}</TooltipContent>
+                  <TooltipContent>
+                    {tConversations('editor.backToEditor')}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <Textarea
@@ -592,7 +594,9 @@ function MilkdownEditorInner({
                       )}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>{tConversations('editor.improveWithAi')}</TooltipContent>
+                  <TooltipContent>
+                    {tConversations('editor.improveWithAi')}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
@@ -637,7 +641,9 @@ function MilkdownEditorInner({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isImproving ? tConversations('editor.improving') : tConversations('editor.generateImprovement')}
+                  {isImproving
+                    ? tConversations('editor.improving')
+                    : tConversations('editor.generateImprovement')}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

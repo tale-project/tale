@@ -538,7 +538,10 @@ function MessageBubbleComponent({
         {sanitizedContent && (
           <div className="text-sm leading-5">
             {isAssistantStreaming ? (
-              <TypewriterTextWrapper text={sanitizedContent} isStreaming={true} />
+              <TypewriterTextWrapper
+                text={sanitizedContent}
+                isStreaming={true}
+              />
             ) : (
               <div className={markdownWrapperStyles}>
                 <Markdown
@@ -552,7 +555,7 @@ function MessageBubbleComponent({
             )}
           </div>
         )}
-        {!isUser && (
+        {!isUser && !isAssistantStreaming && (
           <div className="flex items-center pt-2">
             <TooltipProvider>
               <Tooltip>
@@ -585,7 +588,9 @@ function MessageBubbleComponent({
                     <Info className="size-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{t('actions.showInfo')}</TooltipContent>
+                <TooltipContent side="bottom">
+                  {t('actions.showInfo')}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
@@ -605,15 +610,17 @@ function MessageBubbleComponent({
 }
 
 // Memoize to prevent re-renders when parent state changes (e.g., typing in input)
-export const MessageBubble = memo(MessageBubbleComponent, (prevProps, nextProps) => {
-  // Only re-render if message content or relevant properties changed
-  return (
-    prevProps.message.id === nextProps.message.id &&
-    prevProps.message.content === nextProps.message.content &&
-    prevProps.message.isStreaming === nextProps.message.isStreaming &&
-    prevProps.message.attachments === nextProps.message.attachments &&
-    prevProps.message.fileParts === nextProps.message.fileParts &&
-    prevProps.className === nextProps.className
-  );
-});
-
+export const MessageBubble = memo(
+  MessageBubbleComponent,
+  (prevProps, nextProps) => {
+    // Only re-render if message content or relevant properties changed
+    return (
+      prevProps.message.id === nextProps.message.id &&
+      prevProps.message.content === nextProps.message.content &&
+      prevProps.message.isStreaming === nextProps.message.isStreaming &&
+      prevProps.message.attachments === nextProps.message.attachments &&
+      prevProps.message.fileParts === nextProps.message.fileParts &&
+      prevProps.className === nextProps.className
+    );
+  },
+);

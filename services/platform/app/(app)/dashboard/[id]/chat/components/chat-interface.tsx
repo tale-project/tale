@@ -362,6 +362,22 @@ export function ChatInterface({
     (m) => m.role === 'assistant' && m.status === 'streaming',
   );
 
+  // Check if there are any tools still executing in the streaming message
+  // Tool parts have a `state` field: 'input-streaming', 'input-available', 'output-available', 'output-error'
+  // Tools are "active" if they're still streaming input or waiting to execute
+  const hasActiveTools = useMemo(() => {
+    if (!streamingMessage?.parts) return false;
+    return streamingMessage.parts.some((part) => {
+      if (!part.type.startsWith('tool-')) return false;
+      const toolPart = part as { state?: string };
+      // Tool is active if it's still receiving input or has input ready but no output yet
+      return (
+        toolPart.state === 'input-streaming' ||
+        toolPart.state === 'input-available'
+      );
+    });
+  }, [streamingMessage?.parts]);
+
   // Fetch integration approvals for this thread
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
 
@@ -782,9 +798,12 @@ export function ChatInterface({
               )}
 
               {/* AI Response area - ref used for scroll positioning */}
-              {/* Hide ThinkingAnimation once AI starts outputting text content */}
+              {/* Show ThinkingAnimation when:
+                  1. Waiting for AI response (isPending, no streaming yet), OR
+                  2. Tools are actively executing (even if text has started streaming) */}
               <div ref={aiResponseAreaRef}>
-                {isLoading && !streamingMessage?.text && (
+                {((isPending && userDraftMessage && !streamingMessage) ||
+                  hasActiveTools) && (
                   <ThinkingAnimation
                     threadId={threadId}
                     streamingMessage={streamingMessage}
