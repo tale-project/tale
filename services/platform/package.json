@@ -120,7 +120,7 @@
     "@vitest/coverage-v8": "4.0.14",
     "convex-test": "0.0.40",
     "encoding": "0.1.13",
-    "eslint": "9.39.1",
+    "eslint": "9.39.2",
     "eslint-config-next": "16.1.1",
     "eslint-plugin-unicorn": "62.0.0",
     "pdfjs-dist": "5.4.449",
