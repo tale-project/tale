@@ -306,81 +306,6 @@ export const createOneDriveSyncConfigResponseValidator = v.object({
 });
 
 /**
- * Text content info validator (for PPTX analysis)
- */
-export const textContentInfoValidator = v.object({
-  text: v.string(),
-  isPlaceholder: v.boolean(),
-});
-
-/**
- * Table info validator (for PPTX analysis)
- */
-export const tableInfoValidator = v.object({
-  rowCount: v.number(),
-  columnCount: v.number(),
-  headers: v.array(v.string()),
-  rows: v.array(v.array(v.string())),
-});
-
-/**
- * Chart info validator (for PPTX analysis)
- */
-export const chartInfoValidator = v.object({
-  chartType: v.string(),
-  hasLegend: v.optional(v.boolean()),
-  seriesCount: v.optional(v.number()),
-});
-
-/**
- * Image info validator (for PPTX analysis)
- */
-export const imageInfoValidator = v.object({
-  width: v.optional(v.number()),
-  height: v.optional(v.number()),
-});
-
-/**
- * Slide info validator (for PPTX analysis)
- */
-export const slideInfoValidator = v.object({
-  slideNumber: v.number(),
-  layoutName: v.string(),
-  title: v.union(v.string(), v.null()),
-  subtitle: v.union(v.string(), v.null()),
-  textContent: v.array(textContentInfoValidator),
-  tables: v.array(tableInfoValidator),
-  charts: v.array(chartInfoValidator),
-  images: v.array(imageInfoValidator),
-});
-
-/**
- * Branding info validator (for PPTX analysis)
- */
-export const brandingInfoValidator = v.object({
-  slideWidth: v.optional(v.number()),
-  slideHeight: v.optional(v.number()),
-  titleFontName: v.optional(v.union(v.string(), v.null())),
-  bodyFontName: v.optional(v.union(v.string(), v.null())),
-  titleFontSize: v.optional(v.number()),
-  bodyFontSize: v.optional(v.number()),
-  primaryColor: v.optional(v.union(v.string(), v.null())),
-  secondaryColor: v.optional(v.union(v.string(), v.null())),
-  accentColor: v.optional(v.union(v.string(), v.null())),
-});
-
-/**
- * Analyze PPTX response validator
- */
-export const analyzePptxResponseValidator = v.object({
-  success: v.boolean(),
-  slideCount: v.number(),
-  slides: v.array(slideInfoValidator),
-  availableLayouts: v.array(v.string()),
-  branding: brandingInfoValidator,
-});
-
-/**
  * Table data validator (for PPTX generation)
  */
 export const tableDataValidator = v.object({
@@ -389,9 +314,10 @@ export const tableDataValidator = v.object({
 });
 
 /**
- * Slide content data validator (for PPTX generation)
+ * Slide content validator (for PPTX generation)
+ * Backend automatically selects the best layout based on content fields.
  */
-export const slideContentDataValidator = v.object({
+export const slideContentValidator = v.object({
   title: v.optional(v.string()),
   subtitle: v.optional(v.string()),
   textContent: v.optional(v.array(v.string())),

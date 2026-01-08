@@ -2,8 +2,8 @@
 Data models for the Tale Crawler service.
 """
 
-from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field, HttpUrl
+from typing import Optional, List, Dict, Any, Literal, Union
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 # Valid Playwright wait_until values
 WaitUntilType = Literal["load", "domcontentloaded", "networkidle", "commit"]
@@ -153,61 +153,24 @@ class UrlToImageRequest(BaseModel):
     timeout: int = Field(60000, description="Navigation timeout in milliseconds (default: 60s)", ge=5000, le=120000)
 
 
-# ==================== PPTX Analysis Models ====================
+# ==================== PPTX Models ====================
 
 
-class TextContentInfo(BaseModel):
-    """Text content from a slide."""
+class TableData(BaseModel):
+    """Table data for PPTX generation."""
 
-    text: str = Field(..., description="Text content")
-    isPlaceholder: bool = Field(False, description="Whether this is a placeholder")
-
-
-class AnalyzeTableInfo(BaseModel):
-    """Full table data from analysis."""
-
-    rowCount: int = Field(..., description="Number of rows")
-    columnCount: int = Field(..., description="Number of columns")
-    headers: List[str] = Field(default_factory=list, description="Header row content")
-    rows: List[List[str]] = Field(default_factory=list, description="All data rows")
+    headers: List[str] = Field(default_factory=list, description="Column headers")
+    rows: List[List[str]] = Field(default_factory=list, description="Table data rows")
 
 
-class AnalyzeChartInfo(BaseModel):
-    """Chart info from analysis."""
+class SlideContent(BaseModel):
+    """Slide content - backend automatically selects best layout based on fields."""
 
-    chartType: str = Field(..., description="Chart type")
-    hasLegend: Optional[bool] = Field(None, description="Whether chart has a legend")
-    seriesCount: Optional[int] = Field(None, description="Number of data series")
-
-
-class AnalyzeImageInfo(BaseModel):
-    """Image info from analysis."""
-
-    width: Optional[int] = Field(None, description="Image width in EMUs")
-    height: Optional[int] = Field(None, description="Image height in EMUs")
-
-
-class AnalyzeSlideInfo(BaseModel):
-    """Full slide content from analysis."""
-
-    slideNumber: int = Field(..., description="Slide number (1-based)")
-    layoutName: str = Field(..., description="Slide layout name")
     title: Optional[str] = Field(None, description="Slide title")
-    subtitle: Optional[str] = Field(None, description="Slide subtitle")
-    textContent: List[TextContentInfo] = Field(default_factory=list, description="All text content")
-    tables: List[AnalyzeTableInfo] = Field(default_factory=list, description="Full table data")
-    charts: List[AnalyzeChartInfo] = Field(default_factory=list, description="Chart info")
-    images: List[AnalyzeImageInfo] = Field(default_factory=list, description="Image info")
-
-
-class AnalyzePptxResponse(BaseModel):
-    """Response from PPTX template analysis."""
-
-    success: bool = Field(..., description="Whether analysis was successful")
-    slideCount: int = Field(0, description="Total number of slides")
-    slides: List[AnalyzeSlideInfo] = Field(default_factory=list, description="Slide information with full content")
-    availableLayouts: List[str] = Field(default_factory=list, description="Available slide layouts")
-    error: Optional[str] = Field(None, description="Error message if analysis failed")
+    subtitle: Optional[str] = Field(None, description="Slide subtitle (for title slides)")
+    textContent: Optional[List[str]] = Field(None, description="Text paragraphs")
+    bulletPoints: Optional[List[str]] = Field(None, description="Bullet point items")
+    tables: Optional[List[TableData]] = Field(None, description="Tables to add to the slide")
 
 
 # ==================== PPTX Generation Models ====================

@@ -233,7 +233,6 @@ import type * as model_customers_update_customer from "../model/customers/update
 import type * as model_customers_update_customer_metadata from "../model/customers/update_customer_metadata.js";
 import type * as model_customers_update_customers from "../model/customers/update_customers.js";
 import type * as model_customers_validators from "../model/customers/validators.js";
-import type * as model_documents_analyze_pptx from "../model/documents/analyze_pptx.js";
 import type * as model_documents_check_membership from "../model/documents/check_membership.js";
 import type * as model_documents_create_document from "../model/documents/create_document.js";
 import type * as model_documents_create_onedrive_sync_config from "../model/documents/create_onedrive_sync_config.js";
@@ -957,7 +956,6 @@ declare const fullApi: ApiFromModules<{
   "model/customers/update_customer_metadata": typeof model_customers_update_customer_metadata;
   "model/customers/update_customers": typeof model_customers_update_customers;
   "model/customers/validators": typeof model_customers_validators;
-  "model/documents/analyze_pptx": typeof model_documents_analyze_pptx;
   "model/documents/check_membership": typeof model_documents_check_membership;
   "model/documents/create_document": typeof model_documents_create_document;
   "model/documents/create_onedrive_sync_config": typeof model_documents_create_onedrive_sync_config;

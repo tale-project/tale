@@ -23,6 +23,7 @@ export interface TableData {
 
 /**
  * Content for a single slide in the PPTX.
+ * Backend automatically selects the best layout based on content fields.
  */
 export interface SlideContentData {
   title?: string;
@@ -125,13 +126,19 @@ export async function generatePptx(
       status: response.status,
       errorText,
     });
-    throw new Error(`Crawler generatePptx failed: ${response.status}`);
+    // Include detailed error in message for AI to see
+    const errorDetail = errorText ? `: ${errorText}` : '';
+    throw new Error(
+      `PPTX generation failed (HTTP ${response.status})${errorDetail}`,
+    );
   }
 
   const result = await response.json();
 
   if (!result.success || !result.file_base64) {
-    throw new Error(result.error || 'Failed to generate PPTX');
+    // Pass through detailed error from crawler service
+    const errorMsg = result.error || 'Unknown error during PPTX generation';
+    throw new Error(`PPTX generation failed: ${errorMsg}`);
   }
 
   // Decode base64 and upload to Convex storage

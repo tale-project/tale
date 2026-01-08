@@ -20,7 +20,6 @@ export * from './get_onedrive_sync_configs';
 export * from './upload_base64_to_storage';
 export * from './read_file_base64_from_storage';
 export * from './generate_document';
-export * from './analyze_pptx';
 export * from './generate_pptx';
 export * from './generate_docx';
 export * from './generate_docx_from_template';
