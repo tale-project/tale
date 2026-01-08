@@ -111,6 +111,7 @@ interface GenerateResult {
   fileName: string;
   contentType: string;
   size: number;
+  error?: string;
 }
 
 type ParsePptxResult = { operation: 'parse' } & ParseFileResult;
@@ -245,7 +246,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
           size: 0,
           error:
             'templateStorageId is required. Call list_templates first to get available templates. If no templates exist, ask the user to upload a .pptx file to Knowledge/Documents.',
-        } as GenerateResult & { error: string };
+        };
       }
       if (!args.fileName) {
         throw new Error("Missing required 'fileName' for generate operation");
