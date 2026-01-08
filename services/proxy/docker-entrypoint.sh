@@ -5,27 +5,25 @@ set -e
 # Caddy Entrypoint Script
 # ============================================================================
 # This script:
-# 1. Derives SITE_URL from USE_SSL and HOST environment variables
+# 1. Validates required environment variables (HOST, SITE_URL)
 # 2. Generates TLS config in Caddyfile based on TLS_MODE (hardcoded, not env vars)
 # 3. Ensures self-signed CA certificates are readable by other containers
 # ============================================================================
 
 # ============================================================================
-# Derive SITE_URL from USE_SSL and HOST
+# Domain Configuration
 # ============================================================================
 HOST="${HOST:-tale.local}"
-USE_SSL="${USE_SSL:-true}"
 
-if [ "$USE_SSL" = "true" ]; then
-  SITE_URL="https://${HOST}"
-else
-  SITE_URL="http://${HOST}"
+# SITE_URL is required
+if [ -z "${SITE_URL:-}" ]; then
+  echo "Error: SITE_URL is required. Set it in your .env file." >&2
+  exit 1
 fi
 export SITE_URL
 
 echo "Domain Configuration:"
 echo "  HOST: ${HOST}"
-echo "  USE_SSL: ${USE_SSL}"
 echo "  SITE_URL: ${SITE_URL}"
 
 # Source and destination for Caddyfile

@@ -72,17 +72,9 @@ function envNormalizeCommon() {
   if (!process.env.PORT) process.env.PORT = '3000';
   if (!process.env.HOSTNAME) process.env.HOSTNAME = '0.0.0.0';
 
-  // Domain configuration - derive SITE_URL from HOST and USE_SSL
+  // Domain configuration
   const port = process.env.PORT || '3000';
   const host = process.env.HOST || 'localhost';
-  const useSsl = process.env.USE_SSL || 'false';
-  const protocol = useSsl === 'true' ? 'https' : 'http';
-
-  // For localhost, add port to the URL
-  let baseUrl = `${protocol}://${host}`;
-  if (host === 'localhost') {
-    baseUrl = `${baseUrl}:${port}`;
-  }
 
   // Database: POSTGRES_URL left as-is if provided
 
@@ -93,8 +85,10 @@ function envNormalizeCommon() {
   // AI providers: OPENAI_API_KEY left as-is if provided
 
   // SITE_URL is the canonical base URL - all other URLs are derived from it in code
-  // For localhost, baseUrl already includes the port, so use it directly
-  if (!process.env.SITE_URL) process.env.SITE_URL = baseUrl;
+  // For local development, default to http://localhost:PORT if not set
+  if (!process.env.SITE_URL) {
+    process.env.SITE_URL = `http://${host}${host === 'localhost' ? `:${port}` : ''}`;
+  }
 }
 
 /**
