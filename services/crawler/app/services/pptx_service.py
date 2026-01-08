@@ -611,69 +611,6 @@ class PptxService:
 
         return None
 
-    def _extract_decorative_elements(self, source_slide) -> List[Any]:
-        """
-        Extract purely decorative elements from a template slide.
-
-        Returns a list of XML elements that can be copied to a new slide.
-        Only includes visual decorations (images, lines, shapes without text)
-        and excludes any text-containing shapes to avoid copying template's
-        example content.
-        """
-        from copy import deepcopy
-        from pptx.enum.shapes import MSO_SHAPE_TYPE
-
-        decorative_elements = []
-
-        for shape in source_slide.shapes:
-            # Skip placeholders
-            if shape.is_placeholder:
-                continue
-
-            # Skip any shape with text content (these are likely template examples)
-            if shape.has_text_frame:
-                text = self._get_shape_text(shape).strip()
-                if text:
-                    # Has text - skip this shape (likely "01", "About us", etc.)
-                    continue
-
-            # Include images
-            try:
-                if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                    decorative_elements.append(deepcopy(shape.element))
-                    continue
-            except Exception:
-                pass
-
-            # Include lines and connectors
-            try:
-                if shape.shape_type in (MSO_SHAPE_TYPE.LINE, MSO_SHAPE_TYPE.FREEFORM):
-                    decorative_elements.append(deepcopy(shape.element))
-                    continue
-            except Exception:
-                pass
-
-            # Include groups (often contain decorative patterns)
-            try:
-                if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-                    # Only include if no text in any child
-                    has_text = False
-                    for child_shape in shape.shapes:
-                        if child_shape.has_text_frame and self._get_shape_text(child_shape).strip():
-                            has_text = True
-                            break
-                    if not has_text:
-                        decorative_elements.append(deepcopy(shape.element))
-                    continue
-            except Exception:
-                pass
-
-            # For other shapes without text, include them (borders, boxes, etc.)
-            if not shape.has_text_frame:
-                decorative_elements.append(deepcopy(shape.element))
-
-        return decorative_elements
-
     def _get_best_layout_for_content(self, prs: Presentation, content: Dict[str, Any]) -> Any:
         """
         Get the best layout from the presentation's slide layouts based on content.
