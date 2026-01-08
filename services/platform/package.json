@@ -100,6 +100,7 @@
     "@convex-dev/eslint-plugin": "1.0.0",
     "@edge-runtime/vm": "5.0.0",
     "@eslint/eslintrc": "3.3.3",
+    "@next/bundle-analyzer": "^16.1.1",
     "@tanstack/react-query-devtools": "5.91.1",
     "@types/dagre": "0.7.53",
     "@types/he": "1.2.3",

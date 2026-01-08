@@ -56,15 +56,19 @@ export async function createProviderInternal(
     isDefault = true;
   }
 
-  // If this is set as default, unset other defaults
+  // If this is set as default, unset other defaults in parallel
   if (isDefault && existingDefault !== null) {
+    const providerIdsToUnset: Array<Doc<'emailProviders'>['_id']> = [];
     for await (const provider of ctx.db
       .query('emailProviders')
       .withIndex('by_organizationId_and_isDefault', (q) =>
         q.eq('organizationId', args.organizationId).eq('isDefault', true),
       )) {
-      await ctx.db.patch(provider._id, { isDefault: false });
+      providerIdsToUnset.push(provider._id);
     }
+    await Promise.all(
+      providerIdsToUnset.map((id) => ctx.db.patch(id, { isDefault: false })),
+    );
   }
 
   // Type assertion not needed - interface matches Doc<'emailProviders'>['oauth2Auth']

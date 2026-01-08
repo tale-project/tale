@@ -96,14 +96,17 @@ export async function activateVersion(
     .first();
 
   if (existingDraft) {
-    // Delete draft's steps first
+    // Collect draft's step IDs first
+    const stepIds: Array<Id<'wfStepDefs'>> = [];
     for await (const step of ctx.db
       .query('wfStepDefs')
       .withIndex('by_definition', (q) =>
         q.eq('wfDefinitionId', existingDraft._id),
       )) {
-      await ctx.db.delete(step._id);
+      stepIds.push(step._id);
     }
+    // Delete all steps in parallel, then delete draft
+    await Promise.all(stepIds.map((id) => ctx.db.delete(id)));
     await ctx.db.delete(existingDraft._id);
   }
 
@@ -133,22 +136,24 @@ export async function activateVersion(
     },
   });
 
-  // 7. Copy steps to new draft
-  for (const step of steps) {
-    await ctx.db.insert('wfStepDefs', {
-      organizationId: step.organizationId,
-      wfDefinitionId: newDraftId,
-      stepSlug: step.stepSlug,
-      name: step.name,
-      stepType: step.stepType,
-      order: step.order,
-      nextSteps: step.nextSteps,
-      config: step.config,
-      inputMapping: step.inputMapping,
-      outputMapping: step.outputMapping,
-      metadata: step.metadata,
-    });
-  }
+  // 7. Copy steps to new draft in parallel
+  await Promise.all(
+    steps.map((step) =>
+      ctx.db.insert('wfStepDefs', {
+        organizationId: step.organizationId,
+        wfDefinitionId: newDraftId,
+        stepSlug: step.stepSlug,
+        name: step.name,
+        stepType: step.stepType,
+        order: step.order,
+        nextSteps: step.nextSteps,
+        config: step.config,
+        inputMapping: step.inputMapping,
+        outputMapping: step.outputMapping,
+        metadata: step.metadata,
+      }),
+    ),
+  );
 
   return {
     activeVersionId: args.wfDefinitionId,

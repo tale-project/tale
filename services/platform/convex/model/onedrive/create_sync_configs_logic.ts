@@ -24,23 +24,22 @@ export async function createSyncConfigsLogic(
     files: Array<FileItem>;
   },
 ): Promise<CreateSyncConfigsResult> {
-  let count = 0;
+  // Insert all sync configs in parallel
+  await Promise.all(
+    args.files.map((file) =>
+      ctx.db.insert('onedriveSyncConfigs', {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        itemId: file.id,
+        itemName: file.name,
+        itemPath: `${args.folderItemPath}/${file.name}`,
+        itemType: 'file',
+        storagePrefix: args.folderStoragePrefix,
+        targetBucket: args.targetBucket,
+        status: 'active',
+      }),
+    ),
+  );
 
-  for (const file of args.files) {
-    // Create a sync config for each file
-    await ctx.db.insert('onedriveSyncConfigs', {
-      organizationId: args.organizationId,
-      userId: args.userId,
-      itemId: file.id,
-      itemName: file.name,
-      itemPath: `${args.folderItemPath}/${file.name}`,
-      itemType: 'file',
-      storagePrefix: args.folderStoragePrefix,
-      targetBucket: args.targetBucket,
-      status: 'active',
-    });
-    count++;
-  }
-
-  return { count };
+  return { count: args.files.length };
 }

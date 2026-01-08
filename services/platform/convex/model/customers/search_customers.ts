@@ -20,50 +20,60 @@ export async function searchCustomers(
   // Strategy: Use search index for name, then supplement with email index lookup
   // This is more efficient than iterating through all customers
 
-  // 1. Search by name using full-text search index
-  const nameResults = await ctx.db
-    .query('customers')
-    .withSearchIndex('search_customers', (q) =>
-      q.search('name', searchTerm).eq('organizationId', organizationId),
-    )
-    .take(resultLimit);
-
-  // 2. Search by email using the email index
-  // Use async iteration with early termination for efficiency
-  const emailMatches: Array<Doc<'customers'>> = [];
-  const emailQuery = ctx.db
-    .query('customers')
-    .withIndex('by_organizationId_and_email', (q) =>
-      q.eq('organizationId', organizationId),
-    );
-
-  for await (const customer of emailQuery) {
-    if (customer.email?.toLowerCase().includes(searchLower)) {
-      emailMatches.push(customer);
-      if (emailMatches.length >= resultLimit) break;
-    }
-  }
-
-  // 3. Search by externalId using the externalId index
-  // Try exact match first for efficiency
-  const externalIdExact = await ctx.db
-    .query('customers')
-    .withIndex('by_organizationId_and_externalId', (q) =>
-      q.eq('organizationId', organizationId).eq('externalId', searchTerm),
-    )
-    .first();
-
-  // Also try numeric externalId if searchTerm is a number
-  let externalIdNumeric: Doc<'customers'> | null = null;
-  const searchAsNumber = Number(searchTerm);
-  if (!isNaN(searchAsNumber)) {
-    externalIdNumeric = await ctx.db
+  // Helper to collect email matches (needs async iteration)
+  const collectEmailMatches = async (): Promise<Array<Doc<'customers'>>> => {
+    const matches: Array<Doc<'customers'>> = [];
+    const emailQuery = ctx.db
       .query('customers')
-      .withIndex('by_organizationId_and_externalId', (q) =>
-        q.eq('organizationId', organizationId).eq('externalId', searchAsNumber),
-      )
-      .first();
-  }
+      .withIndex('by_organizationId_and_email', (q) =>
+        q.eq('organizationId', organizationId),
+      );
+
+    for await (const customer of emailQuery) {
+      if (customer.email?.toLowerCase().includes(searchLower)) {
+        matches.push(customer);
+        if (matches.length >= resultLimit) break;
+      }
+    }
+    return matches;
+  };
+
+  const searchAsNumber = Number(searchTerm);
+
+  // Run all independent searches in parallel
+  const [nameResults, emailMatches, externalIdExact, externalIdNumeric] =
+    await Promise.all([
+      // 1. Search by name using full-text search index
+      ctx.db
+        .query('customers')
+        .withSearchIndex('search_customers', (q) =>
+          q.search('name', searchTerm).eq('organizationId', organizationId),
+        )
+        .take(resultLimit),
+
+      // 2. Search by email using the email index
+      collectEmailMatches(),
+
+      // 3. Search by externalId (exact string match)
+      ctx.db
+        .query('customers')
+        .withIndex('by_organizationId_and_externalId', (q) =>
+          q.eq('organizationId', organizationId).eq('externalId', searchTerm),
+        )
+        .first(),
+
+      // 4. Search by externalId (numeric match if applicable)
+      !isNaN(searchAsNumber)
+        ? ctx.db
+            .query('customers')
+            .withIndex('by_organizationId_and_externalId', (q) =>
+              q
+                .eq('organizationId', organizationId)
+                .eq('externalId', searchAsNumber),
+            )
+            .first()
+        : Promise.resolve(null),
+    ]);
 
   // Merge results, deduplicating by _id
   const seen = new Set<string>();

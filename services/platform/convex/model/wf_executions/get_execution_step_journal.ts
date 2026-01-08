@@ -32,13 +32,18 @@ export async function getExecutionStepJournal(
 
   if (idsOrdered.length === 0) return [];
 
-  const combined: Array<{ stepNumber?: number } & Record<string, unknown>> = [];
+  // Load all journals in parallel
+  const journals = await Promise.all(
+    idsOrdered.map((wid) =>
+      ctx.runQuery(workflow.journal.load, { workflowId: wid }),
+    ),
+  );
 
-  for (const wid of idsOrdered) {
-    const journal = await ctx.runQuery(workflow.journal.load, {
-      workflowId: wid,
-    });
-    const entries = journal.journalEntries || [];
+  // Combine and sort entries, preserving workflow order
+  const combined: Array<{ stepNumber?: number } & Record<string, unknown>> = [];
+  for (let i = 0; i < idsOrdered.length; i++) {
+    const wid = idsOrdered[i];
+    const entries = journals[i].journalEntries || [];
     const sorted = (
       entries as Array<{ stepNumber?: number } & Record<string, unknown>>
     )

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import Image from 'next/image';
+import { Image } from '@/components/ui/image';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
@@ -347,12 +347,6 @@ export function Approvals({
                   width={20}
                   height={20}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== '/assets/placeholder-image.png') {
-                      target.src = '/assets/placeholder-image.png';
-                    }
-                  }}
                 />
               </div>
               <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
@@ -381,12 +375,6 @@ export function Approvals({
                     width={20}
                     height={20}
                     className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target.src !== '/assets/placeholder-image.png') {
-                        target.src = '/assets/placeholder-image.png';
-                      }
-                    }}
                   />
                 </div>
                 <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">
@@ -422,13 +410,6 @@ export function Approvals({
                     width={20}
                     height={20}
                     className="w-full h-full object-cover"
-                    unoptimized={/^https?:\/\//.test(image)}
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (target.src !== '/assets/placeholder-image.png') {
-                        target.src = '/assets/placeholder-image.png';
-                      }
-                    }}
                   />
                 </div>
                 <span className="text-xs text-muted-foreground font-normal leading-normal whitespace-nowrap">

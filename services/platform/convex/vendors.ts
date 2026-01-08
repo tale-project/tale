@@ -226,41 +226,43 @@ export const updateVendor = mutationWithRLS({
       throw new Error('Vendor not found');
     }
 
-    // Check if email is being updated and doesn't conflict
-    if (updateData.email && updateData.email !== existingVendor.email) {
-      const conflictingVendor = await ctx.db
-        .query('vendors')
-        .withIndex('by_organizationId_and_email', (q) =>
-          q
-            .eq('organizationId', existingVendor.organizationId)
-            .eq('email', updateData.email),
-        )
-        .first();
+    // Check for conflicts in parallel
+    const checkEmailConflict =
+      updateData.email && updateData.email !== existingVendor.email;
+    const checkExternalIdConflict =
+      updateData.externalId && updateData.externalId !== existingVendor.externalId;
 
-      if (conflictingVendor && conflictingVendor._id !== vendorId) {
-        throw new Error(`Vendor with email ${updateData.email} already exists`);
-      }
+    const [emailConflict, externalIdConflict] = await Promise.all([
+      checkEmailConflict
+        ? ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_email', (q) =>
+              q
+                .eq('organizationId', existingVendor.organizationId)
+                .eq('email', updateData.email),
+            )
+            .first()
+        : Promise.resolve(null),
+      checkExternalIdConflict
+        ? ctx.db
+            .query('vendors')
+            .withIndex('by_organizationId_and_externalId', (q) =>
+              q
+                .eq('organizationId', existingVendor.organizationId)
+                .eq('externalId', updateData.externalId),
+            )
+            .first()
+        : Promise.resolve(null),
+    ]);
+
+    if (emailConflict && emailConflict._id !== vendorId) {
+      throw new Error(`Vendor with email ${updateData.email} already exists`);
     }
 
-    // Check if external ID is being updated and doesn't conflict
-    if (
-      updateData.externalId &&
-      updateData.externalId !== existingVendor.externalId
-    ) {
-      const conflictingVendor = await ctx.db
-        .query('vendors')
-        .withIndex('by_organizationId_and_externalId', (q) =>
-          q
-            .eq('organizationId', existingVendor.organizationId)
-            .eq('externalId', updateData.externalId),
-        )
-        .first();
-
-      if (conflictingVendor && conflictingVendor._id !== vendorId) {
-        throw new Error(
-          `Vendor with external ID ${updateData.externalId} already exists`,
-        );
-      }
+    if (externalIdConflict && externalIdConflict._id !== vendorId) {
+      throw new Error(
+        `Vendor with external ID ${updateData.externalId} already exists`,
+      );
     }
 
     // Remove undefined values

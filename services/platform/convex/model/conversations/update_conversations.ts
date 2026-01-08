@@ -49,15 +49,15 @@ export async function updateConversations(
     }
   }
 
-  // Apply updates to each conversation
-  const updatedIds: Array<Id<'conversations'>> = [];
-
-  for (const conversation of conversationsToUpdate) {
-    // Build the patch object
+  // Build patches for each conversation
+  const { updates } = args;
+  const patches: Array<{
+    id: Id<'conversations'>;
+    patch: Record<string, unknown>;
+  }> = conversationsToUpdate.map((conversation) => {
     const patch: Record<string, unknown> = {};
 
     // Copy direct field updates from args.updates (now properly typed)
-    const { updates } = args;
     if (updates.customerId !== undefined) patch.customerId = updates.customerId;
     if (updates.subject !== undefined) patch.subject = updates.subject;
     if (updates.status !== undefined) patch.status = updates.status;
@@ -102,14 +102,17 @@ export async function updateConversations(
       patch.metadata = updatedMetadata;
     }
 
-    // Apply the patch
-    await ctx.db.patch(conversation._id, patch);
-    updatedIds.push(conversation._id);
-  }
+    return { id: conversation._id, patch };
+  });
+
+  // Apply all patches in parallel
+  await Promise.all(patches.map(({ id, patch }) => ctx.db.patch(id, patch)));
+
+  const updatedIds = patches.map(({ id }) => id);
 
   return {
     success: true,
     updatedCount: updatedIds.length,
-    updatedIds: updatedIds,
+    updatedIds,
   };
 }

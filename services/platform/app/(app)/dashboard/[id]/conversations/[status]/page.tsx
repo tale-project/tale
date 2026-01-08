@@ -63,27 +63,23 @@ async function ConversationsContent({
     notFound();
   }
 
-  // Preload conversations for SSR + real-time reactivity on client
-  const preloadedConversations = await preloadQuery(
-    api.conversations.getConversationsPage,
-    {
-      organizationId,
-      status: status as Doc<'conversations'>['status'],
-      page: parseInt(page),
-      limit: 20,
-      priority: priority && priority.length > 0 ? priority : undefined,
-      category: category && category.length > 0 ? category : undefined,
-      search: search && search.length > 0 ? search : undefined,
-    },
-    { token },
-  );
-
-  // Also preload email providers for the empty state check
-  const preloadedEmailProviders = await preloadQuery(
-    api.email_providers.list,
-    { organizationId },
-    { token },
-  );
+  // Preload conversations and email providers in parallel for SSR + real-time reactivity
+  const [preloadedConversations, preloadedEmailProviders] = await Promise.all([
+    preloadQuery(
+      api.conversations.getConversationsPage,
+      {
+        organizationId,
+        status: status as Doc<'conversations'>['status'],
+        page: parseInt(page),
+        limit: 20,
+        priority: priority && priority.length > 0 ? priority : undefined,
+        category: category && category.length > 0 ? category : undefined,
+        search: search && search.length > 0 ? search : undefined,
+      },
+      { token },
+    ),
+    preloadQuery(api.email_providers.list, { organizationId }, { token }),
+  ]);
 
   return (
     <ConversationsWrapper

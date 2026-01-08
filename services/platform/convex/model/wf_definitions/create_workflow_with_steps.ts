@@ -51,20 +51,21 @@ export async function createWorkflowWithSteps(
     autoCreateFirstStep: false,
   });
 
-  const stepIds: Id<'wfStepDefs'>[] = [];
-  for (const stepConfig of args.stepsConfig) {
-    const stepId = await ctx.db.insert('wfStepDefs', {
-      wfDefinitionId: workflowId,
-      stepSlug: stepConfig.stepSlug,
-      name: stepConfig.name,
-      stepType: stepConfig.stepType,
-      order: stepConfig.order,
-      config: stepConfig.config,
-      nextSteps: stepConfig.nextSteps,
-      organizationId: args.organizationId,
-    });
-    stepIds.push(stepId);
-  }
+  // Insert all steps in parallel
+  const stepIds = await Promise.all(
+    args.stepsConfig.map((stepConfig) =>
+      ctx.db.insert('wfStepDefs', {
+        wfDefinitionId: workflowId,
+        stepSlug: stepConfig.stepSlug,
+        name: stepConfig.name,
+        stepType: stepConfig.stepType,
+        order: stepConfig.order,
+        config: stepConfig.config,
+        nextSteps: stepConfig.nextSteps,
+        organizationId: args.organizationId,
+      }),
+    ),
+  );
 
   return {
     workflowId,

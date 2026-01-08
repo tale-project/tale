@@ -65,28 +65,32 @@ export async function saveWorkflowWithSteps(
     },
   });
 
-  // Delete all existing steps for this workflow
+  // Collect all existing step IDs first
+  const existingStepIds: Array<Id<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', args.workflowId))) {
-    await ctx.db.delete(step._id);
+    existingStepIds.push(step._id);
   }
 
-  // Recreate steps
-  const stepIds: Id<'wfStepDefs'>[] = [];
-  for (const stepConfig of args.stepsConfig) {
-    const stepId: Id<'wfStepDefs'> = await ctx.db.insert('wfStepDefs', {
-      wfDefinitionId: args.workflowId,
-      stepSlug: stepConfig.stepSlug,
-      name: stepConfig.name,
-      stepType: stepConfig.stepType,
-      order: stepConfig.order,
-      config: stepConfig.config,
-      nextSteps: stepConfig.nextSteps,
-      organizationId: args.organizationId,
-    });
-    stepIds.push(stepId);
-  }
+  // Delete all existing steps in parallel
+  await Promise.all(existingStepIds.map((id) => ctx.db.delete(id)));
+
+  // Insert all new steps in parallel
+  const stepIds = await Promise.all(
+    args.stepsConfig.map((stepConfig) =>
+      ctx.db.insert('wfStepDefs', {
+        wfDefinitionId: args.workflowId,
+        stepSlug: stepConfig.stepSlug,
+        name: stepConfig.name,
+        stepType: stepConfig.stepType,
+        order: stepConfig.order,
+        config: stepConfig.config,
+        nextSteps: stepConfig.nextSteps,
+        organizationId: args.organizationId,
+      }),
+    ),
+  );
 
   return {
     workflowId: args.workflowId,

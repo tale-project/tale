@@ -56,70 +56,93 @@ export async function saveRelatedWorkflows(
     },
   ];
 
-  for (const { def, schedule, timezone, addAccountEmail } of workflowsToSave) {
-    const baseWorkflowConfig = def.workflowConfig;
-    const workflowName = baseWorkflowConfig.name;
-
-    // If a workflow with this name already exists for the organization, reuse it
-    const existingWorkflow = await ctx.runQuery(
-      internal.wf_definitions.getWorkflowByName,
-      {
+  // Check all existing workflows in parallel
+  const existingWorkflows = await Promise.all(
+    workflowsToSave.map(({ def }) =>
+      ctx.runQuery(internal.wf_definitions.getWorkflowByName, {
         organizationId: args.organizationId,
-        name: workflowName,
-      },
-    );
+        name: def.workflowConfig.name,
+      }),
+    ),
+  );
 
-    if (existingWorkflow) {
+  // Separate into existing (reuse) and new (create)
+  const toCreate: Array<{
+    def: PredefinedWorkflowDefinition;
+    schedule: string;
+    timezone: string;
+    addAccountEmail: boolean;
+  }> = [];
+
+  for (let i = 0; i < workflowsToSave.length; i++) {
+    const existing = existingWorkflows[i];
+    const workflowDef = workflowsToSave[i];
+
+    if (existing) {
       debugLog(
-        `Email Provider Workflows Workflow with name "${workflowName}" already exists, reusing ${existingWorkflow._id}`,
+        `Email Provider Workflows Workflow with name "${workflowDef.def.workflowConfig.name}" already exists, reusing ${existing._id}`,
       );
-      workflowIds.push(existingWorkflow._id);
-      continue;
+      workflowIds.push(existing._id);
+    } else {
+      toCreate.push(workflowDef);
     }
+  }
 
-    // Convert predefined workflow to strict API payload types
-    const baseConfig = baseWorkflowConfig.config ?? {};
-    const payload = toPredefinedWorkflowPayload(
-      def,
-      {
-        config: {
-          ...baseConfig,
-          variables: {
-            ...((baseConfig as { variables?: Record<string, unknown> })
-              .variables ?? {}),
-            organizationId: args.organizationId,
-            ...(addAccountEmail ? { accountEmail: args.accountEmail } : {}),
+  if (toCreate.length > 0) {
+    // Prepare payloads for workflows to create
+    const payloads = toCreate.map(({ def, schedule, timezone, addAccountEmail }) => {
+      const baseConfig = def.workflowConfig.config ?? {};
+      return toPredefinedWorkflowPayload(
+        def,
+        {
+          config: {
+            ...baseConfig,
+            variables: {
+              ...((baseConfig as { variables?: Record<string, unknown> })
+                .variables ?? {}),
+              organizationId: args.organizationId,
+              ...(addAccountEmail ? { accountEmail: args.accountEmail } : {}),
+            },
           },
         },
-      },
-      // Transform trigger steps to enable scheduling
-      (step) =>
-        step.stepType === 'trigger'
-          ? { ...step, config: { type: 'scheduled', schedule, timezone } }
-          : step,
-    );
-
-    // Save the workflow
-    const result = await ctx.runMutation(
-      internal.wf_definitions.createWorkflowWithSteps,
-      {
-        organizationId: args.organizationId,
-        ...payload,
-      },
-    );
-
-    // Ensure status is active (not draft) for auto-saved workflows
-    await ctx.runMutation(internal.wf_definitions.updateWorkflowStatus, {
-      wfDefinitionId: result.workflowId,
-      status: 'active',
-      updatedBy: 'system',
+        // Transform trigger steps to enable scheduling
+        (step) =>
+          step.stepType === 'trigger'
+            ? { ...step, config: { type: 'scheduled', schedule, timezone } }
+            : step,
+      );
     });
 
-    workflowIds.push(result.workflowId);
-
-    debugLog(
-      `Email Provider Workflows Saved workflow: ${payload.workflowConfig.name} (${result.workflowId})`,
+    // Create all new workflows in parallel
+    const results = await Promise.all(
+      payloads.map((payload) =>
+        ctx.runMutation(internal.wf_definitions.createWorkflowWithSteps, {
+          organizationId: args.organizationId,
+          ...payload,
+        }),
+      ),
     );
+
+    const newWorkflowIds = results.map((r) => r.workflowId);
+
+    // Activate all new workflows in parallel
+    await Promise.all(
+      newWorkflowIds.map((workflowId) =>
+        ctx.runMutation(internal.wf_definitions.updateWorkflowStatus, {
+          wfDefinitionId: workflowId,
+          status: 'active',
+          updatedBy: 'system',
+        }),
+      ),
+    );
+
+    for (let i = 0; i < payloads.length; i++) {
+      debugLog(
+        `Email Provider Workflows Saved workflow: ${payloads[i].workflowConfig.name} (${newWorkflowIds[i]})`,
+      );
+    }
+
+    workflowIds.push(...newWorkflowIds);
   }
 
   debugLog(

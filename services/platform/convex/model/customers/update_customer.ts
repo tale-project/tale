@@ -36,41 +36,43 @@ export async function updateCustomer(
     throw new Error('Customer not found');
   }
 
-  // Check if email is being updated and doesn't conflict
-  if (updateData.email && updateData.email !== existingCustomer.email) {
-    const conflictingCustomer = await ctx.db
-      .query('customers')
-      .withIndex('by_organizationId_and_email', (q) =>
-        q
-          .eq('organizationId', existingCustomer.organizationId)
-          .eq('email', updateData.email!),
-      )
-      .first();
+  // Check for conflicts in parallel
+  const checkEmailConflict =
+    updateData.email && updateData.email !== existingCustomer.email;
+  const checkExternalIdConflict =
+    updateData.externalId && updateData.externalId !== existingCustomer.externalId;
 
-    if (conflictingCustomer && conflictingCustomer._id !== customerId) {
-      throw new Error(`Customer with email ${updateData.email} already exists`);
-    }
+  const [emailConflict, externalIdConflict] = await Promise.all([
+    checkEmailConflict
+      ? ctx.db
+          .query('customers')
+          .withIndex('by_organizationId_and_email', (q) =>
+            q
+              .eq('organizationId', existingCustomer.organizationId)
+              .eq('email', updateData.email!),
+          )
+          .first()
+      : Promise.resolve(null),
+    checkExternalIdConflict
+      ? ctx.db
+          .query('customers')
+          .withIndex('by_organizationId_and_externalId', (q) =>
+            q
+              .eq('organizationId', existingCustomer.organizationId)
+              .eq('externalId', updateData.externalId!),
+          )
+          .first()
+      : Promise.resolve(null),
+  ]);
+
+  if (emailConflict && emailConflict._id !== customerId) {
+    throw new Error(`Customer with email ${updateData.email} already exists`);
   }
 
-  // Check if external ID is being updated and doesn't conflict
-  if (
-    updateData.externalId &&
-    updateData.externalId !== existingCustomer.externalId
-  ) {
-    const conflictingCustomer = await ctx.db
-      .query('customers')
-      .withIndex('by_organizationId_and_externalId', (q) =>
-        q
-          .eq('organizationId', existingCustomer.organizationId)
-          .eq('externalId', updateData.externalId!),
-      )
-      .first();
-
-    if (conflictingCustomer && conflictingCustomer._id !== customerId) {
-      throw new Error(
-        `Customer with external ID ${updateData.externalId} already exists`,
-      );
-    }
+  if (externalIdConflict && externalIdConflict._id !== customerId) {
+    throw new Error(
+      `Customer with external ID ${updateData.externalId} already exists`,
+    );
   }
 
   // Remove undefined values

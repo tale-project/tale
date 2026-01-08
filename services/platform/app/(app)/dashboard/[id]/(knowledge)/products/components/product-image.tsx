@@ -1,3 +1,4 @@
+// Do NOT change this, it needs img element for rendering external images.
 /* eslint-disable @next/next/no-img-element */
 'use client';
 

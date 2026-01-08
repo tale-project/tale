@@ -1,33 +1,23 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
+import bundleAnalyzer from '@next/bundle-analyzer';
 
 const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts');
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 const config: NextConfig = {
   // Enable standalone output for Docker deployment
   output: 'standalone',
 
-  // Disable React Compiler as it's not yet stable and can cause issues with
-  // certain React patterns and third-party libraries. We'll enable it once
-  // it's more mature and has better compatibility.
+  // React Compiler v1.0 is now stable (Oct 2025) and supported in Next.js 16.
+  // Benefits: Automatic memoization, up to 12% faster initial loads, >2.5x faster interactions.
+  // Trade-off: Increases build times as it relies on Babel.
+  // To enable: Set to true and test thoroughly. Consider incremental rollout.
+  // See: https://react.dev/blog/2025/10/07/react-compiler-1
   reactCompiler: false,
 
-  images: {
-    remotePatterns: [
-      {
-        hostname: 'cdn.shopify.com',
-      },
-      {
-        hostname: 'picsum.photos',
-      },
-      {
-        hostname: 'shop.lanserhof.com',
-      },
-      {
-        hostname: 'images.unsplash.com',
-      },
-    ],
-  },
   async rewrites() {
     return [
       // Proxy Convex API requests to internal backend
@@ -113,10 +103,12 @@ const config: NextConfig = {
       'date-fns',
       'recharts',
       '@tanstack/react-table',
+      '@xyflow/react',
       'framer-motion',
       'react-day-picker',
     ],
   },
 };
 
-export default withNextIntl(config);
+// Compose plugins: withBundleAnalyzer -> withNextIntl -> config
+export default withBundleAnalyzer(withNextIntl(config));

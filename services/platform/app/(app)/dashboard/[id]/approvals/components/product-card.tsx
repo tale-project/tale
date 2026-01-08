@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import { Image } from '@/components/ui/image';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Stack, HStack } from '@/components/ui/layout';
@@ -19,42 +18,6 @@ interface ProductCardProps {
   canRemove?: boolean;
 }
 
-interface ImageWithFallbackProps {
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
-  className?: string;
-}
-
-function ImageWithFallback({
-  src,
-  alt,
-  width,
-  height,
-  className,
-}: ImageWithFallbackProps) {
-  const [currentSrc, setCurrentSrc] = useState<string>(
-    src || '/assets/placeholder-image.png',
-  );
-
-  useEffect(() => {
-    setCurrentSrc(src || '/assets/placeholder-image.png');
-  }, [src]);
-
-  return (
-    <Image
-      src={currentSrc}
-      alt={alt}
-      width={width}
-      height={height}
-      className={className}
-      unoptimized
-      onError={() => setCurrentSrc('/assets/placeholder-image.png')}
-    />
-  );
-}
-
 export function ProductCard({
   product,
   purchase,
@@ -69,8 +32,8 @@ export function ProductCard({
   if (type === 'recommended' && product) {
     return (
       <HStack gap={3} align="start" className="p-3 border-b border-border last:border-b-0">
-        <div className="w-[72px] h-[72px] bg-muted rounded-lg overflow-hidden flex-shrink-0">
-          <ImageWithFallback
+        <div className="w-[72px] h-[72px] bg-muted rounded-lg overflow-hidden shrink-0">
+          <Image
             src={product.image}
             alt={product.name}
             width={72}
@@ -113,7 +76,7 @@ export function ProductCard({
             variant="ghost"
             onClick={() => onRemove(product.id)}
             disabled={isRemoving}
-            className="size-8 flex-shrink-0"
+            className="size-8 shrink-0"
             aria-label={t('actions.removeProduct', { name: product.name })}
           >
             {isRemoving ? (
@@ -131,8 +94,8 @@ export function ProductCard({
     return (
       <HStack gap={3} className="p-3 border-b border-border last:border-b-0">
         <HStack gap={2} className="flex-1">
-          <div className="size-10 bg-muted rounded-md overflow-hidden flex-shrink-0">
-            <ImageWithFallback
+          <div className="size-10 bg-muted rounded-md overflow-hidden shrink-0">
+            <Image
               src={purchase.image}
               alt={purchase.productName}
               width={40}

@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import Image from 'next/image';
+import { Image } from '@/components/ui/image';
 import type { Message as MessageType } from '../types';
 import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
 import { EmailPreview } from '@/components/ui/email-preview';
@@ -66,13 +66,6 @@ export function Message({ message }: MessageProps) {
                       width={460}
                       height={300}
                       className="rounded-lg w-full h-auto"
-                      unoptimized={/^https?:\/\//.test(attachment.url)}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== '/assets/placeholder-image.png') {
-                          target.src = '/assets/placeholder-image.png';
-                        }
-                      }}
                     />
                   </div>
                 );

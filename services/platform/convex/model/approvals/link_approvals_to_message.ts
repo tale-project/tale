@@ -6,6 +6,7 @@
  */
 
 import type { MutationCtx } from '../../_generated/server';
+import type { Id } from '../../_generated/dataModel';
 
 export interface LinkApprovalsToMessageArgs {
   threadId: string;
@@ -31,7 +32,8 @@ export async function linkApprovalsToMessage(
     'workflow_creation',
   ] as const;
 
-  let linkedCount = 0;
+  // Collect all approval IDs to update
+  const approvalIds: Array<Id<'approvals'>> = [];
 
   // Link each resource type separately using the composite index
   for (const resourceType of resourceTypesToLink) {
@@ -45,12 +47,15 @@ export async function linkApprovalsToMessage(
       )
       .filter((q) => q.eq(q.field('messageId'), undefined));
 
-    // Iterate and update each approval with the messageId
     for await (const approval of query) {
-      await ctx.db.patch(approval._id, { messageId });
-      linkedCount++;
+      approvalIds.push(approval._id);
     }
   }
 
-  return linkedCount;
+  // Update all approvals in parallel
+  await Promise.all(
+    approvalIds.map((id) => ctx.db.patch(id, { messageId })),
+  );
+
+  return approvalIds.length;
 }

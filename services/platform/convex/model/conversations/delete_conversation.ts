@@ -14,15 +14,17 @@ export async function deleteConversation(
     throw new Error('Conversation not found');
   }
 
-  // Delete associated messages first
+  // Collect message IDs first, then delete in parallel
+  const messageIds: Id<'conversationMessages'>[] = [];
   const messagesQuery = ctx.db
     .query('conversationMessages')
     .withIndex('by_conversationId_and_deliveredAt', (q) =>
       q.eq('conversationId', conversationId),
     );
   for await (const msg of messagesQuery) {
-    await ctx.db.delete(msg._id);
+    messageIds.push(msg._id);
   }
+  await Promise.all(messageIds.map((id) => ctx.db.delete(id)));
 
   // Delete the conversation itself
   await ctx.db.delete(conversationId);

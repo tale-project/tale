@@ -34,18 +34,18 @@ export async function getScheduledWorkflows(
   const workflowIds = new Set(activeWorkflows.map((wf) => wf._id));
   const orgIds = [...new Set(activeWorkflows.map((wf) => wf.organizationId))];
 
-  const allFirstSteps: any[] = [];
-
-  // Batch query trigger steps per organization
-  for (const orgId of orgIds) {
-    const orgSteps = await ctx.db
-      .query('wfStepDefs')
-      .withIndex('by_organizationId_and_stepType_and_order', (q) =>
-        q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1),
-      )
-      .collect();
-    allFirstSteps.push(...orgSteps);
-  }
+  // Batch query trigger steps per organization in parallel
+  const orgStepsResults = await Promise.all(
+    orgIds.map((orgId) =>
+      ctx.db
+        .query('wfStepDefs')
+        .withIndex('by_organizationId_and_stepType_and_order', (q) =>
+          q.eq('organizationId', orgId).eq('stepType', 'trigger').eq('order', 1),
+        )
+        .collect(),
+    ),
+  );
+  const allFirstSteps = orgStepsResults.flat();
 
   // Create a map of wfDefinitionId -> first step
   const firstStepMap = new Map();

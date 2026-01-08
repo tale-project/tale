@@ -31,7 +31,7 @@ import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { toast } from '@/hooks/use-toast';
 import { DocumentIcon } from '@/components/ui/document-icon';
 import { useUIMessages } from '@convex-dev/agent/react';
-import Image from 'next/image';
+import { Image } from '@/components/ui/image';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
 import { useT } from '@/lib/i18n';
 
@@ -594,7 +594,6 @@ export function AutomationAssistant({
                               className="size-full object-cover"
                               width={44}
                               height={44}
-                              unoptimized
                             />
                           </div>
                         ) : (
