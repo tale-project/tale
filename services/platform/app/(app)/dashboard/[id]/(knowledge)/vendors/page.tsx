@@ -1,5 +1,6 @@
 import { VendorsTable } from './components/vendors-table';
 import { VendorsTableSkeleton } from './components/vendors-table-skeleton';
+import { VendorsPageWrapper } from './components/vendors-page-wrapper';
 import { Suspense } from 'react';
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
@@ -8,7 +9,6 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { parseSearchParams, hasActiveFilters } from '@/lib/pagination/parse-search-params';
 import { vendorFilterDefinitions } from './filter-definitions';
-import { VendorsEmptyState } from './components/vendors-empty-state';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic
@@ -90,23 +90,23 @@ export default async function VendorsPage({
   const { filters } = parseSearchParams(rawSearchParams, vendorFilterDefinitions);
   const hasFilters = hasActiveFilters(filters, vendorFilterDefinitions);
 
-  // Two-phase loading: check if vendors exist before showing skeleton
-  // If no vendors and no filters active, show empty state directly
-  if (!hasFilters) {
-    const hasVendors = await fetchQuery(
-      api.vendors.hasVendors,
-      { organizationId },
-      { token },
-    );
-
-    if (!hasVendors) {
-      return <VendorsEmptyState organizationId={organizationId} />;
-    }
-  }
+  // Fetch initial hasVendors state for SSR
+  const initialHasVendors = hasFilters
+    ? true // If filters are active, assume vendors exist
+    : await fetchQuery(
+        api.vendors.hasVendors,
+        { organizationId },
+        { token },
+      );
 
   return (
-    <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
-      <VendorsContent params={params} searchParams={searchParams} />
-    </Suspense>
+    <VendorsPageWrapper
+      organizationId={organizationId}
+      initialHasVendors={initialHasVendors}
+    >
+      <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
+        <VendorsContent params={params} searchParams={searchParams} />
+      </Suspense>
+    </VendorsPageWrapper>
   );
 }

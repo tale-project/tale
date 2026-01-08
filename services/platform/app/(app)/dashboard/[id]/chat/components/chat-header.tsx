@@ -22,7 +22,7 @@ interface ChatHeaderProps {
   organizationId: string;
 }
 
-const HISTORY_WIDTH = 284;
+const HISTORY_WIDTH = 288; // 18rem in pixels
 
 export function ChatHeader({ organizationId }: ChatHeaderProps) {
   const router = useRouter();
@@ -53,15 +53,15 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
   const historyShortcut = useMemo(() => (isMac ? '⌘ H' : 'CTRL + H'), [isMac]);
 
   const handleToggleSearch = () => {
-    setIsSearchOpen(!isSearchOpen);
+    setIsSearchOpen((prev) => !prev);
   };
 
   const handleToggleHistory = () => {
     const isMobile = window.matchMedia('(max-width: 639px)').matches;
     if (isMobile) {
-      setIsMobileHistoryOpen(!isMobileHistoryOpen);
+      setIsMobileHistoryOpen((prev) => !prev);
     } else {
-      setIsHistoryOpen(!isHistoryOpen);
+      setIsHistoryOpen((prev) => !prev);
     }
   };
 
@@ -95,7 +95,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isMac, organizationId, isHistoryOpen, isSearchOpen]);
+  }, [isMac, organizationId]);
 
   const baseIconClasses = 'size-5 text-muted-foreground p-0.25';
 

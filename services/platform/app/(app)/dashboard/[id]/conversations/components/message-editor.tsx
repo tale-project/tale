@@ -181,7 +181,7 @@ function MilkdownEditorInner({
       // Listen to editor updates & focus/blur via Milkdown listener API
       editor.on((listener) => {
         // Update local state whenever markdown changes
-        listener.markdownUpdated((ctx, markdown) => {
+        listener.markdownUpdated((_ctx, markdown) => {
           setMessage(markdown);
           setHasContent(markdown.trim().length > 0);
         });
@@ -320,14 +320,14 @@ function MilkdownEditorInner({
           // Save the HTML message (conversation-panel will pass it as html and derive text)
           await onSave(html, attachedFiles);
 
-          // Clear attachments
+          // Only clear after successful send to preserve content on error
           setAttachedFiles([]);
-          // Clear editor content by setting it to empty string
           setMessage('');
           setProgrammaticContent('');
           setIsImproveMode(false);
           setImproveInstruction('');
         } catch (error) {
+          // Content is preserved - user can retry sending
           console.error('Failed to send message:', error);
           toast({
             title: tConversations('editor.sendFailed'),

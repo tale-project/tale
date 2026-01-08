@@ -103,7 +103,7 @@ export function ChatSearchDialog({
       hideClose
       className="p-0 overflow-hidden gap-0"
       customHeader={
-        <div className="py-3 px-4 border-b border-border relative flex items-center">
+        <div className="px-3 py-4 border-b border-border relative flex items-center">
           <VisuallyHidden>
             <h2>{t('searchChat.title')}</h2>
           </VisuallyHidden>
@@ -113,7 +113,7 @@ export function ChatSearchDialog({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="!outline-none !ring-0 !ring-offset-0 border-0 pr-9 p-0 h-6"
+            className="!outline-none !ring-0 !ring-offset-0 !border-0 pr-9 p-0 h-6"
           />
           <button
             type="button"

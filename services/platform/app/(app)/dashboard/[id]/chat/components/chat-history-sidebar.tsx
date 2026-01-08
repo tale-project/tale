@@ -200,7 +200,7 @@ export function ChatHistorySidebar({
                   <>
                     <button
                       onClick={() => handleChatClick(chat._id)}
-                      className="flex-1 truncate text-left"
+                      className="flex-1 truncate text-left cursor-pointer"
                     >
                       {chat.title}
                     </button>

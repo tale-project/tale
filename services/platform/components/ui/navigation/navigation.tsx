@@ -106,7 +106,7 @@ export function Navigation({ role }: { role?: string | null }) {
 
   return (
     <NavigationMenu className="flex flex-col bg-background border-border h-full">
-      {/* Header - logo with 8px padding top/bottom */}
+      {/* Header - logo with 12px padding top/bottom */}
       <div className="flex-shrink-0 py-3 flex items-center justify-center">
         <Link
           className="flex items-center justify-center"

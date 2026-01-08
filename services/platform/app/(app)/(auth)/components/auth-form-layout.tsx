@@ -21,7 +21,7 @@ export function AuthFormLayout({ title, children }: AuthFormLayoutProps) {
         className="mx-auto w-full max-w-[24.875rem] px-4 relative"
       >
         <Stack gap={2} className="text-center">
-          <h1 className="text-[20px] font-semibold tracking-[-0.12px]">
+          <h1 className="text-xl font-semibold tracking-[-0.12px]">
             {title}
           </h1>
         </Stack>

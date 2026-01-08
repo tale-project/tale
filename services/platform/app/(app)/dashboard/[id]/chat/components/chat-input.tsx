@@ -317,6 +317,8 @@ export function ChatInput({
                   </div>
                   {/* Remove button - appears on hover */}
                   <button
+                    type="button"
+                    aria-label={tChat('removeAttachment')}
                     onClick={() => removeAttachment(attachment.fileId)}
                     className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
@@ -348,6 +350,8 @@ export function ChatInput({
                   </div>
                   {/* Remove button - appears on hover */}
                   <button
+                    type="button"
+                    aria-label={tChat('removeAttachment')}
                     onClick={() => removeAttachment(attachment.fileId)}
                     className="absolute top-0.5 right-0.5 size-5 bg-background rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >

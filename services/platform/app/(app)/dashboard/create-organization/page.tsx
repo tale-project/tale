@@ -51,7 +51,7 @@ async function CreateBusinessContent() {
     <div>
       <div className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
         <div className="flex items-center justify-between">
-          <Link href="/" className="group-hover:opacity-70 w-fit inline-block">
+          <Link href="/" className="hover:opacity-70 w-fit inline-block">
             <TaleLogo />
           </Link>
           <UserButton align="end" />

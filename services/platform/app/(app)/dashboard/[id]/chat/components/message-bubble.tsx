@@ -552,7 +552,7 @@ function MessageBubbleComponent({
             )}
           </div>
         )}
-        {!isUser && (
+        {!isUser && !isAssistantStreaming && (
           <div className="flex items-center pt-2">
             <TooltipProvider>
               <Tooltip>
