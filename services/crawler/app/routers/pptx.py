@@ -9,7 +9,6 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from loguru import logger
 
 from app.models import (
-    AnalyzePptxResponse,
     GeneratePptxResponse,
     ParseFileResponse,
 )
@@ -17,48 +16,6 @@ from app.services.template_service import get_template_service
 from app.services.file_parser_service import get_file_parser_service
 
 router = APIRouter(prefix="/api/v1/pptx", tags=["PPTX"])
-
-
-@router.post("/analyze", response_model=AnalyzePptxResponse)
-async def analyze_pptx_template_upload(
-    template_file: UploadFile = File(..., description="PPTX template file to analyze"),
-):
-    """
-    Analyze a PPTX template via file upload (multipart form).
-
-    This is a memory-efficient alternative to the JSON endpoint that avoids
-    base64 encoding overhead. Upload the PPTX file directly.
-
-    Args:
-        template_file: The PPTX template file
-
-    Returns:
-        Template structure information
-    """
-    try:
-        template_bytes = await template_file.read()
-
-        if not template_bytes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Empty file uploaded",
-            )
-
-        template_service = get_template_service()
-        result = await template_service.analyze_pptx_template(
-            template_bytes=template_bytes,
-        )
-
-        return AnalyzePptxResponse(**result)
-
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Error analyzing PPTX template (upload)")
-        return AnalyzePptxResponse(
-            success=False,
-            error="Failed to analyze PPTX template",
-        )
 
 
 @router.post("", response_model=GeneratePptxResponse)
@@ -149,11 +106,26 @@ async def generate_pptx_from_json(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error generating PPTX")
+    except ValueError as e:
+        # Validation errors - pass through the detailed message to help AI adjust
+        logger.warning(f"PPTX validation error: {e}")
         return GeneratePptxResponse(
             success=False,
-            error="Failed to generate PPTX",
+            error=str(e),
+        )
+    except RuntimeError as e:
+        # Strict validation failures - pass through detailed message
+        logger.error(f"PPTX generation runtime error: {e}")
+        return GeneratePptxResponse(
+            success=False,
+            error=str(e),
+        )
+    except Exception as e:
+        # Unexpected errors - log full traceback but still expose message
+        logger.exception("Unexpected error generating PPTX")
+        return GeneratePptxResponse(
+            success=False,
+            error=f"Unexpected error: {e!s}",
         )
 
 
@@ -190,10 +162,10 @@ async def parse_pptx_file(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         logger.exception("Error parsing PPTX file")
         return ParseFileResponse(
             success=False,
             filename=file.filename or "unknown",
-            error="Failed to parse PPTX file",
+            error=f"Failed to parse PPTX file: {e!s}",
         )

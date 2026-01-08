@@ -427,6 +427,17 @@ class PptxService:
         filled = False
         body_text = body_text or []
 
+        # Log available placeholders for debugging
+        placeholder_types = []
+        for shape in slide.shapes:
+            if shape.is_placeholder:
+                try:
+                    ph_type = shape.placeholder_format.type
+                    placeholder_types.append(f"{ph_type} ({shape.placeholder_format.idx})")
+                except Exception as e:
+                    logger.debug(f"Could not read placeholder type: {e}")
+        logger.debug(f"Available placeholders: {placeholder_types}")
+
         for shape in slide.shapes:
             if not shape.is_placeholder:
                 continue
@@ -436,26 +447,331 @@ class PptxService:
             except Exception:
                 continue
 
+            # Handle title placeholders
             if ph_type in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE):
-                if title and shape.has_text_frame:
-                    shape.text_frame.paragraphs[0].text = title
-                    filled = True
-            elif ph_type == PP_PLACEHOLDER.SUBTITLE:
-                if subtitle and shape.has_text_frame:
-                    shape.text_frame.paragraphs[0].text = subtitle
-                    filled = True
-            elif ph_type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT):
-                if body_text and shape.has_text_frame:
+                if shape.has_text_frame:
                     tf = shape.text_frame
-                    for i, text in enumerate(body_text):
-                        if i == 0:
-                            tf.paragraphs[0].text = text
-                        else:
-                            p = tf.add_paragraph()
-                            p.text = text
+                    # Clear existing text first
+                    for para in tf.paragraphs:
+                        para.clear()
+                    tf.paragraphs[0].text = title if title else ""
                     filled = True
 
+            # Handle subtitle placeholders
+            elif ph_type == PP_PLACEHOLDER.SUBTITLE:
+                if shape.has_text_frame:
+                    tf = shape.text_frame
+                    for para in tf.paragraphs:
+                        para.clear()
+                    tf.paragraphs[0].text = subtitle if subtitle else ""
+                    filled = True
+
+            # Handle body/content placeholders
+            # Note: Content placeholder in PowerPoint uses BODY type in python-pptx
+            elif ph_type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT):
+                if shape.has_text_frame:
+                    tf = shape.text_frame
+                    # Clear existing text first
+                    for para in tf.paragraphs:
+                        para.clear()
+
+                    if body_text:
+                        for i, text in enumerate(body_text):
+                            if i == 0:
+                                tf.paragraphs[0].text = text
+                            else:
+                                p = tf.add_paragraph()
+                                p.text = text
+                    else:
+                        tf.paragraphs[0].text = ""
+                    filled = True
+
+            # Also handle generic placeholders that might contain text
+            # Some templates use placeholder index rather than type
+            elif shape.has_text_frame:
+                # Check if this looks like a body placeholder by its index
+                try:
+                    idx = shape.placeholder_format.idx
+                    # Index 1 is usually body/content in "Title and Content" layouts
+                    if idx == 1 and body_text:
+                        tf = shape.text_frame
+                        for para in tf.paragraphs:
+                            para.clear()
+                        for i, text in enumerate(body_text):
+                            if i == 0:
+                                tf.paragraphs[0].text = text
+                            else:
+                                p = tf.add_paragraph()
+                                p.text = text
+                        filled = True
+                except Exception:
+                    pass
+
         return filled
+
+    def _clone_slide(self, prs: Presentation, source_slide):
+        """
+        Clone a slide with all its shapes and relationships.
+
+        This preserves decorative elements, images, and styling from the template.
+        Based on: https://gist.github.com/robintw/3df1464e5c8a7ee8835e
+
+        Important: We need to remove the default shapes that come from the layout
+        before copying shapes from the source slide to avoid duplicates.
+
+        Returns:
+            pptx.slide.Slide: The cloned slide added to the presentation.
+        """
+        from copy import deepcopy
+        from lxml import etree
+
+        # Add a new slide with the same layout (this gives us the background)
+        dest = prs.slides.add_slide(source_slide.slide_layout)
+
+        # Get the shape tree (spTree) element
+        spTree = dest.shapes._spTree
+
+        # Remove all existing shapes from the new slide EXCEPT nvGrpSpPr and grpSpPr
+        # These are the group properties that must remain
+        shapes_to_remove = []
+        for child in spTree:
+            tag_name = etree.QName(child.tag).localname
+            # Keep only the required group properties
+            if tag_name not in ('nvGrpSpPr', 'grpSpPr'):
+                shapes_to_remove.append(child)
+
+        for shape_el in shapes_to_remove:
+            spTree.remove(shape_el)
+
+        # Now copy all shapes from source to destination
+        for shp in source_slide.shapes:
+            el = shp.element
+            new_el = deepcopy(el)
+            spTree.append(new_el)
+
+        # Copy relationships (images, charts, etc.)
+        for rel in source_slide.part.rels.values():
+            # Skip notes slides
+            if "notesSlide" in rel.reltype:
+                continue
+            # Add relationship to destination slide
+            try:
+                dest.part.rels.get_or_add(rel.reltype, rel._target)
+            except Exception as e:
+                # Log but continue - some relationships may not be copyable
+                logger.debug(f"Could not copy relationship {rel.reltype}: {e}")
+
+        return dest
+
+    def _should_clone_slide(self, content: Dict[str, Any], idx: int) -> bool:
+        """
+        Determine if we should clone a template slide for this content.
+
+        Only clone for title slides (title + subtitle, no body content).
+        For content slides, use layout-based creation to avoid copying
+        template's example content (like "01", "About us", etc.).
+        """
+        subtitle = content.get("subtitle", "")
+        text_content = content.get("textContent", [])
+        bullet_points = content.get("bulletPoints", [])
+        tables = content.get("tables", [])
+        has_body = bool(text_content or bullet_points or tables)
+
+        # Only clone for title slides (subtitle present, no body)
+        # or the first slide if it only has title
+        if subtitle and not has_body:
+            return True
+        if idx == 0 and not has_body:
+            return True
+
+        return False
+
+    def _find_template_slide_for_clone(
+        self,
+        template_slides: List[Any],
+    ) -> Optional[Any]:
+        """
+        Find a template slide to clone (only for title slides).
+
+        This is only called when _should_clone_slide returns True.
+        """
+        # For title slides, find a title slide layout
+        preferred_layouts = ["title slide", "title", "section"]
+
+        for preferred in preferred_layouts:
+            for slide in template_slides:
+                layout_name = slide.slide_layout.name.lower()
+                if preferred in layout_name:
+                    logger.debug(f"Found title slide to clone: {layout_name}")
+                    return slide
+
+        # Fallback to first slide if no title slide found
+        if template_slides:
+            return template_slides[0]
+
+        return None
+
+    def _get_best_layout_for_content(self, prs: Presentation, content: Dict[str, Any]) -> Any:
+        """
+        Get the best layout from the presentation's slide layouts based on content.
+
+        This is used as a fallback when no matching template slide is found.
+        """
+        subtitle = content.get("subtitle", "")
+        text_content = content.get("textContent", [])
+        bullet_points = content.get("bulletPoints", [])
+        tables = content.get("tables", [])
+        has_body = bool(text_content or bullet_points or tables)
+
+        if subtitle and not has_body:
+            # Title + subtitle → title slide layout
+            preferred = ["title slide", "title"]
+        elif has_body:
+            # Has body → content layout
+            # Order matters: prefer layouts with body placeholder
+            preferred = ["title and content", "title, content", "content", "title and body", "two content"]
+        else:
+            # Default → blank or content
+            preferred = ["blank", "title and content"]
+
+        # Log for debugging
+        layout_names = [layout.name.lower() for layout in prs.slide_layouts]
+        logger.debug(f"Looking for layout, preferred={preferred}, available={layout_names}")
+
+        # Find matching layout
+        for pref in preferred:
+            for layout in prs.slide_layouts:
+                if pref in layout.name.lower():
+                    # Verify this layout has a body placeholder
+                    if has_body:
+                        has_body_placeholder = self._layout_has_body_placeholder(layout)
+                        if has_body_placeholder:
+                            return layout
+                        else:
+                            logger.debug(f"Layout '{layout.name}' has no body placeholder, skipping")
+                            continue
+                    return layout
+
+        # Fallback: find any layout with a body placeholder
+        if has_body:
+            for layout in prs.slide_layouts:
+                if self._layout_has_body_placeholder(layout):
+                    logger.info(f"Using fallback layout with body placeholder: {layout.name}")
+                    return layout
+
+        # Last resort: first layout
+        return prs.slide_layouts[0]
+
+    def _layout_has_body_placeholder(self, layout) -> bool:
+        """Check if a layout has a body/content placeholder."""
+        from pptx.enum.shapes import PP_PLACEHOLDER
+
+        for shape in layout.placeholders:
+            try:
+                ph_type = shape.placeholder_format.type
+                if ph_type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _create_slide_from_layout_only(
+        self,
+        prs: Presentation,
+        content: Dict[str, Any],
+        slide_width: float,
+        title_font: Optional[str],
+        body_font: Optional[str],
+        title_font_size: int,
+        body_font_size: int,
+        primary_color,
+        secondary_color,
+    ) -> Any:
+        """
+        Create a new slide using only the template's layout.
+
+        This method:
+        1. Selects the best layout from the template's available layouts
+        2. Creates a new slide with that layout (inherits theme styling)
+        3. Fills placeholders with content
+
+        The layout provides: background color/style, placeholder positions,
+        theme fonts and colors. This avoids copying any template-specific
+        content like "01", "About us", etc.
+        """
+        # Get the best layout for this content
+        layout = self._get_best_layout_for_content(prs, content)
+
+        # Log all available layouts for debugging
+        all_layouts = [layout.name for layout in prs.slide_layouts]
+        logger.info(f"Available layouts: {all_layouts}")
+        logger.info(f"Selected layout: {layout.name}")
+
+        # Create the new slide
+        slide = prs.slides.add_slide(layout)
+
+        # Log placeholder info for debugging
+        for shape in slide.shapes:
+            if shape.is_placeholder:
+                try:
+                    ph = shape.placeholder_format
+                    logger.info(f"Placeholder: idx={ph.idx}, type={ph.type}")
+                except Exception as e:
+                    logger.warning(f"Error reading placeholder: {e}")
+
+        # Fill placeholders with content
+        title = content.get("title", "")
+        subtitle = content.get("subtitle", "")
+        text_content = content.get("textContent", [])
+        bullet_points = content.get("bulletPoints", [])
+        tables = content.get("tables", [])
+        body_text = bullet_points if bullet_points else text_content
+
+        # Try to fill placeholders first
+        placeholders_filled = self._fill_slide_placeholders(slide, title, subtitle, body_text)
+
+        # If placeholders couldn't be filled (e.g., blank layout), add content manually
+        if not placeholders_filled:
+            current_top = 0.5
+
+            if title:
+                self._add_title_to_slide(
+                    slide, title, current_top, slide_width, title_font,
+                    title_font_size, primary_color
+                )
+                current_top += 0.8
+
+            if subtitle:
+                self._add_subtitle_to_slide(
+                    slide, subtitle, current_top, slide_width, body_font,
+                    title_font_size - 10, secondary_color
+                )
+                current_top += 0.6
+
+            for text in text_content:
+                if isinstance(text, dict):
+                    text = text.get("text", "")
+                if text:
+                    self._add_text_to_slide(slide, text, current_top, slide_width, body_font, body_font_size)
+                    current_top += 0.3 + (len(text) // 100) * 0.2
+
+            if bullet_points:
+                self._add_bullet_list_to_slide(
+                    slide, bullet_points, current_top, body_font, body_font_size, primary_color
+                )
+                current_top += 0.3 * len(bullet_points) + 0.3
+
+        # Add tables (always added manually below placeholders)
+        if tables:
+            current_top = 4.0
+            for table_data in tables:
+                self._add_table_to_slide(
+                    slide, table_data, current_top, slide_width, body_font, primary_color
+                )
+                row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
+                current_top += 0.4 * row_count + 0.3
+
+        return slide
 
     async def generate_pptx_from_content(
         self,
@@ -466,17 +782,20 @@ class PptxService:
         """
         Generate a PPTX based on provided content.
 
+        When template is provided, clones template slides to preserve decorative elements.
+        Backend automatically selects the best template slide based on content fields:
+        - title + subtitle (no body) → clone title slide
+        - title + bulletPoints/textContent → clone content slide
+        - title only → clone blank or first slide
+
         Args:
-            slides_content: List of slide content
+            slides_content: List of slide content dicts with title, subtitle, textContent, bulletPoints, tables
             branding: Optional branding info (used when no template provided)
             template_bytes: Optional template file bytes to use as base
 
         Returns:
             Generated PPTX as bytes
         """
-        from pptx.enum.text import PP_ALIGN
-        from pptx.dml.color import RGBColor
-
         branding = branding or {}
         title_font = branding.get("titleFontName")
         body_font = branding.get("bodyFontName")
@@ -489,15 +808,47 @@ class PptxService:
             logger.info("Using template file as base for PPTX generation")
             prs = Presentation(BytesIO(template_bytes))
             slide_width = prs.slide_width / 914400
-            slide_height = prs.slide_height / 914400
 
-            template_slides_by_layout = {}
-            for slide in prs.slides:
-                layout_name = slide.slide_layout.name.lower()
-                if layout_name not in template_slides_by_layout:
-                    template_slides_by_layout[layout_name] = slide
+            # Index template slides for cloning
+            template_slides = list(prs.slides)
+            original_slide_count = len(template_slides)
+            logger.info(f"Template has {original_slide_count} slides")
 
-            logger.info(f"Template has {len(prs.slides)} slides")
+            # Generate slides based on content type
+            for idx, content in enumerate(slides_content):
+                # Decide strategy: clone for title slides, layout-based for content slides
+                if self._should_clone_slide(content, idx):
+                    # Title slide - clone to preserve decorations
+                    source_slide = self._find_template_slide_for_clone(template_slides)
+                    if source_slide:
+                        logger.info(f"Cloning title slide for content idx={idx}")
+                        new_slide = self._clone_slide(prs, source_slide)
+                        self._fill_cloned_slide(new_slide, content, slide_width, body_font, primary_color)
+                    else:
+                        # Fallback if no title slide found
+                        logger.info(f"No title slide to clone for idx={idx}, using layout")
+                        self._create_slide_from_layout_only(
+                            prs, content, slide_width,
+                            title_font, body_font, title_font_size, body_font_size,
+                            primary_color, secondary_color
+                        )
+                else:
+                    # Content slide - use layout only (no decoration copying)
+                    # This avoids copying template's example content
+                    logger.info(f"Creating content slide from layout for idx={idx}")
+                    self._create_slide_from_layout_only(
+                        prs, content, slide_width,
+                        title_font, body_font, title_font_size, body_font_size,
+                        primary_color, secondary_color
+                    )
+
+            # Remove original template slides (they are at the beginning)
+            for _ in range(original_slide_count):
+                rId = prs.slides._sldIdLst[0].rId
+                prs.part.drop_rel(rId)
+                del prs.slides._sldIdLst[0]
+
+            logger.info(f"Removed {original_slide_count} original template slides")
         else:
             logger.info("Creating new blank PPTX (no template provided)")
             prs = Presentation()
@@ -505,36 +856,123 @@ class PptxService:
             slide_height = branding.get("slideHeight", 7.5)
             prs.slide_width = Inches(slide_width)
             prs.slide_height = Inches(slide_height)
-            template_slides_by_layout = {}
 
-        original_slide_count = len(prs.slides)
-
-        for idx, content in enumerate(slides_content):
-            slide = self._create_slide_from_content(
-                prs, idx, content, template_bytes, slide_width,
-                title_font, body_font, title_font_size, body_font_size,
-                primary_color, secondary_color
-            )
-
-        # Remove original template slides
-        if template_bytes and original_slide_count > 0:
-            for slide_idx in reversed(range(original_slide_count)):
-                rId = prs.slides._sldIdLst[slide_idx].rId
-                prs.part.drop_rel(rId)
-                del prs.slides._sldIdLst[slide_idx]
-
-            logger.info(f"Removed {original_slide_count} original template slides")
+            for idx, content in enumerate(slides_content):
+                self._create_slide_from_layout(
+                    prs, idx, content, slide_width,
+                    title_font, body_font, title_font_size, body_font_size,
+                    primary_color, secondary_color
+                )
 
         output = BytesIO()
         prs.save(output)
         return output.getvalue()
 
-    def _create_slide_from_content(
+    def _fill_cloned_slide(
+        self,
+        slide,
+        content: Dict[str, Any],
+        slide_width: float,
+        body_font: Optional[str],
+        primary_color,
+    ) -> None:
+        """
+        Fill placeholders in a cloned slide with new content.
+
+        When content is empty for a placeholder, the placeholder text is cleared
+        to avoid showing "Click to add Text" messages.
+        """
+        from pptx.enum.shapes import PP_PLACEHOLDER
+
+        title = content.get("title", "")
+        subtitle = content.get("subtitle", "")
+        text_content = content.get("textContent", [])
+        bullet_points = content.get("bulletPoints", [])
+        tables = content.get("tables", [])
+
+        body_text = bullet_points if bullet_points else text_content
+
+        # Track which placeholder types we've already processed to avoid duplicates
+        # (cloned slides may have duplicate shapes from both layout and clone)
+        processed_types = set()
+
+        # Fill placeholders
+        for shape in slide.shapes:
+            if not shape.is_placeholder:
+                continue
+
+            try:
+                ph_type = shape.placeholder_format.type
+            except Exception:
+                continue
+
+            # Skip if we've already processed this placeholder type
+            if ph_type in processed_types:
+                continue
+
+            if ph_type in (PP_PLACEHOLDER.TITLE, PP_PLACEHOLDER.CENTER_TITLE):
+                processed_types.add(ph_type)
+                if shape.has_text_frame:
+                    tf = shape.text_frame
+                    # Clear all existing text
+                    for para in tf.paragraphs:
+                        para.clear()
+                    # Set title if provided, otherwise leave empty (not "Click to add")
+                    if title:
+                        tf.paragraphs[0].text = title
+                    else:
+                        # Set empty string to clear default placeholder text
+                        tf.paragraphs[0].text = ""
+
+            elif ph_type == PP_PLACEHOLDER.SUBTITLE:
+                processed_types.add(ph_type)
+                if shape.has_text_frame:
+                    tf = shape.text_frame
+                    # Clear all existing text
+                    for para in tf.paragraphs:
+                        para.clear()
+                    # Set subtitle if provided, otherwise leave empty
+                    if subtitle:
+                        tf.paragraphs[0].text = subtitle
+                    else:
+                        # Set empty string to clear default placeholder text
+                        tf.paragraphs[0].text = ""
+
+            elif ph_type in (PP_PLACEHOLDER.BODY, PP_PLACEHOLDER.OBJECT):
+                processed_types.add(ph_type)
+                if shape.has_text_frame:
+                    tf = shape.text_frame
+                    # Clear existing paragraphs
+                    for para in tf.paragraphs:
+                        para.clear()
+
+                    if body_text:
+                        # Add new content
+                        for i, text in enumerate(body_text):
+                            if i == 0:
+                                tf.paragraphs[0].text = text
+                            else:
+                                p = tf.add_paragraph()
+                                p.text = text
+                    else:
+                        # Set empty string to clear default placeholder text
+                        tf.paragraphs[0].text = ""
+
+        # Add tables below placeholders
+        if tables:
+            current_top = 4.0  # Start below typical placeholder area
+            for table_data in tables:
+                self._add_table_to_slide(
+                    slide, table_data, current_top, slide_width, body_font, primary_color
+                )
+                row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
+                current_top += 0.4 * row_count + 0.3
+
+    def _create_slide_from_layout(
         self,
         prs: Presentation,
         idx: int,
         content: Dict[str, Any],
-        template_bytes: Optional[bytes],
         slide_width: float,
         title_font: Optional[str],
         body_font: Optional[str],
@@ -543,47 +981,27 @@ class PptxService:
         primary_color,
         secondary_color,
     ):
-        """Create a single slide from content."""
+        """
+        Create a slide from layout (used when no template is provided).
+
+        Returns:
+            pptx.slide.Slide: The created slide.
+        """
         title = content.get("title", "")
         subtitle = content.get("subtitle", "")
         text_content = content.get("textContent", [])
         bullet_points = content.get("bulletPoints", [])
         tables = content.get("tables", [])
-        layout_name = content.get("layoutName")
 
-        # Select appropriate layout
-        if template_bytes:
-            if idx == 0 and (title or subtitle):
-                layout = self._find_layout_by_name(prs, layout_name or "Title Slide")
-            elif bullet_points or text_content:
-                layout = self._find_layout_by_name(prs, layout_name or "Title and Content")
-            else:
-                layout = self._find_layout_by_name(prs, layout_name or "Blank")
-        else:
-            try:
-                layout = prs.slide_layouts[6]
-            except IndexError:
-                layout = prs.slide_layouts[0]
+        # Use blank layout for new presentations
+        try:
+            layout = prs.slide_layouts[6]  # Usually blank
+        except IndexError:
+            layout = prs.slide_layouts[0]
 
         slide = prs.slides.add_slide(layout)
 
-        # Try to fill placeholders first
-        body_for_placeholder = bullet_points if bullet_points else text_content
-        placeholders_filled = self._fill_slide_placeholders(
-            slide, title, subtitle, body_for_placeholder
-        )
-
-        if template_bytes and placeholders_filled:
-            current_top = 2.5
-            for table_data in tables:
-                self._add_table_to_slide(
-                    slide, table_data, current_top, slide_width, body_font, primary_color
-                )
-                row_count = len(table_data.get("rows", [])) + (1 if table_data.get("headers") else 0)
-                current_top += 0.4 * row_count + 0.3
-            return slide
-
-        # Fallback: add content manually
+        # Add content manually
         current_top = 0.5
 
         if title:
@@ -684,4 +1102,3 @@ def get_pptx_service() -> PptxService:
     if _pptx_service is None:
         _pptx_service = PptxService()
     return _pptx_service
-
