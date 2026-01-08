@@ -635,7 +635,7 @@ class PptxService:
             preferred = ["blank", "title and content"]
 
         # Log for debugging
-        layout_names = [l.name.lower() for l in prs.slide_layouts]
+        layout_names = [layout.name.lower() for layout in prs.slide_layouts]
         logger.debug(f"Looking for layout, preferred={preferred}, available={layout_names}")
 
         # Find matching layout
@@ -703,7 +703,7 @@ class PptxService:
         layout = self._get_best_layout_for_content(prs, content)
 
         # Log all available layouts for debugging
-        all_layouts = [l.name for l in prs.slide_layouts]
+        all_layouts = [layout.name for layout in prs.slide_layouts]
         logger.info(f"Available layouts: {all_layouts}")
         logger.info(f"Selected layout: {layout.name}")
 
