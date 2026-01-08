@@ -99,7 +99,8 @@ export function createAgentConfig(opts: {
   const callSettings: Record<string, number> = {
     // Add frequency_penalty to discourage repetition loops
     // This penalizes tokens based on their frequency in the generated text so far
-    frequencyPenalty: 0.3,
+    // Reduced from 0.3 to 0.15 to prevent degenerate word-list outputs (issue #88)
+    frequencyPenalty: 0.15,
   };
   if (typeof opts.temperature === 'number') {
     callSettings.temperature = opts.temperature;
