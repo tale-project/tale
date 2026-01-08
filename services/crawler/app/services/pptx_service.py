@@ -557,9 +557,9 @@ class PptxService:
             # Add relationship to destination slide
             try:
                 dest.part.rels.get_or_add(rel.reltype, rel._target)
-            except Exception:
-                # Some relationships may fail, continue with others
-                pass
+            except Exception as e:
+                # Log but continue - some relationships may not be copyable
+                logger.debug(f"Could not copy relationship {rel.reltype}: {e}")
 
         return dest
 
