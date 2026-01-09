@@ -16,13 +16,13 @@ import { JsonViewer } from '@/components/ui/json-viewer';
 import { useT, useLocale } from '@/lib/i18n';
 import { formatDuration } from '@/lib/utils/format/number';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { executionFilterDefinitions } from '../filter-definitions';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
   preloadedExecutions: Preloaded<
-    typeof api.wf_executions.listExecutionsPaginated
+    typeof api.wf_executions.listExecutionsCursor
   >;
   amId: Id<'wfDefinitions'>;
 }
@@ -181,63 +181,43 @@ export function ExecutionsTable({
     searchPlaceholder,
     stickyLayout,
     pageSize,
-    defaultSort,
-    defaultSortDesc,
   } = useExecutionsTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (without sorting for cursor-based pagination)
   const {
     filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
     setFilter,
-    setPage,
-    setPageSize,
     clearAll,
-    hasActiveFilters,
     isPending,
   } = useUrlFilters({
     filters: executionFilterDefinitions,
     pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.wf_executions.listExecutionsPaginated,
-    preloadedData: preloadedExecutions,
-    organizationId: amId, // Using amId as the key since executions are scoped by definition
-    filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
-      definitions: executionFilterDefinitions,
-    },
-    transformFilters: (f) => ({
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
       wfDefinitionId: amId,
-      searchTerm: f.query || undefined,
-      status: f.status.length > 0 ? f.status : undefined,
-      triggeredBy: f.triggeredBy.length > 0 ? f.triggeredBy : undefined,
-      dateFrom: f.dateRange?.from || undefined,
-      dateTo: f.dateRange?.to || undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0]
-        ? sorting[0].desc
-          ? ('desc' as const)
-          : ('asc' as const)
-        : undefined,
+      searchTerm: filterValues.query || undefined,
+      status: filterValues.status.length > 0 ? filterValues.status : undefined,
+      triggeredBy:
+        filterValues.triggeredBy.length > 0
+          ? filterValues.triggeredBy
+          : undefined,
+      dateFrom: filterValues.dateRange?.from || undefined,
+      dateTo: filterValues.dateRange?.to || undefined,
     }),
-  });
+    [amId, filterValues],
+  );
 
-  const executions = (data?.items ?? []) as Execution[];
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: executions, isLoading, isLoadingMore, hasMore, loadMore } =
+    useCursorPaginatedQuery({
+      query: api.wf_executions.listExecutionsCursor,
+      preloadedData: preloadedExecutions,
+      args: queryArgs,
+      numItems: pageSize,
+    });
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -404,19 +384,20 @@ export function ExecutionsTable({
     [setFilter],
   );
 
+  // Loading state is handled by the hook
+  if (isLoading) {
+    return null; // Let the Suspense boundary handle the loading state
+  }
+
   return (
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={executions}
+      data={executions as Execution[]}
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
       stickyLayout={stickyLayout}
-      sorting={{
-        initialSorting: sorting,
-        onSortingChange: setSorting,
-      }}
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
@@ -438,17 +419,11 @@ export function ExecutionsTable({
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }
