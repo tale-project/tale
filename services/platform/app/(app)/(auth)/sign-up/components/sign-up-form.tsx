@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { MicrosoftIcon } from '@/components/icons';
 import { AuthFormLayout } from '../../components/auth-form-layout';
 import { useT } from '@/lib/i18n';
+import { revalidateUsersCache } from '../../actions/revalidate-users-cache';
 
 // Type for the form data
 type SignUpFormData = {
@@ -89,6 +90,9 @@ export function SignUpForm({
         return;
       }
 
+      // Revalidate the users cache so login page doesn't redirect to sign-up
+      await revalidateUsersCache();
+
       toast({
         title: t('signup.accountCreated'),
         variant: 'success',
@@ -106,6 +110,9 @@ export function SignUpForm({
 
   const handleMicrosoftSignUp = async () => {
     try {
+      // Revalidate users cache before redirect since user will be created via OAuth
+      await revalidateUsersCache();
+
       await authClient.signIn.social({
         provider: 'microsoft',
         callbackURL: '/dashboard',
