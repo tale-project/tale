@@ -12,7 +12,8 @@ interface ProductTableSkeletonProps {
 export function ProductTableSkeleton({
   organizationId,
 }: ProductTableSkeletonProps) {
-  const { columns, searchPlaceholder, stickyLayout } = useProductsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useProductsTableConfig();
 
   return (
     <DataTableSkeleton
@@ -20,6 +21,7 @@ export function ProductTableSkeleton({
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       actionMenu={<ProductsActionMenu organizationId={organizationId} />}
+      infiniteScroll={infiniteScroll}
     />
   );
 }

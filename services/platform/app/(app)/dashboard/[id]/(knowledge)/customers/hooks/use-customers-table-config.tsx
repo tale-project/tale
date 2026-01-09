@@ -100,5 +100,6 @@ export function useCustomersTableConfig() {
     pageSize: 10,
     defaultSort: '_creationTime' as const,
     defaultSortDesc: true,
+    infiniteScroll: true as const,
   };
 }
