@@ -80,3 +80,14 @@ export const listExecutionsPaginatedArgsValidator = {
   sortField: v.optional(v.string()),
   sortOrder: v.optional(v.union(v.literal('asc'), v.literal('desc'))),
 };
+
+export const listExecutionsCursorArgsValidator = {
+  wfDefinitionId: v.id('wfDefinitions'),
+  numItems: v.optional(v.number()),
+  cursor: v.union(v.string(), v.null()),
+  searchTerm: v.optional(v.string()),
+  status: v.optional(v.array(v.string())),
+  triggeredBy: v.optional(v.array(v.string())),
+  dateFrom: v.optional(v.string()),
+  dateTo: v.optional(v.string()),
+};

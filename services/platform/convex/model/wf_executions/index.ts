@@ -8,6 +8,7 @@ export * from './get_execution';
 export * from './get_raw_execution';
 export * from './list_executions';
 export * from './list_executions_paginated';
+export * from './list_executions_cursor';
 export * from './update_execution_status';
 export * from './complete_execution';
 export * from './fail_execution';
