@@ -61,7 +61,7 @@ export function DocumentTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: items, isLoading, isLoadingMore, hasMore, loadMore } =
+  const { data: items, isLoadingMore, hasMore, loadMore } =
     useCursorPaginatedQuery({
       query: api.documents.getDocumentsCursor,
       preloadedData: preloadedDocuments,
@@ -271,11 +271,6 @@ export function DocumentTable({
     ],
     [handleDocumentClick, tTables],
   );
-
-  // Loading state is handled by the hook
-  if (isLoading) {
-    return null; // Let the Suspense boundary handle the loading state
-  }
 
   return (
     <>
