@@ -14,7 +14,7 @@ cognee[baml]==0.5.1
 # - docx: Word documents (.doc, .docx)
 # - pptx: PowerPoint presentations (.ppt, .pptx)
 # Note: PDF support removed - now handled by PyMuPDF + Vision API
-unstructured[xlsx,docx,pptx]==0.18.26
+unstructured[xlsx,docx,pptx]==0.18.27
 
 # PyMuPDF for PDF text extraction (no system dependencies)
 # Replaces tesseract/poppler with lightweight pure-Python solution
