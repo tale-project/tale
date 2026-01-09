@@ -75,7 +75,7 @@ export function ChatActions({
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
-                className="p-1"
+                className="hidden md:inline-flex p-1"
                 size="icon"
                 onClick={onRename}
                 aria-label={tCommon('actions.rename')}
@@ -83,7 +83,9 @@ export function ChatActions({
                 <Pencil className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{tCommon('actions.rename')}</TooltipContent>
+            <TooltipContent side="bottom">
+              {tCommon('actions.rename')}
+            </TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -98,7 +100,9 @@ export function ChatActions({
                 <Trash2 className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">{tCommon('actions.delete')}</TooltipContent>
+            <TooltipContent side="bottom">
+              {tCommon('actions.delete')}
+            </TooltipContent>
           </Tooltip>
         </HStack>
       </TooltipProvider>
@@ -111,7 +115,8 @@ export function ChatActions({
         description={
           <>
             {tChat('deleteConfirmation', { title: chat.title })}
-            <br /><br />
+            <br />
+            <br />
             <span className="text-muted-foreground">
               {tChat('deleteArchiveMessage')}
             </span>

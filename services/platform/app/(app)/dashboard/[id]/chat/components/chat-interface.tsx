@@ -486,21 +486,43 @@ export function ChatInterface({
   }, [streamingMessage, isPending, setIsPending]);
 
   // Clear optimistic message when it appears in actual messages
+  // Track the timestamp when optimistic message was created to avoid matching older messages
+  const optimisticMessageTimestampRef = useRef<number | null>(null);
+
+  // Update timestamp when optimistic message is set
+  useEffect(() => {
+    if (optimisticMessage?.content) {
+      optimisticMessageTimestampRef.current = Date.now();
+    }
+  }, [optimisticMessage?.content]);
+
   useEffect(() => {
     if (
       optimisticMessage?.content &&
       uiMessages !== undefined &&
-      threadMessages?.some((m) => {
+      optimisticMessageTimestampRef.current
+    ) {
+      // Find user messages created after the optimistic message was set
+      // Use a small buffer (500ms before) to account for timing differences
+      const searchStartTime = optimisticMessageTimestampRef.current - 500;
+
+      const matchingMessage = threadMessages?.find((m) => {
         if (m.role !== 'user') return false;
+        // Only consider messages created around or after the optimistic message
+        const messageTime = m._creationTime || m.timestamp.getTime();
+        if (messageTime < searchStartTime) return false;
         // Check for exact match OR if the message starts with the optimistic content
         // (handles case where images are appended as markdown)
         return (
           m.content === optimisticMessage.content ||
           m.content.startsWith(optimisticMessage.content)
         );
-      })
-    ) {
-      setOptimisticMessage(null);
+      });
+
+      if (matchingMessage) {
+        setOptimisticMessage(null);
+        optimisticMessageTimestampRef.current = null;
+      }
     }
   }, [
     uiMessages,
@@ -684,7 +706,7 @@ export function ChatInterface({
         <div
           ref={contentRef}
           className={cn(
-            'flex-1 overflow-y-visible p-8',
+            'flex-1 overflow-y-visible p-4 sm:p-8',
             !threadId &&
               threadMessages?.length === 0 &&
               !userDraftMessage &&
@@ -800,9 +822,11 @@ export function ChatInterface({
               {/* AI Response area - ref used for scroll positioning */}
               {/* Show ThinkingAnimation when:
                   1. Waiting for AI response (isPending, no streaming yet), OR
-                  2. Tools are actively executing (even if text has started streaming) */}
+                  2. Streaming started but no text content yet (prevents blank gap), OR
+                  3. Tools are actively executing (even if text has started streaming) */}
               <div ref={aiResponseAreaRef}>
-                {((isPending && userDraftMessage && !streamingMessage) ||
+                {((isPending && !streamingMessage) ||
+                  (streamingMessage && !streamingMessage.text) ||
                   hasActiveTools) && (
                   <ThinkingAnimation
                     threadId={threadId}

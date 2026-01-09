@@ -39,6 +39,7 @@ export function ChatHistorySidebar({
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load chat threads for current user
   const threadsData = useQuery(api.threads.listThreads, {});
@@ -149,12 +150,12 @@ export function ChatHistorySidebar({
   return (
     <Stack
       gap={4}
-      className={cn('flex-[1_1_0] pb-4 px-2 overflow-y-auto', className)}
+      className={cn(
+        'flex-[1_1_0] pb-4 px-2.5 py-3.5 overflow-y-auto',
+        className,
+      )}
       {...restProps}
     >
-      <div className="text-xs font-medium text-muted-foreground tracking-[-0.072px] text-nowrap sticky top-0 bg-background z-10 pt-3">
-        {t('history.recent')}
-      </div>
       <Stack gap={1}>
         {!chats ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">
@@ -180,31 +181,50 @@ export function ChatHistorySidebar({
                 )}
               >
                 {isEditing ? (
-                  <Input
-                    ref={inputRef}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSaveRename(chat._id);
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        handleCancelRename();
-                      }
+                  <div
+                    className="w-full"
+                    style={{
+                      transform: 'matrix(0.9, 0, 0, 0.9, 0, 0)',
+                      transformOrigin: 'left center',
                     }}
-                    onBlur={() => handleInputBlur(chat._id)}
-                    className="flex-1 h-6 text-sm px-1.5 py-0 leading-none -mx-1.5"
-                  />
+                  >
+                    <Input
+                      ref={inputRef}
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveRename(chat._id);
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelRename();
+                        }
+                      }}
+                      onBlur={() => handleInputBlur(chat._id)}
+                      className="w-full h-6 px-0 py-0 leading-none focus:border-0 ring-0 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:outline-none shadow-none"
+                    />
+                  </div>
                 ) : (
                   <>
                     <button
-                      onClick={() => handleChatClick(chat._id)}
+                      onClick={() => {
+                        if (clickTimeoutRef.current) {
+                          clearTimeout(clickTimeoutRef.current);
+                          clickTimeoutRef.current = null;
+                          handleStartRename(chat._id, chat.title);
+                        } else {
+                          clickTimeoutRef.current = setTimeout(() => {
+                            clickTimeoutRef.current = null;
+                            handleChatClick(chat._id);
+                          }, 250);
+                        }
+                      }}
                       className="flex-1 truncate text-left cursor-pointer"
                     >
                       {chat.title}
                     </button>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <ChatActions
                         chat={{ id: chat._id, title: chat.title }}
                         currentChatId={currentThreadId}

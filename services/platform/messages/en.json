@@ -1332,7 +1332,6 @@
     },
     "loadOlderMessages": "Load older messages",
     "history": {
-      "recent": "Recent",
       "loading": "Loading chats...",
       "empty": "No chats yet",
       "untitled": "Untitled chat",

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { getLocale, getMessages } from 'next-intl/server';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeColorMeta } from '@/components/theme-color-meta';
 import { AppProviders } from './providers/app-providers';
 import { getT } from '@/lib/i18n/server';
 import { getSiteUrl } from '@/lib/get-site-url';
@@ -15,6 +16,13 @@ const inter = Inter({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
 });
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fcfcfc' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+  ],
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getT('metadata');
@@ -72,6 +80,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <ThemeColorMeta />
           <AppProviders locale={locale} messages={messages} siteUrl={siteUrl}>
             {children}
           </AppProviders>
