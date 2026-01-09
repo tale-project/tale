@@ -16,12 +16,12 @@ const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
 
 // Define Better Auth Access Control (custom roles + permissions)
 // Centralize table-keyed permissions used by RLS and the org plugin
+// Only includes resources that exist in schema.ts
 const platformResourceStatements = {
   documents: ['read', 'write'],
   products: ['read', 'write'],
   customers: ['read', 'write'],
   vendors: ['read', 'write'],
-  subscriptions: ['read', 'write'],
   integrations: ['read', 'write'],
   emailProviders: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
@@ -30,16 +30,11 @@ const platformResourceStatements = {
   wfDefinitions: ['read', 'write'],
   wfStepDefs: ['read', 'write'],
   wfExecutions: ['read', 'write'],
-  automations: ['read', 'write'],
-
   approvals: ['read', 'write'],
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
-
-  productRelationships: ['read', 'write'],
-  settings: ['read', 'write'],
 } as const;
 
 const platformStatements = {
@@ -56,7 +51,6 @@ const admin = ac.newRole({
   products: ['read', 'write'],
   customers: ['read', 'write'],
   vendors: ['read', 'write'],
-  subscriptions: ['read', 'write'],
   integrations: ['read', 'write'],
   emailProviders: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
@@ -66,14 +60,10 @@ const admin = ac.newRole({
   wfStepDefs: ['read', 'write'],
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
-
-  automations: ['read', 'write'],
   approvals: ['read', 'write'],
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
-  productRelationships: ['read', 'write'],
-  settings: ['read', 'write'],
 });
 
 const developer = ac.newRole({
@@ -81,7 +71,6 @@ const developer = ac.newRole({
   products: ['read', 'write'],
   customers: ['read', 'write'],
   vendors: ['read', 'write'],
-  // subscriptions intentionally omitted for write
   integrations: ['read', 'write'],
   emailProviders: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
@@ -91,14 +80,10 @@ const developer = ac.newRole({
   wfStepDefs: ['read', 'write'],
   wfExecutions: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
-
-  automations: ['read', 'write'],
   approvals: ['read', 'write'],
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
-  productRelationships: ['read', 'write'],
-  settings: ['read'],
 });
 
 const editor = ac.newRole({
@@ -106,8 +91,7 @@ const editor = ac.newRole({
   products: ['read', 'write'],
   customers: ['read', 'write'],
   vendors: ['read', 'write'],
-  // subs/integrations/providers/onedrive/workflow: read only
-  subscriptions: ['read'],
+  // integrations/providers/onedrive/workflow: read only
   integrations: ['read'],
   emailProviders: ['read'],
   onedriveSyncConfigs: ['read'],
@@ -117,13 +101,11 @@ const editor = ac.newRole({
   wfStepDefs: ['read'],
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
-
   approvals: ['read', 'write'],
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
-  productRelationships: ['read', 'write'],
-  settings: ['read'],
+  // No access to: settings, automations (frontend menu restricted)
 });
 
 const member = ac.newRole({
@@ -131,7 +113,6 @@ const member = ac.newRole({
   products: ['read'],
   customers: ['read'],
   vendors: ['read'],
-  subscriptions: ['read'],
   integrations: ['read'],
   emailProviders: ['read'],
   onedriveSyncConfigs: ['read'],
@@ -141,13 +122,11 @@ const member = ac.newRole({
   wfStepDefs: ['read'],
   wfExecutions: ['read'],
   workflowProcessingRecords: ['read'],
-
   approvals: ['read'],
   toneOfVoice: ['read'],
   exampleMessages: ['read'],
   websites: ['read'],
-  productRelationships: ['read'],
-  settings: ['read'],
+  // No access to: settings, automations (frontend menu restricted)
 });
 
 const disabled = ac.newRole({
@@ -155,7 +134,6 @@ const disabled = ac.newRole({
   products: [],
   customers: [],
   vendors: [],
-  subscriptions: [],
   integrations: [],
   emailProviders: [],
   onedriveSyncConfigs: [],
@@ -169,8 +147,6 @@ const disabled = ac.newRole({
   toneOfVoice: [],
   exampleMessages: [],
   websites: [],
-  productRelationships: [],
-  settings: [],
 });
 
 export const platformRoles = {
