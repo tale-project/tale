@@ -407,12 +407,12 @@ export function DataTable<TData>({
     />
   );
 
-  // Infinite scroll content (load more button)
-  const infiniteScrollContent = infiniteScroll && (
-    <div className="flex justify-center py-4">
+  // Infinite scroll content (load more button) - renders inside table container
+  const infiniteScrollContent = infiniteScroll && data.length > 0 && (
+    <div className="flex justify-center py-4 border-t border-border">
       {infiniteScroll.hasMore ? (
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={infiniteScroll.onLoadMore}
           disabled={infiniteScroll.isLoadingMore}
           aria-label={t('pagination.loadMore')}
@@ -439,9 +439,11 @@ export function DataTable<TData>({
     return (
       <div className={cn('space-y-4', className)}>
         {headerContent}
-        {tableContent}
+        <div className="rounded-xl border border-border">
+          {tableContent}
+          {infiniteScrollContent}
+        </div>
         {paginationContent}
-        {infiniteScrollContent}
         {footer}
       </div>
     );
@@ -455,12 +457,10 @@ export function DataTable<TData>({
       )}
       <div className="min-h-0 overflow-auto rounded-xl border border-border">
         {tableContent}
+        {infiniteScrollContent}
       </div>
       {paginationContent && (
         <div className="flex-shrink-0 pt-6">{paginationContent}</div>
-      )}
-      {infiniteScrollContent && (
-        <div className="flex-shrink-0">{infiniteScrollContent}</div>
       )}
       {footer}
     </div>
