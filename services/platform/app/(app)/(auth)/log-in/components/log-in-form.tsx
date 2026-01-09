@@ -66,11 +66,11 @@ export function LogInForm({
   const passwordValue = form.watch('password');
 
   useEffect(() => {
-    // Clear authentication errors when user changes either email or password
+    // Clear authentication errors when user modifies credentials
     if (errors.password) {
       form.clearErrors('password');
     }
-  }, [emailValue, passwordValue, errors.password, form]);
+  }, [emailValue, passwordValue, form]);
 
   const handleSubmit = async (data: LogInFormData) => {
     // Clear any previous auth errors
