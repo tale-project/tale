@@ -7,8 +7,9 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
-import type { DocumentItemResponse, DocumentMetadata } from './types';
+import type { DocumentItemResponse } from './types';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../../lib/pagination';
+import { getMetadataString } from '../../lib/metadata/get_metadata_string';
 import { transformToDocumentItem } from './transform_to_document_item';
 
 export interface GetDocumentsCursorArgs {
@@ -45,7 +46,7 @@ export async function getDocumentsCursor(
   const filter = (doc: Doc<'documents'>): boolean => {
     // Apply folder path filter
     if (folderPath) {
-      const docPath = (doc.metadata as DocumentMetadata | undefined)?.storagePath;
+      const docPath = getMetadataString(doc.metadata, 'storagePath');
       if (docPath !== folderPath) {
         return false;
       }
@@ -54,7 +55,7 @@ export async function getDocumentsCursor(
     // Apply search filter (case-insensitive contains)
     if (searchQuery) {
       const titleMatch = doc.title?.toLowerCase().includes(searchQuery);
-      const nameMatch = (doc.metadata as DocumentMetadata | undefined)?.name
+      const nameMatch = getMetadataString(doc.metadata, 'name')
         ?.toLowerCase()
         .includes(searchQuery);
 
