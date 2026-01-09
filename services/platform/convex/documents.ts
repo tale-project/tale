@@ -587,6 +587,28 @@ export const getDocuments = queryWithRLS({
 });
 
 /**
+ * Get documents with cursor-based pagination (for infinite scroll)
+ * Uses early termination to avoid reading all documents (prevents 16MB limit errors)
+ */
+export const getDocumentsCursor = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    numItems: v.optional(v.number()),
+    cursor: v.union(v.string(), v.null()),
+    query: v.optional(v.string()),
+    folderPath: v.optional(v.string()),
+  },
+  returns: v.object({
+    page: v.array(DocumentItem),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    return await DocumentsModel.getDocumentsCursor(ctx, args);
+  },
+});
+
+/**
  * Update a document (public)
  */
 export const updateDocument = mutationWithRLS({

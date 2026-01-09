@@ -42,25 +42,24 @@ async function VendorsContent({ params, searchParams }: VendorsContentProps) {
   const { id: organizationId } = await params;
   const rawSearchParams = await searchParams;
 
-  // Parse filters, pagination, and sorting using unified system
-  const { filters, pagination, sorting } = parseSearchParams(
+  // Parse filters from URL using unified system
+  const { filters } = parseSearchParams(
     rawSearchParams,
     vendorFilterDefinitions,
-    { defaultSort: '_creationTime', defaultDesc: true },
   );
 
-  // Preload vendors for SSR + real-time reactivity on client
+  // Preload vendors with cursor-based pagination for SSR + real-time reactivity
   const preloadedVendors = await preloadQuery(
-    api.vendors.listVendors,
+    api.vendors.getVendors,
     {
       organizationId,
-      currentPage: pagination.page,
-      pageSize: pagination.pageSize,
+      paginationOpts: {
+        numItems: 20,
+        cursor: null, // First page, no cursor
+      },
       searchTerm: filters.query || undefined,
       source: filters.source.length > 0 ? filters.source : undefined,
       locale: filters.locale.length > 0 ? filters.locale : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
     },
     { token },
   );

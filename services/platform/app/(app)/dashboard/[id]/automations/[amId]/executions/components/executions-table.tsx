@@ -6,7 +6,7 @@ import { Copy, Check } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, formatISO } from 'date-fns';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
@@ -16,13 +16,13 @@ import { JsonViewer } from '@/components/ui/json-viewer';
 import { useT, useLocale } from '@/lib/i18n';
 import { formatDuration } from '@/lib/utils/format/number';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { executionFilterDefinitions } from '../filter-definitions';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 
 interface ExecutionsTableProps {
   preloadedExecutions: Preloaded<
-    typeof api.wf_executions.listExecutionsPaginated
+    typeof api.wf_executions.listExecutionsCursor
   >;
   amId: Id<'wfDefinitions'>;
 }
@@ -38,20 +38,8 @@ const STATUS_BADGE_VARIANTS: Record<
   pending: 'outline',
 };
 
-export interface Execution {
-  _id: Id<'wfExecutions'>;
-  status: string;
-  startedAt: number;
-  completedAt?: number;
-  triggeredBy?: string;
-  waitingFor?: string;
-  input?: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  variables?: string;
-  error?: string;
-  metadata?: string;
-  componentWorkflowId?: string;
-}
+// Use the Convex document type directly
+type Execution = Doc<'wfExecutions'>;
 
 // Component to display all execution details in a single viewer
 const ExecutionDetails = memo(function ExecutionDetails({
@@ -69,17 +57,23 @@ const ExecutionDetails = memo(function ExecutionDetails({
     const meta = execution.metadata
       ? (() => {
           try {
-            return JSON.parse(execution.metadata);
+            const parsed: unknown = JSON.parse(execution.metadata);
+            return typeof parsed === 'object' && parsed !== null
+              ? (parsed as Record<string, unknown>)
+              : undefined;
           } catch {
-            return {};
+            return undefined;
           }
         })()
       : undefined;
 
-    const parsed: Record<string, unknown> | undefined = execution.variables
+    const parsed = execution.variables
       ? (() => {
           try {
-            return JSON.parse(execution.variables) as Record<string, unknown>;
+            const result: unknown = JSON.parse(execution.variables);
+            return typeof result === 'object' && result !== null
+              ? (result as Record<string, unknown>)
+              : undefined;
           } catch {
             return undefined;
           }
@@ -88,7 +82,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
 
     const vars = parsed
       ? (() => {
-          const { steps: _steps, ...rest } = parsed as Record<string, unknown>;
+          const { steps: _steps, ...rest } = parsed;
           return Object.keys(rest).length > 0 ? rest : undefined;
         })()
       : undefined;
@@ -100,41 +94,56 @@ const ExecutionDetails = memo(function ExecutionDetails({
   const steps = useMemo(() => {
     if (!journal) return undefined;
 
-    const logs: Record<string, any> = {};
-    journal.forEach((log: any) => {
-      const stepSlug = log.step?.args?.stepSlug;
-      let key = log._id;
+    // Type guard helpers for safe property access
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null;
+    const getString = (v: unknown): string | undefined =>
+      typeof v === 'string' ? v : undefined;
+
+    const logs: Record<string, Record<string, unknown>> = {};
+
+    for (const log of journal) {
+      if (!isRecord(log)) continue;
+
+      const step = isRecord(log.step) ? log.step : undefined;
+      const stepArgs = step && isRecord(step.args) ? step.args : undefined;
+      const stepSlug = stepArgs ? getString(stepArgs.stepSlug) : undefined;
+
+      let key = getString(log._id) ?? String(log._id);
 
       if (stepSlug) {
         key = stepSlug;
-      } else {
+      } else if (step) {
         // Try to derive a readable key from the step name for system steps
         // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
-        if (log.step?.name && typeof log.step.name === 'string') {
-          const parts = log.step.name.split(':');
+        const stepName = getString(step.name);
+        if (stepName) {
+          const parts = stepName.split(':');
           if (parts.length > 1) {
             key = parts[parts.length - 1];
           }
         }
       }
 
-      // Flatten: merge log and log.step, remove log.step
-      const { step, ...restLog } = log;
-      const entry = { ...restLog, ...step };
+      // Flatten: merge log and step properties
+      const { step: _step, ...restLog } = log;
+      const entry: Record<string, unknown> = { ...restLog, ...step };
 
       // Enrich with output from variables if available
-      if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
-        const stepVar = ((parsedVariables as any).steps as Record<string, any>)[
-          stepSlug
-        ];
-        if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
-          entry.output = stepVar.output;
+      if (stepSlug && parsedVariables) {
+        const stepsVar = parsedVariables.steps;
+        if (isRecord(stepsVar)) {
+          const stepVar = stepsVar[stepSlug];
+          if (isRecord(stepVar) && 'output' in stepVar) {
+            entry.output = stepVar.output;
+          }
         }
       }
 
       logs[key] = entry;
-    });
-    return logs;
+    }
+
+    return Object.keys(logs).length > 0 ? logs : undefined;
   }, [journal, parsedVariables]);
 
   const data = useMemo(
@@ -181,63 +190,43 @@ export function ExecutionsTable({
     searchPlaceholder,
     stickyLayout,
     pageSize,
-    defaultSort,
-    defaultSortDesc,
   } = useExecutionsTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (without sorting for cursor-based pagination)
   const {
     filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
     setFilter,
-    setPage,
-    setPageSize,
     clearAll,
-    hasActiveFilters,
     isPending,
   } = useUrlFilters({
     filters: executionFilterDefinitions,
     pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.wf_executions.listExecutionsPaginated,
-    preloadedData: preloadedExecutions,
-    organizationId: amId, // Using amId as the key since executions are scoped by definition
-    filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
-      definitions: executionFilterDefinitions,
-    },
-    transformFilters: (f) => ({
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
       wfDefinitionId: amId,
-      searchTerm: f.query || undefined,
-      status: f.status.length > 0 ? f.status : undefined,
-      triggeredBy: f.triggeredBy.length > 0 ? f.triggeredBy : undefined,
-      dateFrom: f.dateRange?.from || undefined,
-      dateTo: f.dateRange?.to || undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0]
-        ? sorting[0].desc
-          ? ('desc' as const)
-          : ('asc' as const)
-        : undefined,
+      searchTerm: filterValues.query || undefined,
+      status: filterValues.status.length > 0 ? filterValues.status : undefined,
+      triggeredBy:
+        filterValues.triggeredBy.length > 0
+          ? filterValues.triggeredBy
+          : undefined,
+      dateFrom: filterValues.dateRange?.from || undefined,
+      dateTo: filterValues.dateRange?.to || undefined,
     }),
-  });
+    [amId, filterValues],
+  );
 
-  const executions = (data?.items ?? []) as Execution[];
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: executions, isLoading, isLoadingMore, hasMore, loadMore } =
+    useCursorPaginatedQuery({
+      query: api.wf_executions.listExecutionsCursor,
+      preloadedData: preloadedExecutions,
+      args: queryArgs,
+      numItems: pageSize,
+    });
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -404,6 +393,11 @@ export function ExecutionsTable({
     [setFilter],
   );
 
+  // Loading state is handled by the hook
+  if (isLoading) {
+    return null; // Let the Suspense boundary handle the loading state
+  }
+
   return (
     <DataTable
       className="py-6 px-4"
@@ -413,10 +407,6 @@ export function ExecutionsTable({
       enableExpanding
       renderExpandedRow={renderExpandedRow}
       stickyLayout={stickyLayout}
-      sorting={{
-        initialSorting: sorting,
-        onSortingChange: setSorting,
-      }}
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
@@ -438,17 +428,11 @@ export function ExecutionsTable({
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }

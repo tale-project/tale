@@ -19,6 +19,7 @@ export * from './search_products_by_metadata';
 
 // Public API operations
 export * from './get_products';
+export * from './get_products_cursor';
 export * from './get_product';
 export * from './create_product_public';
 export * from './update_product';

@@ -71,6 +71,22 @@ export const listExecutionsPaginated = query({
 });
 
 /**
+ * List executions for workflow with cursor-based pagination
+ * Uses early termination to avoid reading all documents (prevents 16MB limit errors)
+ */
+export const listExecutionsCursor = query({
+  args: WfExecutionsModel.listExecutionsCursorArgsValidator,
+  returns: v.object({
+    page: v.array(v.any()),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    return await WfExecutionsModel.listExecutionsCursor(ctx, args);
+  },
+});
+
+/**
  * Update execution status
  */
 export const updateExecutionStatus = internalMutation({

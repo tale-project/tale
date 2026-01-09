@@ -46,12 +46,13 @@ async function ExecutionsContent({
   );
 
   // Preload executions for SSR + real-time reactivity on client
+  // Using cursor-based pagination to avoid 16MB bytes read limit
   const preloadedExecutions = await preloadQuery(
-    api.wf_executions.listExecutionsPaginated,
+    api.wf_executions.listExecutionsCursor,
     {
       wfDefinitionId: amId,
-      currentPage: pagination.page,
-      pageSize: pagination.pageSize,
+      numItems: pagination.pageSize,
+      cursor: null, // First page, no cursor
       searchTerm: filters.query || undefined,
       status: filters.status.length > 0 ? filters.status : undefined,
       triggeredBy:

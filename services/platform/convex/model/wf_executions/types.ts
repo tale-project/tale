@@ -109,3 +109,31 @@ export interface PaginatedExecutionsResult {
   /** True if the query hit scan limits and results may be incomplete */
   hasMore?: boolean;
 }
+
+// =============================================================================
+// CURSOR-BASED PAGINATION (for infinite scroll)
+// =============================================================================
+
+export interface ListExecutionsCursorArgs {
+  wfDefinitionId: Doc<'wfDefinitions'>['_id'];
+  /** Number of items to fetch per page */
+  numItems?: number;
+  /** Cursor for pagination (null for first page) */
+  cursor: string | null;
+  /** Search term to filter by execution ID */
+  searchTerm?: string;
+  /** Filter by status values */
+  status?: string[];
+  /** Filter by triggeredBy values */
+  triggeredBy?: string[];
+  /** ISO date string for start of date range */
+  dateFrom?: string;
+  /** ISO date string for end of date range */
+  dateTo?: string;
+}
+
+export interface CursorPaginatedExecutionsResult {
+  page: WorkflowExecution[];
+  isDone: boolean;
+  continueCursor: string;
+}

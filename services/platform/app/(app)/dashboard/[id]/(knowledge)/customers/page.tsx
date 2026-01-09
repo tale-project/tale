@@ -46,20 +46,21 @@ async function CustomersContent({
   const { id: organizationId } = await params;
   const resolvedSearchParams = await searchParams;
 
-  // Parse filters, pagination, and sorting from URL using unified utility
-  const { filters, pagination, sorting } = parseSearchParams(
+  // Parse filters from URL using unified utility
+  const { filters } = parseSearchParams(
     resolvedSearchParams,
     customerFilterDefinitions,
-    { defaultSort: '_creationTime', defaultDesc: true },
   );
 
-  // Preload customers for SSR + real-time reactivity on client
+  // Preload customers with cursor-based pagination for SSR + real-time reactivity
   const preloadedCustomers = await preloadQuery(
-    api.customers.listCustomers,
+    api.customers.getCustomers,
     {
       organizationId,
-      currentPage: pagination.page,
-      pageSize: pagination.pageSize,
+      paginationOpts: {
+        numItems: 20,
+        cursor: null, // First page, no cursor
+      },
       searchTerm: filters.query || undefined,
       // Cast status to the expected type
       status: filters.status.length > 0
@@ -67,8 +68,6 @@ async function CustomersContent({
         : undefined,
       source: filters.source.length > 0 ? filters.source : undefined,
       locale: filters.locale.length > 0 ? filters.locale : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0]?.desc ? 'desc' : 'asc',
     },
     { token },
   );

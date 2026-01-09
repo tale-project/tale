@@ -13,21 +13,7 @@ import { ProductDeleteDialog } from './product-delete-dialog';
 import { useDeleteProduct } from '../hooks/use-delete-product';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
-
-interface Product {
-  id: string;
-  name: string;
-  description?: string;
-  imageUrl?: string;
-  stock?: number;
-  price?: number;
-  currency?: string;
-  category?: string;
-  tags?: string[];
-  status?: string;
-  lastUpdated: number;
-  metadata?: { url?: string };
-}
+import type { Product } from '../hooks/use-products-table-config';
 
 interface ProductRowActionsProps {
   product: Product;
