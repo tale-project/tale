@@ -55,23 +55,21 @@ export function UserButton({
   const { theme, setTheme } = useTheme();
 
   // Get member info to access display name
+  // Skip query when user is not authenticated or organizationId is missing
   const memberContext = useQuery(
     api.member.getCurrentMemberContext,
-    organizationId ? { organizationId: organizationId as string } : 'skip',
+    organizationId && user ? { organizationId: organizationId as string } : 'skip',
   );
 
   const handleSignOut = async () => {
-    // Optimistic logout - immediately redirect and show toast
-    // since logout will almost always succeed
-    toast({
-      title: t('userButton.toast.signedOut'),
-      description: t('userButton.toast.signedOutDescription'),
-    });
-    router.push('/');
-
-    // Sign out in background with error handling
     try {
       await signOut();
+      // IMPORTANT: Do NOT replace with router.push('/')!
+      // Must use window.location.href for hard navigation to immediately stop
+      // all React rendering. Using router.push causes a race condition where
+      // queries (member, approvals, threads, etc.) fire with stale auth state
+      // before navigation completes, resulting in "Unauthenticated" errors.
+      window.location.href = '/';
     } catch {
       toast({
         title: t('userButton.toast.signOutFailed'),
