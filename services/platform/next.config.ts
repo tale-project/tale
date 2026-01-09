@@ -90,6 +90,10 @@ const config: NextConfig = {
   },
 
   experimental: {
+    // Allow larger file uploads through middleware/proxy (default is 10MB)
+    // This is needed for storage uploads that exceed 10MB
+    // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/proxyClientMaxBodySize
+    proxyClientMaxBodySize: '100mb',
     // See: https://nextjs.org/docs/app/api-reference/config/next-config-js/serverActions#bodysizelimit
     serverActions: {
       bodySizeLimit: '2mb',
