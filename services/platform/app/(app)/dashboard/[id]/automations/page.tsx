@@ -87,24 +87,23 @@ async function AutomationsPageContent({
   const { id: organizationId } = await params;
   const rawSearchParams = await searchParams;
 
-  // Parse filters, pagination, and sorting using unified system
-  const { filters, pagination, sorting } = parseSearchParams(
+  // Parse filters from URL using unified system
+  const { filters } = parseSearchParams(
     rawSearchParams,
     automationFilterDefinitions,
-    { defaultSort: '_creationTime', defaultDesc: true },
   );
 
-  // Preload automations for SSR + real-time reactivity on client
+  // Preload automations with cursor-based pagination for SSR + real-time reactivity
   const preloadedAutomations = await preloadQuery(
-    api.wf_definitions.listAutomations,
+    api.wf_definitions.getAutomations,
     {
       organizationId,
-      currentPage: pagination.page,
-      pageSize: pagination.pageSize,
+      paginationOpts: {
+        numItems: 20,
+        cursor: null, // First page, no cursor
+      },
       searchTerm: filters.query || undefined,
       status: filters.status.length > 0 ? filters.status : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
     },
     { token },
   );

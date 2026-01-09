@@ -2,15 +2,15 @@
 
 import { useMemo } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
-import type { Execution } from './executions-table';
 
 /** Shared table configuration for executions - used by both table and skeleton */
 export function useExecutionsTableConfig() {
   const { t: tTables } = useT('tables');
   const { t: tCommon } = useT('common');
 
-  const columns = useMemo<ColumnDef<Execution>[]>(
+  const columns = useMemo<ColumnDef<Doc<'wfExecutions'>>[]>(
     () => [
       {
         accessorKey: '_id',

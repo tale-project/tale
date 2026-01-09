@@ -10,17 +10,25 @@ import type { UseCursorPaginatedQueryReturn } from '@/lib/pagination/types';
  */
 interface UseCursorPaginatedQueryOptions<
   TQuery extends FunctionReference<'query'>,
+  TBaseArgs = Omit<FunctionArgs<TQuery>, 'cursor' | 'numItems'>,
 > {
   /** The Convex query function reference */
   query: TQuery;
   /** Preloaded data from server component (optional) */
   preloadedData?: Preloaded<TQuery>;
   /** Base query arguments (cursor handled internally) */
-  args: Omit<FunctionArgs<TQuery>, 'cursor' | 'numItems'>;
+  args: TBaseArgs;
   /** Number of items per page (default: 20) */
   numItems?: number;
   /** Initial cursor value (default: null for first page) */
   initialCursor?: string | null;
+  /**
+   * Transform args to build the final query arguments.
+   * Use this when the API expects cursor/numItems in a different format
+   * (e.g., wrapped in paginationOpts: { cursor, numItems }).
+   * If not provided, cursor and numItems are added directly to args.
+   */
+  transformArgs?: (baseArgs: TBaseArgs, cursor: string | null, numItems: number) => FunctionArgs<TQuery>;
 }
 
 /**
@@ -56,10 +64,11 @@ export function useCursorPaginatedQuery<
   TItem = FunctionReturnType<TQuery> extends CursorPaginatedResult<infer I>
     ? I
     : unknown,
+  TBaseArgs = Omit<FunctionArgs<TQuery>, 'cursor' | 'numItems'>,
 >(
-  options: UseCursorPaginatedQueryOptions<TQuery>,
+  options: UseCursorPaginatedQueryOptions<TQuery, TBaseArgs>,
 ): UseCursorPaginatedQueryReturn<TItem> {
-  const { query, preloadedData, args, numItems = 20, initialCursor = null } = options;
+  const { query, preloadedData, args, numItems = 20, initialCursor = null, transformArgs } = options;
 
   // Track loaded pages and cursor state
   const [pages, setPages] = useState<TItem[][]>([]);
@@ -81,13 +90,16 @@ export function useCursorPaginatedQuery<
     : null;
 
   // Build query args for live data
+  // Use transformArgs if provided, otherwise add cursor/numItems directly
   const queryArgs = useMemo(
-    () => ({
-      ...args,
-      cursor,
-      numItems,
-    }),
-    [args, cursor, numItems],
+    () => transformArgs
+      ? transformArgs(args, cursor, numItems)
+      : ({
+        ...args,
+        cursor,
+        numItems,
+      } as FunctionArgs<TQuery>),
+    [args, cursor, numItems, transformArgs],
   );
 
   // Fetch live data when cursor changes (after initial page)

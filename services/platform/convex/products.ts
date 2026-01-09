@@ -190,6 +190,29 @@ export const getProducts = queryWithRLS({
 });
 
 /**
+ * Get products with cursor-based pagination (for infinite scroll)
+ * Uses early termination to avoid reading all documents (prevents 16MB limit errors)
+ */
+export const getProductsCursor = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+    numItems: v.optional(v.number()),
+    cursor: v.union(v.string(), v.null()),
+    searchQuery: v.optional(v.string()),
+    category: v.optional(v.string()),
+    status: v.optional(ProductsModel.productStatusValidator),
+  },
+  returns: v.object({
+    page: v.array(ProductsModel.productItemValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    return await ProductsModel.getProductsCursor(ctx, args);
+  },
+});
+
+/**
  * Get a single product by ID
  */
 export const getProduct = queryWithRLS({

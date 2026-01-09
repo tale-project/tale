@@ -140,7 +140,9 @@
     "pagination": {
       "rowsPerPage": "Rows per page",
       "of": "of",
-      "showing": "{start}-{end} of {total}"
+      "showing": "{start}-{end} of {total}",
+      "loadMore": "Load more",
+      "noMore": "No more items to load"
     },
     "search": {
       "noResults": "No results found",

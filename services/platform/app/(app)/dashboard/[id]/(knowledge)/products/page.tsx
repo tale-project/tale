@@ -43,27 +43,30 @@ async function ProductsContent({ params, searchParams }: ProductsContentProps) {
   const { id: organizationId } = await params;
   const rawSearchParams = await searchParams;
 
-  // Parse filters, pagination, and sorting using unified system
-  const { filters, pagination, sorting } = parseSearchParams(
+  // Parse filters and pagination using unified system
+  // Note: cursor-based pagination doesn't support sorting, so no sorting options needed
+  const { filters, pagination } = parseSearchParams(
     rawSearchParams,
     productFilterDefinitions,
-    { defaultSort: 'lastUpdated', defaultDesc: true },
   );
 
+  // Valid product status values that the backend accepts
+  const VALID_PRODUCT_STATUSES = new Set(['active', 'inactive', 'draft', 'archived']);
+  type ProductStatus = 'active' | 'inactive' | 'draft' | 'archived';
+
   // Preload products for SSR + real-time reactivity on client
+  // Using cursor-based pagination to avoid 16MB bytes read limit
   const preloadedProducts = await preloadQuery(
-    api.products.getProducts,
+    api.products.getProductsCursor,
     {
       organizationId,
-      currentPage: pagination.page,
-      pageSize: pagination.pageSize,
+      numItems: pagination.pageSize,
+      cursor: null, // First page, no cursor
       searchQuery: filters.query || undefined,
-      // Backend currently only supports single status filter
-      status: filters.status.length === 1
-        ? (filters.status[0] as 'active' | 'inactive' | 'draft' | 'archived')
-        : undefined,
-      sortBy: sorting[0]?.id as 'name' | 'createdAt' | 'lastUpdated' | 'stock' | 'price' | undefined,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined,
+      // Backend currently only supports single status filter - use first valid status
+      status: filters.status.find(
+        (s): s is ProductStatus => VALID_PRODUCT_STATUSES.has(s),
+      ),
     },
     { token },
   );

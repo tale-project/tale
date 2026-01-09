@@ -9,12 +9,12 @@ import { ProductsActionMenu } from './products-action-menu';
 import { useProductsTableConfig, type Product } from '../hooks/use-products-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { productFilterDefinitions } from '../filter-definitions';
 
 export interface ProductTableProps {
   organizationId: string;
-  preloadedProducts: Preloaded<typeof api.products.getProducts>;
+  preloadedProducts: Preloaded<typeof api.products.getProductsCursor>;
 }
 
 export function ProductTable({
@@ -26,67 +26,47 @@ export function ProductTable({
   const { t: tTables } = useT('tables');
 
   // Use shared table config
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useProductsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, pageSize } = useProductsTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (without sorting for cursor-based pagination)
   const {
     filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
     setFilter,
-    setPage,
-    setPageSize,
     clearAll,
-    hasActiveFilters,
     isPending,
   } = useUrlFilters({
     filters: productFilterDefinitions,
     pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.products.getProducts,
-    preloadedData: preloadedProducts,
-    organizationId,
-    filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
-      definitions: productFilterDefinitions,
-    },
-    transformFilters: (f) => ({
-      searchQuery: f.query || undefined,
-      // The backend currently only supports a single status filter
-      status:
-        f.status.length === 1
-          ? (f.status[0] as 'active' | 'inactive' | 'draft' | 'archived')
-          : undefined,
-      sortBy: sorting[0]?.id as
-        | 'name'
-        | 'createdAt'
-        | 'lastUpdated'
-        | 'stock'
-        | 'price'
-        | undefined,
-      sortOrder: sorting[0]
-        ? sorting[0].desc
-          ? ('desc' as const)
-          : ('asc' as const)
-        : undefined,
+  // Valid product status values that the backend accepts
+  const VALID_PRODUCT_STATUSES = new Set(['active', 'inactive', 'draft', 'archived']);
+  type ProductStatus = 'active' | 'inactive' | 'draft' | 'archived';
+
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
+      organizationId,
+      searchQuery: filterValues.query || undefined,
+      // Backend currently only supports single status filter - use first valid status
+      status: (() => {
+        const validStatus = filterValues.status.find(
+          (s): s is ProductStatus => VALID_PRODUCT_STATUSES.has(s),
+        );
+        return validStatus;
+      })(),
     }),
-  });
+    [organizationId, filterValues],
+  );
 
-  const products = data?.products ?? [];
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: products, isLoadingMore, hasMore, loadMore } =
+    useCursorPaginatedQuery({
+      query: api.products.getProductsCursor,
+      preloadedData: preloadedProducts,
+      args: queryArgs,
+      numItems: pageSize,
+    });
 
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
@@ -113,10 +93,6 @@ export function ProductTable({
       data={products}
       getRowId={(row) => row.id}
       stickyLayout={stickyLayout}
-      sorting={{
-        initialSorting: sorting,
-        onSortingChange: setSorting,
-      }}
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
@@ -131,17 +107,11 @@ export function ProductTable({
         title: tProducts('emptyState.title'),
         description: tProducts('emptyState.description'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: Math.ceil((data?.total ?? 0) / pagination.pageSize),
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: pagination.page > 1,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }
