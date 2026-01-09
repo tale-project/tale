@@ -46,6 +46,7 @@ interface CursorPaginatedResult<T> {
  * Features:
  * - Server-side preloading support (SSR)
  * - Automatic page accumulation for infinite scroll
+ * - Real-time reactivity for first page (new items appear automatically)
  * - Load more functionality
  * - Reset to initial state
  *
@@ -70,9 +71,9 @@ export function useCursorPaginatedQuery<
 ): UseCursorPaginatedQueryReturn<TItem> {
   const { query, preloadedData, args, numItems = 20, initialCursor = null, transformArgs } = options;
 
-  // Track loaded pages and cursor state
-  const [pages, setPages] = useState<TItem[][]>([]);
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  // Track loaded pages (excluding first page which is handled separately for reactivity)
+  const [additionalPages, setAdditionalPages] = useState<TItem[][]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -84,105 +85,113 @@ export function useCursorPaginatedQuery<
   const currentArgsKey = JSON.stringify(args);
   const [isArgsChangeLoading, setIsArgsChangeLoading] = useState(false);
 
-  // Use preloaded data for initial render (SSR)
+  // Use preloaded data for initial render (SSR hydration)
   const preloadedResult = preloadedData
     ? (usePreloadedQuery(preloadedData) as CursorPaginatedResult<TItem> | null)
     : null;
 
-  // Build query args for live data
-  // Use transformArgs if provided, otherwise add cursor/numItems directly
-  const queryArgs = useMemo(
+  // Build query args for first page (always fetch for real-time reactivity)
+  const firstPageArgs = useMemo(
     () => transformArgs
-      ? transformArgs(args, cursor, numItems)
+      ? transformArgs(args, initialCursor, numItems)
       : ({
         ...args,
-        cursor,
+        cursor: initialCursor,
         numItems,
       } as FunctionArgs<TQuery>),
-    [args, cursor, numItems, transformArgs],
+    [args, initialCursor, numItems, transformArgs],
   );
 
-  // Fetch live data when cursor changes (after initial page)
-  // Use type assertion due to Convex's strict query arg typing
-  const shouldFetch = cursor !== null || initializedRef.current;
-  const liveResult = useQuery(query, shouldFetch ? (queryArgs as any) : 'skip') as
+  // Always fetch first page for real-time reactivity
+  // This ensures new items appear immediately after mutations
+  const firstPageResult = useQuery(query, firstPageArgs as any) as
     | CursorPaginatedResult<TItem>
     | undefined;
+
+  // Build query args for loading more pages
+  const loadMoreArgs = useMemo(
+    () => nextCursor && transformArgs
+      ? transformArgs(args, nextCursor, numItems)
+      : nextCursor
+        ? ({
+          ...args,
+          cursor: nextCursor,
+          numItems,
+        } as FunctionArgs<TQuery>)
+        : null,
+    [args, nextCursor, numItems, transformArgs],
+  );
+
+  // Fetch additional pages when loading more
+  const loadMoreResult = useQuery(
+    query,
+    isLoadingMore && loadMoreArgs ? (loadMoreArgs as any) : 'skip',
+  ) as CursorPaginatedResult<TItem> | undefined;
 
   // Auto-reset when args change (e.g., filters changed)
   useEffect(() => {
     if (currentArgsKey !== argsKeyRef.current) {
       argsKeyRef.current = currentArgsKey;
       initializedRef.current = false;
-      setPages([]);
-      setCursor(initialCursor);
+      setAdditionalPages([]);
+      setNextCursor(null);
       setIsDone(false);
       setIsLoadingMore(false);
       setIsArgsChangeLoading(true);
     }
-  }, [currentArgsKey, initialCursor]);
+  }, [currentArgsKey]);
 
-  // Initialize from preloaded data on first render
+  // Initialize from preloaded data or first page result
   useEffect(() => {
-    if (preloadedResult && !initializedRef.current) {
+    const result = firstPageResult || preloadedResult;
+    if (result && !initializedRef.current) {
       initializedRef.current = true;
-      setPages([preloadedResult.page]);
-      setIsDone(preloadedResult.isDone);
-      if (!preloadedResult.isDone) {
-        setCursor(preloadedResult.continueCursor);
+      setIsDone(result.isDone);
+      if (!result.isDone) {
+        setNextCursor(result.continueCursor);
       }
-    }
-  }, [preloadedResult]);
-
-  // Handle live data updates (for load more)
-  useEffect(() => {
-    if (liveResult && initializedRef.current && cursor !== null) {
-      setPages((prev) => [...prev, liveResult.page]);
-      setIsDone(liveResult.isDone);
-      setIsLoadingMore(false);
-    }
-  }, [liveResult, cursor]);
-
-  // Handle live data after args change (fresh fetch)
-  useEffect(() => {
-    if (liveResult && isArgsChangeLoading) {
-      initializedRef.current = true;
-      setPages([liveResult.page]);
-      setIsDone(liveResult.isDone);
       setIsArgsChangeLoading(false);
-      if (!liveResult.isDone) {
-        setCursor(liveResult.continueCursor);
+    }
+  }, [firstPageResult, preloadedResult]);
+
+  // Handle load more results
+  useEffect(() => {
+    if (loadMoreResult && isLoadingMore) {
+      setAdditionalPages((prev) => [...prev, loadMoreResult.page]);
+      setIsDone(loadMoreResult.isDone);
+      setIsLoadingMore(false);
+      if (!loadMoreResult.isDone) {
+        setNextCursor(loadMoreResult.continueCursor);
       }
     }
-  }, [liveResult, isArgsChangeLoading]);
+  }, [loadMoreResult, isLoadingMore]);
 
-  // Flatten all pages into a single array
-  const data = useMemo(() => pages.flat(), [pages]);
+  // Combine first page (real-time) with additional loaded pages
+  const data = useMemo(() => {
+    const firstPage = firstPageResult?.page || preloadedResult?.page || [];
+    return [...firstPage, ...additionalPages.flat()];
+  }, [firstPageResult, preloadedResult, additionalPages]);
 
-  // Loading state: true on initial load (without preloaded data) or when args changed
-  const isLoading = (!initializedRef.current && !preloadedResult) || isArgsChangeLoading;
+  // Loading state: true on initial load or when args changed
+  const isLoading = !initializedRef.current || isArgsChangeLoading;
 
   // Has more items to load
   const hasMore = !isDone;
 
   // Load more items
   const loadMore = useCallback(() => {
-    if (isDone || isLoadingMore) return;
-
-    if (liveResult && !liveResult.isDone) {
-      setIsLoadingMore(true);
-      setCursor(liveResult.continueCursor);
-    }
-  }, [isDone, isLoadingMore, liveResult]);
+    if (isDone || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+  }, [isDone, isLoadingMore, nextCursor]);
 
   // Reset to initial state
   const reset = useCallback(() => {
     initializedRef.current = false;
-    setPages([]);
-    setCursor(initialCursor);
+    setAdditionalPages([]);
+    setNextCursor(null);
     setIsDone(false);
     setIsLoadingMore(false);
-  }, [initialCursor]);
+  }, []);
 
   return {
     data,

@@ -51,6 +51,7 @@ import {
   retryRagIndexingResponseValidator,
   sortOrderValidator,
   ragInfoValidator,
+  createDocumentFromUploadResponseValidator,
 } from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
 
@@ -865,6 +866,103 @@ export const createOneDriveSyncConfig = mutationWithRLS({
   returns: createOneDriveSyncConfigResponseValidator,
   handler: async (ctx, args) => {
     return await DocumentsModel.createOneDriveSyncConfig(ctx, args);
+  },
+});
+
+/**
+ * Create document from an already-uploaded file (public)
+ *
+ * This mutation is used after uploading a file directly to Convex storage
+ * using generateUploadUrl + HTTP POST. It creates the document record and
+ * handles duplicate detection (updates existing document if same name exists).
+ *
+ * This approach is preferred for large files as it avoids the action timeout
+ * issues that occur when passing file data through action parameters.
+ */
+export const createDocumentFromUpload = mutationWithRLS({
+  args: {
+    organizationId: v.string(),
+    fileId: v.id('_storage'),
+    fileName: v.string(),
+    contentType: v.string(),
+    metadata: v.optional(v.any()),
+  },
+  returns: createDocumentFromUploadResponseValidator,
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    documentId?: string;
+    error?: string;
+  }> => {
+    try {
+      // Check if a document with the same name already exists
+      const existingDocument = await DocumentsModel.findDocumentByTitle(ctx, {
+        organizationId: args.organizationId,
+        title: args.fileName,
+      });
+
+      // Build document metadata
+      const typedMetadata: DocumentMetadata | undefined = args.metadata;
+      const providerFromMetadata =
+        typedMetadata?.sourceProvider === 'onedrive' ? 'onedrive' : 'upload';
+      const modeFromMetadata =
+        typedMetadata?.sourceMode === 'auto' ? 'auto' : 'manual';
+      const externalItemId =
+        typedMetadata?.oneDriveId ?? typedMetadata?.oneDriveItemId;
+      const documentMetadata = {
+        name: args.fileName,
+        type: 'file' as const,
+        sourceProvider: providerFromMetadata,
+        sourceMode: modeFromMetadata,
+        lastModified: Date.now(),
+        ...args.metadata,
+      };
+
+      // Update existing document or create new one
+      if (existingDocument) {
+        // Delete the old file from storage if it exists
+        if (existingDocument.fileId) {
+          await ctx.storage.delete(existingDocument.fileId);
+        }
+
+        // Update the existing document
+        await DocumentsModel.updateDocument(ctx, {
+          documentId: existingDocument._id,
+          title: args.fileName,
+          fileId: args.fileId,
+          mimeType: args.contentType,
+          sourceProvider: providerFromMetadata,
+          externalItemId,
+          metadata: documentMetadata,
+        });
+
+        return {
+          success: true,
+          documentId: existingDocument._id,
+        };
+      }
+
+      // Create new document record
+      const result = await DocumentsModel.createDocument(ctx, {
+        organizationId: args.organizationId,
+        title: args.fileName,
+        sourceProvider: providerFromMetadata,
+        externalItemId,
+        fileId: args.fileId,
+        mimeType: args.contentType,
+        metadata: documentMetadata,
+      });
+
+      return {
+        success: true,
+        documentId: result.documentId,
+      };
+    } catch (error) {
+      console.error('Error creating document from upload:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create document',
+      };
+    }
   },
 });
 
