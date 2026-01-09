@@ -407,3 +407,17 @@ export const retryRagIndexingResponseValidator = v.object({
   error: v.optional(v.string()),
 });
 
+/**
+ * Create document from upload response validator
+ */
+export const createDocumentFromUploadResponseValidator = v.object({
+  success: v.boolean(),
+  documentId: v.optional(v.string()),
+  error: v.optional(v.string()),
+});
+
+/**
+ * Sort order validator
+ */
+export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
+

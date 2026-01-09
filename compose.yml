@@ -202,6 +202,8 @@ services:
       # Smaller chunks (512) reduce LLM output size for knowledge graph extraction
       - RAG_CHUNK_SIZE=512
       - RAG_CHUNK_OVERLAP=50
+      # Disable cognee multi-user access control mode (required for kuzu-remote)
+      - ENABLE_BACKEND_ACCESS_CONTROL=false
 
     # Restart policy
     # Automatically restart the container if it crashes

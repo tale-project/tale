@@ -2,12 +2,13 @@
 
 import { useState, useRef } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { useAction } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n';
+import type { Id } from '@/convex/_generated/dataModel';
 
 // File size limits
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
 
 interface FileInfo {
   name: string;
@@ -32,7 +33,8 @@ export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const uploadFileAction = useAction(api.documents.uploadFile);
+  const generateUploadUrl = useMutation(api.file.generateUploadUrl);
+  const createDocumentFromUpload = useMutation(api.documents.createDocumentFromUpload);
 
   const uploadFiles = async (files: File[]): Promise<UploadResult> => {
     if (isUploading) {
@@ -81,13 +83,32 @@ export function useDocumentUpload(options: UploadOptions) {
         description: t('upload.uploadingCount', { count: files.length }),
       });
 
-      // Upload files using Convex
+      // Upload files using direct HTTP upload to Convex storage
       const uploadPromises = files.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        return uploadFileAction({
-          organizationId: options.organizationId as string,
+        // Step 1: Get upload URL from Convex
+        const uploadUrl = await generateUploadUrl();
+
+        // Step 2: Upload file directly to Convex storage via HTTP
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+          },
+          body: file,
+          signal: abortControllerRef.current?.signal,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed: ${uploadResponse.statusText}`);
+        }
+
+        const { storageId } = await uploadResponse.json() as { storageId: string };
+
+        // Step 3: Create document record in database
+        const result = await createDocumentFromUpload({
+          organizationId: options.organizationId,
+          fileId: storageId as Id<'_storage'>,
           fileName: file.name,
-          fileData: arrayBuffer,
           contentType: file.type || 'application/octet-stream',
           metadata: {
             size: file.size,
@@ -95,12 +116,14 @@ export function useDocumentUpload(options: UploadOptions) {
             sourceMode: 'manual',
           },
         });
+
+        return result;
       });
 
       const results = await Promise.all(uploadPromises);
 
       // Check if all uploads were successful
-      const failedUploads = results.filter((result: { success: boolean; error?: string }) => !result.success);
+      const failedUploads = results.filter((result) => !result.success);
       if (failedUploads.length > 0) {
         throw new Error(failedUploads[0].error || t('upload.uploadFailed'));
       }
@@ -114,10 +137,10 @@ export function useDocumentUpload(options: UploadOptions) {
 
       // Call success callback for the first file
       const firstResult = results[0];
-      if (firstResult.success && firstResult.fileId) {
+      if (firstResult.success && firstResult.documentId) {
         const fileInfo: FileInfo = {
           name: files[0].name,
-          storagePath: `documents/${firstResult.fileId}`,
+          storagePath: `documents/${firstResult.documentId}`,
           size: files[0].size,
         };
         options.onSuccess?.(fileInfo);
@@ -127,7 +150,7 @@ export function useDocumentUpload(options: UploadOptions) {
         success: true,
         fileInfo: {
           name: files[0].name,
-          storagePath: `documents/${firstResult.fileId}`,
+          storagePath: `documents/${firstResult.documentId}`,
           size: files[0].size,
         },
       };
