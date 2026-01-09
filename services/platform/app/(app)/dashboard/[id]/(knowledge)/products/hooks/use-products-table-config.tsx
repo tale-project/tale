@@ -7,17 +7,10 @@ import { TableDateCell } from '@/components/ui/table-date-cell';
 import { ProductImage } from '../components/product-image';
 import { ProductRowActions } from '../components/product-row-actions';
 import { useT } from '@/lib/i18n';
+import type { ProductCursorItem } from '@/convex/model/products/types';
 
-// Product type from the query
-export type Product = {
-  id: string;
-  name: string;
-  description?: string;
-  imageUrl?: string;
-  stock?: number;
-  lastUpdated: number;
-  metadata?: { url?: string };
-};
+// Re-export the API type for consistency
+export type Product = ProductCursorItem;
 
 /** Shared table configuration for products - used by both table and skeleton */
 export function useProductsTableConfig() {

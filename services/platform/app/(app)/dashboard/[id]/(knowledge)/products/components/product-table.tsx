@@ -39,26 +39,28 @@ export function ProductTable({
     pagination: { defaultPageSize: pageSize },
   });
 
+  // Valid product status values that the backend accepts
+  const VALID_PRODUCT_STATUSES = new Set(['active', 'inactive', 'draft', 'archived']);
+  type ProductStatus = 'active' | 'inactive' | 'draft' | 'archived';
+
   // Build query args for cursor-based pagination
   const queryArgs = useMemo(
     () => ({
       organizationId,
       searchQuery: filterValues.query || undefined,
-      // Backend currently only supports single status filter
-      status:
-        filterValues.status.length === 1
-          ? (filterValues.status[0] as
-              | 'active'
-              | 'inactive'
-              | 'draft'
-              | 'archived')
-          : undefined,
+      // Backend currently only supports single status filter - use first valid status
+      status: (() => {
+        const validStatus = filterValues.status.find(
+          (s): s is ProductStatus => VALID_PRODUCT_STATUSES.has(s),
+        );
+        return validStatus;
+      })(),
     }),
     [organizationId, filterValues],
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: products, isLoading, isLoadingMore, hasMore, loadMore } =
+  const { data: products, isLoadingMore, hasMore, loadMore } =
     useCursorPaginatedQuery({
       query: api.products.getProductsCursor,
       preloadedData: preloadedProducts,
@@ -85,15 +87,10 @@ export function ProductTable({
     [filterValues.status, setFilter, tTables, tCommon],
   );
 
-  // Loading state is handled by the hook
-  if (isLoading) {
-    return null; // Let the Suspense boundary handle the loading state
-  }
-
   return (
     <DataTable
       columns={columns}
-      data={products as Product[]}
+      data={products}
       getRowId={(row) => row.id}
       stickyLayout={stickyLayout}
       search={{
