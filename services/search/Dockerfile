@@ -4,7 +4,7 @@
 
 # Use official SearXNG image as base
 # Pinned to specific digest for reproducibility (SearXNG 2025.11.28)
-FROM searxng/searxng@sha256:472dd0c84b8e2a05bca773b4a430b9fc9e4e92cd4fa0afaa223efab925ab752a
+FROM searxng/searxng@sha256:256b113a44b26a293a24d864707753344ebe75687445a97ed0e8d701dec7af45
 
 # Switch to root for setup operations
 USER root
