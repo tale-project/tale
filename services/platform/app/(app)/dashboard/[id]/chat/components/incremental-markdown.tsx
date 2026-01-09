@@ -141,11 +141,7 @@ const StreamingMarkdown = memo(
     components?: Record<string, ComponentType<any>>;
     showCursor?: boolean;
   }) {
-    if (!content) return null;
-
-    // Only parse and render the revealed portion
-    // This keeps parsing work minimal during animation
-    const revealedContent = content.slice(0, revealedLength);
+    const revealedContent = content ? content.slice(0, revealedLength) : '';
 
     // Create components that inject cursor at the end of the last element
     // We track render order and append cursor to the last rendered block element
@@ -206,6 +202,8 @@ const StreamingMarkdown = memo(
         h6: createCursorWrapper('h6', components?.h6),
       };
     }, [components, showCursor, revealedContent.length]);
+
+    if (!content) return null;
 
     return (
       <div className="streaming-text-container">
