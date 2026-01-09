@@ -12,7 +12,8 @@ interface AutomationsTableSkeletonProps {
 export function AutomationsTableSkeleton({
   organizationId,
 }: AutomationsTableSkeletonProps) {
-  const { columns, searchPlaceholder, stickyLayout } = useAutomationsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useAutomationsTableConfig();
 
   return (
     <DataTableSkeleton
@@ -21,6 +22,7 @@ export function AutomationsTableSkeleton({
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
+      infiniteScroll={infiniteScroll}
     />
   );
 }

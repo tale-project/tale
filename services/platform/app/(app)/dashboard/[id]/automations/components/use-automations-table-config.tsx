@@ -90,5 +90,6 @@ export function useAutomationsTableConfig() {
     pageSize: 10,
     defaultSort: '_creationTime' as const,
     defaultSortDesc: true,
+    infiniteScroll: true as const,
   };
 }

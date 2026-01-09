@@ -99,5 +99,6 @@ export function useProductsTableConfig() {
     pageSize: 10,
     defaultSort: 'lastUpdated' as const,
     defaultSortDesc: true,
+    infiniteScroll: true as const,
   };
 }

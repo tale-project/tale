@@ -12,7 +12,8 @@ interface VendorsTableSkeletonProps {
 export function VendorsTableSkeleton({
   organizationId,
 }: VendorsTableSkeletonProps) {
-  const { columns, searchPlaceholder, stickyLayout } = useVendorsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useVendorsTableConfig();
 
   return (
     <DataTableSkeleton
@@ -20,6 +21,7 @@ export function VendorsTableSkeleton({
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       actionMenu={<VendorsActionMenu organizationId={organizationId} />}
+      infiniteScroll={infiniteScroll}
     />
   );
 }
