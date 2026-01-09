@@ -39,6 +39,7 @@ export function VendorsTable({
   });
 
   // Build query args for cursor-based pagination
+  // Depend on specific filter fields to avoid unnecessary recalculations
   const queryArgs = useMemo(
     () => ({
       organizationId,
@@ -46,7 +47,7 @@ export function VendorsTable({
       source: filterValues.source.length > 0 ? filterValues.source : undefined,
       locale: filterValues.locale.length > 0 ? filterValues.locale : undefined,
     }),
-    [organizationId, filterValues],
+    [organizationId, filterValues.query, filterValues.source, filterValues.locale],
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
