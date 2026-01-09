@@ -3,12 +3,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import {
-  type ColumnDef,
-  type Row,
-  type SortingState,
-} from '@tanstack/react-table';
-import { usePreloadedQuery } from 'convex/react';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
@@ -25,6 +20,8 @@ import { useT } from '@/lib/i18n';
 import { TableDateCell } from '@/components/ui/table-date-cell';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useUrlDialog } from '@/hooks/use-url-dialog';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
+import { api } from '@/convex/_generated/api';
 
 export interface DocumentTableProps {
   /** Preloaded documents from server for SSR + real-time reactivity */
@@ -33,8 +30,6 @@ export interface DocumentTableProps {
   organizationId: string;
   currentFolderPath?: string;
   hasMicrosoftAccount?: boolean;
-  initialSortField?: string;
-  initialSortOrder?: 'asc' | 'desc';
 }
 
 export function DocumentTable({
@@ -43,20 +38,36 @@ export function DocumentTable({
   organizationId,
   currentFolderPath,
   hasMicrosoftAccount,
-  initialSortField = 'lastModified',
-  initialSortOrder = 'desc',
 }: DocumentTableProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tTables } = useT('tables');
 
-  // Use preloaded data with real-time reactivity
-  // This provides SSR benefits AND automatic updates when data changes
-  const documentsData = usePreloadedQuery(preloadedDocuments);
-  const items = documentsData.items ?? [];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchQuery ?? '');
+
+  // Debounce search query for URL updates
+  const debouncedQuery = useDebounce(query, 300);
+
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
+      organizationId,
+      query: debouncedQuery || undefined,
+      folderPath: currentFolderPath || undefined,
+    }),
+    [organizationId, debouncedQuery, currentFolderPath],
+  );
+
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: items, isLoading, isLoadingMore, hasMore, loadMore } =
+    useCursorPaginatedQuery({
+      query: api.documents.getDocumentsCursor,
+      preloadedData: preloadedDocuments,
+      args: queryArgs,
+      numItems: 20,
+    });
 
   // URL-based dialog state for document preview
   // This persists the preview dialog state in URL params for bookmarkability and link sharing
@@ -72,20 +83,11 @@ export function DocumentTable({
   // Derive preview data from the selected document ID
   const previewDocument = useMemo(() => {
     if (!previewDocumentId) return null;
-    return items.find((item) => item.id === previewDocumentId) ?? null;
+    return (items as DocumentItem[]).find((item) => item.id === previewDocumentId) ?? null;
   }, [items, previewDocumentId]);
 
   const previewPath = previewDocument?.storagePath ?? null;
   const previewFileName = previewDocument?.name ?? null;
-
-  // Debounce search query for URL updates
-  const debouncedQuery = useDebounce(query, 300);
-
-  // Initialize sorting state from props
-  const initialSorting: SortingState = useMemo(
-    () => [{ id: initialSortField, desc: initialSortOrder === 'desc' }],
-    [initialSortField, initialSortOrder],
-  );
 
   const baseParams = useMemo(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -106,29 +108,9 @@ export function DocumentTable({
     } else {
       params.delete('query');
     }
-    params.delete('page'); // Reset to first page when searching
     const url = params.toString() ? `${pathname}?${params}` : pathname;
     router.push(url);
   }, [debouncedQuery, baseParams, pathname, router, searchQuery]);
-
-  const handleSortingChange = useCallback(
-    (sorting: SortingState | ((prev: SortingState) => SortingState)) => {
-      const newSorting =
-        typeof sorting === 'function' ? sorting(initialSorting) : sorting;
-      const params = new URLSearchParams(searchParams.toString());
-      if (newSorting.length > 0) {
-        params.set('sort', newSorting[0].id);
-        params.set('sortOrder', newSorting[0].desc ? 'desc' : 'asc');
-      } else {
-        params.delete('sort');
-        params.delete('sortOrder');
-      }
-      params.delete('page'); // Reset to first page when sorting changes
-      const url = params.toString() ? `${pathname}?${params}` : pathname;
-      router.push(url);
-    },
-    [searchParams, pathname, router, initialSorting],
-  );
 
   const handleSearchChange = useCallback((value: string) => {
     setQuery(value);
@@ -290,6 +272,11 @@ export function DocumentTable({
     [handleDocumentClick, tTables],
   );
 
+  // Loading state is handled by the hook
+  if (isLoading) {
+    return null; // Let the Suspense boundary handle the loading state
+  }
+
   return (
     <>
       {/* Breadcrumb Navigation */}
@@ -299,15 +286,11 @@ export function DocumentTable({
 
       <DataTable
         columns={columns}
-        data={items}
+        data={items as DocumentItem[]}
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
         stickyLayout
-        sorting={{
-          initialSorting: initialSorting,
-          onSortingChange: handleSortingChange,
-        }}
         search={{
           value: query,
           onChange: handleSearchChange,
@@ -324,6 +307,11 @@ export function DocumentTable({
           icon: ClipboardList,
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
+        }}
+        infiniteScroll={{
+          hasMore,
+          onLoadMore: loadMore,
+          isLoadingMore,
         }}
       />
 

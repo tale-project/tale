@@ -45,12 +45,8 @@ async function DocumentsSkeleton() {
 interface DocumentsPageProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
-    page?: string;
-    size?: string;
     query?: string;
     folderPath?: string;
-    sort?: string;
-    sortOrder?: string;
     doc?: string; // Document ID for preview dialog (URL state)
   }>;
 }
@@ -58,12 +54,8 @@ interface DocumentsPageProps {
 interface DocumentsContentProps {
   params: Promise<{ id: string }>;
   searchParams: Promise<{
-    page?: string;
-    size?: string;
     query?: string;
     folderPath?: string;
-    sort?: string;
-    sortOrder?: string;
     doc?: string; // Document ID for preview dialog (URL state)
   }>;
 }
@@ -79,32 +71,24 @@ async function DocumentsPageContent({
   }
 
   const { id: organizationId } = await params;
-  const { page, size, query, folderPath, sort, sortOrder } = await searchParams;
+  const { query, folderPath } = await searchParams;
 
-  const currentPage = page ? Number.parseInt(page, 10) : 1;
-  const pageSize = size ? Number.parseInt(size, 10) : 10;
   const searchQuery = query?.trim();
-  const sortField = sort || 'lastModified';
-  const sortDirection = sortOrder === 'asc' ? 'asc' : 'desc';
 
   // Parallelize independent fetches for better performance
-  // Use preloadQuery for SSR + real-time reactivity via usePreloadedQuery
+  // Using cursor-based pagination to avoid 16MB bytes read limit
   const [preloadedDocuments, hasMsAccount] = await Promise.all([
     preloadDocumentsData({
       organizationId,
-      page: currentPage,
-      size: pageSize,
+      numItems: 20,
       query: searchQuery || '',
       folderPath: folderPath || '',
-      sortField,
-      sortOrder: sortDirection,
     }),
     // Check if user has Microsoft account connected for OneDrive import
     hasMicrosoftAccount(),
   ]);
 
-  // RAG status is now stored in the database and returned via getDocuments
-  // DocumentTable uses usePreloadedQuery for SSR + real-time updates
+  // DocumentTable uses useCursorPaginatedQuery for SSR + real-time updates
   return (
     <DocumentTable
       preloadedDocuments={preloadedDocuments}
@@ -112,8 +96,6 @@ async function DocumentsPageContent({
       organizationId={organizationId}
       currentFolderPath={folderPath}
       hasMicrosoftAccount={hasMsAccount}
-      initialSortField={sortField}
-      initialSortOrder={sortDirection}
     />
   );
 }
@@ -128,7 +110,7 @@ export default async function DocumentsPage({
   }
 
   // Always render DocumentTable - it handles empty state via DataTable's built-in emptyState
-  // This ensures real-time reactivity via usePreloadedQuery when documents are uploaded
+  // This ensures real-time reactivity via useCursorPaginatedQuery when documents are uploaded
   const skeletonFallback = await Promise.resolve(<DocumentsSkeleton />);
 
   return (
