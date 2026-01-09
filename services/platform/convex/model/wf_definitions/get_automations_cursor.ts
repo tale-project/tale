@@ -49,9 +49,7 @@ export async function getAutomationsCursor(
   const statusSet = status && status.length > 0 ? new Set(status) : null;
 
   // First pass: collect all workflows and deduplicate by name (keeping best version)
-  for await (const wf of query) {
-    const workflow = wf as WorkflowDefinition;
-
+  for await (const workflow of query) {
     // Filter by status if provided
     if (statusSet && !statusSet.has(workflow.status)) {
       continue;
