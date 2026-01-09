@@ -183,6 +183,10 @@ The admin key is required every time you open the dashboard. Keep it secure—an
 - **[Chat Agent Guide](docs/chat-agent-guide.md)** - Learn how to use the AI-powered chat assistant to manage customers, automate workflows, and access your business data through natural conversation
 - **[Workflow Guide](docs/workflow-guide.md)** - Build powerful automation workflows with AI, data processing, and customer engagement
 
+### Administration
+
+- **[Role-Based Access Control](docs/permissions.md)** - User roles and permission system
+
 ### Operations
 
 - **[Zero-Downtime Deployment](docs/zero-downtime-deployment.md)** - Blue-green deployment strategy for production environments requiring zero downtime
