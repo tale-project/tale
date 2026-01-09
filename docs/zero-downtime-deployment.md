@@ -39,6 +39,8 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 
 ## Commands
 
+### deploy.sh
+
 | Command | Description |
 |---------|-------------|
 | `deploy` | Build and deploy a new version with zero downtime |
@@ -46,6 +48,26 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 | `rollback` | Revert to the previous version |
 | `cleanup` | Remove inactive containers |
 | `help` | Show usage information |
+
+### logs.sh
+
+View logs for blue-green deployments. Automatically detects the active deployment color.
+
+```bash
+./scripts/logs.sh                    # All active services (follow mode)
+./scripts/logs.sh platform           # Only platform service
+./scripts/logs.sh platform rag       # Multiple services
+./scripts/logs.sh -n --tail 50       # Last 50 lines, no follow
+./scripts/logs.sh --stateful         # Include db, proxy, graph-db
+./scripts/logs.sh db                 # View database logs
+```
+
+| Option | Description |
+|--------|-------------|
+| `-f, --follow` | Follow log output (default) |
+| `-n, --no-follow` | Show existing logs only |
+| `-t, --tail N` | Number of lines to show (default: 100) |
+| `-s, --stateful` | Include stateful services |
 
 ## Configuration
 
@@ -115,6 +137,7 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
 | `compose.blue.yml` | Blue environment overlay (container names, network aliases) |
 | `compose.green.yml` | Green environment overlay |
 | `scripts/deploy.sh` | Deployment automation script |
+| `scripts/logs.sh` | Log viewer for blue-green deployments |
 | `.deployment-color` | Tracks current active deployment (auto-generated) |
 
 ## Database Migrations
@@ -186,8 +209,7 @@ For a fresh deployment after cleanup:
 HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
 
 # Check container logs
-docker logs tale-platform-blue
-docker logs tale-platform-green
+./scripts/logs.sh platform
 ```
 
 ### Deployment failed
