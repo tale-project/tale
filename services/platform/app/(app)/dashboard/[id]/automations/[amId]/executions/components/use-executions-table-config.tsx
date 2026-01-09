@@ -48,5 +48,6 @@ export function useExecutionsTableConfig() {
     pageSize: 10,
     defaultSort: 'startedAt' as const,
     defaultSortDesc: true,
+    infiniteScroll: true as const,
   };
 }

@@ -5,7 +5,8 @@ import { useExecutionsTableConfig } from './use-executions-table-config';
 
 /** Skeleton-only version for Suspense fallback */
 export function ExecutionsTableSkeleton() {
-  const { columns, searchPlaceholder, stickyLayout } = useExecutionsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useExecutionsTableConfig();
 
   return (
     <DataTableSkeleton
@@ -13,6 +14,7 @@ export function ExecutionsTableSkeleton() {
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       noFirstColumnAvatar
+      infiniteScroll={infiniteScroll}
     />
   );
 }

@@ -23,7 +23,7 @@ export function useWebsitesTableConfig() {
         size: 256,
         cell: ({ row }) => (
           <HStack gap={2}>
-            <div className="flex-shrink-0 size-5 rounded flex items-center justify-center bg-muted">
+            <div className="shrink-0 size-5 rounded flex items-center justify-center bg-muted">
               <WebsiteIcon className="size-3 text-muted-foreground" />
             </div>
             <span className="font-medium text-sm text-foreground truncate">
@@ -101,5 +101,6 @@ export function useWebsitesTableConfig() {
     pageSize: 10,
     defaultSort: '_creationTime' as const,
     defaultSortDesc: true,
+    infiniteScroll: true as const,
   };
 }

@@ -38,7 +38,7 @@ export interface DataTableSkeletonProps {
   searchPlaceholder?: string;
   /** Action menu element to render in the header */
   actionMenu?: ReactNode;
-  /** Whether to show the pagination skeleton */
+  /** Whether to show the pagination skeleton (for offset-based pagination) */
   showPagination?: boolean;
   /** Page size for pagination display */
   pageSize?: number;
@@ -48,6 +48,8 @@ export interface DataTableSkeletonProps {
   noFirstColumnAvatar?: boolean;
   /** Enable sticky layout mode */
   stickyLayout?: boolean;
+  /** Enable infinite scroll skeleton (for cursor-based pagination) */
+  infiniteScroll?: boolean;
 }
 
 /** Extract skeleton column info from TanStack Table column definitions */
@@ -92,6 +94,7 @@ export function DataTableSkeleton({
   className,
   noFirstColumnAvatar = false,
   stickyLayout = false,
+  infiniteScroll = false,
 }: DataTableSkeletonProps) {
   const normalizedColumns = normalizeColumns(columns);
 
@@ -166,8 +169,8 @@ export function DataTableSkeleton({
     </div>
   ) : null;
 
-  // Use real pagination component in loading state
-  const paginationContent = showPagination && (
+  // Pagination content for offset-based pagination
+  const paginationContent = showPagination && !infiniteScroll && (
     <DataTablePagination
       currentPage={1}
       total={0}
@@ -175,6 +178,13 @@ export function DataTableSkeleton({
       totalPages={1}
       isLoading
     />
+  );
+
+  // Infinite scroll content (load more button skeleton) for cursor-based pagination
+  const infiniteScrollContent = infiniteScroll && (
+    <div className="flex justify-center py-4 border-t border-border">
+      <Skeleton className="h-9 w-24" />
+    </div>
   );
 
   // For sticky layout, use flex structure matching DataTable
@@ -186,6 +196,7 @@ export function DataTableSkeleton({
         )}
         <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-border">
           {tableContent}
+          {infiniteScrollContent}
         </div>
         {paginationContent && (
           <div className="flex-shrink-0 pt-6">{paginationContent}</div>
@@ -197,7 +208,10 @@ export function DataTableSkeleton({
   return (
     <Stack gap={4} className={cn('w-full', className)}>
       {headerContent}
-      {tableContent}
+      <div className="rounded-xl border border-border">
+        {tableContent}
+        {infiniteScrollContent}
+      </div>
       {paginationContent}
     </Stack>
   );

@@ -12,7 +12,8 @@ interface WebsitesTableSkeletonProps {
 export function WebsitesTableSkeleton({
   organizationId,
 }: WebsitesTableSkeletonProps) {
-  const { columns, searchPlaceholder, stickyLayout } = useWebsitesTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useWebsitesTableConfig();
 
   return (
     <DataTableSkeleton
@@ -20,6 +21,7 @@ export function WebsitesTableSkeleton({
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       actionMenu={<WebsitesActionMenu organizationId={organizationId} />}
+      infiniteScroll={infiniteScroll}
     />
   );
 }

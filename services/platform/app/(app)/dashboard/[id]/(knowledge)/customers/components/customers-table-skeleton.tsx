@@ -12,7 +12,8 @@ interface CustomersTableSkeletonProps {
 export function CustomersTableSkeleton({
   organizationId,
 }: CustomersTableSkeletonProps) {
-  const { columns, searchPlaceholder, stickyLayout } = useCustomersTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, infiniteScroll } =
+    useCustomersTableConfig();
 
   return (
     <DataTableSkeleton
@@ -20,6 +21,7 @@ export function CustomersTableSkeleton({
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       actionMenu={<CustomersActionMenu organizationId={organizationId} />}
+      infiniteScroll={infiniteScroll}
     />
   );
 }
