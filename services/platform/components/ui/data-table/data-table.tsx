@@ -26,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils/cn';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 import {
@@ -414,17 +414,10 @@ export function DataTable<TData>({
         <Button
           variant="ghost"
           onClick={infiniteScroll.onLoadMore}
-          disabled={infiniteScroll.isLoadingMore}
+          isLoading={infiniteScroll.isLoadingMore}
           aria-label={t('pagination.loadMore')}
         >
-          {infiniteScroll.isLoadingMore ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              {t('actions.loading')}
-            </>
-          ) : (
-            t('pagination.loadMore')
-          )}
+          {t('pagination.loadMore')}
         </Button>
       ) : (
         <span className="text-sm text-muted-foreground">
