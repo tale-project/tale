@@ -3,18 +3,14 @@ import { mutationWithRLS, queryWithRLS } from './lib/rls';
 import {
   paginateWithFilter,
   cursorPaginationOptsValidator,
-  normalizePaginationOptions,
-  calculatePaginationMeta,
 } from './lib/pagination';
 import type { Doc } from './_generated/dataModel';
 
 // Import validators from model
 import {
-  sortOrderValidator,
   vendorSourceValidator,
   vendorAddressValidator,
   vendorInputValidator,
-  vendorListResponseValidator,
   bulkCreateVendorsResponseValidator,
 } from './model/vendors/validators';
 
@@ -89,102 +85,6 @@ export const getVendors = queryWithRLS({
       cursor: args.paginationOpts.cursor,
       filter,
     });
-  },
-});
-
-/**
- * List vendors with offset-based pagination, search, and filtering
- *
- * Uses offset-based pagination for traditional page navigation with total counts.
- */
-export const listVendors = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-    currentPage: v.optional(v.number()),
-    pageSize: v.optional(v.number()),
-    searchTerm: v.optional(v.string()),
-    source: v.optional(v.array(v.string())),
-    locale: v.optional(v.array(v.string())),
-    sortField: v.optional(v.string()),
-    sortOrder: v.optional(sortOrderValidator),
-  },
-  returns: vendorListResponseValidator,
-  handler: async (ctx, args) => {
-    const { page: currentPage, pageSize } = normalizePaginationOptions({
-      page: args.currentPage,
-      pageSize: args.pageSize,
-    });
-
-    const query = ctx.db
-      .query('vendors')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc');
-
-    // Pre-compute filter sets for O(1) lookups
-    const sourceSet =
-      args.source && args.source.length > 0 ? new Set(args.source) : null;
-    const localeSet =
-      args.locale && args.locale.length > 0 ? new Set(args.locale) : null;
-    const searchLower = args.searchTerm?.toLowerCase();
-
-    // Collect all matching vendors
-    const matchingVendors: Doc<'vendors'>[] = [];
-
-    for await (const vendor of query) {
-      if (sourceSet && (!vendor.source || !sourceSet.has(vendor.source))) {
-        continue;
-      }
-      if (localeSet && (!vendor.locale || !localeSet.has(vendor.locale))) {
-        continue;
-      }
-      if (searchLower) {
-        const nameMatch = vendor.name?.toLowerCase().includes(searchLower);
-        const emailMatch = vendor.email?.toLowerCase().includes(searchLower);
-        const externalIdMatch = vendor.externalId
-          ? String(vendor.externalId).toLowerCase().includes(searchLower)
-          : false;
-        if (!nameMatch && !emailMatch && !externalIdMatch) {
-          continue;
-        }
-      }
-      matchingVendors.push(vendor);
-    }
-
-    const total = matchingVendors.length;
-    const { totalPages, hasNextPage, hasPreviousPage } = calculatePaginationMeta(
-      total,
-      currentPage,
-      pageSize,
-    );
-
-    // Sort based on sortField and sortOrder
-    const sortField = args.sortField || '_creationTime';
-    const sortOrder = args.sortOrder || 'desc';
-    matchingVendors.sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[sortField];
-      const bVal = (b as Record<string, unknown>)[sortField];
-      if (aVal === bVal) return 0;
-      if (aVal === null || aVal === undefined) return 1;
-      if (bVal === null || bVal === undefined) return -1;
-      const comparison = aVal < bVal ? -1 : 1;
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    // Paginate
-    const startIndex = (currentPage - 1) * pageSize;
-    const items = matchingVendors.slice(startIndex, startIndex + pageSize);
-
-    return {
-      items,
-      total,
-      page: currentPage,
-      pageSize,
-      totalPages,
-      hasNextPage,
-      hasPreviousPage,
-    };
   },
 });
 
