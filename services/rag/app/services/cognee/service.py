@@ -604,31 +604,20 @@ class CogneeService:
 
         This clears all documents, embeddings, knowledge graph data, and system metadata.
         After reset, the service will re-initialize on next use.
-        """
-        if not self.initialized:
-            await self.initialize()
 
+        The RAG service uses a dedicated database (tale_rag) which is completely
+        dropped and recreated to ensure a clean slate. This is safe because:
+        - tale_rag is isolated from other services (Convex uses tale_platform)
+        - The database name is hardcoded to prevent accidental deletion of wrong database
+        """
         try:
-            # Step 1: Try cognee's built-in prune functions first
             logger.info("Starting knowledge base reset...")
 
-            try:
-                await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
-                logger.info("Cognee prune_system completed")
-            except Exception as e:
-                logger.warning(f"Cognee prune_system failed (continuing): {e}")
+            # Step 1: Drop and recreate the dedicated RAG database
+            # This is the most reliable way to ensure a clean slate
+            await self._reset_rag_database()
 
-            try:
-                await cognee.prune.prune_data()
-                logger.info("Cognee prune_data completed")
-            except Exception as e:
-                logger.warning(f"Cognee prune_data failed (continuing): {e}")
-
-            # Step 2: Direct cleanup of PGVector tables (fallback)
-            # This ensures vector data is deleted even if cognee's prune fails
-            await self._cleanup_pgvector_tables()
-
-            # Step 3: Direct cleanup of graph database
+            # Step 2: Direct cleanup of graph database
             await self._cleanup_graph_database()
 
             # Reset initialized state so service re-initializes on next use
@@ -640,48 +629,230 @@ class CogneeService:
             logger.error(f"Failed to reset knowledge base: {e}")
             raise
 
+    async def _reset_rag_database(self) -> None:
+        """Drop and recreate the dedicated RAG database (tale_rag).
+
+        This is the most reliable way to reset the knowledge base because it:
+        - Removes ALL tables, indexes, and data in one operation
+        - Avoids schema migration issues when Cognee updates its schema
+        - Is completely safe because tale_rag is isolated from other services
+
+        Safety: The database name 'tale_rag' is HARDCODED to prevent accidental
+        deletion of other databases. This method will refuse to operate on any
+        other database name.
+        """
+        # HARDCODED database name for safety - never delete other databases
+        RAG_DATABASE_NAME = "tale_rag"
+
+        try:
+            from urllib.parse import urlparse
+
+            import asyncpg
+
+            from ...config import settings
+
+            # Parse the database URL to get connection parameters
+            db_url = settings.get_database_url()
+            parsed = urlparse(db_url)
+
+            # Extract the database name from the URL
+            db_name_from_url = parsed.path.lstrip("/").split("?")[0]
+
+            # Safety check: only proceed if the configured database is tale_rag
+            if db_name_from_url != RAG_DATABASE_NAME:
+                logger.error(
+                    f"Safety check failed: configured database is '{db_name_from_url}', "
+                    f"but only '{RAG_DATABASE_NAME}' can be reset. "
+                    "This prevents accidental deletion of other databases."
+                )
+                raise ValueError(
+                    f"Cannot reset database '{db_name_from_url}'. "
+                    f"Only '{RAG_DATABASE_NAME}' is allowed for safety."
+                )
+
+            # Connect to the 'postgres' database to drop/create tale_rag
+            # (Cannot drop a database while connected to it)
+            admin_conn = await asyncpg.connect(
+                user=parsed.username,
+                password=parsed.password,
+                host=parsed.hostname,
+                port=parsed.port or 5432,
+                database="postgres",
+            )
+
+            try:
+                # Terminate all connections to the RAG database
+                await admin_conn.execute(
+                    f"""
+                    SELECT pg_terminate_backend(pid)
+                    FROM pg_stat_activity
+                    WHERE datname = '{RAG_DATABASE_NAME}'
+                    AND pid <> pg_backend_pid()
+                    """
+                )
+                logger.debug(f"Terminated existing connections to {RAG_DATABASE_NAME}")
+
+                # Drop the database if it exists
+                await admin_conn.execute(f"DROP DATABASE IF EXISTS {RAG_DATABASE_NAME}")
+                logger.info(f"Dropped database: {RAG_DATABASE_NAME}")
+
+                # Recreate the database
+                await admin_conn.execute(f"CREATE DATABASE {RAG_DATABASE_NAME}")
+                logger.info(f"Created database: {RAG_DATABASE_NAME}")
+
+            finally:
+                await admin_conn.close()
+
+            # Connect to the new database and enable required extensions
+            rag_conn = await asyncpg.connect(
+                user=parsed.username,
+                password=parsed.password,
+                host=parsed.hostname,
+                port=parsed.port or 5432,
+                database=RAG_DATABASE_NAME,
+            )
+
+            try:
+                await rag_conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+                await rag_conn.execute('CREATE EXTENSION IF NOT EXISTS "vector"')
+                logger.info(f"Enabled extensions in {RAG_DATABASE_NAME}")
+            finally:
+                await rag_conn.close()
+
+            logger.info(f"RAG database reset complete: {RAG_DATABASE_NAME}")
+
+        except Exception as e:
+            logger.error(f"Failed to reset RAG database: {e}")
+            raise
+
     async def _cleanup_pgvector_tables(self) -> None:
-        """Directly drop all Cognee-related tables from PostgreSQL.
+        """Directly drop all Cognee-related tables from PostgreSQL (legacy fallback).
 
         This is a fallback cleanup that ensures vector data is removed
         even if cognee's prune functions don't work correctly.
+
+        Cognee may create tables in different schemas depending on configuration.
+        We query both 'public' and the database name as schema (e.g., 'tale')
+        to ensure all Cognee tables are cleaned up.
+
+        Safety: Only drops tables that match known Cognee table patterns to avoid
+        accidentally deleting unrelated data.
         """
+        # Known Cognee table name patterns (case-insensitive matching)
+        # These are tables created by Cognee for knowledge graph and vector storage
+        COGNEE_TABLE_PATTERNS = {
+            # Core Cognee tables
+            "data",
+            "datasets",
+            "dataset_data",
+            "dataset_database",
+            "acls",
+            "events",
+            "metrics",
+            "graph_metrics",
+            "graph_relationship_ledger",
+            "notebooks",
+            "permissions",
+            "pipeline_runs",
+            "principals",
+            "queries",
+            "results",
+            "roles",
+            "role_default_permissions",
+            "tenants",
+            "tenant_default_permissions",
+            "users",
+            "user_default_permissions",
+            "user_roles",
+            "user_tenants",
+            # Knowledge graph entity tables (pattern: EntityType_fieldname)
+            # These are dynamically created based on the knowledge graph schema
+        }
+
+        # Patterns for dynamically named tables (e.g., DocumentChunk_text, Entity_name)
+        COGNEE_TABLE_PREFIXES = (
+            "documentchunk_",
+            "edgetype_",
+            "entitytype_",
+            "entity_",
+            "textdocument_",
+            "textsummary_",
+        )
+
+        def is_cognee_table(table_name: str) -> bool:
+            """Check if a table name matches known Cognee patterns."""
+            lower_name = table_name.lower()
+            # Check exact matches
+            if lower_name in COGNEE_TABLE_PATTERNS:
+                return True
+            # Check prefix patterns (for dynamically named tables)
+            if any(lower_name.startswith(prefix) for prefix in COGNEE_TABLE_PREFIXES):
+                return True
+            return False
+
         try:
             from sqlalchemy import text
             from cognee.infrastructure.databases.relational import get_relational_engine
 
+            from ...config import settings
+
             db_engine = get_relational_engine()
 
+            # Get the database name which Cognee may use as schema name
+            db_name = settings.get_database_url().split("/")[-1].split("?")[0]
+
+            # Schemas to clean up: 'public' and the database name (if different)
+            schemas_to_clean = ["public"]
+            if db_name and db_name != "public":
+                schemas_to_clean.append(db_name)
+
             async with db_engine.get_async_session() as session:
-                # Get list of all tables in the database
-                result = await session.execute(
-                    text(
-                        "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+                total_dropped = 0
+                skipped_tables = []
+
+                for schema_name in schemas_to_clean:
+                    # Get list of all tables in this schema
+                    result = await session.execute(
+                        text(
+                            "SELECT tablename FROM pg_tables WHERE schemaname = :schema"
+                        ),
+                        {"schema": schema_name},
                     )
-                )
-                tables = [row[0] for row in result.fetchall()]
+                    tables = [row[0] for row in result.fetchall()]
 
-                # Tables to preserve (system tables, etc.)
-                # We want to delete cognee-specific tables
-                preserved_tables: set[str] = set()
-
-                # Drop cognee-related tables
-                dropped_count = 0
-                for table_name in tables:
-                    if table_name in preserved_tables:
+                    if not tables:
+                        logger.debug(f"No tables found in schema '{schema_name}'")
                         continue
 
-                    try:
-                        await session.execute(
-                            text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
-                        )
-                        dropped_count += 1
-                        logger.debug(f"Dropped table: {table_name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to drop table {table_name}: {e}")
+                    # Drop only Cognee-related tables
+                    for table_name in tables:
+                        if not is_cognee_table(table_name):
+                            skipped_tables.append(f"{schema_name}.{table_name}")
+                            continue
+
+                        try:
+                            await session.execute(
+                                text(
+                                    f'DROP TABLE IF EXISTS "{schema_name}"."{table_name}" CASCADE'
+                                )
+                            )
+                            total_dropped += 1
+                            logger.debug(f"Dropped table: {schema_name}.{table_name}")
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to drop table {schema_name}.{table_name}: {e}"
+                            )
 
                 await session.commit()
-                logger.info(f"Dropped {dropped_count} PostgreSQL tables")
+
+                if skipped_tables:
+                    logger.debug(
+                        f"Skipped {len(skipped_tables)} non-Cognee tables: {skipped_tables[:5]}..."
+                    )
+
+                logger.info(
+                    f"Dropped {total_dropped} Cognee tables from schemas: {schemas_to_clean}"
+                )
 
         except Exception as e:
             logger.warning(f"PGVector cleanup failed (continuing): {e}")
