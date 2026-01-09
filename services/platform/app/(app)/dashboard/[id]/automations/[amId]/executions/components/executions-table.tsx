@@ -6,7 +6,7 @@ import { Copy, Check } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { parseISO, formatISO } from 'date-fns';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { type Preloaded } from '@/lib/convex-next-server';
 import { DataTable } from '@/components/ui/data-table';
 import { HStack } from '@/components/ui/layout';
@@ -38,20 +38,8 @@ const STATUS_BADGE_VARIANTS: Record<
   pending: 'outline',
 };
 
-export interface Execution {
-  _id: Id<'wfExecutions'>;
-  status: string;
-  startedAt: number;
-  completedAt?: number;
-  triggeredBy?: string;
-  waitingFor?: string;
-  input?: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  variables?: string;
-  error?: string;
-  metadata?: string;
-  componentWorkflowId?: string;
-}
+// Use the Convex document type directly
+type Execution = Doc<'wfExecutions'>;
 
 // Component to display all execution details in a single viewer
 const ExecutionDetails = memo(function ExecutionDetails({
@@ -69,17 +57,23 @@ const ExecutionDetails = memo(function ExecutionDetails({
     const meta = execution.metadata
       ? (() => {
           try {
-            return JSON.parse(execution.metadata);
+            const parsed: unknown = JSON.parse(execution.metadata);
+            return typeof parsed === 'object' && parsed !== null
+              ? (parsed as Record<string, unknown>)
+              : undefined;
           } catch {
-            return {};
+            return undefined;
           }
         })()
       : undefined;
 
-    const parsed: Record<string, unknown> | undefined = execution.variables
+    const parsed = execution.variables
       ? (() => {
           try {
-            return JSON.parse(execution.variables) as Record<string, unknown>;
+            const result: unknown = JSON.parse(execution.variables);
+            return typeof result === 'object' && result !== null
+              ? (result as Record<string, unknown>)
+              : undefined;
           } catch {
             return undefined;
           }
@@ -88,7 +82,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
 
     const vars = parsed
       ? (() => {
-          const { steps: _steps, ...rest } = parsed as Record<string, unknown>;
+          const { steps: _steps, ...rest } = parsed;
           return Object.keys(rest).length > 0 ? rest : undefined;
         })()
       : undefined;
@@ -100,41 +94,56 @@ const ExecutionDetails = memo(function ExecutionDetails({
   const steps = useMemo(() => {
     if (!journal) return undefined;
 
-    const logs: Record<string, any> = {};
-    journal.forEach((log: any) => {
-      const stepSlug = log.step?.args?.stepSlug;
-      let key = log._id;
+    // Type guard helpers for safe property access
+    const isRecord = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null;
+    const getString = (v: unknown): string | undefined =>
+      typeof v === 'string' ? v : undefined;
+
+    const logs: Record<string, Record<string, unknown>> = {};
+
+    for (const log of journal) {
+      if (!isRecord(log)) continue;
+
+      const step = isRecord(log.step) ? log.step : undefined;
+      const stepArgs = step && isRecord(step.args) ? step.args : undefined;
+      const stepSlug = stepArgs ? getString(stepArgs.stepSlug) : undefined;
+
+      let key = getString(log._id) ?? String(log._id);
 
       if (stepSlug) {
         key = stepSlug;
-      } else {
+      } else if (step) {
         // Try to derive a readable key from the step name for system steps
         // e.g. "workflow/core/mark_execution_completed:markExecutionCompleted" -> "markExecutionCompleted"
-        if (log.step?.name && typeof log.step.name === 'string') {
-          const parts = log.step.name.split(':');
+        const stepName = getString(step.name);
+        if (stepName) {
+          const parts = stepName.split(':');
           if (parts.length > 1) {
             key = parts[parts.length - 1];
           }
         }
       }
 
-      // Flatten: merge log and log.step, remove log.step
-      const { step, ...restLog } = log;
-      const entry = { ...restLog, ...step };
+      // Flatten: merge log and step properties
+      const { step: _step, ...restLog } = log;
+      const entry: Record<string, unknown> = { ...restLog, ...step };
 
       // Enrich with output from variables if available
-      if (stepSlug && parsedVariables && (parsedVariables as any).steps) {
-        const stepVar = ((parsedVariables as any).steps as Record<string, any>)[
-          stepSlug
-        ];
-        if (stepVar && typeof stepVar === 'object' && 'output' in stepVar) {
-          entry.output = stepVar.output;
+      if (stepSlug && parsedVariables) {
+        const stepsVar = parsedVariables.steps;
+        if (isRecord(stepsVar)) {
+          const stepVar = stepsVar[stepSlug];
+          if (isRecord(stepVar) && 'output' in stepVar) {
+            entry.output = stepVar.output;
+          }
         }
       }
 
       logs[key] = entry;
-    });
-    return logs;
+    }
+
+    return Object.keys(logs).length > 0 ? logs : undefined;
   }, [journal, parsedVariables]);
 
   const data = useMemo(
@@ -393,7 +402,7 @@ export function ExecutionsTable({
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={executions as Execution[]}
+      data={executions}
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
