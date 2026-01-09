@@ -92,6 +92,10 @@ export function CustomersTable({
     [filterValues, urlFilters, tTables, tCustomers, tGlobal],
   );
 
+  // Valid customer status values that the backend accepts
+  const VALID_CUSTOMER_STATUSES = new Set(['active', 'churned', 'potential']);
+  type CustomerStatus = 'active' | 'churned' | 'potential';
+
   // Build query args for cursor-based pagination
   // Note: api.customers.getCustomers expects paginationOpts: { numItems, cursor }
   // We pass a transformArgs function to wrap cursor/numItems into paginationOpts
@@ -99,9 +103,13 @@ export function CustomersTable({
     () => ({
       organizationId,
       searchTerm: filterValues.query || undefined,
-      status: filterValues.status.length > 0
-        ? (filterValues.status as Array<'active' | 'churned' | 'potential'>)
-        : undefined,
+      // Runtime narrowing to ensure only valid status values are sent to the API
+      status: (() => {
+        const validStatuses = filterValues.status.filter(
+          (s): s is CustomerStatus => VALID_CUSTOMER_STATUSES.has(s),
+        );
+        return validStatuses.length > 0 ? validStatuses : undefined;
+      })(),
       source: filterValues.source.length > 0 ? filterValues.source : undefined,
       locale: filterValues.locale.length > 0 ? filterValues.locale : undefined,
       // paginationOpts will be set by the hook using transformArgs
