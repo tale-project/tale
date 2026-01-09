@@ -45,7 +45,7 @@ function ChatSkeleton() {
     <div className="relative flex flex-col h-full flex-1 min-h-0">
       <div className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto">
         {/* Messages area - empty state with centered title skeleton */}
-        <div className="flex-1 overflow-y-visible p-8 flex flex-col items-center justify-end">
+        <div className="flex-1 overflow-y-visible p-4 sm:p-8 flex flex-col items-center justify-end">
           <div className="flex-1 flex items-center justify-center size-full">
             <Skeleton className="h-9 w-80" />
           </div>
