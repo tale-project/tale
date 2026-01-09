@@ -26,7 +26,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils/cn';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 import {
   DataTableEmptyState,
@@ -60,6 +61,15 @@ export interface DataTableProps<TData> {
   };
   /** Current page (1-based, for server-side pagination) */
   currentPage?: number;
+  /** Infinite scroll configuration (for cursor-based pagination) */
+  infiniteScroll?: {
+    /** Whether there are more items to load */
+    hasMore: boolean;
+    /** Callback to load more items */
+    onLoadMore: () => void;
+    /** Whether more items are currently loading */
+    isLoadingMore?: boolean;
+  };
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
   /** Enable row selection */
@@ -149,6 +159,7 @@ export function DataTable<TData>({
   actionMenu,
   footer,
   stickyLayout = false,
+  infiniteScroll,
 }: DataTableProps<TData>) {
   const { t } = useT('common');
 
@@ -396,6 +407,33 @@ export function DataTable<TData>({
     />
   );
 
+  // Infinite scroll content (load more button)
+  const infiniteScrollContent = infiniteScroll && (
+    <div className="flex justify-center py-4">
+      {infiniteScroll.hasMore ? (
+        <Button
+          variant="outline"
+          onClick={infiniteScroll.onLoadMore}
+          disabled={infiniteScroll.isLoadingMore}
+          aria-label={t('pagination.loadMore')}
+        >
+          {infiniteScroll.isLoadingMore ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              {t('actions.loading')}
+            </>
+          ) : (
+            t('pagination.loadMore')
+          )}
+        </Button>
+      ) : (
+        <span className="text-sm text-muted-foreground">
+          {t('pagination.noMore')}
+        </span>
+      )}
+    </div>
+  );
+
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {
     return (
@@ -403,6 +441,7 @@ export function DataTable<TData>({
         {headerContent}
         {tableContent}
         {paginationContent}
+        {infiniteScrollContent}
         {footer}
       </div>
     );
@@ -419,6 +458,9 @@ export function DataTable<TData>({
       </div>
       {paginationContent && (
         <div className="flex-shrink-0 pt-6">{paginationContent}</div>
+      )}
+      {infiniteScrollContent && (
+        <div className="flex-shrink-0">{infiniteScrollContent}</div>
       )}
       {footer}
     </div>
