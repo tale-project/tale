@@ -134,7 +134,7 @@ jobs:
   test-image:
     name: Test Docker Image
     needs: build-and-push
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       packages: read
 
