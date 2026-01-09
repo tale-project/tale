@@ -64,8 +64,9 @@ EXAMPLES:
 • Analyze: { "operation": "analyze", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "question": "What is in this image?" }
 
 CRITICAL RULES:
-1. For analyze operation, ALWAYS use the fileId from the image attachment context. NEVER use imageUrl for uploaded images.
-2. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
+1. For generate operation, when presenting download links, copy the EXACT 'url' from the result. Never fabricate or modify URLs.
+2. For analyze operation, ALWAYS use the fileId from the image attachment context. NEVER use imageUrl for uploaded images.
+3. The fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (alphanumeric string starting with "k").
 `,
     args: z.object({
       operation: z
