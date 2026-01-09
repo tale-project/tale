@@ -87,23 +87,6 @@ const TYPEWRITER_CONFIG = {
 };
 
 // ============================================================================
-// CURSOR COMPONENT
-// ============================================================================
-
-/**
- * Animated cursor that appears during typing.
- * Uses CSS animation for smooth blinking without JS overhead.
- */
-const TypewriterCursor = memo(function TypewriterCursor() {
-  return (
-    <span
-      className="inline-block w-0.5 h-[1.1em] bg-current ml-0.5 align-text-bottom animate-cursor-blink"
-      aria-hidden="true"
-    />
-  );
-});
-
-// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -172,7 +155,7 @@ function TypewriterTextComponent({
     updateRevealPosition(displayLength);
   }, [displayLength, updateRevealPosition]);
 
-  // Don't show cursor if there's no text
+  // Show cursor inline within markdown when streaming
   const showCursor = isStreaming && isTyping && text.length > 0;
 
   return (
@@ -193,10 +176,8 @@ function TypewriterTextComponent({
         anchorPosition={anchorPosition}
         isStreaming={isStreaming}
         components={components}
+        showCursor={showCursor}
       />
-
-      {/* Animated cursor */}
-      {showCursor && <TypewriterCursor />}
     </div>
   );
 }

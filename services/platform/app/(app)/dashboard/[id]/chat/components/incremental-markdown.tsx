@@ -68,6 +68,8 @@ interface IncrementalMarkdownProps {
   components?: Record<string, ComponentType<any>>;
   /** Additional CSS class */
   className?: string;
+  /** Whether to show the typing cursor */
+  showCursor?: boolean;
 }
 
 // ============================================================================
@@ -110,6 +112,19 @@ const StableMarkdown = memo(
 // ============================================================================
 
 /**
+ * Animated cursor that appears during typing.
+ * Uses CSS animation for smooth blinking without JS overhead.
+ */
+const TypewriterCursor = memo(function TypewriterCursor() {
+  return (
+    <span
+      className="inline-block w-0.5 h-[1.1em] bg-current ml-0.5 align-text-bottom animate-cursor-blink"
+      aria-hidden="true"
+    />
+  );
+});
+
+/**
  * Renders the streaming (incomplete) portion of markdown.
  * Uses CSS mask for smooth character reveal animation.
  */
@@ -118,11 +133,13 @@ const StreamingMarkdown = memo(
     content,
     revealedLength,
     components,
+    showCursor,
   }: {
     content: string;
     revealedLength: number;
     // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
     components?: Record<string, ComponentType<any>>;
+    showCursor?: boolean;
   }) {
     if (!content) return null;
 
@@ -130,13 +147,70 @@ const StreamingMarkdown = memo(
     // This keeps parsing work minimal during animation
     const revealedContent = content.slice(0, revealedLength);
 
+    // Create components that inject cursor at the end of the last element
+    // We track render order and append cursor to the last rendered block element
+    const componentsWithCursor = useMemo(() => {
+      if (!showCursor) return components;
+
+      // Helper to wrap children with cursor at the end
+      const withCursor = (children: React.ReactNode) => (
+        <>
+          {children}
+          <TypewriterCursor />
+        </>
+      );
+
+      // Create wrapper components for block elements that might be last
+      const createCursorWrapper = (
+        Tag: 'p' | 'li' | 'td' | 'th' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6',
+        // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+        CustomComponent?: ComponentType<any>,
+      ) => {
+        // biome-ignore lint/suspicious/noExplicitAny: Required for react-markdown component types
+        return function CursorWrapper({ node, children, ...props }: any) {
+          // Check if this is the last element by looking at node position
+          const isLastElement =
+            node?.position?.end?.offset === revealedContent.length ||
+            // Fallback: check if we're near the end (within whitespace)
+            (node?.position?.end?.offset &&
+              revealedContent.slice(node.position.end.offset).trim() === '');
+
+          if (CustomComponent) {
+            return (
+              <CustomComponent {...props}>
+                {isLastElement ? withCursor(children) : children}
+              </CustomComponent>
+            );
+          }
+
+          const Element = Tag;
+          return (
+            <Element {...props}>
+              {isLastElement ? withCursor(children) : children}
+            </Element>
+          );
+        };
+      };
+
+      return {
+        ...components,
+        p: createCursorWrapper('p', components?.p),
+        li: createCursorWrapper('li', components?.li),
+        td: createCursorWrapper('td', components?.td),
+        th: createCursorWrapper('th', components?.th),
+        h1: createCursorWrapper('h1', components?.h1),
+        h2: createCursorWrapper('h2', components?.h2),
+        h3: createCursorWrapper('h3', components?.h3),
+        h4: createCursorWrapper('h4', components?.h4),
+        h5: createCursorWrapper('h5', components?.h5),
+        h6: createCursorWrapper('h6', components?.h6),
+      };
+    }, [components, showCursor, revealedContent.length]);
+
     return (
       <div className="streaming-text-container">
         {/* Hidden layer: Full content establishes layout dimensions */}
-        <div
-          className="streaming-text-layout-reference"
-          aria-hidden="true"
-        >
+        <div className="streaming-text-layout-reference" aria-hidden="true">
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw]}
@@ -151,7 +225,7 @@ const StreamingMarkdown = memo(
           <Markdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw]}
-            components={components}
+            components={componentsWithCursor}
           >
             {revealedContent}
           </Markdown>
@@ -160,10 +234,11 @@ const StreamingMarkdown = memo(
     );
   },
   (prevProps, nextProps) => {
-    // Re-render when revealed length or content changes
+    // Re-render when revealed length, content, or cursor state changes
     return (
       prevProps.content === nextProps.content &&
-      prevProps.revealedLength === nextProps.revealedLength
+      prevProps.revealedLength === nextProps.revealedLength &&
+      prevProps.showCursor === nextProps.showCursor
     );
   },
 );
@@ -194,6 +269,7 @@ export function IncrementalMarkdown({
   isStreaming,
   components,
   className,
+  showCursor,
 }: IncrementalMarkdownProps) {
   // Split content at anchor position
   const { stableContent, streamingContent, streamingRevealLength } =
@@ -237,6 +313,7 @@ export function IncrementalMarkdown({
           content={streamingContent}
           revealedLength={streamingRevealLength}
           components={components}
+          showCursor={showCursor}
         />
       )}
     </div>
