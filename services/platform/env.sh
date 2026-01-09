@@ -23,16 +23,19 @@ env_normalize_common() {
 	    local db_password="${DB_PASSWORD:-tale_password_change_me}"
 	    local db_host="${DB_HOST:-db}"
 	    local db_port="${DB_PORT:-5432}"
-	    local db_name="${DB_NAME:-tale}"
 	    # Convex backend for postgres-v5 expects URL without database name in path
 	    # The database name is managed internally by Convex
 	    export POSTGRES_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}"
-	    # Export the full URL with database name for services that need it (like RAG)
-	    export POSTGRES_URL_WITH_DB="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/${db_name}"
+	    # RAG database URL - uses dedicated tale_rag database for isolation
+	    # This allows safe full-database resets without affecting other services
+	    export RAG_DATABASE_URL="postgresql://${db_user}:${db_password}@${db_host}:${db_port}/tale_rag"
 	  else
 	    export POSTGRES_URL="${POSTGRES_URL}"
-	    # If POSTGRES_URL is set explicitly, also set WITH_DB version
-	    export POSTGRES_URL_WITH_DB="${POSTGRES_URL}"
+	    # If POSTGRES_URL is set explicitly, RAG_DATABASE_URL should also be set explicitly
+	    # or we construct it by appending /tale_rag to the base URL
+	    if [ -z "${RAG_DATABASE_URL:-}" ]; then
+	      export RAG_DATABASE_URL="${POSTGRES_URL}/tale_rag"
+	    fi
 	  fi
 
 	  # Cross-service URLs (inside Docker)
@@ -43,7 +46,9 @@ env_normalize_common() {
 	  export SEARCH_SERVICE_URL="${SEARCH_SERVICE_URL:-http://search:8080}"
 
 	  # Convex instance configuration
-	  export INSTANCE_NAME="${INSTANCE_NAME:-tale_platform}"
+	  # INSTANCE_NAME is hardcoded to tale_platform for safety and consistency
+	  # This matches the database name created in init-scripts/02-create-convex-database.sql
+	  export INSTANCE_NAME="tale_platform"
 	  export INSTANCE_SECRET="${INSTANCE_SECRET}"
 
   # AI provider keys
