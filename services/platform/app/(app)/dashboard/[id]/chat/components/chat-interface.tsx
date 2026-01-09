@@ -800,9 +800,11 @@ export function ChatInterface({
               {/* AI Response area - ref used for scroll positioning */}
               {/* Show ThinkingAnimation when:
                   1. Waiting for AI response (isPending, no streaming yet), OR
-                  2. Tools are actively executing (even if text has started streaming) */}
+                  2. Streaming started but no text content yet (prevents blank gap), OR
+                  3. Tools are actively executing (even if text has started streaming) */}
               <div ref={aiResponseAreaRef}>
                 {((isPending && userDraftMessage && !streamingMessage) ||
+                  (streamingMessage && !streamingMessage.text) ||
                   hasActiveTools) && (
                   <ThinkingAnimation
                     threadId={threadId}
