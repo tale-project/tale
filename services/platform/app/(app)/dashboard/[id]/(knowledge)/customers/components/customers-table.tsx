@@ -12,12 +12,12 @@ import { CustomersActionMenu } from './customers-action-menu';
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { customerFilterDefinitions } from '../filter-definitions';
 
 export interface CustomersTableProps {
   organizationId: string;
-  preloadedCustomers: Preloaded<typeof api.customers.listCustomers>;
+  preloadedCustomers: Preloaded<typeof api.customers.getCustomers>;
 }
 
 export function CustomersTable({
@@ -30,19 +30,17 @@ export function CustomersTable({
   const { t: tGlobal } = useT('global');
 
   // Use shared table config
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useCustomersTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, pageSize } = useCustomersTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (no pagination/sorting needed for cursor-based)
   const urlFilters = useUrlFilters({
     filters: customerFilterDefinitions,
-    pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  const { filters: filterValues, sorting, pagination, setPage, setPageSize } = urlFilters;
+  const { filters: filterValues } = urlFilters;
 
-  // Use the useDataTable hook for search and sorting configs
-  const { searchConfig, sortingConfig, clearAll, isPending } = useDataTable({
+  // Use the useDataTable hook for search config
+  const { searchConfig, clearAll, isPending } = useDataTable({
     urlFilters,
     search: { placeholder: searchPlaceholder },
   });
@@ -94,26 +92,35 @@ export function CustomersTable({
     [filterValues, urlFilters, tTables, tCustomers, tGlobal],
   );
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.customers.listCustomers,
+  // Build query args for cursor-based pagination
+  // Note: api.customers.getCustomers expects paginationOpts: { numItems, cursor }
+  // We pass a transformArgs function to wrap cursor/numItems into paginationOpts
+  const queryArgs = useMemo(
+    () => ({
+      organizationId,
+      searchTerm: filterValues.query || undefined,
+      status: filterValues.status.length > 0
+        ? (filterValues.status as Array<'active' | 'churned' | 'potential'>)
+        : undefined,
+      source: filterValues.source.length > 0 ? filterValues.source : undefined,
+      locale: filterValues.locale.length > 0 ? filterValues.locale : undefined,
+      // paginationOpts will be set by the hook using transformArgs
+    }),
+    [organizationId, filterValues],
+  );
+
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: customers, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+    query: api.customers.getCustomers,
     preloadedData: preloadedCustomers,
-    organizationId,
-    filters: {
-      ...urlFilters,
-      definitions: customerFilterDefinitions,
-    },
-    transformFilters: (f) => ({
-      searchTerm: f.query || undefined,
-      status: f.status.length > 0 ? (f.status as Array<'active' | 'churned' | 'potential'>) : undefined,
-      source: f.source.length > 0 ? f.source : undefined,
-      locale: f.locale.length > 0 ? f.locale : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+    args: queryArgs,
+    numItems: pageSize,
+    // Transform args to wrap cursor/numItems into paginationOpts format
+    transformArgs: (baseArgs, cursor, numItems) => ({
+      ...baseArgs,
+      paginationOpts: { cursor, numItems },
     }),
   });
-
-  const customers = data?.items ?? [];
 
   return (
     <DataTable
@@ -121,7 +128,6 @@ export function CustomersTable({
       data={customers}
       getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
-      sorting={sortingConfig}
       search={searchConfig}
       filters={filterConfigs}
       isFiltersLoading={isPending}
@@ -132,17 +138,11 @@ export function CustomersTable({
         title: tEmpty('customers.title'),
         description: tEmpty('customers.description'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }

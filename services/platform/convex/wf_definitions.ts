@@ -546,6 +546,36 @@ export const listAutomations = query({
 });
 
 /**
+ * PUBLIC API: Get automations with cursor-based pagination
+ * Uses best version per name with search and status filtering.
+ */
+export const getAutomations = query({
+  args: {
+    organizationId: v.string(),
+    paginationOpts: v.object({
+      numItems: v.number(),
+      cursor: v.union(v.string(), v.null()),
+    }),
+    searchTerm: v.optional(v.string()),
+    status: v.optional(v.array(v.string())),
+  },
+  returns: v.object({
+    page: v.array(v.any()),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    return await WfDefinitionsModel.getAutomationsCursor(ctx, {
+      organizationId: args.organizationId,
+      numItems: args.paginationOpts.numItems,
+      cursor: args.paginationOpts.cursor,
+      searchTerm: args.searchTerm,
+      status: args.status,
+    });
+  },
+});
+
+/**
  * PUBLIC API: Create draft workflow
  */
 export const createWorkflowDraftPublic = mutation({

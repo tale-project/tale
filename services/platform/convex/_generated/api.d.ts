@@ -249,6 +249,7 @@ import type * as model_documents_get_document_by_id from "../model/documents/get
 import type * as model_documents_get_document_by_id_public from "../model/documents/get_document_by_id_public.js";
 import type * as model_documents_get_document_by_path from "../model/documents/get_document_by_path.js";
 import type * as model_documents_get_documents from "../model/documents/get_documents.js";
+import type * as model_documents_get_documents_cursor from "../model/documents/get_documents_cursor.js";
 import type * as model_documents_get_onedrive_sync_configs from "../model/documents/get_onedrive_sync_configs.js";
 import type * as model_documents_index from "../model/documents/index.js";
 import type * as model_documents_list_documents_by_extension from "../model/documents/list_documents_by_extension.js";
@@ -339,6 +340,7 @@ import type * as model_products_filter_products from "../model/products/filter_p
 import type * as model_products_get_product from "../model/products/get_product.js";
 import type * as model_products_get_product_by_id from "../model/products/get_product_by_id.js";
 import type * as model_products_get_products from "../model/products/get_products.js";
+import type * as model_products_get_products_cursor from "../model/products/get_products_cursor.js";
 import type * as model_products_index from "../model/products/index.js";
 import type * as model_products_list_by_organization from "../model/products/list_by_organization.js";
 import type * as model_products_query_products from "../model/products/query_products.js";
@@ -412,6 +414,7 @@ import type * as model_wf_definitions_create_workflow_with_steps from "../model/
 import type * as model_wf_definitions_delete_workflow from "../model/wf_definitions/delete_workflow.js";
 import type * as model_wf_definitions_duplicate_workflow from "../model/wf_definitions/duplicate_workflow.js";
 import type * as model_wf_definitions_get_active_version from "../model/wf_definitions/get_active_version.js";
+import type * as model_wf_definitions_get_automations_cursor from "../model/wf_definitions/get_automations_cursor.js";
 import type * as model_wf_definitions_get_draft from "../model/wf_definitions/get_draft.js";
 import type * as model_wf_definitions_get_version_by_number from "../model/wf_definitions/get_version_by_number.js";
 import type * as model_wf_definitions_get_workflow from "../model/wf_definitions/get_workflow.js";
@@ -437,6 +440,7 @@ import type * as model_wf_executions_get_raw_execution from "../model/wf_executi
 import type * as model_wf_executions_get_workflow_execution_stats from "../model/wf_executions/get_workflow_execution_stats.js";
 import type * as model_wf_executions_index from "../model/wf_executions/index.js";
 import type * as model_wf_executions_list_executions from "../model/wf_executions/list_executions.js";
+import type * as model_wf_executions_list_executions_cursor from "../model/wf_executions/list_executions_cursor.js";
 import type * as model_wf_executions_list_executions_paginated from "../model/wf_executions/list_executions_paginated.js";
 import type * as model_wf_executions_patch_execution from "../model/wf_executions/patch_execution.js";
 import type * as model_wf_executions_resume_execution from "../model/wf_executions/resume_execution.js";
@@ -972,6 +976,7 @@ declare const fullApi: ApiFromModules<{
   "model/documents/get_document_by_id_public": typeof model_documents_get_document_by_id_public;
   "model/documents/get_document_by_path": typeof model_documents_get_document_by_path;
   "model/documents/get_documents": typeof model_documents_get_documents;
+  "model/documents/get_documents_cursor": typeof model_documents_get_documents_cursor;
   "model/documents/get_onedrive_sync_configs": typeof model_documents_get_onedrive_sync_configs;
   "model/documents/index": typeof model_documents_index;
   "model/documents/list_documents_by_extension": typeof model_documents_list_documents_by_extension;
@@ -1062,6 +1067,7 @@ declare const fullApi: ApiFromModules<{
   "model/products/get_product": typeof model_products_get_product;
   "model/products/get_product_by_id": typeof model_products_get_product_by_id;
   "model/products/get_products": typeof model_products_get_products;
+  "model/products/get_products_cursor": typeof model_products_get_products_cursor;
   "model/products/index": typeof model_products_index;
   "model/products/list_by_organization": typeof model_products_list_by_organization;
   "model/products/query_products": typeof model_products_query_products;
@@ -1135,6 +1141,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_definitions/delete_workflow": typeof model_wf_definitions_delete_workflow;
   "model/wf_definitions/duplicate_workflow": typeof model_wf_definitions_duplicate_workflow;
   "model/wf_definitions/get_active_version": typeof model_wf_definitions_get_active_version;
+  "model/wf_definitions/get_automations_cursor": typeof model_wf_definitions_get_automations_cursor;
   "model/wf_definitions/get_draft": typeof model_wf_definitions_get_draft;
   "model/wf_definitions/get_version_by_number": typeof model_wf_definitions_get_version_by_number;
   "model/wf_definitions/get_workflow": typeof model_wf_definitions_get_workflow;
@@ -1160,6 +1167,7 @@ declare const fullApi: ApiFromModules<{
   "model/wf_executions/get_workflow_execution_stats": typeof model_wf_executions_get_workflow_execution_stats;
   "model/wf_executions/index": typeof model_wf_executions_index;
   "model/wf_executions/list_executions": typeof model_wf_executions_list_executions;
+  "model/wf_executions/list_executions_cursor": typeof model_wf_executions_list_executions_cursor;
   "model/wf_executions/list_executions_paginated": typeof model_wf_executions_list_executions_paginated;
   "model/wf_executions/patch_execution": typeof model_wf_executions_patch_execution;
   "model/wf_executions/resume_execution": typeof model_wf_executions_resume_execution;

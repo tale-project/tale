@@ -24,6 +24,7 @@ export * from './get_version_by_number';
 export * from './get_workflow_by_name';
 export * from './list_workflows';
 export * from './list_workflows_with_best_version';
+export * from './get_automations_cursor';
 export * from './list_versions';
 export * from './update_workflow';
 export * from './update_workflow_status';

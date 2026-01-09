@@ -12,12 +12,12 @@ import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { automationFilterDefinitions } from '../filter-definitions';
 
 interface AutomationsTableProps {
   organizationId: string;
-  preloadedAutomations: Preloaded<typeof api.wf_definitions.listAutomations>;
+  preloadedAutomations: Preloaded<typeof api.wf_definitions.getAutomations>;
 }
 
 export function AutomationsTable({
@@ -25,63 +25,45 @@ export function AutomationsTable({
   preloadedAutomations,
 }: AutomationsTableProps) {
   const router = useRouter();
-  const { t: tAutomations } = useT('automations');
   const { t: tTables } = useT('tables');
   const { t: tCommon } = useT('common');
   const { t: tEmpty } = useT('emptyStates');
 
   // Use shared table config
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useAutomationsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, pageSize } = useAutomationsTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (no pagination/sorting needed for cursor-based)
   const {
     filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
     setFilter,
-    setPage,
-    setPageSize,
     clearAll,
-    hasActiveFilters,
     isPending,
   } = useUrlFilters({
     filters: automationFilterDefinitions,
-    pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.wf_definitions.listAutomations,
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
+      organizationId,
+      searchTerm: filterValues.query || undefined,
+      status: filterValues.status.length > 0 ? filterValues.status : undefined,
+    }),
+    [organizationId, filterValues],
+  );
+
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: automations, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+    query: api.wf_definitions.getAutomations,
     preloadedData: preloadedAutomations,
-    organizationId,
-    filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
-      definitions: automationFilterDefinitions,
-    },
-    transformFilters: (f) => ({
-      searchTerm: f.query || undefined,
-      status: f.status.length > 0 ? f.status : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0]
-        ? sorting[0].desc
-          ? ('desc' as const)
-          : ('asc' as const)
-        : undefined,
+    args: queryArgs,
+    numItems: pageSize,
+    // Transform args to wrap cursor/numItems into paginationOpts format
+    transformArgs: (baseArgs, cursor, numItems) => ({
+      ...baseArgs,
+      paginationOpts: { cursor, numItems },
     }),
   });
-
-  const automations = data?.items ?? [];
 
   const handleRowClick = (row: Row<Doc<'wfDefinitions'>>) => {
     router.push(`/dashboard/${organizationId}/automations/${row.original._id}?panel=ai-chat`);
@@ -112,10 +94,6 @@ export function AutomationsTable({
       getRowId={(row) => row._id}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
-      sorting={{
-        initialSorting: sorting,
-        onSortingChange: setSorting,
-      }}
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
@@ -130,17 +108,11 @@ export function AutomationsTable({
         title: tEmpty('automations.title'),
         description: tEmpty('automations.description'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }

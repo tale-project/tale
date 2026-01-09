@@ -9,12 +9,12 @@ import { VendorsActionMenu } from './vendors-action-menu';
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
 import { useT } from '@/lib/i18n';
 import { useUrlFilters } from '@/hooks/use-url-filters';
-import { useOffsetPaginatedQuery } from '@/hooks/use-offset-paginated-query';
+import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { vendorFilterDefinitions } from '../filter-definitions';
 
 export interface VendorsTableProps {
   organizationId: string;
-  preloadedVendors: Preloaded<typeof api.vendors.listVendors>;
+  preloadedVendors: Preloaded<typeof api.vendors.getVendors>;
 }
 
 export function VendorsTable({
@@ -26,54 +26,41 @@ export function VendorsTable({
   const { t: tGlobal } = useT('global');
 
   // Use shared table config
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } = useVendorsTableConfig();
+  const { columns, searchPlaceholder, stickyLayout, pageSize } = useVendorsTableConfig();
 
-  // Use unified URL filters hook with sorting
+  // Use unified URL filters hook (no pagination/sorting needed for cursor-based)
   const {
     filters: filterValues,
-    sorting,
-    setSorting,
-    pagination,
     setFilter,
-    setPage,
-    setPageSize,
     clearAll,
-    hasActiveFilters,
     isPending,
   } = useUrlFilters({
     filters: vendorFilterDefinitions,
-    pagination: { defaultPageSize: pageSize },
-    sorting: { defaultSort, defaultDesc: defaultSortDesc },
   });
 
-  // Use paginated query with SSR + real-time updates
-  const { data } = useOffsetPaginatedQuery({
-    query: api.vendors.listVendors,
+  // Build query args for cursor-based pagination
+  const queryArgs = useMemo(
+    () => ({
+      organizationId,
+      searchTerm: filterValues.query || undefined,
+      source: filterValues.source.length > 0 ? filterValues.source : undefined,
+      locale: filterValues.locale.length > 0 ? filterValues.locale : undefined,
+    }),
+    [organizationId, filterValues],
+  );
+
+  // Use cursor-based paginated query with SSR + real-time updates
+  const { data: vendors, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+    query: api.vendors.getVendors,
     preloadedData: preloadedVendors,
-    organizationId,
-    filters: {
-      filters: filterValues,
-      sorting,
-      pagination,
-      setFilter,
-      setSorting,
-      setPage,
-      setPageSize,
-      clearAll,
-      hasActiveFilters,
-      isPending,
-      definitions: vendorFilterDefinitions,
-    },
-    transformFilters: (f) => ({
-      searchTerm: f.query || undefined,
-      source: f.source.length > 0 ? f.source : undefined,
-      locale: f.locale.length > 0 ? f.locale : undefined,
-      sortField: sorting[0]?.id,
-      sortOrder: sorting[0] ? (sorting[0].desc ? 'desc' as const : 'asc' as const) : undefined,
+    args: queryArgs,
+    numItems: pageSize,
+    // Transform args to wrap cursor/numItems into paginationOpts format
+    transformArgs: (baseArgs, cursor, numItems) => ({
+      ...baseArgs,
+      paginationOpts: { cursor, numItems },
     }),
   });
-
-  const vendors = data?.items ?? [];
 
   // Build filter configs for DataTableFilters component
   const filterConfigs = useMemo(
@@ -116,10 +103,6 @@ export function VendorsTable({
       data={vendors}
       getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
-      sorting={{
-        initialSorting: sorting,
-        onSortingChange: setSorting,
-      }}
       search={{
         value: filterValues.query,
         onChange: (value) => setFilter('query', value),
@@ -134,17 +117,11 @@ export function VendorsTable({
         title: tVendors('noVendorsYet'),
         description: tVendors('uploadFirstVendor'),
       }}
-      pagination={{
-        total: data?.total ?? 0,
-        pageSize: pagination.pageSize,
-        totalPages: data?.totalPages ?? 1,
-        hasNextPage: data?.hasNextPage ?? false,
-        hasPreviousPage: data?.hasPreviousPage ?? false,
-        onPageChange: setPage,
-        onPageSizeChange: setPageSize,
-        clientSide: false,
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: loadMore,
+        isLoadingMore,
       }}
-      currentPage={pagination.page}
     />
   );
 }
