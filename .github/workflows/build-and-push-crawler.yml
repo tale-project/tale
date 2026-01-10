@@ -9,15 +9,11 @@ on:
         required: false
         default: 'latest'
 
-  # Automatic trigger on tags or file changes
+  # Automatic trigger on service-specific tags only
+  # Note: For unified releases, use release.yml with v*.*.* tags
   push:
     tags:
       - 'crawler-v*.*.*'
-    branches:
-      - main
-    paths:
-      - 'services/crawler/**'
-      - '.github/workflows/build-and-push-crawler.yml'
 
 env:
   REGISTRY: ghcr.io

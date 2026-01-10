@@ -9,15 +9,11 @@ on:
         required: false
         default: 'latest'
 
-  # Automatic trigger on tags
+  # Automatic trigger on service-specific tags only
+  # Note: For unified releases, use release.yml with v*.*.* tags
   push:
     tags:
       - 'platform-v*.*.*'
-    branches:
-      - main
-    paths:
-      - 'services/platform/**'
-      - '.github/workflows/build-and-push-platform.yml'
 
 env:
   REGISTRY: ghcr.io
