@@ -136,6 +136,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -164,6 +169,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
@@ -178,6 +184,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -207,6 +218,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
@@ -250,6 +262,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
@@ -293,6 +306,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
@@ -336,6 +350,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
@@ -379,6 +394,7 @@ jobs:
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha
+          cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
