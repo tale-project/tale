@@ -1,11 +1,11 @@
 {
-  "editor.formatOnSave": true,
+  "claudeCode.allowDangerouslySkipPermissions": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
   "[dotenv]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
   "[ignore]": {
     "editor.defaultFormatter": "foxundermoon.shell-format"
-  },
-  "claudeCode.allowDangerouslySkipPermissions": true
+  }
 }

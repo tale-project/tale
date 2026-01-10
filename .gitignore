@@ -58,7 +58,10 @@ compose.override.yml
 .deployment-lock
 .deployment-color
 
-.claude/
+# Claude
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
 
 # Python
 __pycache__/
