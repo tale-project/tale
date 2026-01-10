@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
+import { useAuth } from '@/hooks/use-convex-auth';
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -45,6 +46,7 @@ function IntegrationApprovalCardComponent({
   className,
 }: IntegrationApprovalCardProps) {
   const { t } = useT('integrationApproval');
+  const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +60,17 @@ function IntegrationApprovalCardComponent({
   const isProcessing = isApproving || isRejecting;
 
   const handleApprove = async () => {
+    if (!user?._id) {
+      setError('User not authenticated');
+      return;
+    }
     setIsApproving(true);
     setError(null);
     try {
       // Execute the approved operation (handles status update + execution)
       await executeApprovedOperation({
         approvalId,
-        approvedBy: 'user', // TODO: Get actual user ID from auth context
+        approvedBy: user._id,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve operation');
@@ -75,13 +81,17 @@ function IntegrationApprovalCardComponent({
   };
 
   const handleReject = async () => {
+    if (!user?._id) {
+      setError('User not authenticated');
+      return;
+    }
     setIsRejecting(true);
     setError(null);
     try {
       await updateApprovalStatus({
         approvalId,
         status: 'rejected',
-        approvedBy: 'user', // TODO: Get actual user ID
+        approvedBy: user._id,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject operation');
