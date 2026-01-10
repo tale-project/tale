@@ -12,11 +12,16 @@
 #   - Existing Tale deployment running
 #
 # USAGE:
-#   ./scripts/upgrade.sh <version>
+#   ./scripts/upgrade.sh <version> [options]
+#
+# OPTIONS:
+#   --update-stateful  Also update stateful services (db, proxy, graph-db)
+#                      Warning: This causes brief downtime for these services
 #
 # EXAMPLES:
-#   ./scripts/upgrade.sh v1.0.0    # Upgrade to specific version
-#   ./scripts/upgrade.sh latest    # Upgrade to latest version
+#   ./scripts/upgrade.sh v1.0.0                    # Upgrade to specific version
+#   ./scripts/upgrade.sh v1.0.0 --update-stateful  # Upgrade all services including stateful
+#   ./scripts/upgrade.sh latest                    # Upgrade to latest version
 #
 # ROLLBACK:
 #   ./scripts/deploy.sh rollback   # Rollback to previous version
@@ -67,18 +72,47 @@ log_step() {
 # ============================================================================
 
 main() {
-  local version="${1:-}"
+  local version=""
+  local update_stateful=false
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --update-stateful)
+        update_stateful=true
+        shift
+        ;;
+      -*)
+        log_error "Unknown option: $1"
+        exit 1
+        ;;
+      *)
+        if [[ -z "$version" ]]; then
+          version="$1"
+        else
+          log_error "Unexpected argument: $1"
+          exit 1
+        fi
+        shift
+        ;;
+    esac
+  done
 
   # Validate version argument
   if [[ -z "$version" ]]; then
     echo ""
     echo "Tale Platform - One-Click Upgrade Script"
     echo ""
-    echo "Usage: ./scripts/upgrade.sh <version>"
+    echo "Usage: ./scripts/upgrade.sh <version> [options]"
+    echo ""
+    echo "Options:"
+    echo "  --update-stateful  Also update stateful services (db, proxy, graph-db)"
+    echo "                     Warning: This causes brief downtime for these services"
     echo ""
     echo "Examples:"
-    echo "  ./scripts/upgrade.sh v1.0.0    # Upgrade to specific version"
-    echo "  ./scripts/upgrade.sh latest    # Upgrade to latest version"
+    echo "  ./scripts/upgrade.sh v1.0.0                    # Upgrade to specific version"
+    echo "  ./scripts/upgrade.sh v1.0.0 --update-stateful  # Upgrade all services"
+    echo "  ./scripts/upgrade.sh latest                    # Upgrade to latest version"
     echo ""
     echo "Available versions can be found at:"
     echo "  https://github.com/tale-project/tale/pkgs/container/tale%2Ftale-platform"
@@ -141,14 +175,23 @@ main() {
 
   # Step 4: Deploy with PULL_POLICY=always
   log_step "Deploying ${version} with zero-downtime..."
+  if [ "$update_stateful" = "true" ]; then
+    log_warning "Stateful services will also be updated (brief downtime expected)"
+  fi
   echo ""
 
   # Export environment variables for deploy.sh
   export PULL_POLICY=always
   export VERSION="$image_tag"
 
+  # Build deploy command with optional --update-stateful flag
+  local deploy_cmd="./scripts/deploy.sh deploy"
+  if [ "$update_stateful" = "true" ]; then
+    deploy_cmd="$deploy_cmd --update-stateful"
+  fi
+
   # Run the deploy script
-  if ./scripts/deploy.sh deploy; then
+  if $deploy_cmd; then
     echo ""
     log_success "Upgrade to ${version} complete!"
     echo ""
