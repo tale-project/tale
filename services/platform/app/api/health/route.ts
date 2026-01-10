@@ -2,6 +2,12 @@ import { existsSync } from 'fs';
 import { NextResponse } from 'next/server';
 
 /**
+ * Force dynamic rendering - disable Next.js Full Route Cache
+ * Critical for health endpoint to always return fresh status
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * Shutdown marker file path
  * Created by docker-entrypoint.sh during graceful shutdown
  */
@@ -12,6 +18,13 @@ const SHUTDOWN_MARKER = '/tmp/shutting_down';
  * The Convex local backend exposes a version endpoint that indicates it's ready
  */
 const CONVEX_BACKEND_URL = 'http://localhost:3210/version';
+
+/**
+ * Tale version from environment variable
+ * Set at Docker build time via VERSION build argument
+ * Defaults to 'dev' for local development
+ */
+const TALE_VERSION = process.env.TALE_VERSION || 'dev';
 
 /**
  * Health check endpoint for Docker, Caddy, and monitoring
@@ -38,16 +51,20 @@ const CONVEX_BACKEND_URL = 'http://localhost:3210/version';
  * - This prevents traffic from being routed before functions are deployed
  */
 export async function GET() {
+  // Common headers to prevent any caching
+  const noCacheHeaders = { 'Cache-Control': 'no-store' };
+
   // Check if we're in shutdown mode
   if (existsSync(SHUTDOWN_MARKER)) {
     return NextResponse.json(
       {
         status: 'draining',
+        version: TALE_VERSION,
         service: 'tale-platform',
         timestamp: new Date().toISOString(),
         message: 'Service is shutting down, draining connections',
       },
-      { status: 503 }
+      { status: 503, headers: noCacheHeaders }
     );
   }
 
@@ -56,6 +73,7 @@ export async function GET() {
   try {
     const response = await fetch(CONVEX_BACKEND_URL, {
       signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
     });
     convexHealthy = response.ok;
   } catch {
@@ -66,22 +84,24 @@ export async function GET() {
     return NextResponse.json(
       {
         status: 'starting',
+        version: TALE_VERSION,
         service: 'tale-platform',
         convex: 'unhealthy',
         timestamp: new Date().toISOString(),
         message: 'Convex backend not ready',
       },
-      { status: 503 }
+      { status: 503, headers: noCacheHeaders }
     );
   }
 
   return NextResponse.json(
     {
       status: 'ok',
+      version: TALE_VERSION,
       service: 'tale-platform',
       convex: 'healthy',
       timestamp: new Date().toISOString(),
     },
-    { status: 200 }
+    { status: 200, headers: noCacheHeaders }
   );
 }

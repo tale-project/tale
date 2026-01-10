@@ -2,7 +2,10 @@
 # This file defines SEPARATE blue services that won't conflict with green
 #
 # Usage:
-#   docker compose -f compose.yml -f compose.blue.yml up -d platform-blue rag-blue ...
+#   docker compose -f compose.blue.yml up -d platform-blue rag-blue ...
+#
+# For production (pull pre-built images):
+#   PULL_POLICY=always VERSION=v1.0.0 docker compose -f compose.blue.yml up -d ...
 #
 # Key difference from previous approach:
 # - Services are named platform-blue, rag-blue, etc. (not platform, rag)
@@ -13,10 +16,13 @@ services:
   # Blue Platform
   # ============================================================================
   platform-blue:
-    # Build configuration - same as base platform
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-platform-blue
 
@@ -60,9 +66,13 @@ services:
   # Blue RAG
   # ============================================================================
   rag-blue:
+    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/rag/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-rag-blue
 
@@ -103,9 +113,13 @@ services:
   # Blue Crawler
   # ============================================================================
   crawler-blue:
+    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/crawler/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-crawler-blue
 
@@ -137,9 +151,13 @@ services:
   # Blue Search
   # ============================================================================
   search-blue:
+    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/search/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-search-blue
 

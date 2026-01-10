@@ -1,6 +1,9 @@
 # Multi-stage build for Tale RAG (Cognee + FastAPI)
 # Supports AMD64 and ARM64 architectures
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 FROM python:3.11-slim AS base
 
 # Set working directory
@@ -40,6 +43,9 @@ RUN uv pip install --system -r requirements.txt
 # ============================================================================
 FROM dependencies AS final
 
+# Re-declare VERSION arg for this stage (ARGs don't persist across stages)
+ARG VERSION=dev
+
 WORKDIR /app
 
 # Copy FastAPI application
@@ -54,7 +60,8 @@ RUN mkdir -p /app/data \
     && mkdir -p /usr/local/lib/python3.11/site-packages/cognee/.data_storage
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1 \
+ENV TALE_VERSION=${VERSION} \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     # Default Tale RAG configuration
     RAG_HOST=0.0.0.0 \

@@ -5,7 +5,16 @@
 # with configurable HTTPS support (self-signed or Let's Encrypt)
 # ============================================================================
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 FROM caddy:2.11-alpine
+
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
+
+# Set version environment variable
+ENV TALE_VERSION=${VERSION}
 
 # Copy Caddyfile
 COPY services/proxy/Caddyfile /etc/caddy/Caddyfile

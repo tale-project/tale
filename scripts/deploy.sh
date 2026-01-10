@@ -8,11 +8,12 @@
 # with traffic switched only after the new version is healthy.
 #
 # USAGE:
-#   ./scripts/deploy.sh deploy    # Deploy new version
-#   ./scripts/deploy.sh rollback  # Rollback to previous version
-#   ./scripts/deploy.sh status    # Show current deployment status
-#   ./scripts/deploy.sh cleanup   # Remove inactive containers
-#   ./scripts/deploy.sh reset     # Remove ALL blue-green containers
+#   ./scripts/deploy.sh deploy                    # Deploy new version
+#   ./scripts/deploy.sh deploy --update-stateful  # Deploy and update stateful services
+#   ./scripts/deploy.sh rollback                  # Rollback to previous version
+#   ./scripts/deploy.sh status                    # Show current deployment status
+#   ./scripts/deploy.sh cleanup                   # Remove inactive containers
+#   ./scripts/deploy.sh reset                     # Remove ALL blue-green containers
 #
 # REQUIREMENTS:
 #   - Docker and Docker Compose
@@ -299,9 +300,25 @@ cleanup_color() {
 # ============================================================================
 
 # Deploy new version
+# Usage: cmd_deploy [--update-stateful]
 cmd_deploy() {
   local current_color
   local target_color
+  local update_stateful=false
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --update-stateful)
+        update_stateful=true
+        shift
+        ;;
+      *)
+        log_error "Unknown option: $1"
+        return 1
+        ;;
+    esac
+  done
 
   # Prevent concurrent deployments
   if ! acquire_lock; then
@@ -309,6 +326,9 @@ cmd_deploy() {
   fi
 
   log_step "Starting blue-green deployment"
+  if [ "$update_stateful" = "true" ]; then
+    log_warning "Stateful services (db, proxy, graph-db) will be updated - brief downtime expected"
+  fi
   echo ""
 
   # Step 1: Detect current state
@@ -337,25 +357,40 @@ cmd_deploy() {
   # These services run as single instances (not blue-green rotated)
   log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
 
-  # Check if proxy is already healthy - avoid recreating it to preserve TLS state
-  local proxy_healthy=false
-  if docker ps --format '{{.Names}}' | grep -q "^tale-proxy$"; then
-    local proxy_health
-    proxy_health=$(docker inspect --format='{{.State.Health.Status}}' "tale-proxy" 2>/dev/null || echo "none")
-    if [ "$proxy_health" = "healthy" ]; then
-      proxy_healthy=true
-      log_info "Proxy already healthy, skipping recreation to preserve TLS certificates"
-    fi
-  fi
+  if [ "$update_stateful" = "true" ]; then
+    # Force update stateful services - pull new images and recreate containers
+    log_info "Pulling latest images for stateful services..."
+    docker compose -f "${PROJECT_ROOT}/compose.yml" pull db proxy graph-db
 
-  if [ "$proxy_healthy" = "true" ]; then
-    # Only start db and graph-db, leave proxy alone
-    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
+    log_info "Recreating stateful services with new images..."
+    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d --force-recreate db proxy graph-db
   else
-    # Rebuild proxy to ensure latest image (entrypoint changes, etc.)
-    log_info "Building proxy image..."
-    docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
-    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
+    # Default behavior: preserve existing healthy services
+    # Check if proxy is already healthy - avoid recreating it to preserve TLS state
+    local proxy_healthy=false
+    if docker ps --format '{{.Names}}' | grep -q "^tale-proxy$"; then
+      local proxy_health
+      proxy_health=$(docker inspect --format='{{.State.Health.Status}}' "tale-proxy" 2>/dev/null || echo "none")
+      if [ "$proxy_health" = "healthy" ]; then
+        proxy_healthy=true
+        log_info "Proxy already healthy, skipping recreation to preserve TLS certificates"
+      fi
+    fi
+
+    if [ "$proxy_healthy" = "true" ]; then
+      # Only start db and graph-db, leave proxy alone
+      docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
+    else
+      # Rebuild/pull proxy to ensure latest image (entrypoint changes, etc.)
+      if [ "${PULL_POLICY:-}" = "always" ]; then
+        log_info "Pulling proxy image..."
+        docker compose -f "${PROJECT_ROOT}/compose.yml" pull proxy
+      else
+        log_info "Building proxy image..."
+        docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
+      fi
+      docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
+    fi
   fi
 
   # Wait for stateful services to be healthy
@@ -570,6 +605,23 @@ cmd_status() {
   local current_color
   current_color=$(detect_current_color)
   echo -e "  Active Deployment: ${GREEN}${current_color}${NC}"
+
+  # Get version from health endpoint
+  local running_version="unknown"
+  local domain_host
+  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host="${domain_host:-tale.local}"
+
+  local health_response
+  if health_response=$(curl -sf -k --max-time 5 "https://${domain_host}/api/health" 2>/dev/null); then
+    if command -v jq >/dev/null 2>&1; then
+      running_version=$(echo "$health_response" | jq -r '.version // "unknown"')
+    else
+      # Fallback to grep if jq not available
+      running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    fi
+  fi
+  echo -e "  Running Version:   ${CYAN}${running_version}${NC}"
   echo ""
 
   # Stateful services (single instance, not rotated)
@@ -744,7 +796,7 @@ cmd_help() {
   echo "Tale Platform - Blue-Green Deployment Script"
   echo ""
   echo "USAGE:"
-  echo "  ./scripts/deploy.sh <command>"
+  echo "  ./scripts/deploy.sh <command> [options]"
   echo ""
   echo "COMMANDS:"
   echo "  deploy    Deploy a new version (zero-downtime)"
@@ -754,14 +806,21 @@ cmd_help() {
   echo "  reset     Remove ALL blue-green containers and return to normal mode"
   echo "  help      Show this help message"
   echo ""
+  echo "OPTIONS:"
+  echo "  --update-stateful  Force update stateful services (db, proxy, graph-db)"
+  echo "                     Warning: This causes brief downtime for these services"
+  echo ""
   echo "ENVIRONMENT VARIABLES:"
   echo "  HEALTH_CHECK_TIMEOUT  Max time to wait for health (default: 180s)"
   echo "  HEALTH_CHECK_INTERVAL Interval between checks (default: 1s)"
   echo "  DRAIN_TIMEOUT         Time to drain old containers (default: 30s)"
   echo ""
   echo "EXAMPLES:"
-  echo "  # Normal deployment"
+  echo "  # Normal deployment (stateless services only)"
   echo "  ./scripts/deploy.sh deploy"
+  echo ""
+  echo "  # Deploy with stateful service updates (brief downtime)"
+  echo "  ./scripts/deploy.sh deploy --update-stateful"
   echo ""
   echo "  # Deploy with custom timeout"
   echo "  HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy"
@@ -790,7 +849,7 @@ main() {
 
   case "$command" in
     deploy)
-      cmd_deploy
+      cmd_deploy "$@"
       ;;
     rollback)
       cmd_rollback

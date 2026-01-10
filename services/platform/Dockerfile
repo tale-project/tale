@@ -5,6 +5,9 @@
 # It uses the official Convex backend image as the base to ensure compatibility
 # Both Next.js and Convex backend run in the same container
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
@@ -105,9 +108,13 @@ RUN chmod +x /convex/convex-local-backend /convex/generate_key && \
     ln -s /convex/convex-local-backend /usr/local/bin/convex-local-backend && \
     ln -s /convex/generate_key /usr/local/bin/generate_key
 
+# Re-declare VERSION arg for this stage (ARGs don't persist across stages)
+ARG VERSION=dev
+
 # Set environment variables
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV TALE_VERSION=${VERSION}
 
 # Create a non-root user (using groupadd/useradd for Ubuntu compatibility)
 RUN groupadd --system --gid 1001 nodejs || true

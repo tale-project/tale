@@ -1,15 +1,21 @@
-name: Build Crawler (PR)
+name: Build Graph DB
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - 'services/crawler/**'
-      - '.github/workflows/build-crawler-pr.yml'
+      - 'services/graph-db/**'
+      - '.github/workflows/build-graph-db.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/graph-db/**'
+      - '.github/workflows/build-graph-db.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -29,8 +35,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: services/crawler/Dockerfile
+          context: services/graph-db
+          file: services/graph-db/Dockerfile
           platforms: linux/amd64
           push: false
           cache-from: type=gha
@@ -39,4 +45,4 @@ jobs:
         run: |
           echo "## Docker Image Build Successful! ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The crawler Docker image built successfully." >> $GITHUB_STEP_SUMMARY
+          echo "The Graph DB Docker image built successfully." >> $GITHUB_STEP_SUMMARY
