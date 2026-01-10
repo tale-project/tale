@@ -747,9 +747,15 @@ const protelSqlOperations: SqlOperation[] = [
   // WRITE OPERATIONS - RESERVATIONS
   // ============================================
   {
+    name: 'get_next_reservation_id',
+    title: 'Get Next Reservation ID',
+    description: 'Get the next available reservation ID (MAX(buchnr)+1). Call this before create_reservation.',
+    query: `SELECT COALESCE(MAX(buchnr), 0) + 1 AS next_reservation_id FROM proteluser.buch`,
+  },
+  {
     name: 'create_reservation',
     title: 'Create Reservation',
-    description: 'Create a new reservation in Protel. Note: buchnr is not auto-generated, must be provided.',
+    description: 'Create a new reservation in Protel. Use get_next_reservation_id first to obtain the reservationId.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.buch (
@@ -797,7 +803,7 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         reservationId: {
           type: 'number',
-          description: 'Reservation ID (buchnr) - must be unique, use MAX(buchnr)+1 from buch table',
+          description: 'Reservation ID (buchnr) - obtain from get_next_reservation_id',
           required: true,
         },
         guestId: {
@@ -1116,9 +1122,15 @@ const protelSqlOperations: SqlOperation[] = [
   // WRITE OPERATIONS - GUEST PROFILES
   // ============================================
   {
+    name: 'get_next_guest_id',
+    title: 'Get Next Guest ID',
+    description: 'Get the next available guest ID (MAX(kdnr)+1). Call this before create_guest.',
+    query: `SELECT COALESCE(MAX(kdnr), 0) + 1 AS next_guest_id FROM proteluser.kunden`,
+  },
+  {
     name: 'create_guest',
     title: 'Create Guest Profile',
-    description: 'Create a new guest profile. Note: kdnr is not auto-generated, must be provided.',
+    description: 'Create a new guest profile. Use get_next_guest_id first to obtain the guestId.',
     operationType: 'write',
     query: `
       INSERT INTO proteluser.kunden (
@@ -1172,7 +1184,7 @@ const protelSqlOperations: SqlOperation[] = [
       properties: {
         guestId: {
           type: 'number',
-          description: 'Guest ID (kdnr) - must be unique, use MAX(kdnr)+1 from kunden table',
+          description: 'Guest ID (kdnr) - obtain from get_next_guest_id',
           required: true,
         },
         lastName: {

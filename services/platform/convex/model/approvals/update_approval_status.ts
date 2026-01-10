@@ -15,23 +15,17 @@ export async function updateApprovalStatus(
     throw new Error('Approval not found');
   }
 
-  // Look up the member to get their display name
+  // Look up the user to get their display name
+  // The approvedBy is a user ID (from Better Auth user table)
   let approverName: string | undefined;
-  const memberRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-    model: 'member',
+  const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: 'user',
     paginationOpts: { cursor: null, numItems: 1 },
     where: [{ field: '_id', value: args.approvedBy, operator: 'eq' }],
   });
-  const member = memberRes?.page?.[0];
-  if (member) {
-    // Get user info for display name
-    const userRes = await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'user',
-      paginationOpts: { cursor: null, numItems: 1 },
-      where: [{ field: '_id', value: member.userId, operator: 'eq' }],
-    });
-    const user = userRes?.page?.[0];
-    approverName = (user?.name as string) || (user?.email as string);
+  const user = userRes?.page?.[0];
+  if (user) {
+    approverName = (user.name as string) || (user.email as string);
   }
 
   await ctx.db.patch(args.approvalId, {
