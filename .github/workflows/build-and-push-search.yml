@@ -80,6 +80,20 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       # ======================================================================
+      # Version
+      # ======================================================================
+      - name: Compute version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/search-v* ]]; then
+            echo "version=v${GITHUB_REF#refs/tags/search-v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev" >> $GITHUB_OUTPUT
+          fi
+
+      # ======================================================================
       # Build and Push
       # ======================================================================
       - name: Build and push Docker image
@@ -91,6 +105,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           provenance: true
           sbom: true
