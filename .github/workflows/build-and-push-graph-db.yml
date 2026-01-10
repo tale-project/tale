@@ -89,11 +89,12 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.ref }}" == refs/tags/graph-db-v* ]]; then
-            echo "version=v${GITHUB_REF#refs/tags/graph-db-v}" >> $GITHUB_OUTPUT
+            REF_NAME="${{ github.ref_name }}"
+            echo "version=v${REF_NAME#graph-db-v}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=dev" >> $GITHUB_OUTPUT
+            echo "version=dev" >> "$GITHUB_OUTPUT"
           fi
 
       # ======================================================================
