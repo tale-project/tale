@@ -14,6 +14,13 @@ const SHUTDOWN_MARKER = '/tmp/shutting_down';
 const CONVEX_BACKEND_URL = 'http://localhost:3210/version';
 
 /**
+ * Tale version from environment variable
+ * Set at Docker build time via VERSION build argument
+ * Defaults to 'dev' for local development
+ */
+const TALE_VERSION = process.env.TALE_VERSION || 'dev';
+
+/**
  * Health check endpoint for Docker, Caddy, and monitoring
  *
  * Returns:
@@ -43,6 +50,7 @@ export async function GET() {
     return NextResponse.json(
       {
         status: 'draining',
+        version: TALE_VERSION,
         service: 'tale-platform',
         timestamp: new Date().toISOString(),
         message: 'Service is shutting down, draining connections',
@@ -66,6 +74,7 @@ export async function GET() {
     return NextResponse.json(
       {
         status: 'starting',
+        version: TALE_VERSION,
         service: 'tale-platform',
         convex: 'unhealthy',
         timestamp: new Date().toISOString(),
@@ -78,6 +87,7 @@ export async function GET() {
   return NextResponse.json(
     {
       status: 'ok',
+      version: TALE_VERSION,
       service: 'tale-platform',
       convex: 'healthy',
       timestamp: new Date().toISOString(),
