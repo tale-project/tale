@@ -969,7 +969,7 @@ function AutomationStepsInner({
       onAddStepOnEdge={handleAddStepOnEdge}
       onDeleteEdge={handleDeleteEdge}
     >
-      <div className="flex justify-stretch size-full flex-1 max-h-full">
+      <div className="flex justify-stretch flex-1 w-full overflow-auto">
         <style>{`
           /* Allow individual edges to control their z-index */
           .react-flow__edges {
