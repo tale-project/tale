@@ -381,9 +381,14 @@ cmd_deploy() {
       # Only start db and graph-db, leave proxy alone
       docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
     else
-      # Rebuild proxy to ensure latest image (entrypoint changes, etc.)
-      log_info "Building proxy image..."
-      docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
+      # Rebuild/pull proxy to ensure latest image (entrypoint changes, etc.)
+      if [ "${PULL_POLICY:-}" = "always" ]; then
+        log_info "Pulling proxy image..."
+        docker compose -f "${PROJECT_ROOT}/compose.yml" pull proxy
+      else
+        log_info "Building proxy image..."
+        docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
+      fi
       docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
     fi
   fi
@@ -609,7 +614,12 @@ cmd_status() {
 
   local health_response
   if health_response=$(curl -sf -k --max-time 5 "https://${domain_host}/api/health" 2>/dev/null); then
-    running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    if command -v jq >/dev/null 2>&1; then
+      running_version=$(echo "$health_response" | jq -r '.version // "unknown"')
+    else
+      # Fallback to grep if jq not available
+      running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    fi
   fi
   echo -e "  Running Version:   ${CYAN}${running_version}${NC}"
   echo ""
