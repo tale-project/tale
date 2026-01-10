@@ -1,4 +1,4 @@
-name: Build RAG (PR)
+name: Build RAG
 
 on:
   pull_request:
@@ -6,10 +6,16 @@ on:
       - main
     paths:
       - 'services/rag/**'
-      - '.github/workflows/build-rag-pr.yml'
+      - '.github/workflows/build-rag.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/rag/**'
+      - '.github/workflows/build-rag.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
