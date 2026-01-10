@@ -3,13 +3,13 @@ name: Release All Services
 # ============================================================================
 # Unified Release Workflow
 # ============================================================================
-# Triggered by version tags (v*.*.*) to build and push all 7 service images
-# with the same version number. This ensures consistent versioning across
-# the entire Tale platform.
+# Triggered by version tags (v*.*.* or *.*.*) to build and push all 7 service
+# images with the same version number. This ensures consistent versioning
+# across the entire Tale platform.
 #
 # Usage:
-#   git tag v1.0.0
-#   git push origin v1.0.0
+#   git tag v1.0.0 && git push origin v1.0.0
+#   git tag 1.0.0 && git push origin 1.0.0
 #
 # This will build and push:
 #   - ghcr.io/tale-project/tale/tale-platform:1.0.0
@@ -25,6 +25,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - '[0-9]*.*.*'
 
   # Manual trigger for re-releasing a version
   workflow_dispatch:
@@ -57,10 +58,12 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
+          # Normalize: strip 'v' prefix first, then add it back
+          VERSION_NUMBER="${VERSION#v}"
           # version includes 'v' prefix (e.g., v1.0.0)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=v${VERSION_NUMBER}" >> $GITHUB_OUTPUT
           # version_number excludes 'v' prefix (e.g., 1.0.0)
-          echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+          echo "version_number=${VERSION_NUMBER}" >> $GITHUB_OUTPUT
 
       - name: Log version
         run: |
