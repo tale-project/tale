@@ -2,6 +2,12 @@ import { existsSync } from 'fs';
 import { NextResponse } from 'next/server';
 
 /**
+ * Force dynamic rendering - disable Next.js Full Route Cache
+ * Critical for health endpoint to always return fresh status
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * Shutdown marker file path
  * Created by docker-entrypoint.sh during graceful shutdown
  */
@@ -45,6 +51,9 @@ const TALE_VERSION = process.env.TALE_VERSION || 'dev';
  * - This prevents traffic from being routed before functions are deployed
  */
 export async function GET() {
+  // Common headers to prevent any caching
+  const noCacheHeaders = { 'Cache-Control': 'no-store' };
+
   // Check if we're in shutdown mode
   if (existsSync(SHUTDOWN_MARKER)) {
     return NextResponse.json(
@@ -55,7 +64,7 @@ export async function GET() {
         timestamp: new Date().toISOString(),
         message: 'Service is shutting down, draining connections',
       },
-      { status: 503 }
+      { status: 503, headers: noCacheHeaders }
     );
   }
 
@@ -64,6 +73,7 @@ export async function GET() {
   try {
     const response = await fetch(CONVEX_BACKEND_URL, {
       signal: AbortSignal.timeout(5000),
+      cache: 'no-store',
     });
     convexHealthy = response.ok;
   } catch {
@@ -80,7 +90,7 @@ export async function GET() {
         timestamp: new Date().toISOString(),
         message: 'Convex backend not ready',
       },
-      { status: 503 }
+      { status: 503, headers: noCacheHeaders }
     );
   }
 
@@ -92,6 +102,6 @@ export async function GET() {
       convex: 'healthy',
       timestamp: new Date().toISOString(),
     },
-    { status: 200 }
+    { status: 200, headers: noCacheHeaders }
   );
 }
