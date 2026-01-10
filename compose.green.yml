@@ -4,6 +4,9 @@
 # Usage:
 #   docker compose -f compose.green.yml up -d platform-green rag-green ...
 #
+# For production (pull pre-built images):
+#   PULL_POLICY=always VERSION=v1.0.0 docker compose -f compose.green.yml up -d ...
+#
 # Key difference from previous approach:
 # - Services are named platform-green, rag-green, etc. (not platform, rag)
 # - This prevents Docker Compose from touching blue services when deploying green
@@ -13,10 +16,13 @@ services:
   # Green Platform
   # ============================================================================
   platform-green:
-    # Build configuration - same as base platform
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-platform-green
 
@@ -60,9 +66,13 @@ services:
   # Green RAG
   # ============================================================================
   rag-green:
+    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/rag/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-rag-green
 
@@ -103,9 +113,13 @@ services:
   # Green Crawler
   # ============================================================================
   crawler-green:
+    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/crawler/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-crawler-green
 
@@ -137,9 +151,13 @@ services:
   # Green Search
   # ============================================================================
   search-green:
+    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
       dockerfile: services/search/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     container_name: tale-search-green
 
