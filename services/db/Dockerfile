@@ -1,9 +1,15 @@
 # Dockerfile for Tale DB (TimescaleDB)
 # Supports AMD64 and ARM64 architectures
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 # Use official TimescaleDB image as base
 # TimescaleDB is PostgreSQL with time-series extensions
 FROM timescale/timescaledb:2.24.0-pg16
+
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
 
 # Switch to root for all setup operations
 USER root
@@ -35,7 +41,8 @@ USER postgres
 
 # Set environment variables with DB_ prefix defaults
 # These can be overridden at runtime
-ENV DB_NAME=tale \
+ENV TALE_VERSION=${VERSION} \
+    DB_NAME=tale \
     DB_USER=tale \
     DB_PASSWORD=tale_password_change_me \
     # PostgreSQL configuration (required by base image)

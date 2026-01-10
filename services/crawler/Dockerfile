@@ -2,6 +2,9 @@
 # Independent service for web crawling using Crawl4AI
 # Resolves dependency conflicts with cognee in the RAG service
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 FROM python:3.11-slim
 
 # Set working directory
@@ -57,6 +60,12 @@ RUN playwright install chromium
 
 # Copy application code
 COPY services/crawler/app ./app
+
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
+
+# Set version environment variable
+ENV TALE_VERSION=${VERSION}
 
 # Expose port
 EXPOSE 8002

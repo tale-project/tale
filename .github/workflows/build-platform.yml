@@ -1,4 +1,4 @@
-name: Build Platform (PR)
+name: Build Platform
 
 on:
   pull_request:
@@ -6,10 +6,16 @@ on:
       - main
     paths:
       - 'services/platform/**'
-      - '.github/workflows/build-platform-pr.yml'
+      - '.github/workflows/build-platform.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/platform/**'
+      - '.github/workflows/build-platform.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:

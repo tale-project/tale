@@ -1,15 +1,34 @@
 # Docker Compose configuration for Tale Services
 # This file defines the services needed to run the Tale platform
+#
+# Usage modes:
+#   Development (default): docker compose up
+#     - Builds images locally from Dockerfiles
+#     - Uses PULL_POLICY=build (default)
+#
+#   Production: PULL_POLICY=always VERSION=v1.0.0 docker compose up
+#     - Pulls pre-built images from GHCR
+#     - Specify version with VERSION environment variable
+#
+# Environment variables:
+#   PULL_POLICY: 'build' (default) or 'always'
+#   VERSION: Image tag to pull (default: 'latest')
 
 services:
   # ============================================================================
   # Tale DB (TimescaleDB)
   # ============================================================================
   db:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-db:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/db/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Container name
     container_name: tale-db
@@ -75,10 +94,16 @@ services:
   # ============================================================================
   # Stateful service - Kuzu requires exclusive file lock, cannot run two instances
   graph-db:
-    # Build from local Dockerfile
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-graph-db:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build from local Dockerfile (used when PULL_POLICY=build)
     build:
       context: ./services/graph-db
       dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Container name - stateful service like db
     container_name: tale-graph-db
@@ -121,10 +146,16 @@ services:
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   crawler:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/crawler/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Port mapping: host:container (for development)
     # Access Crawler API at localhost:8002
@@ -175,10 +206,16 @@ services:
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   rag:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/rag/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Port mapping: host:container (for development)
     # Access RAG API at localhost:8001
@@ -250,10 +287,16 @@ services:
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   platform:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/platform/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # No port mapping needed - accessed via proxy at https://tale.local (or your domain)
     # internally via http://platform:3000
@@ -330,10 +373,16 @@ services:
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   search:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/search/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Port mapping: host:container (for development)
     # Access SearXNG at localhost:8003
@@ -396,10 +445,16 @@ services:
   #   - Access: https://yourdomain.com (trusted Let's Encrypt cert)
   #
   proxy:
-    # Build configuration
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-proxy:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
       dockerfile: services/proxy/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
 
     # Container name
     container_name: tale-proxy

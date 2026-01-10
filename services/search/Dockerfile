@@ -2,9 +2,15 @@
 # Self-hosted meta search engine for the Tale platform
 # Base image: Void Linux with wget pre-installed
 
+# Version argument - injected by CI from git tag, defaults to 'dev' for local builds
+ARG VERSION=dev
+
 # Use official SearXNG image as base
 # Pinned to specific digest for reproducibility (SearXNG 2025.11.28)
 FROM searxng/searxng@sha256:256b113a44b26a293a24d864707753344ebe75687445a97ed0e8d701dec7af45
+
+# Re-declare VERSION arg (ARGs don't persist after FROM)
+ARG VERSION=dev
 
 # Switch to root for setup operations
 USER root
@@ -19,7 +25,8 @@ USER searxng
 
 # Set environment variables with SEARCH_ prefix defaults
 # These can be overridden at runtime
-ENV SEARCH_INSTANCE_NAME="Tale Search" \
+ENV TALE_VERSION=${VERSION} \
+    SEARCH_INSTANCE_NAME="Tale Search" \
     SEARCH_SECRET_KEY="tale-search-secret-key-change-in-production" \
     SEARCH_BIND_ADDRESS="0.0.0.0" \
     SEARCH_PORT=8080 \

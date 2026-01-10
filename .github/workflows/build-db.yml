@@ -1,15 +1,21 @@
-name: Build Proxy (PR)
+name: Build DB
 
 on:
   pull_request:
     branches:
       - main
     paths:
-      - 'services/proxy/**'
-      - '.github/workflows/build-proxy-pr.yml'
+      - 'services/db/**'
+      - '.github/workflows/build-db.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/db/**'
+      - '.github/workflows/build-db.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -30,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: services/proxy/Dockerfile
+          file: services/db/Dockerfile
           platforms: linux/amd64
           push: false
           cache-from: type=gha
@@ -39,4 +45,4 @@ jobs:
         run: |
           echo "## Docker Image Build Successful! ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The proxy Docker image built successfully." >> $GITHUB_STEP_SUMMARY
+          echo "The DB Docker image built successfully." >> $GITHUB_STEP_SUMMARY

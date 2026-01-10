@@ -9,15 +9,11 @@ on:
         required: false
         default: 'latest'
 
-  # Automatic trigger on tags
+  # Automatic trigger on service-specific tags only
+  # Note: For unified releases, use release.yml with v*.*.* tags
   push:
     tags:
       - 'platform-v*.*.*'
-    branches:
-      - main
-    paths:
-      - 'services/platform/**'
-      - '.github/workflows/build-and-push-platform.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -79,6 +75,21 @@ jobs:
             type=sha,prefix={{branch}}-,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Compute version
+        id: version
+        run: |
+          # For workflow_dispatch, use the input version
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          # For tags, extract version from tag (e.g., platform-v1.0.0 -> v1.0.0)
+          elif [[ "${{ github.ref }}" == refs/tags/platform-v* ]]; then
+            REF_NAME="${{ github.ref_name }}"
+            echo "version=v${REF_NAME#platform-v}" >> "$GITHUB_OUTPUT"
+          # For branches, use branch name or 'dev'
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
@@ -88,6 +99,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
