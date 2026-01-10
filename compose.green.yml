@@ -16,7 +16,7 @@ services:
   # Green Platform
   # ============================================================================
   platform-green:
-    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-dev}
     pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
@@ -66,7 +66,7 @@ services:
   # Green RAG
   # ============================================================================
   rag-green:
-    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-dev}
     pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
@@ -113,7 +113,7 @@ services:
   # Green Crawler
   # ============================================================================
   crawler-green:
-    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-dev}
     pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
@@ -151,7 +151,7 @@ services:
   # Green Search
   # ============================================================================
   search-green:
-    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-dev}
     pull_policy: ${PULL_POLICY:-build}
     build:
       context: .
