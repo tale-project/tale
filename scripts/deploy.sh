@@ -570,6 +570,18 @@ cmd_status() {
   local current_color
   current_color=$(detect_current_color)
   echo -e "  Active Deployment: ${GREEN}${current_color}${NC}"
+
+  # Get version from health endpoint
+  local running_version="unknown"
+  local domain_host
+  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host="${domain_host:-tale.local}"
+
+  local health_response
+  if health_response=$(curl -sf -k --max-time 5 "https://${domain_host}/api/health" 2>/dev/null); then
+    running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+  fi
+  echo -e "  Running Version:   ${CYAN}${running_version}${NC}"
   echo ""
 
   # Stateful services (single instance, not rotated)
