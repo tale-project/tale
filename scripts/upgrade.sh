@@ -141,8 +141,10 @@ main() {
 
   # Step 2: Check GHCR authentication
   log_step "Checking GHCR authentication..."
-  if ! docker pull ghcr.io/tale-project/tale/tale-platform:"$image_tag" --quiet 2>/dev/null; then
-    log_error "Failed to pull image. Please ensure you're logged into GHCR:"
+  local pull_error
+  if ! pull_error=$(docker pull ghcr.io/tale-project/tale/tale-platform:"$image_tag" 2>&1); then
+    log_error "Failed to pull image: ${pull_error}"
+    log_error "Please ensure you're logged into GHCR and the version exists:"
     echo ""
     echo "  docker login ghcr.io -u <github-username>"
     echo ""
@@ -163,14 +165,21 @@ main() {
     "tale-search"
   )
 
+  local failed_images=()
   for image in "${images[@]}"; do
     echo -n "  Pulling ${image}:${image_tag}... "
     if docker pull "ghcr.io/tale-project/tale/${image}:${image_tag}" --quiet >/dev/null 2>&1; then
       echo -e "${GREEN}OK${NC}"
     else
       echo -e "${YELLOW}SKIP${NC} (image not found)"
+      failed_images+=("$image")
     fi
   done
+
+  if [ ${#failed_images[@]} -gt 0 ]; then
+    log_warning "Failed to pull images: ${failed_images[*]}"
+    log_warning "Deployment may fail if these services are required"
+  fi
   log_success "Images pulled successfully"
 
   # Step 4: Deploy with PULL_POLICY=always
@@ -208,7 +217,12 @@ main() {
     local health_response
     if health_response=$(curl -sf -k --max-time 5 "https://${domain_host}/api/health" 2>/dev/null); then
       local running_version
-      running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+      if command -v jq >/dev/null 2>&1; then
+        running_version=$(echo "$health_response" | jq -r '.version // "unknown"')
+      else
+        # Fallback to grep if jq not available
+        running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+      fi
       log_success "Running version: ${running_version}"
     else
       log_warning "Could not verify version via health endpoint"
