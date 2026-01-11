@@ -229,6 +229,10 @@ export interface UseOffsetPaginatedQueryReturn<TData> {
 export interface UseCursorPaginatedQueryReturn<TData> {
   /** Query result data (accumulated pages) */
   data: TData[];
+  /** Error that occurred during query, if any */
+  error: Error | null;
+  /** Whether an error has occurred */
+  isError: boolean;
   /** Whether initial load is in progress */
   isLoading: boolean;
   /** Whether more items are being loaded */
@@ -239,6 +243,8 @@ export interface UseCursorPaginatedQueryReturn<TData> {
   loadMore: () => void;
   /** Reset to initial state */
   reset: () => void;
+  /** Refetch data (alias for reset) */
+  refetch: () => void;
 }
 
 // ============================================================================

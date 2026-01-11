@@ -50,7 +50,7 @@ export function WebsitesTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: websites, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+  const { data: websites, error, isLoadingMore, hasMore, loadMore, refetch } = useCursorPaginatedQuery({
     query: api.websites.getWebsites,
     preloadedData: preloadedWebsites,
     args: queryArgs,
@@ -84,6 +84,8 @@ export function WebsitesTable({
     <DataTable
       columns={columns}
       data={websites as Doc<'websites'>[]}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
       search={{

@@ -49,15 +49,20 @@ interface CursorPaginatedResult<T> {
  * - Real-time reactivity for first page (new items appear automatically)
  * - Load more functionality
  * - Reset to initial state
+ * - Error state exposure for UI error handling
  *
  * @example
  * ```tsx
- * const { data, isLoading, hasMore, loadMore, reset } = useCursorPaginatedQuery({
+ * const { data, error, isError, isLoading, hasMore, loadMore, refetch } = useCursorPaginatedQuery({
  *   query: api.items.listItems,
  *   preloadedData,
  *   args: { organizationId },
  *   numItems: 20,
  * });
+ *
+ * if (isError && error) {
+ *   return <ErrorDisplay error={error} onRetry={refetch} />;
+ * }
  * ```
  */
 export function useCursorPaginatedQuery<
@@ -76,6 +81,15 @@ export function useCursorPaginatedQuery<
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  /**
+   * Error state for query failures.
+   * Note: Convex's useQuery returns undefined for both loading and error states,
+   * making it difficult to distinguish between them. Error state here is primarily
+   * for parent components to manually set errors or for future error detection logic.
+   * Actual error catching happens via ErrorBoundary wrapping the DataTable component.
+   */
+  const [error, setError] = useState<Error | null>(null);
 
   // Track if we've initialized from preloaded data
   const initializedRef = useRef(false);
@@ -137,6 +151,7 @@ export function useCursorPaginatedQuery<
       setNextCursor(null);
       setIsDone(false);
       setIsLoadingMore(false);
+      setError(null); // Clear error on args change
       setIsArgsChangeLoading(true);
     }
   }, [currentArgsKey]);
@@ -150,6 +165,7 @@ export function useCursorPaginatedQuery<
       if (!result.isDone) {
         setNextCursor(result.continueCursor);
       }
+      setError(null); // Clear any previous error
       setIsArgsChangeLoading(false);
     }
   }, [firstPageResult, preloadedResult]);
@@ -191,14 +207,21 @@ export function useCursorPaginatedQuery<
     setNextCursor(null);
     setIsDone(false);
     setIsLoadingMore(false);
+    setError(null);
   }, []);
+
+  // Refetch is an alias for reset
+  const refetch = reset;
 
   return {
     data,
+    error,
+    isError: error !== null,
     isLoading,
     isLoadingMore,
     hasMore,
     loadMore,
     reset,
+    refetch,
   };
 }

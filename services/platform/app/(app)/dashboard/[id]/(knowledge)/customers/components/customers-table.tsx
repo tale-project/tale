@@ -118,7 +118,7 @@ export function CustomersTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: customers, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+  const { data: customers, error, isLoadingMore, hasMore, loadMore, refetch } = useCursorPaginatedQuery({
     query: api.customers.getCustomers,
     preloadedData: preloadedCustomers,
     args: queryArgs,
@@ -134,6 +134,8 @@ export function CustomersTable({
     <DataTable
       columns={columns}
       data={customers}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
       search={searchConfig}

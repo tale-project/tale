@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { ConversationsNavigation } from './components/conversations-navigation';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
@@ -26,11 +26,11 @@ export default async function ConversationsLayout({
         </PageHeader>
         <ConversationsNavigation organizationId={organizationId} />
       </StickyHeader>
-      <ErrorBoundaryWithParams>
+      <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="flex flex-row size-full flex-1 max-h-full">
           {children}
         </ContentWrapper>
-      </ErrorBoundaryWithParams>
+      </LayoutErrorBoundary>
     </>
   );
 }

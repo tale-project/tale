@@ -19,6 +19,12 @@ import type { Id, Doc } from '@/convex/_generated/dataModel';
 import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
 import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
+import { CellErrorBoundary } from '@/components/error-boundaries';
+import {
+  safeGetString,
+  safeGetNumber,
+  safeGetArray,
+} from '@/lib/utils/safe-parsers';
 
 type ApprovalDoc = Doc<'approvals'>;
 
@@ -188,70 +194,49 @@ export function Approvals({
       const metadata = (approval.metadata || {}) as Record<string, unknown>;
 
       // Map recommended products using the canonical shape: productId, productName, relationshipType (camelCase)
-      const recommendedProducts = (
-        Array.isArray(metadata['recommendedProducts'])
-          ? (metadata['recommendedProducts'] as Array<Record<string, unknown>>)
-          : []
+      const recommendedProducts = safeGetArray(
+        metadata,
+        'recommendedProducts',
+        [],
       ).map((product, index: number) => {
-        const id =
-          (typeof product['productId'] === 'string' &&
-            (product['productId'] as string)) ||
-          `rec-${index}`;
-        const name =
-          (typeof product['productName'] === 'string' &&
-            (product['productName'] as string)) ||
-          '';
-        const image =
-          (typeof product['imageUrl'] === 'string' &&
-            (product['imageUrl'] as string)) ||
-          '/assets/placeholder-image.png';
-        const relationshipType =
-          (typeof product['relationshipType'] === 'string' &&
-            (product['relationshipType'] as string)) ||
-          undefined;
-        const reasoning =
-          (typeof product['reasoning'] === 'string' &&
-            (product['reasoning'] as string)) ||
-          undefined;
-        const confidence =
-          (typeof product['confidence'] === 'number' &&
-            (product['confidence'] as number)) ||
-          undefined;
+        const id = safeGetString(product, 'productId', `rec-${index}`);
+        const name = safeGetString(product, 'productName', '');
+        const image = safeGetString(
+          product,
+          'imageUrl',
+          '/assets/placeholder-image.png',
+        );
+        const relationshipType = safeGetString(
+          product,
+          'relationshipType',
+          undefined,
+        );
+        const reasoning = safeGetString(product, 'reasoning', undefined);
+        const confidence = safeGetNumber(product, 'confidence', undefined);
         return { id, name, image, relationshipType, reasoning, confidence };
       });
 
       // Map event products (previous purchases) with direct fallbacks
-      const previousPurchases = (
-        Array.isArray(metadata['eventProducts'])
-          ? (metadata['eventProducts'] as Array<Record<string, unknown>>)
-          : []
+      const previousPurchases = safeGetArray(
+        metadata,
+        'eventProducts',
+        [],
       ).map((product, index: number) => {
-        const id =
-          (typeof product['id'] === 'string' && (product['id'] as string)) ||
-          `prev-${index}`;
+        const id = safeGetString(product, 'id', `prev-${index}`);
         const productName =
-          (typeof product['productName'] === 'string' &&
-            (product['productName'] as string)) ||
-          (typeof product['name'] === 'string' &&
-            (product['name'] as string)) ||
-          (typeof product['product_name'] === 'string' &&
-            (product['product_name'] as string)) ||
-          '';
+          safeGetString(product, 'productName', '') ||
+          safeGetString(product, 'name', '') ||
+          safeGetString(product, 'product_name', '');
         const image =
-          (typeof product['image'] === 'string' &&
-            (product['image'] as string)) ||
-          (typeof product['imageUrl'] === 'string' &&
-            (product['imageUrl'] as string)) ||
-          (typeof product['image_url'] === 'string' &&
-            (product['image_url'] as string)) ||
+          safeGetString(product, 'image', '') ||
+          safeGetString(product, 'imageUrl', '') ||
+          safeGetString(product, 'image_url', '') ||
           '/assets/placeholder-image.png';
-        const purchaseDate =
-          typeof product['purchaseDate'] === 'string'
-            ? (product['purchaseDate'] as string)
-            : undefined;
-        const status =
-          product['status'] === 'active' || product['status'] === 'cancelled'
-            ? (product['status'] as 'active' | 'cancelled')
+        const purchaseDate = safeGetString(product, 'purchaseDate', undefined);
+        const statusValue = safeGetString(product, 'status', undefined);
+        const status: 'active' | 'cancelled' | undefined =
+          statusValue === 'active' || statusValue === 'cancelled'
+            ? statusValue
             : undefined;
         return { id, productName, image, purchaseDate, status };
       });
@@ -299,23 +284,15 @@ export function Approvals({
 
   const renderProductList = useCallback(
     (products: unknown, isRecommendation = false) => {
-      const list: Array<Record<string, unknown>> = Array.isArray(products)
-        ? (products as Array<Record<string, unknown>>)
-        : [];
+      const list = Array.isArray(products) ? products : [];
       if (list.length === 0) return null;
 
       // For recommendations, show first product with full name, second with count
       if (isRecommendation) {
         // Sort by confidence
         const sortedList = [...list].sort((a, b) => {
-          const confA =
-            typeof a['confidence'] === 'number'
-              ? (a['confidence'] as number)
-              : 0;
-          const confB =
-            typeof b['confidence'] === 'number'
-              ? (b['confidence'] as number)
-              : 0;
+          const confA = safeGetNumber(a, 'confidence', 0) ?? 0;
+          const confB = safeGetNumber(b, 'confidence', 0) ?? 0;
           return confB - confA;
         });
 
@@ -324,16 +301,11 @@ export function Approvals({
         const secondProduct = sortedList[1];
 
         const firstName =
-          (typeof firstProduct['name'] === 'string' &&
-            (firstProduct['name'] as string)) ||
-          (typeof firstProduct['productName'] === 'string' &&
-            (firstProduct['productName'] as string)) ||
-          '';
+          safeGetString(firstProduct, 'name', '') ||
+          safeGetString(firstProduct, 'productName', '');
         const firstImage =
-          (typeof firstProduct['image'] === 'string' &&
-            (firstProduct['image'] as string)) ||
-          (typeof firstProduct['imageUrl'] === 'string' &&
-            (firstProduct['imageUrl'] as string)) ||
+          safeGetString(firstProduct, 'image', '') ||
+          safeGetString(firstProduct, 'imageUrl', '') ||
           '/assets/placeholder-image.png';
 
         return (
@@ -359,18 +331,13 @@ export function Approvals({
                 <div className="size-5 bg-muted rounded flex-shrink-0 overflow-hidden">
                   <Image
                     src={
-                      (typeof secondProduct['image'] === 'string' &&
-                        (secondProduct['image'] as string)) ||
-                      (typeof secondProduct['imageUrl'] === 'string' &&
-                        (secondProduct['imageUrl'] as string)) ||
+                      safeGetString(secondProduct, 'image', '') ||
+                      safeGetString(secondProduct, 'imageUrl', '') ||
                       '/assets/placeholder-image.png'
                     }
                     alt={
-                      (typeof secondProduct['name'] === 'string' &&
-                        (secondProduct['name'] as string)) ||
-                      (typeof secondProduct['productName'] === 'string' &&
-                        (secondProduct['productName'] as string)) ||
-                      ''
+                      safeGetString(secondProduct, 'name', '') ||
+                      safeGetString(secondProduct, 'productName', '')
                     }
                     width={20}
                     height={20}
@@ -391,14 +358,11 @@ export function Approvals({
         <Stack gap={1}>
           {list.map((p, index) => {
             const name =
-              (typeof p['name'] === 'string' && (p['name'] as string)) ||
-              (typeof p['productName'] === 'string' &&
-                (p['productName'] as string)) ||
-              '';
+              safeGetString(p, 'name', '') ||
+              safeGetString(p, 'productName', '');
             const image =
-              (typeof p['image'] === 'string' && (p['image'] as string)) ||
-              (typeof p['imageUrl'] === 'string' &&
-                (p['imageUrl'] as string)) ||
+              safeGetString(p, 'image', '') ||
+              safeGetString(p, 'imageUrl', '') ||
               '/assets/placeholder-image.png';
 
             return (
@@ -429,10 +393,8 @@ export function Approvals({
     (approval: ApprovalDoc) => {
       const metadata = (approval.metadata || {}) as Record<string, unknown>;
       return (
-        (typeof metadata['customerName'] === 'string' &&
-          (metadata['customerName'] as string).trim()) ||
-        (typeof metadata['customerEmail'] === 'string' &&
-          (metadata['customerEmail'] as string).trim()) ||
+        safeGetString(metadata, 'customerName', '').trim() ||
+        safeGetString(metadata, 'customerEmail', '').trim() ||
         t('columns.unknownCustomer')
       );
     },
@@ -442,17 +404,10 @@ export function Approvals({
   // Helper to get confidence percentage
   const getConfidencePercent = useCallback((approval: ApprovalDoc) => {
     const metadata = (approval.metadata || {}) as Record<string, unknown>;
-    const recs = Array.isArray(metadata['recommendedProducts'])
-      ? (metadata['recommendedProducts'] as Array<Record<string, unknown>>)
-      : [];
+    const recs = safeGetArray(metadata, 'recommendedProducts', []);
     const firstConf =
-      recs.length > 0 && typeof recs[0]['confidence'] === 'number'
-        ? (recs[0]['confidence'] as number)
-        : 0;
-    const raw =
-      typeof metadata['confidence'] === 'number'
-        ? (metadata['confidence'] as number)
-        : firstConf;
+      recs.length > 0 ? safeGetNumber(recs[0], 'confidence', 0) : 0;
+    const raw = safeGetNumber(metadata, 'confidence', firstConf);
     const n = Number(raw);
     return !Number.isFinite(n)
       ? 0
@@ -496,9 +451,13 @@ export function Approvals({
               <div className="text-xs font-medium text-foreground">
                 {t('labels.purchase')}
               </div>
-              {renderProductList(
-                (metadata['eventProducts'] as Array<unknown>) || [],
-              )}
+              <CellErrorBoundary
+                fallback={
+                  <span className="text-xs text-muted-foreground">—</span>
+                }
+              >
+                {renderProductList(safeGetArray(metadata, 'eventProducts', []))}
+              </CellErrorBoundary>
             </div>
           );
         },
@@ -517,10 +476,16 @@ export function Approvals({
               <div className="text-xs font-medium text-foreground">
                 {t('labels.recommendation')}
               </div>
-              {renderProductList(
-                (metadata['recommendedProducts'] as Array<unknown>) || [],
-                true,
-              )}
+              <CellErrorBoundary
+                fallback={
+                  <span className="text-xs text-muted-foreground">—</span>
+                }
+              >
+                {renderProductList(
+                  safeGetArray(metadata, 'recommendedProducts', []),
+                  true,
+                )}
+              </CellErrorBoundary>
             </div>
           );
         },
@@ -638,9 +603,13 @@ export function Approvals({
               <div className="text-xs font-medium text-foreground">
                 {t('labels.purchase')}
               </div>
-              {renderProductList(
-                (metadata['eventProducts'] as Array<unknown>) || [],
-              )}
+              <CellErrorBoundary
+                fallback={
+                  <span className="text-xs text-muted-foreground">—</span>
+                }
+              >
+                {renderProductList(safeGetArray(metadata, 'eventProducts', []))}
+              </CellErrorBoundary>
             </div>
           );
         },
@@ -659,10 +628,16 @@ export function Approvals({
               <div className="text-xs font-medium text-foreground">
                 {t('labels.recommendation')}
               </div>
-              {renderProductList(
-                (metadata['recommendedProducts'] as Array<unknown>) || [],
-                true,
-              )}
+              <CellErrorBoundary
+                fallback={
+                  <span className="text-xs text-muted-foreground">—</span>
+                }
+              >
+                {renderProductList(
+                  safeGetArray(metadata, 'recommendedProducts', []),
+                  true,
+                )}
+              </CellErrorBoundary>
             </div>
           );
         },
@@ -677,7 +652,8 @@ export function Approvals({
           >;
           return (
             <div className="text-sm">
-              {(metadata['approverName'] as string) || t('columns.unknown')}
+              {safeGetString(metadata, 'approverName', '') ||
+                t('columns.unknown')}
             </div>
           );
         },

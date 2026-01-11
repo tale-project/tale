@@ -220,7 +220,7 @@ export function ExecutionsTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: executions, isLoading, isLoadingMore, hasMore, loadMore } =
+  const { data: executions, error, isLoading, isLoadingMore, hasMore, loadMore, refetch } =
     useCursorPaginatedQuery({
       query: api.wf_executions.listExecutionsCursor,
       preloadedData: preloadedExecutions,
@@ -403,6 +403,8 @@ export function ExecutionsTable({
       className="py-6 px-4"
       columns={columns}
       data={executions}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
