@@ -4,6 +4,8 @@ import * as React from 'react';
 import { Dialog } from './dialog';
 import type { DialogSize } from './dialog';
 import { cn } from '@/lib/utils/cn';
+import { DialogErrorBoundary } from '@/components/error-boundaries';
+import { useOrganizationId } from '@/hooks/use-organization-id';
 
 export interface ViewDialogProps {
   /** Whether the dialog is open */
@@ -28,6 +30,10 @@ export interface ViewDialogProps {
   headerActions?: React.ReactNode;
   /** Additional className for DialogHeader */
   headerClassName?: string;
+  /** Enable error boundary (default: true) */
+  enableErrorBoundary?: boolean;
+  /** Callback when error occurs */
+  onError?: (error: Error) => void;
 }
 
 /**
@@ -46,7 +52,11 @@ export function ViewDialog({
   size,
   headerActions,
   headerClassName,
+  enableErrorBoundary = true,
+  onError,
 }: ViewDialogProps) {
+  const orgId = useOrganizationId();
+
   return (
     <Dialog
       open={open ?? false}
@@ -60,7 +70,19 @@ export function ViewDialog({
       headerActions={headerActions}
       headerClassName={headerClassName}
     >
-      {children}
+      {enableErrorBoundary ? (
+        <DialogErrorBoundary
+          organizationId={orgId}
+          onError={(error) => {
+            onError?.(error);
+            onOpenChange?.(false);
+          }}
+        >
+          {children}
+        </DialogErrorBoundary>
+      ) : (
+        children
+      )}
     </Dialog>
   );
 }

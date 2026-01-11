@@ -61,7 +61,7 @@ export function DocumentTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: items, isLoadingMore, hasMore, loadMore } =
+  const { data: items, error, isLoadingMore, hasMore, loadMore, refetch } =
     useCursorPaginatedQuery({
       query: api.documents.getDocumentsCursor,
       preloadedData: preloadedDocuments,
@@ -282,6 +282,8 @@ export function DocumentTable({
       <DataTable
         columns={columns}
         data={items as DocumentItem[]}
+        error={error}
+        onRetry={refetch}
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}

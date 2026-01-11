@@ -51,7 +51,7 @@ export function VendorsTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: vendors, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+  const { data: vendors, error, isLoadingMore, hasMore, loadMore, refetch } = useCursorPaginatedQuery({
     query: api.vendors.getVendors,
     preloadedData: preloadedVendors,
     args: queryArgs,
@@ -102,6 +102,8 @@ export function VendorsTable({
     <DataTable
       columns={columns}
       data={vendors}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
       search={{

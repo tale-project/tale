@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { KnowledgeNavigation } from './components/knowledge-navigation';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
@@ -21,7 +21,9 @@ interface KnowledgeLayoutProps {
  */
 export default async function KnowledgeLayout({
   children,
+  params,
 }: KnowledgeLayoutProps) {
+  const { id: organizationId } = await params;
   const { t } = await getT('knowledge');
 
   return (
@@ -32,9 +34,9 @@ export default async function KnowledgeLayout({
         </PageHeader>
         <KnowledgeNavigation />
       </StickyHeader>
-      <ErrorBoundaryWithParams>
+      <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="py-6 px-4">{children}</ContentWrapper>
-      </ErrorBoundaryWithParams>
+      </LayoutErrorBoundary>
     </>
   );
 }

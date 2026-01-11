@@ -11,7 +11,7 @@ import { useUpdateAutomation } from './hooks/use-update-automation';
 import { ReactNode, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { AutomationNavigation } from './components/automation-navigation';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { PageHeader } from '@/components/layout/page-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
@@ -155,7 +155,9 @@ export default function AutomationsLayout({
           userRole={userContext?.member?.role ?? 'Member'}
         />
       </StickyHeader>
-      <ErrorBoundaryWithParams>{children}</ErrorBoundaryWithParams>
+      <LayoutErrorBoundary organizationId={params.id as string}>
+        {children}
+      </LayoutErrorBoundary>
     </>
   );
 }

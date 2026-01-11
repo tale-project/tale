@@ -1,6 +1,6 @@
 'use client';
 
-import { DashboardErrorBoundary } from '@/components/error-boundary';
+import { PageErrorBoundary } from '@/components/error-boundaries';
 import { useParams } from 'next/navigation';
 
 interface ErrorProps {
@@ -13,6 +13,6 @@ export default function DashboardError({ error, reset: _reset }: ErrorProps) {
   const organizationId = params.id as string | undefined;
 
   return (
-    <DashboardErrorBoundary error={error} organizationId={organizationId} />
+    <PageErrorBoundary error={error} organizationId={organizationId} />
   );
 }

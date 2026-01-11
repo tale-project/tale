@@ -60,7 +60,7 @@ export function ProductTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: products, isLoadingMore, hasMore, loadMore } =
+  const { data: products, error, isLoadingMore, hasMore, loadMore, refetch } =
     useCursorPaginatedQuery({
       query: api.products.getProductsCursor,
       preloadedData: preloadedProducts,
@@ -91,6 +91,8 @@ export function ProductTable({
     <DataTable
       columns={columns}
       data={products}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row.id}
       stickyLayout={stickyLayout}
       search={{

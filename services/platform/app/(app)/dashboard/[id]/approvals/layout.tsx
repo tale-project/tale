@@ -4,7 +4,7 @@ import { ApprovalsNavigation } from './components/approvals-navigation';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { getT } from '@/lib/i18n/server';
 
 interface ApprovalsLayoutProps {
@@ -28,9 +28,9 @@ export default async function ApprovalsLayout({
         </PageHeader>
         <ApprovalsNavigation organizationId={organizationId} />
       </StickyHeader>
-      <ErrorBoundaryWithParams>
+      <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="px-4 py-6">{children}</ContentWrapper>
-      </ErrorBoundaryWithParams>
+      </LayoutErrorBoundary>
     </>
   );
 }

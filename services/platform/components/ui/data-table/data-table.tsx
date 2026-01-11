@@ -29,6 +29,11 @@ import { cn } from '@/lib/utils/cn';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
+import { useOrganizationId } from '@/hooks/use-organization-id';
+import {
+  ErrorBoundaryBase,
+  ErrorDisplayCompact,
+} from '@/components/error-boundaries';
 import {
   DataTableEmptyState,
   DataTableFilteredEmptyState,
@@ -117,6 +122,10 @@ export interface DataTableProps<TData> {
   footer?: ReactNode;
   /** Enable sticky layout with header at top and pagination at bottom */
   stickyLayout?: boolean;
+  /** Error from query, if any */
+  error?: Error | null;
+  /** Callback when retry is clicked */
+  onRetry?: () => void;
 }
 
 /**
@@ -160,8 +169,22 @@ export function DataTable<TData>({
   footer,
   stickyLayout = false,
   infiniteScroll,
+  error,
+  onRetry,
 }: DataTableProps<TData>) {
   const { t } = useT('common');
+  const orgId = useOrganizationId();
+
+  // If error prop provided, show error display instead of table
+  if (error) {
+    return (
+      <ErrorDisplayCompact
+        error={error}
+        organizationId={orgId}
+        reset={onRetry || (() => {})}
+      />
+    );
+  }
 
   // Extract sorting config - presence of sortingConfig enables sorting
   const enableSorting = !!sortingConfig;
@@ -430,32 +453,54 @@ export function DataTable<TData>({
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {
     return (
-      <div className={cn('space-y-4', className)}>
-        {headerContent}
-        <div className="rounded-xl border border-border">
-          {tableContent}
-          {infiniteScrollContent}
+      <ErrorBoundaryBase
+        organizationId={orgId}
+        fallback={({ error, reset }) => (
+          <ErrorDisplayCompact
+            error={error}
+            organizationId={orgId}
+            reset={reset}
+          />
+        )}
+      >
+        <div className={cn('space-y-4', className)}>
+          {headerContent}
+          <div className="rounded-xl border border-border">
+            {tableContent}
+            {infiniteScrollContent}
+          </div>
+          {paginationContent}
+          {footer}
         </div>
-        {paginationContent}
-        {footer}
-      </div>
+      </ErrorBoundaryBase>
     );
   }
 
   // Sticky layout: flex layout with fixed header/footer and scrollable table
   return (
-    <div className={cn('flex flex-col flex-1 min-h-0', className)}>
-      {headerContent && (
-        <div className="flex-shrink-0 pb-4">{headerContent}</div>
+    <ErrorBoundaryBase
+      organizationId={orgId}
+      fallback={({ error, reset }) => (
+        <ErrorDisplayCompact
+          error={error}
+          organizationId={orgId}
+          reset={reset}
+        />
       )}
-      <div className="min-h-0 overflow-auto rounded-xl border border-border">
-        {tableContent}
-        {infiniteScrollContent}
+    >
+      <div className={cn('flex flex-col flex-1 min-h-0', className)}>
+        {headerContent && (
+          <div className="flex-shrink-0 pb-4">{headerContent}</div>
+        )}
+        <div className="min-h-0 overflow-auto rounded-xl border border-border">
+          {tableContent}
+          {infiniteScrollContent}
+        </div>
+        {paginationContent && (
+          <div className="flex-shrink-0 pt-6">{paginationContent}</div>
+        )}
+        {footer}
       </div>
-      {paginationContent && (
-        <div className="flex-shrink-0 pt-6">{paginationContent}</div>
-      )}
-      {footer}
-    </div>
+    </ErrorBoundaryBase>
   );
 }
