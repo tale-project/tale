@@ -217,7 +217,7 @@ export const websiteScanWorkflow = {
       stepType: 'loop',
       order: 9,
       config: {
-        items: "{{steps.discover_urls.output.data.urls|map('url')}}",
+        items: '{{steps.discover_urls.output.data.urls}}',
         itemVariable: 'url',
       },
       nextSteps: {
