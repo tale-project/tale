@@ -357,6 +357,35 @@ export function ChatInterface({
       });
   }, [uiMessages]);
 
+  // Track the timestamp when optimistic message was created to avoid matching older messages
+  const optimisticMessageTimestampRef = useRef<number | null>(null);
+
+  // Update timestamp when optimistic message is set
+  useEffect(() => {
+    if (optimisticMessage?.content) {
+      optimisticMessageTimestampRef.current = Date.now();
+    }
+  }, [optimisticMessage?.content]);
+
+  // Check if a server message matching the optimistic message already exists
+  // This prevents showing duplicates during the brief window between
+  // server message arrival and useEffect clearing the optimistic state
+  const hasMatchingServerMessage = useMemo(() => {
+    if (!optimisticMessage?.content || !optimisticMessageTimestampRef.current) {
+      return false;
+    }
+    const searchStartTime = optimisticMessageTimestampRef.current - 500;
+    return threadMessages?.some((m) => {
+      if (m.role !== 'user') return false;
+      const messageTime = m._creationTime || m.timestamp.getTime();
+      if (messageTime < searchStartTime) return false;
+      return (
+        m.content === optimisticMessage.content ||
+        m.content.startsWith(optimisticMessage.content)
+      );
+    });
+  }, [threadMessages, optimisticMessage?.content]);
+
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
     (m) => m.role === 'assistant' && m.status === 'streaming',
@@ -485,17 +514,7 @@ export function ChatInterface({
     }
   }, [streamingMessage, isPending, setIsPending]);
 
-  // Clear optimistic message when it appears in actual messages
-  // Track the timestamp when optimistic message was created to avoid matching older messages
-  const optimisticMessageTimestampRef = useRef<number | null>(null);
-
-  // Update timestamp when optimistic message is set
-  useEffect(() => {
-    if (optimisticMessage?.content) {
-      optimisticMessageTimestampRef.current = Date.now();
-    }
-  }, [optimisticMessage?.content]);
-
+  // Clear optimistic message when it appears in actual messages (fallback cleanup)
   useEffect(() => {
     if (
       optimisticMessage?.content &&
@@ -805,7 +824,7 @@ export function ChatInterface({
                   );
                 }
               })}
-              {userDraftMessage && (
+              {userDraftMessage && !hasMatchingServerMessage && (
                 <MessageBubble
                   key={'user-draft'}
                   message={{
@@ -822,11 +841,16 @@ export function ChatInterface({
               {/* AI Response area - ref used for scroll positioning */}
               {/* Show ThinkingAnimation when:
                   1. Waiting for AI response (isPending, no streaming yet), OR
-                  2. Streaming started but no text content yet (prevents blank gap), OR
-                  3. Tools are actively executing (even if text has started streaming) */}
+                  2. Message is streaming but has no text content yet, OR
+                  3. Tools are actively executing (even if text has started streaming)
+
+                  Note: We check status === 'streaming' explicitly to ensure the indicator
+                  stays visible during gaps in tool state transitions (when one tool completes
+                  but no text has been output yet). */}
               <div ref={aiResponseAreaRef}>
                 {((isPending && !streamingMessage) ||
-                  (streamingMessage && !streamingMessage.text) ||
+                  (streamingMessage?.status === 'streaming' &&
+                    !streamingMessage.text) ||
                   hasActiveTools) && (
                   <ThinkingAnimation
                     threadId={threadId}
