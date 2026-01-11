@@ -132,7 +132,7 @@ async function discoverUrls(
     success: result.success,
     domain: result.domain,
     urls_discovered: result.urls_discovered,
-    urls: result.urls.map((u: { url: string }) => u.url),
+    urls: result.urls.map((u) => u.url),
   };
 }
 
