@@ -17,7 +17,8 @@ export type CrawlerActionParams =
       timeout?: number;
     };
 
-export interface DiscoverUrlsData {
+// Raw response from crawler service (includes metadata)
+export interface DiscoverUrlsRawData {
   success: boolean;
   domain: string;
   urls_discovered: number;
@@ -26,6 +27,14 @@ export interface DiscoverUrlsData {
     status: string;
     metadata?: Record<string, unknown>;
   }>;
+}
+
+// Simplified result returned by action (only URL strings to avoid memory issues)
+export interface DiscoverUrlsData {
+  success: boolean;
+  domain: string;
+  urls_discovered: number;
+  urls: string[];
 }
 
 export interface FetchUrlsData {

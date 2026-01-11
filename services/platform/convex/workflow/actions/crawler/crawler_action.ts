@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type {
   CrawlerActionParams,
-  DiscoverUrlsData,
+  DiscoverUrlsRawData,
   DiscoverUrlsResult,
   FetchUrlsData,
   FetchUrlsResult,
@@ -115,7 +115,7 @@ async function discoverUrls(
     throw new Error(`Crawler service error (${response.status}): ${errorText}`);
   }
 
-  const result: DiscoverUrlsData = await response.json();
+  const result: DiscoverUrlsRawData = await response.json();
 
   if (!result.success) {
     const errorMessage =
@@ -125,8 +125,15 @@ async function discoverUrls(
 
   debugLog(`Discovered ${result.urls_discovered} URLs from ${domain}`);
 
-  // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  return result;
+  // Return simplified result - only keep URL strings to avoid memory issues
+  // The full metadata from crawler service can be 10+ MB for 1000 URLs,
+  // which exceeds Convex's 64 MB memory limit during serialization
+  return {
+    success: result.success,
+    domain: result.domain,
+    urls_discovered: result.urls_discovered,
+    urls: result.urls.map((u) => u.url),
+  };
 }
 
 async function fetchUrls(

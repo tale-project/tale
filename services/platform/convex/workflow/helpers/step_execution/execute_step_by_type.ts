@@ -13,6 +13,29 @@ export async function executeStepByType(
   executionId: string,
   threadId?: string,
 ): Promise<StepExecutionResult> {
+  /**
+   * Build minimal steps metadata to avoid exceeding Convex's 16 MiB argument limit.
+   * Full step outputs are excluded since template variables are already resolved
+   * before executeStepByType is called (see execute_step_handler.ts).
+   */
+  function buildMinimalSteps(
+    steps: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const minimal: Record<string, unknown> = {};
+    for (const [slug, step] of Object.entries(steps)) {
+      if (step && typeof step === 'object') {
+        const s = step as Record<string, unknown>;
+        minimal[slug] = {
+          stepType: s.stepType,
+          name: s.name,
+          hasOutput: s.output !== undefined,
+          // Exclude full output to prevent argument size overflow
+        };
+      }
+    }
+    return minimal;
+  }
+
   function buildVariablesForAction(
     variables: Record<string, unknown>,
   ): Record<string, unknown> {
@@ -41,6 +64,9 @@ export async function executeStepByType(
     for (const [key, value] of Object.entries(variables)) {
       if (key === 'loop') {
         result.loop = trimLoop(value, 0);
+      } else if (key === 'steps') {
+        // Pass only step metadata, not full outputs, to stay under 16 MiB limit
+        result.steps = buildMinimalSteps(value as Record<string, unknown>);
       } else {
         result[key] = value;
       }
