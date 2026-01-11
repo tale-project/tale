@@ -17,27 +17,6 @@ export async function persistExecutionResult(
   stepsMap: Record<string, unknown>,
   essentialLoop?: Record<string, unknown>,
 ): Promise<void> {
-  // Debug: Log loop variables being persisted
-  if (result.variables?.loop || essentialLoop) {
-    debugLog('persistExecutionResult Loop variables:', {
-      stepSlug: stepDef.stepSlug,
-      resultLoop: result.variables?.loop
-        ? {
-            hasParent: !!(result.variables.loop as Record<string, unknown>)
-              .parent,
-            itemType: typeof (result.variables.loop as Record<string, unknown>)
-              .item,
-          }
-        : undefined,
-      essentialLoop: essentialLoop
-        ? {
-            hasParent: !!essentialLoop.parent,
-            itemType: typeof essentialLoop.item,
-          }
-        : undefined,
-    });
-  }
-
   const merged: Record<string, unknown> = {
     ...baseVariables,
     lastOutput: result.output,

@@ -692,7 +692,6 @@ import type * as workflow_helpers_step_execution_execute_step_by_type from "../w
 import type * as workflow_helpers_step_execution_extract_essential_loop_variables from "../workflow/helpers/step_execution/extract_essential_loop_variables.js";
 import type * as workflow_helpers_step_execution_extract_loop_variables from "../workflow/helpers/step_execution/extract_loop_variables.js";
 import type * as workflow_helpers_step_execution_extract_steps_with_outputs from "../workflow/helpers/step_execution/extract_steps_with_outputs.js";
-import type * as workflow_helpers_step_execution_get_step_output from "../workflow/helpers/step_execution/get_step_output.js";
 import type * as workflow_helpers_step_execution_initialize_execution_variables from "../workflow/helpers/step_execution/initialize_execution_variables.js";
 import type * as workflow_helpers_step_execution_load_and_validate_execution from "../workflow/helpers/step_execution/load_and_validate_execution.js";
 import type * as workflow_helpers_step_execution_merge_execution_variables from "../workflow/helpers/step_execution/merge_execution_variables.js";
@@ -1421,7 +1420,6 @@ declare const fullApi: ApiFromModules<{
   "workflow/helpers/step_execution/extract_essential_loop_variables": typeof workflow_helpers_step_execution_extract_essential_loop_variables;
   "workflow/helpers/step_execution/extract_loop_variables": typeof workflow_helpers_step_execution_extract_loop_variables;
   "workflow/helpers/step_execution/extract_steps_with_outputs": typeof workflow_helpers_step_execution_extract_steps_with_outputs;
-  "workflow/helpers/step_execution/get_step_output": typeof workflow_helpers_step_execution_get_step_output;
   "workflow/helpers/step_execution/initialize_execution_variables": typeof workflow_helpers_step_execution_initialize_execution_variables;
   "workflow/helpers/step_execution/load_and_validate_execution": typeof workflow_helpers_step_execution_load_and_validate_execution;
   "workflow/helpers/step_execution/merge_execution_variables": typeof workflow_helpers_step_execution_merge_execution_variables;
