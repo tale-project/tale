@@ -32,8 +32,9 @@ export const getUserIdByEmail = query({
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     // Query Better Auth's user table to find user by email
-    const result: BetterAuthFindManyResult<BetterAuthUser> =
-      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    const result: BetterAuthFindManyResult<BetterAuthUser> = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
         model: 'user',
         paginationOpts: {
           cursor: null,
@@ -46,7 +47,8 @@ export const getUserIdByEmail = query({
             operator: 'eq',
           },
         ],
-      });
+      },
+    );
 
     if (result && result.page.length > 0) {
       // Return Better Auth's internal user ID (_id)
@@ -71,7 +73,11 @@ export const listByOrganization = queryWithRLS({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1000 },
         where: [
-          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
         ],
       });
 
@@ -150,7 +156,11 @@ export const getCurrentMemberContext = queryWithRLS({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: authUser.userId, operator: 'eq' },
         ],
       });
@@ -341,7 +351,8 @@ export const addMember = mutationWithRLS({
         },
       },
     );
-    const memberId = createdResult._id ?? createdResult.id ?? String(createdResult);
+    const memberId =
+      createdResult._id ?? createdResult.id ?? String(createdResult);
 
     return { memberId };
   },
@@ -419,6 +430,75 @@ export const updateMemberRole = mutationWithRLS({
     });
 
     // TODO: Add audit log entry in a dedicated audit table (not wfLogs)
+    return null;
+  },
+});
+
+export const updateMemberDisplayName = mutationWithRLS({
+  args: {
+    memberId: v.string(),
+    displayName: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const trustedHeadersEnabled =
+      process.env.TRUSTED_HEADERS_ENABLED === 'true';
+    if (trustedHeadersEnabled) {
+      throw new Error(
+        'Organization membership is managed by your identity provider and cannot be edited here.',
+      );
+    }
+
+    // Load the target member to get userId
+    const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
+      });
+    const member = memberRes?.page?.[0];
+    if (!member) {
+      throw new Error('Member not found');
+    }
+
+    const currentUser = await getAuthenticatedUser(ctx);
+    if (!currentUser) {
+      throw new Error('Not authenticated');
+    }
+
+    // Get current user's member record to check admin status
+    const currentMemberRes: BetterAuthFindManyResult<BetterAuthMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'member',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          {
+            field: 'organizationId',
+            value: member.organizationId,
+            operator: 'eq',
+          },
+          { field: 'userId', value: currentUser.userId, operator: 'eq' },
+        ],
+      });
+    const currentMember = currentMemberRes?.page?.[0];
+    const isAdmin = currentMember?.role?.toLowerCase() === 'admin';
+    const isEditingSelf = member.userId === currentUser.userId;
+
+    // Only admins can edit other users' names, but users can edit their own
+    if (!isAdmin && !isEditingSelf) {
+      throw new Error('Only admins can edit other members');
+    }
+
+    // Update the user's name in Better Auth
+    await ctx.runMutation(components.betterAuth.adapter.updateMany, {
+      input: {
+        model: 'user',
+        update: { name: args.displayName },
+        where: [{ field: '_id', value: member.userId, operator: 'eq' }],
+      },
+      paginationOpts: { cursor: null, numItems: 1 },
+    });
+
     return null;
   },
 });
@@ -533,7 +613,11 @@ export const getMemberRoleInternal = internalQuery({
         model: 'member',
         paginationOpts: { cursor: null, numItems: 1 },
         where: [
-          { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+          {
+            field: 'organizationId',
+            value: args.organizationId,
+            operator: 'eq',
+          },
           { field: 'userId', value: args.userId, operator: 'eq' },
         ],
       });
