@@ -58,7 +58,9 @@ export function UserButton({
   // Skip query when user is not authenticated or organizationId is missing
   const memberContext = useQuery(
     api.member.getCurrentMemberContext,
-    organizationId && user ? { organizationId: organizationId as string } : 'skip',
+    organizationId && user
+      ? { organizationId: organizationId as string }
+      : 'skip',
   );
 
   const handleSignOut = async () => {
@@ -78,7 +80,10 @@ export function UserButton({
     }
   };
 
-  const displayName = memberContext?.member?.displayName || user?.name || t('userButton.defaultName');
+  const displayName =
+    memberContext?.member?.displayName ||
+    user?.name ||
+    t('userButton.defaultName');
 
   const triggerContent = (
     <div
@@ -100,7 +105,9 @@ export function UserButton({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>{triggerContent}</DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild>
+                {triggerContent}
+              </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent side="right">
               {tooltipText ?? t('userButton.manageAccount')}
@@ -114,7 +121,7 @@ export function UserButton({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex flex-col space-y-1 cursor-default">
+                <div className="flex flex-col gap-1 cursor-default">
                   {loading || !user ? (
                     <>
                       <Skeleton className="h-4 w-32" />
@@ -122,12 +129,14 @@ export function UserButton({
                     </>
                   ) : (
                     <>
-                      <p className="text-base font-semibold text-foreground leading-none">
+                      <p className="text-sm font-semibold text-foreground">
                         {displayName}
                       </p>
-                      <p className="text-sm text-muted-foreground leading-none">
-                        {user.email}
-                      </p>
+                      {displayName !== user.email && (
+                        <p className="text-sm text-muted-foreground">
+                          {user.email}
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
@@ -144,23 +153,25 @@ export function UserButton({
         <DropdownMenuSeparator />
 
         {/* Settings - Only visible for Admin and Developer roles */}
-        {!loading && user && (() => {
-          const userRole = (memberContext?.role ?? '').toLowerCase();
-          return userRole === 'admin' || userRole === 'developer';
-        })() && (
-          <>
-            <DropdownMenuItem
-              onClick={() =>
-                router.push(`/dashboard/${organizationId}/settings`)
-              }
-              className="py-2.5"
-            >
-              <Settings className="mr-3 size-4" />
-              <span>{t('userButton.settings')}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
+        {!loading &&
+          user &&
+          (() => {
+            const userRole = (memberContext?.role ?? '').toLowerCase();
+            return userRole === 'admin' || userRole === 'developer';
+          })() && (
+            <>
+              <DropdownMenuItem
+                onClick={() =>
+                  router.push(`/dashboard/${organizationId}/settings`)
+                }
+                className="py-2.5"
+              >
+                <Settings className="mr-3 size-4" />
+                <span>{t('userButton.settings')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
 
         <div className="flex items-center justify-between gap-2 rounded-lg bg-secondary/20 p-1">
           <Button
