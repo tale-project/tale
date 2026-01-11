@@ -29,7 +29,7 @@
     "@convex-dev/workpool": "0.3.0",
     "@dmitryrechkin/json-schema-to-zod": "1.0.1",
     "@hookform/resolvers": "5.2.2",
-    "@microlink/react-json-view": "1.27.0",
+    "@microlink/react-json-view": "1.27.1",
     "@microsoft/mgt-react": "4.6.0",
     "@milkdown/crepe": "7.17.2",
     "@milkdown/react": "7.17.2",
