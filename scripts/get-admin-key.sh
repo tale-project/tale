@@ -1,14 +1,24 @@
 #!/bin/bash
-# Small helper to print the Convex admin key from the running platform container.
-# This is just a thin wrapper around the platform's generate_admin_key.sh script.
+# Generate an admin key from the running platform container.
+# Works with both standard deployment and blue-green deployment.
 #
-# Usage (from repo root):
-#   docker compose exec platform ./generate_admin_key.sh
-# or equivalently:
+# Usage:
 #   ./scripts/get-admin-key.sh
 
 set -e
 
-# Forward all arguments to the script inside the container, in case we add flags later.
-docker compose exec platform ./generate_admin_key.sh "$@"
+# Detect the running platform container
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^tale-platform-blue$'; then
+  CONTAINER="tale-platform-blue"
+elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^tale-platform-green$'; then
+  CONTAINER="tale-platform-green"
+elif docker ps --format '{{.Names}}' 2>/dev/null | grep -qE '^tale[-_]platform'; then
+  CONTAINER=$(docker ps --format '{{.Names}}' | grep -E '^tale[-_]platform' | head -1)
+else
+  echo "Error: No platform container is running" >&2
+  echo "Start the platform with: docker compose up -d" >&2
+  exit 1
+fi
+
+docker exec -it "$CONTAINER" ./generate_admin_key.sh "$@"
 
