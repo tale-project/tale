@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { UserButton } from '@/components/user-button';
 import { TaleLogoText } from '@/components/ui/logo/tale-logo-text';
 import { HStack, Spacer } from '@/components/ui/layout';
-import { DashboardErrorBoundary } from '@/components/error-boundary';
+import { PageErrorBoundary } from '@/components/error-boundaries';
 
 interface AppErrorProps {
   error: Error & { digest?: string };
@@ -13,7 +13,7 @@ interface AppErrorProps {
 
 export default function AppError({ error, reset: _reset }: AppErrorProps) {
   return (
-    <DashboardErrorBoundary
+    <PageErrorBoundary
       error={error}
       header={
         <HStack className="pt-8 px-20">

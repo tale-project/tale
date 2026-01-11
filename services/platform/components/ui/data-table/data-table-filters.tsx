@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
+import { SuspenseBoundary } from '@/components/error-boundaries';
 
 // Dynamically load DatePickerWithRange (~40KB react-datepicker)
 const DatePickerWithRange = dynamic(
@@ -205,10 +206,19 @@ export function DataTableFilters({
         )}
 
         {dateRange && (
-          <DatePickerWithRange
-            defaultDate={{ from: dateRange.from, to: dateRange.to }}
-            onChange={dateRange.onChange}
-          />
+          <SuspenseBoundary
+            fallback={<Skeleton className="h-9 w-[24rem]" />}
+            errorFallback={
+              <span className="text-sm text-muted-foreground">
+                Date filter unavailable
+              </span>
+            }
+          >
+            <DatePickerWithRange
+              defaultDate={{ from: dateRange.from, to: dateRange.to }}
+              onChange={dateRange.onChange}
+            />
+          </SuspenseBoundary>
         )}
 
         {children}

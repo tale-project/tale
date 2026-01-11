@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { api } from '@/convex/_generated/api';
 import { SettingsNavigation } from './components/settings-navigation';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
@@ -56,9 +56,9 @@ export default async function SettingsLayout({
           canChangePassword={canChangePassword}
         />
       </StickyHeader>
-      <ErrorBoundaryWithParams>
+      <LayoutErrorBoundary organizationId={organizationId}>
         <ContentWrapper className="p-4">{children}</ContentWrapper>
-      </ErrorBoundaryWithParams>
+      </LayoutErrorBoundary>
     </>
   );
 }

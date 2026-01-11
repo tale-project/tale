@@ -7,6 +7,8 @@ import { Form } from '../form';
 import { Stack } from '../layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
+import { DialogErrorBoundary } from '@/components/error-boundaries';
+import { useOrganizationId } from '@/hooks/use-organization-id';
 
 export interface FormDialogProps {
   /** Whether the dialog is open */
@@ -41,6 +43,10 @@ export interface FormDialogProps {
   large?: boolean;
   /** Optional trigger element that opens the dialog */
   trigger?: React.ReactNode;
+  /** Enable error boundary (default: true) */
+  enableErrorBoundary?: boolean;
+  /** Callback when error occurs */
+  onError?: (error: Error) => void;
 }
 
 /**
@@ -64,8 +70,11 @@ export function FormDialog({
   customFooter,
   large = false,
   trigger,
+  enableErrorBoundary = true,
+  onError,
 }: FormDialogProps) {
   const { t: tCommon } = useT('common');
+  const orgId = useOrganizationId();
 
   const handleClose = () => {
     if (!isSubmitting) {
@@ -103,9 +112,23 @@ export function FormDialog({
       customHeader={customHeader}
     >
       <Form onSubmit={onSubmit ?? ((e) => e.preventDefault())} className="space-y-0 contents">
-        <Stack>
-          {children}
-        </Stack>
+        {enableErrorBoundary ? (
+          <DialogErrorBoundary
+            organizationId={orgId}
+            onError={(error) => {
+              onError?.(error);
+              onOpenChange?.(false);
+            }}
+          >
+            <Stack>
+              {children}
+            </Stack>
+          </DialogErrorBoundary>
+        ) : (
+          <Stack>
+            {children}
+          </Stack>
+        )}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
           {footer}
         </div>

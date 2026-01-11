@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { createContext, useContext, useState, useCallback } from 'react';
 import { ChatHeader } from './components/chat-header';
-import { ErrorBoundaryWithParams } from '@/components/error-boundary';
+import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n';
 
@@ -75,7 +75,9 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
     >
       <div className="flex flex-col flex-[1_1_0] h-full bg-background relative">
         <ChatHeader organizationId={organizationId as string} />
-        <ErrorBoundaryWithParams>{children}</ErrorBoundaryWithParams>
+        <LayoutErrorBoundary organizationId={organizationId as string}>
+          {children}
+        </LayoutErrorBoundary>
       </div>
     </ChatLayoutContext.Provider>
   );

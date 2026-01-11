@@ -53,7 +53,7 @@ export function AutomationsTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: automations, isLoadingMore, hasMore, loadMore } = useCursorPaginatedQuery({
+  const { data: automations, error, isLoadingMore, hasMore, loadMore, refetch } = useCursorPaginatedQuery({
     query: api.wf_definitions.getAutomations,
     preloadedData: preloadedAutomations,
     args: queryArgs,
@@ -91,6 +91,8 @@ export function AutomationsTable({
       className="py-6 px-4"
       columns={columns}
       data={automations}
+      error={error}
+      onRetry={refetch}
       getRowId={(row) => row._id}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
