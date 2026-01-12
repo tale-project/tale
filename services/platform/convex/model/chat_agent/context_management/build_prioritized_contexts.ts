@@ -108,6 +108,9 @@ ROUTING GUIDANCE:
 
 /**
  * Split RAG results by relevance score into high and low priority.
+ *
+ * Expected input format: "[n] (Relevance: XX.X%)\ncontent\n\n---\n\n..."
+ * This format is produced by the RAG query formatter upstream.
  */
 function splitRagByRelevance(
   ragContext: string,
