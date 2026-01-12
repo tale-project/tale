@@ -83,7 +83,7 @@ export default async function LogInPage({
   return (
     <Suspense
       fallback={
-        <AuthFormSkeleton title={t('login.title')} showMicrosoftButton />
+        <AuthFormSkeleton title={t('login.loginTitle')} showMicrosoftButton />
       }
     >
       <LogInContent searchParams={searchParams} />

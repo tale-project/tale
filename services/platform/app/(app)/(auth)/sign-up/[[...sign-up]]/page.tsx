@@ -42,11 +42,7 @@ export default async function SignUpPage() {
   return (
     <Suspense
       fallback={
-        <AuthFormSkeleton
-          title={t('signup.title')}
-          showPasswordRequirements
-          showMicrosoftButton
-        />
+        <AuthFormSkeleton title={t('signup.signupTitle')} showMicrosoftButton />
       }
     >
       <SignUpContent />

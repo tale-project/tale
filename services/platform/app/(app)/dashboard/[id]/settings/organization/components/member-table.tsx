@@ -66,15 +66,17 @@ export function MemberTable({
         cell: ({ row }) => {
           const member = row.original;
           return (
-            <Stack>
-              <span className="text-sm text-foreground font-medium">
+            <Stack gap={0}>
+              <span className="block text-sm text-foreground font-medium">
                 {member.displayName || member.email || tTables('cells.unknown')}
               </span>
-              {member.displayName && member.email && (
-                <span className="text-xs text-muted-foreground">
-                  {member.email}
-                </span>
-              )}
+              {member.displayName &&
+                member.email &&
+                member.displayName !== member.email && (
+                  <span className="block text-xs text-muted-foreground">
+                    {member.email}
+                  </span>
+                )}
             </Stack>
           );
         },
@@ -102,9 +104,14 @@ export function MemberTable({
       },
       {
         id: 'joined',
-        header: () => <div className="text-right">{tTables('headers.joined')}</div>,
+        header: () => (
+          <div className="text-right">{tTables('headers.joined')}</div>
+        ),
         cell: ({ row }) => (
-          <TableTimestampCell timestamp={row.original._creationTime} preset="relative" />
+          <TableTimestampCell
+            timestamp={row.original._creationTime}
+            preset="relative"
+          />
         ),
       },
       {
