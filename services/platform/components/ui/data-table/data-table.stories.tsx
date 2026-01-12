@@ -49,7 +49,7 @@ const columns: ColumnDef<User, unknown>[] = [
     cell: (info) => {
       const role = info.getValue() as string;
       return (
-        <Badge variant={role === 'admin' ? 'blue' : role === 'member' ? 'secondary' : 'outline'}>
+        <Badge variant={role === 'admin' ? 'blue' : role === 'member' ? 'green' : 'outline'}>
           {role}
         </Badge>
       );
@@ -241,9 +241,8 @@ export const EmptyState: Story = {
       title: 'No users found',
       description: 'Get started by adding your first user.',
       icon: Plus,
-      actionLabel: 'Add User',
-      onAction: () => alert('Add user clicked'),
     },
+    actionMenu: <Button size="sm" icon={Plus} onClick={() => alert('Add user clicked')}>Add User</Button>,
   },
   parameters: {
     docs: {

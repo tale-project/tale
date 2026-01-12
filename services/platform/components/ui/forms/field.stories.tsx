@@ -177,9 +177,9 @@ export const WithCustomValue: Story = {
     <FieldGroup gap={4} className="w-80">
       <Field label="Tags">
         <div className="flex gap-1 flex-wrap">
-          <Badge variant="secondary">React</Badge>
-          <Badge variant="secondary">TypeScript</Badge>
-          <Badge variant="secondary">Node.js</Badge>
+          <Badge variant="outline">React</Badge>
+          <Badge variant="outline">TypeScript</Badge>
+          <Badge variant="outline">Node.js</Badge>
         </div>
       </Field>
       <Field label="Progress">

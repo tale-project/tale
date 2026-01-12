@@ -1,6 +1,6 @@
 /* React DatePicker Scoped Styles */
 /* Tailwind v4: Reference the theme to access utilities in CSS modules */
-@reference '../../app/globals.css';
+@reference '../../../app/globals.css';
 
 .wrapper :global(.react-datepicker-wrapper) {
   @apply w-full;
