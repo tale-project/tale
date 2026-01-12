@@ -56,11 +56,13 @@ ui:
   static_use_hash: true
 
 engines:
+  # Google is prioritized with highest weight
   - name: google
     engine: google
     shortcut: g
     disabled: false
     timeout: 10.0
+    weight: 2.0
     retry_on_http_error: [403, 429, 503]
 
   - name: bing
@@ -68,6 +70,7 @@ engines:
     shortcut: b
     disabled: false
     timeout: 10.0
+    weight: 1.0
     retry_on_http_error: [403, 429, 503]
 
   - name: duckduckgo
@@ -75,23 +78,27 @@ engines:
     shortcut: ddg
     disabled: true
     timeout: 10.0
+    weight: 0.8
 
   - name: brave
     engine: brave
     shortcut: br
     disabled: false
     timeout: 10.0
+    weight: 0.9
 
   - name: wikipedia
     engine: wikipedia
     shortcut: w
     disabled: false
+    weight: 0.5
 
   - name: startpage
     engine: startpage
     shortcut: sp
     disabled: true
     timeout: 15.0
+    weight: 0.7
 
 outgoing:
   request_timeout: ${SEARCH_REQUEST_TIMEOUT:-10.0}

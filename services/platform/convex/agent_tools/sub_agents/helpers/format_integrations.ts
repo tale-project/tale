@@ -1,9 +1,10 @@
 /**
  * Format integrations list for sub-agent context
  *
- * Provides a minimal format for integration information.
- * Only includes integration name and type - operations are fetched
- * on-demand via integration_introspect tool to reduce context size.
+ * Provides domain-aware format for integration information.
+ * Includes title and description to help AI understand what domain
+ * each integration covers (e.g., hotel PMS, e-commerce, etc.).
+ * Operations are fetched on-demand via integration_introspect tool.
  */
 
 import type { Doc } from '../../../_generated/dataModel';
@@ -11,8 +12,9 @@ import type { Doc } from '../../../_generated/dataModel';
 type Integration = Doc<'integrations'>;
 
 /**
- * Format a list of integrations into a minimal string for LLM context.
- * Only includes integration name, type, and status.
+ * Format a list of integrations into a domain-aware string for LLM context.
+ * Includes integration name, type, status, title, and description.
+ * This helps the AI understand which integration to use for domain-specific queries.
  * Operations should be retrieved via integration_introspect tool.
  */
 export function formatIntegrationsForContext(integrations: Integration[]): string {
@@ -24,7 +26,12 @@ export function formatIntegrationsForContext(integrations: Integration[]): strin
     .map((integration) => {
       const type = integration.type || 'rest_api';
       const status = integration.status || 'active';
-      return `• ${integration.name} (${type}, ${status})`;
+
+      // Include title and description for domain context
+      const title = integration.title || integration.name;
+      const description = integration.description ? ` - ${integration.description}` : '';
+
+      return `• ${integration.name} (${type}, ${status}): ${title}${description}`;
     })
     .join('\n');
 }

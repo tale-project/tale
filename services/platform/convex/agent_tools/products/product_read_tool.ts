@@ -60,7 +60,12 @@ const productReadArgs = z.object({
 export const productReadTool: ToolDefinition = {
   name: 'product_read',
   tool: createTool({
-    description: `Product catalog read tool for retrieving product information.
+    description: `Product catalog read tool for retrieving product information from the INTERNAL product database.
+
+SCOPE LIMITATION:
+This tool ONLY accesses the internal product catalog.
+DO NOT use this tool for products from external e-commerce systems - check [INTEGRATIONS] context and use integration_assistant instead.
+Example: Shopify products, external inventory systems, third-party catalogs are NOT in this database.
 
 OPERATIONS:
 • 'get_by_id': Fetch a single product by its Convex ID. Use when you have a specific product ID.

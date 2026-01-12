@@ -65,30 +65,37 @@ export const AGENT_CONTEXT_CONFIGS = {
     outputReserve: OUTPUT_RESERVE,
     enableSummarization: true,
   },
-  /** Web assistant - smaller context, focused on web tasks */
+  /** Web assistant - uses same model, so same context limit */
   web: {
-    modelContextLimit: 32000,
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     recentMessages: 10,
     outputReserve: 2048,
     enableSummarization: false,
   },
-  /** Document assistant - larger context for document processing */
+  /** Document assistant - uses same model, so same context limit */
   document: {
-    modelContextLimit: 64000,
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     recentMessages: 10,
     outputReserve: 4096,
     enableSummarization: false,
   },
-  /** Integration assistant - medium context for API operations */
+  /** Integration assistant - uses same model, so same context limit */
   integration: {
-    modelContextLimit: 32000,
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     recentMessages: 10,
     outputReserve: 2048,
     enableSummarization: false,
   },
-  /** Workflow assistant - medium context for workflow operations */
+  /** Workflow assistant - uses same model, so same context limit */
   workflow: {
-    modelContextLimit: 32000,
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
+    recentMessages: 10,
+    outputReserve: 2048,
+    enableSummarization: false,
+  },
+  /** CRM assistant - uses same model, so same context limit */
+  crm: {
+    modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
     recentMessages: 10,
     outputReserve: 2048,
     enableSummarization: false,

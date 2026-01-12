@@ -28,6 +28,8 @@ export function createAgentConfig(opts: {
   maxSteps?: number;
   /** Enable vector search for finding semantically relevant older messages (defaults to false) */
   enableVectorSearch?: boolean;
+  /** Use the fast model (OPENAI_FAST_MODEL) instead of the default model */
+  useFastModel?: boolean;
 }): ConstructorParameters<typeof Agent>[1] {
   // Build Convex tools as an object when names are provided
   const convexToolsObject = opts.convexToolNames?.length
@@ -85,8 +87,21 @@ export function createAgentConfig(opts: {
     estimatedInstructionTokens,
   });
 
+  // Determine which model to use:
+  // 1. Explicit model override from opts.model
+  // 2. Fast model if useFastModel is true (OPENAI_FAST_MODEL env var)
+  // 3. Default model (OPENAI_MODEL env var)
   const envModel = (process.env.OPENAI_MODEL || '').trim();
-  const model = opts.model ?? envModel;
+  const envFastModel = (process.env.OPENAI_FAST_MODEL || '').trim();
+
+  let model: string;
+  if (opts.model) {
+    model = opts.model;
+  } else if (opts.useFastModel && envFastModel) {
+    model = envFastModel;
+  } else {
+    model = envModel;
+  }
 
   if (!model) {
     throw new Error(

@@ -29,8 +29,6 @@ export function createChatAgent(options?: {
     // Sub-agents handle high-context operations (web pages, documents, integrations)
     const defaultToolNames: ToolName[] = [
       // Direct tools (fast, bounded output)
-      'customer_read',
-      'product_read',
       'rag_search',
       'context_search',
       // Sub-agents (context isolation for large outputs)
@@ -38,6 +36,7 @@ export function createChatAgent(options?: {
       'document_assistant', // Replaces pdf, image, docx, pptx, generate_excel - isolates document content
       'integration_assistant', // Replaces integration, integration_introspect, verify_approval - isolates DB results
       'workflow_assistant', // Single entry point for all workflow operations
+      'crm_assistant', // Replaces customer_read, product_read - isolates CRM data
     ];
     convexToolNames = options?.convexToolNames ?? defaultToolNames;
 
@@ -48,7 +47,8 @@ export function createChatAgent(options?: {
 
   const agentConfig = createAgentConfig({
     name: 'chat-agent',
-    // Model is taken from OPENAI_MODEL via createAgentConfig (required; no default)
+    // Use fast model (OPENAI_FAST_MODEL) for better performance
+    useFastModel: true,
     temperature: 0.7,
     // Limit max output tokens to prevent runaway/endless streams from certain models
     // 16K tokens is generous for most responses while preventing infinite loops
@@ -68,11 +68,11 @@ CORE PRINCIPLES
 Choose the right tool based on your goal:
 
 DIRECT TOOLS (fast, bounded output):
-• customer_read, product_read: For counting, listing, filtering, aggregates, getting by ID/email
 • rag_search: For semantic search, knowledge base lookups, policies, documentation
 • context_search: For searching the current conversation thread
 
 SUB-AGENTS (context isolation for large outputs):
+• crm_assistant: For internal CRM data (customers, products) - NOT external systems
 • web_assistant: For public/real-world info (weather, prices, news, web pages)
 • document_assistant: For parsing PDFs, Word docs, PowerPoints, generating files, analyzing images
 • integration_assistant: For external systems (check [INTEGRATIONS] context for available integrations)
@@ -86,6 +86,7 @@ When looking for custom attributes not in standard fields (subscription date, pl
 2) SUB-AGENT DELEGATION
 
 For complex operations, delegate to specialized sub-agents:
+• crm_assistant: Handles internal CRM data (customers, products). Describe what data you need.
 • web_assistant: Handles web search and URL fetching. Describe what info you need.
 • document_assistant: Handles file parsing/generation. Provide file details.
 • integration_assistant: Handles external systems. Requires admin/developer role for write operations.
@@ -112,7 +113,36 @@ When a user asks about ANY topic (companies, people, reports, meetings, policies
 
 NEVER assume you don't have data. ALWAYS search first. This is mandatory.
 
-5) CONVERSATION STYLE
+5) PROACTIVE INFORMATION GATHERING
+
+PRINCIPLE: Act first, ask only when truly blocked. Users prefer action over interrogation.
+
+ALWAYS proceed directly when:
+• You can make reasonable inferences from context (name format, dates, etc.)
+• Sensible defaults exist (standard formats, common options)
+• The operation can be attempted and refined if needed
+• Missing info is optional or can be derived
+
+ONLY ask when you are COMPLETELY BLOCKED:
+• A critical identifier is missing AND cannot be searched/inferred (e.g., "update the customer" with no name/email/ID)
+• Multiple equally valid interpretations exist with significantly different outcomes
+• The operation is destructive and irreversible
+
+When you must ask:
+• Ask ONE focused question about the blocking issue only
+• Do NOT ask about optional parameters or preferences
+• Do NOT ask for confirmation of things you can reasonably infer
+
+BAD (over-asking):
+"To book a hotel for Yuki Liu, I need to confirm:
+1. Name format preference?
+2. Hotel brand?
+3. Which system to use?"
+
+GOOD (action-oriented):
+"I'll search for available hotels and create a booking for Yuki Liu, 7 nights starting tomorrow. One moment..."
+
+6) CONVERSATION STYLE
 
 • Be DIRECT: Answer what's asked, then STOP
 • Only ask for clarification when genuinely ambiguous

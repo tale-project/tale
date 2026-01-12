@@ -83,13 +83,21 @@ export function buildPrioritizedContexts(params: {
     }
   }
 
-  // Integrations info
+  // Integrations info with routing guidance
   if (params.integrationsInfo) {
     contexts.push(
       createPrioritizedContext(
         'integrations',
         ContextPriority.MEDIUM_RELEVANCE,
-        `[INTEGRATIONS] Available external integrations:\n\n${params.integrationsInfo}\n\nUse integration_introspect tool with the integration name to see available operations, then use the integration tool to execute operations.`,
+        `[INTEGRATIONS] Available external integrations:
+
+${params.integrationsInfo}
+
+ROUTING GUIDANCE:
+• Data from external systems (hotels, e-commerce, etc.) is ONLY accessible via integration_assistant
+• customer_read and product_read ONLY access internal CRM/catalog data
+• If a query relates to any integration domain above, use integration_assistant
+• Use integration_introspect to discover available operations before calling integration`,
         { sectionName: 'integrations' },
       ),
     );

@@ -55,11 +55,13 @@ import type * as agent_tools_products_helpers_types from "../agent_tools/product
 import type * as agent_tools_products_product_read_tool from "../agent_tools/products/product_read_tool.js";
 import type * as agent_tools_rag_query_rag_context from "../agent_tools/rag/query_rag_context.js";
 import type * as agent_tools_rag_rag_search_tool from "../agent_tools/rag/rag_search_tool.js";
+import type * as agent_tools_sub_agents_crm_assistant_tool from "../agent_tools/sub_agents/crm_assistant_tool.js";
 import type * as agent_tools_sub_agents_document_assistant_tool from "../agent_tools/sub_agents/document_assistant_tool.js";
 import type * as agent_tools_sub_agents_helpers_build_sub_agent_prompt from "../agent_tools/sub_agents/helpers/build_sub_agent_prompt.js";
 import type * as agent_tools_sub_agents_helpers_format_integrations from "../agent_tools/sub_agents/helpers/format_integrations.js";
 import type * as agent_tools_sub_agents_helpers_get_or_create_sub_thread from "../agent_tools/sub_agents/helpers/get_or_create_sub_thread.js";
 import type * as agent_tools_sub_agents_helpers_types from "../agent_tools/sub_agents/helpers/types.js";
+import type * as agent_tools_sub_agents_instructions_crm_instructions from "../agent_tools/sub_agents/instructions/crm_instructions.js";
 import type * as agent_tools_sub_agents_instructions_document_instructions from "../agent_tools/sub_agents/instructions/document_instructions.js";
 import type * as agent_tools_sub_agents_instructions_integration_instructions from "../agent_tools/sub_agents/instructions/integration_instructions.js";
 import type * as agent_tools_sub_agents_instructions_web_instructions from "../agent_tools/sub_agents/instructions/web_instructions.js";
@@ -112,6 +114,7 @@ import type * as lib_context_management_estimate_tokens from "../lib/context_man
 import type * as lib_context_management_index from "../lib/context_management/index.js";
 import type * as lib_create_agent_config from "../lib/create_agent_config.js";
 import type * as lib_create_chat_agent from "../lib/create_chat_agent.js";
+import type * as lib_create_crm_agent from "../lib/create_crm_agent.js";
 import type * as lib_create_document_agent from "../lib/create_document_agent.js";
 import type * as lib_create_integration_agent from "../lib/create_integration_agent.js";
 import type * as lib_create_web_agent from "../lib/create_web_agent.js";
@@ -788,11 +791,13 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/products/product_read_tool": typeof agent_tools_products_product_read_tool;
   "agent_tools/rag/query_rag_context": typeof agent_tools_rag_query_rag_context;
   "agent_tools/rag/rag_search_tool": typeof agent_tools_rag_rag_search_tool;
+  "agent_tools/sub_agents/crm_assistant_tool": typeof agent_tools_sub_agents_crm_assistant_tool;
   "agent_tools/sub_agents/document_assistant_tool": typeof agent_tools_sub_agents_document_assistant_tool;
   "agent_tools/sub_agents/helpers/build_sub_agent_prompt": typeof agent_tools_sub_agents_helpers_build_sub_agent_prompt;
   "agent_tools/sub_agents/helpers/format_integrations": typeof agent_tools_sub_agents_helpers_format_integrations;
   "agent_tools/sub_agents/helpers/get_or_create_sub_thread": typeof agent_tools_sub_agents_helpers_get_or_create_sub_thread;
   "agent_tools/sub_agents/helpers/types": typeof agent_tools_sub_agents_helpers_types;
+  "agent_tools/sub_agents/instructions/crm_instructions": typeof agent_tools_sub_agents_instructions_crm_instructions;
   "agent_tools/sub_agents/instructions/document_instructions": typeof agent_tools_sub_agents_instructions_document_instructions;
   "agent_tools/sub_agents/instructions/integration_instructions": typeof agent_tools_sub_agents_instructions_integration_instructions;
   "agent_tools/sub_agents/instructions/web_instructions": typeof agent_tools_sub_agents_instructions_web_instructions;
@@ -845,6 +850,7 @@ declare const fullApi: ApiFromModules<{
   "lib/context_management/index": typeof lib_context_management_index;
   "lib/create_agent_config": typeof lib_create_agent_config;
   "lib/create_chat_agent": typeof lib_create_chat_agent;
+  "lib/create_crm_agent": typeof lib_create_crm_agent;
   "lib/create_document_agent": typeof lib_create_document_agent;
   "lib/create_integration_agent": typeof lib_create_integration_agent;
   "lib/create_web_agent": typeof lib_create_web_agent;

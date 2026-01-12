@@ -21,7 +21,8 @@ export type SubAgentType =
   | 'web_assistant'
   | 'document_assistant'
   | 'integration_assistant'
-  | 'workflow_assistant';
+  | 'workflow_assistant'
+  | 'crm_assistant';
 
 /** Structure of the subThreads mapping in parent thread summary */
 interface SubThreadsMap {
@@ -29,6 +30,7 @@ interface SubThreadsMap {
   document_assistant?: string;
   integration_assistant?: string;
   workflow_assistant?: string;
+  crm_assistant?: string;
 }
 
 /** Extended summary structure for threads with sub-thread mappings */
