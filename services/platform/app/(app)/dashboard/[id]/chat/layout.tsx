@@ -23,6 +23,7 @@ interface OptimisticMessage {
   content: string;
   threadId?: string;
   attachments?: FileAttachment[];
+  timestamp: number;
 }
 
 interface ChatLayoutContextType {

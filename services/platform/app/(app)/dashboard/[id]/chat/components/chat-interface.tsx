@@ -327,8 +327,24 @@ export function ChatInterface({
   // Convert UIMessage to ChatMessage format for compatibility
   // Memoize to prevent unnecessary re-renders when typing
   const threadMessages: ChatMessage[] = useMemo(() => {
+    // Track seen user message IDs to prevent duplicates
+    // useUIMessages can return multiple entries with different keys for the same message
+    const seenUserMessageIds = new Set<string>();
+
     return (uiMessages || [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .filter((m) => {
+        if (m.role !== 'user' && m.role !== 'assistant') return false;
+
+        // Deduplicate user messages by id (they can have multiple key variants)
+        if (m.role === 'user') {
+          if (seenUserMessageIds.has(m.id)) {
+            return false;
+          }
+          seenUserMessageIds.add(m.id);
+        }
+
+        return true;
+      })
       .map((m) => {
         // Extract file parts (images) from UIMessage.parts
         const fileParts = (m.parts || [])
@@ -357,34 +373,32 @@ export function ChatInterface({
       });
   }, [uiMessages]);
 
-  // Track the timestamp when optimistic message was created to avoid matching older messages
-  const optimisticMessageTimestampRef = useRef<number | null>(null);
-
-  // Update timestamp when optimistic message is set
-  useEffect(() => {
-    if (optimisticMessage?.content) {
-      optimisticMessageTimestampRef.current = Date.now();
-    }
-  }, [optimisticMessage?.content]);
-
   // Check if a server message matching the optimistic message already exists
   // This prevents showing duplicates during the brief window between
   // server message arrival and useEffect clearing the optimistic state
   const hasMatchingServerMessage = useMemo(() => {
-    if (!optimisticMessage?.content || !optimisticMessageTimestampRef.current) {
+    if (!optimisticMessage?.content) {
       return false;
     }
-    const searchStartTime = optimisticMessageTimestampRef.current - 500;
+
     return threadMessages?.some((m) => {
       if (m.role !== 'user') return false;
+
+      // Check timestamp - only match messages created after user clicked send
       const messageTime = m._creationTime || m.timestamp.getTime();
-      if (messageTime < searchStartTime) return false;
+      if (messageTime < optimisticMessage.timestamp) return false;
+
+      // Check content match
       return (
         m.content === optimisticMessage.content ||
         m.content.startsWith(optimisticMessage.content)
       );
     });
-  }, [threadMessages, optimisticMessage?.content]);
+  }, [
+    threadMessages,
+    optimisticMessage?.content,
+    optimisticMessage?.timestamp,
+  ]);
 
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
@@ -514,39 +528,34 @@ export function ChatInterface({
     }
   }, [streamingMessage, isPending, setIsPending]);
 
-  // Clear optimistic message when it appears in actual messages (fallback cleanup)
+  // Clear optimistic message when it appears in actual messages
   useEffect(() => {
-    if (
-      optimisticMessage?.content &&
-      uiMessages !== undefined &&
-      optimisticMessageTimestampRef.current
-    ) {
-      // Find user messages created after the optimistic message was set
-      // Use a small buffer (500ms before) to account for timing differences
-      const searchStartTime = optimisticMessageTimestampRef.current - 500;
+    if (!optimisticMessage?.content || uiMessages === undefined) {
+      return;
+    }
 
-      const matchingMessage = threadMessages?.find((m) => {
-        if (m.role !== 'user') return false;
-        // Only consider messages created around or after the optimistic message
-        const messageTime = m._creationTime || m.timestamp.getTime();
-        if (messageTime < searchStartTime) return false;
-        // Check for exact match OR if the message starts with the optimistic content
-        // (handles case where images are appended as markdown)
-        return (
-          m.content === optimisticMessage.content ||
-          m.content.startsWith(optimisticMessage.content)
-        );
-      });
+    const hasMatch = threadMessages?.some((m) => {
+      if (m.role !== 'user') return false;
 
-      if (matchingMessage) {
-        setOptimisticMessage(null);
-        optimisticMessageTimestampRef.current = null;
-      }
+      // Check timestamp - only match messages created after user clicked send
+      const messageTime = m._creationTime || m.timestamp.getTime();
+      if (messageTime < optimisticMessage.timestamp) return false;
+
+      // Check content match
+      return (
+        m.content === optimisticMessage.content ||
+        m.content.startsWith(optimisticMessage.content)
+      );
+    });
+
+    if (hasMatch) {
+      setOptimisticMessage(null);
     }
   }, [
     uiMessages,
     threadMessages,
     optimisticMessage?.content,
+    optimisticMessage?.timestamp,
     setOptimisticMessage,
   ]);
 
@@ -644,7 +653,13 @@ export function ChatInterface({
       attachments,
     };
 
-    setOptimisticMessage({ content: sanitizedContent, threadId, attachments });
+    const optimisticTimestamp = Date.now();
+    setOptimisticMessage({
+      content: sanitizedContent,
+      threadId,
+      attachments,
+      timestamp: optimisticTimestamp,
+    });
     setInputValue('');
 
     // Set pending immediately to show thinking animation right away
@@ -673,6 +688,7 @@ export function ChatInterface({
           content: sanitizedContent,
           threadId: newThreadId,
           attachments,
+          timestamp: optimisticTimestamp,
         });
         router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, {
           scroll: false,
