@@ -100,10 +100,19 @@ export class AgentContextManager {
   }
 
   /**
-   * Add system info (thread ID, timestamp).
+   * Add system info (thread ID).
    */
   addSystemInfo(): this {
     this.builder.addSystemInfo(this.config.threadId);
+    return this;
+  }
+
+  /**
+   * Add current timestamp with DYNAMIC_INFO priority.
+   * Placed last in the context to improve LLM cache hit rate.
+   */
+  addCurrentTime(): this {
+    this.builder.addCurrentTime();
     return this;
   }
 
@@ -289,7 +298,7 @@ export function createSubAgentContext(options: {
     enableSummarization: false,
   });
 
-  manager.addSystemInfo().addTaskContext(options.taskDescription);
+  manager.addSystemInfo().addCurrentTime().addTaskContext(options.taskDescription);
 
   // Add any additional context
   if (options.additionalContext) {
