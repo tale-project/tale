@@ -8,7 +8,7 @@ import { Toaster } from '@/components/ui/toaster';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { ThemeColorMeta } from '@/components/theme-color-meta';
-import { AppProviders } from './(app)/providers/app-providers';
+import { AppProviders } from '@/providers/app-providers';
 import { getT } from '@/lib/i18n/server';
 import { getSiteUrl } from '@/lib/get-site-url';
 

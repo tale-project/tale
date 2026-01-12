@@ -84,6 +84,32 @@ function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 1) + '…';
 }
 
+/**
+ * Checks if any message in the list matches the optimistic message.
+ * Used to detect when the server has confirmed receipt of the user's message.
+ */
+function findMatchingServerMessage(
+  messages: ChatMessage[] | undefined,
+  optimisticContent: string,
+  optimisticTimestamp: number,
+): boolean {
+  if (!messages) return false;
+
+  return messages.some((m) => {
+    if (m.role !== 'user') return false;
+
+    // Check timestamp - only match messages created after user clicked send
+    const messageTime = m._creationTime || m.timestamp.getTime();
+    if (messageTime < optimisticTimestamp) return false;
+
+    // Check content match
+    return (
+      m.content === optimisticContent ||
+      m.content.startsWith(optimisticContent)
+    );
+  });
+}
+
 interface ThinkingAnimationProps {
   threadId?: string;
   streamingMessage?: UIMessage;
@@ -408,20 +434,11 @@ export function ChatInterface({
     if (!optimisticMessage?.content) {
       return false;
     }
-
-    return threadMessages?.some((m) => {
-      if (m.role !== 'user') return false;
-
-      // Check timestamp - only match messages created after user clicked send
-      const messageTime = m._creationTime || m.timestamp.getTime();
-      if (messageTime < optimisticMessage.timestamp) return false;
-
-      // Check content match
-      return (
-        m.content === optimisticMessage.content ||
-        m.content.startsWith(optimisticMessage.content)
-      );
-    });
+    return findMatchingServerMessage(
+      threadMessages,
+      optimisticMessage.content,
+      optimisticMessage.timestamp,
+    );
   }, [
     threadMessages,
     optimisticMessage?.content,
@@ -562,19 +579,11 @@ export function ChatInterface({
       return;
     }
 
-    const hasMatch = threadMessages?.some((m) => {
-      if (m.role !== 'user') return false;
-
-      // Check timestamp - only match messages created after user clicked send
-      const messageTime = m._creationTime || m.timestamp.getTime();
-      if (messageTime < optimisticMessage.timestamp) return false;
-
-      // Check content match
-      return (
-        m.content === optimisticMessage.content ||
-        m.content.startsWith(optimisticMessage.content)
-      );
-    });
+    const hasMatch = findMatchingServerMessage(
+      threadMessages,
+      optimisticMessage.content,
+      optimisticMessage.timestamp,
+    );
 
     if (hasMatch) {
       setOptimisticMessage(null);

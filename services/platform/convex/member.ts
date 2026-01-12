@@ -449,6 +449,15 @@ export const updateMemberDisplayName = mutationWithRLS({
       );
     }
 
+    // Validate display name
+    const trimmedName = args.displayName.trim();
+    if (!trimmedName) {
+      throw new Error('Display name cannot be empty');
+    }
+    if (trimmedName.length > 256) {
+      throw new Error('Display name must be 256 characters or less');
+    }
+
     // Load the target member to get userId
     const memberRes: BetterAuthFindManyResult<BetterAuthMember> =
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -493,7 +502,7 @@ export const updateMemberDisplayName = mutationWithRLS({
     await ctx.runMutation(components.betterAuth.adapter.updateMany, {
       input: {
         model: 'user',
-        update: { name: args.displayName },
+        update: { name: trimmedName },
         where: [{ field: '_id', value: member.userId, operator: 'eq' }],
       },
       paginationOpts: { cursor: null, numItems: 1 },
