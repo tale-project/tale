@@ -121,12 +121,23 @@ export function trimContextsByPriority(
   const kept: PrioritizedContext[] = [];
   const trimmed: PrioritizedContext[] = [];
   let totalTokens = 0;
+  let warnedMandatoryOverBudget = false;
 
   for (const ctx of sorted) {
     // Mandatory contexts are always kept
     if (!ctx.canTrim) {
       kept.push(ctx);
       totalTokens += ctx.tokens;
+
+      // Warn once if mandatory items alone exceed budget
+      if (!warnedMandatoryOverBudget && totalTokens > tokenBudget) {
+        debugLog('Warning: Mandatory items exceed token budget', {
+          mandatoryTokens: totalTokens,
+          tokenBudget,
+          lastMandatoryItem: ctx.id,
+        });
+        warnedMandatoryOverBudget = true;
+      }
       continue;
     }
 
