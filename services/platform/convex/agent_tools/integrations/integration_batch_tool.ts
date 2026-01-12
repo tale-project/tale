@@ -13,64 +13,43 @@ import { internal } from '../../_generated/api';
 import type { BatchOperationResult } from './types';
 
 const batchOperationSchema = z.object({
-  id: z
-    .string()
-    .optional()
-    .describe('Optional ID for tracking this operation in results'),
-  operation: z
-    .string()
-    .describe('Operation name to execute'),
+  id: z.string().optional().describe('Optional ID for tracking in results (e.g., "query1", "query2")'),
+  operation: z.string().describe('Operation name (e.g., "get_guest", "get_reservations")'),
   params: z
     .record(z.string(), z.unknown())
     .optional()
-    .describe('Operation-specific parameters'),
+    .describe(
+      'Parameters as JSON object. Example: { "guestId": 123 }. ' +
+        'Include all required params from integration_introspect.',
+    ),
 });
 
 const integrationBatchArgs = z.object({
-  integrationName: z
-    .string()
-    .describe('Name of the configured integration'),
+  integrationName: z.string().describe('Integration name (e.g., "protel")'),
   operations: z
     .array(batchOperationSchema)
     .min(1)
     .max(10)
-    .describe('List of operations to execute in parallel (1-10 operations)'),
+    .describe(
+      'Array of operations (1-10). Example: [{ "operation": "get_guest", "params": { "guestId": 123 } }]',
+    ),
 });
 
 export const integrationBatchTool: ToolDefinition = {
   name: 'integration_batch',
   tool: createTool({
-    description: `Execute multiple integration operations in parallel.
+    description: `Execute multiple read operations in parallel on the same integration.
 
-Use this tool when you need to query multiple data sources from the same integration.
-This significantly reduces latency compared to sequential single-operation calls.
-
-WHEN TO USE:
-• Need results from multiple read operations (e.g., list_reservations AND get_inhouse_guests)
-• Want to reduce total query time by running operations in parallel
-• Querying the same integration with different parameters
-
-EXAMPLE:
+Example call:
 {
-  "integrationName": "protel",
-  "operations": [
-    { "id": "reservations", "operation": "list_reservations", "params": { "fromDate": "2026-01-01" } },
-    { "id": "inhouse", "operation": "get_inhouse_guests" }
+  integrationName: "protel",
+  operations: [
+    { id: "q1", operation: "get_guest", params: { "guestId": 123 } },
+    { id: "q2", operation: "get_reservations", params: { "roomNumber": "101" } }
   ]
 }
 
-IMPORTANT NOTES:
-• Maximum 10 operations per batch
-• All operations must be on the same integration
-• Results include success/failure status for each operation
-• Write operations will return requiresApproval for each
-• Operations are independent - one failure doesn't affect others
-• Use 'id' field to easily identify results
-
-WRITE OPERATIONS:
-• Write operations in a batch will each create separate approval requests
-• The batch result will include approvalId for each write operation
-• User must approve each write operation separately`,
+Max 10 operations. Use 'id' field to identify results.`,
 
     args: integrationBatchArgs,
 

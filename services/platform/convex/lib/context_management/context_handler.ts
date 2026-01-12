@@ -19,37 +19,33 @@
  * 4. Current user message at the end
  * 5. Any existing responses (for continuation scenarios)
  *
- * SMART HISTORY SELECTION (P3):
+ * SMART HISTORY SELECTION:
  * Additionally applies token-budget-based filtering to conversation history,
  * skipping large tool results when necessary to fit within context limits.
- *
- * SDK PARAMETER MAPPING:
- * | SDK Parameter    | Our Semantic Name      | What It Contains                              |
- * |------------------|------------------------|-----------------------------------------------|
- * | inputMessages    | systemContext          | [SYSTEM], [CONTEXT], [KNOWLEDGE BASE], etc.   |
- * | recent           | conversationHistory    | Thread message history                        |
- * | inputPrompt      | currentUserMessage     | The user message being processed              |
- * | search           | searchResults          | Vector/text search results (if enabled)       |
- * | existingResponses| existingResponses      | Existing responses for continuation           |
  */
 
 import type { ModelMessage } from '@ai-sdk/provider-utils';
 import { estimateMessagesTokens, estimateMessageTokens } from './estimate_tokens';
-import { DEFAULT_MODEL_CONTEXT_LIMIT, CONTEXT_SAFETY_MARGIN, SYSTEM_INSTRUCTIONS_TOKENS, OUTPUT_RESERVE } from './constants';
-import { createDebugLog } from '../../../lib/debug_log';
+import {
+  DEFAULT_MODEL_CONTEXT_LIMIT,
+  CONTEXT_SAFETY_MARGIN,
+  SYSTEM_INSTRUCTIONS_TOKENS,
+  OUTPUT_RESERVE,
+  LARGE_MESSAGE_THRESHOLD,
+} from './constants';
+import { createDebugLog } from '../debug_log';
 
-const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ContextHandler]');
+const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextHandler]');
 
 /**
  * SDK callback arguments - we must use SDK's parameter names here.
- * See the mapping table in the module header for semantic meanings.
  */
 export interface ContextHandlerArgs {
   allMessages: ModelMessage[];
   search: ModelMessage[];
   recent: ModelMessage[];
-  inputMessages: ModelMessage[];  // SDK name - semantically: systemContext
-  inputPrompt: ModelMessage[];    // SDK name - semantically: currentUserMessage
+  inputMessages: ModelMessage[]; // SDK name - semantically: systemContext
+  inputPrompt: ModelMessage[]; // SDK name - semantically: currentUserMessage
   existingResponses: ModelMessage[];
   userId: string | undefined;
   threadId: string | undefined;
@@ -59,18 +55,26 @@ export interface ContextHandlerArgs {
  * Context handler type compatible with SDK.
  */
 export type ContextHandler = (
-  ctx: any,
+  ctx: unknown,
   args: ContextHandlerArgs,
 ) => Promise<ModelMessage[]>;
 
 /**
- * Threshold for considering a message as "large" (in tokens).
- * Large messages may be skipped when budget is tight.
+ * Options for creating a context handler.
  */
-const LARGE_MESSAGE_THRESHOLD = 2000;
+export interface ContextHandlerOptions {
+  /** Model context limit in tokens */
+  modelContextLimit?: number;
+  /** Safety margin for context limit (0-1) */
+  safetyMargin?: number;
+  /** Reserved tokens for output */
+  outputReserve?: number;
+  /** Minimum number of recent messages to keep */
+  minRecentMessages?: number;
+}
 
 /**
- * Apply smart filtering to conversation history based on token budget (P3).
+ * Apply smart filtering to conversation history based on token budget.
  *
  * Strategy:
  * 1. Calculate available budget for history
@@ -81,10 +85,16 @@ const LARGE_MESSAGE_THRESHOLD = 2000;
 function filterHistoryByBudget(
   conversationHistory: ModelMessage[],
   otherTokens: number,
+  options?: ContextHandlerOptions,
 ): { filtered: ModelMessage[]; skippedCount: number } {
+  const modelContextLimit = options?.modelContextLimit ?? DEFAULT_MODEL_CONTEXT_LIMIT;
+  const safetyMargin = options?.safetyMargin ?? CONTEXT_SAFETY_MARGIN;
+  const outputReserve = options?.outputReserve ?? OUTPUT_RESERVE;
+  const minRecentMessages = options?.minRecentMessages ?? 4;
+
   // Calculate budget for history
-  const totalBudget = DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN;
-  const historyBudget = totalBudget - otherTokens - SYSTEM_INSTRUCTIONS_TOKENS - OUTPUT_RESERVE;
+  const totalBudget = modelContextLimit * safetyMargin;
+  const historyBudget = totalBudget - otherTokens - SYSTEM_INSTRUCTIONS_TOKENS - outputReserve;
 
   if (historyBudget <= 0) {
     debugLog('No budget for history, keeping minimal', { otherTokens, historyBudget });
@@ -108,8 +118,8 @@ function filterHistoryByBudget(
     const isToolMessage = msg.role === 'tool';
     const isLarge = msgTokens > LARGE_MESSAGE_THRESHOLD;
 
-    // Always keep the most recent 4 messages regardless of size
-    const isRecentMust = i < 4;
+    // Always keep the most recent N messages regardless of size
+    const isRecentMust = i < minRecentMessages;
 
     if (isRecentMust) {
       filtered.unshift(msg); // Add to front to maintain order
@@ -147,10 +157,10 @@ function filterHistoryByBudget(
 
 /**
  * Creates a context handler that reorders messages for optimal LLM understanding.
- * Also applies smart history filtering (P3) to stay within token budgets.
+ * Also applies smart history filtering to stay within token budgets.
  */
-export function createContextHandler(): ContextHandler {
-  return async (_ctx: any, args: ContextHandlerArgs): Promise<ModelMessage[]> => {
+export function createContextHandler(options?: ContextHandlerOptions): ContextHandler {
+  return async (_ctx: unknown, args: ContextHandlerArgs): Promise<ModelMessage[]> => {
     // Rename SDK parameters to semantic names for clarity
     const systemContext = args.inputMessages;
     const searchResults = args.search;
@@ -173,10 +183,11 @@ export function createContextHandler(): ContextHandler {
     const existingResponsesTokens = estimateMessagesTokens(existingResponses);
     const otherTokens = systemContextTokens + searchTokens + currentPromptTokens + existingResponsesTokens;
 
-    // Apply smart history filtering (P3)
+    // Apply smart history filtering
     const { filtered: filteredHistory, skippedCount } = filterHistoryByBudget(
       conversationHistory,
       otherTokens,
+      options,
     );
 
     if (skippedCount > 0) {
@@ -189,11 +200,11 @@ export function createContextHandler(): ContextHandler {
 
     // Reorder: system context first, then search, filtered history, current message
     const reorderedMessages: ModelMessage[] = [
-      ...systemContext,        // [SYSTEM], [CONTEXT], [KNOWLEDGE BASE], [INTEGRATIONS]
-      ...searchResults,        // Vector/text search results (if enabled)
-      ...filteredHistory,      // Filtered conversation history
-      ...currentUserMessage,   // Current user message being processed
-      ...existingResponses,    // Any existing responses to the prompt
+      ...systemContext, // [SYSTEM], [CONTEXT], [KNOWLEDGE BASE], [INTEGRATIONS]
+      ...searchResults, // Vector/text search results (if enabled)
+      ...filteredHistory, // Filtered conversation history
+      ...currentUserMessage, // Current user message being processed
+      ...existingResponses, // Any existing responses to the prompt
     ];
 
     debugLog('Context composition complete', {

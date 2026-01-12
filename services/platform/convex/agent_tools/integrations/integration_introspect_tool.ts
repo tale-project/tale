@@ -1,8 +1,10 @@
 /**
  * Convex Tool: Integration Introspect
  *
- * Tool for discovering available integrations and their operations.
- * Helps the agent understand what integrations are configured and what operations they support.
+ * Tool for discovering available operations on an integration.
+ * Supports two modes:
+ * 1. Summary mode (default): Returns lightweight list of operation names
+ * 2. Detail mode: Returns full details for a specific operation
  */
 
 import { z } from 'zod';
@@ -10,55 +12,36 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
-import type { IntegrationIntrospectionResult } from './types';
+import type {
+  IntrospectionSummaryResult,
+  OperationDetailResult,
+} from './types';
 import { getPredefinedIntegration } from '../../predefined_integrations';
 import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
 import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
 
 const integrationIntrospectArgs = z.object({
-  integrationName: z
+  integrationName: z.string().describe('Integration name to introspect'),
+  operation: z
     .string()
+    .optional()
     .describe(
-      'The integration name to introspect. Available integration names are provided in the system context.',
+      'Get detailed info for a specific operation. Omit for summary list of all operations.',
     ),
 });
 
 export const integrationIntrospectTool: ToolDefinition = {
   name: 'integration_introspect',
   tool: createTool({
-    description: `Get available operations for a specific integration.
-
-Use this tool to discover what operations are available for an integration BEFORE calling the integration tool.
-
-IMPORTANT: Available integration names are provided in the system context at the start of the conversation.
-Check the [INTEGRATIONS] section for the list of configured integrations.
-
-WHAT YOU'LL LEARN:
-
-For REST API integrations:
-• Operation names (e.g., "list_products", "get_order")
-• Operation descriptions and what they do
-• Required and optional parameters for each operation
-
-For SQL integrations:
-• Database engine (mssql, postgres, mysql)
-• System introspection operations (always available):
-  - "introspect_tables": List all tables in the database
-  - "introspect_columns": Get column info for a specific table
-• User-defined query operations configured by administrators
-• Parameter requirements for each query
-
-WORKFLOW:
-1. Check the [INTEGRATIONS] context for available integration names
-2. Call this tool with an integrationName to see its operations
-3. Use the integration tool to execute the desired operation`,
+    description: `Get available operations for an integration.
+Returns operation names and types. Use 'operation' param to get parameter details for a specific operation.`,
 
     args: integrationIntrospectArgs,
 
     handler: async (
       ctx: ToolCtx,
       args,
-    ): Promise<IntegrationIntrospectionResult> => {
+    ): Promise<IntrospectionSummaryResult | OperationDetailResult> => {
       const { organizationId } = ctx;
 
       if (!organizationId) {
@@ -75,55 +58,73 @@ WORKFLOW:
 
       if (!integration) {
         throw new Error(
-          `Integration not found: "${args.integrationName}"\n\n` +
-            `Check the [INTEGRATIONS] section in the system context for available integration names.`,
+          `Integration not found: "${args.integrationName}"`,
         );
       }
 
       // Handle SQL integrations
       if (isSqlIntegration(integration)) {
-        const { sqlConnectionConfig, sqlOperations } = integration;
-
-        // Get introspection operation names (always available for SQL)
+        const { sqlOperations } = integration;
         const introspectionOpNames = getIntrospectionOperations();
 
-        // Build introspection operation objects with descriptions
-        const introspectionOps = introspectionOpNames.map((name) => ({
-          name,
-          title: name === 'introspect_tables' ? 'List Tables' : 'List Columns',
-          description:
-            name === 'introspect_tables'
+        // Build introspection operations with their metadata
+        const introspectionOps = introspectionOpNames.map((name) => {
+          const isTablesOp = name === 'introspect_tables';
+          return {
+            name,
+            title: isTablesOp ? 'List Tables' : 'List Columns',
+            description: isTablesOp
               ? 'List all tables in the database'
-              : 'Get columns for a specific table. Requires params: { schemaName: "...", tableName: "..." }',
-          isIntrospection: true,
-        }));
+              : 'Get columns for a specific table',
+            operationType: 'read' as const,
+            parametersSchema: isTablesOp
+              ? undefined
+              : {
+                  type: 'object',
+                  properties: {
+                    schemaName: { type: 'string' },
+                    tableName: { type: 'string' },
+                  },
+                  required: ['schemaName', 'tableName'],
+                },
+          };
+        });
 
-        // Strip SQL queries from operations to reduce token usage.
-        // AI only needs operation metadata (name, description, parameters) to select and call operations.
-        // The actual SQL query is only needed at execution time by the integration tool.
-        const operationSummaries = sqlOperations.map((op) => ({
-          name: op.name,
-          title: op.title,
-          description: op.description,
-          parametersSchema: op.parametersSchema,
-          operationType: op.operationType,
-        }));
+        const allOperations = [...introspectionOps, ...sqlOperations];
 
+        // If operation specified, return details for that operation
+        if (args.operation) {
+          const op = allOperations.find((o) => o.name === args.operation);
+          if (!op) {
+            throw new Error(
+              `Operation "${args.operation}" not found on integration "${args.integrationName}"`,
+            );
+          }
+          return {
+            name: op.name,
+            title: op.title,
+            description: op.description,
+            operationType: op.operationType,
+            parametersSchema: op.parametersSchema,
+          };
+        }
+
+        // Return summary list
         return {
           type: 'sql',
           integrationName: integration.name,
-          title: integration.title,
-          description: integration.description,
-          engine: sqlConnectionConfig.engine,
-          operations: [...introspectionOps, ...operationSummaries],
-        } as IntegrationIntrospectionResult;
+          operations: allOperations.map((op) => ({
+            name: op.name,
+            title: op.title,
+            operationType: op.operationType,
+          })),
+        };
       }
 
       // Handle REST API integrations
       let connectorConfig = integration.connector;
 
       if (!connectorConfig) {
-        // Fallback to predefined integration
         const predefined = getPredefinedIntegration(args.integrationName);
         if (predefined) {
           connectorConfig = predefined.connector;
@@ -136,13 +137,43 @@ WORKFLOW:
         );
       }
 
+      // connectorConfig can come from schema (no operationType) or predefined (has operationType)
+      // Cast to a common type that allows optional operationType
+      const operations = (connectorConfig.operations || []) as Array<{
+        name: string;
+        title?: string;
+        description?: string;
+        parametersSchema?: unknown;
+        operationType?: 'read' | 'write';
+      }>;
+
+      // If operation specified, return details for that operation
+      if (args.operation) {
+        const op = operations.find((o) => o.name === args.operation);
+        if (!op) {
+          throw new Error(
+            `Operation "${args.operation}" not found on integration "${args.integrationName}"`,
+          );
+        }
+        return {
+          name: op.name,
+          title: op.title,
+          description: op.description,
+          operationType: op.operationType,
+          parametersSchema: op.parametersSchema as Record<string, unknown> | undefined,
+        };
+      }
+
+      // Return summary list
       return {
         type: 'rest_api',
         integrationName: integration.name,
-        title: integration.title,
-        description: integration.description,
-        operations: connectorConfig.operations || [],
-      } as IntegrationIntrospectionResult;
+        operations: operations.map((op) => ({
+          name: op.name,
+          title: op.title,
+          operationType: op.operationType,
+        })),
+      };
     },
   }),
 } as const;

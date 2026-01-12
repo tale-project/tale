@@ -3,6 +3,11 @@
  *
  * Delegates document-related tasks to the specialized Document Assistant Agent.
  * Isolates large document content from the main chat agent's context.
+ *
+ * Uses the shared context management module for:
+ * - Structured prompt building
+ * - Smart history filtering via contextHandler
+ * - Token-aware context management
  */
 
 import { z } from 'zod';
@@ -11,6 +16,8 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { createDocumentAgent } from '../../lib/create_document_agent';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
+import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
 
 export const documentAssistantTool = {
   name: 'document_assistant' as const,
@@ -90,39 +97,6 @@ EXAMPLES:
       try {
         const documentAgent = createDocumentAgent();
 
-        // Build the prompt with context
-        let prompt = `## User Request:\n${args.userRequest}\n\n`;
-        if (args.fileId) {
-          prompt += `## File ID (for image analysis): ${args.fileId}\n\n`;
-        }
-        if (args.fileUrl) {
-          prompt += `## File URL: ${args.fileUrl}\n\n`;
-        }
-        if (args.fileName) {
-          prompt += `## File Name: ${args.fileName}\n\n`;
-        }
-
-        // Format current date/time clearly for the model
-        const now = new Date();
-        const currentDate = now.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        const currentTime = now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZoneName: 'short',
-        });
-
-        prompt += `## Context:\n`;
-        prompt += `- **Current Date**: ${currentDate}\n`;
-        prompt += `- **Current Time**: ${currentTime}\n`;
-        prompt += `- Organization ID: ${organizationId}\n`;
-
-        console.log('[document_assistant_tool] Calling documentAgent.generateText');
-
         // Get or create a sub-thread for this parent thread + sub-agent combination
         // Reusing the thread allows the sub-agent to maintain context across calls
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
@@ -136,11 +110,55 @@ EXAMPLES:
 
         console.log('[document_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
 
+        // Build structured prompt using the shared context management module
+        const additionalContext: Record<string, string> = {};
+        if (args.fileId) {
+          additionalContext.file_id = args.fileId;
+        }
+        if (args.fileUrl) {
+          additionalContext.file_url = args.fileUrl;
+        }
+        if (args.fileName) {
+          additionalContext.file_name = args.fileName;
+        }
+
+        const promptResult = buildSubAgentPrompt({
+          userRequest: args.userRequest,
+          agentType: 'document',
+          threadId: subThreadId,
+          organizationId,
+          userId,
+          parentThreadId: threadId,
+          additionalContext,
+        });
+
+        console.log('[document_assistant_tool] Calling documentAgent.generateText', {
+          estimatedTokens: promptResult.estimatedTokens,
+        });
+
+        // Create context handler with document agent configuration
+        const documentConfig = AGENT_CONTEXT_CONFIGS.document;
+        const contextHandler = createContextHandler({
+          modelContextLimit: documentConfig.modelContextLimit,
+          outputReserve: documentConfig.outputReserve,
+          minRecentMessages: Math.min(4, documentConfig.recentMessages),
+        });
+
         const generationStartTime = Date.now();
         const result = await documentAgent.generateText(
           ctx,
           { threadId: subThreadId, userId },
-          { prompt },
+          {
+            prompt: promptResult.prompt,
+            messages: promptResult.systemMessages,
+          },
+          {
+            contextOptions: {
+              recentMessages: documentConfig.recentMessages,
+              excludeToolMessages: false,
+            },
+            contextHandler,
+          },
         );
         const generationDurationMs = Date.now() - generationStartTime;
 
@@ -154,11 +172,7 @@ EXAMPLES:
         return {
           success: true,
           response: result.text,
-          usage: result.usage ? {
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
-          } : undefined,
+          usage: result.usage,
         };
       } catch (error) {
         console.error('[document_assistant_tool] Error:', error);
