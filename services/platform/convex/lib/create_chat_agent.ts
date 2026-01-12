@@ -30,7 +30,6 @@ export function createChatAgent(options?: {
     const defaultToolNames: ToolName[] = [
       // Direct tools (fast, bounded output)
       'rag_search',
-      'context_search',
       // Sub-agents (context isolation for large outputs)
       'web_assistant', // Replaces web_read - isolates web page content (20K-50K tokens)
       'document_assistant', // Replaces pdf, image, docx, pptx, generate_excel - isolates document content
@@ -77,7 +76,6 @@ Choose the right tool based on your goal:
 
 DIRECT TOOLS (fast, bounded output):
 • rag_search: For semantic search, knowledge base lookups, policies, documentation
-• context_search: For searching the current conversation thread
 
 SUB-AGENTS (context isolation for large outputs):
 • crm_assistant: For internal CRM data (customers, products) - NOT external systems
