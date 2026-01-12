@@ -376,7 +376,7 @@ export function ConversationPanel({
           }}
         />
       </div>
-      <div className="pt-2 mx-auto max-w-3xl flex-1 w-full">
+      <div className="pt-2 mx-auto max-w-3xl flex-1 w-full px-4">
         {messageGroups.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <p className="text-sm">{tConversations('panel.noMessages')}</p>

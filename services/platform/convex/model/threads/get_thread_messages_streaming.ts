@@ -38,10 +38,12 @@ export async function getThreadMessagesStreaming(
 
   // Fetch streaming deltas for real-time updates
   // Pass args directly as syncStreams expects { threadId, streamArgs, ... }
+  // Only include 'streaming' status - finished messages come from listUIMessages
+  // Including 'finished' here causes duplicates when both sources return the same message
+  // Issue #184: Duplicate AI responses with paginated messages
   const streams = await syncStreams(ctx, components.agent, {
     ...args,
-    // Include all statuses to avoid UI flashes when messages transition
-    includeStatuses: ['streaming', 'aborted', 'finished'],
+    includeStatuses: ['streaming'],
   });
 
   return {
@@ -49,4 +51,3 @@ export async function getThreadMessagesStreaming(
     streams,
   };
 }
-

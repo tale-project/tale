@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/select';
 import { Banner } from '@/components/ui/banner';
 import { toast } from '@/hooks/use-toast';
 import { useUpdateMemberRole } from '../hooks/use-update-member-role';
+import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
 import { useT } from '@/lib/i18n';
 
 // Type for the form data
@@ -50,7 +51,9 @@ export function EditMemberDialog({
   const editMemberSchema = useMemo(
     () =>
       z.object({
-        displayName: z.string().min(1, tCommon('validation.required', { field: t('form.name') })),
+        displayName: z
+          .string()
+          .min(1, tCommon('validation.required', { field: t('form.name') })),
         role: z.enum(['disabled', 'admin', 'developer', 'editor', 'member']),
         email: z.string().email(tCommon('validation.email')),
         updatePassword: z.boolean().optional(),
@@ -77,6 +80,7 @@ export function EditMemberDialog({
   });
 
   const updateMemberRole = useUpdateMemberRole();
+  const updateMemberDisplayName = useUpdateMemberDisplayName();
 
   const handleUpdateMember = async (
     memberId: string,
@@ -85,12 +89,27 @@ export function EditMemberDialog({
       role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
       email: string;
     },
+    original: { role?: string; displayName?: string },
   ) => {
     try {
-      await updateMemberRole({
-        memberId,
-        role: data.role,
-      });
+      const promises: Promise<unknown>[] = [];
+
+      // Only call updateMemberRole if role actually changed
+      const roleChanged =
+        data.role.toLowerCase() !== original.role?.toLowerCase();
+      if (roleChanged) {
+        promises.push(updateMemberRole({ memberId, role: data.role }));
+      }
+
+      // Only call updateMemberDisplayName if displayName actually changed
+      const displayNameChanged = data.displayName !== original.displayName;
+      if (displayNameChanged) {
+        promises.push(
+          updateMemberDisplayName({ memberId, displayName: data.displayName }),
+        );
+      }
+
+      await Promise.all(promises);
 
       toast({
         title: t('organization.memberUpdated'),
@@ -112,7 +131,10 @@ export function EditMemberDialog({
 
   const onSubmit = async (data: EditMemberFormData) => {
     if (!member) return;
-    await handleUpdateMember(member._id, data);
+    await handleUpdateMember(member._id, data, {
+      role: member.role,
+      displayName: member.displayName,
+    });
     onOpenChange(false);
   };
 
@@ -188,7 +210,12 @@ export function EditMemberDialog({
         {!isEditingSelf &&
           member?.role === 'admin' &&
           watch('role') !== 'admin' && (
-            <Banner variant="warning" message={t('organization.adminWarning')} dismissible={false} className="mt-2" />
+            <Banner
+              variant="warning"
+              message={t('organization.adminWarning')}
+              dismissible={false}
+              className="mt-2"
+            />
           )}
       </Stack>
 

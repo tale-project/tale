@@ -84,6 +84,32 @@ function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength - 1) + '…';
 }
 
+/**
+ * Checks if any message in the list matches the optimistic message.
+ * Used to detect when the server has confirmed receipt of the user's message.
+ */
+function findMatchingServerMessage(
+  messages: ChatMessage[] | undefined,
+  optimisticContent: string,
+  optimisticTimestamp: number,
+): boolean {
+  if (!messages) return false;
+
+  return messages.some((m) => {
+    if (m.role !== 'user') return false;
+
+    // Check timestamp - only match messages created after user clicked send
+    const messageTime = m._creationTime || m.timestamp.getTime();
+    if (messageTime < optimisticTimestamp) return false;
+
+    // Check content match
+    return (
+      m.content === optimisticContent ||
+      m.content.startsWith(optimisticContent)
+    );
+  });
+}
+
 interface ThinkingAnimationProps {
   threadId?: string;
   streamingMessage?: UIMessage;
@@ -327,35 +353,97 @@ export function ChatInterface({
   // Convert UIMessage to ChatMessage format for compatibility
   // Memoize to prevent unnecessary re-renders when typing
   const threadMessages: ChatMessage[] = useMemo(() => {
-    return (uiMessages || [])
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => {
-        // Extract file parts (images) from UIMessage.parts
-        const fileParts = (m.parts || [])
-          .filter((p): p is FilePart => p.type === 'file')
-          .map((p) => ({
-            type: 'file' as const,
-            mediaType: p.mediaType,
-            filename: p.filename,
-            url: p.url,
-          }));
+    // Track seen message IDs to prevent duplicates
+    // useUIMessages can return multiple entries with different keys for the same message
+    const seenMessageIds = new Set<string>();
+    // Track seen assistant message content to prevent content duplicates
+    // This handles the case where streaming and persisted messages have different IDs/stepOrders
+    // but contain the same content (Issue #184)
+    const seenAssistantContent = new Set<string>();
 
-        return {
-          // id: document ID for metadata lookup
-          // key: React key with step/part suffix for unique rendering
-          id: m.id,
-          key: m.key,
-          content: m.text,
-          role: m.role as 'user' | 'assistant',
-          timestamp: new Date(m._creationTime),
-          fileParts: fileParts.length > 0 ? fileParts : undefined,
-          _creationTime: m._creationTime,
-          // Mark messages with 'streaming' status as actively streaming
-          // This triggers the TypewriterText animation in MessageBubble
-          isStreaming: m.status === 'streaming',
-        };
-      });
+    // Find the minimum order of user messages to detect pagination boundary
+    // Stream messages with order < minUserOrder are orphaned (their user message was paginated out)
+    const userMessages = (uiMessages || []).filter((m) => m.role === 'user');
+    const minUserOrder =
+      userMessages.length > 0
+        ? Math.min(...userMessages.map((m) => m.order))
+        : 0;
+
+    const filtered = (uiMessages || []).filter((m) => {
+      if (m.role !== 'user' && m.role !== 'assistant') return false;
+
+      // Filter out orphaned stream messages whose user message was paginated out
+      // These are assistant messages with order < minUserOrder from stream source
+      // Issue #184: When pagination kicks in, old stream messages stay in state
+      if (m.role === 'assistant' && m.order < minUserOrder) {
+        return false;
+      }
+
+      // Deduplicate ALL messages by id (not just user messages)
+      if (seenMessageIds.has(m.id)) {
+        return false;
+      }
+      seenMessageIds.add(m.id);
+
+      // For assistant messages, also dedupe by content
+      // This catches duplicates with different IDs but same content
+      if (m.role === 'assistant' && m.text) {
+        // Use first 200 chars as content key to handle minor differences
+        const contentKey = m.text.substring(0, 200);
+        if (seenAssistantContent.has(contentKey)) {
+          return false;
+        }
+        seenAssistantContent.add(contentKey);
+      }
+
+      return true;
+    });
+
+    return filtered.map((m) => {
+      // Extract file parts (images) from UIMessage.parts
+      const fileParts = (m.parts || [])
+        .filter((p): p is FilePart => p.type === 'file')
+        .map((p) => ({
+          type: 'file' as const,
+          mediaType: p.mediaType,
+          filename: p.filename,
+          url: p.url,
+        }));
+
+      return {
+        // id: document ID for metadata lookup
+        // key: React key with step/part suffix for unique rendering
+        id: m.id,
+        key: m.key,
+        content: m.text,
+        role: m.role as 'user' | 'assistant',
+        timestamp: new Date(m._creationTime),
+        fileParts: fileParts.length > 0 ? fileParts : undefined,
+        _creationTime: m._creationTime,
+        // Mark messages with 'streaming' status as actively streaming
+        // This triggers the TypewriterText animation in MessageBubble
+        isStreaming: m.status === 'streaming',
+      };
+    });
   }, [uiMessages]);
+
+  // Check if a server message matching the optimistic message already exists
+  // This prevents showing duplicates during the brief window between
+  // server message arrival and useEffect clearing the optimistic state
+  const hasMatchingServerMessage = useMemo(() => {
+    if (!optimisticMessage?.content) {
+      return false;
+    }
+    return findMatchingServerMessage(
+      threadMessages,
+      optimisticMessage.content,
+      optimisticMessage.timestamp,
+    );
+  }, [
+    threadMessages,
+    optimisticMessage?.content,
+    optimisticMessage?.timestamp,
+  ]);
 
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
@@ -486,48 +574,25 @@ export function ChatInterface({
   }, [streamingMessage, isPending, setIsPending]);
 
   // Clear optimistic message when it appears in actual messages
-  // Track the timestamp when optimistic message was created to avoid matching older messages
-  const optimisticMessageTimestampRef = useRef<number | null>(null);
-
-  // Update timestamp when optimistic message is set
   useEffect(() => {
-    if (optimisticMessage?.content) {
-      optimisticMessageTimestampRef.current = Date.now();
+    if (!optimisticMessage?.content || uiMessages === undefined) {
+      return;
     }
-  }, [optimisticMessage?.content]);
 
-  useEffect(() => {
-    if (
-      optimisticMessage?.content &&
-      uiMessages !== undefined &&
-      optimisticMessageTimestampRef.current
-    ) {
-      // Find user messages created after the optimistic message was set
-      // Use a small buffer (500ms before) to account for timing differences
-      const searchStartTime = optimisticMessageTimestampRef.current - 500;
+    const hasMatch = findMatchingServerMessage(
+      threadMessages,
+      optimisticMessage.content,
+      optimisticMessage.timestamp,
+    );
 
-      const matchingMessage = threadMessages?.find((m) => {
-        if (m.role !== 'user') return false;
-        // Only consider messages created around or after the optimistic message
-        const messageTime = m._creationTime || m.timestamp.getTime();
-        if (messageTime < searchStartTime) return false;
-        // Check for exact match OR if the message starts with the optimistic content
-        // (handles case where images are appended as markdown)
-        return (
-          m.content === optimisticMessage.content ||
-          m.content.startsWith(optimisticMessage.content)
-        );
-      });
-
-      if (matchingMessage) {
-        setOptimisticMessage(null);
-        optimisticMessageTimestampRef.current = null;
-      }
+    if (hasMatch) {
+      setOptimisticMessage(null);
     }
   }, [
     uiMessages,
     threadMessages,
     optimisticMessage?.content,
+    optimisticMessage?.timestamp,
     setOptimisticMessage,
   ]);
 
@@ -625,7 +690,13 @@ export function ChatInterface({
       attachments,
     };
 
-    setOptimisticMessage({ content: sanitizedContent, threadId, attachments });
+    const optimisticTimestamp = Date.now();
+    setOptimisticMessage({
+      content: sanitizedContent,
+      threadId,
+      attachments,
+      timestamp: optimisticTimestamp,
+    });
     setInputValue('');
 
     // Set pending immediately to show thinking animation right away
@@ -654,6 +725,7 @@ export function ChatInterface({
           content: sanitizedContent,
           threadId: newThreadId,
           attachments,
+          timestamp: optimisticTimestamp,
         });
         router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, {
           scroll: false,
@@ -805,7 +877,7 @@ export function ChatInterface({
                   );
                 }
               })}
-              {userDraftMessage && (
+              {userDraftMessage && !hasMatchingServerMessage && (
                 <MessageBubble
                   key={'user-draft'}
                   message={{
@@ -822,11 +894,16 @@ export function ChatInterface({
               {/* AI Response area - ref used for scroll positioning */}
               {/* Show ThinkingAnimation when:
                   1. Waiting for AI response (isPending, no streaming yet), OR
-                  2. Streaming started but no text content yet (prevents blank gap), OR
-                  3. Tools are actively executing (even if text has started streaming) */}
+                  2. Message is streaming but has no text content yet, OR
+                  3. Tools are actively executing (even if text has started streaming)
+
+                  Note: We check status === 'streaming' explicitly to ensure the indicator
+                  stays visible during gaps in tool state transitions (when one tool completes
+                  but no text has been output yet). */}
               <div ref={aiResponseAreaRef}>
                 {((isPending && !streamingMessage) ||
-                  (streamingMessage && !streamingMessage.text) ||
+                  (streamingMessage?.status === 'streaming' &&
+                    !streamingMessage.text) ||
                   hasActiveTools) && (
                   <ThinkingAnimation
                     threadId={threadId}
