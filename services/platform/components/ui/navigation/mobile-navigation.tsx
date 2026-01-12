@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Menu } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 import {
   Sheet,
   SheetContent,
@@ -16,7 +17,6 @@ import {
   NavigationMenuItem,
   NavigationMenuList,
 } from './navigation-menu';
-import { cn } from '@/lib/utils/cn';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
 import { TaleLogo } from '@/components/ui/logo/tale-logo';
 import { UserButton } from '@/components/user-button';
@@ -62,9 +62,7 @@ const MobileNavigationItem = ({
         onClick={onClose}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full',
-          isActive
-            ? 'bg-muted text-foreground'
-            : 'hover:bg-muted text-muted-foreground',
+          isActive ? 'bg-muted text-foreground' : 'hover:bg-muted text-muted-foreground'
         )}
       >
         {Icon && <Icon className="size-5 shrink-0" />}
@@ -88,7 +86,7 @@ const MobileNavigationItem = ({
                   'block px-3 py-1.5 rounded-lg text-sm transition-colors',
                   isSubActive
                     ? 'text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground',
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {subItem.label}

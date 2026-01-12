@@ -180,25 +180,3 @@ export async function parseImportFile<T>(
   }
 }
 
-/**
- * Get a value from an Excel record with case-insensitive key matching.
- */
-function getExcelValue<T = string>(
-  record: Record<string, unknown>,
-  ...keys: string[]
-): T | undefined {
-  for (const key of keys) {
-    // Try exact match first
-    if (key in record) {
-      return record[key] as T;
-    }
-    // Try lowercase match
-    const lowerKey = key.toLowerCase();
-    for (const recordKey of Object.keys(record)) {
-      if (recordKey.toLowerCase() === lowerKey) {
-        return record[recordKey] as T;
-      }
-    }
-  }
-  return undefined;
-}

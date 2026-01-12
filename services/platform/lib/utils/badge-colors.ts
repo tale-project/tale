@@ -3,202 +3,155 @@
  * Provides consistent color schemes for status badges, role badges, etc.
  */
 
-export type BadgeVariant =
-  | 'default'
-  | 'success'
-  | 'warning'
-  | 'error'
-  | 'info'
-  | 'muted';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from './cn';
 
-export type BadgeColorClasses = {
-  bg: string;
-  text: string;
-  border?: string;
-};
+const badgeColorVariants = cva('', {
+  variants: {
+    variant: {
+      default: 'bg-secondary text-secondary-foreground',
+      success:
+        'bg-green-100 dark:bg-green-950/20 text-green-800 dark:text-green-200',
+      warning:
+        'bg-amber-100 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200',
+      error: 'bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200',
+      info: 'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+      muted: 'bg-muted text-muted-foreground',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+  },
+});
 
-/**
- * Standard badge color mappings.
- */
-export const badgeColors: Record<BadgeVariant, BadgeColorClasses> = {
-  default: {
-    bg: 'bg-secondary',
-    text: 'text-secondary-foreground',
+const badgeBorderVariants = cva('', {
+  variants: {
+    variant: {
+      default: '',
+      success: 'border-green-200 dark:border-green-800',
+      warning: 'border-amber-200 dark:border-amber-800',
+      error: 'border-red-200 dark:border-red-800',
+      info: 'border-blue-200 dark:border-blue-800',
+      muted: '',
+    },
   },
-  success: {
-    bg: 'bg-green-100 dark:bg-green-950/20',
-    text: 'text-green-800 dark:text-green-200',
-    border: 'border-green-200 dark:border-green-800',
+  defaultVariants: {
+    variant: 'default',
   },
-  warning: {
-    bg: 'bg-amber-100 dark:bg-amber-950/20',
-    text: 'text-amber-800 dark:text-amber-200',
-    border: 'border-amber-200 dark:border-amber-800',
-  },
-  error: {
-    bg: 'bg-red-100 dark:bg-red-950/20',
-    text: 'text-red-800 dark:text-red-200',
-    border: 'border-red-200 dark:border-red-800',
-  },
-  info: {
-    bg: 'bg-blue-100 dark:bg-blue-950/20',
-    text: 'text-blue-800 dark:text-blue-200',
-    border: 'border-blue-200 dark:border-blue-800',
-  },
-  muted: {
-    bg: 'bg-muted',
-    text: 'text-muted-foreground',
-  },
-};
+});
+
+type BadgeVariant = NonNullable<
+  VariantProps<typeof badgeColorVariants>['variant']
+>;
 
 /**
  * Get badge color classes for a variant.
  */
-export function getBadgeColorClasses(
-  variant: BadgeVariant,
-  includeBorder = false
-): string {
-  const colors = badgeColors[variant];
-  const classes = [colors.bg, colors.text];
-  if (includeBorder && colors.border) {
-    classes.push(colors.border);
+function getBadgeColorClasses(variant: BadgeVariant, includeBorder = false) {
+  const base = badgeColorVariants({ variant });
+  if (includeBorder) {
+    return cn(base, badgeBorderVariants({ variant }));
   }
-  return classes.join(' ');
+  return base;
 }
 
-/**
- * Role to badge variant mapping.
- */
-export type RoleBadgeVariant = 'admin' | 'developer' | 'member' | 'viewer';
+export { badgeColorVariants, getBadgeColorClasses };
+export type { BadgeVariant };
 
-const roleBadgeVariantMap: Record<RoleBadgeVariant, BadgeVariant> = {
-  admin: 'error',
-  developer: 'info',
-  member: 'muted',
-  viewer: 'muted',
-};
+/**
+ * Role badge variants - maps roles directly to badge styles.
+ */
+const roleBadgeVariants = cva('', {
+  variants: {
+    role: {
+      admin: 'bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200',
+      developer:
+        'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+      member: 'bg-muted text-muted-foreground',
+      viewer: 'bg-muted text-muted-foreground',
+    },
+  },
+  defaultVariants: {
+    role: 'member',
+  },
+});
+
+type RoleBadgeVariant = NonNullable<
+  VariantProps<typeof roleBadgeVariants>['role']
+>;
 
 /**
  * Get badge color classes for a role.
  */
 export function getRoleBadgeClasses(role?: string | null): string {
   const normalizedRole = (role || '').toLowerCase() as RoleBadgeVariant;
-  const variant = roleBadgeVariantMap[normalizedRole] || 'muted';
-  return getBadgeColorClasses(variant);
+  const validRoles: RoleBadgeVariant[] = ['admin', 'developer', 'member', 'viewer'];
+  if (validRoles.includes(normalizedRole)) {
+    return roleBadgeVariants({ role: normalizedRole });
+  }
+  return roleBadgeVariants({ role: 'member' });
 }
 
-/**
- * Status to badge variant mapping.
- */
-export type StatusBadgeVariant =
-  | 'active'
-  | 'inactive'
-  | 'pending'
-  | 'completed'
-  | 'failed'
-  | 'draft'
-  | 'archived'
-  | 'open'
-  | 'closed'
-  | 'processing'
-  | 'queued';
+export { roleBadgeVariants };
+export type { RoleBadgeVariant };
 
-const statusBadgeVariantMap: Record<StatusBadgeVariant, BadgeVariant> = {
-  active: 'success',
-  inactive: 'muted',
-  pending: 'warning',
-  completed: 'success',
-  failed: 'error',
-  draft: 'info',
-  archived: 'muted',
-  open: 'info',
-  closed: 'muted',
-  processing: 'warning',
-  queued: 'info',
-};
+/**
+ * Status badge variants - maps statuses directly to badge styles.
+ */
+const statusBadgeVariants = cva('', {
+  variants: {
+    status: {
+      active:
+        'bg-green-100 dark:bg-green-950/20 text-green-800 dark:text-green-200',
+      inactive: 'bg-muted text-muted-foreground',
+      pending:
+        'bg-amber-100 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200',
+      completed:
+        'bg-green-100 dark:bg-green-950/20 text-green-800 dark:text-green-200',
+      failed: 'bg-red-100 dark:bg-red-950/20 text-red-800 dark:text-red-200',
+      draft:
+        'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+      archived: 'bg-muted text-muted-foreground',
+      open: 'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+      closed: 'bg-muted text-muted-foreground',
+      processing:
+        'bg-amber-100 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200',
+      queued:
+        'bg-blue-100 dark:bg-blue-950/20 text-blue-800 dark:text-blue-200',
+    },
+  },
+  defaultVariants: {
+    status: 'inactive',
+  },
+});
+
+type StatusBadgeVariant = NonNullable<
+  VariantProps<typeof statusBadgeVariants>['status']
+>;
 
 /**
  * Get badge color classes for a status.
  */
 export function getStatusBadgeClasses(status?: string | null): string {
   const normalizedStatus = (status || '').toLowerCase() as StatusBadgeVariant;
-  const variant = statusBadgeVariantMap[normalizedStatus] || 'muted';
-  return getBadgeColorClasses(variant);
+  const validStatuses: StatusBadgeVariant[] = [
+    'active',
+    'inactive',
+    'pending',
+    'completed',
+    'failed',
+    'draft',
+    'archived',
+    'open',
+    'closed',
+    'processing',
+    'queued',
+  ];
+  if (validStatuses.includes(normalizedStatus)) {
+    return statusBadgeVariants({ status: normalizedStatus });
+  }
+  return statusBadgeVariants({ status: 'inactive' });
 }
 
-/**
- * Workflow step type to badge variant mapping.
- */
-type StepTypeBadgeVariant =
-  | 'trigger'
-  | 'action'
-  | 'condition'
-  | 'delay'
-  | 'loop'
-  | 'end';
-
-const stepTypeBadgeVariantMap: Record<StepTypeBadgeVariant, BadgeVariant> = {
-  trigger: 'info',
-  action: 'success',
-  condition: 'warning',
-  delay: 'muted',
-  loop: 'info',
-  end: 'muted',
-};
-
-/**
- * Get badge color classes for a workflow step type.
- */
-function getStepTypeBadgeClasses(stepType?: string | null): string {
-  const normalizedType = (stepType || '').toLowerCase() as StepTypeBadgeVariant;
-  const variant = stepTypeBadgeVariantMap[normalizedType] || 'muted';
-  return getBadgeColorClasses(variant);
-}
-
-/**
- * RAG status to badge variant mapping.
- */
-type RagStatusBadgeVariant =
-  | 'indexed'
-  | 'pending'
-  | 'processing'
-  | 'failed'
-  | 'not_indexed';
-
-const ragStatusBadgeVariantMap: Record<RagStatusBadgeVariant, BadgeVariant> = {
-  indexed: 'success',
-  pending: 'warning',
-  processing: 'info',
-  failed: 'error',
-  not_indexed: 'muted',
-};
-
-/**
- * Get badge color classes for a RAG status.
- */
-function getRagStatusBadgeClasses(status?: string | null): string {
-  const normalizedStatus = (status || '').toLowerCase() as RagStatusBadgeVariant;
-  const variant = ragStatusBadgeVariantMap[normalizedStatus] || 'muted';
-  return getBadgeColorClasses(variant);
-}
-
-/**
- * Priority to badge variant mapping.
- */
-type PriorityBadgeVariant = 'high' | 'medium' | 'low' | 'urgent';
-
-const priorityBadgeVariantMap: Record<PriorityBadgeVariant, BadgeVariant> = {
-  urgent: 'error',
-  high: 'warning',
-  medium: 'info',
-  low: 'muted',
-};
-
-/**
- * Get badge color classes for a priority level.
- */
-function getPriorityBadgeClasses(priority?: string | null): string {
-  const normalizedPriority = (priority || '').toLowerCase() as PriorityBadgeVariant;
-  const variant = priorityBadgeVariantMap[normalizedPriority] || 'muted';
-  return getBadgeColorClasses(variant);
-}
+export { statusBadgeVariants };
+export type { StatusBadgeVariant };

@@ -2,17 +2,10 @@
 
 import { forwardRef, ComponentRef, ComponentPropsWithoutRef } from 'react';
 import * as LabelPrimitive from '@radix-ui/react-label';
-import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
 
-const labelVariants = cva(
-  'leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-xs md:text-sm font-medium text-muted-foreground',
-);
-
-interface LabelProps
-  extends ComponentPropsWithoutRef<typeof LabelPrimitive.Root>,
-  VariantProps<typeof labelVariants> {
+interface LabelProps extends ComponentPropsWithoutRef<typeof LabelPrimitive.Root> {
   required?: boolean;
   error?: boolean;
 }
@@ -23,7 +16,11 @@ export const Label = forwardRef<ComponentRef<typeof LabelPrimitive.Root>, LabelP
     return (
       <LabelPrimitive.Root
         ref={ref}
-        className={cn(labelVariants(), error && 'text-destructive', className)}
+        className={cn(
+          'leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-xs md:text-sm font-medium text-muted-foreground',
+          error && 'text-destructive',
+          className
+        )}
         {...props}
       >
         {children}
@@ -34,7 +31,7 @@ export const Label = forwardRef<ComponentRef<typeof LabelPrimitive.Root>, LabelP
         )}
       </LabelPrimitive.Root>
     );
-  },
+  }
 );
 Label.displayName = LabelPrimitive.Root.displayName;
 

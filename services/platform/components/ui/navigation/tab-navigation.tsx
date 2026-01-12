@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { useResizeObserver } from '@/hooks/use-resize-observer';
 
+
 export interface TabNavigationItem {
   /** Display label for the tab */
   label: string;
@@ -143,9 +144,9 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none flex-shrink-0',
+        'relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 overflow-x-auto scrollbar-none shrink-0',
         standalone && 'bg-background sticky z-20',
-        className,
+        className
       )}
       aria-label={ariaLabel}
     >
@@ -163,9 +164,7 @@ export function TabNavigation({
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'relative h-full flex items-center py-1 text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-              isActive
-                ? 'text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+              isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
             )}
           >
             {item.label}
