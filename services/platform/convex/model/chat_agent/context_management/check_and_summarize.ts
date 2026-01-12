@@ -15,16 +15,14 @@
 import type { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { estimateContextSize } from './estimate_context_size';
-import { DEFAULT_MODEL_CONTEXT_LIMIT, DEFAULT_RECENT_MESSAGES } from './constants';
+import {
+  DEFAULT_MODEL_CONTEXT_LIMIT,
+  DEFAULT_RECENT_MESSAGES,
+  SUMMARIZATION_THRESHOLD,
+} from '../../../lib/context_management';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ContextCheck]');
-
-/**
- * Threshold for triggering summarization.
- * When context usage exceeds this ratio, async summarization is triggered.
- */
-const SUMMARIZATION_THRESHOLD = 0.65; // 65% - trigger early for safety margin
 
 /**
  * Arguments for check and summarize.

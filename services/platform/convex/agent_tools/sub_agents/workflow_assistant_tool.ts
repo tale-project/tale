@@ -3,6 +3,11 @@
  *
  * Delegates ALL workflow-related tasks to the specialized Workflow Assistant Agent.
  * This is the single entry point for workflow operations from the Chat Agent.
+ *
+ * Uses the shared context management module for:
+ * - Structured prompt building
+ * - Smart history filtering via contextHandler
+ * - Token-aware context management
  */
 
 import { z } from 'zod';
@@ -12,6 +17,8 @@ import type { ToolDefinition } from '../types';
 import { createWorkflowAgent } from '../../lib/create_workflow_agent';
 import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
+import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
 
 /** Roles that are allowed to use the workflow assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -114,43 +121,8 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           toolCount: workflowAgent.options.tools
             ? Object.keys(workflowAgent.options.tools).length
             : 0,
-          // Check if maxSteps is set in the agent options
           maxSteps: (workflowAgent.options as Record<string, unknown>).maxSteps,
         });
-
-        // Build the prompt with context
-        let prompt = `## User Request:\n${args.userRequest}\n\n`;
-        if (args.workflowId) {
-          prompt += `## Target Workflow ID: ${args.workflowId}\n\n`;
-        }
-
-        // Format current date/time clearly for the model
-        const now = new Date();
-        const currentDate = now.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        const currentTime = now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZoneName: 'short',
-        });
-
-        prompt += `## Context:\n`;
-        prompt += `- **Current Date**: ${currentDate}\n`;
-        prompt += `- **Current Time**: ${currentTime}\n`;
-        prompt += `- Organization ID: ${organizationId}\n`;
-        if (threadId) {
-          prompt += `- Parent Thread ID: ${threadId}\n`;
-        }
-        if (userId) {
-          prompt += `- User ID: ${userId}\n`;
-        }
-
-        console.log('[workflow_assistant_tool] Calling workflowAgent.generateText');
-        console.log('[workflow_assistant_tool] Prompt:', prompt);
 
         // Get or create a sub-thread for this parent thread + sub-agent combination
         // Reusing the thread allows the sub-agent to maintain context across calls
@@ -166,6 +138,34 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         console.log('[workflow_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
         console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
 
+        // Build structured prompt using the shared context management module
+        const additionalContext: Record<string, string> = {};
+        if (args.workflowId) {
+          additionalContext.target_workflow_id = args.workflowId;
+        }
+
+        const promptResult = buildSubAgentPrompt({
+          userRequest: args.userRequest,
+          agentType: 'workflow',
+          threadId: subThreadId,
+          organizationId,
+          userId,
+          parentThreadId: threadId,
+          additionalContext,
+        });
+
+        console.log('[workflow_assistant_tool] Calling workflowAgent.generateText', {
+          estimatedTokens: promptResult.estimatedTokens,
+        });
+
+        // Create context handler with workflow agent configuration
+        const workflowConfig = AGENT_CONTEXT_CONFIGS.workflow;
+        const contextHandler = createContextHandler({
+          modelContextLimit: workflowConfig.modelContextLimit,
+          outputReserve: workflowConfig.outputReserve,
+          minRecentMessages: Math.min(4, workflowConfig.recentMessages),
+        });
+
         // Extend the context with parentThreadId so that tools (like create_workflow)
         // can link approvals to the parent thread instead of the sub-thread
         const contextWithParentThread = {
@@ -180,7 +180,17 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         const result = await workflowAgent.generateText(
           contextWithParentThread,
           { threadId: subThreadId, userId },
-          { prompt },
+          {
+            prompt: promptResult.prompt,
+            messages: promptResult.systemMessages,
+          },
+          {
+            contextOptions: {
+              recentMessages: workflowConfig.recentMessages,
+              excludeToolMessages: false,
+            },
+            contextHandler,
+          },
         );
         const generationDurationMs = Date.now() - generationStartTime;
 
@@ -200,11 +210,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
-          usage: result.usage ? {
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
-          } : undefined,
+          usage: result.usage,
         };
       } catch (error) {
         console.error('[workflow_assistant_tool] Error:', error);

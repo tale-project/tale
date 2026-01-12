@@ -13,11 +13,7 @@ import type { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 
 const verifyApprovalArgs = z.object({
-  approvalId: z
-    .string()
-    .describe(
-      'The approval ID to verify (e.g., "j57d0wr5f91v3g3m1h7y2t3z9j17xy2b5"). This should be the ID returned from a previous integration tool call.',
-    ),
+  approvalId: z.string().describe('Approval ID returned from write operation'),
 });
 
 export interface VerifyApprovalResult {
@@ -33,26 +29,8 @@ export interface VerifyApprovalResult {
 export const verifyApprovalTool: ToolDefinition = {
   name: 'verify_approval',
   tool: createTool({
-    description: `Verify that an approval record exists in the database.
-
-IMPORTANT: You MUST call this tool after creating a write operation approval to confirm it was actually created before telling the user about it.
-
-This tool checks if an approval ID corresponds to a real approval record in the database. Use it to:
-1. Confirm an approval was successfully created after calling a write operation
-2. Verify the approval details (status, operation name, etc.)
-3. Prevent reporting false approval IDs to users
-
-REQUIRED WORKFLOW for write operations:
-1. Call the integration tool with a write operation (e.g., update_guest, post_charge)
-2. If the tool returns an approvalId, IMMEDIATELY call verify_approval with that ID
-3. Only if verify_approval returns exists: true, inform the user about the approval
-4. If verify_approval returns exists: false, report the error - do NOT claim an approval was created
-
-Returns:
-- exists: true/false - whether the approval exists
-- status: 'pending', 'approved', or 'rejected' (if exists)
-- operationName, operationTitle, integrationName: details about the approval (if exists)
-- error: error message if the approval doesn't exist or verification failed`,
+    description: `Verify an approval record exists.
+Call after write operations to confirm approval was created.`,
 
     args: verifyApprovalArgs,
 

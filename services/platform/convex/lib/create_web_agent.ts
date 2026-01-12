@@ -31,6 +31,7 @@ export function createWebAgent(options?: {
     instructions: WEB_ASSISTANT_INSTRUCTIONS,
     convexToolNames,
     maxSteps,
+    useFastModel: true,
   });
 
   return new Agent(components.agent, agentConfig);

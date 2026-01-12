@@ -1,60 +1,72 @@
 /**
- * Context Management Module
+ * Context Management Module (Chat Agent)
  *
- * Handles context construction, ordering, and overflow management for the chat agent.
+ * Re-exports from the shared context management module for backward compatibility.
+ * New code should import directly from '../../lib/context_management'.
  *
- * Key responsibilities:
- * 1. Message ordering via contextHandler - ensures system context appears before history
- * 2. Token estimation for context budgeting
- * 3. Proactive context overflow detection and summarization
- * 4. Context priority management for token budget optimization
+ * This module also includes chat-agent-specific functionality like:
+ * - checkAndSummarizeIfNeeded (integrates with chat_agent.autoSummarizeIfNeeded)
+ * - buildPrioritizedContexts (chat-agent-specific context building)
  */
 
-// Constants
+// Re-export everything from the shared module
 export {
+  // Constants
   SYSTEM_INSTRUCTIONS_TOKENS,
   CONTEXT_SAFETY_MARGIN,
   DEFAULT_MODEL_CONTEXT_LIMIT,
   DEFAULT_RECENT_MESSAGES,
   OUTPUT_RESERVE,
   RECENT_MESSAGES_TOKEN_ESTIMATE,
-} from './constants';
-
-// Token estimation
-export {
+  LARGE_MESSAGE_THRESHOLD,
+  SUMMARIZATION_THRESHOLD,
+  AGENT_CONTEXT_CONFIGS,
+  type AgentType,
+  // Token estimation
   estimateTokens,
+  estimateJsonTokens,
   estimateMessageTokens,
   estimateMessagesTokens,
   estimateMessageDocTokens,
-  estimateJsonTokens,
-} from './estimate_tokens';
-
-// Context handler for message ordering and smart history filtering
-export {
+  // Context priority
+  ContextPriority,
+  createPrioritizedContext,
+  trimContextsByPriority,
+  prioritizedContextsToMessage,
+  prioritizedContextsToMessages,
+  type PrioritizedContext,
+  type TrimResult,
+  // Context handler
   createContextHandler,
   type ContextHandler,
   type ContextHandlerArgs,
-} from './context_handler';
+  type ContextHandlerOptions,
+  // Context builder
+  ContextBuilder,
+  createContextBuilder,
+  type ContextItem,
+  type ContextBuildResult,
+  type ContextBuilderOptions,
+  // Agent context manager
+  AgentContextManager,
+  createAgentContextManager,
+  createSubAgentContext,
+  type AgentContextManagerConfig,
+  type ContextSetupResult,
+} from '../../../lib/context_management';
 
-// Context size estimation
-export {
-  estimateContextSize,
-  type ContextSizeEstimate,
-  type EstimateContextSizeArgs,
-} from './estimate_context_size';
-
-// Proactive summarization (async)
+// Chat-agent-specific exports
 export {
   checkAndSummarizeIfNeeded,
   type CheckAndSummarizeArgs,
   type CheckAndSummarizeResult,
 } from './check_and_summarize';
 
-// Context priority management
 export {
-  buildPrioritizedContexts,
-  trimContextsByPriority,
-  prioritizedContextsToMessages,
-  type PrioritizedContext,
-  type TrimResult,
-} from './context_priority';
+  estimateContextSize,
+  type ContextSizeEstimate,
+  type EstimateContextSizeArgs,
+} from './estimate_context_size';
+
+// Chat-agent-specific context building helper
+export { buildPrioritizedContexts } from './build_prioritized_contexts';

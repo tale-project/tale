@@ -15,28 +15,14 @@
 
 import { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
+import type {
+  SubAgentType,
+  SubThreadsMap,
+  ThreadSummaryWithSubThreads,
+} from '../../agent_tools/sub_agents/helpers/types';
 
-/** Available sub-agent types */
-export type SubAgentType =
-  | 'web_assistant'
-  | 'document_assistant'
-  | 'integration_assistant'
-  | 'workflow_assistant';
-
-/** Structure of the subThreads mapping in parent thread summary */
-interface SubThreadsMap {
-  web_assistant?: string;
-  document_assistant?: string;
-  integration_assistant?: string;
-  workflow_assistant?: string;
-}
-
-/** Extended summary structure for threads with sub-thread mappings */
-interface ThreadSummaryWithSubThreads {
-  chatType?: string;
-  subThreads?: SubThreadsMap;
-  [key: string]: unknown;
-}
+// Re-export for consumers that import from this module
+export type { SubAgentType } from '../../agent_tools/sub_agents/helpers/types';
 
 /** Result of get or create operation */
 export interface GetOrCreateSubThreadResult {

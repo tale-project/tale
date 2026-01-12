@@ -70,7 +70,12 @@ const customerReadArgs = z.object({
 export const customerReadTool: ToolDefinition = {
   name: 'customer_read',
   tool: createTool({
-    description: `Customer data read tool for retrieving customer information.
+    description: `Customer data read tool for retrieving customer information from the INTERNAL CRM database.
+
+SCOPE LIMITATION:
+This tool ONLY accesses the internal CRM customer database.
+DO NOT use this tool for data from external systems - check [INTEGRATIONS] context and use integration_assistant instead.
+Example: Hotel guests, e-commerce customers, external system records are NOT in this database.
 
 OPERATIONS:
 • 'get_by_id': Fetch a single customer by their Convex ID. Use when you have a specific customer ID.

@@ -84,6 +84,7 @@ export const subAgentTypeValidator = v.union(
   v.literal('document_assistant'),
   v.literal('integration_assistant'),
   v.literal('workflow_assistant'),
+  v.literal('crm_assistant'),
 );
 
 /**
