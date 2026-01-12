@@ -23,12 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files from services/platform directory
-COPY services/platform/package.json services/platform/package-lock.json ./
+# Copy package files for npm workspace installation
+# The lock file was generated with workspaces, so we need the workspace structure
+COPY package.json package-lock.json ./
+COPY services/platform/package.json ./services/platform/package.json
 
-# Install dependencies using npm with retry for QEMU network stability
-# See: https://github.com/docker/build-push-action/issues/471
-RUN npm ci --fetch-timeout=600000 --fetch-retries=10
+# Install only the platform workspace dependencies
+RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
 
 # ============================================================================
 # Stage 2: Builder
