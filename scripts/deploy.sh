@@ -421,16 +421,22 @@ cmd_deploy() {
     log_warning "Stateful services may not be fully ready, continuing anyway..."
   fi
 
-  # Step 4: Build new version
+  # Step 4: Build/pull new version
   # The compose.{color}.yml files define separate services (platform-blue, platform-green, etc.)
   # so they won't conflict with each other
-  log_step "Building ${target_color} containers..."
   local target_services
   target_services=$(get_services_for_color "$target_color")
 
-  if ! docker compose -f "${PROJECT_ROOT}/compose.${target_color}.yml" build $target_services; then
-    log_error "Build failed!"
-    return 1
+  # When PULL_POLICY=always, images are already pulled by upgrade.sh
+  # Skip build step - docker compose up will use the pulled images
+  if [ "${PULL_POLICY:-}" != "always" ]; then
+    log_step "Building ${target_color} containers..."
+    if ! docker compose -f "${PROJECT_ROOT}/compose.${target_color}.yml" build $target_services; then
+      log_error "Build failed!"
+      return 1
+    fi
+  else
+    log_step "Using pre-pulled images for ${target_color} containers..."
   fi
 
   # Step 5: Start new version
