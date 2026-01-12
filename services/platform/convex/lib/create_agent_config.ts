@@ -104,8 +104,11 @@ export function createAgentConfig(opts: {
   }
 
   if (!model) {
+    const expectedVar = opts.useFastModel
+      ? 'OPENAI_FAST_MODEL (or fallback OPENAI_MODEL)'
+      : 'OPENAI_MODEL';
     throw new Error(
-      'OPENAI_MODEL environment variable is required for Agent configuration but is not set',
+      `${expectedVar} environment variable is required for Agent configuration but is not set`,
     );
   }
 
