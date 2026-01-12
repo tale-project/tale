@@ -8,6 +8,12 @@ export function useUpdateMemberDisplayName() {
 
   return useMutation(api.member.updateMemberDisplayName).withOptimisticUpdate(
     (localStore, args) => {
+      // Validate display name before optimistic update
+      const trimmed = args.displayName?.trim();
+      if (!trimmed) {
+        return;
+      }
+
       const current = localStore.getQuery(api.member.listByOrganization, {
         organizationId,
       });
@@ -17,7 +23,7 @@ export function useUpdateMemberDisplayName() {
           { organizationId },
           current.map((member) =>
             member._id === args.memberId
-              ? { ...member, displayName: args.displayName }
+              ? { ...member, displayName: trimmed }
               : member,
           ),
         );

@@ -58,9 +58,7 @@ export function UserButton({
   // Skip query when user is not authenticated or organizationId is missing
   const memberContext = useQuery(
     api.member.getCurrentMemberContext,
-    organizationId && user
-      ? { organizationId: organizationId as string }
-      : 'skip',
+    organizationId && user ? { organizationId } : 'skip',
   );
 
   const handleSignOut = async () => {
@@ -153,25 +151,25 @@ export function UserButton({
         <DropdownMenuSeparator />
 
         {/* Settings - Only visible for Admin and Developer roles */}
-        {!loading &&
-          user &&
-          (() => {
-            const userRole = (memberContext?.role ?? '').toLowerCase();
-            return userRole === 'admin' || userRole === 'developer';
-          })() && (
-            <>
-              <DropdownMenuItem
-                onClick={() =>
-                  router.push(`/dashboard/${organizationId}/settings`)
-                }
-                className="py-2.5"
-              >
-                <Settings className="mr-3 size-4" />
-                <span>{t('userButton.settings')}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
+        {(() => {
+          const userRole = (memberContext?.role ?? '').toLowerCase();
+          const isAdminOrDeveloper =
+            userRole === 'admin' || userRole === 'developer';
+          return !loading && user && isAdminOrDeveloper;
+        })() && (
+          <>
+            <DropdownMenuItem
+              onClick={() =>
+                router.push(`/dashboard/${organizationId}/settings`)
+              }
+              className="py-2.5"
+            >
+              <Settings className="mr-3 size-4" />
+              <span>{t('userButton.settings')}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
 
         <div className="flex items-center justify-between gap-2 rounded-lg bg-secondary/20 p-1">
           <Button
