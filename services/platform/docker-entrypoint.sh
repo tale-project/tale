@@ -136,6 +136,30 @@ env_normalize_common
 # Determine CA cert path from available environment variables
 CA_CERT_PATH="${CADDY_CA_CERT_PATH:-${CADDY_ROOT_CA:-}}"
 
+# For self-signed mode, trigger and wait for Caddy to generate CA certificate
+# Caddy generates certificates on-demand (lazy), so we need to trigger it
+if [ "${TLS_MODE:-selfsigned}" != "letsencrypt" ] && [ -n "${CA_CERT_PATH}" ]; then
+  CA_WAIT_TIMEOUT="${CA_WAIT_TIMEOUT:-60}"
+  CA_WAIT_INTERVAL=2
+  waited=0
+
+  echo "⏳ Waiting for Caddy CA certificate at ${CA_CERT_PATH}..."
+
+  while [ ! -f "${CA_CERT_PATH}" ] && [ "$waited" -lt "$CA_WAIT_TIMEOUT" ]; do
+    # Trigger certificate generation by making a request to Caddy
+    # Use insecure mode since cert doesn't exist yet
+    curl -sk "https://${HOST:-tale.local}/health" >/dev/null 2>&1 || true
+    sleep "$CA_WAIT_INTERVAL"
+    waited=$((waited + CA_WAIT_INTERVAL))
+  done
+
+  if [ -f "${CA_CERT_PATH}" ]; then
+    echo "✅ CA certificate ready after ${waited}s"
+  else
+    echo "⚠️  CA certificate not found after ${CA_WAIT_TIMEOUT}s, continuing without it"
+  fi
+fi
+
 if [ -n "${CA_CERT_PATH}" ] && [ -f "${CA_CERT_PATH}" ]; then
   echo "🔐 Setting up Caddy root CA certificate for self-signed HTTPS..."
   # Create a combined CA bundle: system CAs + Caddy's CA
