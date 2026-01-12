@@ -8,23 +8,25 @@
 # with traffic switched only after the new version is healthy.
 #
 # USAGE:
-#   ./scripts/deploy.sh deploy                    # Deploy new version
-#   ./scripts/deploy.sh deploy --update-stateful  # Deploy and update stateful services
-#   ./scripts/deploy.sh rollback                  # Rollback to previous version
-#   ./scripts/deploy.sh status                    # Show current deployment status
-#   ./scripts/deploy.sh cleanup                   # Remove inactive containers
-#   ./scripts/deploy.sh reset                     # Remove ALL blue-green containers
+#   ./scripts/deploy.sh deploy <version>           # Deploy specified version
+#   ./scripts/deploy.sh deploy <version> --update-stateful  # Deploy and update stateful services
+#   ./scripts/deploy.sh rollback                   # Rollback to previous version
+#   ./scripts/deploy.sh status                     # Show current deployment status
+#   ./scripts/deploy.sh cleanup                    # Remove inactive containers
+#   ./scripts/deploy.sh reset                      # Remove ALL blue-green containers
 #
 # REQUIREMENTS:
+#   - Docker logged into GHCR: docker login ghcr.io
 #   - Docker and Docker Compose
 #   - At least 12-16 GB RAM (runs 2x services during deployment)
 #
 # HOW IT WORKS:
-#   1. Detect current color (blue/green/none)
-#   2. Build and start opposite color
-#   3. Wait for health checks to pass
-#   4. Traffic automatically routes to healthy backend (Caddy handles this)
-#   5. Drain and cleanup old containers
+#   1. Pull images for specified version from GHCR
+#   2. Detect current color (blue/green/none)
+#   3. Start opposite color with pulled images
+#   4. Wait for health checks to pass
+#   5. Traffic automatically routes to healthy backend (Caddy handles this)
+#   6. Drain and cleanup old containers
 #
 # ============================================================================
 
@@ -48,6 +50,12 @@ LOCK_FILE="${PROJECT_ROOT}/.deployment-lock"
 HEALTH_CHECK_TIMEOUT="${HEALTH_CHECK_TIMEOUT:-180}"  # Max time to wait for health
 HEALTH_CHECK_INTERVAL="${HEALTH_CHECK_INTERVAL:-1}"   # Interval between checks
 DRAIN_TIMEOUT="${DRAIN_TIMEOUT:-30}"                  # Time to drain old containers
+
+# GHCR registry
+GHCR_REGISTRY="ghcr.io/tale-project/tale"
+
+# All images to pull
+ALL_IMAGES="tale-platform tale-rag tale-crawler tale-db tale-graph-db tale-proxy tale-search"
 
 # Base service names for blue-green rotation
 # These are "rotatable" services - they can run in parallel during deployment:
@@ -299,11 +307,80 @@ cleanup_color() {
 # Main Commands
 # ============================================================================
 
+# Pull all images for a version
+pull_images() {
+  local image_tag="$1"
+  local failed_images=()
+
+  log_step "Pulling Tale images (version: ${image_tag})..."
+
+  for image in $ALL_IMAGES; do
+    echo -n "  Pulling ${image}:${image_tag}... "
+    if docker pull "${GHCR_REGISTRY}/${image}:${image_tag}" --quiet >/dev/null 2>&1; then
+      echo -e "${GREEN}OK${NC}"
+    else
+      echo -e "${YELLOW}SKIP${NC} (image not found)"
+      failed_images+=("$image")
+    fi
+  done
+
+  if [ ${#failed_images[@]} -gt 0 ]; then
+    log_warning "Failed to pull images: ${failed_images[*]}"
+    log_warning "Deployment may fail if these services are required"
+  fi
+  log_success "Images pulled successfully"
+}
+
+# Verify GHCR authentication by pulling platform image
+verify_ghcr_auth() {
+  local image_tag="$1"
+
+  log_step "Checking GHCR authentication..."
+  local pull_error
+  if ! pull_error=$(docker pull "${GHCR_REGISTRY}/tale-platform:${image_tag}" 2>&1); then
+    log_error "Failed to pull image: ${pull_error}"
+    log_error "Please ensure you're logged into GHCR and the version exists:"
+    echo ""
+    echo "  docker login ghcr.io -u <github-username>"
+    echo ""
+    echo "You'll need a Personal Access Token with 'read:packages' scope."
+    return 1
+  fi
+  log_success "GHCR authentication verified"
+}
+
+# Verify deployed version via health endpoint
+verify_deployed_version() {
+  log_step "Verifying deployment version..."
+  sleep 2  # Brief wait for services to stabilize
+
+  # Try to get version from health endpoint
+  local domain_host
+  domain_host=$(grep -E "^HOST=" "${PROJECT_ROOT}/.env" 2>/dev/null | cut -d= -f2 || echo "tale.local")
+  domain_host="${domain_host:-tale.local}"
+
+  local health_response
+  if health_response=$(curl -sf -k --max-time 5 "https://${domain_host}/api/health" 2>/dev/null); then
+    local running_version
+    if command -v jq >/dev/null 2>&1; then
+      running_version=$(echo "$health_response" | jq -r '.version // "unknown"')
+    else
+      # Fallback to grep if jq not available
+      running_version=$(echo "$health_response" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+    fi
+    log_success "Running version: ${running_version}"
+  else
+    log_warning "Could not verify version via health endpoint"
+  fi
+}
+
 # Deploy new version
-# Usage: cmd_deploy [--update-stateful]
+# Usage: cmd_deploy <version> [--update-stateful]
 cmd_deploy() {
   local current_color
   local target_color
+  local version=""
+  local image_tag=""
   local update_stateful=false
 
   # Parse arguments
@@ -313,12 +390,59 @@ cmd_deploy() {
         update_stateful=true
         shift
         ;;
-      *)
+      -*)
         log_error "Unknown option: $1"
         return 1
         ;;
+      *)
+        if [[ -z "$version" ]]; then
+          version="$1"
+        else
+          log_error "Unexpected argument: $1"
+          return 1
+        fi
+        shift
+        ;;
     esac
   done
+
+  # Validate version argument
+  if [[ -z "$version" ]]; then
+    log_error "Version is required"
+    echo ""
+    echo "Usage: ./scripts/deploy.sh deploy <version> [--update-stateful]"
+    echo ""
+    echo "Examples:"
+    echo "  ./scripts/deploy.sh deploy v1.0.0"
+    echo "  ./scripts/deploy.sh deploy latest"
+    echo "  ./scripts/deploy.sh deploy v1.0.0 --update-stateful"
+    echo ""
+    echo "Available versions can be found at:"
+    echo "  https://github.com/tale-project/tale/pkgs/container/tale%2Ftale-platform"
+    echo ""
+    return 1
+  fi
+
+  # Normalize version (strip 'v' prefix for image tags if present)
+  image_tag="$version"
+  if [[ "$version" == v* ]]; then
+    image_tag="${version#v}"
+  fi
+
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════"
+  echo "              Tale Platform Deploy ${version}                  "
+  echo "═══════════════════════════════════════════════════════════════"
+  echo ""
+
+  # Verify GHCR authentication and pull images
+  if ! verify_ghcr_auth "$image_tag"; then
+    return 1
+  fi
+  pull_images "$image_tag"
+
+  # Export VERSION for compose files
+  export VERSION="$image_tag"
 
   # Prevent concurrent deployments
   if ! acquire_lock; then
@@ -381,14 +505,6 @@ cmd_deploy() {
       # Only start db and graph-db, leave proxy alone
       docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
     else
-      # Rebuild/pull proxy to ensure latest image (entrypoint changes, etc.)
-      if [ "${PULL_POLICY:-}" = "always" ]; then
-        log_info "Pulling proxy image..."
-        docker compose -f "${PROJECT_ROOT}/compose.yml" pull proxy
-      else
-        log_info "Building proxy image..."
-        docker compose -f "${PROJECT_ROOT}/compose.yml" build proxy
-      fi
       docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
     fi
   fi
@@ -421,23 +537,11 @@ cmd_deploy() {
     log_warning "Stateful services may not be fully ready, continuing anyway..."
   fi
 
-  # Step 4: Build/pull new version
+  # Step 4: Get target services
   # The compose.{color}.yml files define separate services (platform-blue, platform-green, etc.)
   # so they won't conflict with each other
   local target_services
   target_services=$(get_services_for_color "$target_color")
-
-  # When PULL_POLICY=always, images are already pulled by upgrade.sh
-  # Skip build step - docker compose up will use the pulled images
-  if [ "${PULL_POLICY:-}" != "always" ]; then
-    log_step "Building ${target_color} containers..."
-    if ! docker compose -f "${PROJECT_ROOT}/compose.${target_color}.yml" build $target_services; then
-      log_error "Build failed!"
-      return 1
-    fi
-  else
-    log_step "Using pre-pulled images for ${target_color} containers..."
-  fi
 
   # Step 5: Start new version
   # Since blue/green services have different names (platform-blue vs platform-green),
@@ -538,10 +642,18 @@ cmd_deploy() {
   # Step 10: Save state
   save_deployment_color "$target_color"
 
+  # Step 11: Verify deployed version
+  verify_deployed_version
+
   echo ""
-  log_success "Deployment complete! Now running: ${target_color}"
+  echo "═══════════════════════════════════════════════════════════════"
+  echo "                    Deployment Complete!                       "
+  echo "═══════════════════════════════════════════════════════════════"
   echo ""
-  cmd_status
+  echo "  To check status:    ./scripts/deploy.sh status"
+  echo "  To rollback:        ./scripts/deploy.sh rollback"
+  echo "  To deploy again:    ./scripts/deploy.sh deploy <version>"
+  echo ""
 }
 
 # Rollback to previous version
@@ -805,12 +917,12 @@ cmd_help() {
   echo "  ./scripts/deploy.sh <command> [options]"
   echo ""
   echo "COMMANDS:"
-  echo "  deploy    Deploy a new version (zero-downtime)"
-  echo "  rollback  Rollback to previous version"
-  echo "  status    Show current deployment status"
-  echo "  cleanup   Remove inactive containers (preserves active deployment)"
-  echo "  reset     Remove ALL blue-green containers and return to normal mode"
-  echo "  help      Show this help message"
+  echo "  deploy <version>  Deploy specified version (zero-downtime)"
+  echo "  rollback          Rollback to previous version"
+  echo "  status            Show current deployment status"
+  echo "  cleanup           Remove inactive containers (preserves active deployment)"
+  echo "  reset             Remove ALL blue-green containers and return to normal mode"
+  echo "  help              Show this help message"
   echo ""
   echo "OPTIONS:"
   echo "  --update-stateful  Force update stateful services (db, proxy, graph-db)"
@@ -822,14 +934,17 @@ cmd_help() {
   echo "  DRAIN_TIMEOUT         Time to drain old containers (default: 30s)"
   echo ""
   echo "EXAMPLES:"
-  echo "  # Normal deployment (stateless services only)"
-  echo "  ./scripts/deploy.sh deploy"
+  echo "  # Deploy specific version"
+  echo "  ./scripts/deploy.sh deploy v1.0.0"
+  echo ""
+  echo "  # Deploy latest version"
+  echo "  ./scripts/deploy.sh deploy latest"
   echo ""
   echo "  # Deploy with stateful service updates (brief downtime)"
-  echo "  ./scripts/deploy.sh deploy --update-stateful"
+  echo "  ./scripts/deploy.sh deploy v1.0.0 --update-stateful"
   echo ""
   echo "  # Deploy with custom timeout"
-  echo "  HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy"
+  echo "  HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0"
   echo ""
   echo "  # Quick rollback after failed deployment"
   echo "  ./scripts/deploy.sh rollback"
@@ -839,6 +954,9 @@ cmd_help() {
   echo ""
   echo "  # Force reset without confirmation"
   echo "  ./scripts/deploy.sh reset --force"
+  echo ""
+  echo "Available versions can be found at:"
+  echo "  https://github.com/tale-project/tale/pkgs/container/tale%2Ftale-platform"
   echo ""
 }
 

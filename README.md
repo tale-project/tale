@@ -131,7 +131,19 @@ Your proxy must send these headers with every request:
 
 ## Updating Tale
 
-To update to a new version:
+### Using Pre-built Images (Recommended for Production)
+
+```bash
+# Deploy specific version with zero downtime
+./scripts/deploy.sh deploy v1.0.0
+
+# Or deploy latest version
+./scripts/deploy.sh deploy latest
+```
+
+See [Zero-Downtime Deployment](docs/zero-downtime-deployment.md) for more details on blue-green deployment.
+
+### From Source (Development)
 
 ```bash
 # Pull latest changes
@@ -141,8 +153,6 @@ git pull
 docker compose down
 docker compose up --build -d
 ```
-
-> **Need zero-downtime updates?** See [Zero-Downtime Deployment](docs/zero-downtime-deployment.md) for blue-green deployment strategy.
 
 ## Essential Commands
 
