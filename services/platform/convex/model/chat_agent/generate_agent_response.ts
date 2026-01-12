@@ -505,18 +505,30 @@ export async function generateAgentResponse(
     }
 
     // Get the final result after stream completes
+    // response contains the actual model used by the provider
+    const [streamText, streamSteps, streamUsage, streamFinishReason, streamWarnings, streamResponse] = await Promise.all([
+      streamResult.text,
+      streamResult.steps,
+      streamResult.usage,
+      streamResult.finishReason,
+      streamResult.warnings,
+      streamResult.response,
+    ]);
+
     const result: {
       text?: string;
       steps?: unknown[];
       usage?: Usage;
       finishReason?: string;
       warnings?: unknown[];
+      response?: { id?: string; model?: string; timestamp?: Date };
     } = {
-      text: await streamResult.text,
-      steps: await streamResult.steps,
-      usage: await streamResult.usage,
-      finishReason: await streamResult.finishReason,
-      warnings: await streamResult.warnings,
+      text: streamText,
+      steps: streamSteps,
+      usage: streamUsage,
+      finishReason: streamFinishReason,
+      warnings: streamWarnings,
+      response: streamResponse,
     };
 
     const elapsedMs = Date.now() - startTime;
@@ -622,29 +634,31 @@ export async function generateAgentResponse(
       }
     }
 
+    // Get actual model from response, fall back to env var if not available
     const envModel = (process.env.OPENAI_MODEL || '').trim();
-    if (!envModel) {
+    const actualModel = result.response?.model || envModel;
+    if (!actualModel) {
       throw new Error(
         'OPENAI_MODEL environment variable is required but is not set',
       );
     }
 
-    const responseText = (result.text || '').trim();
+    const trimmedResponseText = (result.text || '').trim();
 
     // Save the complete response text to Persistent Text Streaming
     // This enables optimized text retrieval via getChatStreamBody query
     // Note: We save the final text after generation completes because the Agent SDK
     // consumes the stream internally with saveStreamDeltas. For true per-token streaming,
     // we would need to disable saveStreamDeltas and manually handle the stream.
-    if (streamId && responseText) {
+    if (streamId && trimmedResponseText) {
       await ctx.runMutation(internal.streaming.appendToStream, {
         streamId,
-        text: responseText,
+        text: trimmedResponseText,
       });
       await ctx.runMutation(internal.streaming.completeStream, { streamId });
     }
 
-    if (!responseText) {
+    if (!trimmedResponseText) {
       const usage = result.usage;
       const inputTokens = usage?.inputTokens ?? 0;
       const outputTokens = usage?.outputTokens ?? 0;
@@ -686,7 +700,7 @@ export async function generateAgentResponse(
       });
 
       const errorDetails: Record<string, unknown> = {
-        model: envModel,
+        model: actualModel,
         inputTokens,
         outputTokens,
         stepCount: steps.length,
@@ -707,9 +721,9 @@ export async function generateAgentResponse(
 
     const chatResult = {
       threadId,
-      text: responseText,
+      text: trimmedResponseText,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      model: envModel,
+      model: actualModel,
       provider: 'openai',
       usage: result.usage,
       reasoning: (result as { reasoningText?: string }).reasoningText,
