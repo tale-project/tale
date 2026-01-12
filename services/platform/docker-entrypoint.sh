@@ -469,10 +469,12 @@ deploy_convex_functions() {
     "DEBUG_MODE"
   )
 
-  # Incremental sync: only update env vars that have changed
-  # This significantly speeds up deployment by avoiding redundant API calls
-  ENV_CACHE_DIR="/app/convex-data/.env_cache"
-  mkdir -p "$ENV_CACHE_DIR"
+  # Fetch current env vars from Convex to compare against local values
+  # This ensures we detect mismatches even if previous syncs failed
+  echo "   Fetching current Convex env vars..."
+  CONVEX_ENV_JSON=$(npx convex env list \
+    --url "http://localhost:${CONVEX_BACKEND_PORT}" \
+    --admin-key "$ADMIN_KEY" 2>/dev/null || echo "{}")
 
   sync_count=0
   skip_count=0
@@ -480,30 +482,28 @@ deploy_convex_functions() {
 
   for var_name in "${ENV_VARS_TO_SYNC[@]}"; do
     var_value="${!var_name}"
-    cache_file="$ENV_CACHE_DIR/$var_name"
 
     if [ -z "$var_value" ]; then
       skip_count=$((skip_count + 1))
       continue
     fi
 
-    # Calculate hash of current value
-    current_hash=$(echo -n "$var_value" | sha256sum | cut -d' ' -f1)
-    cached_hash=$(cat "$cache_file" 2>/dev/null || echo "")
+    # Get current value from Convex (extract from JSON output)
+    # npx convex env list outputs: VAR_NAME    value
+    convex_value=$(echo "$CONVEX_ENV_JSON" | grep -E "^${var_name}\s" | awk '{print $2}' || echo "")
 
-    if [ "$current_hash" = "$cached_hash" ]; then
+    if [ "$var_value" = "$convex_value" ]; then
       unchanged_count=$((unchanged_count + 1))
       continue
     fi
 
-    # Value changed or new, sync it
+    # Value changed or missing in Convex, sync it
     local change_type="updated"
-    [ -z "$cached_hash" ] && change_type="new"
+    [ -z "$convex_value" ] && change_type="new"
 
     if npx convex env set "$var_name" "$var_value" \
       --url "http://localhost:${CONVEX_BACKEND_PORT}" \
       --admin-key "$ADMIN_KEY" >/dev/null 2>&1; then
-      echo "$current_hash" > "$cache_file"
       sync_count=$((sync_count + 1))
       echo "   ✓ $var_name ($change_type)"
     else
