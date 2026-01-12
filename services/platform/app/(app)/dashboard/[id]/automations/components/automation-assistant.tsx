@@ -1,7 +1,7 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/primitives/button';
+import { Textarea } from '@/components/ui/forms/textarea';
 import {
   Bot,
   Send,
@@ -29,11 +29,11 @@ import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
 import { toast } from '@/hooks/use-toast';
-import { DocumentIcon } from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Image } from '@/components/ui/image';
+import { Image } from '@/components/ui/data-display/image';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface FileAttachment extends BaseFileAttachment {
   previewUrl?: string;

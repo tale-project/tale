@@ -1,11 +1,11 @@
 'use client';
 
-import { ViewDialog } from '@/components/ui/dialog';
-import { Stack, Grid } from '@/components/ui/layout';
-import { Field, FieldGroup } from '@/components/ui/field';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Stack, Grid } from '@/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/components/ui/forms/field';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format/number';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface MessageMetadata {
   model: string;

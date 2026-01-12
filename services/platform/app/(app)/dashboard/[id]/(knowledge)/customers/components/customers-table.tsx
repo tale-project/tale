@@ -4,13 +4,11 @@ import { useMemo } from 'react';
 import { type Preloaded } from 'convex/react';
 import { Users } from 'lucide-react';
 import { api } from '@/convex/_generated/api';
-import {
-  DataTable,
-  useDataTable,
-} from '@/components/ui/data-table';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { useDataTable } from '@/components/ui/data-table/use-data-table';
 import { CustomersActionMenu } from './customers-action-menu';
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useUrlFilters } from '@/hooks/use-url-filters';
 import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
 import { customerFilterDefinitions } from '../filter-definitions';

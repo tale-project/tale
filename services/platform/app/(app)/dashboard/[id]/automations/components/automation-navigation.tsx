@@ -5,7 +5,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
 import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -24,7 +24,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/use-convex-auth';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { ChevronDown } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationNavigationProps {
   userRole?: string | null;

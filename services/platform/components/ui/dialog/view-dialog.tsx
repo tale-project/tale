@@ -4,7 +4,7 @@ import * as React from 'react';
 import { Dialog } from './dialog';
 import type { DialogSize } from './dialog';
 import { cn } from '@/lib/utils/cn';
-import { DialogErrorBoundary } from '@/components/error-boundaries';
+import { DialogErrorBoundary } from '@/components/error-boundaries/boundaries/dialog-error-boundary';
 import { useOrganizationId } from '@/hooks/use-organization-id';
 
 export interface ViewDialogProps {

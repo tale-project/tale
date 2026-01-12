@@ -5,14 +5,14 @@ import { Eye, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import { Id } from '@/convex/_generated/dataModel';
 import { ProductViewDialog } from './product-view-dialog';
 import { ProductEditDialog } from './product-edit-dialog';
 import { ProductDeleteDialog } from './product-delete-dialog';
 import { useDeleteProduct } from '../hooks/use-delete-product';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import type { Product } from '../hooks/use-products-table-config';
 
 interface ProductRowActionsProps {

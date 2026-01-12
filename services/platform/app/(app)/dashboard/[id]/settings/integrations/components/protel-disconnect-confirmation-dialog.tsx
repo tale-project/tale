@@ -1,9 +1,9 @@
 'use client';
 
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/dialog/confirm-dialog';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ProtelDisconnectConfirmDialogProps {
   open?: boolean;

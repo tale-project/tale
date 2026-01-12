@@ -5,8 +5,8 @@ import { Cpu, HelpCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
 import { PickaxeIcon, Repeat } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { useT } from '@/lib/i18n';
+import { Badge } from '@/components/ui/feedback/badge';
+import { useT } from '@/lib/i18n/client';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 
 interface AutomationStepProps {

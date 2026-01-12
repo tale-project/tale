@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog/dialog';
+import { Input } from '@/components/ui/forms/input';
 import { cn } from '@/lib/utils/cn';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
 import { useDebounce } from '@/hooks/use-debounce';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { X } from 'lucide-react';
 
 interface ChatSearchDialogProps {

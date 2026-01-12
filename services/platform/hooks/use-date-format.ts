@@ -10,7 +10,7 @@ import {
   FormatDateOptions,
   DateTranslations,
 } from '@/lib/utils/date/format';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface UseDateFormatReturn {
   formatDate: (

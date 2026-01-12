@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack } from '../layout';
+import { Stack } from '../layout/layout';
 import { cn } from '@/lib/utils/cn';
 
 export interface ItemPreviewProps {

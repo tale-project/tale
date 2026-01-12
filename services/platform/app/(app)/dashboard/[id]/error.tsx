@@ -1,6 +1,6 @@
 'use client';
 
-import { PageErrorBoundary } from '@/components/error-boundaries';
+import { PageErrorBoundary } from '@/components/error-boundaries/boundaries/page-error-boundary';
 import { useParams } from 'next/navigation';
 
 interface ErrorProps {

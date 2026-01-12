@@ -5,7 +5,7 @@ import { Copy, Pencil, Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
 import { DeleteAutomationDialog } from './automation-delete-dialog';
 import { AutomationRenameDialog } from './automation-rename-dialog';
@@ -14,7 +14,7 @@ import { useDeleteAutomation } from '../hooks/use-delete-automation';
 import { useUpdateAutomation } from '../hooks/use-update-automation';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationRowActionsProps {
   automation: Doc<'wfDefinitions'>;

@@ -25,7 +25,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import {
   TestTubeDiagonal,
   Info,
@@ -35,7 +35,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { CreateStepDialog } from './step-create-dialog';
 import { AutomationStep } from './automation-step';
 import { AutomationSidePanel } from './automation-sidepanel';

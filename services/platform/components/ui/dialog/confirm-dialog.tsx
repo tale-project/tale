@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Dialog } from './dialog';
-import { Button } from '../button';
+import { Button } from '../primitives/button';
 import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 const confirmButtonVariants = cva('', {
   variants: {

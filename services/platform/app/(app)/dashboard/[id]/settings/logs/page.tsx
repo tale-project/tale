@@ -1,9 +1,9 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Stack } from '@/components/ui/layout';
-import { useT } from '@/lib/i18n';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/layout/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/navigation/tabs';
+import { Stack } from '@/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
 
 export default function LogsPage() {
   const { t } = useT('settings');

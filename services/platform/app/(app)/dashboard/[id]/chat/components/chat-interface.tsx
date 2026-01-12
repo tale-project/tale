@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowDown, Loader2 } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { MessageBubble } from './message-bubble';
 import { ChatInput } from './chat-input';
 import { IntegrationApprovalCard } from './integration-approval-card';
@@ -19,7 +19,7 @@ import { api } from '@/convex/_generated/api';
 import { useCreateThread } from '../hooks/use-create-thread';
 import { useUpdateThread } from '../hooks/use-update-thread';
 import { useChatWithAgent } from '../hooks/use-chat-with-agent';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { useChatLayout, type FileAttachment } from '../layout';
 import { sanitizeChatMessage } from '@/lib/utils/sanitize-chat';
 import {

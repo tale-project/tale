@@ -10,11 +10,11 @@ import {
   NavigationMenuTrigger,
   NavigationMenuLink,
 } from '@/components/ui/navigation/navigation-menu';
-import { Button } from '@/components/ui/button';
-import { OneDriveIcon } from '@/components/icons';
+import { Button } from '@/components/ui/primitives/button';
+import { OneDriveIcon } from '@/components/icons/onedrive-icon';
 import { HardDrive, Plus } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Lazy-load OneDrive dialog to reduce initial bundle size
 const OneDriveImportDialog = dynamic(

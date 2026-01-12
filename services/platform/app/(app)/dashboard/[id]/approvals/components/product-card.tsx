@@ -1,13 +1,13 @@
 'use client';
 
-import { Image } from '@/components/ui/image';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Image } from '@/components/ui/data-display/image';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Button } from '@/components/ui/primitives/button';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { X } from 'lucide-react';
 import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface ProductCardProps {
   product?: RecommendedProduct;

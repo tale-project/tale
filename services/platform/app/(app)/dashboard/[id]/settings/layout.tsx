@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { api } from '@/convex/_generated/api';
 import { SettingsNavigation } from './components/settings-navigation';
-import { LayoutErrorBoundary } from '@/components/error-boundaries';
+import { LayoutErrorBoundary } from '@/components/error-boundaries/boundaries/layout-error-boundary';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';

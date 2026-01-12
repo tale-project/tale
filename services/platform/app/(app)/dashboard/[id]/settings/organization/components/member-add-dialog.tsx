@@ -4,19 +4,20 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormDialog, ViewDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Stack } from '@/components/ui/layout';
-import { Select } from '@/components/ui/select';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Stack } from '@/components/ui/layout/layout';
+import { Select } from '@/components/ui/forms/select';
 import { useToast } from '@/hooks/use-toast';
-import { ValidationCheckList } from '@/components/ui/validation-check-item';
-import { CopyableField } from '@/components/ui/copyable-field';
+import { ValidationCheckList } from '@/components/ui/feedback/validation-check-item';
+import { CopyableField } from '@/components/ui/data-display/copyable-field';
 import { useAddMember } from '../hooks/use-add-member';
 import { useCreateMember } from '../hooks/use-create-member';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useConvexUrl } from '@/lib/site-url-context';
 
 // Type for the form data
@@ -313,7 +314,7 @@ export function AddMemberDialog({
             </Stack>
           )}
 
-          <Button onClick={handleClose} className="w-full">
+          <Button onClick={handleClose} fullWidth>
             {tCommon('actions.done')}
           </Button>
         </Stack>

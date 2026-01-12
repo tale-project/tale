@@ -6,16 +6,16 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUpdateAutomationMetadata } from '../../hooks/use-update-automation-metadata';
 import { Id } from '@/convex/_generated/dataModel';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { JsonInput } from '@/components/ui/json-input';
-import { Stack, Grid, NarrowContainer } from '@/components/ui/layout';
+import { Input } from '@/components/ui/forms/input';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { Button } from '@/components/ui/primitives/button';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { Stack, Grid, NarrowContainer } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useT } from '@/lib/i18n';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { useT } from '@/lib/i18n/client';
 
 interface WorkflowConfig {
   timeout?: number;

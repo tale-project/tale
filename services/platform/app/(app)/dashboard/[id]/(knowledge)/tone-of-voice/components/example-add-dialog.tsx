@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { FormDialog } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { useT } from '@/lib/i18n';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { useT } from '@/lib/i18n/client';
 
 interface AddExampleDialogProps {
   isOpen: boolean;

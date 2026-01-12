@@ -4,17 +4,17 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useQuery, usePreloadedQuery } from 'convex/react';
 import { authClient } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form } from '@/components/ui/form';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Form } from '@/components/ui/forms/form';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { api } from '@/convex/_generated/api';
 import { Search, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
 import { useDebounce } from '@/hooks/use-debounce';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import type {
   PreloadedMemberContext,
   PreloadedMembers,

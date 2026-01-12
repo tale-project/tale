@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
-import { StatusIndicator } from '@/components/ui/status-indicator';
-import { Description } from '@/components/ui/description';
-import { Stack } from '@/components/ui/layout';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { StatusIndicator } from '@/components/ui/feedback/status-indicator';
+import { Description } from '@/components/ui/forms/description';
+import { Stack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
+import { Input } from '@/components/ui/forms/input';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 
 interface ShopifyIntegrationDialogProps {
   open?: boolean;

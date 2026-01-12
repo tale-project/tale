@@ -5,14 +5,14 @@ import { Eye, ScanText, RefreshCcw, Pencil, Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import { Doc } from '@/convex/_generated/dataModel';
 import { ViewWebsiteDialog } from './website-view-dialog';
 import { EditWebsiteDialog } from './website-edit-dialog';
 import { DeleteWebsiteDialog } from './website-delete-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useRescanWebsite } from '../hooks/use-rescan-website';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface WebsiteRowActionsProps {
   website: Doc<'websites'>;

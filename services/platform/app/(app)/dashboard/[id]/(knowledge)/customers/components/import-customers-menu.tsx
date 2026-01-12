@@ -10,11 +10,11 @@ import {
   NavigationMenuTrigger,
   NavigationMenuLink,
 } from '@/components/ui/navigation/navigation-menu';
-import { Button } from '@/components/ui/button';
-import { CirculyIcon } from '@/components/icons';
+import { Button } from '@/components/ui/primitives/button';
+import { CirculyIcon } from '@/components/icons/circuly-icon';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import { ImportCustomersDialog } from './customers-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ImportCustomersMenuProps {
   organizationId: string;

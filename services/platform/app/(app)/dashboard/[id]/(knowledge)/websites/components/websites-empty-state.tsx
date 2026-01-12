@@ -1,9 +1,9 @@
 'use client';
 
 import { Globe } from 'lucide-react';
-import { DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
 import { WebsitesActionMenu } from './websites-action-menu';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface WebsitesEmptyStateProps {
   organizationId: string;

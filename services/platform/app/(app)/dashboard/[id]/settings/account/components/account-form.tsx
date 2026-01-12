@@ -4,12 +4,12 @@ import { useForm } from 'react-hook-form';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUpdatePassword } from '../hooks/use-update-password';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form } from '@/components/ui/form';
-import { Stack, NarrowContainer } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Form } from '@/components/ui/forms/form';
+import { Stack, NarrowContainer } from '@/components/ui/layout/layout';
 import { useToast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AccountFormProps {
   organizationId: string;
@@ -134,7 +134,7 @@ export function AccountForm({
           />
 
           {/* Submit Button */}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+          <Button type="submit" disabled={isSubmitting} fullWidth>
             {isSubmitting
               ? tCommon('actions.saving')
               : tCommon('actions.saveChanges')}

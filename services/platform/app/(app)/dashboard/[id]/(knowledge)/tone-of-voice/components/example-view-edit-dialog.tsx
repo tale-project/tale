@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { FormDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Stack, HStack } from '@/components/ui/layout';
-import { useT } from '@/lib/i18n';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
 
 interface ViewEditExampleDialogProps {
   isOpen: boolean;

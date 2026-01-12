@@ -9,11 +9,11 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
+} from '@/components/ui/layout/card';
+import { Button } from '@/components/ui/primitives/button';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
 import { Activity, RefreshCw } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ExecutionStats {
   total: number;

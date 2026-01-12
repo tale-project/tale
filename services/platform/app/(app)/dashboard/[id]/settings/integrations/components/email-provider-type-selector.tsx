@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewDialog } from '@/components/ui/dialog';
-import { Stack } from '@/components/ui/layout';
-import { GmailIcon, OutlookIcon } from '@/components/icons';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Stack } from '@/components/ui/layout/layout';
+import { GmailIcon } from '@/components/icons/gmail-icon';
+import { OutlookIcon } from '@/components/icons/outlook-icon';
 import { Mail, ChevronRight } from 'lucide-react';
 import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
 import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface EmailProviderTypeSelectorProps {
   open?: boolean;

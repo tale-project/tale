@@ -2,14 +2,14 @@
 
 import { Mail, ClipboardList, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { Badge } from '@/components/ui/badge';
-import { HStack } from '@/components/ui/layout';
+import { Badge } from '@/components/ui/feedback/badge';
+import { HStack } from '@/components/ui/layout/layout';
 import striptags from 'striptags';
 import { decode } from 'he';
 import { useDateFormat } from '@/hooks/use-date-format';
 import type { Conversation } from '../types';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useT } from '@/lib/i18n';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { useT } from '@/lib/i18n/client';
 
 // Get the last message content and truncate if necessary
 const getLastMessagePreview = (conversation: Conversation): string => {

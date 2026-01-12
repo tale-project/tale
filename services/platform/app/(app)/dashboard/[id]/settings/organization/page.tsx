@@ -8,9 +8,9 @@ import { api } from '@/convex/_generated/api';
 import { OrganizationSettings } from './components/organization-settings';
 import { notFound, redirect } from 'next/navigation';
 import { getAuthToken } from '@/lib/auth/auth-server';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Stack, HStack } from '@/components/ui/layout';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { AccessDenied } from '@/components/layout/access-denied';
 import { getT } from '@/lib/i18n/server';
 

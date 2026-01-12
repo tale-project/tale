@@ -3,10 +3,11 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, HardDrive } from 'lucide-react';
-import { DataTableActionMenu } from '@/components/ui/data-table';
-import { ShopifyIcon, CirculyIcon } from '@/components/icons';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
+import { ShopifyIcon } from '@/components/icons/shopify-icon';
+import { CirculyIcon } from '@/components/icons/circuly-icon';
 import { ProductsImportDialog } from './products-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ProductsActionMenuProps {
   organizationId: string;

@@ -5,13 +5,13 @@ import { Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useDeleteDocument } from '../hooks/use-delete-document';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type StorageSourceMode = 'auto' | 'manual';
 

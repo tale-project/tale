@@ -1,13 +1,13 @@
 'use client';
 
-import { ViewDialog } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Separator } from '@/components/ui/layout/separator';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
 import { ProductImage } from './product-image';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatCurrency } from '@/lib/utils/format/number';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface ViewProductDialogProps {
   isOpen: boolean;

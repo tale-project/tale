@@ -7,7 +7,7 @@
  *
  * @example
  * ```tsx
- * import { getT } from '@/lib/i18n';
+ * import { getT } from '@/lib/i18n/client';
  *
  * export default async function Page() {
  *   const { t } = await getT('common');

@@ -1,12 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils/cn';
-import { Image } from '@/components/ui/image';
+import { Image } from '@/components/ui/data-display/image';
 import type { Message as MessageType } from '../types';
 import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
-import { EmailPreview } from '@/components/ui/email-preview';
+import { EmailPreview } from '@/components/ui/data-display/email-preview';
 import { Clock, AlertCircle } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface MessageProps {
   message: MessageType;

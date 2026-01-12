@@ -3,25 +3,25 @@
 import { useState, type ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/forms/input';
+import { Button } from '@/components/ui/primitives/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
-import { FilterButton } from '@/components/filters/filter-button';
-import { FilterSection } from '@/components/filters/filter-section';
-import { Skeleton } from '@/components/ui/skeleton';
+} from '@/components/ui/overlays/popover';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { FilterButton } from '@/components/ui/filters/filter-button';
+import { FilterSection } from '@/components/ui/filters/filter-section';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 import type { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n';
-import { SuspenseBoundary } from '@/components/error-boundaries';
+import { useT } from '@/lib/i18n/client';
+import { SuspenseBoundary } from '@/components/error-boundaries/core/suspense-boundary';
 
 // Dynamically load DatePickerWithRange (~40KB react-datepicker)
 const DatePickerWithRange = dynamic(
-  () => import('@/components/ui/date-range-picker').then((mod) => mod.DatePickerWithRange),
+  () => import('@/components/ui/forms/date-range-picker').then((mod) => mod.DatePickerWithRange),
   {
     loading: () => <Skeleton className="h-9 w-[24rem]" />,
   },

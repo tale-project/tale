@@ -1,10 +1,10 @@
 'use client';
 
 import { authClient } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface MicrosoftReauthButtonProps {
   error?: string;

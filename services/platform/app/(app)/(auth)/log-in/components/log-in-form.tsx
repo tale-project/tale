@@ -6,14 +6,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authClient } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form } from '@/components/ui/form';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Form } from '@/components/ui/forms/form';
+import { Stack } from '@/components/ui/layout/layout';
+import { Separator } from '@/components/ui/layout/separator';
 import { toast } from '@/hooks/use-toast';
-import { MicrosoftIcon } from '@/components/icons';
+import { MicrosoftIcon } from '@/components/icons/microsoft-icon';
 import { AuthFormLayout } from '../../components/auth-form-layout';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type LogInFormData = {
   email: string;
@@ -163,7 +164,7 @@ export function LogInForm({
             <Button
               type="submit"
               size="lg"
-              className="w-full"
+              fullWidth
               disabled={
                 isSubmitting ||
                 !form.watch('email')?.trim() ||
@@ -180,15 +181,13 @@ export function LogInForm({
         {/* Microsoft Login - only shown if Microsoft Entra ID is configured */}
         {microsoftEnabled && (
           <>
-            <HStack gap={2}>
-              <div className="flex-1 h-px bg-muted" />
-            </HStack>
+            <Separator variant="muted" />
 
             <Button
               onClick={handleMicrosoftLogIn}
               variant="outline"
               size="lg"
-              className="w-full shadow-[0px_1px_2px_0px_rgba(0,0,0,0.03)]"
+              fullWidth
               disabled={isSubmitting}
             >
               <span className="mr-3 inline-flex">

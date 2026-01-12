@@ -1,14 +1,14 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
 import { CustomerImportForm } from './customer-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useBulkCreateCustomers } from '../hooks/use-bulk-create-customers';
 import { useFileImport, customerMappers } from '@/hooks/use-file-import';
 

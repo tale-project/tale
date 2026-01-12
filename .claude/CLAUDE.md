@@ -14,13 +14,14 @@
 - DO NOT use type casting. Avoid `any`, and `unknown` whenever possible.
 - ALWAYS put imports at the top and exports at the bottom. Keep them sorted correctly.
 - PREFER named exports. AVOID default exports (only if needed).
-- AVOID index barrel files (only if it makes sense to group).
+- AVOID index barrel files as much as possible.
 - PREFER `export const/let`, `export function`, `export class` etc. instead of `export { ... }`.
 - PREFER `export * from` instead of `export { ... } from`.
 - DO NOT export if not needed outside the module.
 
 ## React / Next.js
 
+- ALWAYS add Storybook stories for new UI components in `components/ui/`. Stories should demonstrate all variants, sizes, and key states.
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
 - CONSIDER ALWAYS TO add optimistic updates with `withOptimisticUpdate` for `useMutation`. If you decide to NOT add a optimistic update you need to provide a good reason why and comment the hook.
 - CONSIDER ALWAYS TO use reusable components.

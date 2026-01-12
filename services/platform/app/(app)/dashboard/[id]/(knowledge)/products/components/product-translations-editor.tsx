@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
-import { Input } from '@/components/ui/input';
-import { Stack, HStack } from '@/components/ui/layout';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { IconButton } from '@/components/ui/primitives/icon-button';
+import { Input } from '@/components/ui/forms/input';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { Edit, Save, X, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useUpsertProductTranslation } from '../hooks/use-upsert-product-translation';
 
 type TranslatedNames = {

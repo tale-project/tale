@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Stack, VStack } from '@/components/ui/layout';
+import { Stack, VStack } from '@/components/ui/layout/layout';
 
 interface AuthFormLayoutProps {
   /**

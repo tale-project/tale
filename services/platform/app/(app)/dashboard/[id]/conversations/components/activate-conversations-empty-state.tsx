@@ -1,8 +1,8 @@
 'use client';
 
-import { LinkButton } from '@/components/ui/button';
+import { LinkButton } from '@/components/ui/primitives/button';
 import { MessageSquare, Plus } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ActivateConversationsEmptyStateProps {
   organizationId: string;

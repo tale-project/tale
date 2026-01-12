@@ -3,8 +3,8 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Repeat } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { useT } from '@/lib/i18n';
+import { Badge } from '@/components/ui/feedback/badge';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationLoopContainerProps {
   data: {
