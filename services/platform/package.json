@@ -1,13 +1,15 @@
 {
-  "name": "nextjs",
+  "name": "@tale/platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "echo 'Dependencies managed by root workspace'",
     "dev": "node ./scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
+    "typecheck": "tsc --noEmit",
     "build:deploy": "npm run build",
     "convex:dev": "CONVEX_AGENT_MODE=anonymous convex dev",
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous convex deploy",
@@ -18,6 +20,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "ai": "^5.0.29",
     "@ai-sdk/openai": "2.0.89",
     "@ai-sdk/provider-utils": "3.0.20",
     "@convex-dev/action-cache": "0.3.0",
@@ -99,7 +102,6 @@
   "devDependencies": {
     "@convex-dev/eslint-plugin": "1.0.0",
     "@edge-runtime/vm": "5.0.0",
-    "@eslint/eslintrc": "3.3.3",
     "@next/bundle-analyzer": "16.1.1",
     "@tanstack/react-query-devtools": "5.91.2",
     "@types/dagre": "0.7.53",
@@ -109,7 +111,6 @@
     "@types/mailparser": "3.4.6",
     "@types/mssql": "9.1.8",
     "@types/mustache": "4.2.6",
-    "@types/node": "24.10.1",
     "@types/nodemailer": "7.0.5",
     "@types/pg": "8.16.0",
     "@types/react": "19.2.8",
@@ -117,18 +118,12 @@
     "@types/react-dom": "19.2.3",
     "@types/striptags": "3.1.1",
     "@types/uuid": "11.0.0",
-    "@vitest/coverage-v8": "4.0.17",
     "convex-test": "0.0.40",
     "encoding": "0.1.13",
-    "eslint": "9.39.2",
     "eslint-config-next": "16.1.1",
-    "eslint-plugin-unicorn": "62.0.0",
     "pdfjs-dist": "5.4.530",
-    "postcss": "8.5.6",
     "tree-kill": "1.2.2",
-    "typescript": "5.9.3",
     "vite-tsconfig-paths": "6.0.4",
-    "vitest": "4.0.17",
     "wait-on": "9.0.3"
   },
   "overrides": {
