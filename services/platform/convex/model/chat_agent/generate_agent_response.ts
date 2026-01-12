@@ -437,10 +437,10 @@ export async function generateAgentResponse(
       {
         contextOptions: {
           recentMessages: 20,
-          // P0: Include tool messages in context for consistency with summarization
-          // Previously we excluded tool messages here but summarized them,
-          // causing context discontinuity
-          excludeToolMessages: false,
+          // Exclude tool messages from context - sub-agents maintain their own
+          // conversation history in sub-threads, and the summary system preserves
+          // key information from tool results for long-term memory
+          excludeToolMessages: true,
           searchOtherThreads: false,
         },
         // P0: Use contextHandler to fix message ordering
