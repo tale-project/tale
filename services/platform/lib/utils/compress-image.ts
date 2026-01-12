@@ -158,12 +158,3 @@ export async function compressImage(
   });
 }
 
-/**
- * Compress multiple image files.
- */
-async function compressImages(
-  files: File[],
-  options: CompressImageOptions = {},
-): Promise<CompressImageResult[]> {
-  return Promise.all(files.map((file) => compressImage(file, options)));
-}

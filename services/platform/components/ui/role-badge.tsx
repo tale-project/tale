@@ -1,8 +1,24 @@
 'use client';
 
 import * as React from 'react';
+import { cva } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
 import { getRoleBadgeClasses, getStatusBadgeClasses } from '@/lib/utils/badge-colors';
+
+const statusDotVariants = cva('size-1.5 rounded-full', {
+  variants: {
+    status: {
+      active: 'bg-green-500',
+      inactive: 'bg-gray-400',
+      pending: 'bg-amber-500',
+      failed: 'bg-red-500',
+      processing: 'bg-blue-500 animate-pulse',
+    },
+  },
+  defaultVariants: {
+    status: 'inactive',
+  },
+});
 
 export interface RoleBadgeProps {
   /** The role to display */
@@ -82,14 +98,9 @@ export const StatusBadge = React.memo(function StatusBadge({
     >
       {showDot && (
         <span
-          className={cn(
-            'size-1.5 rounded-full',
-            status === 'active' && 'bg-green-500',
-            status === 'inactive' && 'bg-gray-400',
-            status === 'pending' && 'bg-amber-500',
-            status === 'failed' && 'bg-red-500',
-            status === 'processing' && 'bg-blue-500 animate-pulse'
-          )}
+          className={statusDotVariants({
+            status: (status as 'active' | 'inactive' | 'pending' | 'failed' | 'processing') || 'inactive',
+          })}
           aria-hidden="true"
         />
       )}

@@ -1,10 +1,23 @@
 'use client';
 
 import * as React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { Dialog } from './dialog';
 import { Button } from '../button';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n';
+
+const confirmButtonVariants = cva('', {
+  variants: {
+    variant: {
+      default: '',
+      destructive: 'bg-red-600 hover:bg-red-700',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+  },
+});
 
 export interface ConfirmDialogProps {
   /** Whether the dialog is open */
@@ -74,9 +87,7 @@ export function ConfirmDialog({
         variant={variant === 'destructive' ? 'destructive' : 'default'}
         onClick={onConfirm}
         disabled={isLoading}
-        className={cn(
-          variant === 'destructive' && 'bg-red-600 hover:bg-red-700'
-        )}
+        className={cn(confirmButtonVariants({ variant }))}
       >
         {isLoading ? (loadingText ?? tCommon('actions.loading')) : (confirmText ?? tCommon('actions.confirm'))}
       </Button>

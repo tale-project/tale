@@ -126,16 +126,6 @@ export async function getCurrentUser() {
 }
 
 /**
- * Minimal session shape backed by Convex/Better Auth.
- */
-export async function getCurrentSession() {
-  await connection();
-  const user = await getCurrentUser();
-  if (!user) return null;
-  return { user };
-}
-
-/**
  * Get a Convex auth token (JWT) for authenticating with Convex.
  * This uses the Better Auth Convex integration which generates JWTs from sessions.
  *
@@ -244,11 +234,3 @@ export async function requireAuth() {
   return user;
 }
 
-/**
- * Get user ID from session.
- */
-export async function getCurrentUserId(): Promise<string | null> {
-  await connection();
-  const user = await getCurrentUser();
-  return (user?._id as string) || null;
-}

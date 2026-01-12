@@ -73,7 +73,7 @@ const NavigationItem = ({
                   <div
                     className={cn(
                       'relative flex items-center justify-center p-2 rounded-lg transition-colors',
-                      isActive ? 'bg-muted' : 'hover:bg-muted',
+                      isActive ? 'bg-muted' : 'hover:bg-muted'
                     )}
                     data-active={isActive}
                   >
@@ -81,7 +81,7 @@ const NavigationItem = ({
                       <Icon
                         className={cn(
                           'size-5 shrink-0 text-muted-foreground',
-                          isActive && 'text-foreground',
+                          isActive && 'text-foreground'
                         )}
                       />
                     )}

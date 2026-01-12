@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 /**
  * Configuration for trusted headers authentication
  */
-export interface TrustedHeadersConfig {
+interface TrustedHeadersConfig {
   enabled: boolean;
   emailHeader: string;
   nameHeader: string;
@@ -22,7 +22,7 @@ export interface TrustedHeadersUser {
 /**
  * Get trusted headers configuration from environment variables
  */
-export function getTrustedHeadersConfig(): TrustedHeadersConfig {
+function getTrustedHeadersConfig(): TrustedHeadersConfig {
   return {
     enabled: process.env.TRUSTED_HEADERS_ENABLED === 'true',
     emailHeader: process.env.TRUSTED_EMAIL_HEADER || 'X-Auth-Email',

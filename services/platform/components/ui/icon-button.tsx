@@ -2,26 +2,34 @@
 
 import { forwardRef, ComponentPropsWithoutRef } from 'react';
 import { LucideIcon } from 'lucide-react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { Button, ButtonProps } from './button';
 import { cn } from '@/lib/utils/cn';
 
-interface IconButtonProps extends Omit<ButtonProps, 'size' | 'children'> {
+const iconSizeVariants = cva('', {
+  variants: {
+    iconSize: {
+      3: 'size-3',
+      4: 'size-4',
+      5: 'size-5',
+      6: 'size-6',
+    },
+  },
+  defaultVariants: {
+    iconSize: 4,
+  },
+});
+
+interface IconButtonProps
+  extends Omit<ButtonProps, 'size' | 'children'>,
+    VariantProps<typeof iconSizeVariants> {
   /** The Lucide icon component to render */
   icon: LucideIcon;
-  /** Size of the icon (default: 4 = size-4 = 16px) */
-  iconSize?: 3 | 4 | 5 | 6;
   /** Additional className for the icon element */
   iconClassName?: string;
   /** Accessible label for the button (required for accessibility) */
   'aria-label': string;
 }
-
-const iconSizeClasses = {
-  3: 'size-3',
-  4: 'size-4',
-  5: 'size-5',
-  6: 'size-6',
-} as const;
 
 export const IconButton = forwardRef<
   HTMLButtonElement,
@@ -30,7 +38,7 @@ export const IconButton = forwardRef<
   (
     {
       icon: Icon,
-      iconSize = 4,
+      iconSize,
       iconClassName,
       variant = 'ghost',
       className,
@@ -49,7 +57,7 @@ export const IconButton = forwardRef<
     >
       <Icon
         className={cn(
-          iconSizeClasses[iconSize],
+          iconSizeVariants({ iconSize }),
           variant === 'ghost' && 'text-muted-foreground',
           iconClassName
         )}
