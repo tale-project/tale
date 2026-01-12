@@ -22,7 +22,6 @@ const productRagSyncWorkflow = {
       timeout: 120000, // 2 minutes for single product upload
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         backoffHours: 72, // Only process products not processed in last 72 hours (3 days)
         workflowId: 'product_rag_sync',
       },

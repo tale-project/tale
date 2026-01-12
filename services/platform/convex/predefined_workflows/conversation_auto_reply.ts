@@ -37,7 +37,6 @@ const conversationAutoReplyWorkflow = {
       timeout: 120000, // 2 minutes timeout for single message
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'conversationAutoReply',
         backoffHours: -1, // BACKOFF_NEVER_REPROCESS - each message processed once
       },

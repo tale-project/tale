@@ -9,7 +9,6 @@ const generalProductRecommendationWorkflow = {
       timeout: 300000,
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'general-product-recommendation',
         backoffHours: 168,
       },

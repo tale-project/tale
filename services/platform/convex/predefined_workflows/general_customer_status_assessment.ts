@@ -9,7 +9,6 @@ const generalCustomerStatusAssessmentWorkflow = {
       timeout: 120000,
       retryPolicy: { maxRetries: 2, backoffMs: 1000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'general-customer-status-assessment',
         backoffHours: 72,
       },
