@@ -521,7 +521,7 @@ export async function generateAgentResponse(
       usage?: Usage;
       finishReason?: string;
       warnings?: unknown[];
-      response?: { id?: string; model?: string; timestamp?: Date };
+      response?: { id?: string; modelId?: string; timestamp?: Date };
     } = {
       text: streamText,
       steps: streamSteps,
@@ -635,8 +635,9 @@ export async function generateAgentResponse(
     }
 
     // Get actual model from response, fall back to env var if not available
+    // AI SDK uses 'modelId' field (not 'model') in the response object
     const envModel = (process.env.OPENAI_MODEL || '').trim();
-    const actualModel = result.response?.model || envModel;
+    const actualModel = result.response?.modelId || envModel;
     if (!actualModel) {
       throw new Error(
         'OPENAI_MODEL environment variable is required but is not set',
