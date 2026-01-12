@@ -33,7 +33,6 @@ const conversationAutoArchiveWorkflow: PredefinedWorkflowDefinition = {
       timeout: 60000, // 1 minute timeout for single conversation
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'conversationAutoArchive',
         backoffHours: 168, // Only process conversations not processed in last 168 hours (7 days)
         staleDays: 30, // Archive conversations closed for over 30 days

@@ -22,7 +22,6 @@ const documentRagSyncWorkflow: PredefinedWorkflowDefinition = {
       timeout: 120000, // 2 minutes for single document upload
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         backoffHours: 72, // Only process documents not processed in last 72 hours (3 days)
         includeMetadata: true, // Include document metadata in upload
         workflowId: 'document_rag_sync',

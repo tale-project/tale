@@ -19,7 +19,6 @@ const websitePagesRagSyncWorkflow = {
       timeout: 120000,
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         backoffHours: 72,
         workflowId: 'website_pages_rag_sync',
       },

@@ -24,7 +24,6 @@ const websiteScanWorkflow = {
       timeout: 1800000, // 30 minutes
       retryPolicy: { maxRetries: 2, backoffMs: 5000 },
       variables: {
-        organizationId: 'org_demo',
         websiteUrl: 'https://burgenstockresort.com/',
         websiteDomain: 'burgenstockresort.com',
         scanInterval: '6h',

@@ -41,7 +41,6 @@ const loopiProductRecommendationWorkflow = {
       timeout: 300000, // 5 minutes total timeout
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'product-recommendation',
         backoffHours: 168, // Process each customer once per week (7 days * 24 hours)
       },
