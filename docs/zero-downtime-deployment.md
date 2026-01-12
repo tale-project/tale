@@ -24,8 +24,11 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 ## Quick Start
 
 ```bash
-# Deploy new version (zero-downtime)
-./scripts/deploy.sh deploy
+# Deploy specific version (zero-downtime)
+./scripts/deploy.sh deploy v1.0.0
+
+# Deploy latest version
+./scripts/deploy.sh deploy latest
 
 # Check current status
 ./scripts/deploy.sh status
@@ -43,10 +46,11 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 
 | Command | Description |
 |---------|-------------|
-| `deploy` | Build and deploy a new version with zero downtime |
+| `deploy <version>` | Pull and deploy specified version with zero downtime |
 | `status` | Show current deployment status and health |
 | `rollback` | Revert to the previous version |
 | `cleanup` | Remove inactive containers |
+| `reset` | Remove ALL blue-green containers and return to normal mode |
 | `help` | Show usage information |
 
 ### logs.sh
@@ -82,7 +86,7 @@ Environment variables to customize deployment:
 Example with custom timeout:
 
 ```bash
-HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
+HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 ```
 
 ## How It Works
@@ -121,8 +125,8 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
 
 ### Deployment Flow
 
-1. **Detect current state** - Determine which color (blue/green) is currently active
-2. **Build new version** - Build containers for the opposite color
+1. **Pull images** - Download specified version from GHCR
+2. **Detect current state** - Determine which color (blue/green) is currently active
 3. **Start new version** - Run the new containers alongside existing ones
 4. **Health checks** - Wait for all new services to report healthy
 5. **Traffic switch** - Caddy automatically routes to healthy backends
@@ -168,7 +172,7 @@ Database changes require special handling since the database is shared between b
 npm run db:migrate  # or your migration command
 
 # 2. Deploy new version
-./scripts/deploy.sh deploy
+./scripts/deploy.sh deploy v1.0.0
 
 # 3. Verify everything works
 
@@ -197,7 +201,7 @@ Rollback restarts containers from the previous deployment. It works best immedia
 For a fresh deployment after cleanup:
 
 ```bash
-./scripts/deploy.sh deploy
+./scripts/deploy.sh deploy v1.0.0
 ```
 
 ## Troubleshooting
@@ -206,7 +210,7 @@ For a fresh deployment after cleanup:
 
 ```bash
 # Increase timeout
-HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
+HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 
 # Check container logs
 ./scripts/logs.sh platform
@@ -219,7 +223,7 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy
 ./scripts/deploy.sh cleanup
 
 # Try again
-./scripts/deploy.sh deploy
+./scripts/deploy.sh deploy v1.0.0
 ```
 
 ### Check service health

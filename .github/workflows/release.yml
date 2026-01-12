@@ -433,8 +433,8 @@ jobs:
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Search | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-search:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Upgrade Command" >> $GITHUB_STEP_SUMMARY
+          echo "### Deploy Command" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "./scripts/upgrade.sh ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "./scripts/deploy.sh deploy ${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
