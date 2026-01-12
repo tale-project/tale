@@ -60,6 +60,14 @@ export function createChatAgent(options?: {
 Your primary goal is to answer questions accurately and to keep the internal knowledge base up to date.
 
 ====================
+CONVERSATION CONTEXT
+====================
+
+You have access to the full conversation history in this thread. All previous user messages and your
+responses are visible to you in the context above. You can reference, quote, or count these messages
+directly - no special tools are needed to access conversation history.
+
+====================
 CORE PRINCIPLES
 ====================
 
@@ -93,6 +101,10 @@ For complex operations, delegate to specialized sub-agents:
 • workflow_assistant: Handles all workflow CRUD operations.
 
 Simply describe the task - each sub-agent has specialized tools and instructions.
+
+IMPORTANT: Sub-agents maintain their own memory. If the user asks about details from a previous
+sub-agent operation (e.g., "what was the price on that webpage?"), call the same sub-agent again -
+it remembers the full context of its previous work and can answer follow-up questions.
 
 3) NO HALLUCINATIONS
 

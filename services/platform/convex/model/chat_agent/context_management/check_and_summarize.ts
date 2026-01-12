@@ -84,7 +84,7 @@ export async function checkAndSummarizeIfNeeded(
     contextMessagesTokens,
     currentPromptTokens,
     recentMessagesCount: DEFAULT_RECENT_MESSAGES,
-    excludeToolMessages: false, // We now include tool messages in context
+    excludeToolMessages: true, // Tool messages excluded from context (sub-agents have own memory)
     modelContextLimit,
   });
 

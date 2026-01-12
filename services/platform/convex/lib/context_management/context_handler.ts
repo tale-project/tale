@@ -176,6 +176,21 @@ export function createContextHandler(options?: ContextHandlerOptions): ContextHa
       existingResponsesCount: existingResponses.length,
     });
 
+    // Log raw conversation history for debugging missing messages
+    debugLog('Raw conversation history received', {
+      count: conversationHistory.length,
+      messages: conversationHistory.map((m, i) => ({
+        index: i,
+        role: m.role,
+        contentPreview:
+          typeof m.content === 'string'
+            ? m.content.slice(0, 80) + (m.content.length > 80 ? '...' : '')
+            : Array.isArray(m.content)
+              ? `[${m.content.length} parts]`
+              : '[object]',
+      })),
+    });
+
     // Calculate tokens used by non-history components
     const systemContextTokens = estimateMessagesTokens(systemContext);
     const searchTokens = estimateMessagesTokens(searchResults);
@@ -211,6 +226,20 @@ export function createContextHandler(options?: ContextHandlerOptions): ContextHa
       totalMessages: reorderedMessages.length,
       estimatedTokens: estimateMessagesTokens(reorderedMessages),
       historySkipped: skippedCount,
+    });
+
+    // Log detailed message breakdown for debugging
+    debugLog('Context messages breakdown', {
+      messages: reorderedMessages.map((m, i) => ({
+        index: i,
+        role: m.role,
+        contentPreview:
+          typeof m.content === 'string'
+            ? m.content.slice(0, 100) + (m.content.length > 100 ? '...' : '')
+            : Array.isArray(m.content)
+              ? `[${m.content.length} parts]`
+              : '[object]',
+      })),
     });
 
     return reorderedMessages;
