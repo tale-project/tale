@@ -4,6 +4,11 @@
  * Delegates integration-related tasks to the specialized Integration Assistant Agent.
  * Isolates large database results from the main chat agent's context.
  * Requires admin/developer role for write operations.
+ *
+ * Uses the shared context management module for:
+ * - Structured prompt building
+ * - Smart history filtering via contextHandler
+ * - Token-aware context management
  */
 
 import { z } from 'zod';
@@ -14,6 +19,8 @@ import { createIntegrationAgent } from '../../lib/create_integration_agent';
 import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
+import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
+import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
 
 /** Roles that are allowed to use the integration assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
@@ -119,47 +126,6 @@ EXAMPLES:
         });
         const integrationsInfo = formatIntegrationsForContext(integrationsList);
 
-        // Build the prompt with context
-        let prompt = `## User Request:\n${args.userRequest}\n\n`;
-        if (args.integrationName) {
-          prompt += `## Target Integration: ${args.integrationName}\n\n`;
-        }
-        if (args.operation) {
-          prompt += `## Requested Operation: ${args.operation}\n\n`;
-        }
-
-        // Include available integrations in the prompt
-        if (integrationsInfo) {
-          prompt += `## Available Integrations:\n${integrationsInfo}\n\n`;
-        }
-
-        // Format current date/time clearly for the model
-        const now = new Date();
-        const currentDate = now.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        const currentTime = now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZoneName: 'short',
-        });
-
-        prompt += `## Context:\n`;
-        prompt += `- **Current Date**: ${currentDate}\n`;
-        prompt += `- **Current Time**: ${currentTime}\n`;
-        prompt += `- Organization ID: ${organizationId}\n`;
-        if (threadId) {
-          prompt += `- Parent Thread ID: ${threadId}\n`;
-        }
-        if (userId) {
-          prompt += `- User ID: ${userId}\n`;
-        }
-
-        console.log('[integration_assistant_tool] Calling integrationAgent.generateText with', integrationsList.length, 'integrations');
-
         // Get or create a sub-thread for this parent thread + sub-agent combination
         // Reusing the thread allows the sub-agent to maintain context across calls
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
@@ -174,6 +140,41 @@ EXAMPLES:
         console.log('[integration_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
         console.log('[integration_assistant_tool] Parent thread for approvals:', threadId);
 
+        // Build structured prompt using the shared context management module
+        const additionalContext: Record<string, string> = {};
+        if (args.integrationName) {
+          additionalContext.target_integration = args.integrationName;
+        }
+        if (args.operation) {
+          additionalContext.requested_operation = args.operation;
+        }
+        if (integrationsInfo) {
+          additionalContext.available_integrations = integrationsInfo;
+        }
+
+        const promptResult = buildSubAgentPrompt({
+          userRequest: args.userRequest,
+          agentType: 'integration',
+          threadId: subThreadId,
+          organizationId,
+          userId,
+          parentThreadId: threadId,
+          additionalContext,
+        });
+
+        console.log('[integration_assistant_tool] Calling integrationAgent.generateText', {
+          integrationsCount: integrationsList.length,
+          estimatedTokens: promptResult.estimatedTokens,
+        });
+
+        // Create context handler with integration agent configuration
+        const integrationConfig = AGENT_CONTEXT_CONFIGS.integration;
+        const contextHandler = createContextHandler({
+          modelContextLimit: integrationConfig.modelContextLimit,
+          outputReserve: integrationConfig.outputReserve,
+          minRecentMessages: Math.min(4, integrationConfig.recentMessages),
+        });
+
         // Extend context with parentThreadId for approval card linking
         const contextWithParentThread = {
           ...ctx,
@@ -184,7 +185,17 @@ EXAMPLES:
         const result = await integrationAgent.generateText(
           contextWithParentThread,
           { threadId: subThreadId, userId },
-          { prompt },
+          {
+            prompt: promptResult.prompt,
+            messages: promptResult.systemMessages,
+          },
+          {
+            contextOptions: {
+              recentMessages: integrationConfig.recentMessages,
+              excludeToolMessages: false,
+            },
+            contextHandler,
+          },
         );
         const generationDurationMs = Date.now() - generationStartTime;
 
@@ -206,11 +217,7 @@ EXAMPLES:
           response: result.text,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
-          usage: result.usage ? {
-            inputTokens: result.usage.inputTokens,
-            outputTokens: result.usage.outputTokens,
-            totalTokens: result.usage.totalTokens,
-          } : undefined,
+          usage: result.usage,
         };
       } catch (error) {
         console.error('[integration_assistant_tool] Error:', error);

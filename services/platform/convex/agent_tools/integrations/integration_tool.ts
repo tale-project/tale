@@ -13,88 +13,32 @@ import { internal } from '../../_generated/api';
 import type { IntegrationExecutionResult } from './types';
 
 const integrationArgs = z.object({
-  integrationName: z
-    .string()
-    .describe(
-      'Name of the configured integration (e.g., "shopify_store", "warehouse_db", "protel_pms")',
-    ),
-  operation: z
-    .string()
-    .describe(
-      'Operation name to execute on the integration (e.g., "list_orders", "get_customers", "get_reservations"). For SQL integrations, you can use special introspection operations: "introspect_tables" to list all tables, or "introspect_columns" to see columns in a table.',
-    ),
+  integrationName: z.string().describe('Integration name (e.g., "protel", "stripe")'),
+  operation: z.string().describe('Operation name to execute (e.g., "create_guest", "get_reservations")'),
   params: z
     .record(z.string(), z.unknown())
     .optional()
     .describe(
-      'Operation-specific parameters as a key-value object. For SQL introspection operations, use: {"schemaName": "dbo", "tableName": "Customers"} for introspect_columns. Check the integration definition or use integration_introspect tool to see required parameters.',
+      'Operation parameters as a JSON object with key-value pairs. ' +
+        'Example: { "guestId": 5000003, "lastName": "Zhang", "firstName": "Mike" }. ' +
+        'IMPORTANT: You MUST include all required parameters from integration_introspect. ' +
+        'Do NOT pass an empty object {} if the operation requires parameters.',
     ),
 });
 
 export const integrationTool: ToolDefinition = {
   name: 'integration',
   tool: createTool({
-    description: `Execute operations on configured integrations (REST APIs, SQL databases, etc).
+    description: `Execute a single operation on an integration.
 
-This tool provides a unified interface to interact with external systems that have been configured as integrations. It works with ANY integration type without hardcoding.
+CRITICAL: The "params" field must contain ALL required parameters as a JSON object.
+Example call: { integrationName: "protel", operation: "create_guest", params: { "guestId": 5000003, "lastName": "Zhang" } }
 
-WHAT THIS TOOL DOES:
-• Execute operations on REST API integrations (e.g., Shopify, custom APIs)
-• Run queries on SQL database integrations (MSSQL, PostgreSQL, MySQL)
-• Introspect SQL database schemas (list tables, view columns)
-• Access data from connected external systems
+Steps:
+1. First call integration_introspect(operation="xxx") to get required parameters
+2. Then call this tool with ALL required params filled in
 
-HOW TO USE:
-1. Know the integration name (configured in the system settings)
-2. Know the operation name (use integration_introspect tool to discover available operations)
-3. Pass required parameters for the operation
-
-REST API INTEGRATIONS:
-• Operations are defined in the connector code
-• Examples: "list_products", "get_order", "create_customer"
-• Parameters depend on the specific operation (check integration definition)
-
-SQL INTEGRATIONS:
-System introspection operations (available on all SQL integrations):
-• "introspect_tables" - List all tables in the database (no params needed)
-• "introspect_columns" - Get columns for a specific table
-  Required params: { schemaName: "dbo", tableName: "TableName" }
-
-User-defined operations:
-• Custom SQL queries configured by administrators
-• Examples: "get_reservations", "get_active_orders", "customer_totals"
-• Parameters are mapped to SQL query placeholders
-
-WRITE OPERATIONS & APPROVALS:
-• Write operations (INSERT, UPDATE, DELETE) require user approval before execution
-• When a write operation is requested, an approval card will be shown in the chat
-• The user must click "Approve" before the operation is executed
-• If the result contains "requiresApproval: true", inform the user that approval is needed
-• Do NOT retry the operation - wait for the user to approve via the UI
-
-PRE-VALIDATION (CRITICAL - DO THIS BEFORE WRITE OPERATIONS):
-• ALWAYS verify the target record exists BEFORE calling a write operation
-• Use the corresponding read operation first (e.g., get_guest before update_guest)
-• Check that the record meets operation constraints (e.g., profile type, status)
-• If validation fails, inform the user immediately - do NOT create an approval
-• This prevents wasting user time approving operations that will fail
-
-Example workflow for update_guest:
-1. Call get_guest with the guestId to verify it exists
-2. Check that profile_type is 2 (Guest), not 0 (Travel Agent) or 1 (Company)
-3. Only if both checks pass, proceed with update_guest
-
-BEST PRACTICES:
-• Use integration_introspect tool first to discover available operations
-• For SQL databases, use introspect_tables and introspect_columns to understand schema
-• Check operation descriptions and parameter schemas before calling
-• Handle errors gracefully - integration might be offline or credentials invalid
-
-IMPORTANT NOTES:
-• Integrations must be configured before use (contact admin if integration not found)
-• SQL queries respect configured security limits (max rows, timeouts)
-• REST API calls are sandboxed and rate-limited
-• All credentials are handled securely (never exposed to the agent)`,
+Write operations create approval cards. Use integration_batch for multiple parallel reads.`,
 
     args: integrationArgs,
 
@@ -108,16 +52,10 @@ IMPORTANT NOTES:
       const { organizationId, threadId: currentThreadId, messageId, parentThreadId } = ctxWithParent;
       const threadId = parentThreadId ?? currentThreadId;
 
-      // Debug: Log context availability in tool context
-      console.log('[integration_tool] Tool context check:', {
-        hasOrganizationId: !!organizationId,
-        hasThreadId: !!threadId,
-        hasMessageId: !!messageId,
+      console.log('[integration_tool] Context:', {
         threadId,
         parentThreadId,
-        currentThreadId,
         messageId,
-        contextKeys: Object.keys(ctx).filter(k => !k.startsWith('run')),
       });
 
       if (!organizationId) {
@@ -143,24 +81,25 @@ IMPORTANT NOTES:
         );
 
         // Check if approval is required (write operation)
-        // Type guard for approval result - check property existence and value type-safely
-        const isApprovalResult = (r: unknown): r is {
+        interface ApprovalResult {
           requiresApproval: true;
           approvalId: string;
           operationName: string;
           operationTitle: string;
           operationType: 'read' | 'write';
           parameters: Record<string, unknown>;
-        } => {
-          if (r === null || typeof r !== 'object') return false;
-          const obj = r as Record<string, unknown>;
-          return obj.requiresApproval === true;
-        };
+        }
+
+        const isApprovalResult = (r: unknown): r is ApprovalResult =>
+          r !== null &&
+          typeof r === 'object' &&
+          'requiresApproval' in r &&
+          (r as Record<string, unknown>).requiresApproval === true;
 
         if (isApprovalResult(result)) {
-          // Log successful approval creation for debugging
+          const approvalResult = result;
           console.log('[integration_tool] Approval created successfully:', {
-            approvalId: result.approvalId,
+            approvalId: approvalResult.approvalId,
             operation: args.operation,
             integration: args.integrationName,
           });
@@ -170,15 +109,15 @@ IMPORTANT NOTES:
             integration: args.integrationName,
             operation: args.operation,
             requiresApproval: true,
-            approvalId: result.approvalId,
-            approvalCreated: true, // Explicit flag confirming approval was created
-            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${result.approvalId}) has been created for "${result.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation in the chat UI before it will be executed.`,
+            approvalId: approvalResult.approvalId,
+            approvalCreated: true,
+            approvalMessage: `APPROVAL CREATED SUCCESSFULLY: An approval card (ID: ${approvalResult.approvalId}) has been created for "${approvalResult.operationTitle || args.operation}" on ${args.integrationName}. The user must approve or reject this operation in the chat UI before it will be executed.`,
             data: {
-              approvalId: result.approvalId,
-              operationName: result.operationName,
-              operationTitle: result.operationTitle,
-              operationType: result.operationType,
-              parameters: result.parameters,
+              approvalId: approvalResult.approvalId,
+              operationName: approvalResult.operationName,
+              operationTitle: approvalResult.operationTitle,
+              operationType: approvalResult.operationType,
+              parameters: approvalResult.parameters,
             },
           };
         }

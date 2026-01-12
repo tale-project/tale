@@ -90,7 +90,7 @@ engines:
   - name: startpage
     engine: startpage
     shortcut: sp
-    disabled: false
+    disabled: true
     timeout: 15.0
 
 outgoing:

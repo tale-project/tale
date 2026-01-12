@@ -72,6 +72,36 @@ export type IntegrationIntrospectionResult =
   | SqlIntrospectionResult;
 
 /**
+ * Lightweight operation summary for list mode (no parametersSchema).
+ * Used when listing all operations to minimize token usage.
+ */
+export interface OperationListItem {
+  name: string;
+  title?: string;
+  operationType?: 'read' | 'write';
+}
+
+/**
+ * Introspection result in summary mode (operation list without details).
+ */
+export interface IntrospectionSummaryResult {
+  type: 'rest_api' | 'sql';
+  integrationName: string;
+  operations: OperationListItem[];
+}
+
+/**
+ * Detailed operation info returned when querying a specific operation.
+ */
+export interface OperationDetailResult {
+  name: string;
+  title?: string;
+  description?: string;
+  operationType?: 'read' | 'write';
+  parametersSchema?: Record<string, unknown>;
+}
+
+/**
  * Result from listing all integrations
  */
 export interface IntegrationListResult {

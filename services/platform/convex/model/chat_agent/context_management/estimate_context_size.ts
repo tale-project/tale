@@ -8,13 +8,13 @@
 import type { ActionCtx } from '../../../_generated/server';
 import { components } from '../../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
-import { estimateMessageDocTokens } from './estimate_tokens';
 import {
+  estimateMessageDocTokens,
   SYSTEM_INSTRUCTIONS_TOKENS,
   CONTEXT_SAFETY_MARGIN,
   DEFAULT_MODEL_CONTEXT_LIMIT,
   DEFAULT_RECENT_MESSAGES,
-} from './constants';
+} from '../../../lib/context_management';
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ContextSize]');

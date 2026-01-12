@@ -46,14 +46,6 @@ export function createChatAgent(options?: {
     });
   }
 
-  // Get current date for context
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
   const agentConfig = createAgentConfig({
     name: 'chat-agent',
     // Model is taken from OPENAI_MODEL via createAgentConfig (required; no default)
@@ -61,9 +53,9 @@ export function createChatAgent(options?: {
     // Limit max output tokens to prevent runaway/endless streams from certain models
     // 16K tokens is generous for most responses while preventing infinite loops
     maxTokens: 16384,
+    // NOTE: Current date/time is provided via system context (DYNAMIC_INFO priority)
+    // to improve LLM cache hit rate. Do not add dynamic data here.
     instructions: `You are a helpful AI assistant for a customer relationship management platform.
-
-Current date: ${currentDate}
 
 Your primary goal is to answer questions accurately and to keep the internal knowledge base up to date.
 
