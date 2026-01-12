@@ -327,50 +327,78 @@ export function ChatInterface({
   // Convert UIMessage to ChatMessage format for compatibility
   // Memoize to prevent unnecessary re-renders when typing
   const threadMessages: ChatMessage[] = useMemo(() => {
-    // Track seen user message IDs to prevent duplicates
+    // Track seen message IDs to prevent duplicates
     // useUIMessages can return multiple entries with different keys for the same message
-    const seenUserMessageIds = new Set<string>();
+    const seenMessageIds = new Set<string>();
+    // Track seen assistant message content to prevent content duplicates
+    // This handles the case where streaming and persisted messages have different IDs/stepOrders
+    // but contain the same content (Issue #184)
+    const seenAssistantContent = new Set<string>();
 
-    return (uiMessages || [])
-      .filter((m) => {
-        if (m.role !== 'user' && m.role !== 'assistant') return false;
+    // Find the minimum order of user messages to detect pagination boundary
+    // Stream messages with order < minUserOrder are orphaned (their user message was paginated out)
+    const userMessages = (uiMessages || []).filter((m) => m.role === 'user');
+    const minUserOrder =
+      userMessages.length > 0
+        ? Math.min(...userMessages.map((m) => m.order))
+        : 0;
 
-        // Deduplicate user messages by id (they can have multiple key variants)
-        if (m.role === 'user') {
-          if (seenUserMessageIds.has(m.id)) {
-            return false;
-          }
-          seenUserMessageIds.add(m.id);
+    const filtered = (uiMessages || []).filter((m) => {
+      if (m.role !== 'user' && m.role !== 'assistant') return false;
+
+      // Filter out orphaned stream messages whose user message was paginated out
+      // These are assistant messages with order < minUserOrder from stream source
+      // Issue #184: When pagination kicks in, old stream messages stay in state
+      if (m.role === 'assistant' && m.order < minUserOrder) {
+        return false;
+      }
+
+      // Deduplicate ALL messages by id (not just user messages)
+      if (seenMessageIds.has(m.id)) {
+        return false;
+      }
+      seenMessageIds.add(m.id);
+
+      // For assistant messages, also dedupe by content
+      // This catches duplicates with different IDs but same content
+      if (m.role === 'assistant' && m.text) {
+        // Use first 200 chars as content key to handle minor differences
+        const contentKey = m.text.substring(0, 200);
+        if (seenAssistantContent.has(contentKey)) {
+          return false;
         }
+        seenAssistantContent.add(contentKey);
+      }
 
-        return true;
-      })
-      .map((m) => {
-        // Extract file parts (images) from UIMessage.parts
-        const fileParts = (m.parts || [])
-          .filter((p): p is FilePart => p.type === 'file')
-          .map((p) => ({
-            type: 'file' as const,
-            mediaType: p.mediaType,
-            filename: p.filename,
-            url: p.url,
-          }));
+      return true;
+    });
 
-        return {
-          // id: document ID for metadata lookup
-          // key: React key with step/part suffix for unique rendering
-          id: m.id,
-          key: m.key,
-          content: m.text,
-          role: m.role as 'user' | 'assistant',
-          timestamp: new Date(m._creationTime),
-          fileParts: fileParts.length > 0 ? fileParts : undefined,
-          _creationTime: m._creationTime,
-          // Mark messages with 'streaming' status as actively streaming
-          // This triggers the TypewriterText animation in MessageBubble
-          isStreaming: m.status === 'streaming',
-        };
-      });
+    return filtered.map((m) => {
+      // Extract file parts (images) from UIMessage.parts
+      const fileParts = (m.parts || [])
+        .filter((p): p is FilePart => p.type === 'file')
+        .map((p) => ({
+          type: 'file' as const,
+          mediaType: p.mediaType,
+          filename: p.filename,
+          url: p.url,
+        }));
+
+      return {
+        // id: document ID for metadata lookup
+        // key: React key with step/part suffix for unique rendering
+        id: m.id,
+        key: m.key,
+        content: m.text,
+        role: m.role as 'user' | 'assistant',
+        timestamp: new Date(m._creationTime),
+        fileParts: fileParts.length > 0 ? fileParts : undefined,
+        _creationTime: m._creationTime,
+        // Mark messages with 'streaming' status as actively streaming
+        // This triggers the TypewriterText animation in MessageBubble
+        isStreaming: m.status === 'streaming',
+      };
+    });
   }, [uiMessages]);
 
   // Check if a server message matching the optimistic message already exists
