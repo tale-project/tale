@@ -130,7 +130,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
           initial={{ x: -HISTORY_WIDTH }}
           animate={{ x: isHistoryOpen ? 0 : -HISTORY_WIDTH }}
           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ left: `calc(${HISTORY_WIDTH}px + 0.375rem)` }}
+          style={{ left: `calc(${HISTORY_WIDTH}px)` }}
           className="absolute top-0 flex items-center px-2 sm:px-5 py-2 bg-background rounded-br-xl"
         >
           <TooltipProvider>
