@@ -217,6 +217,8 @@ export class AgentContextManager {
         });
 
         // Trigger async summarization (non-blocking)
+        // TODO: Add structured logging/metrics for observability (success/failure, latency)
+        // and consider retry/backoff logic for reliability in production
         this.config.onSummarizationNeeded(ctx, this.config.threadId).catch((error) => {
           console.error('[AgentContextManager] Summarization failed:', error);
         });
