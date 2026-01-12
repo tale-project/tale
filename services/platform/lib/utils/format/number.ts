@@ -78,59 +78,6 @@ export function formatDuration(
 }
 
 /**
- * Format a number as a percentage
- *
- * @param value - The decimal value (0.5 = 50%)
- * @param locale - The locale to use (defaults to app default locale)
- * @param decimals - Number of decimal places (default: 0)
- * @returns Formatted percentage string
- *
- * @example
- * formatPercentage(0.1234) // "12%" (en)
- * formatPercentage(0.1234, 'en', 1) // "12.3%"
- */
-function formatPercentage(
-  value: number,
-  locale: string = defaultLocale,
-  decimals: number = 0,
-): string {
-  try {
-    return new Intl.NumberFormat(locale, {
-      style: 'percent',
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(value);
-  } catch {
-    return `${(value * 100).toFixed(decimals)}%`;
-  }
-}
-
-/**
- * Format a number in compact notation
- *
- * @param value - The number to format
- * @param locale - The locale to use (defaults to app default locale)
- * @returns Formatted compact number string
- *
- * @example
- * formatCompact(1234567) // "1.2M" (en)
- * formatCompact(1234567, 'de') // "1,2 Mio."
- */
-function formatCompact(
-  value: number,
-  locale: string = defaultLocale,
-): string {
-  try {
-    return new Intl.NumberFormat(locale, {
-      notation: 'compact',
-      compactDisplay: 'short',
-    }).format(value);
-  } catch {
-    return value.toString();
-  }
-}
-
-/**
  * Format bytes to human-readable size
  *
  * @param bytes - Number of bytes

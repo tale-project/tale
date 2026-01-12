@@ -1,7 +1,6 @@
 export * from './circuly-icon';
 export * from './enter-key-icon';
 export * from './gmail-icon';
-export * from './info-circle-icon';
 export * from './locale-icon';
 export * from './microsoft-icon';
 export * from './onedrive-icon';

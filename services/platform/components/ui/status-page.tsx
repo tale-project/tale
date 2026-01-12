@@ -1,10 +1,74 @@
 'use client';
 
 import { forwardRef, HTMLAttributes, ReactNode } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
 import { Stack, Center } from './layout';
 
-interface StatusPageProps extends HTMLAttributes<HTMLDivElement> {
+const statusPageContainerVariants = cva('flex-col px-4', {
+  variants: {
+    size: {
+      default: 'py-[10rem]',
+      compact: 'py-16',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+});
+
+const statusPageContentVariants = cva('w-full text-center', {
+  variants: {
+    size: {
+      default: 'max-w-[28rem]',
+      compact: 'max-w-md',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+});
+
+const statusPageTitleVariants = cva('text-foreground', {
+  variants: {
+    size: {
+      default: 'text-3xl font-extrabold tracking-tight',
+      compact: 'text-lg font-semibold',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+});
+
+const statusPageDescriptionVariants = cva('text-muted-foreground', {
+  variants: {
+    size: {
+      default: '',
+      compact: 'text-sm',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+});
+
+const statusPageActionsVariants = cva('flex justify-center', {
+  variants: {
+    size: {
+      default: 'gap-3 mt-2',
+      compact: 'gap-2',
+    },
+  },
+  defaultVariants: {
+    size: 'default',
+  },
+});
+
+interface StatusPageProps
+  extends
+    HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof statusPageContainerVariants> {
   /** Optional header element (e.g., logo + user button) */
   header?: ReactNode;
   /** Icon element to display above the title */
@@ -17,8 +81,6 @@ interface StatusPageProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
   /** Additional content below actions (e.g., support message) */
   footer?: ReactNode;
-  /** Size variant - default for full pages, compact for embedded states */
-  size?: 'default' | 'compact';
 }
 
 /**
@@ -45,79 +107,34 @@ export const StatusPage = forwardRef<HTMLDivElement, StatusPageProps>(
       description,
       actions,
       footer,
-      size = 'default',
+      size,
       className,
       children,
       ...props
     },
     ref,
-  ) => {
-    const isCompact = size === 'compact';
-
-    return (
-      <div ref={ref} className={className} {...props}>
-        {header}
-        <Center
-          className={cn(
-            'flex-col px-4',
-            isCompact ? 'py-16' : 'py-[10rem]',
+  ) => (
+    <div ref={ref} className={className} {...props}>
+      {header}
+      <Center className={cn(statusPageContainerVariants({ size }))}>
+        <Stack gap={4} className={cn(statusPageContentVariants({ size }))}>
+          {icon && <div className="flex justify-center">{icon}</div>}
+          <h2 className={cn(statusPageTitleVariants({ size }))}>{title}</h2>
+          {description && (
+            <p className={cn(statusPageDescriptionVariants({ size }))}>
+              {description}
+            </p>
           )}
-        >
-          <Stack
-            gap={4}
-            className={cn(
-              'w-full text-center',
-              isCompact ? 'max-w-md' : 'max-w-[28rem]',
-            )}
-          >
-            {/* Icon */}
-            {icon && (
-              <div className="flex justify-center">
-                {icon}
-              </div>
-            )}
-
-            {/* Title */}
-            <h2
-              className={cn(
-                'text-foreground',
-                isCompact
-                  ? 'text-lg font-semibold'
-                  : 'text-3xl font-extrabold tracking-tight',
-              )}
-            >
-              {title}
-            </h2>
-
-            {/* Description */}
-            {description && (
-              <p
-                className={cn(
-                  'text-muted-foreground',
-                  isCompact ? 'text-sm' : '',
-                )}
-              >
-                {description}
-              </p>
-            )}
-
-            {/* Custom children content */}
-            {children}
-
-            {/* Actions */}
-            {actions && (
-              <div className={cn('flex justify-center', isCompact ? 'gap-2' : 'gap-3 mt-2')}>
-                {actions}
-              </div>
-            )}
-
-            {/* Footer */}
-            {footer && <div className="mt-2">{footer}</div>}
-          </Stack>
-        </Center>
-      </div>
-    );
-  },
+          {children}
+          {actions && (
+            <div className={cn(statusPageActionsVariants({ size }))}>
+              {actions}
+            </div>
+          )}
+          {footer && <div className="mt-2">{footer}</div>}
+        </Stack>
+      </Center>
+    </div>
+  ),
 );
 StatusPage.displayName = 'StatusPage';
-

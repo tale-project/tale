@@ -38,18 +38,12 @@ export const ValidationCheckItem = React.memo(function ValidationCheckItem({
     >
       <Icon
         className={cn(
-          'size-4 flex-shrink-0',
+          'size-4 shrink-0',
           isValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
         )}
         aria-hidden="true"
       />
-      <span
-        className={cn(
-          isValid
-            ? 'text-muted-foreground'
-            : 'text-foreground'
-        )}
-      >
+      <span className={isValid ? 'text-muted-foreground' : 'text-foreground'}>
         {message}
       </span>
     </HStack>

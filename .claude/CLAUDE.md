@@ -25,7 +25,7 @@
 - CONSIDER ALWAYS TO use reusable components.
 - USE `useMemo`, `useCallback` and `memo` the right moment.
 - DO NOT overuse `useEffect`.
-- USE `cva` if a component has multiple variants.
+- ALWAYS USE `cva` for named variants (e.g., `size: 'sm' | 'md' | 'lg'`, `variant: 'primary' | 'secondary'`). But DO NOT use `cva` for boolean states (e.g., `isActive`, `error`, `muted`). For boolean conditions, use conditional `cn()` patterns instead (e.g., `cn('base-classes', isActive && 'active-classes')`).
 - AVOID `router.refresh()`.
 - **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
 - **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.

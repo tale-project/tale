@@ -16,12 +16,3 @@ export async function getSiteUrl(): Promise<string> {
   return 'http://localhost:3000';
 }
 
-/**
- * Get the Convex WebSocket URL.
- * Uses getSiteUrl() to derive the WebSocket endpoint.
- */
-export async function getConvexUrl(): Promise<string> {
-  const siteUrl = await getSiteUrl();
-  return `${siteUrl}/ws_api`;
-}
-

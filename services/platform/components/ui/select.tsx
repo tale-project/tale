@@ -4,9 +4,39 @@ import { forwardRef, useId } from 'react';
 import type { ComponentPropsWithoutRef, ComponentRef } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { cva } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils/cn';
 import { Label } from './label';
+
+const selectContentVariants = cva(
+  'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+  {
+    variants: {
+      position: {
+        popper:
+          'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
+        'item-aligned': '',
+      },
+    },
+    defaultVariants: {
+      position: 'popper',
+    },
+  }
+);
+
+const selectViewportVariants = cva('p-1', {
+  variants: {
+    position: {
+      popper:
+        'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]',
+      'item-aligned': '',
+    },
+  },
+  defaultVariants: {
+    position: 'popper',
+  },
+});
 
 export interface SelectOption {
   value: string;
@@ -67,7 +97,7 @@ export const Select = forwardRef<
           className={cn(
             'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1',
             error && 'border-destructive focus:ring-destructive',
-            className,
+            className
           )}
           aria-invalid={error}
         >
@@ -78,24 +108,14 @@ export const Select = forwardRef<
         </SelectPrimitive.Trigger>
         <SelectPrimitive.Portal>
           <SelectPrimitive.Content
-            className={cn(
-              'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
-              position === 'popper' &&
-                'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
-            )}
+            className={selectContentVariants({ position })}
             position={position}
             sideOffset={sideOffset}
           >
             <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1">
               <ChevronUp className="size-4" />
             </SelectPrimitive.ScrollUpButton>
-            <SelectPrimitive.Viewport
-              className={cn(
-                'p-1',
-                position === 'popper' &&
-                  'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]',
-              )}
-            >
+            <SelectPrimitive.Viewport className={selectViewportVariants({ position })}>
               {options.map((option) => (
                 <SelectPrimitive.Item
                   key={option.value}
