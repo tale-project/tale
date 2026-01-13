@@ -227,7 +227,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET as string,
         tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID as string,
         authority: 'https://login.microsoftonline.com',
-        prompt: 'select_account',
+        prompt: 'select_account' as const,
         scope: [
           'offline_access',
           'email',
