@@ -139,7 +139,6 @@
     "@types/react-file-icon": "1.0.4",
     "@types/react-dom": "19.2.3",
     "@types/striptags": "3.1.1",
-    "@types/uuid": "11.0.0",
     "convex-test": "0.0.40",
     "encoding": "0.1.13",
     "eslint-config-next": "16.1.1",
