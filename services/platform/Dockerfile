@@ -54,14 +54,15 @@ ENV NODE_ENV=production
 
 # Ensure TypeScript and platform-specific binaries are available
 # TypeScript is needed for next.config.ts transpilation (workspace resolution differs from isolated context)
-# @parcel/watcher binaries are needed for the Linux platform since package-lock.json was generated on macOS
+# @parcel/watcher and lightningcss binaries are needed for the Linux platform since package-lock.json was generated on macOS
 # Install the correct architecture variant based on the build platform
-RUN npm install --no-save typescript && \
+# Use --legacy-peer-deps to match the deps stage installation
+RUN npm install --no-save --legacy-peer-deps typescript && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save @parcel/watcher-linux-x64-glibc; \
+      npm install --no-save --legacy-peer-deps @parcel/watcher-linux-x64-glibc lightningcss-linux-x64-gnu; \
     elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save @parcel/watcher-linux-arm64-glibc; \
+      npm install --no-save --legacy-peer-deps @parcel/watcher-linux-arm64-glibc lightningcss-linux-arm64-gnu; \
     fi
 
 # Build Next.js application

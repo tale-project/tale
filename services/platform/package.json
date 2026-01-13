@@ -17,7 +17,11 @@
     "admin:generate-password": "node ./scripts/generate-admin-password.mjs",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "test:ui": "vitest --run --config vitest.ui.config.mjs",
+    "test:ui:watch": "vitest --config vitest.ui.config.mjs",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build -o storybook-static"
   },
   "dependencies": {
     "ai": "^5.0.29",
@@ -54,6 +58,7 @@
     "@radix-ui/react-visually-hidden": "1.2.4",
     "@tailwindcss/postcss": "4.1.18",
     "@tanstack/react-query": "5.90.16",
+    "@tanstack/react-query-devtools": "5.91.2",
     "@tanstack/react-table": "8.21.3",
     "@xyflow/react": "12.10.0",
     "base64-arraybuffer": "1.0.2",
@@ -64,6 +69,7 @@
     "convex-helpers": "0.1.105",
     "cron-parser": "5.4.0",
     "dagre": "0.8.5",
+    "date-fns": "4.1.0",
     "dayjs": "1.11.19",
     "dompurify": "3.3.1",
     "framer-motion": "12.26.1",
@@ -104,7 +110,6 @@
     "@convex-dev/eslint-plugin": "1.0.0",
     "@edge-runtime/vm": "5.0.0",
     "@next/bundle-analyzer": "16.1.1",
-    "@tanstack/react-query-devtools": "5.91.2",
     "@types/dagre": "0.7.53",
     "@types/he": "1.2.3",
     "@types/jexl": "2.3.4",
