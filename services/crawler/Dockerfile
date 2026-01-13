@@ -47,11 +47,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv
 
-# Copy requirements file
-COPY services/crawler/requirements.txt .
+# Install uv for faster package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml and install dependencies
+COPY services/crawler/pyproject.toml .
+RUN uv pip install --system .
 
 # Install Playwright browsers (Chromium)
 # Note: We already installed dependencies manually above, so we skip `playwright install-deps`

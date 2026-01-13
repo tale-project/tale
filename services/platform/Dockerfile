@@ -23,12 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files from services/platform directory
-COPY services/platform/package.json services/platform/package-lock.json ./
+# Copy package files for npm workspace installation
+# The lock file was generated with workspaces, so we need the workspace structure
+COPY package.json package-lock.json ./
+COPY services/platform/package.json ./services/platform/package.json
 
-# Install dependencies using npm with retry for QEMU network stability
-# See: https://github.com/docker/build-push-action/issues/471
-RUN npm ci --fetch-timeout=600000 --fetch-retries=10
+# Install only the platform workspace dependencies
+RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
 
 # ============================================================================
 # Stage 2: Builder
@@ -50,6 +51,34 @@ ENV NODE_ENV=production
 # Note: convex/_generated/* files are committed to git and maintained by the dev workflow.
 # Developers must run `npx convex codegen` locally after schema/function changes.
 # The convex deploy at runtime will also regenerate these if needed.
+
+# Ensure TypeScript and platform-specific binaries are available
+# TypeScript is needed for next.config.ts transpilation (workspace resolution differs from isolated context)
+# Native binaries needed for Linux: @next/swc, @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide
+# These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
+# Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
+# Use --legacy-peer-deps to match the deps stage installation
+RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
+    rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@parcel/watcher-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+      npm install --no-save --legacy-peer-deps typescript \
+        @parcel/watcher-linux-x64-glibc \
+        lightningcss-linux-x64-gnu \
+        @tailwindcss/oxide-linux-x64-gnu \
+        @swc/core-linux-x64-gnu \
+        next@16.1.1; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+      npm install --no-save --legacy-peer-deps typescript \
+        @parcel/watcher-linux-arm64-glibc \
+        lightningcss-linux-arm64-gnu \
+        @tailwindcss/oxide-linux-arm64-gnu \
+        @swc/core-linux-arm64-gnu \
+        next@16.1.1; \
+    fi
 
 # Build Next.js application
 # Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh

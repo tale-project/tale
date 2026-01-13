@@ -8,9 +8,12 @@ ARG VERSION=dev
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install uv for faster package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Copy pyproject.toml and install dependencies
+COPY pyproject.toml .
+RUN uv pip install --system .
 
 # Copy application code
 COPY app/ ./app/
