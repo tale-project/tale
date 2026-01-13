@@ -201,10 +201,13 @@ export function DocumentTable({
         accessorKey: 'size',
         header: tTables('headers.size'),
         size: 128,
-        cell: ({ row }) =>
-          row.original.type === 'folder'
-            ? '—'
-            : formatBytes(row.original.size ?? 0),
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {row.original.type === 'folder'
+              ? '—'
+              : formatBytes(row.original.size ?? 0)}
+          </span>
+        ),
       },
       {
         id: 'source',
