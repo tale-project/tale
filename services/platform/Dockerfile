@@ -54,15 +54,30 @@ ENV NODE_ENV=production
 
 # Ensure TypeScript and platform-specific binaries are available
 # TypeScript is needed for next.config.ts transpilation (workspace resolution differs from isolated context)
-# @next/swc, @parcel/watcher and lightningcss binaries are needed for the Linux platform since package-lock.json was generated on macOS
-# Install the correct architecture variant based on the build platform
+# Native binaries needed for Linux: @next/swc, @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide
+# These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
+# Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
 # Use --legacy-peer-deps to match the deps stage installation
-RUN npm install --no-save --legacy-peer-deps typescript && \
+RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
+    rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@parcel/watcher-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save --legacy-peer-deps @parcel/watcher-linux-x64-glibc lightningcss-linux-x64-gnu @next/swc-linux-x64-gnu; \
+      npm install --no-save --legacy-peer-deps typescript \
+        @parcel/watcher-linux-x64-glibc \
+        lightningcss-linux-x64-gnu \
+        @tailwindcss/oxide-linux-x64-gnu \
+        @swc/core-linux-x64-gnu \
+        next@16.1.1; \
     elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save --legacy-peer-deps @parcel/watcher-linux-arm64-glibc lightningcss-linux-arm64-gnu @next/swc-linux-arm64-gnu; \
+      npm install --no-save --legacy-peer-deps typescript \
+        @parcel/watcher-linux-arm64-glibc \
+        lightningcss-linux-arm64-gnu \
+        @tailwindcss/oxide-linux-arm64-gnu \
+        @swc/core-linux-arm64-gnu \
+        next@16.1.1; \
     fi
 
 # Build Next.js application
