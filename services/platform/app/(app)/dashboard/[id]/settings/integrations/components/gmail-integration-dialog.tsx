@@ -1,19 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack } from '@/components/ui/layout';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { GmailIcon } from '@/components/icons';
+} from '@/components/ui/overlays/dropdown-menu';
+import { GmailIcon } from '@/components/icons/gmail-icon';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Shield } from 'lucide-react';
-import { IconButton } from '@/components/ui/icon-button';
+import { IconButton } from '@/components/ui/primitives/icon-button';
 import { toast } from '@/hooks/use-toast';
 import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
 import { useQuery } from 'convex/react';
@@ -24,7 +24,7 @@ import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
 import { useTestEmailProvider } from '../hooks/use-test-email-provider';
 import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
 import { useDateFormat } from '@/hooks/use-date-format';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 
 interface GmailIntegrationDialogProps {
@@ -144,7 +144,7 @@ export function GmailIntegrationDialog({
   };
 
   const footer = (
-    <Button onClick={handleCreateProvider} className="w-full">
+    <Button onClick={handleCreateProvider} fullWidth>
       <Plus className="size-4 mr-2" />
       {t('integrations.addGmailProvider')}
     </Button>

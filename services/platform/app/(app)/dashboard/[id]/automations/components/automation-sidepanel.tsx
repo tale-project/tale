@@ -1,6 +1,6 @@
 'use client';
 
-import { JsonViewer } from '@/components/ui/json-viewer';
+import { JsonViewer } from '@/components/ui/data-display/json-viewer';
 import {
   Zap,
   Cpu,
@@ -16,14 +16,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { cn } from '@/lib/utils/cn';
 import { useState, useRef, useEffect } from 'react';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { AutomationTester } from './automation-tester';
 import { AutomationAssistant } from './automation-assistant';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;

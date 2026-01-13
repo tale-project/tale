@@ -1,10 +1,10 @@
 'use client';
 
 import { CustomerStatusBadge } from './customer-status-badge';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface CustomerInformationProps {
   customer: Doc<'customers'>;

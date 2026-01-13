@@ -5,9 +5,9 @@ import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Stack, HStack } from '@/components/ui/layout';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import type { Metadata } from 'next';
 
 // This page requires authentication (cookies/connection), so it must be dynamic

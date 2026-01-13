@@ -4,11 +4,11 @@ import { useMemo } from 'react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { Stack, HStack } from '@/components/ui/layout';
-import { LocaleIcon } from '@/components/icons';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { LocaleIcon } from '@/components/icons/locale-icon';
+import { TableTimestampCell } from '@/components/ui/data-display/table-date-cell';
 import { VendorRowActions } from '../components/vendor-row-actions';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 /** Shared table configuration for vendors - used by both table and skeleton */
 export function useVendorsTableConfig() {

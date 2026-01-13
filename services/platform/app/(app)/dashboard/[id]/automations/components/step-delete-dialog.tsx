@@ -1,8 +1,8 @@
 'use client';
 
-import { DeleteDialog } from '@/components/ui/dialog';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface DeleteStepDialogProps {
   open: boolean;

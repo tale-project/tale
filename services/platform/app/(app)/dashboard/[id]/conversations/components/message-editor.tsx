@@ -15,15 +15,15 @@ import {
 } from 'lucide-react';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import { Send } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/primitives/button';
+import { Textarea } from '@/components/ui/forms/textarea';
 import { cn } from '@/lib/utils/cn';
 import {
   TooltipProvider,
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { toast } from '@/hooks/use-toast';
 import type { Message as ConversationMessage } from '../types';
 import { Crepe } from '@milkdown/crepe';
@@ -36,7 +36,7 @@ import {
 } from '@milkdown/react';
 import '@milkdown/crepe/theme/common/style.css';
 import '@milkdown/crepe/theme/frame.css';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Markdown -> HTML conversion using existing deps
 import ReactMarkdown from 'react-markdown';

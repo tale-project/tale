@@ -4,10 +4,10 @@ import { Inter } from 'next/font/google';
 import { getLocale, getMessages } from 'next-intl/server';
 // eslint-disable-next-line import/no-unassigned-import
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/feedback/toaster';
 
-import { ThemeProvider } from '@/components/theme-provider';
-import { ThemeColorMeta } from '@/components/theme-color-meta';
+import { ThemeProvider } from '@/components/theme/theme-provider';
+import { ThemeColorMeta } from '@/components/theme/theme-color-meta';
 import { AppProviders } from '@/providers/app-providers';
 import { getT } from '@/lib/i18n/server';
 import { getSiteUrl } from '@/lib/get-site-url';

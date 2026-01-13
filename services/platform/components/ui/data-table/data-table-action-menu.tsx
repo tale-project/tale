@@ -4,13 +4,13 @@ import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/overlays/dropdown-menu';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;

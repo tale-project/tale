@@ -1,7 +1,7 @@
 'use client';
 
-import { ConfirmDialog } from '@/components/ui/dialog';
-import { useT } from '@/lib/i18n';
+import { ConfirmDialog } from '@/components/ui/dialog/confirm-dialog';
+import { useT } from '@/lib/i18n/client';
 
 interface PublishAutomationDialogProps {
   open: boolean;

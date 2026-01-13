@@ -4,11 +4,11 @@ import { useMemo } from 'react';
 import { Loader } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { HStack } from '@/components/ui/layout';
-import { WebsiteIcon } from '@/components/icons';
-import { TableDateCell } from '@/components/ui/table-date-cell';
+import { HStack } from '@/components/ui/layout/layout';
+import { WebsiteIcon } from '@/components/icons/website-icon';
+import { TableDateCell } from '@/components/ui/data-display/table-date-cell';
 import { WebsiteRowActions } from '../components/website-row-actions';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 /** Shared table configuration for websites - used by both table and skeleton */
 export function useWebsitesTableConfig() {

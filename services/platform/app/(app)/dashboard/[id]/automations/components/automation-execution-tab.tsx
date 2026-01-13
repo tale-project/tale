@@ -12,15 +12,15 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { JsonInput } from '@/components/ui/json-input';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
+} from '@/components/ui/layout/card';
+import { Button } from '@/components/ui/primitives/button';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { Play, Clock, Square, TestTube } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface AutomationTemplate {
   _id: Id<'wfDefinitions'>;

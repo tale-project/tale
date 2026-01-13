@@ -5,16 +5,16 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Checkbox } from '@/components/ui/checkbox';
+} from '@/components/ui/overlays/popover';
+import { Checkbox } from '@/components/ui/forms/checkbox';
 import type {
   TypeFilter,
   PriorityFilter,
   FilterState,
 } from '@/hooks/use-conversation-filters';
-import { FilterSection } from '@/components/filters/filter-section';
-import { FilterButton } from '@/components/filters/filter-button';
-import { useT } from '@/lib/i18n';
+import { FilterSection } from '@/components/ui/filters/filter-section';
+import { FilterButton } from '@/components/ui/filters/filter-button';
+import { useT } from '@/lib/i18n/client';
 
 // Export these for reuse in other components
 export type { TypeFilter, PriorityFilter, FilterState };

@@ -1,5 +1,6 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Stack } from '@/components/ui/layout/layout';
+import { Separator } from '@/components/ui/layout/separator';
 import { AuthFormLayout } from './auth-form-layout';
 
 interface AuthInputSkeletonProps {
@@ -71,10 +72,7 @@ export function AuthFormSkeleton({
         {/* Microsoft OAuth Button */}
         {showMicrosoftButton && (
           <>
-            <HStack gap={2}>
-              <div className="flex-1 h-px bg-muted" />
-            </HStack>
-
+            <Separator variant="muted" />
             <Skeleton className="h-10 w-full rounded-md" />
           </>
         )}

@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useStartWorkflow } from '../hooks/use-start-workflow';
-import { Button } from '@/components/ui/button';
-import { JsonInput } from '@/components/ui/json-input';
-import { Stack, VStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { Stack, VStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { TestTubeDiagonal, Loader2 } from 'lucide-react';
 
 interface AutomationTesterProps {
@@ -103,7 +103,7 @@ export function AutomationTester({
       </Stack>
 
       <div className="p-3 border-t border-border">
-        <Button onClick={handleTest} disabled={isExecuting} className="w-full">
+        <Button onClick={handleTest} disabled={isExecuting} fullWidth>
           {isExecuting ? (
             <>
               <Loader2 className="size-4 mr-2 animate-spin" />

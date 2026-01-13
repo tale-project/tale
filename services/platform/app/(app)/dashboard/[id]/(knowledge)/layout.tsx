@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { KnowledgeNavigation } from './components/knowledge-navigation';
-import { LayoutErrorBoundary } from '@/components/error-boundaries';
+import { LayoutErrorBoundary } from '@/components/error-boundaries/boundaries/layout-error-boundary';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
 import {
   AdaptiveHeaderRoot,

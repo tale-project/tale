@@ -4,14 +4,14 @@ import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FormDialog } from '@/components/ui/dialog';
-import { Description } from '@/components/ui/description';
-import { StatusIndicator } from '@/components/ui/status-indicator';
-import { Stack } from '@/components/ui/layout';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Description } from '@/components/ui/forms/description';
+import { StatusIndicator } from '@/components/ui/feedback/status-indicator';
+import { Stack } from '@/components/ui/layout/layout';
+import { Input } from '@/components/ui/forms/input';
+import { Button } from '@/components/ui/primitives/button';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Type for the form data
 type CirculyFormValues = {

@@ -4,7 +4,7 @@
 
 import { cn } from '@/lib/utils/cn';
 import { ComponentPropsWithoutRef, useState } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ProductImageProps extends ComponentPropsWithoutRef<'div'> {
   images: string[];

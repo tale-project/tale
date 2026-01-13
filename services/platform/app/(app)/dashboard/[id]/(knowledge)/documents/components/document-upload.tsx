@@ -4,8 +4,8 @@ import { useRef, ChangeEvent } from 'react';
 import { Monitor } from 'lucide-react';
 import { useDocumentUpload } from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 
 interface DocumentUploadProps {
   organizationId: string;

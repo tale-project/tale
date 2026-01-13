@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface UseCopyOptions {
   /** Duration in ms to show the copied state (default: 2000) */

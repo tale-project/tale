@@ -1,8 +1,8 @@
 'use client';
 
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/dialog/confirm-dialog';
 import ReactMarkdown from 'react-markdown';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface MessageImprovementDialogProps {
   isOpen: boolean;

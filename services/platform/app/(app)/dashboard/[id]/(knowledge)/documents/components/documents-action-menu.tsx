@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Plus, HardDrive } from 'lucide-react';
-import { DataTableActionMenu, type DataTableActionMenuItem } from '@/components/ui/data-table';
-import { OneDriveIcon } from '@/components/icons';
+import { DataTableActionMenu, type DataTableActionMenuItem } from '@/components/ui/data-table/data-table-action-menu';
+import { OneDriveIcon } from '@/components/icons/onedrive-icon';
 import { useDocumentUpload } from '../hooks/use-document-upload';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Lazy-load OneDrive dialog to reduce initial bundle size
 const OneDriveImportDialog = dynamic(

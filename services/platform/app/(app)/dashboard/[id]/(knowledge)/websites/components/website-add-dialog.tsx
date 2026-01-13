@@ -4,12 +4,12 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Select } from '@/components/ui/forms/select';
 import { useCreateWebsite } from '../hooks/use-create-website';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type FormData = {
   domain: string;

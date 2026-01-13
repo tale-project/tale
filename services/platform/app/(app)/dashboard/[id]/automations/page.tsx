@@ -6,7 +6,8 @@ import { AutomationsTableSkeleton } from './components/automations-table-skeleto
 import { fetchQuery, preloadQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
-import { DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
 import { Workflow, Sparkles } from 'lucide-react';
 import { AccessDenied } from '@/components/layout/access-denied';
 import { ContentWrapper } from '@/components/layout/content-wrapper';

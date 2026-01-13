@@ -5,12 +5,12 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { FilterSection } from '@/components/filters/filter-section';
-import { FilterButton } from '@/components/filters/filter-button';
-import { useT } from '@/lib/i18n';
+} from '@/components/ui/overlays/popover';
+import { Select } from '@/components/ui/forms/select';
+import { Input } from '@/components/ui/forms/input';
+import { FilterSection } from '@/components/ui/filters/filter-section';
+import { FilterButton } from '@/components/ui/filters/filter-button';
+import { useT } from '@/lib/i18n/client';
 
 export interface ExecutionsFilterState {
   status: string;

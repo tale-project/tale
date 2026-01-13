@@ -1,8 +1,8 @@
 'use client';
 
 import { GitCompare } from 'lucide-react';
-import { DataTableEmptyState } from '@/components/ui/data-table';
-import { useT } from '@/lib/i18n';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
+import { useT } from '@/lib/i18n/client';
 
 interface ApprovalsEmptyStateProps {
   status: string;

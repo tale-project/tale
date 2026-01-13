@@ -1,9 +1,9 @@
 'use client';
 
-import { DeleteDialog } from '@/components/ui/dialog';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useRemoveMember } from '../hooks/use-remove-member';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type MemberLite = {
   _id: string;

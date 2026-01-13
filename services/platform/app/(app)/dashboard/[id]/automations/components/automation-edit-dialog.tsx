@@ -4,14 +4,14 @@ import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { JsonInput } from '@/components/ui/json-input';
-import { Stack, Grid } from '@/components/ui/layout';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { Stack, Grid } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationConfig {
   timeout?: number;

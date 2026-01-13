@@ -24,16 +24,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/components/ui/data-display/table';
 import { cn } from '@/lib/utils/cn';
 import { ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 import { useOrganizationId } from '@/hooks/use-organization-id';
-import {
-  ErrorBoundaryBase,
-  ErrorDisplayCompact,
-} from '@/components/error-boundaries';
+import { ErrorBoundaryBase } from '@/components/error-boundaries/core/error-boundary-base';
+import { ErrorDisplayCompact } from '@/components/error-boundaries/displays/error-display-compact';
 import {
   DataTableEmptyState,
   DataTableFilteredEmptyState,
@@ -52,7 +50,7 @@ import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
-  columns: ColumnDef<TData, unknown>[];
+  columns: ColumnDef<TData, any>[];  // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */

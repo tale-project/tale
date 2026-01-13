@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils/cn';
 import { ReactNode } from 'react';
-import { HStack } from '@/components/ui/layout';
+import { HStack } from '@/components/ui/layout/layout';
 
 interface PageHeaderProps {
   children: ReactNode;

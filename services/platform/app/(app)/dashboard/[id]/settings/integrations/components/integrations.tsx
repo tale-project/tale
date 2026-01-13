@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { ShopifyIcon, CirculyIcon, ProtelIcon } from '@/components/icons';
-import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/card';
-import { Stack, HStack, Grid, Center } from '@/components/ui/layout';
+import { ShopifyIcon } from '@/components/icons/shopify-icon';
+import { CirculyIcon } from '@/components/icons/circuly-icon';
+import { ProtelIcon } from '@/components/icons/protel-icon';
+import { Switch } from '@/components/ui/forms/switch';
+import { Button } from '@/components/ui/primitives/button';
+import { Card, CardContent, CardFooter, CardTitle, CardDescription } from '@/components/ui/layout/card';
+import { Stack, HStack, Grid, Center } from '@/components/ui/layout/layout';
 import { Settings, Mail, Loader2 } from 'lucide-react';
 import { usePreloadedQuery, type Preloaded } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -17,7 +19,7 @@ import { useUpdateIntegration } from '../hooks/use-update-integration';
 import { useTestIntegration } from '../hooks/use-test-integration';
 import { useDeleteIntegration } from '../hooks/use-delete-integration';
 import { OAuth2Banner } from './oauth2-banner';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { ShopifyIntegrationDialog } from './shopify-integration-dialog';
 import { CirculyIntegrationDialog } from './circuly-integration-dialog';
 import { CirculyDisconnectConfirmationDialog } from './circuly-disconnect-confirmation-dialog';

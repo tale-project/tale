@@ -1,8 +1,8 @@
 import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
-import { Stack, HStack } from '@/components/ui/layout';
-import { Field, FieldGroup } from '@/components/ui/field';
-import { useT } from '@/lib/i18n';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { Field, FieldGroup } from '@/components/ui/forms/field';
+import { useT } from '@/lib/i18n/client';
 
 interface VendorInformationProps {
   vendor: Doc<'vendors'>;

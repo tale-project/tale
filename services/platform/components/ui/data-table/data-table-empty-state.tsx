@@ -2,7 +2,7 @@
 
 import type { ReactNode, ComponentType } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { VStack, Center } from '@/components/ui/layout';
+import { VStack, Center } from '@/components/ui/layout/layout';
 
 /** Icon component type that accepts className prop */
 export type IconComponent = ComponentType<{ className?: string }>;

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { DeleteDialog } from '@/components/ui/dialog';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useDeleteWebsite } from '../hooks/use-delete-website';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface DeleteWebsiteDialogProps {
   isOpen: boolean;

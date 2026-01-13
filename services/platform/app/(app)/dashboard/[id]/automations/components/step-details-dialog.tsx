@@ -1,20 +1,20 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
 import { DeleteStepDialog } from './step-delete-dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { JsonInput } from '@/components/ui/json-input';
-import { HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { HStack } from '@/components/ui/layout/layout';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { z } from 'zod';
 import { Play, Cpu, HelpCircle, CheckCircle2, Zap, Trash2 } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';

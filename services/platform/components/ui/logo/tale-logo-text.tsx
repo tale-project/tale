@@ -1,4 +1,4 @@
-import { Image } from '@/components/ui/image';
+import { Image } from '@/components/ui/data-display/image';
 
 export const TaleLogoText = () => {
   return (

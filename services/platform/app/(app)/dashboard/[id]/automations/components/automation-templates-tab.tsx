@@ -16,15 +16,16 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { DeleteDialog, FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { JsonInput } from '@/components/ui/json-input';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
-import { TabsContent } from '@/components/ui/tabs';
+} from '@/components/ui/layout/card';
+import { Button } from '@/components/ui/primitives/button';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { JsonInput } from '@/components/ui/forms/json-input';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
+import { TabsContent } from '@/components/ui/navigation/tabs';
 import { toast } from '@/hooks/use-toast';
 import {
   Plus,
@@ -36,7 +37,7 @@ import {
   Save,
   X,
 } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationTemplatesTabProps {
   organizationId: string;
@@ -262,7 +263,7 @@ export function AutomationTemplatesTab({
                 await handleCreateAutomation();
                 setCreateOpen(false);
               }}
-              trigger={<Button className="w-full">{t('createButton')}</Button>}
+              trigger={<Button fullWidth>{t('createButton')}</Button>}
             >
               <Input
                 id="workflow-name"

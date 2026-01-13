@@ -2,9 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
-import { DataTableActionMenu } from '@/components/ui/data-table';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
 import { ImportVendorsDialog } from './vendors-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export type ImportMode = 'manual' | 'upload';
 

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
-import { Banner } from '@/components/ui/banner';
-import { useT } from '@/lib/i18n';
+import { Banner } from '@/components/ui/feedback/banner';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * OAuth2Banner Component

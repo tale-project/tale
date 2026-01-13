@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { ApprovalsWrapper } from '../components/approvals-wrapper';
 import { preloadApprovalsData } from '../utils/get-approvals-data';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { getAuthToken } from '@/lib/auth/auth-server';

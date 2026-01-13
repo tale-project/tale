@@ -1,17 +1,17 @@
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/navigation/tabs';
+import { Input } from '@/components/ui/forms/input';
 import { useFormContext } from 'react-hook-form';
-import { Form } from '@/components/ui/form';
-import { Description } from '@/components/ui/description';
-import { Stack, HStack, VStack } from '@/components/ui/layout';
+import { Form } from '@/components/ui/forms/form';
+import { Description } from '@/components/ui/forms/description';
+import { Stack, HStack, VStack } from '@/components/ui/layout/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { DocumentIcon } from '@/components/ui/document-icon';
-import { Button } from '@/components/ui/button';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
+import { Button } from '@/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface VendorImportFormProps {
   hideTabs?: boolean;

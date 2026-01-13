@@ -3,16 +3,18 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
-import { DataTable, DataTableEmptyState, DataTableActionMenu } from '@/components/ui/data-table';
-import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
-import { Stack, HStack } from '@/components/ui/layout';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
+import { Button } from '@/components/ui/primitives/button';
+import { IconButton } from '@/components/ui/primitives/icon-button';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/overlays/dropdown-menu';
 import {
   Eye,
   Pencil,
@@ -22,8 +24,8 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils/date/format';
-import { Pagination } from '@/components/ui/pagination';
-import { useT, useLocale } from '@/lib/i18n';
+import { Pagination } from '@/components/ui/navigation/pagination';
+import { useT, useLocale } from '@/lib/i18n/client';
 
 interface ExampleMessage {
   id: string;

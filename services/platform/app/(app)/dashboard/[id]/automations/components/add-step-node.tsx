@@ -2,7 +2,7 @@
 
 import { Handle, Position } from '@xyflow/react';
 import { Plus } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AddStepNodeProps {
   data: {

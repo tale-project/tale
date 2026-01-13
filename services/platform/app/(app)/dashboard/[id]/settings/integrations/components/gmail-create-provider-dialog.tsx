@@ -1,20 +1,20 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ViewDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Form } from '@/components/ui/form';
-import { Stack, HStack } from '@/components/ui/layout';
-import { GmailIcon } from '@/components/icons';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/navigation/tabs';
+import { Form } from '@/components/ui/forms/form';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { GmailIcon } from '@/components/icons/gmail-icon';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
@@ -345,7 +345,7 @@ export function GmailCreateProviderDialog({
               label={t('integrations.setAsDefaultProvider')}
             />
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" fullWidth disabled={isLoading}>
               {isLoading
                 ? t('integrations.redirectingToGoogle')
                 : t('integrations.continueWithGoogle')}
@@ -406,7 +406,7 @@ export function GmailCreateProviderDialog({
               label={t('integrations.setAsDefaultProvider')}
             />
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" fullWidth disabled={isLoading}>
               {isLoading
                 ? t('integrations.testingAndCreating')
                 : t('integrations.testAndCreate')}

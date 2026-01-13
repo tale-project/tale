@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import {
   TabNavigation,
   type TabNavigationItem,

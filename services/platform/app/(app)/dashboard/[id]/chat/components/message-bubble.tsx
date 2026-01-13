@@ -13,14 +13,14 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { CopyIcon, CheckIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import {
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from '@/components/ui/data-display/table';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
 import { Info } from 'lucide-react';
 import {
@@ -28,16 +28,16 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Dialog } from '@/components/ui/dialog';
-import { Image } from '@/components/ui/image';
+} from '@/components/ui/overlays/tooltip';
+import { Dialog } from '@/components/ui/dialog/dialog';
+import { Image } from '@/components/ui/data-display/image';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { MessageInfoDialog } from './message-info-dialog';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
 import { TypewriterText } from './typewriter-text';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;

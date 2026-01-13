@@ -3,17 +3,17 @@
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Sparkles } from 'lucide-react';
-import { Dialog } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Dialog } from '@/components/ui/dialog/dialog';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { ProductCard } from './product-card';
 import { ApprovalDetail } from '../types/approval-detail';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 const CustomerInfoDialog = dynamic(
   () =>

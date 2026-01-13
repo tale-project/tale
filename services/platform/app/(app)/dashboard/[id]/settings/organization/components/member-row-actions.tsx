@@ -5,10 +5,10 @@ import { Pencil, Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import { EditMemberDialog } from './member-edit-dialog';
 import { DeleteMemberDialog } from './member-delete-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type MemberItem = {
   _id: string;

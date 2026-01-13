@@ -1,8 +1,8 @@
 'use client';
 
-import { DeleteDialog } from '@/components/ui/dialog';
-import { Stack } from '@/components/ui/layout';
-import { useT } from '@/lib/i18n';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
+import { Stack } from '@/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
 
 interface DocumentDeleteFolderDialogProps {
   open: boolean;

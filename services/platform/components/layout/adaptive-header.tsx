@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { HStack } from '@/components/ui/layout';
+import { HStack } from '@/components/ui/layout/layout';
 
 // =============================================================================
 // Context

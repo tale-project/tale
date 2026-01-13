@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
-import { DataTableActionMenu } from '@/components/ui/data-table';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
 import { CreateAutomationDialog } from './automation-create-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface AutomationsActionMenuProps {
   organizationId: string;

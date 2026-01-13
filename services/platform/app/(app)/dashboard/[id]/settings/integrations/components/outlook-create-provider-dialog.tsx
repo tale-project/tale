@@ -1,19 +1,19 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Stack, HStack } from '@/components/ui/layout';
-import { OutlookIcon } from '@/components/icons';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/navigation/tabs';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { OutlookIcon } from '@/components/icons/outlook-icon';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
@@ -341,7 +341,7 @@ export function OutlookCreateProviderDialog({
 
                 <Button
                   type="button"
-                  className="w-full"
+                  fullWidth
                   disabled={isLoading}
                   onClick={oauth2Form.handleSubmit(handleOAuth2Submit)}
                 >
@@ -410,7 +410,7 @@ export function OutlookCreateProviderDialog({
 
                 <Button
                   type="button"
-                  className="w-full"
+                  fullWidth
                   disabled={isLoading}
                   onClick={passwordForm.handleSubmit(handlePasswordSubmit)}
                 >

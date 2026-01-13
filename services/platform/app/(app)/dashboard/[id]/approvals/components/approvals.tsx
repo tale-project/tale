@@ -1,25 +1,26 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Image } from '@/components/ui/image';
+import { Image } from '@/components/ui/data-display/image';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { DataTable, DataTableEmptyState } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
 import { ApprovalDetail } from '../types/approval-detail';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { formatDate } from '@/lib/utils/date/format';
 import { usePreloadedQuery, useQuery } from 'convex/react';
-import { useLocale } from '@/lib/i18n';
+import { useLocale } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
 import type { Id, Doc } from '@/convex/_generated/dataModel';
 import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
 import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
-import { CellErrorBoundary } from '@/components/error-boundaries';
+import { CellErrorBoundary } from '@/components/error-boundaries/boundaries/cell-error-boundary';
 import {
   safeGetString,
   safeGetNumber,

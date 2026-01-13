@@ -1,6 +1,6 @@
 'use client';
 
-import { Textarea } from '@/components/ui/textarea';
+import { Textarea } from '@/components/ui/forms/textarea';
 import {
   ComponentPropsWithoutRef,
   useRef,
@@ -12,10 +12,10 @@ import { X, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { Id } from '@/convex/_generated/dataModel';
-import { DocumentIcon } from '@/components/ui/document-icon';
-import { EnterKeyIcon } from '@/components/icons';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
+import { EnterKeyIcon } from '@/components/icons/enter-key-icon';
 import { LoaderCircleIcon } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { compressImage } from '@/lib/utils/compress-image';
 
 interface FileAttachment {

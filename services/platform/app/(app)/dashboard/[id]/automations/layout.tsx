@@ -1,7 +1,7 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/forms/input';
+import { Badge } from '@/components/ui/feedback/badge';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils/cn';
@@ -11,11 +11,11 @@ import { useUpdateAutomation } from './hooks/use-update-automation';
 import { ReactNode, useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { AutomationNavigation } from './components/automation-navigation';
-import { LayoutErrorBoundary } from '@/components/error-boundaries';
+import { LayoutErrorBoundary } from '@/components/error-boundaries/boundaries/layout-error-boundary';
 import { useAuth } from '@/hooks/use-convex-auth';
 import { AdaptiveHeaderRoot } from '@/components/layout/adaptive-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface AutomationsLayoutProps {
   children: ReactNode;

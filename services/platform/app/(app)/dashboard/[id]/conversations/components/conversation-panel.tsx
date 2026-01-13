@@ -1,12 +1,12 @@
 'use client';
 
-import { CardContent } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/layout/card';
 import { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Message } from './message';
 import { ConversationHeader } from './conversation-header';
 import { Loader2Icon, MessageSquareMoreIcon } from 'lucide-react';
-import { Stack, VStack, Center } from '@/components/ui/layout';
+import { Stack, VStack, Center } from '@/components/ui/layout/layout';
 import { useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
@@ -15,7 +15,7 @@ import { useSendMessageViaEmail } from '../hooks/use-send-message-via-email';
 import { useGenerateUploadUrl } from '../hooks/use-generate-upload-url';
 import { toast } from '@/hooks/use-toast';
 import { useThrottledScroll } from '@/hooks/use-throttled-scroll';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 const MessageEditor = dynamic(
   () =>

@@ -7,7 +7,7 @@ import {
   AdaptiveHeaderTitle,
 } from '@/components/layout/adaptive-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
-import { LayoutErrorBoundary } from '@/components/error-boundaries';
+import { LayoutErrorBoundary } from '@/components/error-boundaries/boundaries/layout-error-boundary';
 import { getT } from '@/lib/i18n/server';
 
 interface ApprovalsLayoutProps {

@@ -1,19 +1,19 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { DeleteDialog } from '@/components/ui/dialog';
-import { HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
+import { HStack } from '@/components/ui/layout/layout';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useDeleteThread } from '../hooks/use-delete-thread';
 
 interface ChatActionsProps {

@@ -5,12 +5,12 @@ import { Eye, Pencil, Trash2 } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
-} from '@/components/ui/entity-row-actions';
+} from '@/components/ui/entity/entity-row-actions';
 import { CustomerInfoDialog } from './customer-info-dialog';
 import { CustomerEditDialog } from './customer-edit-dialog';
 import { CustomerDeleteDialog } from './customer-delete-dialog';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface CustomerRowActionsProps {
   customer: Doc<'customers'>;

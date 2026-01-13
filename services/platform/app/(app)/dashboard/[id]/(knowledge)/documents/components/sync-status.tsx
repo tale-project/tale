@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack } from '@/components/ui/layout';
-import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/primitives/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/layout/card';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
 import {
   CheckCircle,
   XCircle,

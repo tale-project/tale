@@ -3,12 +3,12 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { FormDialog } from '@/components/ui/dialog';
-import { HStack } from '@/components/ui/layout';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { HStack } from '@/components/ui/layout/layout';
+import { Input } from '@/components/ui/forms/input';
+import { Button } from '@/components/ui/primitives/button';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 const protelSchema = z.object({
   server: z.string().min(1).max(255),

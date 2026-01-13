@@ -4,16 +4,16 @@ import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Stack } from '@/components/ui/layout';
-import { Select } from '@/components/ui/select';
-import { JsonInput } from '@/components/ui/json-input';
+import { Button } from '@/components/ui/primitives/button';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Stack } from '@/components/ui/layout/layout';
+import { Select } from '@/components/ui/forms/select';
+import { JsonInput } from '@/components/ui/forms/json-input';
 import { toast } from '@/hooks/use-toast';
 import { Plus } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface CreateStepDialogProps {
   open: boolean;
@@ -274,7 +274,7 @@ export function CreateStepTrigger({
 }) {
   const { t } = useT('automations');
   return (
-    <Button className="w-full" onClick={onClick} disabled={disabled}>
+    <Button fullWidth onClick={onClick} disabled={disabled}>
       <Plus className="size-4 mr-2" />
       {t('createStep.createButton')}
     </Button>

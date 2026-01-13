@@ -10,11 +10,12 @@ import {
   NavigationMenuTrigger,
   NavigationMenuLink,
 } from '@/components/ui/navigation/navigation-menu';
-import { Button } from '@/components/ui/button';
-import { ShopifyIcon, CirculyIcon } from '@/components/icons';
+import { Button } from '@/components/ui/primitives/button';
+import { ShopifyIcon } from '@/components/icons/shopify-icon';
+import { CirculyIcon } from '@/components/icons/circuly-icon';
 import { HardDrive, Plus } from 'lucide-react';
 import { ProductsImportDialog } from './products-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ImportProductsMenuProps {
   organizationId: string;

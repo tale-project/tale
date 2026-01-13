@@ -1,9 +1,9 @@
 'use client';
 
-import { ViewDialog } from '@/components/ui/dialog';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
 import { VendorInformation } from './vendor-information';
 import { Doc } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface VendorInfoDialogProps {
   vendor: Doc<'vendors'>;

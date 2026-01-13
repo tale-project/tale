@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Stack, Center, HStack } from '@/components/ui/layout';
-import { useT } from '@/lib/i18n';
+import { Button } from '@/components/ui/primitives/button';
+import { Stack, Center, HStack } from '@/components/ui/layout/layout';
+import { useT } from '@/lib/i18n/client';
 import { useErrorLogger } from '../hooks/use-error-logger';
 
 interface ErrorDisplayCompactProps {

@@ -3,11 +3,11 @@
 import { useMemo, useCallback } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Doc } from '@/convex/_generated/dataModel';
-import { HStack } from '@/components/ui/layout';
-import { Badge } from '@/components/ui/badge';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
+import { HStack } from '@/components/ui/layout/layout';
+import { Badge } from '@/components/ui/feedback/badge';
+import { TableTimestampCell } from '@/components/ui/data-display/table-date-cell';
 import { AutomationRowActions } from './automation-row-actions';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 /** Shared table configuration for automations - used by both table and skeleton */
 export function useAutomationsTableConfig() {

@@ -1,16 +1,16 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
+import { Input } from '@/components/ui/forms/input';
 import { useFormContext } from 'react-hook-form';
-import { Form } from '@/components/ui/form';
-import { Description } from '@/components/ui/description';
-import { Stack, HStack, VStack } from '@/components/ui/layout';
+import { Form } from '@/components/ui/forms/form';
+import { Description } from '@/components/ui/forms/description';
+import { Stack, HStack, VStack } from '@/components/ui/layout/layout';
 import { Upload, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils/cn';
-import { DocumentIcon } from '@/components/ui/document-icon';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
 
 interface ProductImportFormProps {
   hideTabs?: boolean;

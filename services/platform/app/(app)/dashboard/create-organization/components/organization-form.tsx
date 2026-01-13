@@ -5,15 +5,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Form } from '@/components/ui/form';
-import { Stack, VStack, Center } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Input } from '@/components/ui/forms/input';
+import { Form } from '@/components/ui/forms/form';
+import { Stack, VStack, Center } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useMemo } from 'react';
 
 type FormData = { name: string };
@@ -107,7 +107,7 @@ export function OrganizationForm() {
           />
           <Button
             type="submit"
-            className="w-full"
+            fullWidth
             disabled={form.formState.isSubmitting || !form.formState.isValid}
           >
             {form.formState.isSubmitting

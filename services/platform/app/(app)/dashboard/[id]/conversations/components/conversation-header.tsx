@@ -5,7 +5,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/overlays/dropdown-menu';
 import { MoreVertical } from 'lucide-react';
 import {
   ArrowLeft,
@@ -15,10 +15,10 @@ import {
   UserIcon,
 } from 'lucide-react';
 import { CustomerInfoDialog } from '@/app/(app)/dashboard/[id]/(knowledge)/customers/components/customer-info-dialog';
-import { Button } from '@/components/ui/button';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 import { useState } from 'react';
 import { useQuery } from 'convex/react';

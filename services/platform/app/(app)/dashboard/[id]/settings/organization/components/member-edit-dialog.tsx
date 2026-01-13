@@ -4,16 +4,16 @@ import { useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Stack } from '@/components/ui/layout';
-import { Select } from '@/components/ui/select';
-import { Banner } from '@/components/ui/banner';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { Stack } from '@/components/ui/layout/layout';
+import { Select } from '@/components/ui/forms/select';
+import { Banner } from '@/components/ui/feedback/banner';
 import { toast } from '@/hooks/use-toast';
 import { useUpdateMemberRole } from '../hooks/use-update-member-role';
 import { useUpdateMemberDisplayName } from '../hooks/use-update-member-display-name';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Type for the form data
 type EditMemberFormData = {

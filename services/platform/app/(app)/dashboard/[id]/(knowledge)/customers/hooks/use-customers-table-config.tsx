@@ -4,12 +4,12 @@ import { useMemo } from 'react';
 import { startCase } from '@/lib/utils/string';
 import { type ColumnDef } from '@tanstack/react-table';
 import type { Doc } from '@/convex/_generated/dataModel';
-import { Stack, HStack } from '@/components/ui/layout';
-import { LocaleIcon } from '@/components/icons';
+import { Stack, HStack } from '@/components/ui/layout/layout';
+import { LocaleIcon } from '@/components/icons/locale-icon';
 import { CustomerStatusBadge } from '../components/customer-status-badge';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
+import { TableTimestampCell } from '@/components/ui/data-display/table-date-cell';
 import { CustomerRowActions } from '../components/customer-row-actions';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 /** Shared table configuration for customers - used by both table and skeleton */
 export function useCustomersTableConfig() {

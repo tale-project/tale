@@ -1,7 +1,7 @@
 'use client';
 
-import { DeleteDialog } from '@/components/ui/dialog';
-import { useT } from '@/lib/i18n';
+import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
+import { useT } from '@/lib/i18n/client';
 
 interface DeleteProductDialogProps {
   isOpen: boolean;

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormDialog } from '@/components/ui/dialog';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
 import { VendorImportForm } from './vendor-import-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,7 @@ import { toast } from '@/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useBulkCreateVendors } from '../hooks/use-bulk-create-vendors';
 import { useEffect, useMemo, useCallback } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useFileImport, vendorMappers } from '@/hooks/use-file-import';
 
 // Type for the form data

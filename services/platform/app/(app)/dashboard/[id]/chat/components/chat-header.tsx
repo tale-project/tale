@@ -11,11 +11,11 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { ChatHistorySidebar } from './chat-history-sidebar';
-import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/primitives/button';
+import { useT } from '@/lib/i18n/client';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/overlays/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 interface ChatHeaderProps {

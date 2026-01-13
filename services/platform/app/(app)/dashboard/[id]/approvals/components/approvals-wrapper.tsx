@@ -2,9 +2,9 @@
 
 import { Suspense } from 'react';
 import { Approvals } from './approvals';
-import { DataTableSkeleton } from '@/components/ui/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import type { PreloadedApprovals } from '../utils/get-approvals-data';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ApprovalsWrapperProps {
   status?: 'pending' | 'resolved';

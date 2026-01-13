@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
-import { EntityDeleteDialog } from '@/components/ui/entity-delete-dialog';
-import { useT } from '@/lib/i18n';
+import { EntityDeleteDialog } from '@/components/ui/entity/entity-delete-dialog';
+import { useT } from '@/lib/i18n/client';
 import { useDeleteVendor } from '../hooks/use-delete-vendor';
 
 interface DeleteVendorButtonProps {

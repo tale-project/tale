@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 // Note: xlsx is dynamically imported to reduce initial bundle size
 
 interface DocumentPreviewXlsxProps {

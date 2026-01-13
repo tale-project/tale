@@ -1,8 +1,8 @@
 'use client';
 
-import { ConfirmDialog } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/dialog/confirm-dialog';
 import { Dispatch, SetStateAction } from 'react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface LeaveOrganizationDialogProps {
   open: boolean;

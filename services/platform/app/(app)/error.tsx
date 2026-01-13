@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { UserButton } from '@/components/user-button';
-import { TaleLogoText } from '@/components/ui/logo/tale-logo-text';
-import { HStack, Spacer } from '@/components/ui/layout';
-import { PageErrorBoundary } from '@/components/error-boundaries';
+import { StatusPageHeader } from '@/components/layout/status-page-header';
+import { PageErrorBoundary } from '@/components/error-boundaries/boundaries/page-error-boundary';
 
 interface AppErrorProps {
   error: Error & { digest?: string };
@@ -16,13 +14,9 @@ export default function AppError({ error, reset: _reset }: AppErrorProps) {
     <PageErrorBoundary
       error={error}
       header={
-        <HStack className="pt-8 px-20">
-          <Link href="/dashboard" className="hover:opacity-70">
-            <TaleLogoText />
-          </Link>
-          <Spacer />
+        <StatusPageHeader logoHref="/dashboard">
           <UserButton align="end" />
-        </HStack>
+        </StatusPageHeader>
       }
     />
   );

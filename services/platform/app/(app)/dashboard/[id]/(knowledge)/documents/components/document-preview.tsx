@@ -2,13 +2,13 @@
 
 import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { Button } from '@/components/ui/button';
-import { Center, VStack } from '@/components/ui/layout';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/primitives/button';
+import { Center, VStack } from '@/components/ui/layout/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 import { getFileExtension } from '@/lib/utils/document-helpers';
 import { Image, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 // Dynamically load document preview components to reduce initial bundle
 // PDF viewer loads pdfjs from CDN, DOCX uses mammoth (~200KB), XLSX uses xlsx (~300KB)

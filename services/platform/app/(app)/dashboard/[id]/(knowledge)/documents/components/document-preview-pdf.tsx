@@ -8,7 +8,7 @@ import type {
   RenderTask,
   PageViewport,
 } from 'pdfjs-dist/types/src/pdf';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type PdfJsLib = {
   getDocument: typeof import('pdfjs-dist/types/src/pdf').getDocument;

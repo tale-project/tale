@@ -5,8 +5,8 @@ import { useQuery } from 'convex/react';
 import dynamic from 'next/dynamic';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Stack, Center } from '@/components/ui/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Stack, Center } from '@/components/ui/layout/layout';
 
 // Dynamically import AutomationSteps to code-split ReactFlow (~200KB)
 const AutomationSteps = dynamic(

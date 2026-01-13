@@ -9,10 +9,10 @@ import {
   NavigationMenuTrigger,
   NavigationMenuLink,
 } from '@/components/ui/navigation/navigation-menu';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import { HardDrive, NotepadText, Plus } from 'lucide-react';
 import { ImportVendorsDialog } from './vendors-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ImportVendorsMenuProps {
   organizationId: string;

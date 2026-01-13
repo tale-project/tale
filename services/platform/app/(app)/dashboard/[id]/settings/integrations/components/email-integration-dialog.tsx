@@ -1,19 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { ViewDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Stack, HStack, Center } from '@/components/ui/layout';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Badge } from '@/components/ui/feedback/badge';
+import { Stack, HStack, Center } from '@/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { GmailIcon, OutlookIcon } from '@/components/icons';
+} from '@/components/ui/overlays/dropdown-menu';
+import { GmailIcon } from '@/components/icons/gmail-icon';
+import { OutlookIcon } from '@/components/icons/outlook-icon';
 import { Plus, Trash2, MoreVertical, TestTube, Star, Mail } from 'lucide-react';
-import { IconButton } from '@/components/ui/icon-button';
+import { IconButton } from '@/components/ui/primitives/icon-button';
 import { toast } from '@/hooks/use-toast';
 import { EmailProviderTypeSelector } from './email-provider-type-selector';
 import { useQuery } from 'convex/react';
@@ -23,7 +24,7 @@ import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
 import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
 import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
 import { useTestEmailProvider } from '../hooks/use-test-email-provider';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface EmailIntegrationDialogProps {
   open?: boolean;
@@ -162,7 +163,7 @@ export function EmailIntegrationDialog({
   };
 
   const footer = (
-    <Button onClick={handleAddProvider} className="w-full">
+    <Button onClick={handleAddProvider} fullWidth>
       <Plus className="size-4 mr-2" />
       {t('integrations.addEmailProvider')}
     </Button>

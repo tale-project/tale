@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/use-convex-auth';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/primitives/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,13 +9,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/overlays/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import {
   LogOut,
   Settings,
@@ -30,9 +30,9 @@ import { useRouter, useParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 
 export interface UserButtonProps {
   align?: 'start' | 'end';
