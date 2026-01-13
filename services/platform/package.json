@@ -24,7 +24,7 @@
     "storybook:build": "storybook build -o storybook-static"
   },
   "dependencies": {
-    "ai": "5.0.120",
+    "ai": "5.0.121",
     "@ai-sdk/openai": "2.0.89",
     "@ai-sdk/provider-utils": "3.0.20",
     "@convex-dev/action-cache": "0.3.0",
