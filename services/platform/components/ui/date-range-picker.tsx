@@ -186,7 +186,7 @@ const CustomInput = forwardRef<HTMLButtonElement, CustomInputProps>(
         disabled={isLoading}
         onClick={onClick}
         className={cn(
-          'w-auto justify-start text-sm text-left font-normal space-x-2 px-2.5 rounded-r-none border-r-0 min-w-[15.75rem] ring-0',
+          'w-auto justify-start text-sm text-left font-normal space-x-2 px-2.5 rounded-r-none border-r-0 ring-0',
           !value && 'text-muted-foreground',
           isLoading && 'opacity-50 cursor-not-allowed',
         )}

@@ -22,6 +22,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { AutomationTester } from './automation-tester';
 import { AutomationAssistant } from './automation-assistant';
+import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 
 interface AutomationSidePanelProps {
@@ -74,7 +75,7 @@ const getStepTypeColor = (stepType: string) => {
 export function AutomationSidePanel({
   step,
   isOpen,
-  onClose: _onClose,
+  onClose,
   showAIChat = false,
   showTestPanel = false,
   automationId,
@@ -130,7 +131,7 @@ export function AutomationSidePanel({
     <div
       ref={panelRef}
       style={{ width: `${width}px` }}
-      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden max-md:!w-full max-md:absolute max-md:inset-0 max-md:z-20"
+      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden max-md:!w-full max-md:absolute max-md:inset-0 max-md:z-10"
     >
       {/* Resize handle - hidden on mobile */}
       <div
@@ -183,7 +184,9 @@ export function AutomationSidePanel({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>{t('sidePanel.stepTooltip', { stepType: step.stepType })}</p>
+                    <p>
+                      {t('sidePanel.stepTooltip', { stepType: step.stepType })}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -194,6 +197,15 @@ export function AutomationSidePanel({
               </div>
             </>
           ) : null}
+          {/* View automation button - visible on mobile */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="md:hidden shrink-0"
+            onClick={onClose}
+          >
+            {t('sidePanel.viewAutomation')}
+          </Button>
         </div>
       </div>
 

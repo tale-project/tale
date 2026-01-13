@@ -5,6 +5,10 @@ import { getAuthToken } from '@/lib/auth/auth-server';
 import { api } from '@/convex/_generated/api';
 import { NavigationServer } from '@/components/ui/navigation/navigation-server';
 import { MobileNavigationServer } from '@/components/ui/navigation/mobile-navigation-server';
+import {
+  AdaptiveHeaderProvider,
+  AdaptiveHeaderSlot,
+} from '@/components/layout/adaptive-header';
 
 export interface DashboardLayoutProps {
   children: ReactNode;
@@ -61,26 +65,29 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex flex-col md:flex-row size-full">
-      {/* Mobile header with hamburger menu - height matches side nav width */}
-      <div className="md:hidden flex items-center justify-between h-[var(--nav-size)] px-3 py-2 border-b border-border bg-background">
-        <MobileNavigationServer role={memberContext.role} />
-      </div>
+    <AdaptiveHeaderProvider>
+      <div className="flex flex-col md:flex-row size-full">
+        {/* Mobile header with hamburger menu - height matches side nav width */}
+        <div className="md:hidden flex items-center gap-2 h-[var(--nav-size)] px-3 py-2 border-b border-border bg-background">
+          <MobileNavigationServer role={memberContext.role} />
+          <AdaptiveHeaderSlot />
+        </div>
 
-      {/* Desktop Navigation - hidden on mobile, width matches mobile nav height */}
-      <div className="hidden md:flex md:flex-[0_0_var(--nav-size)] h-full px-2">
-        <NavigationServer
-          organizationId={organizationId}
-          role={memberContext.role}
-        />
-      </div>
+        {/* Desktop Navigation - hidden on mobile, width matches mobile nav height */}
+        <div className="hidden md:flex md:flex-[0_0_var(--nav-size)] h-full px-2">
+          <NavigationServer
+            organizationId={organizationId}
+            role={memberContext.role}
+          />
+        </div>
 
-      {/* Main content area - overflow-auto for sticky headers, flex for child layout control */}
-      <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
-        <div className="flex flex-col flex-1 min-h-0 overflow-auto">
-          {children}
+        {/* Main content area - overflow-auto for sticky headers, flex for child layout control */}
+        <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
+          <div className="flex flex-col flex-1 min-h-0 overflow-auto">
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </AdaptiveHeaderProvider>
   );
 }

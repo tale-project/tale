@@ -2,7 +2,10 @@ import { ReactNode } from 'react';
 import { connection } from 'next/server';
 import { ApprovalsNavigation } from './components/approvals-navigation';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
-import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import {
+  AdaptiveHeaderRoot,
+  AdaptiveHeaderTitle,
+} from '@/components/layout/adaptive-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
 import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { getT } from '@/lib/i18n/server';
@@ -23,9 +26,9 @@ export default async function ApprovalsLayout({
   return (
     <>
       <StickyHeader>
-        <PageHeader standalone={false}>
-          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-        </PageHeader>
+        <AdaptiveHeaderRoot standalone={false}>
+          <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+        </AdaptiveHeaderRoot>
         <ApprovalsNavigation organizationId={organizationId} />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>
