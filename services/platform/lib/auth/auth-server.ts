@@ -139,10 +139,16 @@ export async function getAuthToken(): Promise<string | undefined> {
   try {
     // Dynamic import AFTER connection() to defer betterAuth initialization to request time.
     // This enables PPR/cacheComponents by avoiding crypto.getRandomValues() during prerender.
-    const { getToken: getTokenNextjs } =
+    const { convexBetterAuthNextJs } =
       await import('@convex-dev/better-auth/nextjs');
+    const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!;
+
     // First, try the standard Next.js token getter
-    const token = await getTokenNextjs(createAuth);
+    const token = await convexBetterAuthNextJs({
+      convexUrl,
+      convexSiteUrl: `${siteUrl}/http_api`,
+    }).getToken();
     if (token) {
       return token;
     }
