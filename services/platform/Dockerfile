@@ -55,7 +55,14 @@ ENV NODE_ENV=production
 # Ensure TypeScript and platform-specific binaries are available
 # TypeScript is needed for next.config.ts transpilation (workspace resolution differs from isolated context)
 # @parcel/watcher binaries are needed for the Linux platform since package-lock.json was generated on macOS
-RUN npm install --no-save typescript @parcel/watcher-linux-x64-glibc @parcel/watcher-linux-arm64-glibc || true
+# Install the correct architecture variant based on the build platform
+RUN npm install --no-save typescript && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+      npm install --no-save @parcel/watcher-linux-x64-glibc; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+      npm install --no-save @parcel/watcher-linux-arm64-glibc; \
+    fi
 
 # Build Next.js application
 # Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
