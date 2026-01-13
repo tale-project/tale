@@ -135,7 +135,7 @@
     "@types/nodemailer": "7.0.5",
     "@types/pg": "8.16.0",
     "@types/react": "19.2.8",
-    "@types/react-datepicker": "6.2.0",
+    "@types/react-datepicker": "7.0.0",
     "@types/react-dom": "19.2.3",
     "convex-test": "0.0.40",
     "encoding": "0.1.13",
