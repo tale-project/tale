@@ -34,7 +34,6 @@ export function createCrmAgent(options?: {
     instructions: CRM_ASSISTANT_INSTRUCTIONS,
     convexToolNames,
     maxSteps,
-    useFastModel: true,
   });
 
   return new Agent(components.agent, agentConfig);
