@@ -437,10 +437,11 @@ export async function generateAgentResponse(
       {
         contextOptions: {
           recentMessages: 20,
-          // Exclude tool messages from context - sub-agents maintain their own
-          // conversation history in sub-threads, and the summary system preserves
-          // key information from tool results for long-term memory
-          excludeToolMessages: true,
+          // Include tool messages so the model knows which tools were used.
+          // This prevents hallucination on follow-up queries (e.g., "What about Shanghai?"
+          // after asking about Beijing weather). Sub-agents maintain their own threads
+          // but the parent agent needs to see that tools were called.
+          excludeToolMessages: false,
           searchOtherThreads: false,
         },
         // P0: Use contextHandler to fix message ordering
