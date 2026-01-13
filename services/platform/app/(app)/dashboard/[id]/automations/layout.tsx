@@ -13,7 +13,7 @@ import { useForm } from 'react-hook-form';
 import { AutomationNavigation } from './components/automation-navigation';
 import { LayoutErrorBoundary } from '@/components/error-boundaries';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { PageHeader } from '@/components/layout/page-header';
+import { AdaptiveHeaderRoot } from '@/components/layout/adaptive-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
 import { useT } from '@/lib/i18n';
 
@@ -93,14 +93,15 @@ export default function AutomationsLayout({
   return (
     <>
       <StickyHeader>
-        <PageHeader standalone={false} showBorder className="gap-2">
-          <h1 className="text-base font-semibold">
+        <AdaptiveHeaderRoot standalone={false} showBorder className="gap-2">
+          <h1 className="text-base font-semibold truncate">
+            {/* "Automations /" prefix - hidden on mobile */}
             <span
               role="button"
               tabIndex={0}
               onClick={handleClickAutomation}
               className={cn(
-                'text-foreground',
+                'hidden md:inline text-foreground',
                 automation?.name && 'text-muted-foreground cursor-pointer',
               )}
             >
@@ -119,7 +120,9 @@ export default function AutomationsLayout({
                   }
                 }}
               >
-                /&nbsp;&nbsp;{automation?.name}
+                {/* "/" separator - hidden on mobile */}
+                <span className="hidden md:inline">/&nbsp;&nbsp;</span>
+                {automation?.name}
               </span>
             )}
           </h1>
@@ -141,15 +144,21 @@ export default function AutomationsLayout({
             />
           )}
           {automation?.status === 'draft' && (
-            <Badge variant="outline">{tCommon('status.draft')}</Badge>
+            <Badge variant="outline" className="ml-2">
+              {tCommon('status.draft')}
+            </Badge>
           )}
           {automation?.status === 'active' && (
-            <Badge variant="green">{tCommon('status.active')}</Badge>
+            <Badge variant="green" className="ml-2">
+              {tCommon('status.active')}
+            </Badge>
           )}
           {automation?.status === 'archived' && (
-            <Badge variant="outline">{tCommon('status.archived')}</Badge>
+            <Badge variant="outline" className="ml-2">
+              {tCommon('status.archived')}
+            </Badge>
           )}
-        </PageHeader>
+        </AdaptiveHeaderRoot>
         <AutomationNavigation
           automation={automation}
           userRole={userContext?.member?.role ?? 'Member'}
