@@ -1,11 +1,15 @@
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
-import bundleAnalyzer from '@next/bundle-analyzer';
 
 const withNextIntl = createNextIntlPlugin('./lib/i18n/request.ts');
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
-});
+
+// Bundle analyzer is a devDependency - only load when ANALYZE=true
+// This prevents build failures in Docker where devDependencies may not be installed
+const withBundleAnalyzer =
+  process.env.ANALYZE === 'true'
+    ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@next/bundle-analyzer')({ enabled: true })
+    : (config: NextConfig) => config;
 
 const config: NextConfig = {
   // Enable standalone output for Docker deployment

@@ -32,11 +32,9 @@ FROM base AS dependencies
 
 WORKDIR /app
 
-# Copy requirements file
-COPY services/rag/requirements.txt /app/requirements.txt
-
-# Install Python dependencies
-RUN uv pip install --system -r requirements.txt
+# Copy pyproject.toml and install dependencies
+COPY services/rag/pyproject.toml /app/pyproject.toml
+RUN uv pip install --system .
 
 # ============================================================================
 # Stage 3: Final

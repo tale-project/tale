@@ -1,0 +1,14 @@
+{
+  "name": "@tale/proxy",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "echo 'Docker service - no local setup'",
+    "dev": "docker compose up proxy -d && docker compose logs -f proxy",
+    "build": "echo 'No build step'",
+    "docker:build": "docker compose build proxy",
+    "logs": "docker compose logs -f proxy",
+    "shell": "docker exec -it tale-proxy sh",
+    "trust-certs": "docker exec tale-proxy caddy trust"
+  }
+}

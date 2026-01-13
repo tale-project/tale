@@ -1,0 +1,48 @@
+{
+  "$schema": "https://turbo.build/schema.v2.json",
+  "tasks": {
+    "setup": {
+      "cache": false,
+      "outputs": [".venv/**"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "dependsOn": ["setup"],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["setup"],
+      "outputs": []
+    },
+    "lint:fix": {
+      "dependsOn": ["setup"],
+      "cache": false,
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["setup"],
+      "outputs": []
+    },
+    "test:watch": {
+      "dependsOn": ["setup"],
+      "cache": false,
+      "persistent": true
+    },
+    "test:coverage": {
+      "dependsOn": ["setup"],
+      "outputs": ["coverage/**"]
+    },
+    "typecheck": {
+      "outputs": []
+    },
+    "docker:build": {
+      "cache": false,
+      "outputs": []
+    }
+  },
+  "ui": "stream"
+}

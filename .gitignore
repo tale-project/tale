@@ -71,3 +71,6 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+
+# Turborepo
+.turbo

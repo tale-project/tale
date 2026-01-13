@@ -1,0 +1,15 @@
+{
+  "name": "@tale/crawler",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "setup": "uv sync",
+    "dev": "uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8002",
+    "build": "echo 'No build step'",
+    "lint": "uv run ruff check app",
+    "lint:fix": "uv run ruff check --fix app",
+    "test": "uv run pytest",
+    "test:watch": "uv run pytest-watch",
+    "test:coverage": "uv run pytest --cov=app --cov-report=html"
+  }
+}
