@@ -87,30 +87,35 @@ export function createAgentConfig(opts: {
     estimatedInstructionTokens,
   });
 
-  // Determine which model to use:
+  // Determine which model to use (priority order):
   // 1. Explicit model override from opts.model
-  // 2. Fast model if useFastModel is true (OPENAI_FAST_MODEL env var)
+  // 2. Fast model if useFastModel is true (requires OPENAI_FAST_MODEL env var)
   // 3. Default model (OPENAI_MODEL env var)
-  const envModel = (process.env.OPENAI_MODEL || '').trim();
-  const envFastModel = (process.env.OPENAI_FAST_MODEL || '').trim();
+  const getModel = (): string => {
+    if (opts.model) {
+      return opts.model;
+    }
 
-  let model: string;
-  if (opts.model) {
-    model = opts.model;
-  } else if (opts.useFastModel && envFastModel) {
-    model = envFastModel;
-  } else {
-    model = envModel;
-  }
+    if (opts.useFastModel) {
+      const fastModel = (process.env.OPENAI_FAST_MODEL || '').trim();
+      if (!fastModel) {
+        throw new Error(
+          'OPENAI_FAST_MODEL environment variable is required when useFastModel is true but is not set',
+        );
+      }
+      return fastModel;
+    }
 
-  if (!model) {
-    const expectedVar = opts.useFastModel
-      ? 'OPENAI_FAST_MODEL (or fallback OPENAI_MODEL)'
-      : 'OPENAI_MODEL';
-    throw new Error(
-      `${expectedVar} environment variable is required for Agent configuration but is not set`,
-    );
-  }
+    const defaultModel = (process.env.OPENAI_MODEL || '').trim();
+    if (!defaultModel) {
+      throw new Error(
+        'OPENAI_MODEL environment variable is required for Agent configuration but is not set',
+      );
+    }
+    return defaultModel;
+  };
+
+  const model = getModel();
 
   // Build call settings with temperature and frequency_penalty
   // frequency_penalty helps prevent the model from repeating the same text in loops
