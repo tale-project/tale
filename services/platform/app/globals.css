@@ -1,11 +1,10 @@
 @import 'tailwindcss';
-
-/* Configure dark mode to use class selector instead of media query */
-@variant dark (&:where(.dark, .dark *));
-
 @import 'tw-animate-css';
 @import 'react-day-picker/style.css';
 @import 'react-datepicker/dist/react-datepicker.css';
+
+/* Configure dark mode to use class selector instead of media query */
+@variant dark (&:where(.dark, .dark *));
 
 /*
  * Theme customizations using @theme directive

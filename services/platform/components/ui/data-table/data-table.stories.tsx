@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
-import { ColumnDef, createColumnHelper } from '@tanstack/react-table';
+import { createColumnHelper } from '@tanstack/react-table';
 import { DataTable } from './data-table';
 import { Badge } from '../feedback/badge';
 import { Button } from '../primitives/button';
@@ -35,7 +35,7 @@ const manyUsers: User[] = Array.from({ length: 50 }, (_, i) => ({
 
 const columnHelper = createColumnHelper<User>();
 
-const columns: ColumnDef<User, unknown>[] = [
+const columns = [
   columnHelper.accessor('name', {
     header: 'Name',
     cell: (info) => <span className="font-medium">{info.getValue() as string}</span>,

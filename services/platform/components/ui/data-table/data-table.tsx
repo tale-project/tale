@@ -50,7 +50,7 @@ import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
-  columns: ColumnDef<TData, unknown>[];
+  columns: ColumnDef<TData, any>[];  // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */

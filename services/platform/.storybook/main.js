@@ -31,6 +31,9 @@ const config = {
           '@': '/Users/yannick/Documents/git/tale/services/platform',
         },
       },
+      define: {
+        'process.env': {},
+      },
     });
   },
 };
