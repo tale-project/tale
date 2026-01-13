@@ -186,7 +186,7 @@ export function AutomationNavigation({
                 <NavigationMenuTrigger className="text-sm h-8 border border-input bg-background hover:bg-accent hover:text-accent-foreground">
                   {automation.version}
                   <ChevronDown
-                    className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
+                    className="relative top-px ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
                     aria-hidden="true"
                   />
                 </NavigationMenuTrigger>

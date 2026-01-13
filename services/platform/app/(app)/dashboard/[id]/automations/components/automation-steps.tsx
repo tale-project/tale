@@ -120,7 +120,6 @@ function AutomationStepsInner({
     targetId: string;
   } | null>(null);
   const [showDraftBanner, setShowDraftBanner] = useState(true);
-  const [showActiveBanner, setShowActiveBanner] = useState(true);
   const [minimapDimensions, setMinimapDimensions] = useState({
     width: 192,
     height: 128,
