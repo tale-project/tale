@@ -144,7 +144,10 @@
     "eslint-config-next": "16.1.1",
     "pdfjs-dist": "5.4.530",
     "tree-kill": "1.2.2",
+    "jsdom": "^26.0.0",
+    "storybook": "^8.6.0",
     "vite-tsconfig-paths": "6.0.4",
+    "vitest-axe": "^1.0.0-pre.3",
     "wait-on": "9.0.3"
   },
   "overrides": {
