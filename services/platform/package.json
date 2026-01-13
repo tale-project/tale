@@ -37,7 +37,7 @@
     "@dmitryrechkin/json-schema-to-zod": "1.0.1",
     "@hookform/resolvers": "5.2.2",
     "@microlink/react-json-view": "1.27.1",
-    "@microsoft/mgt-react": "4.6.0",
+    "react-file-icon": "1.6.0",
     "@milkdown/crepe": "7.17.2",
     "@milkdown/react": "7.17.2",
     "@radix-ui/react-avatar": "1.1.11",
@@ -136,6 +136,7 @@
     "@types/pg": "8.16.0",
     "@types/react": "19.2.8",
     "@types/react-datepicker": "7.0.0",
+    "@types/react-file-icon": "1.0.4",
     "@types/react-dom": "19.2.3",
     "convex-test": "0.0.40",
     "encoding": "0.1.13",
@@ -149,10 +150,6 @@
     "wait-on": "9.0.3"
   },
   "overrides": {
-    "react-is": "19.2.3",
-    "@microsoft/mgt-react": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
+    "react-is": "19.2.3"
   }
 }
