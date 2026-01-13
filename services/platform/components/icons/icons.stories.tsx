@@ -101,7 +101,7 @@ export const IconSizes: StoryObj = {
 
 export const BrandIcons: StoryObj = {
   render: () => (
-    <div className="flex flex-wrap gap-6">
+    <div className="flex flex-wrap gap-6 items-center justify-center">
       {[MicrosoftIcon, ShopifyIcon, CirculyIcon, ProtelIcon, GmailIcon, OutlookIcon, OneDriveIcon].map(
         (Icon, i) => (
           <div key={i} className="flex items-center justify-center size-16 rounded-lg bg-muted">
@@ -122,7 +122,7 @@ export const BrandIcons: StoryObj = {
 
 export const UtilityIcons: StoryObj = {
   render: () => (
-    <div className="flex flex-wrap gap-6">
+    <div className="flex flex-wrap gap-6 items-center justify-center">
       {[LocaleIcon, WebsiteIcon, EnterKeyIcon].map((Icon, i) => (
         <div key={i} className="flex items-center justify-center size-16 rounded-lg bg-muted">
           <div className="size-6"><Icon /></div>

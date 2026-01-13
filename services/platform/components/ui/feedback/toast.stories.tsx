@@ -112,7 +112,7 @@ export const WithAction: Story = {
 
 export const AllVariants: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-3">
       <Toast open className="relative">
         <div className="grid gap-1">
           <ToastTitle>Default Toast</ToastTitle>

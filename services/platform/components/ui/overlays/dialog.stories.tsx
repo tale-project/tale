@@ -39,6 +39,9 @@ import { Dialog } from '@/components/ui/overlays';
 - Announces title and description to screen readers
         `,
       },
+      story: {
+        inline: false,
+      },
     },
   },
   argTypes: {

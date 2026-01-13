@@ -114,19 +114,20 @@ export const WithForm: Story = {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <form className="grid gap-4">
-          <div className="space-y-2">
-            <h4 className="font-medium leading-none">Email</h4>
+          <div className="space-y-1">
+            <h4 className="font-medium leading-none text-sm">Update email</h4>
             <p className="text-sm text-muted-foreground">
-              Update your email address.
+              Enter your new email address below.
             </p>
           </div>
           <Input
             id="email"
+            label="Email"
             type="email"
-            placeholder="Enter your email"
+            placeholder="name@example.com"
           />
           <Button type="submit" size="sm">
-            Save
+            Save changes
           </Button>
         </form>
       </PopoverContent>

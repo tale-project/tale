@@ -107,7 +107,7 @@ export const Sizes: Story = {
 
 export const Rounded: Story = {
   render: () => (
-    <HStack gap={4}>
+    <HStack gap={4} align="center">
       <Avatar>
         <AvatarImage
           src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop"
