@@ -254,7 +254,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         creatorRole: 'admin',
       }),
     ],
-  } as const;
+  };
 };
 
 export const createAuth = (
