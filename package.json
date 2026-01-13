@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.3",
-    "@types/node": "24.10.1",
+    "@types/node": "24.10.8",
     "@vitest/coverage-v8": "4.0.17",
     "eslint": "9.39.2",
     "eslint-plugin-unicorn": "62.0.0",
