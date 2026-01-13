@@ -3,10 +3,10 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, HardDrive, NotepadText } from 'lucide-react';
-import { DataTableActionMenu } from '@/components/ui/data-table';
-import { CirculyIcon } from '@/components/icons';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
+import { CirculyIcon } from '@/components/icons/circuly-icon';
 import { ImportCustomersDialog } from './customers-import-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export type ImportMode = 'manual' | 'upload';
 

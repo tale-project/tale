@@ -6,6 +6,7 @@ import { betterAuth } from 'better-auth';
 import authSchema from './betterAuth/schema';
 import { organization } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
+import authConfig from './auth.config';
 
 import {
   defaultStatements,
@@ -199,18 +200,16 @@ export const authComponent = createClient<DataModel, typeof authSchema>(
     },
   },
 );
-export const createAuth = (
-  ctx: GenericCtx<DataModel>,
-  { optionsOnly } = { optionsOnly: false },
-) => {
+// Helper function to get auth options (for createApi)
+export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
   // Determine if we're running in HTTPS mode
   const isHttps = siteUrl.startsWith('https://');
 
-  return betterAuth({
+  return {
     // disable logging when createAuth is called just to generate options.
     // this is not required, but there's a lot of noise in logs without it.
     logger: {
-      disabled: optionsOnly,
+      disabled: true,
     },
     baseURL: siteUrl,
     // TEMPORARY: Allow requests from any host on port 3000
@@ -228,7 +227,7 @@ export const createAuth = (
         clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET as string,
         tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID as string,
         authority: 'https://login.microsoftonline.com',
-        prompt: 'select_account',
+        prompt: 'select_account' as const,
         scope: [
           'offline_access',
           'email',
@@ -245,7 +244,9 @@ export const createAuth = (
     },
     plugins: [
       // The Convex plugin is required for Convex compatibility
-      convex(),
+      convex({
+        authConfig,
+      }),
       organization({
         ac,
         roles: orgRoles,
@@ -253,5 +254,12 @@ export const createAuth = (
         creatorRole: 'admin',
       }),
     ],
-  });
+  };
+};
+
+export const createAuth = (
+  ctx: GenericCtx<DataModel>,
+  { optionsOnly } = { optionsOnly: false },
+) => {
+  return betterAuth(getAuthOptions(ctx));
 };

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 import {
   Table,
   TableBody,
@@ -10,8 +10,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Stack, HStack } from '@/components/ui/layout';
+} from '@/components/ui/data-display/table';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { DataTablePagination } from './data-table-pagination';
 import { cn } from '@/lib/utils/cn';
 

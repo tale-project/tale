@@ -1,2 +1,5 @@
 
 .env.local
+
+# Storybook
+storybook-static

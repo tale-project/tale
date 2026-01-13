@@ -10,8 +10,8 @@ import {
   SheetContent,
   SheetTitle,
   SheetDescription,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
+} from '@/components/ui/overlays/sheet';
+import { Button } from '@/components/ui/primitives/button';
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -20,7 +20,7 @@ import {
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
 import { TaleLogo } from '@/components/ui/logo/tale-logo';
 import { UserButton } from '@/components/user-button';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import {
   useNavigationItems,

@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Dialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { DataTable, DataTableSkeleton } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Dialog } from '@/components/ui/dialog/dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/forms/radio-group';
+import { Input } from '@/components/ui/forms/input';
+import { Checkbox } from '@/components/ui/forms/checkbox';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { Search, Home, Loader2, Database, X } from 'lucide-react';
 import type { DriveItem } from '@/types/microsoft-graph';
@@ -22,9 +23,9 @@ import { useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useSyncStatus, type FileProcessingStatus } from './sync-status';
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
-import { DocumentIcon } from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface OneDriveImportDialogProps {
   open?: boolean;

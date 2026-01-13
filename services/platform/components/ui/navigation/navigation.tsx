@@ -13,7 +13,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import { isNavigationUrlMatch } from '@/lib/utils/navigation';
 import { TaleLogo } from '@/components/ui/logo/tale-logo';
 import { UserButton } from '@/components/user-button';
@@ -22,7 +22,7 @@ import {
   hasRequiredRole,
   type NavItem,
 } from '@/hooks/use-navigation-items';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 const NavigationItem = ({
   role,

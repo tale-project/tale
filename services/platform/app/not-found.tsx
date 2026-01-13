@@ -1,32 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { HStack, Spacer } from '@/components/ui/layout';
-import { TaleLogoText } from '@/components/ui/logo/tale-logo-text';
-import { Skeleton } from '@/components/ui/skeleton';
-import { StatusPage } from '@/components/ui/status-page';
+import { Button, LinkButton } from '@/components/ui/primitives/button';
+import { Center } from '@/components/ui/layout/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { StatusPage } from '@/components/ui/feedback/status-page';
+import { StatusPageHeader } from '@/components/layout/status-page-header';
 import { UserButton } from '@/components/user-button';
 import { useAuth } from '@/hooks/use-convex-auth';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export default function NotFound() {
   const { t } = useT('common');
   const { isAuthenticated, isLoading } = useAuth();
 
   const header = (
-    <HStack className="pt-8 px-20">
-      <Link
-        href={isAuthenticated ? '/dashboard' : '/'}
-        className="hover:opacity-70"
-      >
-        <TaleLogoText />
-      </Link>
-      <Spacer />
+    <StatusPageHeader logoHref={isAuthenticated ? '/dashboard' : '/'}>
       {isLoading ? (
-        <div className="flex size-9 items-center justify-center">
-          <Skeleton className="size-5 rounded-full" />
-        </div>
+        <Center>
+          <Skeleton size="sm" shape="circle" />
+        </Center>
       ) : isAuthenticated ? (
         <UserButton align="end" />
       ) : (
@@ -34,7 +27,7 @@ export default function NotFound() {
           <Button variant="outline">{t('actions.logIn')}</Button>
         </Link>
       )}
-    </HStack>
+    </StatusPageHeader>
   );
 
   return (
@@ -43,9 +36,9 @@ export default function NotFound() {
       title={t('notFound.title')}
       description={t('notFound.description')}
       actions={
-        <Link href={isAuthenticated ? '/dashboard' : '/'}>
-          <Button>{t('notFound.goHome')}</Button>
-        </Link>
+        <LinkButton href={isAuthenticated ? '/dashboard' : '/'}>
+          {t('notFound.goHome')}
+        </LinkButton>
       }
     />
   );

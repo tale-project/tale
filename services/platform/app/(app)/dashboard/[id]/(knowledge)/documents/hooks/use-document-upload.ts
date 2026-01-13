@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
 
 // File size limits

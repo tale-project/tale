@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Grid } from '@/components/ui/layout';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { Grid } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { Id } from '@/convex/_generated/dataModel';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useUpdateProduct } from '../hooks/use-update-product';
 
 interface EditProductDialogProps {

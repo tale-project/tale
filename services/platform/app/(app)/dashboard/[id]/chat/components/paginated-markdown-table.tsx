@@ -9,10 +9,10 @@ import {
   type ReactNode,
   type ReactElement,
 } from 'react';
-import { TableBody, TableCell } from '@/components/ui/table';
-import { Select } from '@/components/ui/select';
+import { TableBody, TableCell } from '@/components/ui/data-display/table';
+import { Select } from '@/components/ui/forms/select';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface PaginatedMarkdownTableProps {
   children?: ReactNode;

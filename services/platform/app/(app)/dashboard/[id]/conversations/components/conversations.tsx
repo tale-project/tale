@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/forms/input';
+import { Button } from '@/components/ui/primitives/button';
 import { Search } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Checkbox } from '@/components/ui/forms/checkbox';
 import { Loader2Icon } from 'lucide-react';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
@@ -24,7 +24,7 @@ import { useBulkCloseConversations } from '../hooks/use-bulk-close-conversations
 import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversations';
 import { useAddMessage } from '../hooks/use-add-message';
 import type { Conversation } from '../types';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface ConversationsProps {
   status?: Conversation['status'];

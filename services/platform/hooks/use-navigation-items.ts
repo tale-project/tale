@@ -7,7 +7,7 @@ import {
   BrainIcon,
   Network,
 } from 'lucide-react';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface NavItem {
   label: string;

@@ -1,10 +1,10 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/primitives/button';
+import { Select } from '@/components/ui/forms/select';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 export interface DataTablePaginationProps {
   /** Current page number (1-based) */

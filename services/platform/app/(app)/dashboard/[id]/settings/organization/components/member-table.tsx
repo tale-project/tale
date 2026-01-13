@@ -1,15 +1,15 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/ui/data-table';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { DataTable } from '@/components/ui/data-table/data-table';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { ChevronDownIcon } from 'lucide-react';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
-import { TableTimestampCell } from '@/components/ui/table-date-cell';
+import { TableTimestampCell } from '@/components/ui/data-display/table-date-cell';
 import { MemberRowActions } from './member-row-actions';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type Member = {
   _id: string;

@@ -5,10 +5,10 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import { OrganizationForm } from './components/organization-form';
 import { TaleLogo } from '@/components/ui/logo/tale-logo';
+import { LogoLink } from '@/components/ui/logo/logo-link';
 import { UserButton } from '@/components/user-button';
-import Link from 'next/link';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Center, VStack, Stack } from '@/components/ui/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Center, VStack, Stack, HStack, Spacer } from '@/components/ui/layout/layout';
 import { getT } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
@@ -49,14 +49,11 @@ async function CreateBusinessContent() {
 
   return (
     <div>
-      <div className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="hover:opacity-70 w-fit inline-block">
-            <TaleLogo />
-          </Link>
-          <UserButton align="end" />
-        </div>
-      </div>
+      <HStack className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
+        <LogoLink href="/" />
+        <Spacer />
+        <UserButton align="end" />
+      </HStack>
       <OrganizationForm />
     </div>
   );
@@ -66,11 +63,9 @@ async function CreateBusinessContent() {
 function CreateOrganizationSkeleton() {
   return (
     <div>
-      <div className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
-        <div className="flex items-center justify-between">
-          <TaleLogo />
-        </div>
-      </div>
+      <HStack className="pt-8 px-4 sm:px-8 md:px-20 pb-16 md:pb-32">
+        <TaleLogo />
+      </HStack>
       <Center className="p-4">
         <VStack className="w-full max-w-[24rem]">
           {/* Title */}

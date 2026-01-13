@@ -1,10 +1,10 @@
 'use client';
 
-import { ViewDialog } from '@/components/ui/dialog';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
 import { Doc } from '@/convex/_generated/dataModel';
 import { formatDate } from '@/lib/utils/date/format';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 interface ViewWebsiteDialogProps {
   isOpen: boolean;

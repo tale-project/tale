@@ -10,17 +10,17 @@ import { useUpdateExample } from '../hooks/use-update-example';
 import { useDeleteExample } from '../hooks/use-delete-example';
 import { useUpsertTone } from '../hooks/use-upsert-tone';
 import { useGenerateTone } from '../hooks/use-generate-tone';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Form } from '@/components/ui/form';
-import { Stack, HStack } from '@/components/ui/layout';
+import { Button } from '@/components/ui/primitives/button';
+import { Textarea } from '@/components/ui/forms/textarea';
+import { Form } from '@/components/ui/forms/form';
+import { Stack, HStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { ExampleMessagesTable } from './example-messages-table';
 import { AddExampleDialog } from './example-add-dialog';
 import { ViewEditExampleDialog } from './example-view-edit-dialog';
 import { exampleMessageToUI } from '@/types/tone-of-voice';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ToneOfVoiceFormProps {
   organizationId: string;

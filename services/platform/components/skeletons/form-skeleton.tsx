@@ -1,5 +1,5 @@
-import { Skeleton } from '@/components/ui/skeleton';
-import { Stack, HStack, Grid } from '@/components/ui/layout';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
+import { Stack, HStack, Grid } from '@/components/ui/layout/layout';
 import { cn } from '@/lib/utils/cn';
 
 interface FormFieldSkeletonProps {

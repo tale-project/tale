@@ -2,11 +2,11 @@
 
 import { useState, useCallback } from 'react';
 import { Loader2, RotateCw } from 'lucide-react';
-import { ViewDialog } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { ViewDialog } from '@/components/ui/dialog/view-dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { Badge, type BadgeProps } from '@/components/ui/feedback/badge';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 import { retryRagIndexing } from '../actions/retry-rag-indexing';
 import { useDateFormat } from '@/hooks/use-date-format';

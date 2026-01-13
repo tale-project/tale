@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 import { cn } from '@/lib/utils/cn';
 
 interface ListItemSkeletonProps {

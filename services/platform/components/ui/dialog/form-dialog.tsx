@@ -2,12 +2,12 @@
 
 import * as React from 'react';
 import { Dialog } from './dialog';
-import { Button } from '../button';
-import { Form } from '../form';
-import { Stack } from '../layout';
+import { Button } from '../primitives/button';
+import { Form } from '../forms/form';
+import { Stack } from '../layout/layout';
 import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n';
-import { DialogErrorBoundary } from '@/components/error-boundaries';
+import { useT } from '@/lib/i18n/client';
+import { DialogErrorBoundary } from '@/components/error-boundaries/boundaries/dialog-error-boundary';
 import { useOrganizationId } from '@/hooks/use-organization-id';
 
 export interface FormDialogProps {

@@ -6,15 +6,15 @@ import { X } from 'lucide-react';
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
-import { IconButton } from '../icon-button';
-import { useT } from '@/lib/i18n';
+import { IconButton } from '../primitives/icon-button';
+import { useT } from '@/lib/i18n/client';
 
 // =============================================================================
 // Variants
 // =============================================================================
 
 const dialogContentVariants = cva(
-  'fixed left-[50%] top-[50%] z-50 grid w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-background p-4 sm:p-6 pt-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-2xl',
+  'fixed left-[50%] top-[50%] z-50 grid w-full border-none translate-x-[-50%] translate-y-[-50%] gap-4 ring-1 ring-border bg-background p-4 sm:p-6 pt-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-2xl',
   {
     variants: {
       size: {
@@ -131,19 +131,19 @@ export function Dialog({
             <div
               className={cn(
                 'flex flex-col space-y-2 text-left',
-                !hideClose && 'pr-8',
-                headerActions && 'flex-row items-center justify-between',
+                !hideClose && !headerActions && 'pr-8',
+                headerActions && 'flex-row items-start justify-between pr-8 gap-4',
                 headerClassName,
               )}
             >
               <div
                 className={cn(
                   'flex items-center gap-3',
-                  headerActions && 'flex-col items-start space-y-2 gap-0',
+                  headerActions && 'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
                 )}
               >
                 {icon && <div className="shrink-0">{icon}</div>}
-                <div className={cn(headerActions && 'flex flex-col space-y-2')}>
+                <div className={cn('flex flex-col space-y-2', headerActions && 'min-w-0')}>
                   <DialogPrimitive.Title className="text-base font-semibold leading-none tracking-tight">
                     {title}
                   </DialogPrimitive.Title>
@@ -154,7 +154,7 @@ export function Dialog({
                   )}
                 </div>
               </div>
-              {headerActions}
+              {headerActions && <div className="flex items-center">{headerActions}</div>}
             </div>
           )}
           {children}

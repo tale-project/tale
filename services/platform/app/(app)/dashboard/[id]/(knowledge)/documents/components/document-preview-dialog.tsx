@@ -2,18 +2,18 @@
 
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
-import { Dialog, DialogClose } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
-import { HStack } from '@/components/ui/layout';
+import { Dialog, DialogClose } from '@/components/ui/dialog/dialog';
+import { Button } from '@/components/ui/primitives/button';
+import { IconButton } from '@/components/ui/primitives/icon-button';
+import { HStack } from '@/components/ui/layout/layout';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { DocumentIcon } from '@/components/ui/document-icon';
+import { DocumentIcon } from '@/components/ui/data-display/document-icon';
 import { Download, X, Loader2 } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/components/ui/layout/separator';
 import { DocumentPreview } from './document-preview';
 import { useToast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface DocumentPreviewDialogProps {
   open: boolean;

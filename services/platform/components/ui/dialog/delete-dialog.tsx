@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { ConfirmDialog } from './confirm-dialog';
 import { ItemPreview } from './item-preview';
-import { Stack } from '../layout';
-import { useT } from '@/lib/i18n';
+import { Stack } from '../layout/layout';
+import { useT } from '@/lib/i18n/client';
 
 export interface DeleteDialogProps {
   /** Whether the dialog is open */

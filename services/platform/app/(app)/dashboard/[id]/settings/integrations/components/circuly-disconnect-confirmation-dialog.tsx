@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { ConfirmDialog } from '@/components/ui/dialog';
-import { Stack } from '@/components/ui/layout';
+import { ConfirmDialog } from '@/components/ui/dialog/confirm-dialog';
+import { Stack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface CirculyDisconnectConfirmationDialogProps {
   open?: boolean;

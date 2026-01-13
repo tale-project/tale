@@ -5,14 +5,14 @@ import { useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { IntegrationOperationMetadata } from '@/convex/model/approvals/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/primitives/button';
+import { Badge } from '@/components/ui/feedback/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@/components/ui/overlays/tooltip';
 import {
   CheckCircle,
   XCircle,
@@ -22,7 +22,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import { useAuth } from '@/hooks/use-convex-auth';
 
 interface IntegrationApprovalCardProps {

@@ -1,9 +1,9 @@
 'use client';
 
 import { Package } from 'lucide-react';
-import { DataTableEmptyState } from '@/components/ui/data-table';
+import { DataTableEmptyState } from '@/components/ui/data-table/data-table-empty-state';
 import { ProductsActionMenu } from './products-action-menu';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface ProductsEmptyStateProps {
   organizationId: string;

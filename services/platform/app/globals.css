@@ -1,11 +1,10 @@
 @import 'tailwindcss';
-
-/* Configure dark mode to use class selector instead of media query */
-@variant dark (&:where(.dark, .dark *));
-
 @import 'tw-animate-css';
 @import 'react-day-picker/style.css';
 @import 'react-datepicker/dist/react-datepicker.css';
+
+/* Configure dark mode to use class selector instead of media query */
+@variant dark (&:where(.dark, .dark *));
 
 /*
  * Theme customizations using @theme directive
@@ -59,6 +58,34 @@
 
   /* Layout sizes */
   --nav-size: 3.25rem;
+
+  /* Animation Durations */
+  --duration-instant: 0ms;
+  --duration-micro: 100ms;
+  --duration-short: 150ms;
+  --duration-standard: 200ms;
+  --duration-medium: 300ms;
+  --duration-long: 400ms;
+  --duration-slow: 500ms;
+
+  /* Easing Functions */
+  --ease-linear: linear;
+  --ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in: cubic-bezier(0.42, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* Animation Distances */
+  --distance-xs: 2px;
+  --distance-sm: 4px;
+  --distance-md: 8px;
+  --distance-lg: 16px;
+
+  /* Scale Values */
+  --scale-pressed: 0.97;
+  --scale-hover: 1.02;
+  --scale-exit: 0.95;
 }
 
 /* CSS variables for light mode (default) */
@@ -249,6 +276,57 @@ body {
   50% {
     opacity: 0;
   }
+}
+
+/* Shake animation for form errors */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* Attention pulse for important notifications */
+@keyframes attention {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-attention {
+  animation: attention 1s ease-in-out 2;
+}
+
+/* Checkmark draw animation */
+@keyframes checkmark-draw {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-checkmark {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: checkmark-draw 0.3s ease-out forwards;
 }
 
 html,

@@ -1,16 +1,16 @@
 'use client';
 
 import { useMemo } from 'react';
-import { FormDialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Input } from '@/components/ui/forms/input';
+import { Textarea } from '@/components/ui/forms/textarea';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from '@/hooks/use-toast';
 import { useCreateAutomation } from '../hooks/use-create-automation';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 type FormData = {
   name: string;

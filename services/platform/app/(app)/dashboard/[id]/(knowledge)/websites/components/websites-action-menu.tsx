@@ -2,9 +2,9 @@
 
 import { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
-import { DataTableActionMenu } from '@/components/ui/data-table';
+import { DataTableActionMenu } from '@/components/ui/data-table/data-table-action-menu';
 import { AddWebsiteDialog } from './website-add-dialog';
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 
 interface WebsitesActionMenuProps {
   organizationId: string;

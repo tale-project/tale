@@ -1,6 +1,6 @@
 'use client';
 
-import { useT } from '@/lib/i18n';
+import { useT } from '@/lib/i18n/client';
 import {
   TabNavigation,
   type TabNavigationItem,
