@@ -34,7 +34,7 @@
     "eslint": "9.39.2",
     "eslint-plugin-unicorn": "62.0.0",
     "postcss": "8.5.6",
-    "turbo": "^2.5.0",
+    "turbo": "2.7.4",
     "typescript": "5.9.3",
     "vitest": "4.0.17"
   }
