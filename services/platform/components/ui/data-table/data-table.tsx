@@ -432,7 +432,7 @@ export function DataTable<TData>({
 
   // Infinite scroll content (load more button) - renders inside table container
   const infiniteScrollContent = infiniteScroll && data.length > 0 && (
-    <div className="flex justify-center py-4 border-t border-border">
+    <div className="flex justify-center py-3 border-t border-border">
       {infiniteScroll.hasMore ? (
         <Button
           variant="ghost"

@@ -182,7 +182,7 @@ export function DataTableSkeleton({
 
   // Infinite scroll content (load more button skeleton) for cursor-based pagination
   const infiniteScrollContent = infiniteScroll && (
-    <div className="flex justify-center py-4 border-t border-border">
+    <div className="flex justify-center py-3 border-t border-border">
       <Skeleton className="h-9 w-24" />
     </div>
   );

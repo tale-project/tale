@@ -47,9 +47,9 @@ export const TableDateCell = React.memo(function TableDateCell({
     return (
       <span
         className={cn(
-          'text-sm text-muted-foreground',
+          'text-sm text-muted-foreground whitespace-nowrap',
           alignRight && 'text-right block',
-          className
+          className,
         )}
       >
         {emptyText}
@@ -57,9 +57,10 @@ export const TableDateCell = React.memo(function TableDateCell({
     );
   }
 
-  const dateObj = typeof date === 'number' || typeof date === 'string'
-    ? new Date(date)
-    : date;
+  const dateObj =
+    typeof date === 'number' || typeof date === 'string'
+      ? new Date(date)
+      : date;
 
   const formatted = formatDate(dateObj, { preset, locale });
   // Use formatDate for title to ensure SSR/CSR consistency
@@ -68,9 +69,9 @@ export const TableDateCell = React.memo(function TableDateCell({
   return (
     <span
       className={cn(
-        'text-sm text-muted-foreground',
+        'text-sm text-muted-foreground whitespace-nowrap',
         alignRight && 'text-right block',
-        className
+        className,
       )}
       title={titleText}
     >

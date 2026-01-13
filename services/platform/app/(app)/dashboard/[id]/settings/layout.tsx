@@ -6,7 +6,10 @@ import { fetchQuery } from '@/lib/convex-next-server';
 import { getAuthToken } from '@/lib/auth/auth-server';
 import { redirect } from 'next/navigation';
 import { ContentWrapper } from '@/components/layout/content-wrapper';
-import { PageHeader, PageHeaderTitle } from '@/components/layout/page-header';
+import {
+  AdaptiveHeaderRoot,
+  AdaptiveHeaderTitle,
+} from '@/components/layout/adaptive-header';
 import { StickyHeader } from '@/components/layout/sticky-header';
 import { getT } from '@/lib/i18n/server';
 
@@ -48,9 +51,9 @@ export default async function SettingsLayout({
   return (
     <>
       <StickyHeader>
-        <PageHeader standalone={false}>
-          <PageHeaderTitle>{t('title')}</PageHeaderTitle>
-        </PageHeader>
+        <AdaptiveHeaderRoot standalone={false}>
+          <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+        </AdaptiveHeaderRoot>
         <SettingsNavigation
           userRole={userRole}
           canChangePassword={canChangePassword}

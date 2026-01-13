@@ -905,7 +905,9 @@
       "aiAssistant": "AI Assistant",
       "testAutomation": "Test automation",
       "stepTooltip": "{stepType} step",
-      "end": "End"
+      "end": "End",
+      "close": "Close panel",
+      "viewAutomation": "View automation"
     },
     "createStep": {
       "title": "Create step",

@@ -120,7 +120,10 @@ function AutomationStepsInner({
     targetId: string;
   } | null>(null);
   const [showDraftBanner, setShowDraftBanner] = useState(true);
-  const [showActiveBanner, setShowActiveBanner] = useState(true);
+  const [minimapDimensions, setMinimapDimensions] = useState({
+    width: 192,
+    height: 128,
+  });
 
   // React Flow instance for controlling the view
   const { fitView, getViewport, setCenter: _setCenter } = useReactFlow();
@@ -128,6 +131,7 @@ function AutomationStepsInner({
   // Refs for stable access to current values
   const stepsRef = useRef(steps);
   const edgesRef = useRef<Edge[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Update refs when values change
   useEffect(() => {
@@ -137,6 +141,37 @@ function AutomationStepsInner({
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+
+  // Track container dimensions for dynamic minimap sizing
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const MINIMAP_BASE_WIDTH = 144; // Base width for minimap on mobile
+    const MINIMAP_MAX_WIDTH = 192; // Max width on desktop
+
+    const updateMinimapSize = () => {
+      const { width, height } = container.getBoundingClientRect();
+      if (width === 0 || height === 0) return;
+
+      const aspectRatio = width / height;
+      // Calculate minimap dimensions maintaining container aspect ratio
+      const isMobile = window.innerWidth < 768;
+      const baseWidth = isMobile ? MINIMAP_BASE_WIDTH : MINIMAP_MAX_WIDTH;
+      const calculatedHeight = Math.round(baseWidth / aspectRatio);
+
+      setMinimapDimensions({
+        width: baseWidth,
+        height: Math.max(80, Math.min(calculatedHeight, 200)), // Clamp height between 80-200px
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(updateMinimapSize);
+    resizeObserver.observe(container);
+    updateMinimapSize(); // Initial calculation
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Reposition the view when sidepanel opens/closes (maintain zoom, just recenter)
   useEffect(() => {
@@ -969,7 +1004,7 @@ function AutomationStepsInner({
       onAddStepOnEdge={handleAddStepOnEdge}
       onDeleteEdge={handleDeleteEdge}
     >
-      <div className="flex justify-stretch flex-1 w-full overflow-auto">
+      <div className="flex justify-stretch flex-1 w-full overflow-auto relative">
         <style>{`
           /* Allow individual edges to control their z-index */
           .react-flow__edges {
@@ -989,6 +1024,11 @@ function AutomationStepsInner({
           /* MiniMap dark mode support */
           .react-flow__minimap {
             background-color: hsl(var(--muted)) !important;
+            overflow: hidden !important;
+          }
+
+          .react-flow__minimap svg {
+            overflow: hidden !important;
           }
 
           .react-flow__minimap-node {
@@ -1000,7 +1040,7 @@ function AutomationStepsInner({
           }
         `}</style>
         {/* Main automation canvas */}
-        <div className="flex-[1_1_0] min-h-0 bg-background">
+        <div ref={containerRef} className="flex-[1_1_0] min-h-0 bg-background">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -1034,7 +1074,11 @@ function AutomationStepsInner({
             proOptions={{ hideAttribution: true }}
           >
             <MiniMap
-              className="border border-border rounded-lg shadow-sm"
+              className="border border-border rounded-lg shadow-sm overflow-hidden"
+              style={{
+                width: minimapDimensions.width,
+                height: minimapDimensions.height,
+              }}
               nodeStrokeColor={(node) => {
                 const stepType = node.data?.stepType;
 
@@ -1058,6 +1102,7 @@ function AutomationStepsInner({
               nodeStrokeWidth={3}
               pannable
               zoomable
+              inversePan={false}
             />
             <Background
               variant={BackgroundVariant.Dots}
@@ -1100,20 +1145,13 @@ function AutomationStepsInner({
             )}
 
             {/* Active Automation Banner */}
-            {showActiveBanner && isActive && (
+            {isActive && (
               <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
                 <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
                   <AlertTriangle className="size-4 shrink-0 text-amber-600" />
                   <p className="text-sm text-amber-600">
                     {t('steps.banners.activeCannotModify')}
                   </p>
-                  <Button
-                    variant="ghost"
-                    className="ml-auto text-amber-600 hover:bg-amber-100 hover:text-amber-700 size-6"
-                    onClick={() => setShowActiveBanner(false)}
-                  >
-                    <X className="size-4" />
-                  </Button>
                 </div>
               </Panel>
             )}

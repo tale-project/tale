@@ -137,7 +137,9 @@ export function AutomationNavigation({
       });
 
       // Navigate to the draft
-      router.push(`/dashboard/${organizationId}/automations/${result.draftId}?panel=ai-chat`);
+      router.push(
+        `/dashboard/${organizationId}/automations/${result.draftId}?panel=ai-chat`,
+      );
 
       // Show appropriate message based on whether it's new or existing
       if (result.isNewDraft) {
@@ -181,18 +183,10 @@ export function AutomationNavigation({
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
-                <NavigationMenuTrigger className="text-sm h-8">
+                <NavigationMenuTrigger className="text-sm h-8 border border-input bg-background hover:bg-accent hover:text-accent-foreground">
                   {automation.version}
-                  <span className="text-xs text-muted-foreground ml-1">
-                    {automation.status === 'draft' &&
-                      `- ${tCommon('status.draft')}`}
-                    {automation.status === 'active' &&
-                      `- ${tCommon('status.active')}`}
-                    {automation.status === 'archived' &&
-                      `- ${t('navigation.archived')}`}
-                  </span>
                   <ChevronDown
-                    className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
+                    className="relative top-px ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
                     aria-hidden="true"
                   />
                 </NavigationMenuTrigger>
@@ -210,11 +204,11 @@ export function AutomationNavigation({
                             <span>{version.version}</span>
                             <span className="text-xs text-muted-foreground ml-1">
                               {version.status === 'draft' &&
-                                `- ${tCommon('status.draft')}`}
+                                tCommon('status.draft')}
                               {version.status === 'active' &&
-                                `- ${tCommon('status.active')}`}
+                                tCommon('status.active')}
                               {version.status === 'archived' &&
-                                `- ${t('navigation.archived')}`}
+                                t('navigation.archived')}
                             </span>
                           </Button>
                         </NavigationMenuLink>

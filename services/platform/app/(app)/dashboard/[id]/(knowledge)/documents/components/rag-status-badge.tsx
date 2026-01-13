@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import {
-  Loader2,
-  CircleCheck,
-  XCircle,
-  Clock,
-  Database,
-  RotateCw,
-  AlertTriangle,
-} from 'lucide-react';
+import { Loader2, RotateCw } from 'lucide-react';
 import { ViewDialog } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n';
 import type { RagStatus } from '@/types/documents';
@@ -28,41 +21,16 @@ interface RagStatusBadgeProps {
   documentId?: string;
 }
 
-const statusConfig: Record<
-  RagStatus,
-  { icon: React.ElementType; iconClassName?: string; textClassName?: string }
-> = {
-  pending: {
-    icon: Clock,
-    textClassName: 'text-muted-foreground',
-  },
-  queued: {
-    icon: Clock,
-    textClassName: 'text-muted-foreground',
-  },
-  running: {
-    icon: Loader2,
-    textClassName: 'text-muted-foreground',
-  },
-  completed: {
-    icon: CircleCheck,
-    iconClassName: 'text-success',
-    textClassName: 'text-muted-foreground',
-  },
-  failed: {
-    icon: XCircle,
-    iconClassName: 'text-destructive',
-    textClassName: 'text-destructive',
-  },
-  not_indexed: {
-    icon: Database,
-    textClassName: 'text-muted-foreground',
-  },
-  stale: {
-    icon: AlertTriangle,
-    iconClassName: 'text-warning',
-    textClassName: 'text-muted-foreground',
-  },
+type BadgeVariant = NonNullable<BadgeProps['variant']>;
+
+const statusConfig: Record<RagStatus, { variant: BadgeVariant }> = {
+  pending: { variant: 'blue' },
+  queued: { variant: 'blue' },
+  running: { variant: 'blue' },
+  completed: { variant: 'green' },
+  failed: { variant: 'destructive' },
+  not_indexed: { variant: 'blue' },
+  stale: { variant: 'orange' },
 };
 
 export function RagStatusBadge({
@@ -133,18 +101,26 @@ export function RagStatusBadge({
   const effectiveStatus: RagStatus = status || 'not_indexed';
 
   const config = statusConfig[effectiveStatus];
-  const Icon = config.icon;
 
-  const content = (
-    <span
-      className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
-    >
-      <Icon
-        className={`size-3.5 ${effectiveStatus === 'running' ? 'animate-spin' : ''} ${config.iconClassName || ''}`}
-      />
-      {getStatusLabel(effectiveStatus)}
-    </span>
-  );
+  function RetryButton() {
+    return (
+      <Button
+        size="icon"
+        variant="ghost"
+        className="size-6 rounded-full hover:bg-muted p-1"
+        onClick={handleRetry}
+        disabled={isRetrying || !documentId}
+        title={t('rag.retryIndexing')}
+        aria-label={t('rag.retryIndexing')}
+      >
+        {isRetrying ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <RotateCw className="size-3.5" />
+        )}
+      </Button>
+    );
+  }
 
   // Show clickable dialog with indexed date for completed status
   if (effectiveStatus === 'completed') {
@@ -158,10 +134,12 @@ export function RagStatusBadge({
         <button
           type="button"
           onClick={() => setIsCompletedDialogOpen(true)}
-          className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
+          className="cursor-pointer"
+          aria-label={t('rag.dialog.indexed.title')}
         >
-          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {getStatusLabel(effectiveStatus)}
+          <Badge variant={config.variant} dot>
+            {getStatusLabel(effectiveStatus)}
+          </Badge>
         </button>
         <ViewDialog
           open={isCompletedDialogOpen}
@@ -189,10 +167,12 @@ export function RagStatusBadge({
         <button
           type="button"
           onClick={() => setIsFailedDialogOpen(true)}
-          className={`inline-flex items-center gap-1 text-sm cursor-pointer hover:underline ${config.textClassName || ''}`}
+          className="cursor-pointer"
+          aria-label={t('rag.dialog.failed.title')}
         >
-          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
-          {getStatusLabel(effectiveStatus)}
+          <Badge variant={config.variant} dot>
+            {getStatusLabel(effectiveStatus)}
+          </Badge>
         </button>
         <ViewDialog
           open={isFailedDialogOpen}
@@ -209,53 +189,19 @@ export function RagStatusBadge({
             </pre>
           </div>
         </ViewDialog>
-        <Button
-          size="icon"
-          variant="outline"
-          className="size-5 rounded-full border-muted-foreground/30 hover:border-primary hover:bg-primary/10 hover:text-primary"
-          onClick={handleRetry}
-          disabled={isRetrying || !documentId}
-          title={t('rag.retryIndexing')}
-        >
-          {isRetrying ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <RotateCw className="size-3" />
-          )}
-        </Button>
+        <RetryButton />
       </span>
     );
   }
 
-  // Show stale status with prominent reindex button
+  // Show stale status with reindex button
   if (effectiveStatus === 'stale') {
     return (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
-        >
-          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
+      <span className="inline-flex items-center gap-1.5">
+        <Badge variant={config.variant} dot>
           {t('rag.status.stale')}
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 px-2 text-xs border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 hover:border-amber-500 hover:text-amber-700"
-          onClick={handleRetry}
-          disabled={isRetrying || !documentId}
-        >
-          {isRetrying ? (
-            <>
-              <Loader2 className="size-3 animate-spin mr-1" />
-              {t('rag.reindexing')}
-            </>
-          ) : (
-            <>
-              <RotateCw className="size-3 mr-1" />
-              {t('rag.reindex')}
-            </>
-          )}
-        </Button>
+        </Badge>
+        <RetryButton />
       </span>
     );
   }
@@ -263,30 +209,19 @@ export function RagStatusBadge({
   // Show not_indexed status (or undefined) with Index button
   if (effectiveStatus === 'not_indexed') {
     return (
-      <span className="inline-flex items-center gap-2">
-        <span
-          className={`inline-flex items-center gap-1 text-sm ${config.textClassName || ''}`}
-        >
-          <Icon className={`size-3.5 ${config.iconClassName || ''}`} />
+      <span className="inline-flex items-center gap-1.5">
+        <Badge variant={config.variant} dot>
           {getStatusLabel(effectiveStatus)}
-        </span>
-        <Button
-          size="icon"
-          variant="outline"
-          className="size-6 rounded-sm"
-          onClick={handleRetry}
-          disabled={isRetrying || !documentId}
-          title={t('rag.index')}
-        >
-          {isRetrying ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <RotateCw className="size-3" />
-          )}
-        </Button>
+        </Badge>
+        <RetryButton />
       </span>
     );
   }
 
-  return content;
+  // Pending, queued, running statuses
+  return (
+    <Badge variant={config.variant} dot>
+      {getStatusLabel(effectiveStatus)}
+    </Badge>
+  );
 }
