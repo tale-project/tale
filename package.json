@@ -2,7 +2,7 @@
   "name": "tale",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "npm@10.9.4",
+  "packageManager": "npm@11.7.0",
   "workspaces": [
     "services/platform",
     "services/crawler",
