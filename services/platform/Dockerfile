@@ -52,6 +52,11 @@ ENV NODE_ENV=production
 # Developers must run `npx convex codegen` locally after schema/function changes.
 # The convex deploy at runtime will also regenerate these if needed.
 
+# Ensure TypeScript is available for next.config.ts transpilation
+# This is needed because workspace node_modules resolution differs from isolated context
+# Also install @parcel/watcher for Linux since the lock file was generated on macOS
+RUN npm install --no-save typescript @parcel/watcher-linux-x64-glibc
+
 # Build Next.js application
 # Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
 # The build uses default/placeholder values; actual values are injected at container start
