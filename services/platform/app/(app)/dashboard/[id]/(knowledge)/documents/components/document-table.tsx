@@ -61,13 +61,19 @@ export function DocumentTable({
   );
 
   // Use cursor-based paginated query with SSR + real-time updates
-  const { data: items, error, isLoadingMore, hasMore, loadMore, refetch } =
-    useCursorPaginatedQuery({
-      query: api.documents.getDocumentsCursor,
-      preloadedData: preloadedDocuments,
-      args: queryArgs,
-      numItems: 20,
-    });
+  const {
+    data: items,
+    error,
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    refetch,
+  } = useCursorPaginatedQuery({
+    query: api.documents.getDocumentsCursor,
+    preloadedData: preloadedDocuments,
+    args: queryArgs,
+    numItems: 20,
+  });
 
   // URL-based dialog state for document preview
   // This persists the preview dialog state in URL params for bookmarkability and link sharing
@@ -83,7 +89,10 @@ export function DocumentTable({
   // Derive preview data from the selected document ID
   const previewDocument = useMemo(() => {
     if (!previewDocumentId) return null;
-    return (items as DocumentItem[]).find((item) => item.id === previewDocumentId) ?? null;
+    return (
+      (items as DocumentItem[]).find((item) => item.id === previewDocumentId) ??
+      null
+    );
   }, [items, previewDocumentId]);
 
   const previewPath = previewDocument?.storagePath ?? null;
@@ -223,7 +232,7 @@ export function DocumentTable({
       {
         id: 'ragStatus',
         header: tTables('headers.ragStatus'),
-        size: 128,
+        size: 160,
         cell: ({ row }) =>
           row.original.type === 'folder' ? (
             <span className="text-muted-foreground text-sm">—</span>
