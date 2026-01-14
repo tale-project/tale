@@ -4,11 +4,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from loguru import logger
+from pydantic import BaseModel
 
-from .database import db
 from .config import settings
+from .database import db
 
 
 class QueryRequest(BaseModel):

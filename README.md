@@ -182,6 +182,66 @@ The script will display the dashboard URL, deployment URL, and admin key. Follow
 
 The admin key is required every time you open the dashboard. Keep it secure—anyone with this key has full access to your backend.
 
+## Development
+
+For local development (non-Docker):
+
+### Prerequisites
+
+- **Node.js**: v20.19.0 or higher (current: v20.16.0 - upgrade recommended)
+- **npm**: 10.x or higher
+- **Python**: 3.12.x (required for Python services: rag, graph-db, crawler)
+- **uv**: Python package manager ([installation instructions](https://github.com/astral-sh/uv))
+
+### Install uv (Python package manager)
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Note**: Python services are configured to use Python 3.12 via `.python-version` files. When you run `uv sync` in these directories, uv will automatically use the correct Python version.
+
+### Development Commands
+
+```bash
+# Install dependencies (Node.js)
+npm install
+
+# Install Python dev dependencies (optional, required for linting/testing Python services)
+cd services/rag && uv sync --extra dev
+cd ../graph-db && uv sync --extra dev
+cd ../crawler && uv sync --extra dev
+cd ../..
+
+# Type checking
+npm run typecheck
+
+# Linting
+npm run lint
+npm run lint:fix
+
+# Build all services
+npm run build
+
+# Run tests
+npm run test
+npm run test:watch
+npm run test:coverage
+
+# Start development servers
+npm run dev
+```
+
+### Known Issues
+
+- **xlsx security vulnerability**: The project uses xlsx@0.18.5 which has known security vulnerabilities (Prototype Pollution and ReDoS). This is the latest version available and no fix is currently released. The package is used for Excel file parsing in the documents feature. Consider the risk based on your use case.
+
+- **ENVIRONMENT_FALLBACK warning**: During platform build, you may see an `ENVIRONMENT_FALLBACK` error. This is a Convex-specific warning and doesn't prevent successful builds.
+
 ## Documentation
 
 ### User Guides
