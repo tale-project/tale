@@ -19,17 +19,7 @@ export interface FileAttachment {
   previewUrl?: string;
 }
 
-interface OptimisticMessage {
-  content: string;
-  threadId?: string;
-  attachments?: FileAttachment[];
-  timestamp: number;
-}
-
 interface ChatLayoutContextType {
-  // Optimistic user message shown while waiting for server confirmation
-  optimisticMessage: OptimisticMessage | null;
-  setOptimisticMessage: (message: OptimisticMessage | null) => void;
   // Pending state - set immediately when user clicks send, before mutation completes
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
@@ -50,12 +40,9 @@ export function useChatLayout() {
 export default function ChatLayout({ children }: ChatLayoutProps) {
   const { id: organizationId } = useParams();
   const { t } = useT('common');
-  const [optimisticMessage, setOptimisticMessage] =
-    useState<OptimisticMessage | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const clearChatState = useCallback(() => {
-    setOptimisticMessage(null);
     setIsPending(false);
   }, []);
 
@@ -67,8 +54,6 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
   return (
     <ChatLayoutContext.Provider
       value={{
-        optimisticMessage,
-        setOptimisticMessage,
         isPending,
         setIsPending,
         clearChatState,
