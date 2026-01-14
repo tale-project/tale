@@ -297,6 +297,10 @@ export function ChatInterface({
   const [inputValue, setInputValue] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
 
+  // Track the number of user messages when isPending was set
+  // Used to detect when a NEW assistant response appears (not existing ones)
+  const pendingUserCountRef = useRef<number | null>(null);
+
   // Fetch thread messages with streaming support
   // Use pagination to handle large threads - initialNumItems refers to MessageDocs
   // See: https://github.com/tale-project/tale/issues/85
@@ -498,28 +502,40 @@ export function ChatInterface({
   // isPending represents "waiting for AI to start responding"
   // The loading state should persist until we see actual streaming data or a completed response
   useEffect(() => {
-    if (!isPending) return;
+    if (!isPending) {
+      // Reset the ref when not pending
+      pendingUserCountRef.current = null;
+      return;
+    }
 
     // Clear when streaming actually starts
     if (streamingMessage) {
       setIsPending(false);
+      pendingUserCountRef.current = null;
       return;
     }
 
-    // Also clear when we detect a completed message that appeared after we set isPending
+    // Also clear when we detect a NEW completed message that appeared after we set isPending
     // This handles the case where streaming status is missed due to slow network
-    const lastAssistantMessage = uiMessages
-      ?.filter((m) => m.role === 'assistant')
-      .at(-1);
+    const assistantMessages =
+      uiMessages?.filter((m) => m.role === 'assistant') ?? [];
 
+    // Only check for completed messages if we have more assistant messages than
+    // when isPending was set (meaning a new response has arrived)
     if (
-      lastAssistantMessage &&
-      lastAssistantMessage.status !== 'streaming' &&
-      lastAssistantMessage.text
+      pendingUserCountRef.current !== null &&
+      assistantMessages.length > pendingUserCountRef.current
     ) {
-      // Message exists and is not streaming (either 'complete' or 'pending')
-      // and has content, so AI has responded
-      setIsPending(false);
+      const lastAssistantMessage = assistantMessages.at(-1);
+      if (
+        lastAssistantMessage &&
+        lastAssistantMessage.status !== 'streaming' &&
+        lastAssistantMessage.text
+      ) {
+        // New message exists and is not streaming, so AI has responded
+        setIsPending(false);
+        pendingUserCountRef.current = null;
+      }
     }
   }, [streamingMessage, isPending, setIsPending, uiMessages]);
 
@@ -612,6 +628,10 @@ export function ChatInterface({
 
     // Set pending immediately to show thinking animation right away
     setIsPending(true);
+    // Record current assistant message count to detect new responses
+    const currentAssistantCount =
+      uiMessages?.filter((m) => m.role === 'assistant').length ?? 0;
+    pendingUserCountRef.current = currentAssistantCount;
 
     // Flag to scroll AI response area to top when loading starts
     shouldScrollToAIRef.current = true;
