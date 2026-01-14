@@ -494,17 +494,34 @@ export function ChatInterface({
   // streamingMessage = when AI is actively streaming a response
   const isLoading = isPending || !!streamingMessage;
 
-  // Clear pending state ONLY when streaming message appears
+  // Clear pending state when streaming starts OR when a completed message appears
   // isPending represents "waiting for AI to start responding"
-  // The loading state should persist until we see actual streaming data
+  // The loading state should persist until we see actual streaming data or a completed response
   useEffect(() => {
     if (!isPending) return;
 
-    // Only clear when streaming actually starts
+    // Clear when streaming actually starts
     if (streamingMessage) {
       setIsPending(false);
+      return;
     }
-  }, [streamingMessage, isPending, setIsPending]);
+
+    // Also clear when we detect a completed message that appeared after we set isPending
+    // This handles the case where streaming status is missed due to slow network
+    const lastAssistantMessage = uiMessages
+      ?.filter((m) => m.role === 'assistant')
+      .at(-1);
+
+    if (
+      lastAssistantMessage &&
+      lastAssistantMessage.status !== 'streaming' &&
+      lastAssistantMessage.text
+    ) {
+      // Message exists and is not streaming (either 'complete' or 'pending')
+      // and has content, so AI has responded
+      setIsPending(false);
+    }
+  }, [streamingMessage, isPending, setIsPending, uiMessages]);
 
   // Auto-scroll handling - respects user intent (stops if user scrolls up)
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =
