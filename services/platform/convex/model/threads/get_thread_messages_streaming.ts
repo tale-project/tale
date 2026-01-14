@@ -1,8 +1,14 @@
 /**
  * Get messages for a thread with streaming support.
  *
- * Uses listUIMessages and syncStreams to support real-time streaming updates.
+ * Uses listUIMessages and syncStreams to support real-time streaming.
  * This enables the UI to show tool calls and text as they happen.
+ *
+ * PAGINATION NOTE:
+ * - listUIMessages paginates based on MessageDoc count, not UIMessage count
+ * - A single AI response with N tool calls = N*2+2 MessageDocs but only 2 UIMessages
+ * - This means `numItems` refers to MessageDocs, and the actual UIMessage count varies
+ * - usePaginatedQuery in the frontend accumulates results across pages correctly
  */
 
 import { QueryCtx } from '../../_generated/server';
@@ -30,24 +36,36 @@ export async function getThreadMessagesStreaming(
     streamArgs: StreamArgs | undefined;
   },
 ): Promise<StreamingMessagesResult> {
-  // Fetch paginated UI messages
-  const paginated = await listUIMessages(ctx, components.agent, {
-    threadId: args.threadId,
-    paginationOpts: args.paginationOpts,
-  });
-
-  // Fetch streaming deltas for real-time updates
-  // Pass args directly as syncStreams expects { threadId, streamArgs, ... }
-  // Only include 'streaming' status - finished messages come from listUIMessages
-  // Including 'finished' here causes duplicates when both sources return the same message
-  // Issue #184: Duplicate AI responses with paginated messages
-  const streams = await syncStreams(ctx, components.agent, {
-    ...args,
-    includeStatuses: ['streaming'],
-  });
+  // Fetch messages and streams concurrently for better performance.
+  // - listUIMessages: handles MessageDoc -> UIMessage conversion with proper grouping
+  //   (Note: numItems refers to MessageDocs, not UIMessages, so we may get fewer UIMessages)
+  // - syncStreams: fetches streaming deltas for real-time updates
+  //
+  // Only include 'streaming' status - NOT 'finished'. Including 'finished' causes
+  // duplicate messages because:
+  // - listUIMessages returns merged UIMessage with stepOrder from first MessageDoc
+  // - syncStreams returns stream with stepOrder from the stream metadata
+  // - dedupeMessages uses (order, stepOrder) to detect duplicates
+  // - Different stepOrder values = both are kept = duplicate display
+  //
+  // The SDK's useUIMessages already handles the streaming->finished transition:
+  // stream data is preserved in frontend state until listUIMessages returns the
+  // persisted version, then dedupeMessages replaces streaming with success status.
+  const [result, streams] = await Promise.all([
+    listUIMessages(ctx, components.agent, {
+      threadId: args.threadId,
+      paginationOpts: args.paginationOpts,
+    }),
+    syncStreams(ctx, components.agent, {
+      ...args,
+      includeStatuses: ['streaming'],
+    }),
+  ]);
 
   return {
-    ...paginated,
+    page: result.page,
+    isDone: result.isDone,
+    continueCursor: result.continueCursor,
     streams,
   };
 }

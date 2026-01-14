@@ -19,7 +19,7 @@ type Integration = Doc<'integrations'>;
  */
 export function formatIntegrationsForContext(integrations: Integration[]): string {
   if (!integrations || integrations.length === 0) {
-    return '';
+    return 'No integrations are currently configured for this organization.';
   }
 
   return integrations
