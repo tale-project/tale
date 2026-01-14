@@ -56,8 +56,9 @@ export function ChatInterface({ organizationId, threadId }: ChatInterfaceProps) 
     workflowCreationApprovals,
   });
 
-  // Pending state management
-  useChatPendingState({
+  // Pending state management - use setPendingWithCount to track assistant message count
+  // This enables fallback clearing when streaming detection fails (e.g., first message race condition)
+  const { setPendingWithCount } = useChatPendingState({
     isPending,
     setIsPending,
     streamingMessage,
@@ -138,12 +139,12 @@ export function ChatInterface({ organizationId, threadId }: ChatInterfaceProps) 
     hasScrolledOnLoadRef.current = false;
   }, [threadId]);
 
-  // Message sending
+  // Message sending - use setPendingWithCount to enable fallback clearing logic
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId,
     messages,
-    setIsPending,
+    setIsPending: setPendingWithCount,
     clearChatState,
     onBeforeSend: () => {
       shouldScrollToAIRef.current = true;
