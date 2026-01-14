@@ -25,10 +25,11 @@ const config = {
   },
   async viteFinal(config) {
     const { mergeConfig } = await import('vite');
+    const path = await import('path');
     return mergeConfig(config, {
       resolve: {
         alias: {
-          '@': '/Users/yannick/Documents/git/tale/services/platform',
+          '@': path.resolve(__dirname, '..'),
         },
       },
       define: {
