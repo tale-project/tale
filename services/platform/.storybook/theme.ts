@@ -4,8 +4,8 @@ export const taleTheme = create({
   base: 'light',
 
   // Brand
-  brandTitle: 'Tale Design System',
-  brandUrl: 'https://tale.so',
+  brandTitle: 'Tale UI',
+  brandUrl: 'https://tale.dev',
   brandTarget: '_self',
 
   // Colors (from globals.css)
@@ -41,7 +41,7 @@ export const taleTheme = create({
 
 export const taleDarkTheme = create({
   base: 'dark',
-  brandTitle: 'Tale Design System',
+  brandTitle: 'Tale UI',
   colorPrimary: 'hsl(0 0% 98%)',
   colorSecondary: '#0561E6',
   appBg: 'hsl(240 10% 3.9%)',
