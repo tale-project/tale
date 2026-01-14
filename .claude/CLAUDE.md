@@ -7,6 +7,8 @@
 - ALWAYS write filenames in dash-case (generally) and snake_case (for Convex and Python).
 - ALWAYS use sentence case in translations.
 - NEVER delete, remove, or clear databases, caches, state files, or any persistent data without EXPLICIT user permission. This includes local development databases (e.g., SQLite files, Convex local backend state), cache directories, and configuration state. Always ask first before any destructive action.
+- DO NOT write status comments like "REFACTORED:", "UPDATED:", "CHANGED:", "✅ REMOVED:", etc. Write clean, self-documenting code with clear function/variable names instead.
+- DO NOT write inline comments explaining what was removed or changed.
 
 ## TypeScript
 
@@ -40,7 +42,11 @@
 
 - CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
 - CONSIDER TO use rate limiting and action caching.
-- DO NOT use `.collect()`, use `for await (const ... of ...)` instead.
+- DO NOT use `.collect()`, use `const query = ...; for await (const ... of query)` instead.
+- ALWAYS share validation schemas between client and server using Zod. Validators are organized per domain in `src/lib/shared/validators/` (e.g., `members.ts`, `products.ts`). Import from `src/lib/shared/validators` on both client and server. DO NOT duplicate validation logic.
+- Backend functions should return raw data only. All filtering, sorting, pagination happens on the client.
+- DO NOT keep deprecated functions. Remove them entirely instead of marking with `@deprecated`.
+- AVOID conditional endpoint determination. Use separate hardcoded fetch calls instead of if/else to determine endpoints dynamically.
 
 ## Python
 
