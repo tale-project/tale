@@ -12,7 +12,6 @@ import { ChatInput } from './chat-input';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
 import { cn } from '@/lib/utils/cn';
-import { uuidv7 } from 'uuidv7';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
@@ -82,32 +81,6 @@ function extractHostname(url: string): string {
 function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength - 1) + '…';
-}
-
-/**
- * Checks if any message in the list matches the optimistic message.
- * Used to detect when the server has confirmed receipt of the user's message.
- */
-function findMatchingServerMessage(
-  messages: ChatMessage[] | undefined,
-  optimisticContent: string,
-  optimisticTimestamp: number,
-): boolean {
-  if (!messages) return false;
-
-  return messages.some((m) => {
-    if (m.role !== 'user') return false;
-
-    // Check timestamp - only match messages created after user clicked send
-    const messageTime = m._creationTime || m.timestamp.getTime();
-    if (messageTime < optimisticTimestamp) return false;
-
-    // Check content match
-    return (
-      m.content === optimisticContent ||
-      m.content.startsWith(optimisticContent)
-    );
-  });
 }
 
 interface ThinkingAnimationProps {
@@ -319,19 +292,10 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
   const router = useRouter();
-  const {
-    optimisticMessage,
-    setOptimisticMessage,
-    isPending,
-    setIsPending,
-    clearChatState,
-  } = useChatLayout();
+  const { isPending, setIsPending, clearChatState } = useChatLayout();
 
   const [inputValue, setInputValue] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
-
-  // Optimistic user message content
-  const userDraftMessage = optimisticMessage?.content || '';
 
   // Fetch thread messages with streaming support
   // Use pagination to handle large threads - initialNumItems refers to MessageDocs
@@ -408,24 +372,6 @@ export function ChatInterface({
         };
       });
   }, [uiMessages]);
-
-  // Check if a server message matching the optimistic message already exists
-  // This prevents showing duplicates during the brief window between
-  // server message arrival and useEffect clearing the optimistic state
-  const hasMatchingServerMessage = useMemo(() => {
-    if (!optimisticMessage?.content) {
-      return false;
-    }
-    return findMatchingServerMessage(
-      threadMessages,
-      optimisticMessage.content,
-      optimisticMessage.timestamp,
-    );
-  }, [
-    threadMessages,
-    optimisticMessage?.content,
-    optimisticMessage?.timestamp,
-  ]);
 
   // Find if there's currently a streaming assistant message
   const streamingMessage = uiMessages?.find(
@@ -551,9 +497,6 @@ export function ChatInterface({
   // Clear pending state ONLY when streaming message appears
   // isPending represents "waiting for AI to start responding"
   // The loading state should persist until we see actual streaming data
-  //
-  // Note: hasMatchingServerMessage is used for optimistic message deduplication,
-  // NOT for clearing isPending. User message confirmation != AI started responding.
   useEffect(() => {
     if (!isPending) return;
 
@@ -562,29 +505,6 @@ export function ChatInterface({
       setIsPending(false);
     }
   }, [streamingMessage, isPending, setIsPending]);
-
-  // Clear optimistic message when it appears in actual messages
-  useEffect(() => {
-    if (!optimisticMessage?.content || uiMessages === undefined) {
-      return;
-    }
-
-    const hasMatch = findMatchingServerMessage(
-      threadMessages,
-      optimisticMessage.content,
-      optimisticMessage.timestamp,
-    );
-
-    if (hasMatch) {
-      setOptimisticMessage(null);
-    }
-  }, [
-    uiMessages,
-    threadMessages,
-    optimisticMessage?.content,
-    optimisticMessage?.timestamp,
-    setOptimisticMessage,
-  ]);
 
   // Auto-scroll handling - respects user intent (stops if user scrolls up)
   const { containerRef, contentRef, scrollToBottom, isAtBottom } =
@@ -671,22 +591,6 @@ export function ChatInterface({
     attachments?: FileAttachment[],
   ) => {
     const sanitizedContent = sanitizeChatMessage(message);
-
-    const userMessage = {
-      id: uuidv7(),
-      content: sanitizedContent,
-      role: 'user' as const,
-      timestamp: Date.now(),
-      attachments,
-    };
-
-    const optimisticTimestamp = Date.now();
-    setOptimisticMessage({
-      content: sanitizedContent,
-      threadId,
-      attachments,
-      timestamp: optimisticTimestamp,
-    });
     setInputValue('');
 
     // Set pending immediately to show thinking animation right away
@@ -711,12 +615,6 @@ export function ChatInterface({
         currentThreadId = newThreadId;
         isFirstMessage = true;
 
-        setOptimisticMessage({
-          content: sanitizedContent,
-          threadId: newThreadId,
-          attachments,
-          timestamp: optimisticTimestamp,
-        });
         router.push(`/dashboard/${organizationId}/chat/${newThreadId}`, {
           scroll: false,
         });
@@ -731,7 +629,7 @@ export function ChatInterface({
         await updateThread({ threadId: currentThreadId, title });
       }
 
-      // Send message and start polling
+      // Send message with optimistic update (handled by useChatWithAgent hook)
       // Convert attachments to the format expected by the mutation
       const mutationAttachments = attachments?.map((a) => ({
         fileId: a.fileId,
@@ -743,7 +641,7 @@ export function ChatInterface({
       await chatWithAgent({
         threadId: currentThreadId,
         organizationId,
-        message: userMessage.content,
+        message: sanitizedContent,
         attachments: mutationAttachments,
       });
 
@@ -771,12 +669,10 @@ export function ChatInterface({
             'flex-1 overflow-y-visible p-4 sm:p-8',
             !threadId &&
               threadMessages?.length === 0 &&
-              !userDraftMessage &&
               'flex flex-col items-center justify-end',
           )}
         >
           {!isLoading &&
-            !userDraftMessage &&
             !threadId &&
             threadMessages?.length === 0 && (
               <div className="flex-1 flex items-center justify-center size-full">
@@ -785,8 +681,8 @@ export function ChatInterface({
                 </h1>
               </div>
             )}
-          {(threadId || threadMessages?.length > 0 || userDraftMessage) && (
-            // Chat messages and approvals - show when we have a threadId OR messages OR draft
+          {(threadId || threadMessages?.length > 0) && (
+            // Chat messages and approvals - show when we have a threadId OR messages
             <div
               className="max-w-[var(--chat-max-width)] mx-auto space-y-4"
               role="log"
@@ -867,19 +763,6 @@ export function ChatInterface({
                   );
                 }
               })}
-              {userDraftMessage && !hasMatchingServerMessage && (
-                <MessageBubble
-                  key={'user-draft'}
-                  message={{
-                    id: 'user-draft',
-                    content: userDraftMessage,
-                    role: 'user',
-                    timestamp: new Date(),
-                    threadId: threadId,
-                    attachments: optimisticMessage?.attachments,
-                  }}
-                />
-              )}
 
               {/* AI Response area - ref used for scroll positioning */}
               {/* Show ThinkingAnimation when:
