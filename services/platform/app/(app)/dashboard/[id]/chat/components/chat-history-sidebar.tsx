@@ -6,6 +6,7 @@ import {
   useState,
   useRef,
   useMemo,
+  useSyncExternalStore,
 } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
@@ -17,6 +18,16 @@ import { Stack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
 import { ChatActions } from './chat-actions';
 import { useT } from '@/lib/i18n/client';
+
+const emptySubscribe = () => () => {};
+
+function useIsMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
 
 interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   organizationId: string;
@@ -40,6 +51,7 @@ export function ChatHistorySidebar({
   const [editValue, setEditValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMounted = useIsMounted();
 
   // Load chat threads for current user
   const threadsData = useQuery(api.threads.listThreads, {});
@@ -157,7 +169,7 @@ export function ChatHistorySidebar({
       {...restProps}
     >
       <Stack gap={1}>
-        {!chats ? (
+        {!isMounted || !chats ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">
             {t('history.loading')}
           </div>

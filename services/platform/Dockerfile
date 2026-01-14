@@ -12,7 +12,7 @@ ARG VERSION=dev
 # Stage 1: Dependencies
 # ============================================================================
 # Use the official Convex backend image as base - it already has Node.js and all binaries
-FROM ghcr.io/get-convex/convex-backend:f132b187d9d884a97293517e1227b70d57f58d11 AS deps
+FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS deps
 
 # Install dependencies required for node-gyp and building
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,7 +34,7 @@ RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 -w @tale
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:f132b187d9d884a97293517e1227b70d57f58d11 AS builder
+FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS builder
 
 WORKDIR /app
 
@@ -107,13 +107,13 @@ RUN find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -ex
 # ============================================================================
 # Stage 3: Convex Dashboard
 # ============================================================================
-FROM ghcr.io/get-convex/convex-dashboard:f132b187d9d884a97293517e1227b70d57f58d11 AS convex-dashboard
+FROM ghcr.io/get-convex/convex-dashboard:272e7f4d46f0a9189d6e167f39f07d152b409fed AS convex-dashboard
 
 # ============================================================================
 # Stage 4: Runner
 # ============================================================================
 # Use the official Convex backend image as base - it already has everything we need
-FROM ghcr.io/get-convex/convex-backend:f132b187d9d884a97293517e1227b70d57f58d11 AS runner
+FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS runner
 
 WORKDIR /app
 

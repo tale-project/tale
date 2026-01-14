@@ -334,7 +334,7 @@ export function ChatInterface({
   const userDraftMessage = optimisticMessage?.content || '';
 
   // Fetch thread messages with streaming support
-  // Use pagination to handle large threads - reduced initial load to prevent query timeouts
+  // Use pagination to handle large threads - initialNumItems refers to MessageDocs
   // See: https://github.com/tale-project/tale/issues/85
   const {
     results: uiMessages,
@@ -343,88 +343,70 @@ export function ChatInterface({
   } = useUIMessages(
     api.threads.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 10, stream: true },
+    { initialNumItems: 20, stream: true },
   );
 
   // Track pagination state for loading more messages
+  // Backend now correctly sets isDone when page.length < numItems,
+  // so we can trust the paginationStatus directly
   const canLoadMore = paginationStatus === 'CanLoadMore';
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
   // Convert UIMessage to ChatMessage format for compatibility
   // Memoize to prevent unnecessary re-renders when typing
+  //
+  // Note: SDK's useUIMessages already handles deduplication via dedupeMessages()
+  // using (order, stepOrder) as composite key. We only need to:
+  // 1. Filter orphaned messages (Issue #184 edge case)
+  // 2. Convert UIMessage to ChatMessage format
   const threadMessages: ChatMessage[] = useMemo(() => {
-    // Track seen message IDs to prevent duplicates
-    // useUIMessages can return multiple entries with different keys for the same message
-    const seenMessageIds = new Set<string>();
-    // Track seen assistant message content to prevent content duplicates
-    // This handles the case where streaming and persisted messages have different IDs/stepOrders
-    // but contain the same content (Issue #184)
-    const seenAssistantContent = new Set<string>();
+    if (!uiMessages?.length) return [];
 
-    // Find the minimum order of user messages to detect pagination boundary
-    // Stream messages with order < minUserOrder are orphaned (their user message was paginated out)
-    const userMessages = (uiMessages || []).filter((m) => m.role === 'user');
+    // Calculate minUserOrder for orphan filtering (Issue #184)
+    // When pagination excludes a user message, its assistant response becomes orphaned
+    const userMessages = uiMessages.filter((m) => m.role === 'user');
     const minUserOrder =
       userMessages.length > 0
         ? Math.min(...userMessages.map((m) => m.order))
         : 0;
 
-    const filtered = (uiMessages || []).filter((m) => {
-      if (m.role !== 'user' && m.role !== 'assistant') return false;
+    // Filter and convert in one pass
+    // SDK already handles: deduplication, sorting, streaming vs persisted preference
+    return uiMessages
+      .filter((m) => {
+        // Only keep user and assistant messages (filter out tool, system, etc.)
+        if (m.role !== 'user' && m.role !== 'assistant') return false;
+        // Filter orphaned assistant messages whose user message was paginated out
+        // Issue #184: When pagination kicks in, old stream messages stay in state
+        if (m.role === 'assistant' && m.order < minUserOrder) return false;
+        return true;
+      })
+      .map((m) => {
+        // Extract file parts (images) from UIMessage.parts
+        const fileParts = (m.parts || [])
+          .filter((p): p is FilePart => p.type === 'file')
+          .map((p) => ({
+            type: 'file' as const,
+            mediaType: p.mediaType,
+            filename: p.filename,
+            url: p.url,
+          }));
 
-      // Filter out orphaned stream messages whose user message was paginated out
-      // These are assistant messages with order < minUserOrder from stream source
-      // Issue #184: When pagination kicks in, old stream messages stay in state
-      if (m.role === 'assistant' && m.order < minUserOrder) {
-        return false;
-      }
-
-      // Deduplicate ALL messages by id (not just user messages)
-      if (seenMessageIds.has(m.id)) {
-        return false;
-      }
-      seenMessageIds.add(m.id);
-
-      // For assistant messages, also dedupe by content
-      // This catches duplicates with different IDs but same content
-      if (m.role === 'assistant' && m.text) {
-        // Use first 200 chars as content key to handle minor differences
-        const contentKey = m.text.substring(0, 200);
-        if (seenAssistantContent.has(contentKey)) {
-          return false;
-        }
-        seenAssistantContent.add(contentKey);
-      }
-
-      return true;
-    });
-
-    return filtered.map((m) => {
-      // Extract file parts (images) from UIMessage.parts
-      const fileParts = (m.parts || [])
-        .filter((p): p is FilePart => p.type === 'file')
-        .map((p) => ({
-          type: 'file' as const,
-          mediaType: p.mediaType,
-          filename: p.filename,
-          url: p.url,
-        }));
-
-      return {
-        // id: document ID for metadata lookup
-        // key: React key with step/part suffix for unique rendering
-        id: m.id,
-        key: m.key,
-        content: m.text,
-        role: m.role as 'user' | 'assistant',
-        timestamp: new Date(m._creationTime),
-        fileParts: fileParts.length > 0 ? fileParts : undefined,
-        _creationTime: m._creationTime,
-        // Mark messages with 'streaming' status as actively streaming
-        // This triggers the TypewriterText animation in MessageBubble
-        isStreaming: m.status === 'streaming',
-      };
-    });
+        return {
+          // id: document ID for metadata lookup
+          // key: React key with step/part suffix for unique rendering
+          id: m.id,
+          key: m.key,
+          content: m.text,
+          role: m.role as 'user' | 'assistant',
+          timestamp: new Date(m._creationTime),
+          fileParts: fileParts.length > 0 ? fileParts : undefined,
+          _creationTime: m._creationTime,
+          // Mark messages with 'streaming' status as actively streaming
+          // This triggers the TypewriterText animation in MessageBubble
+          isStreaming: m.status === 'streaming',
+        };
+      });
   }, [uiMessages]);
 
   // Check if a server message matching the optimistic message already exists
@@ -566,9 +548,17 @@ export function ChatInterface({
   // streamingMessage = when AI is actively streaming a response
   const isLoading = isPending || !!streamingMessage;
 
-  // Clear pending state when streaming starts (message is now tracked by stream)
+  // Clear pending state ONLY when streaming message appears
+  // isPending represents "waiting for AI to start responding"
+  // The loading state should persist until we see actual streaming data
+  //
+  // Note: hasMatchingServerMessage is used for optimistic message deduplication,
+  // NOT for clearing isPending. User message confirmation != AI started responding.
   useEffect(() => {
-    if (streamingMessage && isPending) {
+    if (!isPending) return;
+
+    // Only clear when streaming actually starts
+    if (streamingMessage) {
       setIsPending(false);
     }
   }, [streamingMessage, isPending, setIsPending]);
@@ -803,7 +793,7 @@ export function ChatInterface({
               aria-live="polite"
               aria-label={t('aria.messageHistory')}
             >
-              {/* Load More button for pagination - shows when more messages exist */}
+              {/* Load More button for pagination */}
               {(canLoadMore || isLoadingMore) && (
                 <div className="flex justify-center py-2">
                   <Button
