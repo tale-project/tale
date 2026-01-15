@@ -75,7 +75,11 @@ export function AutomationLoopContainer({
       {/* Main Card - matches regular automation step styling */}
       <button
         type="button"
-        aria-label={data.label ? t('aria.openNamed', { name: data.label }) : t('aria.openLoop')}
+        aria-label={
+          data.label
+            ? t('aria.openNamed', { name: data.label })
+            : t('aria.openLoop')
+        }
         className="w-full h-full rounded-lg border-2 border-border border-dashed bg-background shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none"
         onClick={() => data.onNodeClick?.(data.stepSlug)}
         style={{ overflow: 'visible', position: 'relative' }}

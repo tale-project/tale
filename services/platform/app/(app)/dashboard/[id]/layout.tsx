@@ -68,7 +68,7 @@ export default async function DashboardLayout({
     <AdaptiveHeaderProvider>
       <div className="flex flex-col md:flex-row size-full">
         {/* Mobile header with hamburger menu - height matches side nav width */}
-        <div className="md:hidden flex items-center gap-2 h-[var(--nav-size)] px-3 py-2 border-b border-border bg-background">
+        <div className="md:hidden flex items-center gap-2 h-[--nav-size] p-2 bg-background">
           <MobileNavigationServer role={memberContext.role} />
           <AdaptiveHeaderSlot />
         </div>

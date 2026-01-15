@@ -116,8 +116,8 @@ export function AdaptiveHeaderRoot({
     <HStack
       gap={0}
       className={cn(
-        'hidden md:flex px-4 py-2 min-h-12 flex-shrink-0',
-        standalone && 'sticky top-0 z-50 bg-background/50 backdrop-blur-md',
+        'hidden md:flex px-4 py-2 min-h-12 shrink-0',
+        standalone && 'sticky top-0 z-520 bg-background/50 backdrop-blur-md',
         showBorder && 'border-b border-border',
         className,
       )}

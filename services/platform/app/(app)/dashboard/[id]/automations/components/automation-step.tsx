@@ -80,7 +80,11 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const cardContent = (
     <button
       type="button"
-      aria-label={data.label ? t('step.openStep', { name: data.label }) : t('step.openStepDefault')}
+      aria-label={
+        data.label
+          ? t('step.openStep', { name: data.label })
+          : t('step.openStepDefault')
+      }
       className={cn(
         'w-[18.75rem] rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none',
         data.isTerminalNode

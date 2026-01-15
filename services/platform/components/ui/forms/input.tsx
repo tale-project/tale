@@ -1,6 +1,12 @@
 'use client';
 
-import { InputHTMLAttributes, forwardRef, useState, useId, useEffect } from 'react';
+import {
+  InputHTMLAttributes,
+  forwardRef,
+  useState,
+  useId,
+  useEffect,
+} from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
 
@@ -27,7 +33,7 @@ const inputVariants = cva(
       variant: 'default',
       size: 'default',
     },
-  }
+  },
 );
 
 type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
@@ -94,7 +100,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
                 hasError && 'border-destructive focus-visible:ring-destructive',
                 showShake && 'animate-shake',
                 'pr-10',
-                className
+                className,
               )}
               ref={ref}
               required={required}
@@ -149,7 +155,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
             inputVariants({ variant, size }),
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
-            className
+            className,
           )}
           ref={ref}
           required={required}
