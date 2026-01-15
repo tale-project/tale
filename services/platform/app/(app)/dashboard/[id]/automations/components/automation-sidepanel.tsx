@@ -145,7 +145,7 @@ export function AutomationSidePanel({
       </div>
 
       {/* Panel header */}
-      <div className="bg-background/70 backdrop-blur-sm p-3 border-b border-border shrink-0 top-0">
+      <div className="bg-background/70 backdrop-blur-sm p-3 border-b border-border shrink-0 sticky top-0">
         <div className="flex items-center gap-3">
           {showAIChat ? (
             <>

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils/cn';
 import { useQuery } from 'convex/react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useUpdateAutomation } from './hooks/use-update-automation';
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { AutomationNavigation } from './components/automation-navigation';
 import { LayoutErrorBoundary } from '@/components/error-boundaries/boundaries/layout-error-boundary';
@@ -49,6 +49,7 @@ export default function AutomationsLayout({
   );
   const updateWorkflow = useUpdateAutomation();
   const [editMode, setEditMode] = useState(false);
+  const isSubmittingRef = useRef(false);
   const { register, getValues } = useForm<{ name: string }>();
 
   const userContext = useQuery(api.member.getCurrentMemberContext, {
@@ -99,12 +100,17 @@ export default function AutomationsLayout({
   };
 
   const handleSubmitAutomationName = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     if (automation?.name === getValues().name || !getValues().name) {
       setEditMode(false);
+      isSubmittingRef.current = false;
       return;
     }
     if (!user?._id) {
       setEditMode(false);
+      isSubmittingRef.current = false;
       return;
     }
     const values = getValues();
@@ -114,6 +120,7 @@ export default function AutomationsLayout({
       updatedBy: user._id,
     });
     setEditMode(false);
+    isSubmittingRef.current = false;
   };
 
   return (
@@ -207,7 +214,8 @@ export default function AutomationsLayout({
                   <span className="text-xs text-muted-foreground ml-1">
                     {version.status === 'draft' && tCommon('status.draft')}
                     {version.status === 'active' && tCommon('status.active')}
-                    {version.status === 'archived' && t('navigation.archived')}
+                    {version.status === 'archived' &&
+                      tCommon('status.archived')}
                   </span>
                 </DropdownMenuItem>
               ))}

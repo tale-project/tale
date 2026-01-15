@@ -205,7 +205,8 @@ export function AutomationNavigation({
                   <span className="text-xs text-muted-foreground ml-1">
                     {version.status === 'draft' && tCommon('status.draft')}
                     {version.status === 'active' && tCommon('status.active')}
-                    {version.status === 'archived' && t('navigation.archived')}
+                    {version.status === 'archived' &&
+                      tCommon('status.archived')}
                   </span>
                 </DropdownMenuItem>
               ))}

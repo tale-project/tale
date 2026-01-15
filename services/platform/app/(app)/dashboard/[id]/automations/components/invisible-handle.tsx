@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils/cn';
 export function InvisibleHandle({ className, ...props }: HandleProps) {
   return (
     <Handle
-      className={cn('size-2 border-0 bg-transparent z-10', className)}
+      className={cn('size-2! border-0! bg-transparent! z-10!', className)}
       {...props}
     />
   );
