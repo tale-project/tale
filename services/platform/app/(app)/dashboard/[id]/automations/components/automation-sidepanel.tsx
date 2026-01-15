@@ -130,8 +130,8 @@ export function AutomationSidePanel({
   return (
     <div
       ref={panelRef}
-      style={{ width: `${width}px` }}
-      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden max-md:!w-full max-md:absolute max-md:inset-0 max-md:z-10"
+      style={{ '--panel-width': `${width}px` } as React.CSSProperties}
+      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden w-(--panel-width) max-md:w-full max-md:absolute max-md:inset-0 max-md:z-10"
     >
       {/* Resize handle - hidden on mobile */}
       <div
@@ -145,11 +145,11 @@ export function AutomationSidePanel({
       </div>
 
       {/* Panel header */}
-      <div className="bg-background/70 backdrop-blur-sm p-3 border-b border-border flex-shrink-0 sticky top-0">
+      <div className="bg-background/70 backdrop-blur-sm p-3 border-b border-border shrink-0 sticky top-0">
         <div className="flex items-center gap-3">
           {showAIChat ? (
             <>
-              <div className="p-2 rounded-lg border bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+              <div className="p-2 rounded-lg bg-purple-600 text-white dark:bg-purple-700">
                 <Sparkles className="size-4" />
               </div>
               <div className="flex-1">

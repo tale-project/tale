@@ -339,3 +339,40 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ReactFlow Handle Overrides - remove default styles for invisible handles */
+.react-flow__handle.size-2\! {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.react-flow__handle.size-2\.5\! {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.react-flow__handle.border-0\! {
+  border-width: 0;
+}
+
+.react-flow__handle.bg-transparent\! {
+  background-color: transparent;
+}
+
+.react-flow__handle.bg-muted-foreground\! {
+  background-color: hsl(var(--muted-foreground));
+}
+
+/* ReactFlow Panel Overrides - allow centering panels */
+.react-flow__panel.mx-0\! {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.react-flow__panel.left-1\/2\! {
+  left: 50%;
+}
+
+.react-flow__panel.-translate-x-1\/2\! {
+  transform: translateX(-50%);
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Handle, Position } from '@xyflow/react';
+import { Position } from '@xyflow/react';
 import { Cpu, HelpCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
@@ -8,6 +8,7 @@ import { PickaxeIcon, Repeat } from 'lucide-react';
 import { Badge } from '@/components/ui/feedback/badge';
 import { useT } from '@/lib/i18n/client';
 import { useAutomationCallbacks } from './automation-callbacks-context';
+import { InvisibleHandle } from './invisible-handle';
 
 interface AutomationStepProps {
   data: {
@@ -79,7 +80,11 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const cardContent = (
     <button
       type="button"
-      aria-label={data.label ? t('step.openStep', { name: data.label }) : t('step.openStepDefault')}
+      aria-label={
+        data.label
+          ? t('step.openStep', { name: data.label })
+          : t('step.openStepDefault')
+      }
       className={cn(
         'w-[18.75rem] rounded-lg border bg-card shadow-sm hover:shadow-md transition-shadow cursor-pointer text-left focus:outline-none',
         data.isTerminalNode
@@ -126,41 +131,41 @@ export function AutomationStep({ data }: AutomationStepProps) {
   return (
     <div className="relative">
       {/* Top Target Handle - incoming from higher-ranked nodes */}
-      <Handle
+      <InvisibleHandle
         type="target"
         position={Position.Top}
         id="top-target"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ top: 2, left: topTargetLeft, opacity: 0 }}
       />
 
       {/* Top Source Handle - outgoing to higher-ranked nodes */}
-      <Handle
+      <InvisibleHandle
         type="source"
         position={Position.Top}
         id="top-source"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ top: 2, left: topSourceLeft, opacity: 0 }}
       />
 
       {/* Left Target Handle - for backward connections coming from the side */}
-      <Handle
+      <InvisibleHandle
         type="target"
         position={Position.Left}
         id="left-target"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ left: 0, top: '50%', opacity: 0 }}
       />
 
       {/* Right Source Handle - for backward connections going to the side */}
-      <Handle
+      <InvisibleHandle
         type="source"
         position={Position.Right}
         id="right-source"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ right: 0, top: '50%', opacity: 0 }}
       />
@@ -168,21 +173,21 @@ export function AutomationStep({ data }: AutomationStepProps) {
       {cardContent}
 
       {/* Bottom Target Handle - incoming from lower-ranked nodes */}
-      <Handle
+      <InvisibleHandle
         type="target"
         position={Position.Bottom}
         id="bottom-target"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomTargetLeft, opacity: 0 }}
       />
 
       {/* Bottom Source Handle - outgoing to lower-ranked nodes */}
-      <Handle
+      <InvisibleHandle
         type="source"
         position={Position.Bottom}
         id="bottom-source"
-        className="!w-2 !h-2 !border-0 !bg-transparent !z-10"
+        className="size-2! border-0! bg-transparent! z-10!"
         isConnectable={true}
         style={{ bottom: 0, left: bottomSourceLeft, opacity: 0 }}
       />

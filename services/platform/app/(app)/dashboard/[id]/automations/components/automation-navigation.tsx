@@ -7,15 +7,6 @@ import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft
 import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
 import { Button } from '@/components/ui/primitives/button';
 import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-  NavigationMenuViewport,
-} from '@/components/ui/navigation/navigation-menu';
-import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/components/ui/navigation/tab-navigation';
@@ -23,7 +14,19 @@ import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-convex-auth';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
-import { ChevronDown } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/overlays/dropdown-menu';
+import {
+  ChevronDown,
+  MoreVertical,
+  Upload,
+  Pencil,
+  RotateCcw,
+} from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 
 interface AutomationNavigationProps {
@@ -179,79 +182,122 @@ export function AutomationNavigation({
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
       <div className="flex items-center gap-4 ml-auto">
+        {/* Version select - hidden on mobile (shown in first header row instead) */}
         {automation && versions && versions.length > 0 && (
-          <NavigationMenu>
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger className="text-sm h-8 border border-input bg-background hover:bg-accent hover:text-accent-foreground">
-                  {automation.version}
-                  <ChevronDown
-                    className="relative top-px ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
-                    aria-hidden="true"
-                  />
-                </NavigationMenuTrigger>
-                <NavigationMenuContent className="md:w-40">
-                  <ul className="p-1 space-y-1">
-                    {versions.map((version) => (
-                      <li key={version._id}>
-                        <NavigationMenuLink asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full justify-start"
-                            onClick={() => handleVersionChange(version._id)}
-                          >
-                            <span>{version.version}</span>
-                            <span className="text-xs text-muted-foreground ml-1">
-                              {version.status === 'draft' &&
-                                tCommon('status.draft')}
-                              {version.status === 'active' &&
-                                tCommon('status.active')}
-                              {version.status === 'archived' &&
-                                t('navigation.archived')}
-                            </span>
-                          </Button>
-                        </NavigationMenuLink>
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-            <NavigationMenuViewport />
-          </NavigationMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:flex text-sm h-8"
+              >
+                {automation.version}
+                <ChevronDown className="ml-1 size-3" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              {versions.map((version) => (
+                <DropdownMenuItem
+                  key={version._id}
+                  onClick={() => handleVersionChange(version._id)}
+                >
+                  <span>{version.version}</span>
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {version.status === 'draft' && tCommon('status.draft')}
+                    {version.status === 'active' && tCommon('status.active')}
+                    {version.status === 'archived' &&
+                      tCommon('status.archived')}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
-        {automation?.status === 'draft' && (
-          <Button onClick={handlePublish} disabled={isPublishing} size="sm">
-            {isPublishing
-              ? t('navigation.publishing')
-              : t('navigation.publish')}
-          </Button>
-        )}
+        {/* Desktop: Show buttons directly */}
+        <div className="hidden md:flex items-center gap-4">
+          {automation?.status === 'draft' && (
+            <Button onClick={handlePublish} disabled={isPublishing} size="sm">
+              {isPublishing
+                ? t('navigation.publishing')
+                : t('navigation.publish')}
+            </Button>
+          )}
 
-        {automation?.status === 'active' && (
-          <Button
-            onClick={handleCreateDraft}
-            disabled={isCreatingDraft}
-            size="sm"
-            variant="outline"
-          >
-            {tCommon('actions.edit')}
-          </Button>
-        )}
+          {automation?.status === 'active' && (
+            <Button
+              onClick={handleCreateDraft}
+              disabled={isCreatingDraft}
+              size="sm"
+              variant="outline"
+            >
+              {tCommon('actions.edit')}
+            </Button>
+          )}
 
-        {automation?.status === 'archived' && (
-          <Button
-            onClick={handlePublish}
-            disabled={isPublishing}
-            size="sm"
-            variant="secondary"
-          >
-            {isPublishing
-              ? t('navigation.rollingBack')
-              : t('navigation.rollback')}
-          </Button>
+          {automation?.status === 'archived' && (
+            <Button
+              onClick={handlePublish}
+              disabled={isPublishing}
+              size="sm"
+              variant="secondary"
+            >
+              {isPublishing
+                ? t('navigation.rollingBack')
+                : t('navigation.rollback')}
+            </Button>
+          )}
+        </div>
+
+        {/* Mobile: Show options dropdown */}
+        {(automation?.status === 'draft' ||
+          automation?.status === 'active' ||
+          automation?.status === 'archived') && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden"
+                aria-label={tCommon('aria.actionsMenu')}
+              >
+                <MoreVertical className="size-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              {automation?.status === 'draft' && (
+                <DropdownMenuItem
+                  onClick={handlePublish}
+                  disabled={isPublishing}
+                >
+                  <Upload className="mr-2 size-4" />
+                  {isPublishing
+                    ? t('navigation.publishing')
+                    : t('navigation.publish')}
+                </DropdownMenuItem>
+              )}
+              {automation?.status === 'active' && (
+                <DropdownMenuItem
+                  onClick={handleCreateDraft}
+                  disabled={isCreatingDraft}
+                >
+                  <Pencil className="mr-2 size-4" />
+                  {tCommon('actions.edit')}
+                </DropdownMenuItem>
+              )}
+              {automation?.status === 'archived' && (
+                <DropdownMenuItem
+                  onClick={handlePublish}
+                  disabled={isPublishing}
+                >
+                  <RotateCcw className="mr-2 size-4" />
+                  {isPublishing
+                    ? t('navigation.rollingBack')
+                    : t('navigation.rollback')}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </TabNavigation>
