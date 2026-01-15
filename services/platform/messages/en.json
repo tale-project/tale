@@ -887,7 +887,8 @@
       "toolbar": {
         "focus": "Focus",
         "aiAssistant": "AI assistant",
-        "testAutomation": "Test automation"
+        "testAutomation": "Test automation",
+        "viewAutomation": "View automation"
       }
     },
     "stepTypes": {

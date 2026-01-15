@@ -113,7 +113,8 @@ export function ChatSearchDialog({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="!outline-none !ring-0 !ring-offset-0 !border-0 pr-9 p-0 h-6"
+            variant="unstyled"
+            className="pr-9 p-0 h-6"
           />
           <button
             type="button"
