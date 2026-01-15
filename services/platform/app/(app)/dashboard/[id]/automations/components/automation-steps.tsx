@@ -1127,15 +1127,16 @@ function AutomationStepsInner({
 
             {/* Draft Banner */}
             {showDraftBanner && isDraft && (
-              <Panel className="my-4 mx-0! px-4 w-full max-w-[53.5rem] top-0 left-1/2! -translate-x-1/2!">
-                <div className="flex items-center gap-2 rounded-lg ring-1 ring-blue-200 bg-blue-50 p-3 shadow-sm">
-                  <Info className="size-4 shrink-0 text-blue-600" />
+              <Panel position="top-center" className="mt-4 mx-4">
+                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-blue-200 bg-blue-50 px-4 py-3 shadow-sm max-w-xl">
+                  <Info className="size-5 shrink-0 text-blue-600" />
                   <p className="text-sm text-blue-600">
                     {t('steps.banners.draftNotPublished')}
                   </p>
                   <Button
                     variant="ghost"
-                    className="ml-auto text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6"
+                    size="icon"
+                    className="text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6 shrink-0"
                     onClick={() => setShowDraftBanner(false)}
                   >
                     <X className="size-4" />
@@ -1146,9 +1147,9 @@ function AutomationStepsInner({
 
             {/* Active Automation Banner */}
             {isActive && (
-              <Panel className="my-4 mx-0! px-4 w-full max-w-[53.5rem] top-0 left-1/2! -translate-x-1/2!">
-                <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
-                  <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+              <Panel position="top-center" className="mt-4 mx-4 w-full px-4">
+                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-amber-200 bg-amber-50 px-4 py-3 shadow-sm max-w-3xl mx-auto">
+                  <AlertTriangle className="size-5 shrink-0 text-amber-600" />
                   <p className="text-sm text-amber-600">
                     {t('steps.banners.activeCannotModify')}
                   </p>
@@ -1177,10 +1178,10 @@ function AutomationStepsInner({
                   </Button>
 
                   <Button
-                    variant="outline"
                     size="icon"
                     title={t('steps.toolbar.aiAssistant')}
                     onClick={handleOpenAIChat}
+                    className="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800"
                   >
                     <Sparkles className="size-4" />
                   </Button>
