@@ -130,8 +130,8 @@ export function AutomationSidePanel({
   return (
     <div
       ref={panelRef}
-      style={{ width: `${width}px` }}
-      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden max-md:!w-full max-md:absolute max-md:inset-0 max-md:z-10"
+      style={{ '--panel-width': `${width}px` } as React.CSSProperties}
+      className="bg-background border-l border-border flex flex-col flex-[0_0_auto] min-h-0 relative overflow-hidden w-(--panel-width) max-md:w-full max-md:absolute max-md:inset-0 max-md:z-10"
     >
       {/* Resize handle - hidden on mobile */}
       <div

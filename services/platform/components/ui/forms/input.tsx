@@ -9,9 +9,14 @@ import { useT } from '@/lib/i18n/client';
 import { Label } from './label';
 
 const inputVariants = cva(
-  'flex w-full rounded-lg border border-transparent bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
+  'flex w-full text-base file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-[border-color,box-shadow] duration-150',
   {
     variants: {
+      variant: {
+        default:
+          'rounded-lg border border-transparent bg-background px-3 py-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-1 ring-border focus-visible:ring-primary',
+        unstyled: 'bg-transparent border-0 ring-0 ring-offset-0',
+      },
       size: {
         default: 'h-9',
         sm: 'h-8',
@@ -19,6 +24,7 @@ const inputVariants = cva(
       },
     },
     defaultVariants: {
+      variant: 'default',
       size: 'default',
     },
   }
@@ -39,6 +45,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       type,
       passwordToggle = true,
       autoComplete,
+      variant,
       size,
       errorMessage,
       label,
@@ -83,7 +90,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
               type={inputType}
               autoComplete={resolvedAutoComplete}
               className={cn(
-                inputVariants({ size }),
+                inputVariants({ variant, size }),
                 hasError && 'border-destructive focus-visible:ring-destructive',
                 showShake && 'animate-shake',
                 'pr-10',
@@ -139,7 +146,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
           type={type}
           autoComplete={resolvedAutoComplete}
           className={cn(
-            inputVariants({ size }),
+            inputVariants({ variant, size }),
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className

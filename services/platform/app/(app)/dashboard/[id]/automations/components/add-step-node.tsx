@@ -18,7 +18,7 @@ export function AddStepNode({ data }: AddStepNodeProps) {
       <Handle
         type="target"
         position={Position.Left}
-        className="!size-2.5 !bg-muted-foreground"
+        className="size-2.5! bg-muted-foreground!"
       />
 
       <button

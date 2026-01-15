@@ -1127,7 +1127,7 @@ function AutomationStepsInner({
 
             {/* Draft Banner */}
             {showDraftBanner && isDraft && (
-              <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
+              <Panel className="my-4 mx-0! px-4 w-full max-w-[53.5rem] top-0 left-1/2! -translate-x-1/2!">
                 <div className="flex items-center gap-2 rounded-lg ring-1 ring-blue-200 bg-blue-50 p-3 shadow-sm">
                   <Info className="size-4 shrink-0 text-blue-600" />
                   <p className="text-sm text-blue-600">
@@ -1146,7 +1146,7 @@ function AutomationStepsInner({
 
             {/* Active Automation Banner */}
             {isActive && (
-              <Panel className="my-4 !mx-0 px-4 w-full max-w-[53.5rem] top-0 !left-1/2 !-translate-x-1/2">
+              <Panel className="my-4 mx-0! px-4 w-full max-w-[53.5rem] top-0 left-1/2! -translate-x-1/2!">
                 <div className="flex items-center gap-2 rounded-lg ring-1 ring-amber-200 bg-amber-50 p-3 shadow-sm">
                   <AlertTriangle className="size-4 shrink-0 text-amber-600" />
                   <p className="text-sm text-amber-600">
