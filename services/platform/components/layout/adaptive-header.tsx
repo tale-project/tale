@@ -117,7 +117,7 @@ export function AdaptiveHeaderRoot({
       gap={0}
       className={cn(
         'hidden md:flex px-4 py-2 min-h-12 shrink-0',
-        standalone && 'sticky top-0 z-520 bg-background/50 backdrop-blur-md',
+        standalone && 'sticky top-0 z-20 bg-background/50 backdrop-blur-md',
         showBorder && 'border-b border-border',
         className,
       )}
