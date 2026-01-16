@@ -105,8 +105,6 @@ export async function authenticateViaTrustedHeaders(
   // Extract user info from headers
   const headerUser = extractTrustedHeaders(request);
 
-  console.log('Trusted headers user:', JSON.stringify(headerUser, null, 2));
-
   if (!headerUser) {
     return null;
   }
