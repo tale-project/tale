@@ -228,10 +228,22 @@ def _patch_litellm_aembedding() -> None:
 
         async def _patched_aembedding(
             model: str,
-            input: list,
+            input: list | str,
             **kwargs: Any,
         ) -> Any:
-            # Filter out empty or whitespace-only strings from input
+            # Handle string input (OpenAI-compatible APIs accept str or list[str])
+            if isinstance(input, str):
+                if not input.strip():
+                    logger.warning("aembedding: Empty string input, returning empty response")
+                    from litellm import EmbeddingResponse
+                    return EmbeddingResponse(
+                        model=model,
+                        data=[],
+                        usage={"prompt_tokens": 0, "total_tokens": 0},
+                    )
+                return await _original_aembedding(model=model, input=input, **kwargs)
+
+            # Filter out empty or whitespace-only strings from list input
             original_input_len = len(input) if input else 0
             if input:
                 filtered_input = [
