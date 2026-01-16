@@ -197,7 +197,7 @@ export function RagStatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5">
         <Badge variant={config.variant} dot>
-          {t('rag.status.stale')}
+          {getStatusLabel(effectiveStatus)}
         </Badge>
         {retryButton}
       </span>
