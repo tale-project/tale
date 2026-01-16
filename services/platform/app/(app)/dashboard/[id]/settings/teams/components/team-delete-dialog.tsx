@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { DeleteDialog } from '@/components/ui/dialog/delete-dialog';
 import { toast } from '@/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
@@ -20,8 +21,11 @@ export function TeamDeleteDialog({
   onSuccess,
 }: TeamDeleteDialogProps) {
   const { t: tSettings } = useT('settings');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleConfirm = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       const result = await authClient.organization.removeTeam({
         teamId: team.id,
@@ -43,6 +47,8 @@ export function TeamDeleteDialog({
         title: tSettings('teams.teamDeleteFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -53,6 +59,7 @@ export function TeamDeleteDialog({
       title={tSettings('teams.deleteTeam')}
       description={tSettings('teams.deleteConfirmation')}
       deleteText={tSettings('teams.deleteTeam')}
+      isDeleting={isDeleting}
       onDelete={handleConfirm}
     />
   );
