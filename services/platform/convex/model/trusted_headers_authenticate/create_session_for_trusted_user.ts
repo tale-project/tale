@@ -175,8 +175,8 @@ export async function createSessionForTrustedUser(
         updatedAt: now,
         ipAddress: args.ipAddress || null,
         userAgent: args.userAgent || null,
-        trustedRole: args.trustedRole || null,
-        trustedTeams: args.trustedTeams || null,
+        trustedRole: args.trustedRole ?? null,
+        trustedTeams: args.trustedTeams ?? null,
       },
     },
   });
