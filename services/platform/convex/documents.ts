@@ -76,6 +76,7 @@ export const createDocument = internalMutation({
     metadata: v.optional(v.any()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
+    teamTags: v.optional(v.array(v.string())),
     createdBy: v.optional(v.string()),
   },
   returns: v.object({
@@ -765,6 +766,7 @@ export const uploadFile = action({
     fileData: v.bytes(),
     contentType: v.string(),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: uploadFileResponseValidator,
   handler: async (
@@ -870,6 +872,7 @@ export const uploadFile = action({
           mimeType: args.contentType,
           metadata: documentMetadata,
           createdBy: identity.subject,
+          teamTags: args.teamTags,
         });
 
       return {
@@ -900,6 +903,7 @@ export const createOneDriveSyncConfig = mutationWithRLS({
     itemPath: v.optional(v.string()),
     targetBucket: v.string(),
     storagePrefix: v.optional(v.string()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: createOneDriveSyncConfigResponseValidator,
   handler: async (ctx, args) => {
@@ -935,7 +939,10 @@ export const createDocumentFromUpload = mutationWithRLS({
     try {
       // Get current authenticated user for createdBy tracking
       const authUser = await getAuthenticatedUser(ctx);
-      const createdBy = authUser?.userId;
+      if (!authUser) {
+        return { success: false, error: 'Not authenticated' };
+      }
+      const createdBy = authUser.userId;
 
       // Check if a document with the same name already exists
       const existingDocument = await DocumentsModel.findDocumentByTitle(ctx, {
@@ -977,7 +984,7 @@ export const createDocumentFromUpload = mutationWithRLS({
           externalItemId,
           metadata: documentMetadata,
           teamTags: args.teamTags,
-          userId: authUser?.userId,
+          userId: authUser.userId,
         });
 
         return {
