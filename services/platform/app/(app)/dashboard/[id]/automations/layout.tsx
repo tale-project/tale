@@ -127,35 +127,46 @@ export default function AutomationsLayout({
     <>
       <AdaptiveHeaderRoot standalone={false} showBorder className="gap-2">
         <h1 className="text-base font-semibold truncate">
-          {/* "Automations /" prefix - hidden on mobile */}
+          {/* "Automations" title - always visible, becomes breadcrumb prefix on desktop when automation is selected */}
           <span
             role="button"
             tabIndex={0}
             onClick={handleClickAutomation}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleClickAutomation();
+              }
+            }}
             className={cn(
-              'hidden md:inline text-foreground',
-              automation?.name && 'text-muted-foreground cursor-pointer',
+              'text-foreground',
+              automation?.name &&
+                'hidden md:inline text-muted-foreground cursor-pointer',
             )}
           >
-            {t('title')}&nbsp;&nbsp;
+            {t('title')}
           </span>
           {automation?.name && !editMode && (
-            <span
-              role="button"
-              tabIndex={0}
-              className="text-foreground cursor-pointer"
-              onClick={() => setEditMode(true)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setEditMode(true);
-                }
-              }}
-            >
+            <>
               {/* "/" separator - hidden on mobile */}
-              <span className="hidden md:inline">/&nbsp;&nbsp;</span>
-              {automation?.name}
-            </span>
+              <span className="hidden md:inline">
+                &nbsp;&nbsp;/&nbsp;&nbsp;
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                className="text-foreground cursor-pointer"
+                onClick={() => setEditMode(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEditMode(true);
+                  }
+                }}
+              >
+                {automation?.name}
+              </span>
+            </>
           )}
         </h1>
         {editMode && (
