@@ -35,7 +35,7 @@ export function TeamEditDialog({
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tSettings('teams.teamNameRequired')),
+        name: z.string().trim().min(1, tSettings('teams.teamNameRequired')),
       }),
     [tSettings],
   );
@@ -61,7 +61,7 @@ export function TeamEditDialog({
     try {
       const result = await authClient.organization.updateTeam({
         teamId: team.id,
-        data: { name: data.name.trim() },
+        data: { name: data.name },
       });
 
       if (result.error) {
