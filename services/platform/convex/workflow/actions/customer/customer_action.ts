@@ -34,11 +34,12 @@ import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { QueryResult } from '../conversation/helpers/types';
 import {
-  customerStatusValidator,
-  customerSourceValidator,
-  customerAddressValidator,
-} from '../../../model/customers/validators';
-import type { DataSource } from '../../../model/common/validators';
+	customerStatusValidator,
+	customerSourceValidator,
+	customerAddressValidator,
+} from '../../../../lib/shared/validators/customers';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
+import type { DataSource } from '../../../../lib/shared/validators/common';
 
 // Type definitions for customer operations
 type CreateCustomerResult = {
@@ -49,15 +50,14 @@ type CreateCustomerResult = {
 // Common field validators
 const statusValidator = v.optional(customerStatusValidator);
 
-// Customer update validator - must match internal.customers.updateCustomers
 const customerUpdateValidator = v.object({
-  name: v.optional(v.string()),
-  email: v.optional(v.string()),
-  status: v.optional(customerStatusValidator),
-  source: v.optional(v.string()),
-  locale: v.optional(v.string()),
-  address: v.optional(customerAddressValidator),
-  metadata: v.optional(v.record(v.string(), v.any())),
+	name: v.optional(v.string()),
+	email: v.optional(v.string()),
+	status: v.optional(customerStatusValidator),
+	source: v.optional(v.string()),
+	locale: v.optional(v.string()),
+	address: v.optional(customerAddressValidator),
+	metadata: v.optional(jsonRecordValidator),
 });
 
 const paginationOptsValidator = v.object({
@@ -120,7 +120,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
       source: customerSourceValidator,
       locale: v.optional(v.string()),
       address: v.optional(customerAddressValidator),
-      metadata: v.optional(v.record(v.string(), v.any())),
+      metadata: v.optional(jsonRecordValidator),
     }),
     // filter: Filter customers using JEXL expressions
     v.object({

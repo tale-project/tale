@@ -40,7 +40,7 @@
 - CONSIDER TO preload queries with `preloadQuery` and `usePreloadedQuery` in React.
 - CONSIDER TO use rate limiting and action caching.
 - DO NOT use `.collect()`, use `const query = ...; for await (const ... of query)` instead.
-- ALWAYS share validation schemas between client and server using Zod. Validators are organized per domain in `src/lib/shared/validators/` (e.g., `members.ts`, `products.ts`). Import from `src/lib/shared/validators` on both client and server. DO NOT duplicate validation logic.
+- ALWAYS share validation schemas between client and server using Zod. Validators are organized per domain in `lib/shared/validators/` (e.g., `members.ts`, `products.ts`). Import from `lib/shared/validators` on both client and server. DO NOT duplicate validation logic.
 - Backend functions should return raw data only. All filtering, sorting, pagination happens on the client.
 - DO NOT keep deprecated functions. Remove them entirely instead of marking with `@deprecated`.
 - AVOID conditional endpoint determination. Use separate hardcoded fetch calls instead of if/else to determine endpoints dynamically.

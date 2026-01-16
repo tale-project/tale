@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 const emailProviderVendorValidator = v.union(
   v.literal('gmail'),
@@ -120,5 +121,5 @@ const emailProviderDocValidator = v.object({
   lastTestedAt: v.optional(v.number()),
   lastSyncAt: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });

@@ -9,6 +9,7 @@ import { deleteDocumentById } from './helpers/delete_document';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import { teamIdToDatasetName, DEFAULT_DATASET_NAME } from '../../../lib/get_user_teams';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -25,7 +26,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       operation: v.literal('upload_text'),
       recordId: v.optional(v.string()),
       content: v.string(),
-      metadata: v.any(),
+      metadata: jsonRecordValidator,
     }),
     v.object({
       operation: v.literal('delete_document'),

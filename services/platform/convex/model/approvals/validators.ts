@@ -4,6 +4,7 @@
 
 import { v } from 'convex/values';
 
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 import { priorityValidator } from '../common/validators';
 
 /**
@@ -48,7 +49,7 @@ export const approvalItemValidator = v.object({
   dueDate: v.optional(v.number()),
   executedAt: v.optional(v.number()),
   executionError: v.optional(v.string()),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
   threadId: v.optional(v.string()),
   messageId: v.optional(v.string()),
 });

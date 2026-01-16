@@ -20,6 +20,9 @@ import {
   bulkOperationResultValidator,
   conversationStatusValidator,
   conversationPriorityValidator,
+  attachmentValidator,
+  messageStatusValidator,
+  jsonRecordValidator,
 } from './model/conversations/validators';
 
 // =============================================================================
@@ -38,8 +41,7 @@ export const createConversation = internalMutation({
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
     providerId: v.optional(v.id('emailProviders')),
-
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -65,19 +67,19 @@ export const createConversationWithMessage = internalMutation({
     channel: v.optional(v.string()),
     direction: v.optional(v.union(v.literal('inbound'), v.literal('outbound'))),
     providerId: v.optional(v.id('emailProviders')),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
 
     // Initial message fields
     initialMessage: v.object({
       sender: v.string(),
       content: v.string(),
       isCustomer: v.boolean(),
-      status: v.optional(v.string()),
-      attachment: v.optional(v.any()),
+      status: v.optional(messageStatusValidator),
+      attachment: v.optional(attachmentValidator),
       externalMessageId: v.optional(v.string()),
-      metadata: v.optional(v.any()),
-      sentAt: v.optional(v.number()), // Timestamp when message was sent (for outbound) or received (for inbound)
-      deliveredAt: v.optional(v.number()), // Timestamp when message was delivered (for email sync)
+      metadata: v.optional(jsonRecordValidator),
+      sentAt: v.optional(v.number()),
+      deliveredAt: v.optional(v.number()),
     }),
   },
   returns: v.object({
@@ -113,7 +115,7 @@ export const getConversationById = internalQuery({
       providerId: v.optional(v.id('emailProviders')),
       lastMessageAt: v.optional(v.number()),
 
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     v.null(),
   ),
@@ -149,7 +151,7 @@ export const getConversationByExternalMessageId = internalQuery({
       providerId: v.optional(v.id('emailProviders')),
       lastMessageAt: v.optional(v.number()),
 
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     v.null(),
   ),
@@ -186,7 +188,7 @@ export const getMessageByExternalId = internalQuery({
       content: v.string(),
       sentAt: v.optional(v.number()),
       deliveredAt: v.optional(v.number()),
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     v.null(),
   ),
@@ -228,7 +230,7 @@ export const queryConversations = internalQuery({
         ),
         providerId: v.optional(v.id('emailProviders')),
         lastMessageAt: v.optional(v.number()),
-        metadata: v.optional(v.any()),
+        metadata: v.optional(jsonRecordValidator),
       }),
     ),
     isDone: v.boolean(),
@@ -267,7 +269,7 @@ export const queryConversationMessages = internalQuery({
         content: v.string(),
         sentAt: v.optional(v.number()),
         deliveredAt: v.optional(v.number()),
-        metadata: v.optional(v.any()),
+        metadata: v.optional(jsonRecordValidator),
       }),
     ),
     isDone: v.boolean(),
@@ -310,7 +312,7 @@ export const queryLatestMessageByDeliveryState = internalQuery({
         content: v.string(),
         sentAt: v.optional(v.number()),
         deliveredAt: v.optional(v.number()),
-        metadata: v.optional(v.any()),
+        metadata: v.optional(jsonRecordValidator),
       }),
       v.null(),
     ),
@@ -336,8 +338,7 @@ export const updateConversations = internalMutation({
       status: v.optional(conversationStatusValidator),
       priority: v.optional(conversationPriorityValidator),
       type: v.optional(v.string()),
-
-      metadata: v.optional(v.record(v.string(), v.any())),
+      metadata: v.optional(jsonRecordValidator),
     }),
   },
   returns: v.object({
@@ -358,10 +359,10 @@ export const addMessageToConversationInternal = internalMutation({
     content: v.string(),
     isCustomer: v.boolean(),
     status: v.optional(v.string()),
-    attachment: v.optional(v.any()),
+    attachment: v.optional(attachmentValidator),
     providerId: v.optional(v.id('emailProviders')), // Email provider ID (stored on conversation, not message)
     externalMessageId: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
     sentAt: v.optional(v.number()), // Timestamp when message was sent (for outbound) or received (for inbound)
     deliveredAt: v.optional(v.number()), // Timestamp when message was delivered (for email sync)
   },
@@ -385,7 +386,7 @@ export const updateConversationMessageInternal = internalMutation({
     ),
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
     retryCount: v.optional(v.number()),
   },
   returns: v.null(),
@@ -473,7 +474,7 @@ export const getConversation = queryWithRLS({
       providerId: v.optional(v.id('emailProviders')),
       lastMessageAt: v.optional(v.number()),
 
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
   ),
   handler: async (ctx, args) => {
@@ -501,7 +502,7 @@ export const updateConversation = mutationWithRLS({
     status: v.optional(conversationStatusValidator),
     priority: v.optional(conversationPriorityValidator),
     type: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -518,7 +519,7 @@ export const addMessageToConversation = mutationWithRLS({
     content: v.string(),
     isCustomer: v.boolean(),
     status: v.optional(v.string()),
-    attachment: v.optional(v.any()),
+    attachment: v.optional(attachmentValidator),
     providerId: v.optional(v.id('emailProviders')), // Email provider ID (stored on conversation, not message)
     externalMessageId: v.optional(v.string()),
   },

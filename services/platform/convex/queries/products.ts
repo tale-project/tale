@@ -17,6 +17,7 @@ import * as ProductsModel from '../model/products';
 
 /**
  * Get a product by ID (internal operation)
+ * Returns raw database document (not transformed API response)
  */
 export const getProductById = internalQuery({
   args: {

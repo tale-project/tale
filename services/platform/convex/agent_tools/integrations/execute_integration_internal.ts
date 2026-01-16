@@ -7,6 +7,7 @@
 
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../lib/shared/validators/utils/json-value';
 import { integrationAction } from '../../workflow/actions/integration/integration_action';
 
 /**
@@ -17,7 +18,7 @@ export const executeIntegrationInternal = internalAction({
     organizationId: v.string(),
     integrationName: v.string(),
     operation: v.string(),
-    params: v.optional(v.any()),
+    params: v.optional(jsonRecordValidator),
     // Skip approval check - used when executing an already approved operation
     skipApprovalCheck: v.optional(v.boolean()),
     // Thread ID for linking approvals to chat

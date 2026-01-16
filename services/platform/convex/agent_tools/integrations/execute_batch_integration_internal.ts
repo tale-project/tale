@@ -9,6 +9,7 @@
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
+import { jsonValueValidator, jsonRecordValidator } from '../../lib/shared/validators/utils/json-value';
 import type { SqlExecutionResult } from '../../node_only/sql/types';
 import { isIntrospectionOperation } from '../../workflow/actions/integration/helpers/is_introspection_operation';
 import { getIntrospectTablesQuery } from '../../workflow/actions/integration/helpers/get_introspect_tables_query';
@@ -26,7 +27,7 @@ const operationResultValidator = v.object({
   id: v.optional(v.string()),
   operation: v.string(),
   success: v.boolean(),
-  data: v.optional(v.any()),
+  data: v.optional(jsonValueValidator),
   error: v.optional(v.string()),
   duration: v.optional(v.number()),
   rowCount: v.optional(v.number()),
@@ -89,7 +90,7 @@ export const executeBatchIntegrationInternal = internalAction({
       v.object({
         id: v.optional(v.string()),
         operation: v.string(),
-        params: v.optional(v.any()),
+        params: v.optional(jsonRecordValidator),
       }),
     ),
     threadId: v.optional(v.string()),

@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 export const workflowStatusValidator = v.union(
   v.literal('draft'),
@@ -20,7 +21,7 @@ export const workflowConfigValidator = v.object({
       backoffMs: v.number(),
     }),
   ),
-  variables: v.optional(v.record(v.string(), v.any())),
+  variables: v.optional(jsonRecordValidator),
   secrets: v.optional(
     v.record(
       v.string(),
@@ -40,5 +41,5 @@ export const workflowUpdateValidator = v.object({
   status: v.optional(workflowStatusValidator),
   workflowType: v.optional(workflowTypeValidator),
   config: v.optional(workflowConfigValidator),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });

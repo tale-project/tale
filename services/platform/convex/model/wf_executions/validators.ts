@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator, jsonValueValidator } from '../../../lib/shared/validators/utils/json-value';
 
 export const updateExecutionStatusArgsValidator = {
   executionId: v.id('wfExecutions'),
@@ -14,7 +15,7 @@ export const updateExecutionStatusArgsValidator = {
 
 export const completeExecutionArgsValidator = {
   executionId: v.id('wfExecutions'),
-  output: v.any(),
+  output: jsonValueValidator,
   variablesSerialized: v.optional(v.string()),
   variablesStorageId: v.optional(v.id('_storage')),
 };
@@ -38,7 +39,7 @@ export const resumeExecutionArgsValidator = {
   executionId: v.id('wfExecutions'),
   variablesSerialized: v.optional(v.string()),
   variablesStorageId: v.optional(v.id('_storage')),
-  metadata: v.optional(v.record(v.string(), v.any())),
+  metadata: v.optional(jsonRecordValidator),
 };
 
 export const setComponentWorkflowArgsValidator = {
@@ -48,7 +49,7 @@ export const setComponentWorkflowArgsValidator = {
 
 export const updateExecutionMetadataArgsValidator = {
   executionId: v.id('wfExecutions'),
-  metadata: v.record(v.string(), v.any()),
+  metadata: jsonRecordValidator,
 };
 
 export const updateExecutionVariablesArgsValidator = {

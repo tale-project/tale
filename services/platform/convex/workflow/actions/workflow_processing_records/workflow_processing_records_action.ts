@@ -10,6 +10,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { findUnprocessed } from './helpers/find_unprocessed';
@@ -93,7 +94,7 @@ organizationId and rootWfDefinitionId are automatically read from workflow conte
         operation: v.literal('record_processed'),
         tableName: tableNameValidator,
         recordId: v.string(),
-        metadata: v.optional(v.any()),
+        metadata: v.optional(jsonRecordValidator),
       }),
     ),
 

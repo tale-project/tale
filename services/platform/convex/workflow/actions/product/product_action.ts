@@ -34,22 +34,18 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { QueryResult } from '../conversation/helpers/types';
+import { productStatusValidator } from '../../../../lib/shared/validators/products';
+import {
+	jsonRecordValidator,
+	jsonValueValidator,
+} from '../../../../lib/shared/validators/utils/json-value';
 
-// Type definitions for product operations
 type CreateProductResult = {
-  success: boolean;
-  productId: Id<'products'>;
+	success: boolean;
+	productId: Id<'products'>;
 };
 
-// Common field validators
-const statusValidator = v.optional(
-  v.union(
-    v.literal('active'),
-    v.literal('inactive'),
-    v.literal('draft'),
-    v.literal('archived'),
-  ),
-);
+const statusValidator = v.optional(productStatusValidator);
 
 const paginationOptsValidator = v.object({
   numItems: v.number(),
@@ -123,7 +119,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
       tags: v.optional(v.array(v.string())),
       status: statusValidator,
       externalId: externalIdValidator,
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     // get_by_id: Get a product by ID
     v.object({
@@ -142,7 +138,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
     v.object({
       operation: v.literal('update'),
       productId: v.id('products'),
-      updates: v.record(v.string(), v.any()),
+      updates: v.record(v.string(), jsonValueValidator),
     }),
     // filter: Filter products using JEXL expressions
     v.object({
@@ -152,7 +148,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
     // hydrate_fields: Hydrate product fields from database
     v.object({
       operation: v.literal('hydrate_fields'),
-      items: v.any(),
+      items: jsonValueValidator,
       idField: v.optional(v.string()),
       mappings: v.optional(v.record(v.string(), v.string())),
       preserveExisting: v.optional(v.boolean()),

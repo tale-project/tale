@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 /**
  * Organization validator
@@ -13,7 +14,7 @@ export const organizationValidator = v.object({
   name: v.string(),
   slug: v.optional(v.string()),
   logoId: v.optional(v.id('_storage')),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**

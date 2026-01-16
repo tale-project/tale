@@ -18,6 +18,7 @@ import {
   customerAddressValidator,
   customerValidator,
 } from './model/customers/validators';
+import { jsonRecordValidator } from '../lib/shared/validators/utils/json-value';
 
 // =============================================================================
 // INTERNAL OPERATIONS (without RLS)
@@ -36,7 +37,7 @@ export const createCustomer = internalMutation({
     locale: v.optional(v.string()),
     address: v.optional(customerAddressValidator),
     externalId: v.optional(v.union(v.string(), v.number())),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -57,7 +58,7 @@ export const findOrCreateCustomer = internalMutation({
     name: v.optional(v.string()),
     source: customerSourceValidator,
     status: v.optional(customerStatusValidator),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
     customerId: v.id('customers'),
@@ -126,7 +127,7 @@ export const updateCustomers = internalMutation({
       source: v.optional(v.string()),
       locale: v.optional(v.string()),
       address: v.optional(customerAddressValidator),
-      metadata: v.optional(v.record(v.string(), v.any())),
+      metadata: v.optional(jsonRecordValidator),
     }),
   },
   returns: v.object({
@@ -215,7 +216,7 @@ export const updateCustomer = mutationWithRLS({
     source: v.optional(customerSourceValidator),
     locale: v.optional(v.string()),
     address: v.optional(customerAddressValidator),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   handler: async (ctx, args) => {
     return await CustomersModel.updateCustomer(ctx, args);
@@ -249,7 +250,7 @@ export const bulkCreateCustomers = mutationWithRLS({
         source: customerSourceValidator,
         locale: v.optional(v.string()),
         address: v.optional(customerAddressValidator),
-        metadata: v.optional(v.any()),
+        metadata: v.optional(jsonRecordValidator),
       }),
     ),
   },

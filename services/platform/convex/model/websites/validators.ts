@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 /**
  * Website status validator
@@ -26,7 +27,7 @@ export const websiteValidator = v.object({
   scanInterval: v.string(),
   lastScannedAt: v.optional(v.number()),
   status: v.optional(websiteStatusValidator),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**
@@ -42,6 +43,6 @@ export const websitePageValidator = v.object({
   content: v.optional(v.string()),
   wordCount: v.optional(v.number()),
   lastCrawledAt: v.number(),
-  metadata: v.optional(v.record(v.string(), v.any())),
-  structuredData: v.optional(v.record(v.string(), v.any())),
+  metadata: v.optional(jsonRecordValidator),
+  structuredData: v.optional(jsonRecordValidator),
 });

@@ -4,6 +4,7 @@
 
 import { v } from 'convex/values';
 
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 export * from '../common/validators';
 
 /**
@@ -18,7 +19,7 @@ export const memberListItemValidator = v.object({
   email: v.optional(v.string()),
   role: v.optional(v.string()),
   displayName: v.optional(v.string()),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**

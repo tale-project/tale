@@ -1,77 +1,7 @@
 /**
  * Convex validators for product operations
+ * Re-exports shared validators for use in Convex functions
  */
-
-import { v } from 'convex/values';
 
 export * from '../common/validators';
-
-/**
- * Product status validator
- */
-export const productStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('inactive'),
-  v.literal('draft'),
-  v.literal('archived'),
-);
-
-/**
- * Product translation validator
- */
-export const productTranslationValidator = v.object({
-  language: v.string(),
-  name: v.optional(v.string()),
-  description: v.optional(v.string()),
-  category: v.optional(v.string()),
-  tags: v.optional(v.array(v.string())),
-  metadata: v.optional(v.any()),
-  createdAt: v.optional(v.number()),
-  lastUpdated: v.number(),
-});
-
-const productMetadataValidator = v.any();
-
-/**
- * Product sort field validator
- */
-export const productSortByValidator = v.union(
-  v.literal('name'),
-  v.literal('createdAt'),
-  v.literal('lastUpdated'),
-  v.literal('stock'),
-  v.literal('price'),
-);
-
-/**
- * Product item validator (for responses)
- */
-export const productItemValidator = v.object({
-  id: v.string(),
-  name: v.string(),
-  description: v.optional(v.string()),
-  imageUrl: v.optional(v.string()),
-  stock: v.optional(v.number()),
-  price: v.optional(v.number()),
-  currency: v.optional(v.string()),
-  category: v.optional(v.string()),
-  tags: v.optional(v.array(v.string())),
-  status: v.optional(productStatusValidator),
-  lastUpdated: v.number(),
-  createdAt: v.number(),
-  relatedProductsCount: v.optional(v.number()),
-  translations: v.optional(v.array(productTranslationValidator)),
-  metadata: v.optional(productMetadataValidator),
-});
-
-/**
- * Product list response validator
- */
-export const productListResponseValidator = v.object({
-  products: v.array(productItemValidator),
-  total: v.number(),
-  hasNextPage: v.boolean(),
-  currentPage: v.number(),
-  pageSize: v.number(),
-  error: v.optional(v.string()),
-});
+export * from '../../../lib/shared/validators/products';

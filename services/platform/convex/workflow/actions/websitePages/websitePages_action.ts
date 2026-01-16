@@ -4,6 +4,7 @@ import type {
   WebsitePagesActionParams,
 } from './helpers/types';
 import { internal } from '../../../_generated/api';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 // Page validator
 const pageValidator = v.object({
@@ -13,9 +14,9 @@ const pageValidator = v.object({
   content: v.optional(v.string()),
   wordCount: v.optional(v.number()),
   word_count: v.optional(v.number()),
-  metadata: v.optional(v.any()),
-  structuredData: v.optional(v.any()),
-  structured_data: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
+  structuredData: v.optional(jsonRecordValidator),
+  structured_data: v.optional(jsonRecordValidator),
 });
 
 export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {

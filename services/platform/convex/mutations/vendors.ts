@@ -2,6 +2,7 @@
  * Vendors Mutations
  *
  * All mutation operations for vendors.
+import { jsonRecordValidator } from '../lib/shared/validators/utils/json-value';
  * Business logic is in convex/model/vendors/
  */
 
@@ -29,7 +30,7 @@ export const updateVendor = mutationWithRLS({
     locale: v.optional(v.string()),
     address: v.optional(vendorAddressValidator),
     tags: v.optional(v.array(v.string())),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

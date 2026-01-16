@@ -7,6 +7,7 @@
 
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
+import { jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
 import { internal, components } from '../../_generated/api';
 import type { WorkflowCreationMetadata } from '../../model/approvals/types';
 import { saveMessage } from '@convex-dev/agent';
@@ -19,7 +20,7 @@ export const executeApprovedWorkflowCreation = internalAction({
     approvalId: v.id('approvals'),
     approvedBy: v.string(),
   },
-  returns: v.any(),
+  returns: jsonValueValidator,
   handler: async (ctx, args): Promise<unknown> => {
     // Get the approval record
     const approval: {

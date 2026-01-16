@@ -19,6 +19,7 @@
 import { v } from 'convex/values';
 import type { ActionDefinition } from '../helpers/nodes/action/types';
 import { replaceVariables } from '../../lib/variables/replace_variables';
+import { jsonValueValidator } from '../../../lib/shared/validators/utils/json-value';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -35,7 +36,7 @@ export const setVariablesAction: ActionDefinition<{
     variables: v.array(
       v.object({
         name: v.string(),
-        value: v.any(),
+        value: jsonValueValidator,
         secure: v.optional(v.boolean()),
       }),
     ),

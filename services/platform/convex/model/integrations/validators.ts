@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 /**
  * Integration type validator
@@ -120,7 +121,7 @@ export const connectorOperationValidator = v.object({
   name: v.string(),
   title: v.optional(v.string()),
   description: v.optional(v.string()),
-  parametersSchema: v.optional(v.any()),
+  parametersSchema: v.optional(jsonRecordValidator),
   // Operation type: 'read' or 'write' - defaults to 'read' if not specified
   operationType: v.optional(operationTypeValidator),
   // Whether this operation requires user approval before execution
@@ -183,7 +184,7 @@ export const sqlOperationValidator = v.object({
   title: v.optional(v.string()),
   description: v.optional(v.string()),
   query: v.string(),
-  parametersSchema: v.optional(v.any()),
+  parametersSchema: v.optional(jsonRecordValidator),
   // Operation type: 'read' or 'write' - defaults to 'read' if not specified
   operationType: v.optional(operationTypeValidator),
   // Whether this operation requires user approval before execution
@@ -237,5 +238,5 @@ export const integrationDocValidator = v.object({
   connector: v.optional(connectorConfigValidator),
   sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
   sqlOperations: v.optional(v.array(sqlOperationValidator)),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });

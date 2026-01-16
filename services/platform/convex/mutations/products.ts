@@ -2,6 +2,7 @@
  * Products Mutations
  *
  * All mutation operations for products.
+import { jsonRecordValidator } from '../lib/shared/validators/utils/json-value';
  * Business logic is in convex/model/products/
  */
 
@@ -30,7 +31,7 @@ export const createProduct = internalMutation({
     tags: v.optional(v.array(v.string())),
     status: v.optional(ProductsModel.productStatusValidator),
     externalId: v.optional(v.union(v.string(), v.number())),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.object({
     success: v.boolean(),
@@ -65,7 +66,7 @@ export const updateProducts = internalMutation({
       tags: v.optional(v.array(v.string())),
       status: v.optional(ProductsModel.productStatusValidator),
       externalId: v.optional(v.union(v.string(), v.number())),
-      metadata: v.optional(v.record(v.string(), v.any())),
+      metadata: v.optional(jsonRecordValidator),
     }),
   },
   returns: v.object({
@@ -100,7 +101,7 @@ export const createProductPublic = mutationWithRLS({
     translations: v.optional(
       v.array(ProductsModel.productTranslationValidator),
     ),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
@@ -126,7 +127,7 @@ export const updateProduct = mutationWithRLS({
     translations: v.optional(
       v.array(ProductsModel.productTranslationValidator),
     ),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
@@ -158,7 +159,7 @@ export const upsertProductTranslation = mutationWithRLS({
     description: v.optional(v.string()),
     category: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {

@@ -7,6 +7,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../lib/shared/validators/utils/json-value';
 
 /**
  * Standard termination signal that LLM agents can return
@@ -29,7 +30,7 @@ export const workflowTerminationSignalValidator = v.object({
     v.literal('CONDITION_NOT_MET'),
     v.literal('EARLY_EXIT'),
   ),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**

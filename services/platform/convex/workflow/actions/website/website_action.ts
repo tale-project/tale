@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { WebsiteActionParams } from './helpers/types';
 import { internal } from '../../../_generated/api';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 // Common field validators
 const statusValidator = v.optional(
@@ -24,7 +25,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
       scanInterval: v.optional(v.string()),
       lastScannedAt: v.optional(v.number()),
       status: statusValidator,
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     // update: Update an existing website
     v.object({
@@ -36,7 +37,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
       scanInterval: v.optional(v.string()),
       lastScannedAt: v.optional(v.number()),
       status: statusValidator,
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     // get_by_domain: Get a website by domain
     v.object({

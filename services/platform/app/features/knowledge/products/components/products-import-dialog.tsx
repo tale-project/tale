@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, FormProvider } from 'react-hook-form';
 import { toast } from '@/app/hooks/use-toast';
-import { ProductStatus, PRODUCT_STATUS } from '@/constants/convex-enums';
+import { ProductStatus, PRODUCT_STATUS } from '@/lib/shared/constants/convex-enums';
 import { useT } from '@/lib/i18n/client';
 import { useCreateProduct } from '../hooks/use-create-product';
 import { useFileImport, productMappers } from '@/app/hooks/use-file-import';

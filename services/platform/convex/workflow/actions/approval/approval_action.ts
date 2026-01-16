@@ -9,6 +9,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import type { Id } from '../../../_generated/dataModel';
 import { createApproval } from './helpers/create_approval';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 // Common field validators
 const priorityValidator = v.union(
@@ -49,7 +50,7 @@ export const approvalAction: ActionDefinition<ApprovalActionParams> = {
       dueDate: v.optional(v.number()),
       description: v.optional(v.string()),
       stepSlug: v.optional(v.string()),
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
   ),
 

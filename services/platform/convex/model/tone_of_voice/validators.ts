@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 /**
  * Tone of voice validator
@@ -13,7 +14,7 @@ export const toneOfVoiceValidator = v.object({
   organizationId: v.string(),
   generatedTone: v.optional(v.string()),
   lastUpdated: v.number(),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**
@@ -27,7 +28,7 @@ export const exampleMessageValidator = v.object({
   content: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**

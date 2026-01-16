@@ -18,6 +18,7 @@ import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integr
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
 import { isSqlIntegration } from '../../../model/integrations/guards/is_sql_integration';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -44,7 +45,7 @@ export const integrationAction: ActionDefinition<{
   parametersValidator: v.object({
     name: v.string(),
     operation: v.string(),
-    params: v.optional(v.any()),
+    params: v.optional(jsonRecordValidator),
     skipApprovalCheck: v.optional(v.boolean()),
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),

@@ -1,6 +1,7 @@
 /**
  * Workflow Scheduler - Thin wrappers for scheduler functionality
  *
+import { jsonValueValidator } from './lib/json_value_validator';
  * This file contains only thin wrapper functions that call the helper functions.
  * All business logic is in convex/workflow/helpers/scheduler/
  */
@@ -52,7 +53,7 @@ export const getLastExecutionTimes = internalQuery({
 export const triggerWorkflowById = internalAction({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
-    input: v.optional(v.any()),
+    input: v.optional(jsonValueValidator),
     triggeredBy: v.optional(v.string()),
   },
   returns: v.string(),

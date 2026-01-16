@@ -182,7 +182,7 @@ export const actionNodeConfigValidator = v.object({
 
 export const loopNodeConfigValidator = v.object({
   maxIterations: v.optional(v.number()),
-  items: v.optional(v.any()),
+  items: v.optional(jsonValueValidator),
   itemVariable: v.optional(v.string()),
   indexVariable: v.optional(v.string()),
   continueOnError: v.optional(v.boolean()),

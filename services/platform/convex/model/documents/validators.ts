@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
 export * from '../common/validators';
 
@@ -118,7 +119,7 @@ export const documentRecordValidator = v.object({
   fileId: v.optional(v.id('_storage')),
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
   // Team tags for multi-tenancy support
@@ -281,7 +282,7 @@ export const documentByExtensionItemValidator = v.object({
   fileId: v.optional(v.id('_storage')),
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
 });
 
 /**

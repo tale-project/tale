@@ -20,6 +20,10 @@ import { updateConversations } from './helpers/update_conversations';
 import { createConversationFromEmail } from './helpers/create_conversation_from_email';
 import { createConversationFromSentEmail } from './helpers/create_conversation_from_sent_email';
 import type { ConversationStatus, ConversationPriority } from './helpers/types';
+import {
+	jsonRecordValidator,
+	jsonValueValidator,
+} from '../../../../lib/shared/validators/utils/json-value';
 
 // Common field validators
 const paginationOptsValidator = v.object({
@@ -137,7 +141,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       channel: v.optional(v.string()),
       direction: v.optional(directionValidator),
       providerId: v.optional(v.id('emailProviders')),
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
     }),
     // get_by_id: Get a conversation by ID
     v.object({
@@ -164,12 +168,12 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
     v.object({
       operation: v.literal('update'),
       conversationId: v.id('conversations'),
-      updates: v.any(),
+      updates: v.record(v.string(), jsonValueValidator),
     }),
     // create_from_email: Create conversation from inbound email
     v.object({
       operation: v.literal('create_from_email'),
-      emails: v.any(),
+      emails: jsonValueValidator,
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),
       providerId: v.optional(v.id('emailProviders')),
@@ -178,7 +182,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
     // create_from_sent_email: Create conversation from sent email
     v.object({
       operation: v.literal('create_from_sent_email'),
-      emails: v.any(),
+      emails: jsonValueValidator,
       accountEmail: v.optional(v.string()),
       status: v.optional(statusValidator),
       priority: v.optional(priorityValidator),

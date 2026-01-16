@@ -3,6 +3,7 @@
  */
 
 import { v } from 'convex/values';
+import { jsonRecordValidator, jsonValueValidator } from '../../../lib/shared/validators/utils/json-value';
 
 import { dataSourceValidator } from '../common/validators';
 
@@ -42,7 +43,7 @@ export const vendorItemValidator = v.object({
   locale: v.optional(v.string()),
   address: v.optional(vendorAddressValidator),
   tags: v.optional(v.array(v.string())),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
   notes: v.optional(v.string()),
 });
 
@@ -58,7 +59,7 @@ export const vendorInputValidator = v.object({
   locale: v.optional(v.string()),
   address: v.optional(vendorAddressValidator),
   tags: v.optional(v.array(v.string())),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(jsonRecordValidator),
   notes: v.optional(v.string()),
 });
 
@@ -81,7 +82,7 @@ export const vendorListResponseValidator = v.object({
 export const bulkCreateErrorItemValidator = v.object({
   index: v.number(),
   error: v.string(),
-  vendor: v.any(),
+  vendor: jsonValueValidator,
 });
 
 /**

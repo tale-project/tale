@@ -7,17 +7,17 @@
  */
 
 import {
-  mutation,
-  internalMutation,
-  internalAction,
+	mutation,
+	internalMutation,
+	internalAction,
 } from '../_generated/server';
 import { v } from 'convex/values';
 import { vWorkflowId } from '@convex-dev/workflow';
 import { WorkflowManager } from '@convex-dev/workflow';
 import { components } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import { jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
 
-// Import all helper functions as a namespace
 import * as EngineHelpers from './helpers/engine';
 
 // =============================================================================
@@ -34,21 +34,21 @@ export const workflowManager = new WorkflowManager(components.workflow);
 // =============================================================================
 
 export const dynamicWorkflow = workflowManager.define({
-  args: {
-    organizationId: v.string(),
-    executionId: v.id('wfExecutions'),
-    workflowDefinition: v.any(),
-    steps: v.array(v.any()),
-    input: v.optional(v.any()),
-    triggeredBy: v.string(),
-    triggerData: v.optional(v.any()),
-    resumeFromStepSlug: v.optional(v.string()),
-    resumeVariables: v.optional(v.any()),
-    threadId: v.optional(v.string()), // Shared thread for agent orchestration workflows
-  },
-  handler: async (step, args): Promise<void> => {
-    await EngineHelpers.handleDynamicWorkflow(step, args);
-  },
+	args: {
+		organizationId: v.string(),
+		executionId: v.id('wfExecutions'),
+		workflowDefinition: jsonValueValidator,
+		steps: v.array(jsonValueValidator),
+		input: v.optional(jsonValueValidator),
+		triggeredBy: v.string(),
+		triggerData: v.optional(jsonValueValidator),
+		resumeFromStepSlug: v.optional(v.string()),
+		resumeVariables: v.optional(jsonValueValidator),
+		threadId: v.optional(v.string()),
+	},
+	handler: async (step, args): Promise<void> => {
+		await EngineHelpers.handleDynamicWorkflow(step, args);
+	},
 });
 
 // =============================================================================
@@ -66,17 +66,17 @@ export const dynamicWorkflow = workflowManager.define({
  * deep nesting in the mutation response logLines.
  */
 export const startWorkflow = mutation({
-  args: {
-    organizationId: v.string(),
-    wfDefinitionId: v.id('wfDefinitions'),
-    input: v.optional(v.any()),
-    triggeredBy: v.string(),
-    triggerData: v.optional(v.any()),
-  },
-  returns: v.id('wfExecutions'),
-  handler: async (ctx, args): Promise<Id<'wfExecutions'>> => {
-    return await EngineHelpers.handleStartWorkflow(ctx, args, workflowManager);
-  },
+	args: {
+		organizationId: v.string(),
+		wfDefinitionId: v.id('wfDefinitions'),
+		input: v.optional(jsonValueValidator),
+		triggeredBy: v.string(),
+		triggerData: v.optional(jsonValueValidator),
+	},
+	returns: v.id('wfExecutions'),
+	handler: async (ctx, args): Promise<Id<'wfExecutions'>> => {
+		return await EngineHelpers.handleStartWorkflow(ctx, args, workflowManager);
+	},
 });
 
 // =============================================================================
@@ -88,16 +88,16 @@ export const startWorkflow = mutation({
  * Mirrors final status to wfExecutions table.
  */
 export const onWorkflowComplete = internalMutation({
-  args: {
-    workflowId: vWorkflowId,
-    context: v.any(),
-    result: v.any(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await EngineHelpers.handleWorkflowComplete(ctx, args);
-    return null;
-  },
+	args: {
+		workflowId: vWorkflowId,
+		context: jsonValueValidator,
+		result: jsonValueValidator,
+	},
+	returns: v.null(),
+	handler: async (ctx, args) => {
+		await EngineHelpers.handleWorkflowComplete(ctx, args);
+		return null;
+	},
 });
 
 // =============================================================================
@@ -149,8 +149,8 @@ export const executeStep = internalAction({
     ),
     stepName: v.optional(v.string()),
     threadId: v.optional(v.string()),
-    initialInput: v.optional(v.any()),
-    resumeVariables: v.optional(v.any()),
+    initialInput: v.optional(jsonValueValidator),
+    resumeVariables: v.optional(jsonValueValidator),
   },
   returns: v.object({
     port: v.string(),

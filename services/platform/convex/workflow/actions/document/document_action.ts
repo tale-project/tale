@@ -13,6 +13,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import { jsonRecordValidator } from '../../../../lib/shared/validators/utils/json-value';
 
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {
@@ -41,7 +42,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
     fileId: v.optional(v.id('_storage')),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
     sourceProvider: v.optional(
       v.union(v.literal('onedrive'), v.literal('upload')),
     ),

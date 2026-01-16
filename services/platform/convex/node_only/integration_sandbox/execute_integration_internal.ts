@@ -2,6 +2,7 @@
 
 /**
  * Integration Executor using Node.js VM
+import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
  *
  * Executes integration connector code in a sandboxed Node.js VM environment.
  * Provides isolated execution with controlled HTTP access.
@@ -192,15 +193,15 @@ export const executeIntegrationInternal = internalAction({
   args: {
     code: v.string(),
     operation: v.string(),
-    params: v.any(),
-    variables: v.any(),
-    secrets: v.any(),
+    params: jsonRecordValidator,
+    variables: jsonRecordValidator,
+    secrets: jsonRecordValidator,
     allowedHosts: v.optional(v.array(v.string())),
     timeoutMs: v.optional(v.number()),
   },
   returns: v.object({
     success: v.boolean(),
-    result: v.optional(v.any()),
+    result: v.optional(jsonValueValidator),
     error: v.optional(v.string()),
     logs: v.optional(v.array(v.string())),
     duration: v.optional(v.number()),

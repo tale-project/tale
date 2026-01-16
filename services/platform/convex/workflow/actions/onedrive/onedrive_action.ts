@@ -15,6 +15,10 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import {
+	jsonRecordValidator,
+	jsonValueValidator,
+} from '../../../../lib/shared/validators/utils/json-value';
 import type {
   DocumentRecord,
   DocumentMetadata,
@@ -115,10 +119,10 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
     v.object({
       operation: v.literal('upload_to_storage'),
       fileName: v.string(),
-      fileContent: v.any(),
+      fileContent: jsonValueValidator,
       contentType: v.optional(v.string()),
       storagePath: v.optional(v.string()),
-      metadata: v.optional(v.any()),
+      metadata: v.optional(jsonRecordValidator),
       createdBy: v.optional(v.string()),
     }),
     // update_sync_config: Update OneDrive sync configuration
