@@ -382,7 +382,7 @@ class CogneeService:
             ):
                 with attempt:
                     try:
-                        # Build cognify kwargs, including user context if available
+                        # Build cognify kwargs
                         cognify_kwargs: dict[str, Any] = {
                             "datasets": [effective_dataset_name],
                             "incremental_loading": True,
@@ -390,8 +390,6 @@ class CogneeService:
                             # Smaller chunks improve retrieval precision for RAG
                             "chunk_size": settings.chunk_size,
                         }
-                        if "user" in add_kwargs:
-                            cognify_kwargs["user"] = add_kwargs["user"]
 
                         # Add custom prompt for English identifier enforcement
                         # This helps FalkorDB compatibility (Cypher parser requires ASCII)
