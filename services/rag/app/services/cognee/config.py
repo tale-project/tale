@@ -91,6 +91,21 @@ def _pre_configure_database_env() -> None:
 
     parsed = urlparse(database_url)
 
+    # Validate URL components to avoid exporting misleading defaults
+    if parsed.scheme not in ("postgresql", "postgres"):
+        logger.warning(
+            f"Invalid DATABASE_URL scheme '{parsed.scheme}' for pre-configuration; skipping DB_* export"
+        )
+        return
+    if not parsed.hostname or not parsed.username or not parsed.password:
+        logger.warning(
+            "DATABASE_URL missing required components (hostname/username/password); skipping DB_* export"
+        )
+        return
+    if not parsed.path or parsed.path == "/":
+        logger.warning("DATABASE_URL missing database name; skipping DB_* export")
+        return
+
     # Set PostgreSQL configuration for Cognee
     # These must be set BEFORE cognee imports
     os.environ["DB_PROVIDER"] = "postgres"
@@ -460,7 +475,7 @@ def _patch_falkordb_adapter_relationship_sanitize() -> None:
             Upstream: https://github.com/topoteretes/cognee-community/issues/60
             """
             query = "MATCH (n) RETURN true LIMIT 1;"
-            result = self.query(query)
+            result = await self.query(query)
             # Original bug: result_set[0][0] fails with IndexError when graph is empty
             # because an empty graph returns an empty result_set
             if not result.result_set:
