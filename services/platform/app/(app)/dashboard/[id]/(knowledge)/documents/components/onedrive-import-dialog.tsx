@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Dialog } from '@/components/ui/dialog/dialog';
 import { Button } from '@/components/ui/primitives/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/forms/radio-group';
@@ -10,7 +10,7 @@ import { DataTable } from '@/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/components/ui/layout/layout';
 import { toast } from '@/hooks/use-toast';
-import { Search, Home, Loader2, Database, X } from 'lucide-react';
+import { Search, Home, Loader2, Database, X, Users } from 'lucide-react';
 import type { DriveItem } from '@/types/microsoft-graph';
 import {
   isFolder,
@@ -19,12 +19,13 @@ import {
   formatDate,
 } from '@/lib/utils/onedrive-helpers';
 import { useQuery } from '@tanstack/react-query';
-import { useAction } from 'convex/react';
+import { useAction, useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useSyncStatus, type FileProcessingStatus } from './sync-status';
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
 import { DocumentIcon } from '@/components/ui/data-display/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
+import { camelCase } from 'lodash';
 import { useT } from '@/lib/i18n/client';
 
 interface OneDriveImportDialogProps {
@@ -36,6 +37,8 @@ interface OneDriveImportDialogProps {
 
 type ImportType = 'one-time' | 'sync';
 type Stage = 'picker' | 'settings';
+
+const noop = () => {};
 
 type OneDriveItem = {
   id: string;
@@ -111,7 +114,7 @@ function OneDriveFileTable({
           const item = row.original;
           return (
             <HStack gap={2}>
-              <DocumentIcon fileName={item.name} />
+              <DocumentIcon fileName={item.name} isFolder={isFolder(item)} />
               <div
                 title={item.name}
                 className={`font-medium text-base text-foreground truncate max-w-[25rem] ${
@@ -213,6 +216,7 @@ export function OneDriveImportDialog({
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
+  const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
 
   // Sync state management
   const [isSyncing, setIsSyncing] = useState(false);
@@ -231,6 +235,26 @@ export function OneDriveImportDialog({
   const [folderPath, setFolderPath] = useState<
     Array<{ id: string | undefined; name: string }>
   >([{ id: undefined, name: t('breadcrumb.oneDrive') }]);
+
+  // Fetch user's teams via Convex query (only in settings stage)
+  const teamsResult = useConvexQuery(
+    api.member.getMyTeams,
+    stage === 'settings' ? { organizationId } : 'skip',
+  );
+  const teams = teamsResult?.teams ?? null;
+  const isLoadingTeams = teamsResult === undefined;
+
+  const handleToggleTeam = useCallback((teamId: string) => {
+    setSelectedTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamId)) {
+        next.delete(teamId);
+      } else {
+        next.add(teamId);
+      }
+      return next;
+    });
+  }, []);
 
   // React Query for OneDrive files and folders
   const {
@@ -362,6 +386,7 @@ export function OneDriveImportDialog({
     organizationId: string,
     abortController: AbortController,
     importType: ImportType,
+    teamTags?: string[],
   ): Promise<void> => {
     return new Promise((resolve, reject) => {
       // Prepare request body with import type differentiation
@@ -369,6 +394,7 @@ export function OneDriveImportDialog({
         items,
         organizationId,
         importType, // Pass import type to backend
+        teamTags, // Pass team tags for access control
       };
 
       // Create SSE connection with POST data and abort signal
@@ -512,13 +538,13 @@ export function OneDriveImportDialog({
             });
             reject(
               new Error(
-                t('onedrive.cancelledByUser', { type: importType }),
+                t('onedrive.cancelledByUser', { type: camelCase(importType) }),
               ),
             );
           } else {
             toast({
               title: importType === 'one-time' ? t('onedrive.importFailed') : t('onedrive.syncFailed'),
-              description: t('onedrive.failedToStart', { type: importType }),
+              description: t('onedrive.failedToStart', { type: camelCase(importType) }),
               variant: 'destructive',
             });
             reject(error);
@@ -706,6 +732,7 @@ export function OneDriveImportDialog({
       });
 
       // Start import/sync with streaming
+      const teamTags = selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
       await startSyncWithStream(
         allFiles.map((file) => ({
           id: file.id,
@@ -720,6 +747,7 @@ export function OneDriveImportDialog({
         organizationId,
         abortController,
         importType,
+        teamTags,
       );
     } catch (error) {
       const errorMessage =
@@ -752,7 +780,7 @@ export function OneDriveImportDialog({
     return (
       <Dialog
         open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? (() => {})}
+        onOpenChange={props.onOpenChange ?? noop}
         title={t('onedrive.selectFiles')}
         hideClose
         className="max-w-5xl p-0"
@@ -880,7 +908,7 @@ export function OneDriveImportDialog({
           ) : (
             <>
               <Database className="size-4 mr-2" />
-              {t('onedrive.importItem', { type: importType, count: selectedItems.size })}
+              {t('onedrive.importItem', { type: camelCase(importType), count: selectedItems.size })}
             </>
           )}
         </Button>
@@ -890,7 +918,7 @@ export function OneDriveImportDialog({
     return (
       <Dialog
         open={props.open ?? false}
-        onOpenChange={props.onOpenChange ?? (() => {})}
+        onOpenChange={props.onOpenChange ?? noop}
         title={t('onedrive.importSettings')}
         description={t('onedrive.settingsDescription', { count: selectedItems.size })}
         size="md"
@@ -955,6 +983,52 @@ export function OneDriveImportDialog({
               </div>
             </div>
           </RadioGroup>
+
+          {/* Team Selection */}
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-sm font-medium mb-2">
+              {t('upload.selectTeams')}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {t('upload.selectTeamsDescription')}
+            </p>
+
+            {isLoadingTeams ? (
+              <div className="flex items-center justify-center py-4">
+                <span className="text-muted-foreground text-sm">
+                  {tCommon('actions.loading')}
+                </span>
+              </div>
+            ) : !teams || teams.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-4 text-center">
+                <Users className="size-6 text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  {t('upload.noTeamsAvailable')}
+                </p>
+              </div>
+            ) : (
+              <Stack gap={2}>
+                {teams.map((team) => (
+                  <div
+                    key={team.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                  >
+                    <Checkbox
+                      id={`onedrive-team-${team.id}`}
+                      checked={selectedTeams.has(team.id)}
+                      onCheckedChange={() => handleToggleTeam(team.id)}
+                      disabled={isSyncing}
+                      label={team.name}
+                    />
+                  </div>
+                ))}
+              </Stack>
+            )}
+
+            <p className="text-xs text-muted-foreground mt-3">
+              {t('upload.allMembersHint')}
+            </p>
+          </div>
         </div>
       </Dialog>
     );

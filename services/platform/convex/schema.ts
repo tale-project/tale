@@ -459,6 +459,7 @@ export default defineSchema({
     itemPath: v.optional(v.string()), // Full path in OneDrive
     targetBucket: v.string(), // Storage bucket name
     storagePrefix: v.optional(v.string()), // Prefix for organized storage
+    teamTags: v.optional(v.array(v.string())), // Team IDs for access control
     status: v.union(
       v.literal('active'),
       v.literal('inactive'),

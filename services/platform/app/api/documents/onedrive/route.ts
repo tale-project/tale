@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getCurrentUser, getAuthToken } from '@/lib/auth/auth-server';
 import { Logger } from '@/lib/logger';
-import { fetchAction, fetchMutation } from '@/lib/convex-next-server';
+import { fetchAction, fetchMutation, fetchQuery } from '@/lib/convex-next-server';
 import { api } from '@/convex/_generated/api';
 import type { DriveItem } from '@/types/microsoft-graph';
 import { isFile, sanitizeStoragePath } from '@/lib/utils/onedrive-helpers';
@@ -15,6 +15,13 @@ interface SyncRequestItem {
   selectedParentId?: string;
   selectedParentName?: string;
   selectedParentPath?: string;
+}
+
+interface SyncRequestBody {
+  items: SyncRequestItem[];
+  organizationId: string;
+  importType?: ImportType;
+  teamTags?: string[];
 }
 
 type ImportType = 'one-time' | 'sync';
@@ -37,6 +44,7 @@ async function importSingleFile(
   selectedParentName?: string,
   selectedParentPath?: string,
   syncConfigId?: string,
+  teamTags?: string[],
 ): Promise<{
   success: boolean;
   error?: string;
@@ -121,6 +129,7 @@ async function importSingleFile(
         fileData: readResult.data.content,
         contentType: readResult.data.mimeType,
         metadata,
+        teamTags,
       },
       { token },
     );
@@ -153,15 +162,12 @@ async function importSingleFile(
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
-    const body = await request.json();
+    const body: SyncRequestBody = await request.json();
     const {
       items,
       organizationId,
       importType = 'one-time',
-    }: {
-      items: SyncRequestItem[];
-      organizationId: string;
-      importType?: ImportType;
+      teamTags,
     } = body;
 
     // Get the abort signal from the request
@@ -194,6 +200,20 @@ export async function POST(request: NextRequest): Promise<Response> {
     const token = await getAuthToken();
     if (!token) {
       return new Response('Authentication token not available', { status: 401 });
+    }
+
+    // Validate team tags if provided - user must belong to all specified teams
+    if (teamTags && teamTags.length > 0) {
+      const teamsResult = await fetchQuery(
+        api.member.getMyTeams,
+        { organizationId },
+        { token },
+      );
+      const userTeamIds = new Set(teamsResult?.teams?.map((t: { id: string }) => t.id) ?? []);
+      const invalidTeams = teamTags.filter((tagId) => !userTeamIds.has(tagId));
+      if (invalidTeams.length > 0) {
+        return new Response('Not authorized to assign to specified teams', { status: 403 });
+      }
     }
 
     // Ensure the specified bucket exists
@@ -280,6 +300,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                           : item.name,
                         targetBucket: 'documents',
                         storagePrefix: `${organizationId}/onedrive`,
+                        teamTags,
                       },
                       { token },
                     );
@@ -304,6 +325,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                       itemPath: item.relativePath || '/',
                       targetBucket: 'documents',
                       storagePrefix: `${organizationId}/onedrive/${item.selectedParentName || 'OneDrive Folder'}`,
+                      teamTags,
                     },
                     { token },
                   );
@@ -428,6 +450,7 @@ export async function POST(request: NextRequest): Promise<Response> {
                   item.selectedParentName,
                   item.selectedParentPath,
                   syncConfigMap.get(item.id), // Pass syncConfigId if available
+                  teamTags,
                 );
 
                 if (result.success) {

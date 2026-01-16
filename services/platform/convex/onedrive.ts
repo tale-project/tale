@@ -99,7 +99,7 @@ async function getMicrosoftAccountInternal(
     components.betterAuth.adapter.findMany,
     {
       model: 'user',
-      where: [{ field: 'id', value: identity.subject, operator: 'eq' }],
+      where: [{ field: '_id', value: identity.subject, operator: 'eq' }],
       paginationOpts: { cursor: null, numItems: 1 },
     },
   );
@@ -305,12 +305,14 @@ export const listFiles = action({
 
       const baseUrl = 'https://graph.microsoft.com/v1.0';
       const pageSize = args.pageSize || 50;
+      const selectFields =
+        'id,name,size,createdDateTime,lastModifiedDateTime,webUrl,file,folder,parentReference';
 
       const url = args.nextLink
         ? args.nextLink
         : args.folderId
-          ? `${baseUrl}/me/drive/items/${args.folderId}/children?$top=${pageSize}`
-          : `${baseUrl}/me/drive/root/children?$top=${pageSize}`;
+          ? `${baseUrl}/me/drive/items/${args.folderId}/children?$top=${pageSize}&$select=${selectFields}`
+          : `${baseUrl}/me/drive/root/children?$top=${pageSize}&$select=${selectFields}`;
 
       const response = await fetch(url, {
         headers: {
@@ -338,11 +340,25 @@ export const listFiles = action({
 
       const data: DriveItemsResponse = await response.json();
 
+      // Strip OData metadata fields from each item
+      const cleanedItems = data.value.map((item) => ({
+        id: item.id,
+        name: item.name,
+        size: item.size,
+        createdDateTime: item.createdDateTime,
+        lastModifiedDateTime: item.lastModifiedDateTime,
+        webUrl: item.webUrl,
+        downloadUrl: item.downloadUrl,
+        file: item.file,
+        folder: item.folder,
+        parentReference: item.parentReference,
+      }));
+
       return {
         success: true,
         data: {
           nextLink: data['@odata.nextLink'],
-          value: data.value,
+          value: cleanedItems,
         },
       };
     } catch (error) {
@@ -537,7 +553,7 @@ async function getMicrosoftAccountByUserIdInternal(
     components.betterAuth.adapter.findMany,
     {
       model: 'user',
-      where: [{ field: 'id', value: userId, operator: 'eq' }],
+      where: [{ field: '_id', value: userId, operator: 'eq' }],
       paginationOpts: { cursor: null, numItems: 1 },
     },
   );

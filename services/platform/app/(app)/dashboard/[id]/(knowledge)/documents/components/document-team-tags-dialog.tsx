@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { FormDialog } from '@/components/ui/dialog/form-dialog';
+import { Dialog } from '@/components/ui/dialog/dialog';
+import { Button } from '@/components/ui/primitives/button';
 import { Checkbox } from '@/components/ui/forms/checkbox';
 import { Stack } from '@/components/ui/layout/layout';
 import { Users } from 'lucide-react';
@@ -20,7 +21,14 @@ interface DocumentTeamTagsDialogProps {
   currentTeamTags?: string[];
 }
 
-export function DocumentTeamTagsDialog({
+/**
+ * Internal content component containing all hooks.
+ * IMPORTANT: This component must only be rendered when the dialog is open.
+ * Rendering it during Radix UI's closing animation causes "Maximum update depth exceeded"
+ * errors due to hooks (useQuery, useMutation) triggering re-renders during the
+ * animation phase. See the wrapper component below for the guard pattern.
+ */
+function DocumentTeamTagsDialogContent({
   open,
   onOpenChange,
   documentId,
@@ -42,17 +50,10 @@ export function DocumentTeamTagsDialog({
   // Fetch only teams that the current user belongs to
   const teamsResult = useQuery(
     api.member.getMyTeams,
-    open && organizationId ? { organizationId } : 'skip',
+    organizationId ? { organizationId } : 'skip',
   );
   const teams = teamsResult?.teams ?? null;
-  const isLoading = teamsResult === undefined && open;
-
-  // Reset selection when dialog opens
-  useEffect(() => {
-    if (open) {
-      setSelectedTeams(new Set(currentTeamTags));
-    }
-  }, [open, currentTeamTags]);
+  const isLoading = teamsResult === undefined;
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {
@@ -66,8 +67,13 @@ export function DocumentTeamTagsDialog({
     });
   }, []);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleClose = () => {
+    if (!isSubmitting) {
+      onOpenChange(false);
+    }
+  };
+
+  const handleSubmit = async () => {
     setIsSubmitting(true);
 
     try {
@@ -91,7 +97,7 @@ export function DocumentTeamTagsDialog({
     } finally {
       setIsSubmitting(false);
     }
-  }, [documentId, selectedTeams, updateDocument, tDocuments, onOpenChange]);
+  };
 
   // Check if there are any changes
   const hasChanges = useMemo(() => {
@@ -104,23 +110,32 @@ export function DocumentTeamTagsDialog({
   }, [currentTeamTags, selectedTeams]);
 
   return (
-    <FormDialog
+    <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
-      submitText={tCommon('actions.save')}
-      submittingText={tCommon('actions.saving')}
-      isSubmitting={isSubmitting}
-      onSubmit={handleSubmit}
-      submitDisabled={!hasChanges}
+      description={documentName ? tDocuments('teamTags.description', { name: documentName }) : undefined}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
+            {tCommon('actions.cancel')}
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting || !hasChanges}
+          >
+            {isSubmitting ? tCommon('actions.saving') : tCommon('actions.save')}
+          </Button>
+        </>
+      }
     >
       <Stack gap={4}>
-        {documentName && (
-          <p className="text-sm text-muted-foreground">
-            {tDocuments('teamTags.description', { name: documentName })}
-          </p>
-        )}
-
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <span className="text-muted-foreground">
@@ -156,6 +171,28 @@ export function DocumentTeamTagsDialog({
           {tDocuments('teamTags.hint')}
         </p>
       </Stack>
-    </FormDialog>
+    </Dialog>
   );
+}
+
+/**
+ * Dialog for managing team tags on a document.
+ *
+ * CRITICAL: This wrapper pattern prevents "Maximum update depth exceeded" errors.
+ * Radix UI Dialog keeps components mounted during closing animations. When hooks
+ * (useQuery, useMutation) run during this phase, they trigger state updates that
+ * conflict with Radix's usePresence hook, causing infinite re-render loops.
+ *
+ * The fix: Return null when closed to fully unmount the content component,
+ * ensuring hooks don't execute during animations.
+ *
+ * DO NOT refactor this to render DocumentTeamTagsDialogContent unconditionally.
+ * See: https://github.com/radix-ui/primitives/issues/3675
+ */
+export function DocumentTeamTagsDialog(props: DocumentTeamTagsDialogProps) {
+  if (!props.open) {
+    return null;
+  }
+
+  return <DocumentTeamTagsDialogContent {...props} />;
 }

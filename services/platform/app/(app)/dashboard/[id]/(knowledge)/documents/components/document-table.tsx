@@ -192,11 +192,8 @@ export function DocumentTable({
         cell: ({ row }) => (
           <HStack gap={3}>
             <DocumentIcon
-              fileName={
-                row.original.type === 'folder'
-                  ? 'folder'
-                  : (row.original.name ?? '')
-              }
+              fileName={row.original.name ?? ''}
+              isFolder={row.original.type === 'folder'}
             />
             <button
               type="button"

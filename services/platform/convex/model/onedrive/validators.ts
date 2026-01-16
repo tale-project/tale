@@ -27,6 +27,7 @@ export const onedriveItemTypeValidator = v.union(
 export const fileHashValidator = v.object({
   sha1Hash: v.optional(v.string()),
   sha256Hash: v.optional(v.string()),
+  quickXorHash: v.optional(v.string()),
 });
 
 /**
@@ -52,6 +53,8 @@ export const parentReferenceValidator = v.object({
   driveType: v.string(),
   id: v.string(),
   path: v.string(),
+  name: v.optional(v.string()),
+  siteId: v.optional(v.string()),
 });
 
 /**

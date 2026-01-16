@@ -82,4 +82,14 @@ coverage/
 *.tmp
 *.temp
 .cache/
-
+# ============================================================================
+# Storybook
+# ============================================================================
+# Development-only UI component documentation
+.storybook/
+services/platform/.storybook/
+**/*.stories.tsx
+**/*.stories.ts
+**/*.stories.jsx
+**/*.stories.js
+storybook-static/
