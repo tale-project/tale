@@ -46,7 +46,6 @@ COPY services/platform/ .
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
 
 # Note: convex/_generated/* files are committed to git and maintained by the dev workflow.
 # Developers must run `npx convex codegen` locally after schema/function changes.
@@ -78,6 +77,9 @@ RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
         @swc/core-linux-arm64-gnu \
         next@16.1.1; \
     fi
+
+# Set NODE_ENV=production for the build step (after npm install to preserve devDependencies)
+ENV NODE_ENV=production
 
 # Build Next.js application
 # Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
