@@ -33,7 +33,6 @@ set -euo pipefail
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Container names
 KUZU_CONTAINER="tale-kuzu-explorer"
@@ -112,7 +111,7 @@ get_dataset_name() {
     return
   fi
   docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${PG_DATABASE}" -t -A \
-    -c "SELECT name FROM datasets WHERE id = '${dataset_id}';" 2>/dev/null | tr -d '[:space:]'
+    -c "SELECT name FROM datasets WHERE id = '${dataset_id}';" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
 get_user_email() {
@@ -122,7 +121,7 @@ get_user_email() {
     return
   fi
   docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${PG_DATABASE}" -t -A \
-    -c "SELECT email FROM users WHERE id = '${user_id}';" 2>/dev/null | tr -d '[:space:]'
+    -c "SELECT email FROM users WHERE id = '${user_id}';" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
 find_kuzu_databases() {
@@ -200,7 +199,9 @@ select_kuzu_database() {
   # Validate selection
   if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "$count" ]; then
     log_error "Invalid selection. Using most recent database." >&2
-    echo "${databases[0]}"
+    local latest
+    latest=$(get_latest_kuzu_database)
+    echo "${latest:-${databases[0]}}"
     return
   fi
 
