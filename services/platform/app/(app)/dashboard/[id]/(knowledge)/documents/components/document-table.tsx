@@ -6,6 +6,7 @@ import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
 import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table/data-table';
 import { HStack } from '@/components/ui/layout/layout';
+import { Badge } from '@/components/ui/feedback/badge';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatBytes } from '@/lib/utils/format/number';
 import { OneDriveIcon } from '@/components/icons/onedrive-icon';
@@ -18,9 +19,11 @@ import { RagStatusBadge } from './rag-status-badge';
 import { DocumentsActionMenu } from './documents-action-menu';
 import { useT } from '@/lib/i18n/client';
 import { TableDateCell } from '@/components/ui/data-display/table-date-cell';
+import { Skeleton } from '@/components/ui/feedback/skeleton';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useUrlDialog } from '@/hooks/use-url-dialog';
 import { useCursorPaginatedQuery } from '@/hooks/use-cursor-paginated-query';
+import { useListTeams } from '../../../settings/teams/hooks/use-list-teams';
 import { api } from '@/convex/_generated/api';
 
 export interface DocumentTableProps {
@@ -49,6 +52,17 @@ export function DocumentTable({
 
   // Debounce search query for URL updates
   const debouncedQuery = useDebounce(query, 300);
+
+  // Fetch all teams for mapping team IDs to names
+  // In trusted headers mode, teams come from JWT claims
+  // In normal auth mode, teams come from the teamMember database table
+  const { teams, isLoading: isLoadingTeams } = useListTeams(organizationId);
+
+  // Create a map of team ID to team name for efficient lookups
+  const teamMap = useMemo(() => {
+    if (!teams) return new Map<string, string>();
+    return new Map(teams.map((team) => [team.id, team.name]));
+  }, [teams]);
 
   // Build query args for cursor-based pagination
   const queryArgs = useMemo(
@@ -249,6 +263,53 @@ export function DocumentTable({
           ),
       },
       {
+        id: 'teams',
+        header: tTables('headers.teams'),
+        size: 160,
+        cell: ({ row }) => {
+          const tags = row.original.teamTags;
+          if (row.original.type === 'folder' || !tags || tags.length === 0) {
+            return <span className="text-muted-foreground text-sm">—</span>;
+          }
+          if (isLoadingTeams) {
+            return <Skeleton className="h-5 w-20" />;
+          }
+          return (
+            <HStack gap={1} className="flex-wrap">
+              {tags.slice(0, 2).map((tagId) => {
+                const teamName = teamMap.get(tagId);
+                if (!teamName) return null;
+                return (
+                  <Badge key={tagId} variant="blue" className="text-xs">
+                    {teamName}
+                  </Badge>
+                );
+              })}
+              {tags.length > 2 && (
+                <Badge variant="outline" className="text-xs">
+                  +{tags.length - 2}
+                </Badge>
+              )}
+            </HStack>
+          );
+        },
+      },
+      {
+        id: 'uploadedBy',
+        header: tTables('headers.uploadedBy'),
+        size: 160,
+        cell: ({ row }) => {
+          if (row.original.type === 'folder') {
+            return <span className="text-muted-foreground text-sm">—</span>;
+          }
+          return (
+            <span className="text-sm text-muted-foreground truncate max-w-[10rem]">
+              {row.original.createdByName ?? '—'}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: 'lastModified',
         header: () => (
           <span className="text-right w-full block">
@@ -276,12 +337,13 @@ export function DocumentTable({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
+              teamTags={row.original.teamTags}
             />
           </HStack>
         ),
       },
     ],
-    [handleDocumentClick, tTables],
+    [handleDocumentClick, isLoadingTeams, tTables, teamMap],
   );
 
   return (

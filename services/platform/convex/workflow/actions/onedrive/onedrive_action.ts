@@ -53,6 +53,7 @@ type OneDriveActionParams =
       token: string;
       folderItemPath?: string;
       configId?: string;
+      createdBy?: string;
     }
   | {
       operation: 'upload_to_storage';
@@ -61,6 +62,7 @@ type OneDriveActionParams =
       contentType?: string;
       storagePath?: string;
       metadata?: Record<string, unknown>;
+      createdBy?: string;
     }
   | {
       operation: 'update_sync_config';
@@ -107,6 +109,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       token: v.string(),
       folderItemPath: v.optional(v.string()),
       configId: v.optional(v.id('onedriveSyncConfigs')),
+      createdBy: v.optional(v.string()),
     }),
     // upload_to_storage: Upload file to Convex storage
     v.object({
@@ -116,6 +119,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       contentType: v.optional(v.string()),
       storagePath: v.optional(v.string()),
       metadata: v.optional(v.any()),
+      createdBy: v.optional(v.string()),
     }),
     // update_sync_config: Update OneDrive sync configuration
     v.object({
@@ -209,6 +213,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               : params.fileContent, // Required by validator
           contentType: params.contentType || 'application/octet-stream',
           metadata: params.metadata || {},
+          createdBy: params.createdBy,
         });
 
         if (!result.success) {
@@ -340,6 +345,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
                 documentIdToUpdate: existing?._id,
+                createdBy: params.createdBy,
               },
             );
 

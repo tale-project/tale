@@ -5,10 +5,14 @@
 import type { QueryCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { components } from '../../../_generated/api';
 
 /**
- * Get all organizations user has access to from Better Auth's member table
+ * Get all organizations user has access to from Better Auth's member table.
+ *
+ * In trusted headers mode, the role comes from the JWT claims (trustedRole)
+ * instead of the member.role field in the database.
  */
 export async function getUserOrganizations(
   ctx: QueryCtx,
@@ -21,6 +25,9 @@ export async function getUserOrganizations(
   }>
 > {
   const authUser = user || (await requireAuthenticatedUser(ctx));
+
+  // Check if we're in trusted headers mode (role from JWT)
+  const trustedData = await getTrustedAuthData(ctx);
 
   // Query Better Auth's member table for all memberships
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -44,7 +51,9 @@ export async function getUserOrganizations(
 
   return result.page.map((member: any) => ({
     organizationId: member.organizationId,
-    role: (member.role || 'member').toLowerCase(),
+    // Use JWT trustedRole if available (trusted headers mode),
+    // otherwise fall back to member.role from database (normal auth mode)
+    role: trustedData?.trustedRole || (member.role || 'member').toLowerCase(),
     member,
   }));
 }

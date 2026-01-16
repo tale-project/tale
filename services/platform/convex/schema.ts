@@ -23,6 +23,9 @@ export default defineSchema({
       v.union(v.literal('onedrive'), v.literal('upload')),
     ),
     externalItemId: v.optional(v.string()),
+    // Team tags for multi-tenancy support - documents can belong to multiple teams
+    // Empty array or undefined means document is accessible to all organization members
+    teamTags: v.optional(v.array(v.string())), // Array of Better Auth team IDs
     // RAG indexing status - tracks status of document in RAG service
     ragInfo: v.optional(
       v.object({
@@ -37,9 +40,13 @@ export default defineSchema({
         error: v.optional(v.string()),
       }),
     ),
+    // User who created/uploaded this document (Better Auth user ID)
+    // Optional for backward compatibility with existing documents
+    createdBy: v.optional(v.string()),
     metadata: v.optional(v.any()),
   })
     .index('by_organizationId', ['organizationId'])
+    .index('by_organizationId_and_createdBy', ['organizationId', 'createdBy'])
     .index('by_organizationId_and_sourceProvider', [
       'organizationId',
       'sourceProvider',

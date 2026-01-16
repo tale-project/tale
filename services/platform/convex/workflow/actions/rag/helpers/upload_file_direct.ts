@@ -7,6 +7,10 @@ export interface UploadFileDirectArgs {
   contentType: string;
   metadata?: Record<string, unknown>;
   timeoutMs?: number;
+  /** User ID for multi-tenant isolation */
+  userId?: string;
+  /** Dataset name for organizing documents (e.g., 'tale_team_{teamId}') */
+  datasetName?: string;
 }
 
 /**
@@ -35,6 +39,8 @@ export async function uploadFileDirect({
   contentType,
   metadata,
   timeoutMs = 30000,
+  userId,
+  datasetName,
 }: UploadFileDirectArgs): Promise<RagUploadResult> {
   const startTime = Date.now();
 
@@ -68,6 +74,14 @@ export async function uploadFileDirect({
     typeof metadata?.recordId === 'string' ? metadata.recordId : undefined;
   if (recordIdFromMetadata) {
     formData.append('document_id', recordIdFromMetadata);
+  }
+
+  // Add multi-tenant parameters if provided
+  if (userId) {
+    formData.append('user_id', userId);
+  }
+  if (datasetName) {
+    formData.append('dataset_name', datasetName);
   }
 
   // Step 3: Upload to RAG service

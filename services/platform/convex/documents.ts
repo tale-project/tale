@@ -20,6 +20,8 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { DocumentMetadata } from './model/documents/types';
 import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
+import { getAuthenticatedUser } from './lib/rls/auth/get_authenticated_user';
+import { getUserOrganizations } from './lib/rls/organization/get_user_organizations';
 
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';
@@ -74,6 +76,7 @@ export const createDocument = internalMutation({
     metadata: v.optional(v.any()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -618,10 +621,15 @@ export const updateDocument = mutationWithRLS({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await DocumentsModel.updateDocument(ctx, args);
+    const authUser = await getAuthenticatedUser(ctx);
+    await DocumentsModel.updateDocument(ctx, {
+      ...args,
+      userId: authUser?.userId,
+    });
     return null;
   },
 });
@@ -632,6 +640,11 @@ export const updateDocument = mutationWithRLS({
  * This also schedules RAG cleanup to delete associated knowledge
  * from the RAG service (graph nodes and vector embeddings).
  * Documents are always file-based, so we use file upload deletion.
+ *
+ * Permission rules:
+ * - Admin/Developer can delete any document
+ * - Editor/Member can only delete documents they created
+ * - Legacy documents (no createdBy) can be deleted by any editor+
  */
 export const deleteDocument = mutationWithRLS({
   args: {
@@ -643,6 +656,30 @@ export const deleteDocument = mutationWithRLS({
     const document = await ctx.db.get(args.documentId);
     if (!document) {
       throw new Error('Document not found');
+    }
+
+    // Check delete permission based on createdBy
+    const authUser = await getAuthenticatedUser(ctx);
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userOrganizations = await getUserOrganizations(ctx, authUser);
+    const membership = userOrganizations.find(
+      (m) => m.organizationId === document.organizationId,
+    );
+    const role = (membership?.role ?? 'member').toLowerCase();
+
+    // Admin/Developer can delete any document
+    const isAdminOrDeveloper = role === 'admin' || role === 'developer';
+
+    // Non-admin users can only delete documents they created
+    if (!isAdminOrDeveloper) {
+      // If document has createdBy, check if current user is the creator
+      if (document.createdBy && document.createdBy !== authUser.userId) {
+        throw new Error('You can only delete documents you created');
+      }
+      // Legacy documents without createdBy can be deleted by anyone with write access
     }
 
     // Store document ID for RAG cleanup (it's stored in Cognee's node_set)
@@ -832,6 +869,7 @@ export const uploadFile = action({
           fileId: fileId,
           mimeType: args.contentType,
           metadata: documentMetadata,
+          createdBy: identity.subject,
         });
 
       return {
@@ -886,6 +924,7 @@ export const createDocumentFromUpload = mutationWithRLS({
     fileName: v.string(),
     contentType: v.string(),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: createDocumentFromUploadResponseValidator,
   handler: async (ctx, args): Promise<{
@@ -894,6 +933,10 @@ export const createDocumentFromUpload = mutationWithRLS({
     error?: string;
   }> => {
     try {
+      // Get current authenticated user for createdBy tracking
+      const authUser = await getAuthenticatedUser(ctx);
+      const createdBy = authUser?.userId;
+
       // Check if a document with the same name already exists
       const existingDocument = await DocumentsModel.findDocumentByTitle(ctx, {
         organizationId: args.organizationId,
@@ -933,6 +976,8 @@ export const createDocumentFromUpload = mutationWithRLS({
           sourceProvider: providerFromMetadata,
           externalItemId,
           metadata: documentMetadata,
+          teamTags: args.teamTags,
+          userId: authUser?.userId,
         });
 
         return {
@@ -950,6 +995,8 @@ export const createDocumentFromUpload = mutationWithRLS({
         fileId: args.fileId,
         mimeType: args.contentType,
         metadata: documentMetadata,
+        teamTags: args.teamTags,
+        createdBy,
       });
 
       return {

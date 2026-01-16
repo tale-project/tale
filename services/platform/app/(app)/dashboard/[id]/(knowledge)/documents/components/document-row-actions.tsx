@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useCallback, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2, Users } from 'lucide-react';
 import {
   EntityRowActions,
   useEntityRowDialogs,
@@ -10,8 +10,10 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { useDeleteDocument } from '../hooks/use-delete-document';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
+import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 import { toast } from '@/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { retryRagIndexing } from '../actions/retry-rag-indexing';
 
 type StorageSourceMode = 'auto' | 'manual';
 
@@ -22,6 +24,7 @@ interface DocumentRowActionsProps {
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
+  teamTags?: string[];
 }
 
 export function DocumentRowActions({
@@ -31,11 +34,13 @@ export function DocumentRowActions({
   syncConfigId,
   isDirectlySelected,
   sourceMode,
+  teamTags,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
-  const dialogs = useEntityRowDialogs(['delete', 'deleteFolder']);
+  const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReindexing, setIsReindexing] = useState(false);
   const deleteDocument = useDeleteDocument();
 
   // Determine if delete action should be visible
@@ -88,8 +93,49 @@ export function DocumentRowActions({
     }
   }, [itemType, dialogs.open]);
 
+  const handleReindex = useCallback(async () => {
+    setIsReindexing(true);
+    try {
+      const result = await retryRagIndexing(documentId);
+      if (result.success) {
+        toast({
+          title: tDocuments('rag.toast.indexingStarted'),
+          description: tDocuments('rag.toast.indexingQueued'),
+        });
+      } else {
+        toast({
+          title: tDocuments('rag.toast.retryFailed'),
+          description: result.error || tDocuments('rag.toast.retryFailedDescription'),
+          variant: 'destructive',
+        });
+      }
+    } catch {
+      toast({
+        title: tDocuments('rag.toast.unexpectedError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsReindexing(false);
+    }
+  }, [documentId, tDocuments]);
+
   const actions = useMemo(
     () => [
+      {
+        key: 'reindex',
+        label: tDocuments('actions.reindex'),
+        icon: RefreshCw,
+        onClick: handleReindex,
+        visible: itemType === 'file',
+        disabled: isReindexing,
+      },
+      {
+        key: 'teamTags',
+        label: tDocuments('actions.manageTeams'),
+        icon: Users,
+        onClick: dialogs.open.teamTags,
+        visible: itemType === 'file',
+      },
       {
         key: 'delete',
         label:
@@ -102,11 +148,12 @@ export function DocumentRowActions({
         visible: canDelete,
       },
     ],
-    [tDocuments, tCommon, handleDeleteClick, canDelete, itemType]
+    [tDocuments, tCommon, handleDeleteClick, handleReindex, canDelete, itemType, dialogs.open, isReindexing]
   );
 
-  // Don't render anything if delete is not allowed
-  if (!canDelete) {
+  // Show actions if user can delete OR if it's a file (for team tags)
+  const hasVisibleActions = canDelete || itemType === 'file';
+  if (!hasVisibleActions) {
     return null;
   }
 
@@ -114,20 +161,33 @@ export function DocumentRowActions({
     <>
       <EntityRowActions actions={actions} />
 
-      <DocumentDeleteDialog
-        open={dialogs.isOpen.delete}
-        onOpenChange={dialogs.setOpen.delete}
-        onConfirmDelete={handleDeleteConfirm}
-        isLoading={isDeleting}
-        fileName={name}
-      />
+      {dialogs.isOpen.delete && (
+        <DocumentDeleteDialog
+          open
+          onOpenChange={dialogs.setOpen.delete}
+          onConfirmDelete={handleDeleteConfirm}
+          isLoading={isDeleting}
+          fileName={name}
+        />
+      )}
 
-      <DocumentDeleteFolderDialog
-        open={dialogs.isOpen.deleteFolder}
-        onOpenChange={dialogs.setOpen.deleteFolder}
-        onConfirmDelete={handleDeleteFolderConfirm}
-        isLoading={isDeleting}
-        folderName={name}
+      {dialogs.isOpen.deleteFolder && (
+        <DocumentDeleteFolderDialog
+          open
+          onOpenChange={dialogs.setOpen.deleteFolder}
+          onConfirmDelete={handleDeleteFolderConfirm}
+          isLoading={isDeleting}
+          folderName={name}
+        />
+      )}
+
+      {/* Always mount team tags dialog to allow Radix UI to handle animation states properly */}
+      <DocumentTeamTagsDialog
+        open={dialogs.isOpen.teamTags}
+        onOpenChange={dialogs.setOpen.teamTags}
+        documentId={documentId}
+        documentName={name}
+        currentTeamTags={teamTags}
       />
     </>
   );

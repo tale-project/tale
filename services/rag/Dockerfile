@@ -64,18 +64,37 @@ ENV TALE_VERSION=${VERSION} \
     # Default Tale RAG configuration
     RAG_HOST=0.0.0.0 \
     RAG_PORT=8001 \
-    RAG_WORKERS=2 \
+    # Single worker recommended for stability.
+    # FalkorDB is client-server, so multiple workers are theoretically possible,
+    # but single worker with FastAPI async handles most workloads efficiently.
+    RAG_WORKERS=1 \
     RAG_LOG_LEVEL=info \
-    # Worker recycling: restart worker after N requests to bound memory growth.
-    # Cognee accumulates in-process state that CPython doesn't return to OS.
-    # Requires RAG_WORKERS >= 2 so the parent process can respawn workers.
-    RAG_MAX_REQUESTS_PER_WORKER=100000 \
     # Cognee data directory
     RAG_COGNEE_DATA_DIR=/app/data \
     # Default database URL for local development (connects to tale-db container)
     # Note: PGVector uses this same PostgreSQL database for vector storage
     # Uses dedicated tale_rag database to isolate from other services (e.g., Convex uses tale_platform)
-    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale_rag
+    RAG_DATABASE_URL=postgresql://tale:tale_password_change_me@db:5432/tale_rag \
+    # Cognee Graph and Vector Database Configuration (FalkorDB)
+    # IMPORTANT: These must be set BEFORE Python imports cognee modules.
+    # Cognee reads these env vars at module import time, not at runtime.
+    # FalkorDB provides both graph and vector storage via hybrid adapter.
+    # Uses 'graph-db' as the hostname (Docker service name in compose.yml)
+    GRAPH_DATABASE_PROVIDER=falkor \
+    GRAPH_DATABASE_URL=graph-db \
+    GRAPH_DATABASE_PORT=6379 \
+    GRAPH_DATASET_DATABASE_HANDLER=falkor_graph_local \
+    VECTOR_DB_PROVIDER=falkor \
+    VECTOR_DB_URL=graph-db \
+    VECTOR_DB_PORT=6379 \
+    VECTOR_DATASET_DATABASE_HANDLER=falkor_vector_local \
+    ENABLE_GRAPH_STORAGE=true \
+    ENABLE_VECTOR_SEARCH=true \
+    COGNEE_DATA_DIR=/app/data \
+    # Cognee BaseConfig paths (pydantic_settings reads these env vars)
+    # These override the default paths in cognee.base_config.BaseConfig
+    DATA_ROOT_DIRECTORY=/app/data/.data_storage \
+    SYSTEM_ROOT_DIRECTORY=/app/data/.cognee_system
 
 # Expose port
 EXPOSE 8001

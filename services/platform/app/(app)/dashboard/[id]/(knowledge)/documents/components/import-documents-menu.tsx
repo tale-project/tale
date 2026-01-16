@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import {
   NavigationMenu,
@@ -13,14 +13,20 @@ import {
 import { Button } from '@/components/ui/primitives/button';
 import { OneDriveIcon } from '@/components/icons/onedrive-icon';
 import { HardDrive, Plus } from 'lucide-react';
-import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n/client';
 
-// Lazy-load OneDrive dialog to reduce initial bundle size
+// Lazy-load dialogs to reduce initial bundle size
 const OneDriveImportDialog = dynamic(
   () =>
     import('./onedrive-import-dialog').then((mod) => ({
       default: mod.OneDriveImportDialog,
+    })),
+);
+
+const DocumentUploadDialog = dynamic(
+  () =>
+    import('./document-upload-dialog').then((mod) => ({
+      default: mod.DocumentUploadDialog,
     })),
 );
 
@@ -34,33 +40,16 @@ export function ImportDocumentsMenu({
   hasMicrosoftAccount,
 }: ImportDocumentsMenuProps) {
   const { t } = useT('documents');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOneDriveImportDialogOpen, setIsOneDriveImportDialogOpen] =
     useState(false);
-  const { uploadFiles, isUploading } = useDocumentUpload({
-    organizationId,
-  });
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   const handleUploadComplete = () => {
     setIsOneDriveImportDialogOpen(false);
   };
 
-  const handleFileSelect = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const files = Array.from(event.target.files || []) as File[];
-    if (files.length === 0) return;
-
-    await uploadFiles(files);
-
-    // Reset the input
-    if (event.target) {
-      event.target.value = '';
-    }
+  const handleDeviceUpload = () => {
+    setIsUploadDialogOpen(true);
   };
 
   const connectOneDrive = () => {
@@ -85,8 +74,7 @@ export function ImportDocumentsMenu({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleFileSelect}
-                      disabled={isUploading}
+                      onClick={handleDeviceUpload}
                       className="w-full justify-start"
                     >
                       <HardDrive className="size-4 mr-2" />
@@ -115,23 +103,13 @@ export function ImportDocumentsMenu({
         </NavigationMenuList>
       </NavigationMenu>
 
-      {isUploading && (
-        <div className="fixed bottom-4 right-4 p-3 border rounded-lg bg-background shadow-lg">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm font-medium">{t('upload.uploading')}</span>
-          </div>
-        </div>
+      {isUploadDialogOpen && (
+        <DocumentUploadDialog
+          open={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          organizationId={organizationId}
+        />
       )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        disabled={isUploading}
-        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-        onChange={handleFileChange}
-        className="hidden"
-      />
 
       {isOneDriveImportDialogOpen && (
         <OneDriveImportDialog

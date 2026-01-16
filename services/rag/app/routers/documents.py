@@ -42,17 +42,21 @@ async def _ingest_single_document(
     content: str,
     metadata: Optional[dict[str, Any]],
     document_id: Optional[str],
+    user_id: Optional[str] = None,
+    dataset_name: Optional[str] = None,
 ) -> DocumentAddResponse:
     """Ingest a single text document."""
     # Persist text content to file so cognee can operate on a path
     file_path = await _persist_text_content(content)
 
     try:
-        # Add to cognee
+        # Add to cognee with multi-tenant support
         result = await cognee_service.add_document(
             content=file_path,
             metadata=metadata,
             document_id=document_id,
+            user_id=user_id,
+            dataset_name=dataset_name,
         )
 
         success = result.get("success", False)
@@ -93,6 +97,8 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         content: str,
         metadata: Optional[dict[str, Any]],
         document_id: str,
+        user_id: Optional[str] = None,
+        dataset_name: Optional[str] = None,
     ) -> None:
         try:
             job_store.mark_running(job_id=document_id)
@@ -100,6 +106,8 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
                 content=content,
                 metadata=metadata,
                 document_id=document_id,
+                user_id=user_id,
+                dataset_name=dataset_name,
             )
             job_store.mark_completed(
                 job_id=document_id,
@@ -121,6 +129,8 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         request.content,
         request.metadata,
         doc_id,
+        request.user_id,
+        request.dataset_name,
     )
 
     # Return immediately with queued status so upstream callers (e.g. Convex
@@ -140,6 +150,8 @@ async def upload_document(
     file: UploadFile = File(..., description="File to upload"),
     metadata: Optional[str] = Form(None, description="Optional metadata as JSON string"),
     document_id: Optional[str] = Form(None, description="Optional custom document ID"),
+    user_id: Optional[str] = Form(None, description="User ID for multi-tenant isolation"),
+    dataset_name: Optional[str] = Form(None, description="Dataset name for organizing documents"),
     background_tasks: BackgroundTasks = None,
 ):
     """Upload a file to the knowledge base.
@@ -209,6 +221,8 @@ async def upload_document(
             path: str,
             metadata_dict: dict[str, Any],
             doc_id_inner: str,
+            user_id_inner: Optional[str] = None,
+            dataset_name_inner: Optional[str] = None,
         ) -> None:
             try:
                 job_store.mark_running(job_id=doc_id_inner)
@@ -216,6 +230,8 @@ async def upload_document(
                     content=path,
                     metadata=metadata_dict,
                     document_id=doc_id_inner,
+                    user_id=user_id_inner,
+                    dataset_name=dataset_name_inner,
                 )
                 job_store.mark_completed(
                     job_id=doc_id_inner,
@@ -259,10 +275,12 @@ async def upload_document(
                 tmp_path,
                 parsed_metadata,
                 doc_id,
+                user_id,
+                dataset_name,
             )
         else:
             # Fallback for contexts without BackgroundTasks (should be rare)
-            await _background_ingest_file(tmp_path, parsed_metadata, doc_id)
+            await _background_ingest_file(tmp_path, parsed_metadata, doc_id, user_id, dataset_name)
 
         return DocumentAddResponse(
             success=True,

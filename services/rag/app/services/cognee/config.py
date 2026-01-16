@@ -2,15 +2,144 @@
 
 This module sets up environment variables and initializes cognee BEFORE
 the main cognee package is imported.
+
+IMPORTANT: The FalkorDB adapter import triggers cognee import, which reads
+LLM environment variables at import time. Therefore, we must set all LLM
+environment variables BEFORE importing the adapter.
+
+Upstream Issues (remove patches when fixed):
+- https://github.com/topoteretes/cognee-community/issues/59 (Non-ASCII identifiers)
+- https://github.com/topoteretes/cognee-community/issues/60 (is_empty IndexError)
+- https://github.com/topoteretes/cognee-community/issues/61 (add_nodes IndexError)
 """
 
 import os
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 from loguru import logger
 
 from ...config import settings
+
+
+def _pre_configure_llm_env() -> None:
+    """Set LLM environment variables BEFORE any cognee imports.
+
+    Cognee reads LLM configuration from environment variables at import time.
+    This function must be called before importing cognee or any adapter that
+    triggers cognee import (like cognee_community_hybrid_adapter_falkor).
+    """
+    # Get LLM config - this validates required env vars are set
+    try:
+        llm_config = settings.get_llm_config()
+    except ValueError as e:
+        logger.warning(f"LLM config not available for pre-configuration: {e}")
+        return
+
+    api_key = llm_config["api_key"]
+    base_url = llm_config["base_url"]
+    model = llm_config["model"]
+    embedding_model = llm_config["embedding_model"]
+
+    # Add openai/ prefix for non-OpenAI endpoints (for LiteLLM routing)
+    cognee_llm_model = model
+    cognee_embedding_model = embedding_model
+    if "api.openai.com" not in base_url:
+        if not model.startswith("openai/"):
+            cognee_llm_model = f"openai/{model}"
+        if not embedding_model.startswith("openai/"):
+            cognee_embedding_model = f"openai/{embedding_model}"
+
+    # Set LLM environment variables that Cognee reads at import time
+    os.environ.setdefault("LLM_PROVIDER", "openai")
+    os.environ.setdefault("LLM_API_KEY", api_key)
+    os.environ.setdefault("LLM_ENDPOINT", base_url)
+    os.environ.setdefault("LLM_MODEL", cognee_llm_model)
+    os.environ.setdefault("EMBEDDING_PROVIDER", "openai")
+    os.environ.setdefault("EMBEDDING_MODEL", cognee_embedding_model)
+    os.environ.setdefault("EMBEDDING_API_KEY", api_key)
+    os.environ.setdefault("EMBEDDING_ENDPOINT", base_url)
+
+    # Set embedding dimensions
+    try:
+        embedding_dimensions = settings.get_embedding_dimensions()
+        os.environ.setdefault("EMBEDDING_DIMENSIONS", str(embedding_dimensions))
+    except ValueError:
+        pass  # Will be set later if available
+
+    # Export OPENAI_* for libraries that look at these env vars
+    os.environ.setdefault("OPENAI_API_KEY", api_key)
+    os.environ.setdefault("OPENAI_BASE_URL", base_url)
+
+    logger.debug("Pre-configured LLM environment variables for Cognee import")
+
+
+def _pre_configure_database_env() -> None:
+    """Set database environment variables BEFORE any cognee imports.
+
+    Cognee reads database configuration from environment variables at import time.
+    This function must be called before importing cognee or any adapter that
+    triggers cognee import (like cognee_community_hybrid_adapter_falkor).
+    """
+    # Get database URL - this validates the env var is set
+    try:
+        database_url = settings.get_database_url()
+    except ValueError as e:
+        logger.warning(f"Database config not available for pre-configuration: {e}")
+        return
+
+    parsed = urlparse(database_url)
+
+    # Set PostgreSQL configuration for Cognee
+    # These must be set BEFORE cognee imports
+    os.environ["DB_PROVIDER"] = "postgres"
+    os.environ["DB_NAME"] = parsed.path.lstrip("/")
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
+    os.environ["DB_USERNAME"] = parsed.username or ""
+    os.environ["DB_PASSWORD"] = parsed.password or ""
+
+    # Also set FalkorDB env vars for graph/vector storage
+    falkordb_url = os.environ.get("GRAPH_DATABASE_URL", "graph-db")
+    falkordb_port = os.environ.get("GRAPH_DATABASE_PORT", "6379")
+
+    os.environ["GRAPH_DATABASE_PROVIDER"] = "falkor"
+    os.environ["GRAPH_DATABASE_URL"] = falkordb_url
+    os.environ["GRAPH_DATABASE_PORT"] = falkordb_port
+    os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "falkor_graph_local"
+
+    os.environ["VECTOR_DB_PROVIDER"] = "falkor"
+    os.environ["VECTOR_DB_URL"] = falkordb_url
+    os.environ["VECTOR_DB_PORT"] = falkordb_port
+    os.environ["VECTOR_DATASET_DATABASE_HANDLER"] = "falkor_vector_local"
+
+    logger.debug(
+        "Pre-configured database environment: PostgreSQL {}@{}:{}/{}, FalkorDB {}:{}",
+        parsed.username,
+        parsed.hostname,
+        parsed.port or 5432,
+        parsed.path.lstrip("/"),
+        falkordb_url,
+        falkordb_port,
+    )
+
+
+# PRE-CONFIGURE ALL env vars BEFORE any cognee-related imports
+# This is critical because the adapter import triggers cognee import,
+# which reads env vars at import time (not runtime)
+_pre_configure_llm_env()
+_pre_configure_database_env()
+
+# NOW register FalkorDB adapter (this triggers cognee import)
+try:
+    from cognee_community_hybrid_adapter_falkor import register  # noqa: F401
+
+    logger.info("FalkorDB adapter registered successfully")
+except ImportError:
+    logger.warning(
+        "cognee-community-hybrid-adapter-falkor not installed, FalkorDB support unavailable"
+    )
 
 
 def patch_tiktoken() -> None:
@@ -74,15 +203,77 @@ def configure_litellm_drop_params() -> None:
         logger.debug("litellm not available, skipping drop_params configuration")
 
 
+def _patch_litellm_aembedding() -> None:
+    """Patch litellm.aembedding to filter empty inputs.
+
+    Cognee's LiteLLMEmbeddingEngine calls litellm.aembedding() directly.
+    When FalkorDB adapter's create_data_points collects embeddable values,
+    it may produce an empty list if all data points have None properties.
+
+    This patch intercepts aembedding calls to:
+    1. Filter out empty strings from input
+    2. Return empty response if all inputs are empty (prevents API error)
+
+    This is different from the OpenAIChatCompletion.embedding patch because
+    Cognee bypasses that layer by calling aembedding directly.
+    """
+    try:
+        import litellm
+
+        # Check if already patched
+        if getattr(litellm, "_tale_aembedding_patch_applied", False):
+            return
+
+        _original_aembedding = litellm.aembedding
+
+        async def _patched_aembedding(
+            model: str,
+            input: list,
+            **kwargs: Any,
+        ) -> Any:
+            # Filter out empty or whitespace-only strings from input
+            original_input_len = len(input) if input else 0
+            if input:
+                filtered_input = [
+                    item for item in input
+                    if item and (not isinstance(item, str) or item.strip())
+                ]
+                if len(filtered_input) < original_input_len:
+                    logger.warning(
+                        f"aembedding: Filtered {original_input_len - len(filtered_input)} empty inputs "
+                        f"(remaining: {len(filtered_input)})"
+                    )
+                    input = filtered_input
+
+            # If all inputs were filtered out, return empty response
+            if not input:
+                logger.warning("aembedding: All inputs were empty, returning empty response")
+                from litellm import EmbeddingResponse
+                return EmbeddingResponse(
+                    model=model,
+                    data=[],
+                    usage={"prompt_tokens": 0, "total_tokens": 0},
+                )
+
+            return await _original_aembedding(model=model, input=input, **kwargs)
+
+        litellm.aembedding = _patched_aembedding
+        litellm._tale_aembedding_patch_applied = True
+        logger.info("Patched litellm.aembedding to filter empty inputs")
+    except ImportError as e:
+        logger.debug(f"litellm not available, skipping aembedding patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch litellm.aembedding: {e}")
+
+
 def _patch_litellm_embedding() -> None:
-    """Patch LiteLLM embedding to remove encoding_format parameter for OpenRouter.
+    """Patch LiteLLM OpenAI embedding to remove encoding_format for non-OpenAI endpoints.
 
     OpenRouter's embeddings API only accepts 'float' or 'base64' for encoding_format,
     but LiteLLM may send other values internally. This patch intercepts the internal
     OpenAI embedding call to remove the encoding_format parameter.
 
-    We patch litellm.llms.openai.openai.OpenAIChatCompletion.embedding method
-    which is called internally by litellm.aembedding().
+    We patch litellm.llms.openai.openai.OpenAIChatCompletion.embedding method.
     """
     try:
         import litellm
@@ -131,11 +322,361 @@ def _patch_litellm_embedding() -> None:
 
         OpenAIChatCompletion.embedding = _patched_embedding
         OpenAIChatCompletion._tale_embedding_patch_applied = True
-        logger.info("Patched LiteLLM OpenAIChatCompletion.embedding to remove encoding_format for non-OpenAI endpoints")
+        logger.info("Patched LiteLLM OpenAI embedding to remove encoding_format")
     except ImportError as e:
         logger.debug(f"litellm not available, skipping embedding patch: {e}")
     except Exception as e:
         logger.warning(f"Failed to patch LiteLLM embedding: {e}")
+
+
+def _sanitize_identifier_for_cypher(name: str, default: str = "UNKNOWN") -> str:
+    """Sanitize a string to ASCII-only for use as a Cypher identifier.
+
+    FalkorDB's Cypher parser only supports ASCII characters in identifiers
+    (node labels, relationship types, property names). This function converts
+    non-ASCII characters to their transliterated ASCII equivalents using
+    unidecode, preserving semantic meaning.
+
+    Examples:
+        - "人物" -> "Ren_Wu"
+        - "属于" -> "Shu_Yu"
+        - "概念实体" -> "Gai_Nian_Shi_Ti"
+        - "Document_文档" -> "Document_Wen_Dang"
+
+    Args:
+        name: The original identifier name (may contain Unicode characters)
+        default: Default value if sanitization results in empty string
+
+    Returns:
+        ASCII-only identifier safe for FalkorDB Cypher
+    """
+    if not name:
+        return default
+
+    try:
+        from unidecode import unidecode as _unidecode
+    except ImportError:
+        _unidecode = None
+
+    # Convert non-ASCII to ASCII using unidecode (preserves meaning)
+    if _unidecode is not None:
+        ascii_name = _unidecode(name)
+    else:
+        # Fallback: remove non-ASCII characters
+        ascii_name = name.encode("ascii", "ignore").decode("ascii")
+
+    # Replace non-alphanumeric with underscores (standard Cypher identifier rules)
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", ascii_name)
+    # Collapse multiple underscores
+    sanitized = re.sub(r"_+", "_", sanitized)
+    # Remove leading/trailing underscores
+    sanitized = sanitized.strip("_")
+    # Ensure it starts with a letter (Cypher requirement for identifiers)
+    if sanitized and not sanitized[0].isalpha():
+        sanitized = "N_" + sanitized
+
+    return sanitized if sanitized else default
+
+
+def _patch_falkordb_adapter_relationship_sanitize() -> None:
+    """Patch FalkorDB adapter to properly sanitize non-ASCII relationship names.
+
+    Upstream: https://github.com/topoteretes/cognee-community/issues/59
+    Remove this patch when the issue is fixed.
+
+    FalkorDB's Cypher parser only supports ASCII characters in relationship type names.
+    The original sanitize_relationship_name uses \\w which includes Unicode characters
+    like Chinese, causing "Invalid input '�'" errors.
+
+    This patch converts non-ASCII characters to their transliterated ASCII equivalents
+    using unidecode, preserving semantic meaning (e.g., "属于" -> "Shu_Yu").
+    """
+    try:
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_relationship_patch_applied", False):
+            return
+
+        import re
+
+        try:
+            from unidecode import unidecode
+        except ImportError:
+            logger.warning("unidecode not installed, falling back to basic ASCII conversion")
+            unidecode = None
+
+        def _patched_sanitize_relationship_name(self: Any, relationship_name: str) -> str:
+            """Sanitize relationship name to ASCII-only for FalkorDB Cypher compatibility.
+
+            Converts non-ASCII characters to transliterated ASCII using unidecode.
+            For example: "属于" -> "Shu_Yu", "関係" -> "Guan_Xi"
+            """
+            if not relationship_name:
+                return "RELATIONSHIP"
+
+            # Convert non-ASCII to ASCII using unidecode (preserves meaning)
+            if unidecode is not None:
+                ascii_name = unidecode(relationship_name)
+            else:
+                # Fallback: remove non-ASCII characters
+                ascii_name = relationship_name.encode("ascii", "ignore").decode("ascii")
+
+            # Replace non-alphanumeric with underscores (standard Cypher identifier rules)
+            sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", ascii_name)
+            # Collapse multiple underscores
+            sanitized = re.sub(r"_+", "_", sanitized)
+            # Remove leading/trailing underscores
+            sanitized = sanitized.strip("_")
+            # Ensure it starts with a letter (Cypher requirement)
+            if sanitized and not sanitized[0].isalpha():
+                sanitized = "R_" + sanitized
+            # Handle empty result
+            if not sanitized:
+                return "RELATIONSHIP"
+
+            return sanitized.upper()
+
+        FalkorDBAdapter.sanitize_relationship_name = _patched_sanitize_relationship_name
+        FalkorDBAdapter._tale_relationship_patch_applied = True
+        logger.info("Patched FalkorDB adapter to sanitize non-ASCII relationship names")
+
+        _original_is_empty = FalkorDBAdapter.is_empty
+
+        async def _patched_is_empty(self: Any) -> bool:
+            """Check if the graph is empty, handling empty result sets gracefully.
+
+            Upstream: https://github.com/topoteretes/cognee-community/issues/60
+            """
+            query = "MATCH (n) RETURN true LIMIT 1;"
+            result = self.query(query)
+            # Original bug: result_set[0][0] fails with IndexError when graph is empty
+            # because an empty graph returns an empty result_set
+            if not result.result_set:
+                return True  # Empty result means no nodes, so graph is empty
+            return False  # If any result exists, graph is not empty
+
+        FalkorDBAdapter.is_empty = _patched_is_empty
+        logger.info("Patched FalkorDB adapter is_empty to handle empty result sets")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping relationship patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter: {e}")
+
+
+def _patch_falkordb_adapter_add_node() -> None:
+    """Patch FalkorDB adapter to sanitize non-ASCII node labels.
+
+    Upstream: https://github.com/topoteretes/cognee-community/issues/59
+    Remove this patch when the issue is fixed.
+
+    FalkorDB's Cypher parser only supports ASCII characters in node labels.
+    The add_node method uses properties["type"] as the node label, which may
+    contain non-ASCII characters (e.g., Chinese entity types from LLM extraction).
+
+    This patch converts non-ASCII type names to ASCII equivalents using
+    _sanitize_identifier_for_cypher before passing to the original method.
+    """
+    try:
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_add_node_patch_applied", False):
+            return
+
+        _original_add_node = FalkorDBAdapter.add_node
+
+        async def _patched_add_node(self: Any, node_id: str, properties: dict[str, Any]) -> None:
+            """Add node with sanitized label for FalkorDB Cypher compatibility."""
+            # Shallow copy to avoid mutating caller's dict
+            sanitized_properties = properties.copy()
+
+            # Sanitize the type (node label)
+            if "type" in sanitized_properties:
+                original_type = sanitized_properties["type"]
+                sanitized_type = _sanitize_identifier_for_cypher(original_type, "Node")
+                sanitized_properties["type"] = sanitized_type
+
+            # Sanitize index_fields (used for vector property names)
+            if "metadata" in sanitized_properties:
+                metadata = sanitized_properties.get("metadata", {})
+                if metadata and "index_fields" in metadata:
+                    original_fields = metadata["index_fields"]
+                    sanitized_fields = []
+                    for field in original_fields:
+                        sanitized_field = _sanitize_identifier_for_cypher(field, "field")
+                        sanitized_fields.append(sanitized_field)
+                        # Rename vector property keys if field name changed
+                        if field != sanitized_field:
+                            vector_key = f"{field}_vector"
+                            if vector_key in sanitized_properties:
+                                sanitized_properties[f"{sanitized_field}_vector"] = (
+                                    sanitized_properties.pop(vector_key)
+                                )
+                    sanitized_properties["metadata"] = {**metadata, "index_fields": sanitized_fields}
+
+            return await _original_add_node(self, node_id, sanitized_properties)
+
+        FalkorDBAdapter.add_node = _patched_add_node
+        FalkorDBAdapter._tale_add_node_patch_applied = True
+        logger.info("Patched FalkorDB adapter add_node for ASCII node labels")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping add_node patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter add_node: {e}")
+
+
+def _patch_falkordb_adapter_stringify_properties() -> None:
+    """Patch FalkorDB adapter to sanitize non-ASCII property names.
+
+    Upstream: https://github.com/topoteretes/cognee-community/issues/59
+    Remove this patch when the issue is fixed.
+
+    FalkorDB's Cypher parser only supports ASCII characters in property names.
+    The stringify_properties method serializes property dicts to Cypher syntax,
+    but doesn't sanitize property keys that may contain non-ASCII characters.
+
+    This patch converts non-ASCII property keys to ASCII equivalents while
+    preserving the original property values (which can contain any characters).
+    """
+    try:
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_stringify_properties_patch_applied", False):
+            return
+
+        _original_stringify_properties = FalkorDBAdapter.stringify_properties
+
+        def _patched_stringify_properties(self: Any, properties: dict[str, Any]) -> str:
+            """Convert properties to Cypher string with sanitized keys."""
+            sanitized_properties = {}
+            for key, value in properties.items():
+                if value is not None:
+                    sanitized_key = _sanitize_identifier_for_cypher(key, "prop")
+                    sanitized_properties[sanitized_key] = value
+            return _original_stringify_properties(self, sanitized_properties)
+
+        FalkorDBAdapter.stringify_properties = _patched_stringify_properties
+        FalkorDBAdapter._tale_stringify_properties_patch_applied = True
+        logger.info("Patched FalkorDB adapter stringify_properties for ASCII property names")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping stringify_properties patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter stringify_properties: {e}")
+
+
+def _patch_falkordb_adapter_create_data_point_query() -> None:
+    """Patch FalkorDB adapter to sanitize DataPoint class names used as node labels.
+
+    Upstream: https://github.com/topoteretes/cognee-community/issues/59
+    Remove this patch when the issue is fixed.
+
+    The create_data_point_query method uses data_point.__class__.__name__ as the
+    node label. If custom DataPoint subclasses have non-ASCII names, this causes
+    Cypher parser errors.
+
+    This patch sanitizes the class name in the generated query.
+    """
+    try:
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_create_data_point_query_patch_applied", False):
+            return
+
+        _original_create_data_point_query = FalkorDBAdapter.create_data_point_query
+
+        def _patched_create_data_point_query(self: Any, data_point: Any) -> tuple[str, dict]:
+            """Create data point query with sanitized node label."""
+            query, params = _original_create_data_point_query(self, data_point)
+
+            # Get the original class name and sanitize it
+            original_label = data_point.__class__.__name__
+            sanitized_label = _sanitize_identifier_for_cypher(original_label, "DataPoint")
+
+            # Replace the label in the query if it changed
+            if original_label != sanitized_label:
+                # The query format is: MERGE (n:ClassName {id: $id}) SET n = $properties
+                query = query.replace(f"(n:{original_label} ", f"(n:{sanitized_label} ")
+
+            return query, params
+
+        FalkorDBAdapter.create_data_point_query = _patched_create_data_point_query
+        FalkorDBAdapter._tale_create_data_point_query_patch_applied = True
+        logger.info("Patched FalkorDB adapter create_data_point_query for ASCII labels")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping create_data_point_query patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter create_data_point_query: {e}")
+
+
+def _patch_falkordb_adapter_add_nodes() -> None:
+    """Patch FalkorDB adapter add_nodes to fix vector index bug.
+
+    Upstream: https://github.com/topoteretes/cognee-community/issues/61
+    Remove this patch when the issue is fixed.
+
+    The original implementation has a bug where it uses enumerate(property_names)
+    to index into vectorized_values, but vectorized_values only contains vectors
+    for properties that have non-None values. This causes IndexError when some
+    embeddable properties are None.
+
+    Fix: Use vector_map to correctly map property names to their vector indices.
+    """
+    try:
+        from cognee.infrastructure.databases.graph.graph_db_interface import DataPoint
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_add_nodes_patch_applied", False):
+            return
+
+        _original_add_nodes = FalkorDBAdapter.add_nodes
+
+        async def _patched_add_nodes(self: Any, nodes: list) -> None:
+            """Add nodes with fixed vector index mapping."""
+            for node in nodes:
+                if isinstance(node, tuple) and len(node) == 2:
+                    node_id, properties = node
+                    await self.add_node(node_id, properties)
+                elif hasattr(node, "id") and hasattr(node, "model_dump"):
+                    embeddable_values = []
+                    property_names = DataPoint.get_embeddable_property_names(node)
+                    vector_map = {}
+                    for property_name in property_names:
+                        property_value = getattr(node, property_name, None)
+                        if property_value is not None:
+                            vector_map[property_name] = len(embeddable_values)
+                            embeddable_values.append(property_value)
+
+                    vectorized_values = await self.embed_data(embeddable_values)
+
+                    # FIX: Only create vectors for properties that have values
+                    properties = {
+                        **node.model_dump(),
+                        **(
+                            {
+                                f"{property_name}_vector": vectorized_values[vector_map[property_name]]
+                                for property_name in vector_map.keys()
+                            }
+                        ),
+                    }
+
+                    await self.add_node(str(node.id), properties)
+                else:
+                    raise ValueError(
+                        f"Invalid node format: {node}. Expected tuple (node_id, properties) "
+                        f"or DataPoint object."
+                    )
+
+        FalkorDBAdapter.add_nodes = _patched_add_nodes
+        FalkorDBAdapter._tale_add_nodes_patch_applied = True
+        logger.info("Patched FalkorDB adapter add_nodes to fix vector index bug")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping add_nodes patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter add_nodes: {e}")
 
 
 def setup_cognee_environment() -> None:
@@ -201,6 +742,11 @@ def setup_cognee_environment() -> None:
     embedding_dimensions = settings.get_embedding_dimensions()
     os.environ.setdefault("EMBEDDING_DIMENSIONS", str(embedding_dimensions))
 
+    # Set chunk size for text chunking during cognify
+    # This controls the maximum tokens per chunk (affects retrieval precision)
+    # Default cognee value is 8191 which is too large for most RAG use cases
+    os.environ.setdefault("EMBEDDING_MAX_COMPLETION_TOKENS", str(settings.chunk_size))
+
     # Configure BAML for structured outputs (knowledge graph extraction)
     # Use BAML_LLM_MODEL to specify a different model for extraction if needed.
     # This is useful when the main model is a "thinking" model that causes JSON truncation.
@@ -220,12 +766,13 @@ def setup_cognee_environment() -> None:
     os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
-        "LLM configured - Provider: {}, Model: {}, Embedding: {} (dim={}), BAML: {}",
+        "LLM configured - Provider: {}, Model: {}, Embedding: {} (dim={}), BAML: {}, chunk_size: {}",
         provider,
         cognee_llm_model,
         cognee_embedding_model,
         embedding_dimensions,
         baml_model,
+        settings.chunk_size,
     )
 
     _setup_database_config()
@@ -280,22 +827,39 @@ def _setup_database_config() -> None:
 
 
 def _setup_vector_and_graph_config() -> None:
-    """Set up vector and graph database configuration for Cognee."""
-    # Set vector database configuration
-    # Cognee uses VECTOR_DB_PROVIDER to select the vector store backend
-    # Supported providers: LanceDB, PGVector, neptune_analytics, ChromaDB
-    # We use PGVector since we already have PostgreSQL configured
-    os.environ["VECTOR_DB_PROVIDER"] = "pgvector"
+    """Set up vector and graph database configuration for Cognee.
 
-    logger.info("Configured Cognee to use PGVector for vector storage")
+    Uses FalkorDB for both graph and vector storage via the hybrid adapter.
+    FalkorDB is a Redis-based graph database optimized for GraphRAG with:
+    - Native multi-tenant support (10K+ graphs per instance)
+    - Low latency (~140ms p99)
+    - Client-server architecture (no file-level locking issues)
+    - Combined graph and vector storage in one system
+    """
+    # FalkorDB connection settings (defaults for Docker network)
+    # 'graph-db' is the Docker service name in compose.yml
+    falkordb_url = os.environ.get("GRAPH_DATABASE_URL", "graph-db")
+    falkordb_port = os.environ.get("GRAPH_DATABASE_PORT", "6379")
 
-    # Set graph database configuration (Kuzu Remote)
-    # Cognee uses GRAPH_DATABASE_PROVIDER to select the graph store backend
-    os.environ["GRAPH_DATABASE_PROVIDER"] = settings.graph_db_provider
-    os.environ["GRAPH_DATABASE_URL"] = settings.graph_db_url
+    # Use FalkorDB for graph storage
+    # Note: Cognee expects provider name "falkor" (not "falkordb")
+    os.environ["GRAPH_DATABASE_PROVIDER"] = "falkor"
+    os.environ["GRAPH_DATABASE_URL"] = falkordb_url
+    os.environ["GRAPH_DATABASE_PORT"] = falkordb_port
+    # Set the dataset handler for multi-user access control mode
+    os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "falkor_graph_local"
+
+    # Use FalkorDB for vector storage (hybrid adapter handles both)
+    os.environ["VECTOR_DB_PROVIDER"] = "falkor"
+    os.environ["VECTOR_DB_URL"] = falkordb_url
+    os.environ["VECTOR_DB_PORT"] = falkordb_port
+    # Set the dataset handler for multi-user access control mode
+    os.environ["VECTOR_DATASET_DATABASE_HANDLER"] = "falkor_vector_local"
 
     logger.info(
-        f"Configured Cognee to use Kuzu remote graph store: {settings.graph_db_url}"
+        "Configured Cognee to use FalkorDB (graph + vector) at {}:{}",
+        falkordb_url,
+        falkordb_port,
     )
 
 
@@ -312,65 +876,12 @@ def _setup_feature_flags() -> None:
         "true" if settings.enable_query_logging else "false"
     )
 
-    # Set cognee data directory
+    # FalkorDB handles multi-tenancy natively via separate graphs per dataset.
+    # No need for file-based isolation (ENABLE_BACKEND_ACCESS_CONTROL) since
+    # FalkorDB is a centralized client-server database, not embedded files.
+
+    # Set cognee data directory (still needed for temp files and document processing)
     os.environ["COGNEE_DATA_DIR"] = settings.cognee_data_dir
-
-
-def _patch_remote_kuzu_adapter() -> None:
-    """Patch RemoteKuzuAdapter to prevent it from creating a local Kuzu database.
-
-    The Cognee RemoteKuzuAdapter inherits from KuzuAdapter and calls
-    super().__init__("/tmp/kuzu_remote"), which creates a local Kuzu database
-    even though we're using a remote REST API. With multiple uvicorn workers,
-    this causes file lock conflicts.
-
-    This patch overrides the RemoteKuzuAdapter.__init__ to skip the parent's
-    _initialize_connection() call, which is the method that creates the local
-    database. The remote adapter doesn't need a local database since it uses
-    HTTP to communicate with the remote Kuzu server.
-    """
-    try:
-        from cognee.infrastructure.databases.graph.kuzu.remote_kuzu_adapter import (
-            RemoteKuzuAdapter,
-        )
-
-        # Check if already patched
-        if getattr(RemoteKuzuAdapter, "_tale_patched", False):
-            return
-
-        def patched_init(self, api_url: str, username: str, password: str) -> None:
-            """Patched init that skips local Kuzu database creation."""
-            import asyncio
-            from concurrent.futures import ThreadPoolExecutor
-
-            # Initialize only the minimal attributes needed for RemoteKuzuAdapter
-            # WITHOUT calling parent __init__ (which creates a local Kuzu DB)
-            self.open_connections = 0
-            self._is_closed = False
-            self.db_path = "/tmp/kuzu_remote"  # Not actually used
-            self.db = None
-            self.connection = None
-            self.executor = ThreadPoolExecutor()
-            self.KUZU_ASYNC_LOCK = asyncio.Lock()
-            self._connection_change_lock = asyncio.Lock()
-
-            # RemoteKuzuAdapter-specific attributes
-            self.api_url = api_url
-            self.username = username
-            self.password = password
-            self._session = None
-            self._schema_initialized = False
-
-        RemoteKuzuAdapter.__init__ = patched_init
-        RemoteKuzuAdapter._tale_patched = True
-        logger.info(
-            "Patched RemoteKuzuAdapter to skip local Kuzu database creation "
-            "(fixes multi-worker lock conflicts)"
-        )
-    except ImportError:
-        logger.debug("RemoteKuzuAdapter not available, skipping patch")
-    except Exception as e:
-        logger.warning(f"Failed to patch RemoteKuzuAdapter: {e}")
 
 
 def configure_cognee_base_config() -> None:
@@ -411,15 +922,17 @@ def initialize_cognee() -> bool:
     """
     patch_tiktoken()
     configure_litellm_drop_params()
+    _patch_litellm_aembedding()
     _patch_litellm_embedding()
+    _patch_falkordb_adapter_relationship_sanitize()
+    _patch_falkordb_adapter_add_node()
+    _patch_falkordb_adapter_stringify_properties()
+    _patch_falkordb_adapter_create_data_point_query()
+    _patch_falkordb_adapter_add_nodes()
     setup_cognee_environment()
     configure_cognee_base_config()
 
     try:
-        # Patch RemoteKuzuAdapter BEFORE importing cognee to prevent
-        # local Kuzu database creation that causes multi-worker lock conflicts
-        _patch_remote_kuzu_adapter()
-
         import cognee  # noqa: F401
         logger.info("Cognee imported successfully with preconfigured base_config")
         return True

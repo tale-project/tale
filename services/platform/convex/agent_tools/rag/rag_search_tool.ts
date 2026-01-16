@@ -2,13 +2,17 @@
  * Convex Tool: RAG Search
  *
  * Search the RAG knowledge base for relevant context using semantic search.
+ * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
  */
 
 import { z } from 'zod';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-
+import {
+  DEFAULT_DATASET_NAME,
+  teamIdToDatasetName,
+} from '../../lib/get_user_teams';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -29,15 +33,10 @@ interface QueryResponse {
 }
 
 /**
- * Get RAG service URL from environment or variables
+ * Get RAG service URL from environment variable
  */
-function getRagServiceUrl(variables?: Record<string, unknown>): string {
-  const url =
-    (variables?.ragServiceUrl as string) ||
-    process.env.RAG_URL ||
-    'http://localhost:8001';
-
-  return url;
+function getRagServiceUrl(): string {
+  return process.env.RAG_URL || 'http://localhost:8001';
 }
 
 export const ragSearchTool = {
@@ -90,29 +89,77 @@ Returns the most relevant document chunks based on semantic similarity to your q
         .describe('Whether to include metadata in results (default: true)'),
     }),
     handler: async (ctx: ToolCtx, args): Promise<QueryResponse> => {
-      // Get variables from context (injected by agent caller)
-      const { variables } = ctx;
-
-      const ragServiceUrl = getRagServiceUrl(variables);
+      // Get user ID, team IDs, and prefetch cache from context
+      // userId is provided by Agent SDK from thread.userId
+      // userTeamIds is passed from generateAgentResponse (resolved in mutation where auth identity is available)
+      // ragPrefetchCache is set by generateAgentResponse for the first call
+      const { userId, userTeamIds, ragPrefetchCache } = ctx;
 
       debugLog('tool:rag_search start', {
         query: args.query,
         top_k: args.top_k,
-        ragServiceUrl,
+        hasPrefetchCache: !!ragPrefetchCache,
+        prefetchConsumed: ragPrefetchCache?.consumed,
       });
 
+      // First call: use prefetched result if available
+      if (ragPrefetchCache && !ragPrefetchCache.consumed) {
+        ragPrefetchCache.consumed = true;
+
+        try {
+          const result = await ragPrefetchCache.promise;
+
+          debugLog('tool:rag_search using prefetched result (first call)', {
+            aiQuery: args.query,
+            prefetchAge: Date.now() - ragPrefetchCache.timestamp,
+            total_results: result.total_results,
+            processing_time_ms: result.processing_time_ms,
+          });
+
+          return result;
+        } catch (error) {
+          // Prefetch failed, fall through to make a fresh request
+          debugLog('tool:rag_search prefetch failed, making fresh request', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      // Subsequent calls or no prefetch: make a fresh request
+      const ragServiceUrl = getRagServiceUrl();
       const url = `${ragServiceUrl}/api/v1/search`;
 
       // Default similarity_threshold of 0.3 balances recall and precision:
       // - Lower values (< 0.3) include more marginal matches, increasing noise
       // - Higher values (> 0.5) filter too aggressively, missing relevant results
       // - 0.3 is a common baseline for embedding-based search with cosine similarity
-      const payload = {
+      const payload: Record<string, unknown> = {
         query: args.query,
         top_k: args.top_k || 5,
         similarity_threshold: args.similarity_threshold ?? 0.3,
         include_metadata: args.include_metadata !== false,
       };
+
+      if (!userId) {
+        throw new Error(
+          'rag_search requires userId in ToolCtx. ' +
+          'Ensure the thread was created with a userId.'
+        );
+      }
+
+      payload.user_id = userId;
+
+      // Build searchable datasets from user's team IDs
+      // Always include the default org-level dataset + team-specific datasets
+      const teamDatasets = (userTeamIds ?? []).map(teamIdToDatasetName);
+      const datasets = [DEFAULT_DATASET_NAME, ...teamDatasets];
+
+      payload.datasets = datasets;
+      debugLog('tool:rag_search datasets resolved', {
+        userId,
+        userTeamIds,
+        datasets,
+      });
 
       try {
         const response = await fetch(url, {

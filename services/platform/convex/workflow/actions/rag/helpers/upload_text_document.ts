@@ -7,6 +7,10 @@ export interface UploadTextDocumentArgs {
   /** Optional logical record identifier; sent as `document_id` to the RAG endpoint. */
   recordId?: string;
   timeoutMs?: number;
+  /** User ID for multi-tenant isolation */
+  userId?: string;
+  /** Dataset name for organizing documents (e.g., 'tale_team_{teamId}') */
+  datasetName?: string;
 }
 
 /**
@@ -18,6 +22,8 @@ export async function uploadTextDocument({
   metadata,
   recordId,
   timeoutMs = 30000,
+  userId,
+  datasetName,
 }: UploadTextDocumentArgs): Promise<RagUploadResult> {
   const startTime = Date.now();
   const url = `${ragServiceUrl}/api/v1/documents`;
@@ -31,6 +37,14 @@ export async function uploadTextDocument({
   // If a logical recordId is provided, also use it as the endpoint document_id
   if (recordId) {
     payload.document_id = recordId;
+  }
+
+  // Add multi-tenant parameters if provided
+  if (userId) {
+    payload.user_id = userId;
+  }
+  if (datasetName) {
+    payload.dataset_name = datasetName;
   }
 
   const controller = new AbortController();

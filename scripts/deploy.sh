@@ -67,7 +67,7 @@ ALL_IMAGES="tale-platform tale-rag tale-crawler tale-db tale-graph-db tale-proxy
 # Services NOT included (shared between blue/green, single instance only):
 # - db: TimescaleDB - single instance required for data consistency
 # - proxy: Caddy - single entry point for traffic routing
-# - graph-db: Kuzu - requires exclusive file lock, cannot run two instances
+# - graph-db: Neo4j - single instance required for data consistency
 #
 # The actual service names in compose files are suffixed with color:
 # e.g., platform-blue, platform-green, rag-blue, rag-green, etc.

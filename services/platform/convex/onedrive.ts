@@ -843,6 +843,7 @@ export const uploadToStorage = internalAction({
     contentType: v.string(),
     metadata: v.optional(v.any()),
     documentIdToUpdate: v.optional(v.id('documents')),
+    createdBy: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -891,6 +892,7 @@ export const uploadToStorage = internalAction({
           fileId: fileId,
           mimeType: args.contentType,
           metadata: documentMetadata,
+          createdBy: args.createdBy,
         });
 
       return {

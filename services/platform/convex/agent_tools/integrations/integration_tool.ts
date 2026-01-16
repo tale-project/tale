@@ -46,10 +46,9 @@ Write operations create approval cards. Use integration_batch for multiple paral
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {
-      // Extract parentThreadId from extended context (set by integration_assistant_tool)
+      // parentThreadId comes from extended context (set by integration_assistant_tool)
       // This ensures approval cards are linked to the parent thread, not the sub-thread
-      const ctxWithParent = ctx as ToolCtx & { parentThreadId?: string };
-      const { organizationId, threadId: currentThreadId, messageId, parentThreadId } = ctxWithParent;
+      const { organizationId, threadId: currentThreadId, messageId, parentThreadId } = ctx;
       const threadId = parentThreadId ?? currentThreadId;
 
       console.log('[integration_tool] Context:', {

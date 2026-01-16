@@ -42,13 +42,9 @@ Include headers, paragraphs, lists, tables, and any other text content.
 If there's no readable text, respond with "[No text found]".
 Return ONLY the extracted text, nothing else."""
 
-DESCRIBE_PROMPT = """Describe this image in detail for document indexing purposes.
-Include:
-- What type of image it is (photo, chart, diagram, graph, illustration, etc.)
-- The main subject or content
-- Any visible text, labels, or captions
-- Key details that would help someone searching for this content
-Keep the description concise but comprehensive (2-4 sentences)."""
+DESCRIBE_PROMPT = """Briefly describe this image in 1-2 short sentences (max 150 characters).
+Focus on: image type (photo/chart/diagram), main subject, and key visible text.
+Be extremely concise - omit minor details."""
 
 
 class VisionClient:
@@ -171,7 +167,7 @@ class VisionClient:
                         ],
                     }
                 ],
-                max_tokens=500,
+                max_tokens=100,
             )
 
             if not response.choices:

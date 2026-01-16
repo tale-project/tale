@@ -8,6 +8,7 @@ import { Rules } from 'convex-helpers/server/rowLevelSecurity';
 import type { RLSRuleContext } from '../types';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
+import { getUserTeamIds } from '../../get_user_teams';
 
 import { authorizeRls } from '../../../auth';
 
@@ -25,12 +26,26 @@ export async function rlsRules(
     userOrganizations.map((org) => org.organizationId),
   );
 
+  // Get user's team IDs for team-based access control on documents
+  const userTeamIds = user?.userId
+    ? new Set(await getUserTeamIds(ctx, user.userId))
+    : new Set<string>();
+
+  // Helper to check team access for documents
+  // No teamTags or empty = accessible to all org members
+  // Has teamTags = user must be in at least one of those teams
+  const hasDocumentTeamAccess = (doc: { teamTags?: string[] }): boolean => {
+    if (!doc.teamTags || doc.teamTags.length === 0) return true;
+    return doc.teamTags.some((tag) => userTeamIds.has(tag));
+  };
+
   return {
-    // Documents - organization-scoped
+    // Documents - organization-scoped with team-based access control
     documents: {
       read: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
+        if (!hasDocumentTeamAccess(doc)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -39,6 +54,7 @@ export async function rlsRules(
       modify: async (_, doc) => {
         if (!user) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
+        if (!hasDocumentTeamAccess(doc)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );
@@ -47,6 +63,8 @@ export async function rlsRules(
       insert: async ({ user: ruleUser }, doc) => {
         if (!ruleUser) return false;
         if (!userOrgIds.has(doc.organizationId)) return false;
+        // User can only create documents with teamTags they belong to (or no teamTags)
+        if (!hasDocumentTeamAccess(doc)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === doc.organizationId,
         );

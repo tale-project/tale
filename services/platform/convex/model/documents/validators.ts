@@ -78,6 +78,11 @@ export const documentItemValidator = v.object({
   ragStatus: v.optional(ragStatusValidator),
   ragIndexedAt: v.optional(v.number()),
   ragError: v.optional(v.string()),
+  // Team tags for multi-tenancy support
+  teamTags: v.optional(v.array(v.string())),
+  // Creator tracking
+  createdBy: v.optional(v.string()),
+  createdByName: v.optional(v.string()),
 });
 
 /**
@@ -116,7 +121,11 @@ export const documentRecordValidator = v.object({
   metadata: v.optional(v.any()),
   sourceProvider: v.optional(sourceProviderValidator),
   externalItemId: v.optional(v.string()),
+  // Team tags for multi-tenancy support
+  teamTags: v.optional(v.array(v.string())),
   ragInfo: v.optional(ragInfoValidator),
+  // Creator tracking
+  createdBy: v.optional(v.string()),
 });
 
 /**
