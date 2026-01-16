@@ -19,6 +19,11 @@ export const tables = {
     'organizationId',
     'userId',
   ]),
+  // Add composite index for efficient membership lookups (teamId, userId)
+  teamMember: generatedTables.teamMember.index('teamId_userId', [
+    'teamId',
+    'userId',
+  ]),
 };
 
 const schema = defineSchema(tables);
