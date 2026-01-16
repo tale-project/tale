@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, useRef } from 'react';
 import { RefreshCw, Trash2, Users } from 'lucide-react';
 import {
   EntityRowActions,
@@ -41,6 +41,7 @@ export function DocumentRowActions({
   const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReindexing, setIsReindexing] = useState(false);
+  const reindexingRef = useRef(false);
   const deleteDocument = useDeleteDocument();
 
   // Determine if delete action should be visible
@@ -94,6 +95,8 @@ export function DocumentRowActions({
   }, [itemType, dialogs.open]);
 
   const handleReindex = useCallback(async () => {
+    if (reindexingRef.current) return;
+    reindexingRef.current = true;
     setIsReindexing(true);
     try {
       const result = await retryRagIndexing(documentId);
@@ -115,6 +118,7 @@ export function DocumentRowActions({
         variant: 'destructive',
       });
     } finally {
+      reindexingRef.current = false;
       setIsReindexing(false);
     }
   }, [documentId, tDocuments]);
