@@ -8,6 +8,13 @@ import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { components } from '../../../_generated/api';
 
+const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
+type ValidRole = (typeof VALID_ROLES)[number];
+
+function isValidRole(role: string): role is ValidRole {
+  return VALID_ROLES.includes(role as ValidRole);
+}
+
 /**
  * Get all organizations user has access to from Better Auth's member table.
  *
@@ -49,11 +56,16 @@ export async function getUserOrganizations(
     return [];
   }
 
-  return result.page.map((member: any) => ({
-    organizationId: member.organizationId,
-    // Use JWT trustedRole if available (trusted headers mode),
-    // otherwise fall back to member.role from database (normal auth mode)
-    role: trustedData?.trustedRole || (member.role || 'member').toLowerCase(),
-    member,
-  }));
+  return result.page.map((member: any) => {
+    // Get role from trusted headers if available, otherwise from database
+    const rawRole = trustedData?.trustedRole || (member.role || 'member');
+    const normalizedRole = rawRole.toLowerCase();
+    const role: ValidRole = isValidRole(normalizedRole) ? normalizedRole : 'member';
+
+    return {
+      organizationId: member.organizationId,
+      role,
+      member,
+    };
+  });
 }

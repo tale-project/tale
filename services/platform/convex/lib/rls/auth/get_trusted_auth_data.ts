@@ -38,13 +38,16 @@ export async function getTrustedAuthData(
     return null;
   }
 
-  // Parse trustedTeamIds from JSON string
-  const trustedTeamIdsRaw = (identity as any).trustedTeamIds;
+  // Parse trustedTeamIds from JSON string with runtime validation
+  const trustedTeamIdsRaw = (identity as { trustedTeamIds?: string }).trustedTeamIds;
   let trustedTeamIds: string[] = [];
 
   if (trustedTeamIdsRaw) {
     try {
-      trustedTeamIds = JSON.parse(trustedTeamIdsRaw);
+      const parsed = JSON.parse(trustedTeamIdsRaw);
+      if (Array.isArray(parsed) && parsed.every((id) => typeof id === 'string')) {
+        trustedTeamIds = parsed;
+      }
     } catch {
       trustedTeamIds = [];
     }
