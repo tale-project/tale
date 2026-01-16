@@ -198,7 +198,7 @@ export function ChatInterface({
 
         <div className="sticky bottom-0 z-50">
           {/* Scroll to bottom button */}
-          <div className="max-w-[--chat-max-width] mx-auto w-full relative">
+          <div className="max-w-(--chat-max-width) mx-auto w-full relative">
             <AnimatePresence>
               {showScrollButton && (
                 <motion.div
@@ -224,7 +224,7 @@ export function ChatInterface({
 
           <ChatInput
             key={threadId || 'new-chat'}
-            className="max-w-[--chat-max-width] mx-auto w-full"
+            className="max-w-(--chat-max-width) mx-auto w-full"
             value={inputValue}
             onChange={setInputValue}
             onSendMessage={handleSendMessage}

@@ -41,7 +41,7 @@ export function ChatMessages({
 
   return (
     <div
-      className="max-w-[--chat-max-width] mx-auto space-y-4 pt-10"
+      className="max-w-(--chat-max-width) mx-auto space-y-4 pt-10"
       role="log"
       aria-live="polite"
       aria-label={t('aria.messageHistory')}
