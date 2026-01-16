@@ -1444,7 +1444,7 @@
       "deleteDocument": "Delete document",
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
-      "deleteFileFailed": "An unexpected error occurred while deleting",
+      "deleteFileFailed": "An unexpected error occurred while deleting the file.",
       "manageTeams": "Manage teams",
       "reindex": "Reindex"
     },
@@ -1525,7 +1525,7 @@
       "syncImport": "Sync import",
       "syncDescription": "Keep files automatically synchronized",
       "importCount": "Import ({count})",
-      "importItem": "{type, select, one-time {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
+      "importItem": "{type, select, oneTime {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
       "importing": "Importing...",
       "syncing": "Syncing...",
       "importStarted": "Import started",
@@ -1542,8 +1542,8 @@
       "syncCancelled": "Sync cancelled",
       "importCancelledDescription": "File import was cancelled",
       "syncCancelledDescription": "File synchronization was cancelled",
-      "cancelledByUser": "{type, select, one-time {Import} other {Sync}} cancelled by user",
-      "failedToStart": "Failed to start {type, select, one-time {import} other {sync}}",
+      "cancelledByUser": "{type, select, oneTime {Import} other {Sync}} cancelled by user",
+      "failedToStart": "Failed to start {type, select, oneTime {import} other {sync}}",
       "failedToParseSSE": "Failed to parse SSE data",
       "failedToProcessStream": "Failed to process stream"
     },
