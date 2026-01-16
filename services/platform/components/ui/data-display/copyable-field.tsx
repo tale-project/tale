@@ -58,23 +58,23 @@ export const CopyableField = React.memo(function CopyableField({
         value={value}
         readOnly
         label={label}
-        className={cn(
-          'flex-1',
-          mono && 'font-mono text-sm',
-          inputClassName
-        )}
+        wrapperClassName="flex-1"
+        className={cn(mono && 'font-mono text-sm', inputClassName)}
         aria-describedby={copied ? 'copy-status' : undefined}
       />
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className={cn('p-1 flex-shrink-0', label && 'mt-6')}
+        className={cn('p-1 shrink-0', label && 'mt-6')}
         onClick={onClick}
         aria-label={copyAriaLabel || tCommon('actions.copy')}
       >
         {copied ? (
-          <Check className="size-4 text-green-600 dark:text-green-400" aria-hidden="true" />
+          <Check
+            className="size-4 text-green-600 dark:text-green-400"
+            aria-hidden="true"
+          />
         ) : (
           <Copy className="size-4" aria-hidden="true" />
         )}
@@ -110,11 +110,7 @@ export const CopyableText = React.memo(function CopyableText({
   const { copied, onClick } = useCopyButton(value, { copiedDuration });
 
   return (
-    <HStack
-      gap={1}
-      align="center"
-      className={cn('inline-flex', className)}
-    >
+    <HStack gap={1} align="center" className={cn('inline-flex', className)}>
       <span className="font-mono text-sm">{value}</span>
       <button
         type="button"
@@ -123,7 +119,10 @@ export const CopyableText = React.memo(function CopyableText({
         aria-label={tCommon('actions.copy')}
       >
         {copied ? (
-          <Check className="size-3.5 text-green-600 dark:text-green-400" aria-hidden="true" />
+          <Check
+            className="size-3.5 text-green-600 dark:text-green-400"
+            aria-hidden="true"
+          />
         ) : (
           <Copy className="size-3.5 text-muted-foreground" aria-hidden="true" />
         )}

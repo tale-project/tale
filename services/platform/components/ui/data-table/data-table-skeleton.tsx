@@ -24,6 +24,8 @@ export interface DataTableSkeletonColumn {
   isAction?: boolean;
   /** Whether this column should show avatar+text layout */
   hasAvatar?: boolean;
+  /** Column alignment (header and cell content) */
+  align?: 'left' | 'center' | 'right';
 }
 
 export interface DataTableSkeletonProps {
@@ -59,7 +61,7 @@ function normalizeColumns(
 ): DataTableSkeletonColumn[] {
   return columns.map((col) => {
     // Check if it's already a simple column config
-    if ('isAction' in col || 'hasAvatar' in col) {
+    if ('isAction' in col || 'hasAvatar' in col || 'align' in col) {
       return col as DataTableSkeletonColumn;
     }
 
@@ -106,10 +108,16 @@ export function DataTableSkeleton({
             {normalizedColumns.map((col, i) => (
               <TableHead
                 key={i}
-                className="font-medium text-sm text-muted-foreground"
+                className={cn(
+                  'font-medium text-sm text-muted-foreground',
+                  col.align === 'right' && 'text-right',
+                  col.align === 'center' && 'text-center',
+                )}
                 style={col.size ? { width: col.size } : undefined}
               >
-                {col.header ?? <Skeleton className="h-3.5 w-20" />}
+                {col.isAction
+                  ? null
+                  : (col.header ?? <Skeleton className="h-3.5 w-20" />)}
               </TableHead>
             ))}
           </TableRow>
@@ -125,26 +133,36 @@ export function DataTableSkeleton({
                   colIndex === 0 &&
                   col.hasAvatar !== false);
 
+              const cellContent = col.isAction ? (
+                <HStack justify="end">
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </HStack>
+              ) : showAvatar ? (
+                <HStack gap={3}>
+                  <Skeleton className="size-8 rounded-md shrink-0" />
+                  <Stack gap={1} className="flex-1">
+                    <Skeleton className="h-3.5 w-full max-w-48" />
+                    <Skeleton className="h-3 w-2/3 max-w-24" />
+                  </Stack>
+                </HStack>
+              ) : col.align === 'right' ? (
+                <div className="flex justify-end">
+                  <Skeleton className="h-3.5 w-20" />
+                </div>
+              ) : col.align === 'center' ? (
+                <div className="flex justify-center">
+                  <Skeleton className="h-3.5 w-20" />
+                </div>
+              ) : (
+                <Skeleton className="h-3.5 w-full max-w-[80%]" />
+              );
+
               return (
                 <TableCell
                   key={colIndex}
                   style={col.size ? { width: col.size } : undefined}
                 >
-                  {col.isAction ? (
-                    <HStack justify="end">
-                      <Skeleton className="h-8 w-8 rounded-md" />
-                    </HStack>
-                  ) : showAvatar ? (
-                    <HStack gap={3}>
-                      <Skeleton className="size-8 rounded-md shrink-0" />
-                      <Stack gap={1} className="flex-1">
-                        <Skeleton className="h-3.5 w-full max-w-48" />
-                        <Skeleton className="h-3 w-2/3 max-w-24" />
-                      </Stack>
-                    </HStack>
-                  ) : (
-                    <Skeleton className="h-3.5 w-full max-w-[80%]" />
-                  )}
+                  {cellContent}
                 </TableCell>
               );
             })}

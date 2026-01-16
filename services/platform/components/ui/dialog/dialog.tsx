@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { X } from 'lucide-react';
 
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -30,7 +31,7 @@ const dialogContentVariants = cva(
     defaultVariants: {
       size: 'default',
     },
-  }
+  },
 );
 
 export type DialogSize = NonNullable<
@@ -127,23 +128,42 @@ export function Dialog({
               </DialogPrimitive.Close>
             </div>
           )}
-          {customHeader ?? (
+          {customHeader ? (
+            <>
+              <VisuallyHidden>
+                <DialogPrimitive.Title>{title}</DialogPrimitive.Title>
+                {description && (
+                  <DialogPrimitive.Description>
+                    {description}
+                  </DialogPrimitive.Description>
+                )}
+              </VisuallyHidden>
+              {customHeader}
+            </>
+          ) : (
             <div
               className={cn(
                 'flex flex-col space-y-2 text-left',
                 !hideClose && !headerActions && 'pr-8',
-                headerActions && 'flex-row items-start justify-between pr-8 gap-4',
+                headerActions &&
+                  'flex-row items-start justify-between pr-8 gap-4',
                 headerClassName,
               )}
             >
               <div
                 className={cn(
                   'flex items-center gap-3',
-                  headerActions && 'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
+                  headerActions &&
+                    'flex-col items-start space-y-2 gap-0 flex-1 min-w-0',
                 )}
               >
                 {icon && <div className="shrink-0">{icon}</div>}
-                <div className={cn('flex flex-col space-y-2', headerActions && 'min-w-0')}>
+                <div
+                  className={cn(
+                    'flex flex-col space-y-2',
+                    headerActions && 'min-w-0',
+                  )}
+                >
                   <DialogPrimitive.Title className="text-base font-semibold leading-none tracking-tight">
                     {title}
                   </DialogPrimitive.Title>
@@ -154,7 +174,9 @@ export function Dialog({
                   )}
                 </div>
               </div>
-              {headerActions && <div className="flex items-center">{headerActions}</div>}
+              {headerActions && (
+                <div className="flex items-center">{headerActions}</div>
+              )}
             </div>
           )}
           {children}
