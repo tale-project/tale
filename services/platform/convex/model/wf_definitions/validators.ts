@@ -1,45 +1,24 @@
 /**
  * Convex validators for workflow definitions
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	workflowStatusSchema,
+	workflowTypeSchema,
+	retryPolicySchema,
+	secretConfigSchema,
+	workflowConfigSchema,
+	workflowUpdateSchema,
+} from '../../../lib/shared/validators/wf_definitions';
 
-export const workflowStatusValidator = v.union(
-  v.literal('draft'),
-  v.literal('active'),
-  v.literal('archived'),
-);
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/wf_definitions';
 
-export const workflowTypeValidator = v.literal('predefined');
-
-export const workflowConfigValidator = v.object({
-  timeout: v.optional(v.number()),
-  retryPolicy: v.optional(
-    v.object({
-      maxRetries: v.number(),
-      backoffMs: v.number(),
-    }),
-  ),
-  variables: v.optional(jsonRecordValidator),
-  secrets: v.optional(
-    v.record(
-      v.string(),
-      v.object({
-        kind: v.literal('inlineEncrypted'),
-        cipherText: v.string(),
-        keyId: v.optional(v.string()),
-      }),
-    ),
-  ),
-});
-
-export const workflowUpdateValidator = v.object({
-  name: v.optional(v.string()),
-  description: v.optional(v.string()),
-  version: v.optional(v.string()),
-  status: v.optional(workflowStatusValidator),
-  workflowType: v.optional(workflowTypeValidator),
-  config: v.optional(workflowConfigValidator),
-  metadata: v.optional(jsonRecordValidator),
-});
+export const workflowStatusValidator = zodToConvex(workflowStatusSchema);
+export const workflowTypeValidator = zodToConvex(workflowTypeSchema);
+export const retryPolicyValidator = zodToConvex(retryPolicySchema);
+export const secretConfigValidator = zodToConvex(secretConfigSchema);
+export const workflowConfigValidator = zodToConvex(workflowConfigSchema);
+export const workflowUpdateValidator = zodToConvex(workflowUpdateSchema);

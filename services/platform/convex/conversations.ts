@@ -15,7 +15,6 @@ import { cursorPaginationOptsValidator } from './lib/pagination';
 import * as ConversationsModel from './model/conversations';
 import { queryConversationMessages as queryConversationMessagesModel } from './model/conversations/query_conversation_messages';
 import {
-  conversationListResponseValidator,
   conversationWithMessagesValidator,
   bulkOperationResultValidator,
   conversationStatusValidator,
@@ -416,38 +415,6 @@ export const hasConversations = queryWithRLS({
       )
       .first();
     return firstConversation !== null;
-  },
-});
-
-export const getConversations = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-    status: v.optional(conversationStatusValidator),
-    priority: v.optional(conversationPriorityValidator),
-    search: v.optional(v.string()),
-    page: v.optional(v.number()),
-    limit: v.optional(v.number()),
-  },
-  returns: conversationListResponseValidator,
-  handler: async (ctx, args) => {
-    return await ConversationsModel.getConversations(ctx, args);
-  },
-});
-
-export const getConversationsPage = queryWithRLS({
-  args: {
-    organizationId: v.string(),
-    status: v.optional(conversationStatusValidator),
-    // Accepts comma-separated priority values for multi-priority filtering (e.g., "high,urgent")
-    priority: v.optional(v.string()),
-    category: v.optional(v.string()),
-    search: v.optional(v.string()),
-    page: v.optional(v.number()),
-    limit: v.optional(v.number()),
-  },
-  returns: conversationListResponseValidator,
-  handler: async (ctx, args) => {
-    return await ConversationsModel.getConversationsPage(ctx, args);
   },
 });
 

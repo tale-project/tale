@@ -1,60 +1,37 @@
-import { useMemo } from 'react';
-import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { filterByTextSearch, filterByFields, sortByString } from '@/lib/utils/client-utils';
+import { createEntityDataHook } from './use-entity-data-factory';
 import type { SortOrder } from '@/lib/utils/client-utils';
+
+type WebsiteSortBy = 'domain' | 'title' | '_creationTime' | 'lastScannedAt';
+
+interface WebsiteFilters {
+  status: string[];
+}
+
+const useWebsitesDataBase = createEntityDataHook({
+  queryFn: api.queries.websites.getAllWebsites,
+  searchFields: ['domain', 'title', 'description'],
+  sortConfig: {
+    string: ['domain', 'title'] as WebsiteSortBy[],
+    date: ['_creationTime', 'lastScannedAt'] as WebsiteSortBy[],
+    number: [] as WebsiteSortBy[],
+  },
+  defaultSort: { field: 'domain' as WebsiteSortBy, order: 'asc' as SortOrder },
+});
 
 interface UseWebsitesDataOptions {
   organizationId: string;
   search?: string;
   status?: string[];
-  sortBy?: 'domain' | 'title' | '_creationTime' | 'lastScannedAt';
+  sortBy?: WebsiteSortBy;
   sortOrder?: SortOrder;
 }
 
-export function useWebsitesData({
-  organizationId,
-  search,
-  status = [],
-  sortBy = 'domain',
-  sortOrder = 'asc',
-}: UseWebsitesDataOptions) {
-  const allWebsites = useQuery(api.queries.websites.getAllWebsites, {
-    organizationId,
+export function useWebsitesData(options: UseWebsitesDataOptions) {
+  const { status = [], ...rest } = options;
+
+  return useWebsitesDataBase({
+    ...rest,
+    filters: { status } as WebsiteFilters,
   });
-
-  const processed = useMemo(() => {
-    if (!allWebsites) return [];
-
-    let result = allWebsites;
-
-    if (search) {
-      result = filterByTextSearch(result, search, [
-        'domain',
-        'title',
-        'description',
-      ]);
-    }
-
-    const filters = [];
-    if (status.length > 0) {
-      filters.push({
-        field: 'status' as const,
-        values: new Set(status),
-      });
-    }
-
-    if (filters.length > 0) {
-      result = filterByFields(result, filters);
-    }
-
-    return [...result].sort(sortByString(sortBy, sortOrder));
-  }, [allWebsites, search, status, sortBy, sortOrder]);
-
-  return {
-    data: processed,
-    totalCount: allWebsites?.length ?? 0,
-    filteredCount: processed.length,
-    isLoading: allWebsites === undefined,
-  };
 }

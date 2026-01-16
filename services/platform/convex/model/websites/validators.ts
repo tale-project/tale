@@ -1,48 +1,18 @@
 /**
  * Convex validators for website operations
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	websiteStatusSchema,
+	websiteSchema,
+	websitePageSchema,
+} from '../../../lib/shared/validators/websites';
 
-/**
- * Website status validator
- */
-export const websiteStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('inactive'),
-  v.literal('error'),
-);
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/websites';
 
-/**
- * Website document validator (matches schema)
- */
-export const websiteValidator = v.object({
-  _id: v.id('websites'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  domain: v.string(),
-  title: v.optional(v.string()),
-  description: v.optional(v.string()),
-  scanInterval: v.string(),
-  lastScannedAt: v.optional(v.number()),
-  status: v.optional(websiteStatusValidator),
-  metadata: v.optional(jsonRecordValidator),
-});
-
-/**
- * Website page document validator (matches schema)
- */
-export const websitePageValidator = v.object({
-  _id: v.id('websitePages'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  websiteId: v.id('websites'),
-  url: v.string(),
-  title: v.optional(v.string()),
-  content: v.optional(v.string()),
-  wordCount: v.optional(v.number()),
-  lastCrawledAt: v.number(),
-  metadata: v.optional(jsonRecordValidator),
-  structuredData: v.optional(jsonRecordValidator),
-});
+export const websiteStatusValidator = zodToConvex(websiteStatusSchema);
+export const websiteValidator = zodToConvex(websiteSchema);
+export const websitePageValidator = zodToConvex(websitePageSchema);

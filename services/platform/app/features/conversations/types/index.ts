@@ -14,11 +14,3 @@ export type ConversationWithMessages = NonNullable<
 // Extract nested types from the conversation
 export type Conversation = ConversationWithMessages;
 export type Message = ConversationWithMessages['messages'][number];
-type Customer = ConversationWithMessages['customer'];
-
-// Conversation list type (from getConversations)
-type ConversationsResult = FunctionReturnType<
-  typeof api.conversations.getConversations
->;
-type ConversationsList =
-  NonNullable<ConversationsResult>['conversations'];

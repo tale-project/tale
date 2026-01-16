@@ -5,6 +5,7 @@ import { ThemeProvider } from '@/app/components/theme/theme-provider';
 import { ThemeColorMeta } from '@/app/components/theme/theme-color-meta';
 import { Toaster } from '@/app/components/ui/feedback/toaster';
 import { ServiceWorkerManager } from '@/app/components/service-worker-manager';
+import { OfflineProvider } from '@/app/components/offline-provider';
 import type { RouterContext } from '@/app/router';
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -19,7 +20,9 @@ function RootComponent() {
       <ThemeColorMeta />
       <ConvexProvider client={convex}>
         <QueryClientProvider client={queryClient}>
-          <Outlet />
+          <OfflineProvider>
+            <Outlet />
+          </OfflineProvider>
         </QueryClientProvider>
       </ConvexProvider>
       <ServiceWorkerManager />

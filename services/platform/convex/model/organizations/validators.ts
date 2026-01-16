@@ -1,29 +1,16 @@
 /**
  * Convex validators for organizations
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	memberRoleSchema,
+	organizationSchema,
+} from '../../../lib/shared/validators/organizations';
 
-/**
- * Organization validator
- */
-export const organizationValidator = v.object({
-  _id: v.id('organizations'),
-  _creationTime: v.number(),
-  name: v.string(),
-  slug: v.optional(v.string()),
-  logoId: v.optional(v.id('_storage')),
-  metadata: v.optional(jsonRecordValidator),
-});
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/organizations';
 
-/**
- * Member role validator
- */
-export const memberRoleValidator = v.union(
-  v.literal('Disabled'),
-  v.literal('Admin'),
-  v.literal('Developer'),
-  v.literal('Editor'),
-  v.literal('Member'),
-);
+export const memberRoleValidator = zodToConvex(memberRoleSchema);
+export const organizationValidator = zodToConvex(organizationSchema);

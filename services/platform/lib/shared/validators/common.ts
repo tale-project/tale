@@ -1,15 +1,11 @@
 import { z } from 'zod';
-import { v } from 'convex/values';
-import { createEnumValidator } from './utils/zod-to-convex';
 
 export const sortOrderLiterals = ['asc', 'desc'] as const;
-export const { zodSchema: sortOrderSchema, convexValidator: sortOrderValidator } =
-	createEnumValidator(sortOrderLiterals);
+export const sortOrderSchema = z.enum(sortOrderLiterals);
 export type SortOrder = z.infer<typeof sortOrderSchema>;
 
 export const priorityLiterals = ['low', 'medium', 'high', 'urgent'] as const;
-export const { zodSchema: prioritySchema, convexValidator: priorityValidator } =
-	createEnumValidator(priorityLiterals);
+export const prioritySchema = z.enum(priorityLiterals);
 export type Priority = z.infer<typeof prioritySchema>;
 
 export const dataSourceLiterals = [
@@ -40,6 +36,5 @@ export const dataSourceLiterals = [
 	'zapier',
 	'custom',
 ] as const;
-export const { zodSchema: dataSourceSchema, convexValidator: dataSourceValidator } =
-	createEnumValidator(dataSourceLiterals);
+export const dataSourceSchema = z.enum(dataSourceLiterals);
 export type DataSource = z.infer<typeof dataSourceSchema>;

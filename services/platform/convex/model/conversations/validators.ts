@@ -1,88 +1,35 @@
 /**
  * Convex validators for conversation model
- * Re-exports shared validators for use in Convex functions
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
+import { zodToConvex } from 'convex-helpers/server/zod3';
 import {
-	conversationStatusValidator,
 	conversationStatusSchema,
-	messageStatusValidator,
-	messageDirectionValidator,
-	messageValidator,
-	customerInfoValidator,
-	attachmentValidator,
-	conversationItemValidator,
-	conversationListResponseValidator,
-	conversationWithMessagesValidator,
-	bulkOperationResultValidator,
-	conversationPriorityValidator,
+	conversationPrioritySchema,
+	messageStatusSchema,
+	messageDirectionSchema,
+	attachmentSchema,
+	messageSchema,
+	customerInfoSchema,
+	conversationItemSchema,
+	conversationListResponseSchema,
+	conversationWithMessagesSchema,
+	bulkOperationResultSchema,
 } from '../../../lib/shared/validators/conversations';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
-import { approvalItemValidator } from '../approvals/validators';
 
 export * from '../common/validators';
-export {
-	conversationStatusValidator,
-	conversationStatusSchema,
-	messageStatusValidator,
-	messageDirectionValidator,
-	messageValidator,
-	customerInfoValidator,
-	attachmentValidator,
-	conversationItemValidator,
-	conversationListResponseValidator,
-	conversationWithMessagesValidator,
-	bulkOperationResultValidator,
-	conversationPriorityValidator,
-	jsonRecordValidator,
-};
+export * from '../../../lib/shared/validators/conversations';
+export { jsonRecordSchema, jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 
-const conversationBaseFieldsWithApproval = {
-	_id: v.id('conversations'),
-	_creationTime: v.number(),
-	organizationId: v.string(),
-	customerId: v.optional(v.id('customers')),
-	externalMessageId: v.optional(v.string()),
-	subject: v.optional(v.string()),
-	status: v.optional(conversationStatusValidator),
-	priority: v.optional(v.string()),
-	type: v.optional(v.string()),
-	channel: v.optional(v.string()),
-	direction: v.optional(messageDirectionValidator),
-	providerId: v.optional(v.id('emailProviders')),
-	lastMessageAt: v.optional(v.number()),
-	metadata: v.optional(jsonRecordValidator),
-	id: v.string(),
-	title: v.string(),
-	description: v.string(),
-	customer_id: v.string(),
-	business_id: v.string(),
-	message_count: v.number(),
-	unread_count: v.number(),
-	last_message_at: v.optional(v.string()),
-	last_read_at: v.optional(v.string()),
-	resolved_at: v.optional(v.string()),
-	resolved_by: v.optional(v.string()),
-	created_at: v.string(),
-	updated_at: v.string(),
-	customer: customerInfoValidator,
-	messages: v.array(messageValidator),
-	pendingApproval: v.optional(approvalItemValidator),
-};
-
-export const conversationItemValidatorWithApproval = v.object({
-	...conversationBaseFieldsWithApproval,
-});
-
-export const conversationListResponseValidatorWithApproval = v.object({
-	conversations: v.array(conversationItemValidatorWithApproval),
-	total: v.number(),
-	page: v.number(),
-	limit: v.number(),
-	totalPages: v.number(),
-});
-
-export const conversationWithMessagesValidatorWithApproval = v.object({
-	...conversationBaseFieldsWithApproval,
-});
+export const conversationStatusValidator = zodToConvex(conversationStatusSchema);
+export const conversationPriorityValidator = zodToConvex(conversationPrioritySchema);
+export const messageStatusValidator = zodToConvex(messageStatusSchema);
+export const messageDirectionValidator = zodToConvex(messageDirectionSchema);
+export const attachmentValidator = zodToConvex(attachmentSchema);
+export const messageValidator = zodToConvex(messageSchema);
+export const customerInfoValidator = zodToConvex(customerInfoSchema);
+export const conversationItemValidator = zodToConvex(conversationItemSchema);
+export const conversationListResponseValidator = zodToConvex(conversationListResponseSchema);
+export const conversationWithMessagesValidator = zodToConvex(conversationWithMessagesSchema);
+export const bulkOperationResultValidator = zodToConvex(bulkOperationResultSchema);

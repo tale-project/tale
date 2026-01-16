@@ -1,56 +1,22 @@
 /**
  * Convex validators for tone of voice operations
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	toneOfVoiceSchema,
+	exampleMessageSchema,
+	toneOfVoiceWithExamplesSchema,
+	exampleMessageContentSchema,
+	generateToneResponseSchema,
+} from '../../../lib/shared/validators/tone_of_voice';
 
-/**
- * Tone of voice validator
- */
-export const toneOfVoiceValidator = v.object({
-  _id: v.id('toneOfVoice'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  generatedTone: v.optional(v.string()),
-  lastUpdated: v.number(),
-  metadata: v.optional(jsonRecordValidator),
-});
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/tone_of_voice';
 
-/**
- * Example message validator
- */
-export const exampleMessageValidator = v.object({
-  _id: v.id('exampleMessages'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  toneOfVoiceId: v.id('toneOfVoice'),
-  content: v.string(),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-  metadata: v.optional(jsonRecordValidator),
-});
-
-/**
- * Tone of voice with examples validator
- */
-export const toneOfVoiceWithExamplesValidator = v.object({
-  toneOfVoice: toneOfVoiceValidator,
-  examples: v.array(exampleMessageValidator),
-});
-
-/**
- * Example message content validator (for AI processing)
- */
-export const exampleMessageContentValidator = v.object({
-  content: v.string(),
-});
-
-/**
- * Generate tone response validator
- */
-export const generateToneResponseValidator = v.object({
-  success: v.boolean(),
-  tone: v.optional(v.string()),
-  error: v.optional(v.string()),
-});
+export const toneOfVoiceValidator = zodToConvex(toneOfVoiceSchema);
+export const exampleMessageValidator = zodToConvex(exampleMessageSchema);
+export const toneOfVoiceWithExamplesValidator = zodToConvex(toneOfVoiceWithExamplesSchema);
+export const exampleMessageContentValidator = zodToConvex(exampleMessageContentSchema);
+export const generateToneResponseValidator = zodToConvex(generateToneResponseSchema);

@@ -1,55 +1,20 @@
 /**
  * Convex validators for members model
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	memberListItemSchema,
+	memberSchema,
+	memberContextSchema,
+	addMemberResponseSchema,
+} from '../../../lib/shared/validators/members';
 
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
 export * from '../common/validators';
+export * from '../../../lib/shared/validators/members';
 
-/**
- * Member list item validator (for listing organization members)
- * Note: _id is a string because members come from Better Auth adapter, not native Convex tables
- */
-export const memberListItemValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  identityId: v.optional(v.string()),
-  email: v.optional(v.string()),
-  role: v.optional(v.string()),
-  displayName: v.optional(v.string()),
-  metadata: v.optional(jsonRecordValidator),
-});
-
-/**
- * Member object validator (for member details)
- * Note: _id is a string because members come from Better Auth adapter, not native Convex tables
- */
-export const memberValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  identityId: v.optional(v.string()),
-  email: v.optional(v.string()),
-  role: v.optional(v.string()),
-  displayName: v.optional(v.string()),
-});
-
-/**
- * Member context response validator (for getCurrentMemberContext)
- */
-export const memberContextValidator = v.object({
-  member: v.union(memberValidator, v.null()),
-  role: v.union(v.string(), v.null()),
-  isAdmin: v.boolean(),
-  canManageMembers: v.boolean(),
-  canChangePassword: v.boolean(),
-});
-
-/**
- * Add member response validator
- */
-export const addMemberResponseValidator = v.object({
-  memberId: v.string(),
-});
+export const memberListItemValidator = zodToConvex(memberListItemSchema);
+export const memberValidator = zodToConvex(memberSchema);
+export const memberContextValidator = zodToConvex(memberContextSchema);
+export const addMemberResponseValidator = zodToConvex(addMemberResponseSchema);

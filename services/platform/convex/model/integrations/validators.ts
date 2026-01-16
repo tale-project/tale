@@ -1,242 +1,51 @@
-/**
- * Convex validators for integration operations
- */
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	integrationTypeSchema,
+	integrationAuthMethodSchema,
+	integrationStatusSchema,
+	operationTypeSchema,
+	sqlEngineSchema,
+	apiKeyAuthSchema,
+	apiKeyAuthEncryptedSchema,
+	basicAuthSchema,
+	basicAuthEncryptedSchema,
+	oauth2AuthSchema,
+	oauth2AuthEncryptedSchema,
+	connectionConfigSchema,
+	capabilitiesSchema,
+	connectorOperationSchema,
+	connectorConfigSchema,
+	sqlConnectionOptionsSchema,
+	sqlSecuritySchema,
+	sqlConnectionConfigSchema,
+	sqlOperationSchema,
+	testConnectionResultSchema,
+	syncStatsSchema,
+	integrationDocSchema,
+} from '../../../lib/shared/validators/integrations';
 
-import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../lib/shared/validators/utils/json-value';
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/integrations';
 
-/**
- * Integration type validator
- */
-export const integrationTypeValidator = v.union(
-  v.literal('rest_api'),
-  v.literal('sql'),
-);
-
-/**
- * Auth method validator
- */
-export const authMethodValidator = v.union(
-  v.literal('api_key'),
-  v.literal('bearer_token'),
-  v.literal('basic_auth'),
-  v.literal('oauth2'),
-);
-
-/**
- * Status validator
- */
-export const statusValidator = v.union(
-  v.literal('active'),
-  v.literal('inactive'),
-  v.literal('error'),
-  v.literal('testing'),
-);
-
-/**
- * API key auth validator
- */
-export const apiKeyAuthValidator = v.object({
-  key: v.string(),
-  keyPrefix: v.optional(v.string()),
-});
-
-/**
- * API key auth encrypted validator
- */
-export const apiKeyAuthEncryptedValidator = v.object({
-  keyEncrypted: v.string(),
-  keyPrefix: v.optional(v.string()),
-});
-
-/**
- * Basic auth validator
- */
-export const basicAuthValidator = v.object({
-  username: v.string(),
-  password: v.string(),
-});
-
-/**
- * Basic auth encrypted validator
- */
-export const basicAuthEncryptedValidator = v.object({
-  username: v.string(),
-  passwordEncrypted: v.string(),
-});
-
-/**
- * OAuth2 auth validator
- */
-export const oauth2AuthValidator = v.object({
-  accessToken: v.string(),
-  refreshToken: v.optional(v.string()),
-  tokenExpiry: v.optional(v.number()),
-  scopes: v.optional(v.array(v.string())),
-});
-
-/**
- * OAuth2 auth encrypted validator
- */
-export const oauth2AuthEncryptedValidator = v.object({
-  accessTokenEncrypted: v.string(),
-  refreshTokenEncrypted: v.optional(v.string()),
-  tokenExpiry: v.optional(v.number()),
-  scopes: v.optional(v.array(v.string())),
-});
-
-/**
- * Connection config validator
- */
-export const connectionConfigValidator = v.object({
-  domain: v.optional(v.string()),
-  apiVersion: v.optional(v.string()),
-  apiEndpoint: v.optional(v.string()),
-  timeout: v.optional(v.number()),
-  rateLimit: v.optional(v.number()),
-});
-
-/**
- * Capabilities validator
- */
-export const capabilitiesValidator = v.object({
-  canSync: v.optional(v.boolean()),
-  canPush: v.optional(v.boolean()),
-  canWebhook: v.optional(v.boolean()),
-  syncFrequency: v.optional(v.string()),
-});
-
-/**
- * Operation type validator (read vs write)
- */
-export const operationTypeValidator = v.union(
-  v.literal('read'),
-  v.literal('write'),
-);
-
-/**
- * Connector operation validator
- */
-export const connectorOperationValidator = v.object({
-  name: v.string(),
-  title: v.optional(v.string()),
-  description: v.optional(v.string()),
-  parametersSchema: v.optional(jsonRecordValidator),
-  // Operation type: 'read' or 'write' - defaults to 'read' if not specified
-  operationType: v.optional(operationTypeValidator),
-  // Whether this operation requires user approval before execution
-  // Defaults to true for write operations, false for read operations
-  requiresApproval: v.optional(v.boolean()),
-});
-
-/**
- * Connector config validator
- */
-export const connectorConfigValidator = v.object({
-  code: v.string(),
-  version: v.number(),
-  operations: v.array(connectorOperationValidator),
-  secretBindings: v.array(v.string()),
-  allowedHosts: v.optional(v.array(v.string())),
-  timeoutMs: v.optional(v.number()),
-});
-
-/**
- * SQL engine validator
- */
-export const sqlEngineValidator = v.union(
-  v.literal('mssql'),
-  v.literal('postgres'),
-  v.literal('mysql'),
-);
-
-/**
- * SQL connection config validator
- */
-export const sqlConnectionConfigValidator = v.object({
-  engine: sqlEngineValidator,
-  server: v.string(),
-  port: v.optional(v.number()),
-  database: v.string(),
-  readOnly: v.optional(v.boolean()),
-  options: v.optional(
-    v.object({
-      encrypt: v.optional(v.boolean()),
-      trustServerCertificate: v.optional(v.boolean()),
-      connectionTimeout: v.optional(v.number()),
-      requestTimeout: v.optional(v.number()),
-    }),
-  ),
-  security: v.optional(
-    v.object({
-      maxResultRows: v.optional(v.number()),
-      queryTimeoutMs: v.optional(v.number()),
-      maxConnectionPoolSize: v.optional(v.number()),
-    }),
-  ),
-});
-
-/**
- * SQL operation validator
- */
-export const sqlOperationValidator = v.object({
-  name: v.string(),
-  title: v.optional(v.string()),
-  description: v.optional(v.string()),
-  query: v.string(),
-  parametersSchema: v.optional(jsonRecordValidator),
-  // Operation type: 'read' or 'write' - defaults to 'read' if not specified
-  operationType: v.optional(operationTypeValidator),
-  // Whether this operation requires user approval before execution
-  // Defaults to true for write operations, false for read operations
-  requiresApproval: v.optional(v.boolean()),
-});
-
-/**
- * Test connection result validator
- */
-export const testConnectionResultValidator = v.object({
-  success: v.boolean(),
-  message: v.string(),
-});
-
-/**
- * Sync stats validator
- */
-export const syncStatsValidator = v.object({
-  totalRecords: v.optional(v.number()),
-  lastSyncCount: v.optional(v.number()),
-  failedSyncCount: v.optional(v.number()),
-});
-
-/**
- * Integration document validator - matches the schema in schema.ts
- * Used for typed query returns to avoid `as` type assertions
- */
-export const integrationDocValidator = v.object({
-  _id: v.id('integrations'),
-  _creationTime: v.number(),
-  organizationId: v.string(),
-  name: v.string(),
-  title: v.string(),
-  description: v.optional(v.string()),
-  type: v.optional(integrationTypeValidator),
-  status: statusValidator,
-  isActive: v.boolean(),
-  authMethod: authMethodValidator,
-  apiKeyAuth: v.optional(apiKeyAuthEncryptedValidator),
-  basicAuth: v.optional(basicAuthEncryptedValidator),
-  oauth2Auth: v.optional(oauth2AuthEncryptedValidator),
-  connectionConfig: v.optional(connectionConfigValidator),
-  lastSyncedAt: v.optional(v.number()),
-  lastTestedAt: v.optional(v.number()),
-  lastSuccessAt: v.optional(v.number()),
-  lastErrorAt: v.optional(v.number()),
-  errorMessage: v.optional(v.string()),
-  syncStats: v.optional(syncStatsValidator),
-  capabilities: v.optional(capabilitiesValidator),
-  connector: v.optional(connectorConfigValidator),
-  sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
-  sqlOperations: v.optional(v.array(sqlOperationValidator)),
-  metadata: v.optional(jsonRecordValidator),
-});
+export const integrationTypeValidator = zodToConvex(integrationTypeSchema);
+export const authMethodValidator = zodToConvex(integrationAuthMethodSchema);
+export const statusValidator = zodToConvex(integrationStatusSchema);
+export const operationTypeValidator = zodToConvex(operationTypeSchema);
+export const sqlEngineValidator = zodToConvex(sqlEngineSchema);
+export const apiKeyAuthValidator = zodToConvex(apiKeyAuthSchema);
+export const apiKeyAuthEncryptedValidator = zodToConvex(apiKeyAuthEncryptedSchema);
+export const basicAuthValidator = zodToConvex(basicAuthSchema);
+export const basicAuthEncryptedValidator = zodToConvex(basicAuthEncryptedSchema);
+export const oauth2AuthValidator = zodToConvex(oauth2AuthSchema);
+export const oauth2AuthEncryptedValidator = zodToConvex(oauth2AuthEncryptedSchema);
+export const connectionConfigValidator = zodToConvex(connectionConfigSchema);
+export const capabilitiesValidator = zodToConvex(capabilitiesSchema);
+export const connectorOperationValidator = zodToConvex(connectorOperationSchema);
+export const connectorConfigValidator = zodToConvex(connectorConfigSchema);
+export const sqlConnectionOptionsValidator = zodToConvex(sqlConnectionOptionsSchema);
+export const sqlSecurityValidator = zodToConvex(sqlSecuritySchema);
+export const sqlConnectionConfigValidator = zodToConvex(sqlConnectionConfigSchema);
+export const sqlOperationValidator = zodToConvex(sqlOperationSchema);
+export const testConnectionResultValidator = zodToConvex(testConnectionResultSchema);
+export const syncStatsValidator = zodToConvex(syncStatsSchema);
+export const integrationDocValidator = zodToConvex(integrationDocSchema);

@@ -1,18 +1,9 @@
-/**
- * Central export point for users model
- */
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import { roleSchema } from '../../../lib/shared/validators/users';
 
-import { v } from 'convex/values';
+export * from '../../../lib/shared/validators/users';
 
-/**
- * Role validator for user roles in organizations
- */
-export const roleValidator = v.string();
-
-/**
- * Type for user roles
- */
-export type Role = 'admin' | 'member' | (string & {});
+export const roleValidator = zodToConvex(roleSchema);
 
 export * from './get_user_by_email';
 export * from './add_member_internal';

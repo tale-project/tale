@@ -12,8 +12,6 @@ export * from './get_message_by_external_id';
 export * from './query_conversations';
 export * from './query_latest_message_by_delivery_state';
 export * from './update_conversations';
-export * from './get_conversations';
-export * from './get_conversations_page';
 export * from './get_conversation_with_messages';
 export * from './update_conversation';
 export * from './update_conversation_message';

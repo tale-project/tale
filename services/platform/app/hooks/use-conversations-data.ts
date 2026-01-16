@@ -1,13 +1,26 @@
-import { useQuery } from 'convex/react';
-import { useMemo } from 'react';
 import { api } from '@/convex/_generated/api';
-import {
-  filterByFields,
-  filterByTextSearch,
-  sortByDate,
-  sortByString,
-  type SortOrder,
-} from '@/lib/utils/client-utils';
+import { createEntityDataHook } from './use-entity-data-factory';
+import type { SortOrder } from '@/lib/utils/client-utils';
+
+type ConversationSortBy = 'createdAt' | 'lastMessageAt' | 'priority' | 'status';
+
+interface ConversationFilters {
+  status: string[];
+  priority: string[];
+  channel: string[];
+}
+
+const useConversationsDataBase = createEntityDataHook({
+  queryFn: api.queries.conversations.getAllConversations,
+  searchFields: ['subject', 'externalMessageId'],
+  sortConfig: {
+    string: ['priority', 'status'] as ConversationSortBy[],
+    date: ['createdAt', 'lastMessageAt'] as ConversationSortBy[],
+    number: [] as ConversationSortBy[],
+    fieldMap: { createdAt: '_creationTime' },
+  },
+  defaultSort: { field: 'lastMessageAt' as ConversationSortBy, order: 'desc' as SortOrder },
+});
 
 interface UseConversationsDataOptions {
   organizationId: string;
@@ -15,64 +28,15 @@ interface UseConversationsDataOptions {
   status?: string[];
   priority?: string[];
   channel?: string[];
-  sortBy?: 'createdAt' | 'lastMessageAt' | 'priority' | 'status';
+  sortBy?: ConversationSortBy;
   sortOrder?: SortOrder;
 }
 
 export function useConversationsData(options: UseConversationsDataOptions) {
-  const {
-    organizationId,
-    search = '',
-    status = [],
-    priority = [],
-    channel = [],
-    sortBy = 'lastMessageAt',
-    sortOrder = 'desc',
-  } = options;
+  const { status = [], priority = [], channel = [], ...rest } = options;
 
-  const allConversations = useQuery(
-    api.queries.conversations.getAllConversations,
-    { organizationId },
-  );
-
-  const processed = useMemo(() => {
-    if (!allConversations) return [];
-
-    let result = allConversations;
-
-    if (search) {
-      result = filterByTextSearch(result, search, [
-        'subject',
-        'externalMessageId',
-      ]);
-    }
-
-    const filters = [];
-    if (status.length > 0) {
-      filters.push({ field: 'status' as const, values: new Set(status) });
-    }
-    if (priority.length > 0) {
-      filters.push({ field: 'priority' as const, values: new Set(priority) });
-    }
-    if (channel.length > 0) {
-      filters.push({ field: 'channel' as const, values: new Set(channel) });
-    }
-
-    if (filters.length > 0) {
-      result = filterByFields(result, filters);
-    }
-
-    return [...result].sort(
-      sortBy === 'createdAt' || sortBy === 'lastMessageAt'
-        ? sortByDate(sortBy === 'createdAt' ? '_creationTime' : sortBy, sortOrder)
-        : sortByString(sortBy, sortOrder),
-    );
-  }, [allConversations, search, status, priority, channel, sortBy, sortOrder]);
-
-  return {
-    data: processed,
-    totalCount: allConversations?.length ?? 0,
-    filteredCount: processed.length,
-    isLoading: allConversations === undefined,
-  };
+  return useConversationsDataBase({
+    ...rest,
+    filters: { status, priority, channel } as ConversationFilters,
+  });
 }

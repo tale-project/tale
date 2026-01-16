@@ -1,96 +1,32 @@
 /**
  * Convex validators for threads model
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+	chatTypeSchema,
+	messageRoleSchema,
+	threadStatusSchema,
+	toolStatusSchema,
+	threadMessageSchema,
+	threadMessagesResponseSchema,
+	threadListItemSchema,
+	latestToolMessageSchema,
+	subAgentTypeSchema,
+	getOrCreateSubThreadResultSchema,
+} from '../../../lib/shared/validators/threads';
 
-/**
- * Chat type validator for thread creation
- */
-export const chatTypeValidator = v.union(
-  v.literal('general'),
-  v.literal('workflow_assistant'),
-);
+export * from '../common/validators';
+export * from '../../../lib/shared/validators/threads';
 
-/**
- * Message role validator for thread messages
- */
-export const messageRoleValidator = v.union(
-  v.literal('user'),
-  v.literal('assistant'),
-);
-
-/**
- * Thread status validator
- */
-export const threadStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('archived'),
-);
-
-/**
- * Tool execution status validator
- */
-export const toolStatusValidator = v.union(
-  v.literal('calling'),
-  v.literal('completed'),
-  v.null(),
-);
-
-/**
- * Thread message validator (single message in a thread)
- * Note: _id is a string because messages come from Agent Component, not native Convex tables
- */
-export const threadMessageValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  role: messageRoleValidator,
-  content: v.string(),
-});
-
-/**
- * Thread messages response validator
- */
-export const threadMessagesResponseValidator = v.object({
-  messages: v.array(threadMessageValidator),
-});
-
-/**
- * Thread list item validator (for listing threads)
- * Note: _id is a string because threads come from Agent Component, not native Convex tables
- */
-export const threadListItemValidator = v.object({
-  _id: v.string(),
-  _creationTime: v.number(),
-  title: v.optional(v.string()),
-  status: threadStatusValidator,
-  userId: v.optional(v.string()),
-});
-
-/**
- * Latest tool message validator
- */
-export const latestToolMessageValidator = v.object({
-  toolNames: v.array(v.string()),
-  status: toolStatusValidator,
-  timestamp: v.union(v.number(), v.null()),
-});
-
-/**
- * Sub-agent type validator for sub-thread management
- */
-export const subAgentTypeValidator = v.union(
-  v.literal('web_assistant'),
-  v.literal('document_assistant'),
-  v.literal('integration_assistant'),
-  v.literal('workflow_assistant'),
-  v.literal('crm_assistant'),
-);
-
-/**
- * Get or create sub-thread result validator
- */
-export const getOrCreateSubThreadResultValidator = v.object({
-  threadId: v.string(),
-  isNew: v.boolean(),
-});
+export const chatTypeValidator = zodToConvex(chatTypeSchema);
+export const messageRoleValidator = zodToConvex(messageRoleSchema);
+export const threadStatusValidator = zodToConvex(threadStatusSchema);
+export const toolStatusValidator = zodToConvex(toolStatusSchema);
+export const threadMessageValidator = zodToConvex(threadMessageSchema);
+export const threadMessagesResponseValidator = zodToConvex(threadMessagesResponseSchema);
+export const threadListItemValidator = zodToConvex(threadListItemSchema);
+export const latestToolMessageValidator = zodToConvex(latestToolMessageSchema);
+export const subAgentTypeValidator = zodToConvex(subAgentTypeSchema);
+export const getOrCreateSubThreadResultValidator = zodToConvex(getOrCreateSubThreadResultSchema);
