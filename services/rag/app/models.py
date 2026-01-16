@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ============================================================================
@@ -66,6 +66,13 @@ class DocumentAddRequest(BaseModel):
         description="Dataset name for organizing documents. When specified with user_id, "
                     "creates a user-scoped dataset. Format: 'tale_team_{teamId}' for team datasets.",
     )
+
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure dataset_name is only used with user_id for proper tenant scoping."""
+        if self.dataset_name and not self.user_id:
+            raise ValueError("dataset_name requires user_id for tenant scoping")
+        return self
 
 
 class DocumentAddResponse(BaseModel):
@@ -232,6 +239,13 @@ class QueryRequest(BaseModel):
                     "datasets accessible by the user. Format: ['tale_team_{teamId}', ...]",
     )
 
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure datasets is only used with user_id for proper tenant scoping."""
+        if self.datasets and not self.user_id:
+            raise ValueError("datasets requires user_id for tenant scoping")
+        return self
+
 
 class SearchResult(BaseModel):
     """A single search result."""
@@ -290,6 +304,13 @@ class GenerateRequest(BaseModel):
         description="List of dataset names to retrieve context from. "
                     "Format: ['tale_team_{teamId}', ...]",
     )
+
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure datasets is only used with user_id for proper tenant scoping."""
+        if self.datasets and not self.user_id:
+            raise ValueError("datasets requires user_id for tenant scoping")
+        return self
 
 
 class GenerateResponse(BaseModel):
