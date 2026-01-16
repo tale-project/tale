@@ -69,15 +69,25 @@ export async function getUserTeamIds(
     }
   }
 
-  // Normal auth mode: query teamMember table
-  const memberships: BetterAuthFindManyResult<BetterAuthTeamMember> =
-    await ctx.runQuery(components.betterAuth.adapter.findMany, {
-      model: 'teamMember',
-      paginationOpts: { cursor: null, numItems: 1000 },
-      where: [{ field: 'userId', operator: 'eq', value: userId }],
-    });
+  // Normal auth mode: query teamMember table with pagination
+  const allTeamIds: string[] = [];
+  let cursor: string | null = null;
+  let isDone = false;
 
-  return memberships.page.map((m) => m.teamId);
+  while (!isDone) {
+    const memberships: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor, numItems: 1000 },
+        where: [{ field: 'userId', operator: 'eq', value: userId }],
+      });
+
+    allTeamIds.push(...memberships.page.map((m) => m.teamId));
+    isDone = memberships.isDone ?? true;
+    cursor = memberships.continueCursor ?? null;
+  }
+
+  return allTeamIds;
 }
 
 /**
