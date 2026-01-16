@@ -2,7 +2,7 @@
  * Vendors Queries
  *
  * All query operations for vendors.
- * Business logic is in convex/model/vendors/
+ * Business logic is in convex/models/vendors/
  */
 
 import { v } from 'convex/values';

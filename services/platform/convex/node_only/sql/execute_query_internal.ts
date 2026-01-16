@@ -5,7 +5,7 @@
  *
  * This is the Convex action wrapper that delegates to the executeQuery helper.
  */
-import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
+import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';

@@ -7,8 +7,8 @@
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
-import type { IntegrationOperationMetadata } from '../../model/approvals/types';
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import type { IntegrationOperationMetadata } from '../../models/approvals/types';
 
 /**
  * Execute an approved integration operation

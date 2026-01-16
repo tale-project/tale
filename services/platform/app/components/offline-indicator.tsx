@@ -1,4 +1,7 @@
+'use client';
+
 import { useOnlineStatus } from '@/app/hooks/use-online-status';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface OfflineIndicatorProps {
@@ -11,6 +14,7 @@ export function OfflineIndicator({
   showWhenOnline = false,
 }: OfflineIndicatorProps) {
   const isOnline = useOnlineStatus();
+  const { t } = useT('common');
 
   if (isOnline && !showWhenOnline) {
     return null;
@@ -35,7 +39,9 @@ export function OfflineIndicator({
             isOnline ? 'bg-white' : 'bg-yellow-950 animate-pulse'
           )}
         />
-        <span>{isOnline ? 'Back online' : 'You are currently offline'}</span>
+        <span>
+          {isOnline ? t('offline.backOnline') : t('offline.youAreOffline')}
+        </span>
       </div>
     </div>
   );

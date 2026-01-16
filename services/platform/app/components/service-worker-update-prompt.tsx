@@ -1,4 +1,7 @@
+'use client';
+
 import { useServiceWorker } from '@/app/hooks/use-service-worker';
+import { useT } from '@/lib/i18n/client';
 import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
 
@@ -10,6 +13,7 @@ export function ServiceWorkerUpdatePrompt({
   className,
 }: ServiceWorkerUpdatePromptProps) {
   const { isUpdateAvailable, applyUpdate } = useServiceWorker();
+  const { t } = useT('common');
 
   if (!isUpdateAvailable) {
     return null;
@@ -25,13 +29,13 @@ export function ServiceWorkerUpdatePrompt({
       aria-live="polite"
     >
       <div className="flex-1">
-        <p className="text-sm font-medium">New version available</p>
+        <p className="text-sm font-medium">{t('update.newVersionAvailable')}</p>
         <p className="text-xs text-muted-foreground">
-          Reload to get the latest updates
+          {t('update.reloadForUpdates')}
         </p>
       </div>
       <Button size="sm" onClick={applyUpdate}>
-        Reload
+        {t('update.reload')}
       </Button>
     </div>
   );

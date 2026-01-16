@@ -2,14 +2,14 @@
  * Products Queries
  *
  * All query operations for products.
- * Business logic is in convex/model/products/
+ * Business logic is in convex/models/products/
  */
 
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
-import * as ProductsModel from '../model/products';
+import * as ProductsModel from '../models/products';
 
 // =============================================================================
 // INTERNAL QUERIES (without RLS)
@@ -23,7 +23,7 @@ export const getProductById = internalQuery({
   args: {
     productId: v.id('products'),
   },
-  returns: v.union(v.any(), v.null()),
+  returns: v.union(ProductsModel.productDocValidator, v.null()),
   handler: async (ctx, args) => {
     return await ProductsModel.getProductById(ctx, args.productId);
   },
@@ -43,7 +43,7 @@ export const queryProducts = internalQuery({
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    page: v.array(v.any()),
+    page: v.array(ProductsModel.productDocValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
@@ -61,7 +61,7 @@ export const listByOrganization = internalQuery({
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
-    page: v.array(v.any()),
+    page: v.array(ProductsModel.productDocValidator),
     isDone: v.boolean(),
     continueCursor: v.string(),
   }),
@@ -79,7 +79,7 @@ export const filterProducts = internalQuery({
     expression: v.string(),
   },
   returns: v.object({
-    products: v.array(v.any()),
+    products: v.array(ProductsModel.productDocValidator),
     count: v.number(),
   }),
   handler: async (ctx, args) => {
@@ -131,7 +131,7 @@ export const getAllProducts = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
-  returns: v.array(v.any()),
+  returns: v.array(ProductsModel.productDocValidator),
   handler: async (ctx, args) => {
     const products = [];
     for await (const product of ctx.db

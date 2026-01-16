@@ -8,6 +8,16 @@
 
 import type { GenericValidator } from 'convex/values';
 import { v } from 'convex/values';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+  cursorPaginationOptsSchema,
+  offsetPaginationOptsSchema,
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+} from '../../../lib/shared/schemas/pagination';
+
+export * from '../../../lib/shared/schemas/pagination';
 
 // ============================================================================
 // CURSOR-BASED PAGINATION (for infinite scroll)
@@ -35,10 +45,7 @@ export interface CursorPaginatedResult<T> {
 /**
  * Validator for cursor pagination options input
  */
-export const cursorPaginationOptsValidator = v.object({
-  numItems: v.number(),
-  cursor: v.union(v.string(), v.null()),
-});
+export const cursorPaginationOptsValidator = zodToConvex(cursorPaginationOptsSchema);
 
 /**
  * Creates a validator for cursor paginated results.
@@ -80,10 +87,7 @@ export interface OffsetPaginatedResult<T> {
 /**
  * Validator for offset pagination options input
  */
-export const offsetPaginationOptsValidator = v.object({
-  page: v.optional(v.number()),
-  pageSize: v.optional(v.number()),
-});
+export const offsetPaginationOptsValidator = zodToConvex(offsetPaginationOptsSchema);
 
 /**
  * Creates a validator for offset paginated results.
@@ -101,10 +105,5 @@ export function offsetPaginatedResultValidator<V extends GenericValidator>(itemV
   });
 }
 
-// ============================================================================
-// DEFAULT VALUES
-// ============================================================================
-
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_PAGE_SIZE = 20;
-export const MAX_PAGE_SIZE = 100;
+// Re-export default values
+export { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE };

@@ -7,9 +7,9 @@
 
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal, components } from '../../_generated/api';
-import type { WorkflowCreationMetadata } from '../../model/approvals/types';
+import type { WorkflowCreationMetadata } from '../../models/approvals/types';
 import { saveMessage } from '@convex-dev/agent';
 
 /**

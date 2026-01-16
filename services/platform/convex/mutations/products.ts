@@ -2,14 +2,14 @@
  * Products Mutations
  *
  * All mutation operations for products.
-import { jsonRecordValidator } from '../lib/shared/validators/utils/json-value';
- * Business logic is in convex/model/products/
+ * Business logic is in convex/models/products/
  */
 
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { mutationWithRLS } from '../lib/rls';
-import * as ProductsModel from '../model/products';
+import * as ProductsModel from '../models/products';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
 // INTERNAL MUTATIONS (without RLS)

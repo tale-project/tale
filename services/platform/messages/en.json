@@ -178,6 +178,15 @@
       "title": "Page not found",
       "description": "The page you're looking for may have been moved or no longer exists.",
       "goHome": "Go back home"
+    },
+    "offline": {
+      "backOnline": "Back online",
+      "youAreOffline": "You are currently offline"
+    },
+    "update": {
+      "newVersionAvailable": "New version available",
+      "reloadForUpdates": "Reload to get the latest updates",
+      "reload": "Reload"
     }
   },
   "navigation": {

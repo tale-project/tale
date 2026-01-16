@@ -2,7 +2,7 @@
 
 /**
  * Integration Executor using Node.js VM
-import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/validators/utils/json-value';
+import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
  *
  * Executes integration connector code in a sandboxed Node.js VM environment.
  * Provides isolated execution with controlled HTTP access.

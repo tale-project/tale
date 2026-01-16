@@ -9,6 +9,7 @@ export function stubSSRImports(): Plugin {
   const ssrModules = [
     '@tanstack/start-server-core',
     '@tanstack/react-start-server',
+    '@tanstack/react-start/server',
     '@tanstack/start-plugin-core',
   ];
 

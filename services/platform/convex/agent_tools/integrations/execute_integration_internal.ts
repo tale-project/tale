@@ -7,8 +7,8 @@
 
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../lib/shared/validators/utils/json-value';
-import { integrationAction } from '../../workflow/actions/integration/integration_action';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { integrationAction } from '../../workflow_engine/actions/integration/integration_action';
 
 /**
  * Execute an integration operation (internal action callable by agent tools)

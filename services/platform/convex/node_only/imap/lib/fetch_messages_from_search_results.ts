@@ -1,7 +1,7 @@
 'use node';
 
 import type { ImapFlow } from 'imapflow';
-import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
+import type { EmailMessage } from '../../../workflow_engine/actions/imap/helpers/types';
 import type { SearchResult } from './find_message_in_folders';
 import fetchAndParseMessage from './fetch_and_parse_message';
 

@@ -2,7 +2,7 @@
 
 import type { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
+import type { EmailMessage } from '../../../workflow_engine/actions/imap/helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 import buildEmailMessage from './build_email_message';

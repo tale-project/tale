@@ -1,9 +1,13 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { stepConfigValidator } from './workflow/types/nodes';
-import { dataSourceValidator } from './model/common/validators';
+import { stepConfigValidator } from './workflow_engine/types/nodes';
+import { dataSourceValidator } from './validators/common';
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../lib/shared/schemas/utils/json-value';
 
-// Minimal core schema with flexible metadata using v.any().
+// Minimal core schema with flexible metadata using jsonRecordValidator.
 // Core entities: documents, products, customers, integrations, tasks, chats.
 // Organizations and members are managed by Better Auth's organization plugin.
 // All business-specific features (subscriptions, churn survey, recommendations, messaging, etc.)
@@ -43,7 +47,7 @@ export default defineSchema({
     // User who created/uploaded this document (Better Auth user ID)
     // Optional for backward compatibility with existing documents
     createdBy: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_createdBy', ['organizationId', 'createdBy'])
@@ -85,7 +89,7 @@ export default defineSchema({
           description: v.optional(v.string()),
           category: v.optional(v.string()),
           tags: v.optional(v.array(v.string())),
-          metadata: v.optional(v.any()),
+          metadata: v.optional(jsonRecordValidator),
           createdAt: v.optional(v.number()),
           lastUpdated: v.number(),
         }),
@@ -93,7 +97,7 @@ export default defineSchema({
     ),
     lastUpdated: v.optional(v.number()),
     externalId: v.optional(v.union(v.string(), v.number())),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_status', ['organizationId', 'status'])
@@ -141,7 +145,7 @@ export default defineSchema({
     ),
 
     // Additional flexible metadata
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_email', ['organizationId', 'email'])
@@ -183,7 +187,7 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
 
     // Additional flexible metadata
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
 
     // Notes and comments
     notes: v.optional(v.string()),
@@ -309,7 +313,7 @@ export default defineSchema({
             name: v.string(), // e.g., 'list_products', 'get_customer'
             title: v.optional(v.string()),
             description: v.optional(v.string()),
-            parametersSchema: v.optional(v.any()), // JSON Schema for parameters
+            parametersSchema: v.optional(jsonRecordValidator), // JSON Schema for parameters
           }),
         ),
 
@@ -363,7 +367,7 @@ export default defineSchema({
           title: v.optional(v.string()),
           description: v.optional(v.string()),
           query: v.string(), // SQL query with native placeholders
-          parametersSchema: v.optional(v.any()), // JSON Schema for parameters
+          parametersSchema: v.optional(jsonRecordValidator), // JSON Schema for parameters
           operationType: v.optional(v.union(v.literal('read'), v.literal('write'))), // Operation type for approval workflow
           requiresApproval: v.optional(v.boolean()), // Whether operation requires user approval
         }),
@@ -371,7 +375,7 @@ export default defineSchema({
     ),
 
     // Only truly unstructured data here
-    metadata: v.optional(v.any()), // For future extensibility
+    metadata: v.optional(jsonRecordValidator), // For future extensibility
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_name', ['organizationId', 'name'])
@@ -442,7 +446,7 @@ export default defineSchema({
     lastSyncAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
 
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_vendor', ['organizationId', 'vendor'])
@@ -468,7 +472,7 @@ export default defineSchema({
     lastSyncAt: v.optional(v.number()),
     lastSyncStatus: v.optional(v.string()),
     errorMessage: v.optional(v.string()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_status', ['organizationId', 'status'])
@@ -500,7 +504,7 @@ export default defineSchema({
     // Updated when messages are added to the conversation
     lastMessageAt: v.optional(v.number()),
 
-    metadata: v.optional(v.any()), // Additional flexible data (to/from, timestamps, etc.)
+    metadata: v.optional(jsonRecordValidator), // Additional flexible data (to/from, timestamps, etc.)
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_status', ['organizationId', 'status'])
@@ -542,7 +546,7 @@ export default defineSchema({
     content: v.string(),
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_conversationId_and_deliveredAt', [
       'conversationId',
@@ -620,7 +624,7 @@ export default defineSchema({
             backoffMs: v.number(),
           }),
         ),
-        variables: v.optional(v.record(v.string(), v.any())), // default variables
+        variables: v.optional(v.record(v.string(), jsonValueValidator)), // default variables
         secrets: v.optional(
           v.record(
             v.string(),
@@ -654,7 +658,7 @@ export default defineSchema({
 
     availableAgentTypes: v.optional(v.array(v.string())),
 
-    globalConfig: v.optional(v.any()),
+    globalConfig: v.optional(jsonRecordValidator),
 
     plannerConfig: v.optional(
       v.object({
@@ -664,7 +668,7 @@ export default defineSchema({
       }),
     ),
 
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_org', ['organizationId'])
     .index('by_org_status', ['organizationId', 'status'])
@@ -701,7 +705,7 @@ export default defineSchema({
     inputMapping: v.optional(v.record(v.string(), v.string())),
     outputMapping: v.optional(v.record(v.string(), v.string())),
 
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_definition', ['wfDefinitionId'])
     .index('by_definition_order', ['wfDefinitionId', 'order'])
@@ -739,8 +743,8 @@ export default defineSchema({
     // Execution context and variables
     variables: v.optional(v.string()), // runtime variables (JSON serialized or storage reference)
     variablesStorageId: v.optional(v.id('_storage')), // storage file ID for large variables (>800KB)
-    input: v.optional(v.any()), // initial input data
-    output: v.optional(v.any()), // final output data
+    input: v.optional(jsonValueValidator), // initial input data
+    output: v.optional(jsonValueValidator), // final output data
 
     // Workflow configuration (stored as JSON string to avoid nesting limits)
     workflowConfig: v.optional(v.string()),
@@ -750,7 +754,7 @@ export default defineSchema({
 
     // Trigger information
     triggeredBy: v.optional(v.string()), // 'manual' | 'schedule' | 'webhook' | 'event'
-    triggerData: v.optional(v.any()), // trigger-specific data
+    triggerData: v.optional(jsonValueValidator), // trigger-specific data
 
     // Error information (for failed executions)
     error: v.optional(v.string()),
@@ -805,7 +809,7 @@ export default defineSchema({
     executedAt: v.optional(v.number()), // When the approved operation was executed
     executionError: v.optional(v.string()), // Error message if execution failed
 
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_execution', ['wfExecutionId'])
@@ -832,7 +836,7 @@ export default defineSchema({
     organizationId: v.string(), // Better Auth organization ID
     generatedTone: v.optional(v.string()), // AI-generated tone description
     lastUpdated: v.number(),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   }).index('by_organizationId', ['organizationId']),
 
   // Example Messages - examples used to generate tone of voice
@@ -842,7 +846,7 @@ export default defineSchema({
     content: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_toneOfVoiceId', ['toneOfVoiceId'])
@@ -862,7 +866,7 @@ export default defineSchema({
     status: v.optional(
       v.union(v.literal('active'), v.literal('inactive'), v.literal('error')),
     ),
-    metadata: v.optional(v.any()), // Additional flexible data
+    metadata: v.optional(jsonRecordValidator), // Additional flexible data
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_organizationId_and_status', ['organizationId', 'status'])
@@ -877,8 +881,8 @@ export default defineSchema({
     content: v.optional(v.string()), // Page content (markdown or text)
     wordCount: v.optional(v.number()), // Word count
     lastCrawledAt: v.number(), // Last crawl timestamp
-    metadata: v.optional(v.record(v.string(), v.any())), // Page metadata as JSON object (description, keywords, author, etc.)
-    structuredData: v.optional(v.record(v.string(), v.any())), // Structured data extracted from page (JSON object)
+    metadata: v.optional(jsonRecordValidator), // Page metadata as JSON object (description, keywords, author, etc.)
+    structuredData: v.optional(jsonRecordValidator), // Structured data extracted from page (JSON object)
   })
     .index('by_organizationId', ['organizationId'])
     .index('by_websiteId', ['websiteId'])
@@ -902,7 +906,7 @@ export default defineSchema({
       v.union(v.literal('in_progress'), v.literal('completed')),
     ), // Optional processing status for locking and auditing
 
-    metadata: v.optional(v.any()),
+    metadata: v.optional(jsonRecordValidator),
   })
     .index('by_org_table_wfDefinition', [
       'organizationId',
@@ -935,7 +939,7 @@ export default defineSchema({
     reasoningTokens: v.optional(v.number()),
     cachedInputTokens: v.optional(v.number()),
     reasoning: v.optional(v.string()), // Reasoning text if available
-    providerMetadata: v.optional(v.any()), // Additional provider-specific data
+    providerMetadata: v.optional(jsonRecordValidator), // Additional provider-specific data
     durationMs: v.optional(v.number()), // Total response time in milliseconds
     timeToFirstTokenMs: v.optional(v.number()), // Time to first token in milliseconds
     subAgentUsage: v.optional(v.array(v.object({

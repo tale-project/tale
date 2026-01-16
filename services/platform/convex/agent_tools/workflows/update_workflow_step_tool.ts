@@ -13,7 +13,7 @@ import { internal } from '../../_generated/api';
 import {
   validateStepConfig,
   isValidStepType,
-} from '../../workflow/helpers/validation/validate_step_config';
+} from '../../workflow_engine/helpers/validation/validate_step_config';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -248,7 +248,6 @@ Please try again with a properly structured JSON object. Ensure all field names 
       }
 
       // stepRecordId comes from LLM, cast to expected ID type
-      // updates is v.any() in the handler, so no assertion needed
       const updatedStep = (await ctx.runMutation(
         internal.wf_step_defs.updateStep,
         {

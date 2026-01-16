@@ -9,18 +9,18 @@
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator, jsonRecordValidator } from '../../lib/shared/validators/utils/json-value';
+import { jsonValueValidator, jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import type { SqlExecutionResult } from '../../node_only/sql/types';
-import { isIntrospectionOperation } from '../../workflow/actions/integration/helpers/is_introspection_operation';
-import { getIntrospectTablesQuery } from '../../workflow/actions/integration/helpers/get_introspect_tables_query';
-import { getIntrospectColumnsQuery } from '../../workflow/actions/integration/helpers/get_introspect_columns_query';
-import { getIntrospectionOperations } from '../../workflow/actions/integration/helpers/get_introspection_operations';
-import { decryptSqlCredentials } from '../../workflow/actions/integration/helpers/decrypt_sql_credentials';
-import { requiresApproval, getOperationType } from '../../workflow/actions/integration/helpers/detect_write_operation';
-import { validateRequiredParameters } from '../../workflow/actions/integration/helpers/validate_required_parameters';
-import type { Integration, SqlIntegration, SqlOperation } from '../../model/integrations/types';
-import { getIntegrationType } from '../../model/integrations/utils/get_integration_type';
-import { isSqlIntegration } from '../../model/integrations/guards/is_sql_integration';
+import { isIntrospectionOperation } from '../../workflow_engine/actions/integration/helpers/is_introspection_operation';
+import { getIntrospectTablesQuery } from '../../workflow_engine/actions/integration/helpers/get_introspect_tables_query';
+import { getIntrospectColumnsQuery } from '../../workflow_engine/actions/integration/helpers/get_introspect_columns_query';
+import { getIntrospectionOperations } from '../../workflow_engine/actions/integration/helpers/get_introspection_operations';
+import { decryptSqlCredentials } from '../../workflow_engine/actions/integration/helpers/decrypt_sql_credentials';
+import { requiresApproval, getOperationType } from '../../workflow_engine/actions/integration/helpers/detect_write_operation';
+import { validateRequiredParameters } from '../../workflow_engine/actions/integration/helpers/validate_required_parameters';
+import type { Integration, SqlIntegration, SqlOperation } from '../../models/integrations/types';
+import { getIntegrationType } from '../../models/integrations/utils/get_integration_type';
+import { isSqlIntegration } from '../../models/integrations/guards/is_sql_integration';
 
 /** Single operation result validator */
 const operationResultValidator = v.object({
@@ -367,7 +367,7 @@ async function executeRestApiBatch(
   startTime: number,
 ) {
   // Import dynamically to avoid circular dependencies
-  const { integrationAction } = await import('../../workflow/actions/integration/integration_action');
+  const { integrationAction } = await import('../../workflow_engine/actions/integration/integration_action');
 
   const results = await Promise.allSettled(
     operations.map(async (op) => {

@@ -18,7 +18,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
-import { validateWorkflowDefinition } from '../../workflow/helpers/validation/validate_workflow_definition';
+import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
 
 const workflowConfigSchema = z.object({
   name: z

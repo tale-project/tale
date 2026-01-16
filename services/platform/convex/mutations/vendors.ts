@@ -2,9 +2,10 @@
  * Vendors Mutations
  *
  * All mutation operations for vendors.
-import { jsonRecordValidator } from '../lib/shared/validators/utils/json-value';
- * Business logic is in convex/model/vendors/
+ * Business logic is in convex/models/vendors/
  */
+
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 import { v } from 'convex/values';
 import { mutationWithRLS } from '../lib/rls';
@@ -14,7 +15,7 @@ import {
   vendorAddressValidator,
   vendorInputValidator,
   bulkCreateVendorsResponseValidator,
-} from '../model/vendors/validators';
+} from '../validators/vendors';
 
 /**
  * Update an existing vendor
