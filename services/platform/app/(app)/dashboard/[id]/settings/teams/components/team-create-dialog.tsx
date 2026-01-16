@@ -31,12 +31,13 @@ export function TeamCreateDialog({
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
 
+  const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().min(1, tSettings('teams.teamNameRequired')),
+        name: z.string().min(1, nameRequiredError).transform(val => val.trim()),
       }),
-    [tSettings],
+    [nameRequiredError],
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,7 +55,7 @@ export function TeamCreateDialog({
     setIsSubmitting(true);
     try {
       const result = await authClient.organization.createTeam({
-        name: data.name.trim(),
+        name: data.name,
         organizationId,
       });
 
