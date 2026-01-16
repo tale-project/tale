@@ -143,33 +143,35 @@ async function runConcurrentTest(
     }
   };
 
-  const pending: Promise<void>[] = [];
+  interface TrackedPromise {
+    promise: Promise<void>;
+    settled: boolean;
+  }
+  const pending: TrackedPromise[] = [];
   let nextIndex = 0;
 
   while (nextIndex < numRequests || pending.length > 0) {
     while (inFlight < concurrency && nextIndex < numRequests) {
       const index = nextIndex++;
       inFlight++;
-      const promise = executeRequest(index).finally(() => {
+      const tracked: TrackedPromise = {
+        promise: null as unknown as Promise<void>,
+        settled: false,
+      };
+      tracked.promise = executeRequest(index).finally(() => {
         inFlight--;
+        tracked.settled = true;
       });
-      pending.push(promise);
+      pending.push(tracked);
     }
 
     if (pending.length > 0) {
-      await Promise.race(pending);
-      const resolvedIndices: number[] = [];
-      for (let i = 0; i < pending.length; i++) {
-        const status = await Promise.race([
-          pending[i].then(() => "resolved" as const),
-          Promise.resolve("pending" as const),
-        ]);
-        if (status === "resolved") {
-          resolvedIndices.push(i);
+      await Promise.race(pending.map((t) => t.promise));
+      // Remove all settled promises
+      for (let i = pending.length - 1; i >= 0; i--) {
+        if (pending[i].settled) {
+          pending.splice(i, 1);
         }
-      }
-      for (let i = resolvedIndices.length - 1; i >= 0; i--) {
-        pending.splice(resolvedIndices[i], 1);
       }
     }
   }
