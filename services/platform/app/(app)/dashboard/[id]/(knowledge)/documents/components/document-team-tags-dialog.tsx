@@ -137,16 +137,17 @@ export function DocumentTeamTagsDialog({
         ) : (
           <Stack gap={2}>
             {teams.map((team) => (
-              <label
+              <div
                 key={team.id}
                 className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
               >
                 <Checkbox
+                  id={`team-tag-${team.id}`}
                   checked={selectedTeams.has(team.id)}
                   onCheckedChange={() => handleToggleTeam(team.id)}
+                  label={team.name}
                 />
-                <span className="text-sm font-medium">{team.name}</span>
-              </label>
+              </div>
             ))}
           </Stack>
         )}
