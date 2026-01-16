@@ -32,11 +32,11 @@ export function TeamMembersDialog({
   const [isAdding, setIsAdding] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
-  // Fetch organization members from Convex
-  const orgMembers = useQuery(api.member.listByOrganization, {
-    organizationId,
-    sortOrder: 'asc',
-  });
+  // Fetch organization members from Convex (skip when dialog is closed)
+  const orgMembers = useQuery(
+    api.member.listByOrganization,
+    open ? { organizationId, sortOrder: 'asc' } : 'skip'
+  );
 
   // Fetch team members directly from Convex
   const teamMembers = useQuery(
@@ -60,10 +60,11 @@ export function TeamMembersDialog({
     );
   }, [orgMembers, teamMembers]);
 
-  // Get member details for display
-  const getMemberDetails = (userId: string) => {
-    return orgMembers?.find((m) => m.identityId === userId);
-  };
+  // Create a lookup map for member details
+  const memberDetailsMap = useMemo(() => {
+    if (!orgMembers) return new Map<string, NonNullable<typeof orgMembers>[number]>();
+    return new Map(orgMembers.map((m) => [m.identityId, m]));
+  }, [orgMembers]);
 
   const handleAddMember = async () => {
     if (!selectedMemberId) return;
@@ -172,7 +173,7 @@ export function TeamMembersDialog({
             </div>
           ) : (
             teamMembers.map((member) => {
-              const details = getMemberDetails(member.userId);
+              const details = memberDetailsMap.get(member.userId);
               const hasDistinctName = details?.displayName && details.displayName !== details.email;
               return (
                 <HStack
