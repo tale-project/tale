@@ -41,7 +41,7 @@ export function ChatMessages({
 
   return (
     <div
-      className="max-w-[var(--chat-max-width)] mx-auto space-y-4"
+      className="max-w-(--chat-max-width) mx-auto space-y-4 pt-10"
       role="log"
       aria-live="polite"
       aria-label={t('aria.messageHistory')}
@@ -72,8 +72,7 @@ export function ChatMessages({
       {items.map((item) => {
         if (item.type === 'message') {
           const message = item.data;
-          const shouldShow =
-            message.role === 'user' || message.content !== '';
+          const shouldShow = message.role === 'user' || message.content !== '';
 
           return shouldShow ? (
             <MessageBubble
@@ -87,7 +86,10 @@ export function ChatMessages({
         } else if (item.type === 'approval') {
           const approval = item.data;
           return (
-            <div key={`approval-${approval._id}`} className="flex justify-start">
+            <div
+              key={`approval-${approval._id}`}
+              className="flex justify-start"
+            >
               <IntegrationApprovalCard
                 approvalId={approval._id}
                 status={approval.status}
@@ -119,7 +121,8 @@ export function ChatMessages({
       {/* Thinking animation area */}
       <div ref={aiResponseAreaRef}>
         {((isPending && !streamingMessage) ||
-          (streamingMessage?.status === 'streaming' && !streamingMessage.text) ||
+          (streamingMessage?.status === 'streaming' &&
+            !streamingMessage.text) ||
           hasActiveTools) && (
           <ThinkingAnimation streamingMessage={streamingMessage} />
         )}

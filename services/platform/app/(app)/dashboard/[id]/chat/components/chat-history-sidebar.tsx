@@ -33,12 +33,14 @@ interface ChatHistorySidebarProps extends ComponentPropsWithoutRef<'div'> {
   organizationId: string;
   onSearchOpen?: () => void;
   onNewChat?: () => void;
+  onChatSelect?: () => void;
 }
 
 export function ChatHistorySidebar({
   organizationId,
   onSearchOpen,
   onNewChat,
+  onChatSelect,
   className,
   ...restProps
 }: ChatHistorySidebarProps) {
@@ -115,6 +117,7 @@ export function ChatHistorySidebar({
 
   const handleChatClick = (threadId: string) => {
     router.push(`/dashboard/${organizationId}/chat/${threadId}`);
+    onChatSelect?.();
   };
 
   const handleStartRename = (chatId: string, currentTitle: string) => {

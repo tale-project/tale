@@ -15,8 +15,13 @@ import {
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { Button } from '@/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/overlays/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from '@/components/ui/overlays/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { AdaptiveHeaderRoot } from '@/components/layout/adaptive-header';
 
 interface ChatHeaderProps {
   organizationId: string;
@@ -69,6 +74,10 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
     router.push(`/dashboard/${organizationId}/chat`);
   };
 
+  const handleChatSelect = () => {
+    setIsMobileHistoryOpen(false);
+  };
+
   // Global keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -101,37 +110,70 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
 
   return (
     <>
+      {/* Mobile header action buttons - renders in AdaptiveHeaderSlot on mobile */}
+      <AdaptiveHeaderRoot standalone={false} className="ml-auto gap-0">
+        <div className="flex items-center ml-auto">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleToggleHistory}
+            aria-label={tChat('chatHistory')}
+          >
+            <Clock className={baseIconClasses} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleToggleSearch}
+            aria-label={tChat('searchChat')}
+          >
+            <Search className={baseIconClasses} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleNewChat}
+            aria-label={tChat('newChat')}
+          >
+            <Plus className={baseIconClasses} />
+          </Button>
+        </div>
+      </AdaptiveHeaderRoot>
+
       {/* Mobile: Sheet sidebar */}
       <Sheet open={isMobileHistoryOpen} onOpenChange={setIsMobileHistoryOpen}>
         <SheetContent side="left" hideClose className="w-[18rem] p-0 sm:hidden">
           <VisuallyHidden>
             <SheetTitle>{tChat('chatHistory')}</SheetTitle>
           </VisuallyHidden>
-          <ChatHistorySidebar organizationId={organizationId} />
+          <ChatHistorySidebar
+            organizationId={organizationId}
+            onChatSelect={handleChatSelect}
+          />
         </SheetContent>
       </Sheet>
 
-      <div className="flex items-start h-full w-fit absolute left-0 top-0 z-10">
+      <div className="hidden sm:flex items-start h-full w-fit absolute left-0 top-0 z-10">
         {/* Desktop: Inline sidebar */}
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: isHistoryOpen ? '18rem' : 0 }}
           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
           className={cn(
-            'hidden sm:flex flex-col sticky top-0 h-full w-[18rem] max-w-[calc(100vw-4rem)] border-r border-border overflow-hidden bg-background rounded-tl-xl',
+            'flex flex-col sticky top-0 h-full w-[18rem] max-w-[calc(100vw-4rem)] border-r border-border overflow-hidden bg-background rounded-tl-xl',
             !isHistoryOpen && 'border-r-0',
           )}
         >
           <ChatHistorySidebar organizationId={organizationId} />
         </motion.div>
 
-        {/* Action buttons */}
+        {/* Desktop: Action buttons */}
         <motion.div
           initial={{ x: -HISTORY_WIDTH }}
           animate={{ x: isHistoryOpen ? 0 : -HISTORY_WIDTH }}
           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
           style={{ left: `${HISTORY_WIDTH}px` }}
-          className="absolute top-0 flex items-center px-2 sm:px-5 py-2 bg-background rounded-br-xl"
+          className="absolute top-0 flex items-center px-5 py-2 bg-background rounded-br-xl"
         >
           <TooltipProvider>
             <Tooltip>
@@ -151,9 +193,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
                 side="bottom"
                 className="py-1.5"
               >
-                {isHistoryOpen || isMobileHistoryOpen
-                  ? tChat('hideHistory')
-                  : tChat('showHistory')}
+                {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
                 <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
                   {historyShortcut}
                 </span>
@@ -199,13 +239,13 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
             </Tooltip>
           </TooltipProvider>
         </motion.div>
-
-        <ChatSearchDialog
-          isOpen={isSearchOpen}
-          onOpenChange={setIsSearchOpen}
-          organizationId={organizationId}
-        />
       </div>
+
+      <ChatSearchDialog
+        isOpen={isSearchOpen}
+        onOpenChange={setIsSearchOpen}
+        organizationId={organizationId}
+      />
     </>
   );
 }

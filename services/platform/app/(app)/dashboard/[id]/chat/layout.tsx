@@ -59,7 +59,7 @@ export default function ChatLayout({ children }: ChatLayoutProps) {
         clearChatState,
       }}
     >
-      <div className="flex flex-col flex-[1_1_0] h-full bg-background relative">
+      <div className="flex flex-col flex-1 min-h-0 h-full bg-background relative overflow-hidden">
         <ChatHeader organizationId={organizationId as string} />
         <LayoutErrorBoundary organizationId={organizationId as string}>
           {children}

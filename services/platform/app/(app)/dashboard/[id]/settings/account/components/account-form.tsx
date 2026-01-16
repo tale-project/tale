@@ -22,9 +22,7 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
-export function AccountForm({
-  preloadedMemberContext,
-}: AccountFormProps) {
+export function AccountForm({ preloadedMemberContext }: AccountFormProps) {
   const { t: tAuth } = useT('auth');
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
@@ -81,7 +79,7 @@ export function AccountForm({
   }
 
   return (
-    <NarrowContainer className="py-4">
+    <NarrowContainer className="p-0!">
       <Stack>
         <h2 className="text-lg font-semibold mb-6">
           {tAuth('changePassword.title')}

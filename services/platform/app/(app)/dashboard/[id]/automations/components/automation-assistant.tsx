@@ -56,7 +56,13 @@ export interface Message {
   fileParts?: FilePart[]; // File parts from server messages
 }
 
-function AutomationDetailsCollapse({ context, title }: { context: string; title: string }) {
+function AutomationDetailsCollapse({
+  context,
+  title,
+}: {
+  context: string;
+  title: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -206,13 +212,26 @@ export function AutomationAssistant({
     if (!uiMessages || uiMessages.length === 0) return [];
 
     return uiMessages
-      .filter((m): m is typeof m & { role: 'user' | 'assistant' } =>
-        m.role === 'user' || m.role === 'assistant',
+      .filter(
+        (m): m is typeof m & { role: 'user' | 'assistant' } =>
+          m.role === 'user' || m.role === 'assistant',
       )
       .map((m) => {
         // Extract file parts (images) from UIMessage.parts
-        const fileParts = ((m.parts || []) as Array<{ type: string; mediaType?: string; filename?: string; url?: string }>)
-          .filter((p): p is FilePart => p.type === 'file' && typeof p.url === 'string' && typeof p.mediaType === 'string')
+        const fileParts = (
+          (m.parts || []) as Array<{
+            type: string;
+            mediaType?: string;
+            filename?: string;
+            url?: string;
+          }>
+        )
+          .filter(
+            (p): p is FilePart =>
+              p.type === 'file' &&
+              typeof p.url === 'string' &&
+              typeof p.mediaType === 'string',
+          )
           .map((p) => ({
             type: 'file' as const,
             mediaType: p.mediaType,
@@ -223,8 +242,7 @@ export function AutomationAssistant({
         return {
           id: m.key,
           role: m.role,
-          content:
-            m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
+          content: m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
         };
@@ -233,7 +251,9 @@ export function AutomationAssistant({
 
   // Create a stable key for comparison to detect actual content changes
   const messagesKey = useMemo(() => {
-    return transformedMessages.map(m => `${m.id}:${m.content.length}`).join('|');
+    return transformedMessages
+      .map((m) => `${m.id}:${m.content.length}`)
+      .join('|');
   }, [transformedMessages]);
 
   // Sync messages from thread - only update when content actually changes
@@ -323,13 +343,17 @@ export function AutomationAssistant({
 
         toast({
           title: t('assistant.upload.success'),
-          description: t('assistant.upload.successDescription', { fileName: file.name }),
+          description: t('assistant.upload.successDescription', {
+            fileName: file.name,
+          }),
         });
       } catch (error) {
         console.error('Upload error:', error);
         toast({
           title: t('assistant.upload.failed'),
-          description: t('assistant.upload.failedDescription', { fileName: file.name }),
+          description: t('assistant.upload.failedDescription', {
+            fileName: file.name,
+          }),
           variant: 'destructive',
         });
       } finally {
@@ -414,12 +438,18 @@ export function AutomationAssistant({
   };
 
   const handleSendMessage = async () => {
-    if ((!inputValue.trim() && attachments.length === 0) || isLoading || !organizationId) return;
+    if (
+      (!inputValue.trim() && attachments.length === 0) ||
+      isLoading ||
+      !organizationId
+    )
+      return;
 
     const messageContent = inputValue.trim();
 
     // Capture attachments before clearing
-    const attachmentsToSend = attachments.length > 0 ? [...attachments] : undefined;
+    const attachmentsToSend =
+      attachments.length > 0 ? [...attachments] : undefined;
 
     // Clear input and attachments immediately for better UX
     setInputValue('');
@@ -529,24 +559,24 @@ export function AutomationAssistant({
   };
 
   return (
-    <>
+    <div
+      ref={containerRef}
+      className="flex-1 flex flex-col overflow-y-auto relative"
+    >
       {/* Header with clear button */}
       {messages.length > 0 && threadId && (
         <Button
           variant="ghost"
           size="icon"
           onClick={handleClearChat}
-          className="h-8 w-8 absolute top-3.5 right-2"
+          className="h-8 w-8 absolute top-3.5 right-2 z-10"
         >
           <Trash2 className="size-4" />
         </Button>
       )}
 
       {/* Chat messages */}
-      <div
-        ref={containerRef}
-        className="flex-1 flex flex-col overflow-y-auto p-2 space-y-2.5"
-      >
+      <div className="flex-1 flex flex-col p-2 space-y-2.5">
         {messages.length === 0 ? (
           <div className="flex flex-col items-start justify-start h-full py-4">
             <div className="flex gap-2 items-start">
@@ -590,7 +620,9 @@ export function AutomationAssistant({
                           >
                             <Image
                               src={part.url}
-                              alt={part.filename || t('assistant.fallbackImage')}
+                              alt={
+                                part.filename || t('assistant.fallbackImage')
+                              }
                               className="size-full object-cover"
                               width={44}
                               height={44}
@@ -604,9 +636,7 @@ export function AutomationAssistant({
                             rel="noopener noreferrer"
                             className="bg-muted rounded-lg px-2 py-1.5 flex items-center gap-2 hover:bg-muted/80 transition-colors max-w-[13.5rem]"
                           >
-                            <DocumentIcon
-                              fileName={part.filename || 'file'}
-                            />
+                            <DocumentIcon fileName={part.filename || 'file'} />
                             <div className="flex flex-col min-w-0 flex-1">
                               <div className="text-sm font-medium text-foreground truncate">
                                 {part.filename || t('assistant.fallbackFile')}
@@ -657,7 +687,7 @@ export function AutomationAssistant({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file input - inside scrollable container for sticky to work */}
       <input
         ref={fileInputRef}
         type="file"
@@ -779,6 +809,6 @@ export function AutomationAssistant({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

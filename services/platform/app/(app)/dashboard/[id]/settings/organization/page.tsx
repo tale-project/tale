@@ -41,7 +41,7 @@ interface OrganizationSettingsPageProps {
  * Shows organization form section + team members section with table.
  */
 async function OrganizationSettingsSkeleton() {
-  const { t } = await getT('settings');
+  const { t } = await getT('tables');
   return (
     <Stack>
       <Stack gap={2}>
@@ -59,19 +59,21 @@ async function OrganizationSettingsSkeleton() {
         </Stack>
 
         <HStack justify="between">
-          <Skeleton className="h-9 w-full max-w-md" />
+          <Skeleton className="h-9 w-full max-w-sm" />
           <Skeleton className="h-9 w-32" />
         </HStack>
 
         <DataTableSkeleton
           rows={5}
           columns={[
-            { header: t('organization.members.columns.name') },
-            { header: t('organization.members.columns.email'), size: 200 },
-            { header: t('organization.members.columns.role'), size: 120 },
-            { isAction: true, size: 80 },
+            { header: t('headers.member'), size: 348, hasAvatar: false },
+            { header: t('headers.role'), size: 200, hasAvatar: false },
+            { header: t('headers.joined'), hasAvatar: false, align: 'right' },
+            { isAction: true, size: 140 },
           ]}
           showHeader
+          showPagination={false}
+          noFirstColumnAvatar
         />
       </Stack>
     </Stack>
