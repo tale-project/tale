@@ -28,8 +28,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY services/platform/package.json ./services/platform/package.json
 
-# Install only the platform workspace dependencies
-RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
+# Install only the platform workspace dependencies (production only, skip devDependencies like Storybook)
+RUN npm ci --omit=dev --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
 
 # ============================================================================
 # Stage 2: Builder
@@ -57,7 +57,6 @@ ENV NODE_ENV=production
 # Native binaries needed for Linux: @next/swc, @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide
 # These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
 # Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
-# Use --legacy-peer-deps to match the deps stage installation
 RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
     rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
     rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
@@ -65,14 +64,14 @@ RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
     rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript \
+      npm install --no-save typescript \
         @parcel/watcher-linux-x64-glibc \
         lightningcss-linux-x64-gnu \
         @tailwindcss/oxide-linux-x64-gnu \
         @swc/core-linux-x64-gnu \
         next@16.1.1; \
     elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript \
+      npm install --no-save typescript \
         @parcel/watcher-linux-arm64-glibc \
         lightningcss-linux-arm64-gnu \
         @tailwindcss/oxide-linux-arm64-gnu \
