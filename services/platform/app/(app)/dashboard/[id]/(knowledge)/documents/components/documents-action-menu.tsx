@@ -70,11 +70,13 @@ export function DocumentsActionMenu({
         menuItems={menuItems}
       />
 
-      <DocumentUploadDialog
-        open={isUploadDialogOpen}
-        onOpenChange={setIsUploadDialogOpen}
-        organizationId={organizationId}
-      />
+      {isUploadDialogOpen && (
+        <DocumentUploadDialog
+          open={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          organizationId={organizationId}
+        />
+      )}
 
       {isOneDriveDialogOpen && (
         <OneDriveImportDialog
