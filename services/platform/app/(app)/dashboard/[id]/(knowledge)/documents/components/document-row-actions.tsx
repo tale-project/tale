@@ -165,27 +165,23 @@ export function DocumentRowActions({
     <>
       <EntityRowActions actions={actions} />
 
-      {dialogs.isOpen.delete && (
-        <DocumentDeleteDialog
-          open
-          onOpenChange={dialogs.setOpen.delete}
-          onConfirmDelete={handleDeleteConfirm}
-          isLoading={isDeleting}
-          fileName={name}
-        />
-      )}
+      {/* Always mount dialogs to allow Radix UI to handle animation states properly */}
+      <DocumentDeleteDialog
+        open={dialogs.isOpen.delete}
+        onOpenChange={dialogs.setOpen.delete}
+        onConfirmDelete={handleDeleteConfirm}
+        isLoading={isDeleting}
+        fileName={name}
+      />
 
-      {dialogs.isOpen.deleteFolder && (
-        <DocumentDeleteFolderDialog
-          open
-          onOpenChange={dialogs.setOpen.deleteFolder}
-          onConfirmDelete={handleDeleteFolderConfirm}
-          isLoading={isDeleting}
-          folderName={name}
-        />
-      )}
+      <DocumentDeleteFolderDialog
+        open={dialogs.isOpen.deleteFolder}
+        onOpenChange={dialogs.setOpen.deleteFolder}
+        onConfirmDelete={handleDeleteFolderConfirm}
+        isLoading={isDeleting}
+        folderName={name}
+      />
 
-      {/* Always mount team tags dialog to allow Radix UI to handle animation states properly */}
       <DocumentTeamTagsDialog
         open={dialogs.isOpen.teamTags}
         onOpenChange={dialogs.setOpen.teamTags}
