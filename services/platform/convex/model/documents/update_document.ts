@@ -30,7 +30,10 @@ export async function updateDocument(
   }
 
   // Validate teamTags: user can only assign document to teams they belong to
-  if (args.teamTags !== undefined && args.userId) {
+  if (args.teamTags !== undefined) {
+    if (!args.userId) {
+      throw new Error('userId is required when updating teamTags');
+    }
     const userTeamIds = await getUserTeamIds(ctx, args.userId);
     const userTeamSet = new Set(userTeamIds);
     for (const tag of args.teamTags) {
