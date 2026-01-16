@@ -6,6 +6,7 @@
 import { v } from 'convex/values';
 import { query, mutation } from './_generated/server';
 import { components } from './_generated/api';
+import { getAuthenticatedUser } from './lib/rls';
 
 // Type for Better Auth teamMember record
 interface BetterAuthTeamMember {
@@ -60,6 +61,27 @@ export const addMember = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Authorization: verify caller is authenticated and is a member of the team
+    const authUser = await getAuthenticatedUser(ctx);
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    // Check if caller is a member of this team
+    const callerMembership: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'teamId', operator: 'eq', value: args.teamId },
+          { field: 'userId', operator: 'eq', value: authUser.userId },
+        ],
+      });
+
+    if (callerMembership.page.length === 0) {
+      throw new Error('You must be a member of the team to add members');
+    }
+
     // Check if member already exists in this team
     const existing: BetterAuthFindManyResult<BetterAuthTeamMember> =
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -100,6 +122,27 @@ export const removeMember = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Authorization: verify caller is authenticated and is a member of the team
+    const authUser = await getAuthenticatedUser(ctx);
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    // Check if caller is a member of this team
+    const callerMembership: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [
+          { field: 'teamId', operator: 'eq', value: args.teamId },
+          { field: 'userId', operator: 'eq', value: authUser.userId },
+        ],
+      });
+
+    if (callerMembership.page.length === 0) {
+      throw new Error('You must be a member of the team to remove members');
+    }
+
     // Find the member record
     const existing: BetterAuthFindManyResult<BetterAuthTeamMember> =
       await ctx.runQuery(components.betterAuth.adapter.findMany, {
