@@ -74,6 +74,9 @@ RUN rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
         @swc/core-linux-arm64-gnu; \
     fi
 
+# Install Vite config dependencies (must be explicit as they may not be hoisted correctly from workspace install)
+RUN npm install --no-save --legacy-peer-deps vite-tsconfig-paths @vitejs/plugin-react vite-plugin-pwa
+
 # Build Vite application
 RUN npm run build
 
