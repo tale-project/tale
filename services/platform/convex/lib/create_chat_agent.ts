@@ -74,7 +74,7 @@ translate the relevant portions to the user's language while keeping
 proper nouns, technical terms, or names as-is when appropriate.
 
 Exception: Only use a different language if the user explicitly requests it
-(e.g., "Reply in English" or "请用中文回答").
+(e.g., "Reply in English" or "Please respond in French").
 
 ====================
 CONVERSATION CONTEXT
