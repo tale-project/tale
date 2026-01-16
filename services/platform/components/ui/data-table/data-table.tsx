@@ -50,7 +50,7 @@ import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
-  columns: ColumnDef<TData, any>[];  // eslint-disable-line @typescript-eslint/no-explicit-any
+  columns: ColumnDef<TData, any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */
@@ -429,9 +429,11 @@ export function DataTable<TData>({
   );
 
   // Infinite scroll content (load more button) - renders inside table container
-  const infiniteScrollContent = infiniteScroll && data.length > 0 && (
-    <div className="flex justify-center py-3 border-t border-border">
-      {infiniteScroll.hasMore ? (
+  // Only show when there are more items to load
+  const infiniteScrollContent = infiniteScroll &&
+    data.length > 0 &&
+    infiniteScroll.hasMore && (
+      <div className="flex justify-center py-3 border-t border-border">
         <Button
           variant="ghost"
           onClick={infiniteScroll.onLoadMore}
@@ -440,13 +442,8 @@ export function DataTable<TData>({
         >
           {t('pagination.loadMore')}
         </Button>
-      ) : (
-        <span className="text-sm text-muted-foreground">
-          {t('pagination.noMore')}
-        </span>
-      )}
-    </div>
-  );
+      </div>
+    );
 
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {

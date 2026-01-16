@@ -245,7 +245,7 @@ export const NarrowContainer = forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('mx-auto w-full max-w-[576px] px-4', className)}
+    className={cn('mx-auto w-full max-w-[544px] px-4', className)}
     {...props}
   />
 ));

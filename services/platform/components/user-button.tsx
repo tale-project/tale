@@ -40,12 +40,15 @@ export interface UserButtonProps {
   label?: string;
   /** Optional custom tooltip text (defaults to "Manage account") */
   tooltipText?: string;
+  /** Callback when navigating (e.g., to close mobile nav) */
+  onNavigate?: () => void;
 }
 
 export function UserButton({
   align = 'start',
   label,
   tooltipText,
+  onNavigate,
 }: UserButtonProps) {
   const { t } = useT('auth');
   const { user, signOut, isLoading: loading } = useAuth();
@@ -150,18 +153,14 @@ export function UserButton({
 
         <DropdownMenuSeparator />
 
-        {/* Settings - Only visible for Admin and Developer roles */}
-        {(() => {
-          const userRole = (memberContext?.role ?? '').toLowerCase();
-          const isAdminOrDeveloper =
-            userRole === 'admin' || userRole === 'developer';
-          return !loading && user && isAdminOrDeveloper;
-        })() && (
+        {/* Settings - All users can access (tabs are role-restricted) */}
+        {!loading && user && (
           <>
             <DropdownMenuItem
-              onClick={() =>
-                router.push(`/dashboard/${organizationId}/settings`)
-              }
+              onClick={() => {
+                router.push(`/dashboard/${organizationId}/settings`);
+                onNavigate?.();
+              }}
               className="py-2.5"
             >
               <Settings className="mr-3 size-4" />

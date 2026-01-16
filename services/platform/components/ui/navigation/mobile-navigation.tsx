@@ -62,7 +62,9 @@ const MobileNavigationItem = ({
         onClick={onClose}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full',
-          isActive ? 'bg-muted text-foreground' : 'hover:bg-muted text-muted-foreground'
+          isActive
+            ? 'bg-muted text-foreground'
+            : 'hover:bg-muted text-muted-foreground',
         )}
       >
         {Icon && <Icon className="size-5 shrink-0" />}
@@ -86,7 +88,7 @@ const MobileNavigationItem = ({
                   'block px-3 py-1.5 rounded-lg text-sm transition-colors',
                   isSubActive
                     ? 'text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
                 )}
               >
                 {subItem.label}
@@ -156,7 +158,10 @@ export function MobileNavigation({ role }: MobileNavigationProps) {
             </div>
             {/* Footer - matches header height */}
             <div className="flex-shrink-0 h-[var(--nav-size)] px-4 py-2 border-t border-border flex items-center">
-              <UserButton label={tNav('settings')} />
+              <UserButton
+                label={tNav('settings')}
+                onNavigate={() => setIsOpen(false)}
+              />
             </div>
           </NavigationMenu>
         </SheetContent>

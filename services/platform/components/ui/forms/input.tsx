@@ -42,6 +42,7 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
     errorMessage?: string;
     label?: string;
     required?: boolean;
+    wrapperClassName?: string;
   };
 
 export const Input = forwardRef<HTMLInputElement, BaseProps>(
@@ -56,6 +57,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
       errorMessage,
       label,
       required,
+      wrapperClassName,
       id: providedId,
       ...props
     },
@@ -84,7 +86,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
 
     if (isPassword && passwordToggle) {
       return (
-        <div className="flex flex-col gap-1.5">
+        <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
           {label && (
             <Label htmlFor={id} required={required} error={hasError}>
               {label}
@@ -141,7 +143,7 @@ export const Input = forwardRef<HTMLInputElement, BaseProps>(
     }
 
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
         {label && (
           <Label htmlFor={id} required={required} error={hasError}>
             {label}

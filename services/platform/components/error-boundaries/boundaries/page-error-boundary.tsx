@@ -45,11 +45,8 @@ export function PageErrorBoundary({
   organizationId,
   header,
 }: PageErrorBoundaryProps) {
-  // For Next.js error.tsx, reset is handled by framework via navigation
-  // We provide a no-op reset function since the page will remount on navigation
   const reset = () => {
-    // Next.js handles reset via router navigation
-    // User can navigate away or refresh to recover
+    window.location.reload();
   };
 
   return (
