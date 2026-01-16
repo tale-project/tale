@@ -6,7 +6,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import type { DataSource } from '../common/validators';
 
-export interface CreateCustomerPublicArgs {
+interface CreateCustomerPublicArgs {
   organizationId: string;
   name?: string;
   email: string;

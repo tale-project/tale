@@ -12,7 +12,7 @@
  * 6. If no product found, finish (nothing to do)
  */
 
-export const productRagSyncWorkflow = {
+const productRagSyncWorkflow = {
   workflowConfig: {
     name: 'Product RAG Sync',
     description: 'Find one unprocessed product and upload it to RAG service',

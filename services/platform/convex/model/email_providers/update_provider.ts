@@ -6,7 +6,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import type { SmtpConfig, ImapConfig, EmailProviderStatus } from './types';
 
-export interface UpdateProviderArgs {
+interface UpdateProviderArgs {
   providerId: Doc<'emailProviders'>['_id'];
   name?: string;
   isDefault?: boolean;

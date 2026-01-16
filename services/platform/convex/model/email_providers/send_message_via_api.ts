@@ -47,12 +47,12 @@ export async function sendMessageViaAPI(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.getInternal, {
+      provider = await ctx.runQuery(internal.email_providers.queries.get_internal.getInternal, {
         providerId: args.providerId,
       });
     } else {
       provider = await ctx.runQuery(
-        internal.email_providers.getDefaultInternal,
+        internal.email_providers.queries.get_default_internal.getDefaultInternal,
         {
           organizationId: args.organizationId,
         },
@@ -90,7 +90,7 @@ export async function sendMessageViaAPI(
       typedProvider._id,
       typedProvider.oauth2Auth,
       async (encrypted) =>
-        await ctx.runAction(internal.oauth2.decryptStringInternal, {
+        await ctx.runAction(internal.actions.oauth2.decryptStringInternal, {
           encrypted,
         }),
       async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
@@ -109,7 +109,7 @@ export async function sendMessageViaAPI(
         expiresIn,
         scope,
       }) =>
-        await ctx.runAction(api.email_providers.storeOAuth2Tokens, {
+        await ctx.runAction(api.email_providers.actions.store_oauth2_tokens.storeOAuth2Tokens, {
           emailProviderId,
           accessToken,
           refreshToken,
@@ -174,13 +174,13 @@ export async function sendMessageViaAPI(
       }
 
       const clientSecret = await ctx.runAction(
-        internal.oauth2.decryptStringInternal,
+        internal.actions.oauth2.decryptStringInternal,
         {
           encrypted: typedProvider.oauth2Auth.clientSecretEncrypted,
         },
       );
       const refreshToken = await ctx.runAction(
-        internal.oauth2.decryptStringInternal,
+        internal.actions.oauth2.decryptStringInternal,
         {
           encrypted: typedProvider.oauth2Auth.refreshTokenEncrypted,
         },
@@ -288,7 +288,7 @@ export async function sendMessageViaAPI(
       // Schedule retry with exponential backoff
       await ctx.scheduler.runAfter(
         delayMs,
-        internal.email_providers.sendMessageViaAPIInternal,
+        internal.email_providers.actions.send_message_via_api_internal.sendMessageViaAPIInternal,
         {
           messageId: args.messageId,
           organizationId: args.organizationId,

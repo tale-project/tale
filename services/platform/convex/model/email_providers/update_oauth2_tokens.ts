@@ -9,7 +9,7 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
 
-export interface UpdateOAuth2TokensArgs {
+interface UpdateOAuth2TokensArgs {
   emailProviderId: Doc<'emailProviders'>['_id'];
   accessTokenEncrypted: string;
   refreshTokenEncrypted?: string;

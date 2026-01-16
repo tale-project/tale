@@ -37,7 +37,7 @@
  * - Can be scheduled or triggered manually
  */
 
-export const productRecommendationEmailWorkflow = {
+const productRecommendationEmailWorkflow = {
   workflowConfig: {
     name: 'Product Recommendation Email',
     description:

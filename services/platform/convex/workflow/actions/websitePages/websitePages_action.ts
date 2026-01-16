@@ -51,7 +51,7 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
     }));
 
     const result = await ctx.runMutation(
-      internal.websites.bulkUpsertPagesInternal,
+      internal.mutations.websites.bulkUpsertPagesInternal,
       {
         organizationId,
         websiteId: params.websiteId, // Required by validator

@@ -70,7 +70,7 @@ export interface UpdateExecutionMetadataArgs {
 
 export interface UpdateExecutionVariablesArgs {
   executionId: Doc<'wfExecutions'>['_id'];
-  // Must be pre-serialized in an action using internal.file.serializeVariables
+  // Must be pre-serialized in an action using internal.actions.file.serializeVariables
   variablesSerialized?: string;
   variablesStorageId?: Id<'_storage'>;
 }

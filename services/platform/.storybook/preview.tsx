@@ -1,14 +1,17 @@
 import type { Preview, ReactRenderer } from '@storybook/react';
 import { withThemeByClassName } from '@storybook/addon-themes';
-import { NextIntlClientProvider } from 'next-intl';
+import { I18nProvider } from '../lib/i18n/i18n-provider';
 import '../app/globals.css';
 import enMessages from '../messages/en.json';
+import globalMessages from '../messages/global.json';
+
+const messages = { ...globalMessages, ...enMessages };
 
 function withProviders(Story: React.ComponentType) {
   return (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <I18nProvider locale="en" messages={messages}>
       <Story />
-    </NextIntlClientProvider>
+    </I18nProvider>
   );
 }
 

@@ -1,7 +1,7 @@
 /**
  * Provision and publish a Website Scan workflow for a website.
  *
- * Model-layer helper invoked by internal.websites.provisionWebsiteScanWorkflow.
+ * Model-layer helper invoked by internal.mutations.websites.provisionWebsiteScanWorkflow.
  */
 
 import type { ActionCtx } from '../../_generated/server';
@@ -87,7 +87,7 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   const saved = await ctx.runMutation(
-    internal.wf_definitions.createWorkflowWithSteps,
+    internal.wf_definitions.mutations.createWorkflow.createWorkflowWithSteps,
     {
       organizationId: args.organizationId,
       ...payload,
@@ -95,22 +95,25 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   // Newly created workflows start as drafts; publish immediately.
-  await ctx.runMutation(internal.wf_definitions.publishDraft, {
+  await ctx.runMutation(internal.wf_definitions.mutations.publishDraft.publishDraft, {
     wfDefinitionId: saved.workflowId,
     publishedBy: 'system',
     changeLog: 'Auto-created and published from website creation',
   });
 
-  const current = await ctx.runQuery(internal.websites.getWebsiteInternal, {
-    websiteId: args.websiteId,
-  });
+  const current = await ctx.runQuery(
+    internal.queries.websites.getWebsiteInternal,
+    {
+      websiteId: args.websiteId,
+    },
+  );
   const existingMeta =
     ((current?.metadata as Record<string, unknown> | undefined) ?? {}) as Record<
       string,
       unknown
     >;
 
-  await ctx.runMutation(internal.websites.updateWebsiteInternal, {
+  await ctx.runMutation(internal.mutations.websites.updateWebsiteInternal, {
     websiteId: args.websiteId,
     metadata: { ...existingMeta, workflowId: saved.workflowId },
   });
@@ -118,7 +121,7 @@ export async function provisionWebsiteScanWorkflow(
   if (args.autoTriggerInitialScan === true) {
     // Optimistically update the website's scanned time so the UI reflects
     // that an initial scan has been queued, similar to manual rescans.
-    await ctx.runMutation(internal.websites.updateWebsiteInternal, {
+    await ctx.runMutation(internal.mutations.websites.updateWebsiteInternal, {
       websiteId: args.websiteId,
     });
 

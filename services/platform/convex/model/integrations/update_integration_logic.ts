@@ -53,7 +53,7 @@ async function encryptCredentials(
 
   if (args.apiKeyAuth) {
     const keyEncrypted = await ctx.runAction(
-      internal.oauth2.encryptStringInternal,
+      internal.actions.oauth2.encryptStringInternal,
       {
         plaintext: args.apiKeyAuth.key,
       },
@@ -66,7 +66,7 @@ async function encryptCredentials(
 
   if (args.basicAuth) {
     const passwordEncrypted = await ctx.runAction(
-      internal.oauth2.encryptStringInternal,
+      internal.actions.oauth2.encryptStringInternal,
       {
         plaintext: args.basicAuth.password,
       },
@@ -79,13 +79,13 @@ async function encryptCredentials(
 
   if (args.oauth2Auth) {
     const accessTokenEncrypted = await ctx.runAction(
-      internal.oauth2.encryptStringInternal,
+      internal.actions.oauth2.encryptStringInternal,
       {
         plaintext: args.oauth2Auth.accessToken,
       },
     );
     const refreshTokenEncrypted = args.oauth2Auth.refreshToken
-      ? await ctx.runAction(internal.oauth2.encryptStringInternal, {
+      ? await ctx.runAction(internal.actions.oauth2.encryptStringInternal, {
           plaintext: args.oauth2Auth.refreshToken,
         })
       : undefined;
@@ -160,7 +160,7 @@ export async function updateIntegrationLogic(
   args: UpdateIntegrationLogicArgs,
 ): Promise<void> {
   // Get integration (with RLS check)
-  const integration = await ctx.runQuery(api.integrations.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
     integrationId: args.integrationId,
   });
 
@@ -178,7 +178,7 @@ export async function updateIntegrationLogic(
   await runHealthCheckIfNeeded(integration, args);
 
   // Update integration
-  await ctx.runMutation(internal.integrations.updateIntegrationInternal, {
+  await ctx.runMutation(internal.integrations.mutations.update_integration_internal.updateIntegrationInternal, {
     integrationId: args.integrationId,
     status: args.status,
     isActive: args.isActive,

@@ -265,7 +265,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             page: DocumentRecord[];
             isDone: boolean;
             continueCursor: string;
-          } = await ctx.runQuery!(internal.documents.queryDocuments, {
+          } = await ctx.runQuery!(internal.queries.documents.queryDocuments, {
             organizationId,
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },

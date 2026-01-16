@@ -10,7 +10,7 @@ This directory contains development and utility scripts for the project.
 
   - Starts Convex backend in LOCAL mode
   - Syncs environment variables
-  - Starts Next.js dev server
+  - Starts Vite dev server
   - **Usage**: `npm run dev`
 
 - **`sync-convex-env-from-dotenv.mjs`** - Environment variable sync

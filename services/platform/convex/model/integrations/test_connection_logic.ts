@@ -24,7 +24,7 @@ export async function testConnectionLogic(
   ctx: ActionCtx,
   args: TestConnectionLogicArgs,
 ): Promise<TestConnectionResult> {
-  const integration = await ctx.runQuery(api.integrations.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
     integrationId: args.integrationId,
   });
 
@@ -39,7 +39,7 @@ export async function testConnectionLogic(
     debugLog(`Test Connection Testing ${integration.name} integration...`);
 
     if (integration.apiKeyAuth) {
-      const key = await ctx.runAction(internal.oauth2.decryptStringInternal, {
+      const key = await ctx.runAction(internal.actions.oauth2.decryptStringInternal, {
         encrypted: integration.apiKeyAuth.keyEncrypted,
       });
 
@@ -55,7 +55,7 @@ export async function testConnectionLogic(
       }
     } else if (integration.basicAuth) {
       const password = await ctx.runAction(
-        internal.oauth2.decryptStringInternal,
+        internal.actions.oauth2.decryptStringInternal,
         {
           encrypted: integration.basicAuth.passwordEncrypted,
         },
@@ -74,7 +74,7 @@ export async function testConnectionLogic(
       throw new Error(`Testing not implemented for ${integration.name}`);
     }
 
-    await ctx.runMutation(internal.integrations.updateIntegrationInternal, {
+    await ctx.runMutation(internal.integrations.mutations.update_integration_internal.updateIntegrationInternal, {
       integrationId: args.integrationId,
       status: 'active',
       isActive: true,
@@ -95,7 +95,7 @@ export async function testConnectionLogic(
       error,
     );
 
-    await ctx.runMutation(internal.integrations.updateIntegrationInternal, {
+    await ctx.runMutation(internal.integrations.mutations.update_integration_internal.updateIntegrationInternal, {
       integrationId: args.integrationId,
       status: 'error',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',

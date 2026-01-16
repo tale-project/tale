@@ -297,3 +297,29 @@ export const getCustomerByEmail = queryWithRLS({
   },
 });
 
+// =============================================================================
+// BULK FETCH OPERATIONS (for client-side filtering)
+// =============================================================================
+
+/**
+ * Get all customers for an organization without pagination or filtering.
+ * Filtering, sorting, and pagination are performed client-side using TanStack DB Collections.
+ */
+export const getAllCustomers = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const customers = [];
+    for await (const customer of ctx.db
+      .query('customers')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      customers.push(customer);
+    }
+    return customers;
+  },
+});
+

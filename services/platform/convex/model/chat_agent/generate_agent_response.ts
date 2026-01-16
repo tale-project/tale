@@ -139,7 +139,7 @@ export async function generateAgentResponse(
   // If we have a streamId, mark the stream as actively streaming
   // This updates the status from 'pending' to 'streaming' in Persistent Text Streaming
   if (streamId) {
-    await ctx.runMutation(internal.streaming.startStream, { streamId });
+    await ctx.runMutation(internal.mutations.streaming.startStream, { streamId });
   }
 
   try {
@@ -682,11 +682,11 @@ export async function generateAgentResponse(
     // consumes the stream internally with saveStreamDeltas. For true per-token streaming,
     // we would need to disable saveStreamDeltas and manually handle the stream.
     if (streamId && trimmedResponseText) {
-      await ctx.runMutation(internal.streaming.appendToStream, {
+      await ctx.runMutation(internal.mutations.streaming.appendToStream, {
         streamId,
         text: trimmedResponseText,
       });
-      await ctx.runMutation(internal.streaming.completeStream, { streamId });
+      await ctx.runMutation(internal.mutations.streaming.completeStream, { streamId });
     }
 
     if (!trimmedResponseText) {
@@ -773,7 +773,7 @@ export async function generateAgentResponse(
     // Mark the stream as errored if we have one
     if (streamId) {
       try {
-        await ctx.runMutation(internal.streaming.errorStream, { streamId });
+        await ctx.runMutation(internal.mutations.streaming.errorStream, { streamId });
       } catch (streamError) {
         console.error('[generateAgentResponse] Failed to mark stream as errored:', streamError);
       }

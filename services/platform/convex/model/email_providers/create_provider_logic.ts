@@ -10,7 +10,7 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
-export interface CreateProviderArgs {
+interface CreateProviderArgs {
   organizationId: string;
   name: string;
   vendor: 'gmail' | 'outlook' | 'smtp' | 'resend' | 'other';
@@ -40,7 +40,7 @@ export interface CreateProviderArgs {
   metadata?: unknown;
 }
 
-export interface CreateProviderDependencies {
+interface CreateProviderDependencies {
   encryptString: (plaintext: string) => Promise<string>;
   createInternal: (params: {
     organizationId: string;

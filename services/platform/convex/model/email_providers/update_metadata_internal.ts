@@ -5,7 +5,7 @@
 import type { MutationCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 
-export interface UpdateMetadataInternalArgs {
+interface UpdateMetadataInternalArgs {
   id: Doc<'emailProviders'>['_id'];
   config: Record<string, string | number | boolean>;
 }

@@ -5,7 +5,7 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 
-export interface CreateOAuth2ProviderArgs {
+interface CreateOAuth2ProviderArgs {
   organizationId: string;
   name: string;
   vendor: 'gmail' | 'outlook';
@@ -27,7 +27,7 @@ export interface CreateOAuth2ProviderArgs {
   clientSecret?: string;
 }
 
-export interface CreateOAuth2ProviderDependencies {
+interface CreateOAuth2ProviderDependencies {
   encryptString: (plaintext: string) => Promise<string>;
   createInternal: (params: {
     organizationId: string;

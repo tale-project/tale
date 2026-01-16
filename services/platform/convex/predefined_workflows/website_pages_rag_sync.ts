@@ -8,7 +8,7 @@
  * 3. Record it as processed
  */
 
-export const websitePagesRagSyncWorkflow = {
+const websitePagesRagSyncWorkflow = {
   workflowConfig: {
     name: 'Website Pages RAG Sync',
     description:

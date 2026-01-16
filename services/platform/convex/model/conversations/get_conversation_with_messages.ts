@@ -13,5 +13,7 @@ export async function getConversationWithMessages(
 ): Promise<ConversationItem | null> {
   const conversation = await ctx.db.get(conversationId);
   if (!conversation) return null;
-  return await transformConversation(ctx, conversation);
+  return await transformConversation(ctx, conversation, {
+    includeAllMessages: true,
+  });
 }

@@ -45,7 +45,7 @@ export const toneOfVoiceAction: ActionDefinition<ToneOfVoiceActionParams> = {
 
         // Call internal query to get tone of voice (bypasses RLS)
         const toneOfVoice = (await ctx.runQuery!(
-          internal.tone_of_voice.getToneOfVoiceInternal,
+          internal.tone_of_voice.queries.get_tone_of_voice.getToneOfVoiceInternal,
           {
             organizationId,
           },

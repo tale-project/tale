@@ -91,7 +91,7 @@ export async function createWebsite(
   // Provision the workflow asynchronously to avoid coupling errors here
   await ctx.scheduler.runAfter(
     0,
-    internal.websites.provisionWebsiteScanWorkflow,
+    internal.mutations.websites.provisionWebsiteScanWorkflow,
     {
       organizationId: args.organizationId,
       websiteId,

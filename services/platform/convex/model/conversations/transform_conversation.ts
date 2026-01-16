@@ -14,22 +14,37 @@ const debugLog = createDebugLog('DEBUG_CONVERSATIONS', '[Conversations]');
 export async function transformConversation(
   ctx: QueryCtx,
   conversation: Doc<'conversations'>,
+  options?: { includeAllMessages?: boolean },
 ): Promise<ConversationItem> {
-  // Load customer and messages in parallel (pending approval loaded later to avoid unused fetch)
+  const includeAllMessages = options?.includeAllMessages ?? false;
+
+  // Load customer and messages in parallel
   const [customerDoc, messageDocs] = await Promise.all([
     conversation.customerId
       ? ctx.db.get(conversation.customerId)
       : Promise.resolve(null),
     (async () => {
-      const docs: Array<Doc<'conversationMessages'>> = [];
-      for await (const msg of ctx.db
-        .query('conversationMessages')
-        .withIndex('by_conversationId_and_deliveredAt', (q) =>
-          q.eq('conversationId', conversation._id),
-        )) {
-        docs.push(msg);
+      if (includeAllMessages) {
+        const docs: Array<Doc<'conversationMessages'>> = [];
+        for await (const msg of ctx.db
+          .query('conversationMessages')
+          .withIndex('by_conversationId_and_deliveredAt', (q) =>
+            q.eq('conversationId', conversation._id),
+          )) {
+          docs.push(msg);
+        }
+        return docs;
+      } else {
+        const lastMessage = await ctx.db
+          .query('conversationMessages')
+          .withIndex('by_conversationId_and_deliveredAt', (q) =>
+            q.eq('conversationId', conversation._id),
+          )
+          .order('desc')
+          .first();
+
+        return lastMessage ? [lastMessage] : [];
       }
-      return docs;
     })(),
   ]);
 

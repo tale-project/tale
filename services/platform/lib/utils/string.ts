@@ -25,15 +25,3 @@ export function startCase(str: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
     .replace(/\B\w+/g, (word) => word.toLowerCase());
 }
-
-/**
- * Capitalizes the first letter of a string
- *
- * @example
- * capitalize('hello') // 'Hello'
- * capitalize('HELLO') // 'Hello'
- */
-function capitalize(str: string): string {
-  if (!str) return '';
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-}

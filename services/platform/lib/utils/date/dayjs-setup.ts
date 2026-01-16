@@ -8,7 +8,6 @@ import localizedFormat from 'dayjs/plugin/localizedFormat';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
-import { dayjsLocaleMap, type Locale } from '@/lib/i18n/config';
 
 // Import locales
 import 'dayjs/locale/en';
@@ -29,14 +28,5 @@ dayjs.extend(isSameOrAfter);
 
 // Set default locale to English
 dayjs.locale('en');
-
-/**
- * Set the dayjs locale based on the i18n locale.
- * This should be called when the app locale changes.
- */
-export function setDayjsLocale(locale: Locale | string): void {
-  const dayjsLocale = dayjsLocaleMap[locale as Locale] || 'en';
-  dayjs.locale(dayjsLocale);
-}
 
 export default dayjs;

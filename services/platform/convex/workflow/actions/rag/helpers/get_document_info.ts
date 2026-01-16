@@ -32,7 +32,7 @@ export async function getDocumentInfo(
     throw new Error('recordId is required');
   }
 
-  const document = await ctx.runQuery?.(internal.documents.getDocumentById, {
+  const document = await ctx.runQuery?.(internal.queries.documents.getDocumentById, {
     documentId: params.recordId as Id<'documents'>,
   });
 
@@ -46,7 +46,7 @@ export async function getDocumentInfo(
 
   // Check if document has file content
   if (document.fileId) {
-    const fileUrl = await ctx.runQuery?.(api.file.getFileUrl, {
+    const fileUrl = await ctx.runQuery?.(api.queries.file.getFileUrl, {
       fileId: document.fileId,
     });
 

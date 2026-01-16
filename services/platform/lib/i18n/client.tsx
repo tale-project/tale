@@ -3,7 +3,7 @@
 /**
  * i18n Client Abstraction
  *
- * Provides a wrapper around next-intl's useTranslations hook.
+ * Provides a wrapper for client-side translations.
  * This abstraction layer allows easy migration to another i18n library
  * by only changing this file.
  *
@@ -18,7 +18,7 @@
  * ```
  */
 
-import { useTranslations, useLocale as useNextIntlLocale } from 'next-intl';
+import { useI18nContext, createTranslationFunction } from './i18n-provider';
 import type { Namespace } from './types';
 
 /**
@@ -28,7 +28,8 @@ import type { Namespace } from './types';
  * @returns Object containing the translation function
  */
 export function useT<N extends Namespace>(namespace: N) {
-  const t = useTranslations(namespace);
+  const { messages } = useI18nContext();
+  const t = createTranslationFunction(messages, namespace);
   return { t };
 }
 
@@ -38,5 +39,6 @@ export function useT<N extends Namespace>(namespace: N) {
  * @returns The current locale string
  */
 export function useLocale() {
-  return useNextIntlLocale();
+  const { locale } = useI18nContext();
+  return locale;
 }

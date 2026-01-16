@@ -18,7 +18,7 @@ export async function getDecryptedCredentialsLogic(
   ctx: ActionCtx,
   args: GetDecryptedCredentialsArgs,
 ): Promise<DecryptedCredentials> {
-  const integration = await ctx.runQuery(api.integrations.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
     integrationId: args.integrationId,
   });
 
@@ -32,7 +32,7 @@ export async function getDecryptedCredentialsLogic(
   };
 
   if (integration.apiKeyAuth) {
-    const key = await ctx.runAction(internal.oauth2.decryptStringInternal, {
+    const key = await ctx.runAction(internal.actions.oauth2.decryptStringInternal, {
       encrypted: integration.apiKeyAuth.keyEncrypted,
     });
     credentials.apiKey = key;
@@ -41,7 +41,7 @@ export async function getDecryptedCredentialsLogic(
 
   if (integration.basicAuth) {
     const password = await ctx.runAction(
-      internal.oauth2.decryptStringInternal,
+      internal.actions.oauth2.decryptStringInternal,
       {
         encrypted: integration.basicAuth.passwordEncrypted,
       },
@@ -52,7 +52,7 @@ export async function getDecryptedCredentialsLogic(
 
   if (integration.oauth2Auth) {
     const accessToken = await ctx.runAction(
-      internal.oauth2.decryptStringInternal,
+      internal.actions.oauth2.decryptStringInternal,
       {
         encrypted: integration.oauth2Auth.accessTokenEncrypted,
       },
@@ -61,7 +61,7 @@ export async function getDecryptedCredentialsLogic(
 
     if (integration.oauth2Auth.refreshTokenEncrypted) {
       const refreshToken = await ctx.runAction(
-        internal.oauth2.decryptStringInternal,
+        internal.actions.oauth2.decryptStringInternal,
         {
           encrypted: integration.oauth2Auth.refreshTokenEncrypted,
         },

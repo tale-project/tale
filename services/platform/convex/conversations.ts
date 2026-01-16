@@ -715,3 +715,29 @@ export const backfillLastMessageAt = internalMutation({
     };
   },
 });
+
+// =============================================================================
+// BULK FETCH OPERATIONS (for client-side filtering)
+// =============================================================================
+
+/**
+ * Get all conversations for an organization without pagination or filtering.
+ * Filtering, sorting, and pagination are performed client-side using TanStack DB Collections.
+ */
+export const getAllConversations = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const conversations = [];
+    for await (const conversation of ctx.db
+      .query('conversations')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      conversations.push(conversation);
+    }
+    return conversations;
+  },
+});

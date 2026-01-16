@@ -156,7 +156,7 @@ export async function handleDynamicWorkflow(
       const errorMsg = `Next step '${nextStepSlug}' not found in workflow steps (from '${stepDef.stepSlug}'). Available steps: ${Array.from(stepMap.keys()).join(', ')}`;
 
       // Mark execution as failed before throwing
-      await step.runMutation(internal.wf_executions.failExecution, {
+      await step.runMutation(internal.wf_executions.mutations.failExecution.failExecution, {
         executionId,
         error: errorMsg,
       });

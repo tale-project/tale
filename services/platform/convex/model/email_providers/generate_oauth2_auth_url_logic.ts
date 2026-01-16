@@ -10,13 +10,13 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_OAUTH2', '[OAuth2]');
 
-export interface GenerateOAuth2AuthUrlArgs {
+interface GenerateOAuth2AuthUrlArgs {
   emailProviderId: Doc<'emailProviders'>['_id'];
   organizationId: string;
   redirectUri?: string;
 }
 
-export interface GenerateOAuth2AuthUrlDependencies {
+interface GenerateOAuth2AuthUrlDependencies {
   getProvider: (providerId: Doc<'emailProviders'>['_id']) => Promise<unknown>;
   setMetadata: (
     providerId: Doc<'emailProviders'>['_id'],

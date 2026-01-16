@@ -91,7 +91,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
 
       // Check user role - only admin, developer, and owner can use this tool
       if (userId) {
-        const userRole = await ctx.runQuery(internal.member.getMemberRoleInternal, {
+        const userRole = await ctx.runQuery(internal.queries.member.getMemberRoleInternal, {
           userId,
           organizationId,
         });

@@ -21,7 +21,7 @@
 - PREFER `export * from` instead of `export { ... } from`.
 - DO NOT export if not needed outside the module.
 
-## React / Next.js
+## React / TanStack Start
 
 - ALWAYS add Storybook stories for new UI components in `components/ui/`. Stories should demonstrate all variants, sizes, and key states.
 - Do NOT hardcode text, use the translation hooks/functions instead for user-facing UI.
@@ -30,13 +30,10 @@
 - USE `useMemo`, `useCallback` and `memo` the right moment.
 - DO NOT overuse `useEffect`.
 - ALWAYS USE `cva` for named variants (e.g., `size: 'sm' | 'md' | 'lg'`, `variant: 'primary' | 'secondary'`). But DO NOT use `cva` for boolean states (e.g., `isActive`, `error`, `muted`). For boolean conditions, use conditional `cn()` patterns instead (e.g., `cn('base-classes', isActive && 'active-classes')`).
-- AVOID `router.refresh()`.
 - **`/app`**: Route-specific code (pages, layouts, and subfolders like `components/`, `hooks/`, `actions/`, `utils/` scoped to that route).
 - **`/components`, `/hooks`, `/actions`, `/utils`** (root): Shared/reusable code across multiple routes.
-- AVOID CSR-only approaches, AVOID ssr: false, ALWAYS optimize for SSR.
-- CONSIDER using `dynamic` for large external packages BUT DO NOT over use it.
-- AVOID hydration issues (server-client mismatches).
-- DO NOT use `next/image`. USE the custom `Image` component from `@/components/ui/image` instead.
+- USE TanStack Router for navigation with `useNavigate()` and `Link` components.
+- USE the custom `Image` component from `@/components/ui/image` for all images.
 
 ## Convex
 

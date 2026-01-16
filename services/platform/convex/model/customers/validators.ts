@@ -3,7 +3,6 @@
  */
 
 import { v } from 'convex/values';
-
 import { dataSourceValidator } from '../common/validators';
 
 /**
@@ -31,6 +30,8 @@ export const customerAddressValidator = v.object({
   postalCode: v.optional(v.string()),
 });
 
+const customerMetadataValidator = v.any();
+
 /**
  * Customer document validator (matches schema)
  */
@@ -45,5 +46,5 @@ export const customerValidator = v.object({
   source: customerSourceValidator,
   locale: v.optional(v.string()),
   address: v.optional(customerAddressValidator),
-  metadata: v.optional(v.any()),
+  metadata: v.optional(customerMetadataValidator),
 });

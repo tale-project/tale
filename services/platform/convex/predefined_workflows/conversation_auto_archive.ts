@@ -20,7 +20,7 @@
  * conversations, while preserving them for historical reference.
  */
 
-export const conversationAutoArchiveWorkflow = {
+const conversationAutoArchiveWorkflow = {
   workflowConfig: {
     name: 'Conversation Auto-Archive',
     description:

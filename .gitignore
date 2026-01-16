@@ -15,12 +15,9 @@ node_modules/
 tests/screenshots/
 .playwright-mcp/
 
-# next.js
-.next/
-/out/
-
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -46,7 +43,6 @@ services/platform/.env.local
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # auth configuration (can include secrets)
 /.auth/

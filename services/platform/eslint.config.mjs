@@ -1,4 +1,3 @@
-import next from '@next/eslint-plugin-next';
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 import convexPlugin from '@convex-dev/eslint-plugin';
@@ -6,7 +5,8 @@ import convexPlugin from '@convex-dev/eslint-plugin';
 const eslintConfig = [
   {
     ignores: [
-      '.next/**',
+      '.output/**',
+      '.vinxi/**',
       'node_modules/**',
       'out/**',
       'build/**',
@@ -17,12 +17,9 @@ const eslintConfig = [
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs}'],
     plugins: {
-      '@next/next': next,
       '@convex-dev/eslint-plugin': convexPlugin,
     },
     rules: {
-      ...next.configs.recommended.rules,
-      ...next.configs['core-web-vitals'].rules,
       // Prefer TS rule and allow underscore-prefixed unused identifiers
       '@typescript-eslint/no-unused-vars': [
         'warn',
@@ -49,6 +46,7 @@ const eslintConfig = [
       'types/**/*.{ts,tsx,js,jsx}',
       'tools/**/*.{ts,tsx,js,jsx}',
       'examples/**/*.{ts,tsx,js,jsx}',
+      'features/**/*.{ts,tsx,js,jsx}',
     ],
     plugins: { unicorn },
     rules: {

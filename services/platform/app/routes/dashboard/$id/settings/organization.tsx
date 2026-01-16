@@ -1,0 +1,92 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+import { OrganizationSettingsClient } from '@/app/features/settings/organization/components/organization-settings-client';
+import { AccessDenied } from '@/app/components/layout/access-denied';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
+import { useT } from '@/lib/i18n/client';
+
+export const Route = createFileRoute('/dashboard/$id/settings/organization')({
+  component: OrganizationSettingsPage,
+});
+
+function OrganizationSettingsSkeleton() {
+  const { t } = useT('settings');
+
+  return (
+    <Stack>
+      <Stack gap={2}>
+        <Skeleton className="h-4 w-36" />
+        <HStack gap={3} justify="between">
+          <Skeleton className="h-9 flex-1 max-w-sm" />
+          <Skeleton className="h-9 w-28" />
+        </HStack>
+      </Stack>
+
+      <Stack className="pt-4">
+        <Stack gap={1}>
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-56" />
+        </Stack>
+
+        <HStack justify="between">
+          <Skeleton className="h-9 w-full max-w-md" />
+          <Skeleton className="h-9 w-32" />
+        </HStack>
+
+        <DataTableSkeleton
+          rows={5}
+          columns={[
+            { header: t('organization.members.columns.name') },
+            { header: t('organization.members.columns.email'), size: 200 },
+            { header: t('organization.members.columns.role'), size: 120 },
+            { isAction: true, size: 80 },
+          ]}
+          showHeader
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
+function OrganizationSettingsPage() {
+  const { id: organizationId } = Route.useParams();
+  const { t } = useT('accessDenied');
+
+  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+    organizationId,
+  });
+  const organization = useQuery(api.queries.organizations.getOrganization, {
+    id: organizationId,
+  });
+  const members = useQuery(api.queries.member.listByOrganization, {
+    organizationId,
+    sortOrder: 'asc',
+  });
+
+  if (
+    memberContext === undefined ||
+    organization === undefined ||
+    members === undefined
+  ) {
+    return <OrganizationSettingsSkeleton />;
+  }
+
+  if (!memberContext.isAdmin) {
+    return <AccessDenied message={t('organization')} />;
+  }
+
+  if (!organization) {
+    return null;
+  }
+
+  return (
+    <OrganizationSettingsClient
+      organization={organization}
+      memberContext={memberContext}
+      members={members}
+    />
+  );
+}

@@ -21,7 +21,7 @@ import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
-export interface TestExistingProviderDependencies {
+interface TestExistingProviderDependencies {
   getProvider: (providerId: Doc<'emailProviders'>['_id']) => Promise<unknown>;
   updateStatus: (
     providerId: Doc<'emailProviders'>['_id'],

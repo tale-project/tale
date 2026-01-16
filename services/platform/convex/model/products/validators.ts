@@ -7,6 +7,16 @@ import { v } from 'convex/values';
 export * from '../common/validators';
 
 /**
+ * Product status validator
+ */
+export const productStatusValidator = v.union(
+  v.literal('active'),
+  v.literal('inactive'),
+  v.literal('draft'),
+  v.literal('archived'),
+);
+
+/**
  * Product translation validator
  */
 export const productTranslationValidator = v.object({
@@ -20,15 +30,7 @@ export const productTranslationValidator = v.object({
   lastUpdated: v.number(),
 });
 
-/**
- * Product status validator
- */
-export const productStatusValidator = v.union(
-  v.literal('active'),
-  v.literal('inactive'),
-  v.literal('draft'),
-  v.literal('archived'),
-);
+const productMetadataValidator = v.any();
 
 /**
  * Product sort field validator
@@ -59,7 +61,7 @@ export const productItemValidator = v.object({
   createdAt: v.number(),
   relatedProductsCount: v.optional(v.number()),
   translations: v.optional(v.array(productTranslationValidator)),
-  metadata: v.optional(v.record(v.string(), v.any())),
+  metadata: v.optional(productMetadataValidator),
 });
 
 /**

@@ -16,7 +16,7 @@ export async function generateToneOfVoice(
   try {
     // Load example messages
     const examples = await ctx.runQuery(
-      internal.tone_of_voice.loadExampleMessagesForGeneration,
+      internal.tone_of_voice.queries.load_example_messages_for_generation.loadExampleMessagesForGeneration,
       {
         organizationId: args.organizationId,
       },
@@ -80,7 +80,7 @@ Format your response with proper line breaks between sections for readability. U
     const generatedTone: string = result.object.tone;
 
     // Save the generated tone
-    await ctx.runMutation(internal.tone_of_voice.saveGeneratedTone, {
+    await ctx.runMutation(internal.tone_of_voice.mutations.save_generated_tone.saveGeneratedTone, {
       organizationId: args.organizationId,
       generatedTone,
     });

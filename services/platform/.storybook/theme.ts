@@ -38,22 +38,3 @@ export const taleTheme = create({
   inputTextColor: 'hsl(240 10% 3.9%)',
   inputBorderRadius: 8,
 });
-
-export const taleDarkTheme = create({
-  base: 'dark',
-  brandTitle: 'Tale UI',
-  colorPrimary: 'hsl(0 0% 98%)',
-  colorSecondary: '#0561E6',
-  appBg: 'hsl(240 10% 3.9%)',
-  appContentBg: 'hsl(240 10% 3.9%)',
-  appBorderColor: 'hsl(240 3.7% 15.9%)',
-  appBorderRadius: 8,
-  fontBase: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  fontCode: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
-  textColor: 'hsl(0 0% 98%)',
-  textMutedColor: 'hsl(240 5% 64.9%)',
-  barBg: 'hsl(240 10% 3.9%)',
-  inputBg: 'hsl(240 3.7% 15.9%)',
-  inputBorder: 'hsl(240 3.7% 15.9%)',
-  inputTextColor: 'hsl(0 0% 98%)',
-});

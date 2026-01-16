@@ -67,7 +67,7 @@ export async function initializeExecutionVariables(
       fullVariables,
     );
 
-    await ctx.runMutation(internal.wf_executions.updateExecutionVariables, {
+    await ctx.runMutation(internal.wf_executions.mutations.updateExecution.updateExecutionVariables, {
       executionId: args.executionId as Id<'wfExecutions'>,
       variablesSerialized: serialized,
       variablesStorageId: storageId,

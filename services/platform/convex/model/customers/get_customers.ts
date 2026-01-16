@@ -16,7 +16,7 @@ import type { CustomerSource } from './types';
 
 type CustomerStatus = 'active' | 'churned' | 'potential' | 'lost';
 
-export interface GetCustomersArgs {
+interface GetCustomersArgs {
   organizationId: string;
   currentPage?: number;
   pageSize?: number;

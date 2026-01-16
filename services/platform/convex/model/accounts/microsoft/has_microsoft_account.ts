@@ -9,7 +9,7 @@ import { authComponent } from '../../../auth';
 /**
  * Check if current user has a Microsoft account connected
  */
-export async function hasMicrosoftAccount(ctx: QueryCtx): Promise<boolean> {
+async function hasMicrosoftAccount(ctx: QueryCtx): Promise<boolean> {
   const authUser = await authComponent.getAuthUser(ctx);
   if (!authUser) return false;
 

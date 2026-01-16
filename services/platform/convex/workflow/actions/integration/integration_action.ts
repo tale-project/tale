@@ -63,7 +63,7 @@ export const integrationAction: ActionDefinition<{
 
     // 1. Load the integration from database by name
     const integration = await ctx.runQuery!(
-      internal.integrations.getByNameInternal,
+      internal.integrations.queries.get_by_name.getByNameInternal,
       { organizationId, name },
     );
 
@@ -184,5 +184,3 @@ export const integrationAction: ActionDefinition<{
     };
   },
 };
-
-export default integrationAction;

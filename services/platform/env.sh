@@ -5,7 +5,7 @@ set -e
 # Normalize and export environment variables.
 # Does not print or log secret values.
 env_normalize_common() {
-  # Next.js configuration
+  # Application configuration
   export NODE_ENV="${NODE_ENV:-production}"
   export PORT="${PORT:-3000}"
   export HOSTNAME="${HOSTNAME:-0.0.0.0}"

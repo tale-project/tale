@@ -37,7 +37,7 @@ export const TTL = {
 export const improveMessageCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: internal.improve_message.improveMessageUncached,
+  action: internal.actions.improve_message.improveMessageUncached,
   name: `improve_message_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });
@@ -98,7 +98,7 @@ export const searchResultsCache: ActionCache<
 export const toneOfVoiceCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: internal.tone_of_voice.generateToneOfVoiceUncached,
+  action: internal.tone_of_voice.actions.generate_tone_of_voice.generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });

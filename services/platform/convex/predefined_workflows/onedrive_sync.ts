@@ -15,7 +15,7 @@
  * 7. Record as processed
  */
 
-export const onedriveSyncWorkflow = {
+const onedriveSyncWorkflow = {
   workflowConfig: {
     name: 'OneDrive Sync',
     description:

@@ -58,7 +58,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
       case 'create': {
 
         const _websiteId = await ctx.runMutation(
-          internal.websites.createWebsiteInternal,
+          internal.mutations.websites.createWebsiteInternal,
           {
             organizationId,
             domain: params.domain, // Required by validator
@@ -74,7 +74,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
         // Fetch and return the full created entity
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const createdWebsite = await ctx.runQuery(
-          internal.websites.getWebsiteByDomainInternal,
+          internal.queries.websites.getWebsiteByDomainInternal,
           { organizationId, domain: params.domain },
         );
 
@@ -90,7 +90,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
       case 'update': {
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = await ctx.runMutation(
-          internal.websites.updateWebsiteInternal,
+          internal.mutations.websites.updateWebsiteInternal,
           {
             websiteId: params.websiteId, // Required by validator
             domain: params.domain,
@@ -111,7 +111,7 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
 
         // Note: execute_action_node wraps this in output: { type: 'action', data: result }
         const result = await ctx.runQuery(
-          internal.websites.getWebsiteByDomainInternal,
+          internal.queries.websites.getWebsiteByDomainInternal,
           {
             organizationId,
             domain: params.domain, // Required by validator

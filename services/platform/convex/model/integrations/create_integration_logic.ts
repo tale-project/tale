@@ -52,7 +52,7 @@ export async function createIntegrationLogic(
   args: CreateIntegrationLogicArgs,
 ): Promise<Id<'integrations'>> {
   // Verify access (RLS check)
-  await ctx.runQuery(api.integrations.list, {
+  await ctx.runQuery(api.integrations.queries.list.list, {
     organizationId: args.organizationId,
   });
 
@@ -85,7 +85,7 @@ export async function createIntegrationLogic(
 
   // Create integration
   const integrationId: Id<'integrations'> = await ctx.runMutation(
-    internal.integrations.createIntegrationInternal,
+    internal.integrations.mutations.create_integration_internal.createIntegrationInternal,
     {
       organizationId: args.organizationId,
       name: args.name,

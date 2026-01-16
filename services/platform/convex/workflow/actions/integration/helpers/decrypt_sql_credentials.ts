@@ -19,7 +19,7 @@ export async function decryptSqlCredentials(
 
     // Decrypt password
     const password = (await ctx.runAction(
-      internal.oauth2.decryptStringInternal,
+      internal.actions.oauth2.decryptStringInternal,
       {
         encrypted: basicAuth.passwordEncrypted,
       },

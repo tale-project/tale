@@ -12,7 +12,7 @@ import type { Id } from '../../_generated/dataModel';
 import { internal } from '../../_generated/api';
 import { getAuthenticatedUser } from '../../lib/rls/auth/get_authenticated_user';
 
-export interface UploadedAttachment {
+interface UploadedAttachment {
   storageId: string;
   name: string;
   size: number;
@@ -123,7 +123,7 @@ export async function sendMessageViaEmail(
     // Send via API (Gmail API / Microsoft Graph)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.sendMessageViaAPIInternal,
+      internal.email_providers.actions.send_message_via_api_internal.sendMessageViaAPIInternal,
       {
         messageId,
         organizationId: args.organizationId,
@@ -146,7 +146,7 @@ export async function sendMessageViaEmail(
     // Send via SMTP (default)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.sendMessageViaSMTPInternal,
+      internal.email_providers.actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
       {
         messageId,
         organizationId: args.organizationId,

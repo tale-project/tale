@@ -31,7 +31,7 @@ export async function persistExecutionResult(
 
   // Get current execution to retrieve old storage ID for cleanup
   const currentExecution = await ctx.runQuery(
-    internal.wf_executions.getRawExecution,
+    internal.wf_executions.queries.getExecution.getRawExecution,
     {
       executionId: executionId as Id<'wfExecutions'>,
     },
@@ -46,7 +46,7 @@ export async function persistExecutionResult(
     oldStorageId,
   );
 
-  await ctx.runMutation(internal.wf_executions.updateExecutionVariables, {
+  await ctx.runMutation(internal.wf_executions.mutations.updateExecution.updateExecutionVariables, {
     executionId: executionId as Id<'wfExecutions'>,
     variablesSerialized: serialized,
     variablesStorageId: storageId,

@@ -150,19 +150,19 @@ export function getOutputInfo(
 /**
  * Get the public site URL for building download URLs returned to clients.
  *
- * Uses SITE_URL + /http_api to route through the Next.js proxy, which forwards
+ * Uses SITE_URL + /http_api to route through the application proxy, which forwards
  * requests to the Convex HTTP API (port 3211) internally.
  *
  * This works both in:
  * - Local development: http://localhost:3000/http_api -> http://127.0.0.1:3211
- * - Docker: http://localhost:3000/http_api -> http://127.0.0.1:3211 (via Next.js rewrites)
+ * - Docker: http://localhost:3000/http_api -> http://127.0.0.1:3211 (via proxy rewrites)
  *
  * Fallback to direct Convex HTTP API for cases where SITE_URL is not set.
  */
 export function getPublicSiteUrl(): string {
   const siteUrl = process.env.SITE_URL;
   if (siteUrl) {
-    // Route through Next.js proxy which forwards to Convex HTTP API
+    // Route through application proxy which forwards to Convex HTTP API
     return `${siteUrl}/http_api`;
   }
   // Fallback for local dev without SITE_URL set

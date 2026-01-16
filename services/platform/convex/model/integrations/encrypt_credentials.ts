@@ -24,7 +24,7 @@ export async function encryptCredentials(
   let oauth2Auth = undefined;
 
   if (args.apiKeyAuth) {
-    const keyEncrypted = await ctx.runAction(internal.oauth2.encryptStringInternal, {
+    const keyEncrypted = await ctx.runAction(internal.actions.oauth2.encryptStringInternal, {
       plaintext: args.apiKeyAuth.key,
     });
     apiKeyAuth = {
@@ -35,7 +35,7 @@ export async function encryptCredentials(
 
   if (args.basicAuth) {
     const passwordEncrypted = await ctx.runAction(
-      internal.oauth2.encryptStringInternal,
+      internal.actions.oauth2.encryptStringInternal,
       {
         plaintext: args.basicAuth.password,
       },
@@ -48,13 +48,13 @@ export async function encryptCredentials(
 
   if (args.oauth2Auth) {
     const accessTokenEncrypted = await ctx.runAction(
-      internal.oauth2.encryptStringInternal,
+      internal.actions.oauth2.encryptStringInternal,
       {
         plaintext: args.oauth2Auth.accessToken,
       },
     );
     const refreshTokenEncrypted = args.oauth2Auth.refreshToken
-      ? await ctx.runAction(internal.oauth2.encryptStringInternal, {
+      ? await ctx.runAction(internal.actions.oauth2.encryptStringInternal, {
           plaintext: args.oauth2Auth.refreshToken,
         })
       : undefined;

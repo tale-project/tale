@@ -11,7 +11,7 @@ import type {
   ImapConfig,
 } from './types';
 
-export interface CreateProviderInternalArgs {
+interface CreateProviderInternalArgs {
   organizationId: string;
   name: string;
   vendor: EmailProviderVendor;

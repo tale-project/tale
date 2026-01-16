@@ -25,7 +25,7 @@ import type { MutationCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { computeDeduplicationState } from './message_deduplication';
-import { persistentStreaming } from '../../streaming';
+import { persistentStreaming } from '../../mutations/streaming';
 import { getUserTeamIds } from '../../lib/get_user_teams';
 
 import { createDebugLog } from '../../lib/debug_log';

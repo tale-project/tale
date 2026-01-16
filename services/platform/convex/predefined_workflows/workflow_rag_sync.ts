@@ -10,7 +10,7 @@
  * 2. Upload all workflow definitions to RAG service
  */
 
-export const workflowRagSyncWorkflow = {
+const workflowRagSyncWorkflow = {
   workflowConfig: {
     name: 'Workflow RAG Sync',
     description:

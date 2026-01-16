@@ -44,19 +44,3 @@ export function expectFocusable(element: HTMLElement) {
   }
 }
 
-/**
- * Assert keyboard navigation works
- */
-export async function expectKeyboardNavigation(
-  user: ReturnType<typeof import('@testing-library/user-event').default.setup>,
-  elements: HTMLElement[]
-) {
-  for (let i = 0; i < elements.length; i++) {
-    await user.tab();
-    if (document.activeElement !== elements[i]) {
-      throw new Error(
-        `Expected focus on element ${i}, but focus is elsewhere`
-      );
-    }
-  }
-}

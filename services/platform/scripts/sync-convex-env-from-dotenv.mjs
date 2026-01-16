@@ -12,7 +12,7 @@
 	- Optimized: Checks existing values first and skips variables that are already set with the same value
 
 	Notes:
-	- Convex does NOT read your Next.js process env/.env files directly; you must use
+	- Convex does NOT read your TanStack Start process env/.env files directly; you must use
 	  `convex env set` to make variables available inside Convex functions.
 	- Keep secrets only in .env/.env.local files, never commit them.
 	- This script targets LOCAL development backend only.

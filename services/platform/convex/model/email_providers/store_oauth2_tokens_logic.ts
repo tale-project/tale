@@ -5,7 +5,7 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 
-export interface StoreOAuth2TokensArgs {
+interface StoreOAuth2TokensArgs {
   emailProviderId: Doc<'emailProviders'>['_id'];
   accessToken: string;
   refreshToken?: string;
@@ -14,7 +14,7 @@ export interface StoreOAuth2TokensArgs {
   scope?: string;
 }
 
-export interface StoreOAuth2TokensDependencies {
+interface StoreOAuth2TokensDependencies {
   encryptString: (plaintext: string) => Promise<string>;
   updateTokens: (params: {
     emailProviderId: Doc<'emailProviders'>['_id'];

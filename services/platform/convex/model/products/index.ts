@@ -15,7 +15,6 @@ export * from './query_products';
 export * from './update_products';
 export * from './list_by_organization';
 export * from './filter_products';
-export * from './search_products_by_metadata';
 
 // Public API operations
 export * from './get_products';

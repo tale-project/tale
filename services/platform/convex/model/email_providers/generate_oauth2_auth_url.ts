@@ -17,7 +17,7 @@ export interface OAuth2UrlConfig {
   redirectUri?: string;
 }
 
-export interface OAuth2ProviderConfig {
+interface OAuth2ProviderConfig {
   authUrl: string;
   scope: string[];
 }

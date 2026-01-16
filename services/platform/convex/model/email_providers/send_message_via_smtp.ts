@@ -50,12 +50,12 @@ export async function sendMessageViaSMTP(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.getInternal, {
+      provider = await ctx.runQuery(internal.email_providers.queries.get_internal.getInternal, {
         providerId: args.providerId,
       });
     } else {
       provider = await ctx.runQuery(
-        internal.email_providers.getDefaultInternal,
+        internal.email_providers.queries.get_default_internal.getDefaultInternal,
         {
           organizationId: args.organizationId,
         },
@@ -93,7 +93,7 @@ export async function sendMessageViaSMTP(
       const passwordAuth = await decryptPasswordAuth(
         typedProvider.passwordAuth,
         async (encrypted) =>
-          await ctx.runAction(internal.oauth2.decryptStringInternal, {
+          await ctx.runAction(internal.actions.oauth2.decryptStringInternal, {
             encrypted,
           }),
       );
@@ -126,7 +126,7 @@ export async function sendMessageViaSMTP(
         typedProvider._id,
         typedProvider.oauth2Auth,
         async (encrypted) =>
-          await ctx.runAction(internal.oauth2.decryptStringInternal, {
+          await ctx.runAction(internal.actions.oauth2.decryptStringInternal, {
             encrypted,
           }),
         async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
@@ -145,7 +145,7 @@ export async function sendMessageViaSMTP(
           expiresIn,
           scope,
         }) =>
-          await ctx.runAction(api.email_providers.storeOAuth2Tokens, {
+          await ctx.runAction(api.email_providers.actions.store_oauth2_tokens.storeOAuth2Tokens, {
             emailProviderId,
             accessToken,
             refreshToken,
@@ -250,7 +250,7 @@ export async function sendMessageViaSMTP(
       // Schedule retry with exponential backoff
       await ctx.scheduler.runAfter(
         delayMs,
-        internal.email_providers.sendMessageViaSMTPInternal,
+        internal.email_providers.actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
         {
           messageId: args.messageId,
           organizationId: args.organizationId,

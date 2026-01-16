@@ -38,10 +38,3 @@ export interface UpdateProductsResult {
   updatedCount: number;
   updatedIds: Array<Id<'products'>>;
 }
-
-// Re-export cursor-based types
-export type {
-  GetProductsCursorArgs,
-  ProductCursorItem,
-  CursorPaginatedProductsResult,
-} from './get_products_cursor';

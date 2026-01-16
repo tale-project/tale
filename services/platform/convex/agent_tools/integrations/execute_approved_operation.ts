@@ -26,7 +26,7 @@ export const executeApprovedOperation = internalAction({
       resourceType: string;
       organizationId: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.approvals.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.queries.approvals.getApprovalInternal, {
       approvalId: args.approvalId,
     });
 

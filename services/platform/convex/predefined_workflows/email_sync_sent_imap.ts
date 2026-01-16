@@ -19,7 +19,7 @@
 // WORKFLOW DEFINITION (CONFIG + STEPS)
 // =============================================================================
 
-export const emailSyncSentImapWorkflow = {
+const emailSyncSentImapWorkflow = {
   workflowConfig: {
     name: 'Sent Email Sync (IMAP)',
     description:

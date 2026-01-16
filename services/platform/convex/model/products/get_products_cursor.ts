@@ -19,7 +19,7 @@ export interface GetProductsCursorArgs {
   status?: ProductStatus;
 }
 
-export interface ProductCursorItem {
+interface ProductCursorItem {
   id: string;
   name: string;
   description?: string;
