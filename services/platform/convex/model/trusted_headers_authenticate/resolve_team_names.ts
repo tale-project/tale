@@ -16,7 +16,7 @@ export interface TeamEntry {
 }
 
 export interface ResolveTeamsArgs {
-  teams: TeamEntry[];
+  teams?: TeamEntry[] | null;
 }
 
 export interface ResolveTeamsResult {
@@ -27,7 +27,7 @@ export interface ResolveTeamsResult {
 export function resolveTeams(args: ResolveTeamsArgs): ResolveTeamsResult {
   const { teams } = args;
 
-  if (teams.length === 0) {
+  if (!teams || teams.length === 0) {
     return { teams: [] };
   }
 
