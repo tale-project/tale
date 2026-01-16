@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, type ChangeEvent } from 'react';
+import { useState, useCallback, useRef, type ChangeEvent, type KeyboardEvent } from 'react';
 import { useQuery } from 'convex/react';
 import { FormDialog } from '@/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/components/ui/forms/checkbox';
@@ -73,6 +73,13 @@ export function DocumentUploadDialog({
   const handleFileSelect = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if ((event.key === 'Enter' || event.key === ' ') && !isUploading) {
+      event.preventDefault();
+      handleFileSelect();
+    }
+  }, [handleFileSelect, isUploading]);
 
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -151,12 +158,17 @@ export function DocumentUploadDialog({
         {/* File selection area */}
         <div>
           <div
+            role="button"
+            tabIndex={isUploading ? -1 : 0}
+            aria-disabled={isUploading}
             className={cn(
               'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
               'hover:border-primary hover:bg-accent/50',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               isUploading && 'opacity-50 cursor-not-allowed',
             )}
             onClick={!isUploading ? handleFileSelect : undefined}
+            onKeyDown={handleKeyDown}
           >
             <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
             <p className="text-sm font-medium">{tCommon('upload.clickToUpload')}</p>
