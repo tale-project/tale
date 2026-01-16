@@ -11,6 +11,7 @@ import { useT } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
 import { useDocumentUpload, MAX_FILE_SIZE_BYTES } from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
+import { toast } from '@/hooks/use-toast';
 
 interface DocumentUploadDialogProps {
   open: boolean;
@@ -77,15 +78,41 @@ export function DocumentUploadDialog({
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
 
-    // Filter out files that are too large
-    const validFiles = files.filter((file) => file.size <= MAX_FILE_SIZE_BYTES);
+    // Filter out files that are too large and notify user
+    const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
+    const validFiles: File[] = [];
+    const rejectedFiles: File[] = [];
+
+    for (const file of files) {
+      if (file.size <= MAX_FILE_SIZE_BYTES) {
+        validFiles.push(file);
+      } else {
+        rejectedFiles.push(file);
+      }
+    }
+
+    if (rejectedFiles.length > 0) {
+      for (const file of rejectedFiles) {
+        const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        toast({
+          title: tDocuments('upload.fileTooLarge'),
+          description: tDocuments('upload.fileSizeExceeded', {
+            name: file.name,
+            maxSize: maxSizeMB.toString(),
+            currentSize: currentSizeMB,
+          }),
+          variant: 'destructive',
+        });
+      }
+    }
+
     setSelectedFiles((prev) => [...prev, ...validFiles]);
 
     // Reset the input
     if (event.target) {
       event.target.value = '';
     }
-  }, []);
+  }, [tDocuments]);
 
   const handleRemoveFile = useCallback((index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
