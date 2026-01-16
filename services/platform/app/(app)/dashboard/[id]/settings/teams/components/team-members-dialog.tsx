@@ -54,7 +54,10 @@ export function TeamMembersDialog({
   const availableMembers = useMemo(() => {
     if (!orgMembers || !teamMembers) return [];
     const teamMemberIds = new Set(teamMembers.map((m) => m.userId));
-    return orgMembers.filter((m) => m.identityId && !teamMemberIds.has(m.identityId));
+    return orgMembers.filter(
+      (m): m is typeof m & { identityId: string } =>
+        !!m.identityId && !teamMemberIds.has(m.identityId)
+    );
   }, [orgMembers, teamMembers]);
 
   // Get member details for display
@@ -129,7 +132,7 @@ export function TeamMembersDialog({
               options={
                 availableMembers.length > 0
                   ? availableMembers.map((m) => ({
-                      value: m.identityId!,
+                      value: m.identityId,
                       label: m.displayName || m.email || 'Unknown',
                     }))
                   : []
