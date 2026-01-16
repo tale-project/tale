@@ -108,6 +108,7 @@ export function ImportDocumentsMenu({
           open={isUploadDialogOpen}
           onOpenChange={setIsUploadDialogOpen}
           organizationId={organizationId}
+          onSuccess={() => setIsUploadDialogOpen(false)}
         />
       )}
 
