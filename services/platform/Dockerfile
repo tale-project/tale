@@ -28,8 +28,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY services/platform/package.json ./services/platform/package.json
 
-# Install only the platform workspace dependencies (production only, skip devDependencies like Storybook)
-RUN npm ci --omit=dev --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
+# Install platform workspace dependencies (including devDependencies for TypeScript build)
+RUN npm ci --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
 
 # ============================================================================
 # Stage 2: Builder
