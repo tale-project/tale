@@ -1,8 +1,9 @@
 /**
  * Batch fetch user names from Better Auth user table
  *
- * This helper efficiently fetches multiple user names in a single query,
+ * This helper efficiently fetches multiple user names in parallel queries,
  * avoiding the N+1 query problem when displaying creator names in document lists.
+ * Note: Uses parallel individual lookups since Better Auth adapter doesn't support IN queries.
  */
 
 import type { QueryCtx } from '../../_generated/server';
