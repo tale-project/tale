@@ -46,7 +46,7 @@ function ChatSkeleton() {
       <div className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto">
         {/* Messages area with conversation skeleton */}
         <div className="flex-1 overflow-y-visible p-4 sm:p-8">
-          <div className="max-w-[var(--chat-max-width)] mx-auto space-y-4">
+          <div className="max-w-[--chat-max-width] mx-auto space-y-4">
             {/* User message */}
             <div className="flex justify-end">
               <div className="max-w-[80%]">

@@ -16,6 +16,7 @@ import { DocumentIcon } from '@/components/ui/data-display/document-icon';
 import { EnterKeyIcon } from '@/components/icons/enter-key-icon';
 import { LoaderCircleIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 import { compressImage } from '@/lib/utils/compress-image';
 
 interface FileAttachment {
@@ -273,7 +274,7 @@ export function ChatInput({
   };
 
   return (
-    <div {...restProps}>
+    <div {...restProps} className={cn('bg-background', restProps.className)}>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}

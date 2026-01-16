@@ -26,7 +26,10 @@ interface ChatInterfaceProps {
   threadId?: string;
 }
 
-export function ChatInterface({ organizationId, threadId }: ChatInterfaceProps) {
+export function ChatInterface({
+  organizationId,
+  threadId,
+}: ChatInterfaceProps) {
   const { t } = useT('chat');
   const { isPending, setIsPending, clearChatState } = useChatLayout();
 
@@ -193,38 +196,42 @@ export function ChatInterface({ organizationId, threadId }: ChatInterfaceProps) 
           )}
         </div>
 
-        <ChatInput
-          key={threadId || 'new-chat'}
-          className="max-w-[var(--chat-max-width)] mx-auto w-full sticky bottom-0 z-50"
-          value={inputValue}
-          onChange={setInputValue}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-        />
-      </div>
+        <div className="sticky bottom-0 z-50">
+          {/* Scroll to bottom button */}
+          <div className="max-w-[--chat-max-width] mx-auto w-full relative">
+            <AnimatePresence>
+              {showScrollButton && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="absolute -top-10 right-2 sm:right-0 z-10"
+                >
+                  <Button
+                    onClick={scrollToBottom}
+                    size="icon"
+                    variant="secondary"
+                    className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
+                    aria-label={t('aria.scrollToBottom')}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-      {/* Scroll to bottom button */}
-      <AnimatePresence>
-        {showScrollButton && (
-          <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.95 }}
-            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10"
-          >
-            <Button
-              onClick={scrollToBottom}
-              size="icon"
-              variant="secondary"
-              className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
-              aria-label={t('aria.scrollToBottom')}
-            >
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <ChatInput
+            key={threadId || 'new-chat'}
+            className="max-w-[--chat-max-width] mx-auto w-full"
+            value={inputValue}
+            onChange={setInputValue}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Dialog } from '@/components/ui/dialog/dialog';
 import { Input } from '@/components/ui/forms/input';
 import { cn } from '@/lib/utils/cn';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useDateFormat } from '@/hooks/use-date-format';
@@ -104,9 +103,6 @@ export function ChatSearchDialog({
       className="p-0 overflow-hidden gap-0"
       customHeader={
         <div className="px-3 py-4 border-b border-border relative flex items-center">
-          <VisuallyHidden>
-            <h2>{t('searchChat.title')}</h2>
-          </VisuallyHidden>
           <Input
             ref={inputRef}
             placeholder={t('searchChat.placeholder')}
