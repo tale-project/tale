@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { Navigation } from '@/app/components/ui/navigation/navigation';
@@ -22,15 +22,18 @@ export const Route = createFileRoute('/dashboard/$id')({
 
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
 
-  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
-    organizationId,
-  });
-  const organization = useQuery(api.organizations.queries.getOrganization, {
-    id: organizationId,
-  });
+  const memberContext = useQuery(
+    api.members.queries.getCurrentMemberContext,
+    isAuthLoading || !isAuthenticated ? 'skip' : { organizationId },
+  );
+  const organization = useQuery(
+    api.organizations.queries.getOrganization,
+    isAuthLoading || !isAuthenticated ? 'skip' : { id: organizationId },
+  );
 
-  if (!memberContext || !organization) {
+  if (isAuthLoading || !memberContext || !organization) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse">Loading...</div>
@@ -57,9 +60,7 @@ function DashboardLayout() {
         </div>
 
         <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
-          <div className="flex flex-col flex-1 min-h-0 overflow-auto">
-            <Outlet />
-          </div>
+          <Outlet />
         </div>
       </div>
     </AdaptiveHeaderProvider>

@@ -49,14 +49,6 @@ export function useMessageProcessing(
     { initialNumItems: 20, stream: true },
   );
 
-  // Debug logging
-  console.log('[useMessageProcessing]', {
-    threadId,
-    uiMessagesLength: uiMessages?.length,
-    paginationStatus,
-    uiMessages: uiMessages?.slice(0, 2),
-  });
-
   const canLoadMore = paginationStatus === 'CanLoadMore';
   const isLoadingMore = paginationStatus === 'LoadingMore';
 

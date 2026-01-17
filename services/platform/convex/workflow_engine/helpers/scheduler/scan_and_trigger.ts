@@ -16,7 +16,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
     // Get all active workflows with schedule triggers (from first trigger step)
     const scheduled = await ctx.runQuery(
-      internal.workflow.scheduler.getScheduledWorkflows,
+      internal.workflow_engine.scheduler.getScheduledWorkflows,
       {},
     );
 
@@ -26,7 +26,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
     // to avoid N+1 query problem
     const wfDefinitionIds = scheduled.map((wf) => wf.wfDefinitionId);
     const lastExecutionTimesObj = await ctx.runQuery(
-      internal.workflow.scheduler.getLastExecutionTimes,
+      internal.workflow_engine.scheduler.getLastExecutionTimes,
       { wfDefinitionIds },
     );
 
@@ -55,7 +55,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
           );
 
           // Start workflow execution using the engine executor directly
-          await ctx.runMutation(api.workflow.engine.startWorkflow, {
+          await ctx.runMutation(api.workflow_engine.engine.startWorkflow, {
             organizationId,
             wfDefinitionId,
             input: {},

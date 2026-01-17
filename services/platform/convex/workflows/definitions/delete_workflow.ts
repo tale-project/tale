@@ -82,7 +82,7 @@ async function cancelAndDeleteExecutionsForDefinition(
           // expects the journal entry to exist for a brief period.
           await ctx.scheduler.runAfter(
             10_000,
-            internal.workflow.engine.cleanupComponentWorkflow,
+            internal.workflow_engine.engine.cleanupComponentWorkflow,
             {
               workflowId: componentWorkflowId,
             },

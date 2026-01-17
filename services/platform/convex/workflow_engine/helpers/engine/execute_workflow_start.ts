@@ -117,7 +117,7 @@ export async function executeWorkflowStart(
 
   const componentWorkflowId = await args.workflowManager.start(
     ctx,
-    internal.workflow.engine.dynamicWorkflow,
+    internal.workflow_engine.engine.dynamicWorkflow,
     {
       organizationId: args.organizationId,
       executionId: args.executionId,
@@ -128,7 +128,7 @@ export async function executeWorkflowStart(
       triggerData: args.triggerData || {},
     },
     {
-      onComplete: internal.workflow.engine.onWorkflowComplete,
+      onComplete: internal.workflow_engine.engine.onWorkflowComplete,
       context: { executionId: args.executionId },
     },
   );
