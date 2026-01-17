@@ -128,6 +128,7 @@ export function ExampleMessagesTable({
         ),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- locale is not used in column definitions
     [tTables, tCommon, onViewExample, onEditExample, onDeleteExample],
   );
 

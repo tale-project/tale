@@ -12,10 +12,10 @@ For new code, prefer importing the specialized services directly:
 """
 
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from app.services.pptx_service import PptxService, get_pptx_service
-from app.services.docx_service import DocxService, get_docx_service
+from app.services.docx_service import DocxService
+from app.services.pptx_service import PptxService
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +47,10 @@ class TemplateService:
 
     async def analyze_pptx_template(
         self,
-        template_url: Optional[str] = None,
-        template_bytes: Optional[bytes] = None,
-        template_base64: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        template_url: str | None = None,
+        template_bytes: bytes | None = None,
+        template_base64: str | None = None,
+    ) -> dict[str, Any]:
         """
         Analyze a PPTX template and extract its FULL structure and content.
 
@@ -64,9 +64,9 @@ class TemplateService:
 
     async def generate_pptx_from_content(
         self,
-        slides_content: List[Dict[str, Any]],
-        branding: Optional[Dict[str, Any]] = None,
-        template_bytes: Optional[bytes] = None,
+        slides_content: list[dict[str, Any]],
+        branding: dict[str, Any] | None = None,
+        template_bytes: bytes | None = None,
     ) -> bytes:
         """
         Generate a PPTX based on provided content.
@@ -85,7 +85,7 @@ class TemplateService:
 
     async def generate_docx(
         self,
-        content: Dict[str, Any],
+        content: dict[str, Any],
     ) -> bytes:
         """
         Generate a DOCX document from structured content.
@@ -96,7 +96,7 @@ class TemplateService:
 
     async def generate_docx_from_template(
         self,
-        content: Dict[str, Any],
+        content: dict[str, Any],
         template_bytes: bytes,
     ) -> bytes:
         """
@@ -111,7 +111,7 @@ class TemplateService:
 
 
 # Global service instance
-_template_service: Optional[TemplateService] = None
+_template_service: TemplateService | None = None
 
 
 def get_template_service() -> TemplateService:

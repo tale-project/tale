@@ -1,6 +1,7 @@
 import unicorn from 'eslint-plugin-unicorn';
 import tseslint from 'typescript-eslint';
 import convexPlugin from '@convex-dev/eslint-plugin';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 const eslintConfig = [
   {
@@ -10,7 +11,10 @@ const eslintConfig = [
       'node_modules/**',
       'out/**',
       'build/**',
+      'dist/**',
       '**/_generated/**',
+      '**/integrations/**/_generated/**',
+      'lib/shared/**',
     ],
   },
   ...tseslint.configs.recommended,
@@ -18,6 +22,7 @@ const eslintConfig = [
     files: ['**/*.{ts,tsx,js,jsx,mjs}'],
     plugins: {
       '@convex-dev/eslint-plugin': convexPlugin,
+      'react-hooks': reactHooks,
     },
     rules: {
       // Prefer TS rule and allow underscore-prefixed unused identifiers
@@ -31,6 +36,8 @@ const eslintConfig = [
         },
       ],
       '@typescript-eslint/no-explicit-any': 'off',
+      'react-hooks/rules-of-hooks': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
   {
@@ -50,7 +57,7 @@ const eslintConfig = [
     ],
     plugins: { unicorn },
     rules: {
-      'unicorn/filename-case': ['error', { case: 'kebabCase' }],
+      'unicorn/filename-case': ['warn', { case: 'kebabCase' }],
     },
   },
 ];

@@ -9,9 +9,7 @@ This approach minimizes API costs while still handling scanned documents.
 """
 
 import asyncio
-from io import BytesIO
 from pathlib import Path
-from typing import Optional
 
 import fitz  # PyMuPDF
 from loguru import logger

@@ -36,7 +36,7 @@ interface SyncStatusProps {
   fileStatuses?: FileProcessingStatus[];
 }
 
-function SyncStatus({
+export function SyncStatus({
   isVisible,
   isLoading,
   currentFile,

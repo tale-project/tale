@@ -3,7 +3,7 @@
 This package provides the CogneeService wrapper for cognee RAG operations.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from .config import initialize_cognee
 
@@ -33,8 +33,8 @@ else:
         async def add_document(
             self,
             content: str,
-            metadata: Optional[dict[str, Any]] = None,
-            document_id: Optional[str] = None,
+            metadata: dict[str, Any] | None = None,
+            document_id: str | None = None,
         ) -> dict[str, Any]:
             """Return failure response when cognee is unavailable."""
             return {
@@ -47,9 +47,9 @@ else:
         async def search(
             self,
             query: str,
-            top_k: Optional[int] = None,
-            similarity_threshold: Optional[float] = None,
-            filters: Optional[dict[str, Any]] = None,
+            top_k: int | None = None,
+            similarity_threshold: float | None = None,
+            filters: dict[str, Any] | None = None,
         ) -> list[dict[str, Any]]:
             """Return empty results when cognee is unavailable."""
             return []
@@ -57,10 +57,10 @@ else:
         async def generate(
             self,
             query: str,
-            top_k: Optional[int] = None,
-            system_prompt: Optional[str] = None,
-            temperature: Optional[float] = None,
-            max_tokens: Optional[int] = None,
+            top_k: int | None = None,
+            system_prompt: str | None = None,
+            temperature: float | None = None,
+            max_tokens: int | None = None,
         ) -> dict[str, Any]:
             """Return failure response when cognee is unavailable."""
             return {

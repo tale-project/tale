@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, FormHTMLAttributes, HTMLAttributes } from 'react';
+import { forwardRef, FormHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /**

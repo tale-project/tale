@@ -7,8 +7,8 @@ from fastapi.responses import Response
 from loguru import logger
 
 from app.models import (
-    MarkdownToImageRequest,
     HtmlToImageRequest,
+    MarkdownToImageRequest,
     UrlToImageRequest,
 )
 from app.services.image_service import get_image_service

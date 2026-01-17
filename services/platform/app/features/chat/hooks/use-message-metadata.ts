@@ -5,7 +5,7 @@
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
-interface MessageMetadata {
+export interface MessageMetadata {
   model: string;
   provider: string;
   inputTokens?: number;

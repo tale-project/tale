@@ -37,7 +37,7 @@ export async function findOrCreateUserFromHeaders(
   // Normalize inputs
   const email = args.email.toLowerCase().trim();
   const name = args.name.trim();
-  const role = args.role.toLowerCase().trim();
+  const _role = args.role.toLowerCase().trim();
 
   // Check if user already exists in Better Auth
   const existingUserResult: BetterAuthFindManyResult<BetterAuthUser> =

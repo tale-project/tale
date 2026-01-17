@@ -13,8 +13,8 @@ from app.models import (
     GenerateDocxResponse,
     ParseFileResponse,
 )
-from app.services.template_service import get_template_service
 from app.services.file_parser_service import get_file_parser_service
+from app.services.template_service import get_template_service
 
 router = APIRouter(prefix="/api/v1/docx", tags=["DOCX"])
 
@@ -112,16 +112,18 @@ async def generate_docx_from_template(
         # Validate top-level fields
         if "title" in content_dict and content_dict["title"] is not None:
             if not isinstance(content_dict["title"], str):
+                title_type = type(content_dict["title"]).__name__
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid content shape: 'title' must be a string, got {type(content_dict['title']).__name__}",
+                    detail=f"Invalid content: 'title' must be a string, got {title_type}",
                 )
 
         if "subtitle" in content_dict and content_dict["subtitle"] is not None:
             if not isinstance(content_dict["subtitle"], str):
+                subtitle_type = type(content_dict["subtitle"]).__name__
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid content shape: 'subtitle' must be a string, got {type(content_dict['subtitle']).__name__}",
+                    detail=f"Invalid content: 'subtitle' must be a string, got {subtitle_type}",
                 )
 
         # Validate sections field
@@ -130,30 +132,35 @@ async def generate_docx_from_template(
             if not isinstance(sections, list):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid content shape: 'sections' must be an array, got {type(sections).__name__}",
+                    detail=f"Invalid content: 'sections' must be an array, got {type(sections).__name__}",
                 )
 
-            valid_section_types = {"heading", "paragraph", "bullets", "numbered", "table", "quote", "code"}
+            valid_section_types = {
+                "heading", "paragraph", "bullets", "numbered", "table", "quote", "code"
+            }
             for idx, section in enumerate(sections):
                 if not isinstance(section, dict):
+                    section_type = type(section).__name__
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid content shape: sections[{idx}] must be an object, got {type(section).__name__}",
+                        detail=f"Invalid content: sections[{idx}] must be an object, got {section_type}",
                     )
                 if "type" not in section:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid content shape: sections[{idx}] missing required 'type' field",
+                        detail=f"Invalid content: sections[{idx}] missing required 'type' field",
                     )
                 if not isinstance(section["type"], str):
+                    sec_type = type(section["type"]).__name__
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid content shape: sections[{idx}].type must be a string, got {type(section['type']).__name__}",
+                        detail=f"Invalid content: sections[{idx}].type must be string, got {sec_type}",
                     )
                 if section["type"] not in valid_section_types:
+                    valid_types = ", ".join(sorted(valid_section_types))
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid content shape: sections[{idx}].type '{section['type']}' is not valid, must be one of: {', '.join(sorted(valid_section_types))}",
+                        detail=f"Invalid sections[{idx}].type '{section['type']}': must be {valid_types}",
                     )
 
         # Read optional template file

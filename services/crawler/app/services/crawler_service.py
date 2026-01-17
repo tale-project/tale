@@ -8,11 +8,11 @@ This service uses Crawl4AI to:
 4. Return structured content for ingestion
 """
 
+import asyncio
 import gc
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any
 from urllib.parse import urlparse
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ class CrawlerService:
         # No extension - assume it's a website
         return True
 
-    def _extract_structured_data_from_html(self, html: str) -> Dict[str, Any]:
+    def _extract_structured_data_from_html(self, html: str) -> dict[str, Any]:
         """
         Extract structured data from HTML content.
 
@@ -159,8 +159,9 @@ class CrawlerService:
         Returns:
             Dictionary with structured data
         """
-        from bs4 import BeautifulSoup
         import json as json_lib
+
+        from bs4 import BeautifulSoup
 
         structured = {}
 
@@ -216,10 +217,10 @@ class CrawlerService:
         self,
         domain: str,
         max_urls: int = 100,
-        pattern: Optional[str] = None,
-        query: Optional[str] = None,
+        pattern: str | None = None,
+        query: str | None = None,
         timeout: float = 1800.0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Discover all URLs on a website using sitemaps and Common Crawl.
 
@@ -288,7 +289,7 @@ class CrawlerService:
 
                 return filtered_urls
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(f"Timeout discovering URLs with source '{source}', trying next source...")
                 _cleanup_memory()
                 if source == sources_to_try[-1]:
@@ -307,9 +308,9 @@ class CrawlerService:
 
     async def crawl_urls(
         self,
-        urls: List[str],
+        urls: list[str],
         word_count_threshold: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Crawl multiple URLs and extract their content.
 
@@ -375,7 +376,7 @@ class CrawlerService:
         return results
 
 # Global service instance
-_crawler_service: Optional[CrawlerService] = None
+_crawler_service: CrawlerService | None = None
 
 
 def get_crawler_service() -> CrawlerService:

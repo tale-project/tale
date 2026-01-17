@@ -2,8 +2,6 @@
 // These types cover only the API used by this project
 
 declare module "react-file-icon" {
-  import { ComponentProps } from "react";
-
   export type DefaultExtensionType =
     | "3dm" | "3ds" | "3g2" | "3gp" | "7zip" | "aac" | "aep" | "ai" | "aif"
     | "aiff" | "asf" | "asp" | "aspx" | "avi" | "bin" | "bmp" | "c" | "cpp"

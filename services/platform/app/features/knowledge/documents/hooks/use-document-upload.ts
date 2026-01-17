@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
 
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
 interface FileInfo {
   name: string;

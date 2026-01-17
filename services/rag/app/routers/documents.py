@@ -2,11 +2,11 @@
 
 import json
 import os
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 import aiofiles
-from fastapi import APIRouter, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.background import BackgroundTasks
 from loguru import logger
 
@@ -14,11 +14,10 @@ from ..config import settings
 from ..models import (
     DocumentAddRequest,
     DocumentAddResponse,
-    DocumentDeleteRequest,
     DocumentDeleteResponse,
 )
-from ..services.cognee import cognee_service
 from ..services import job_store
+from ..services.cognee import cognee_service
 from ..utils import cleanup_memory
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
@@ -40,10 +39,10 @@ async def _persist_text_content(content: str) -> str:
 
 async def _ingest_single_document(
     content: str,
-    metadata: Optional[dict[str, Any]],
-    document_id: Optional[str],
-    user_id: Optional[str] = None,
-    dataset_name: Optional[str] = None,
+    metadata: dict[str, Any] | None,
+    document_id: str | None,
+    user_id: str | None = None,
+    dataset_name: str | None = None,
 ) -> DocumentAddResponse:
     """Ingest a single text document."""
     # Persist text content to file so cognee can operate on a path
@@ -95,10 +94,10 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
 
     async def _background_ingest_text(
         content: str,
-        metadata: Optional[dict[str, Any]],
+        metadata: dict[str, Any] | None,
         document_id: str,
-        user_id: Optional[str] = None,
-        dataset_name: Optional[str] = None,
+        user_id: str | None = None,
+        dataset_name: str | None = None,
     ) -> None:
         try:
             job_store.mark_running(job_id=document_id)
@@ -148,10 +147,10 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
 @router.post("/documents/upload", response_model=DocumentAddResponse)
 async def upload_document(
     file: UploadFile = File(..., description="File to upload"),
-    metadata: Optional[str] = Form(None, description="Optional metadata as JSON string"),
-    document_id: Optional[str] = Form(None, description="Optional custom document ID"),
-    user_id: Optional[str] = Form(None, description="User ID for multi-tenant isolation"),
-    dataset_name: Optional[str] = Form(None, description="Dataset name for organizing documents"),
+    metadata: str | None = Form(None, description="Optional metadata as JSON string"),
+    document_id: str | None = Form(None, description="Optional custom document ID"),
+    user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
+    dataset_name: str | None = Form(None, description="Dataset name for organizing documents"),
     background_tasks: BackgroundTasks = None,
 ):
     """Upload a file to the knowledge base.
@@ -168,7 +167,7 @@ async def upload_document(
         ".txt", ".md", ".csv"
     }
 
-    tmp_path: Optional[str] = None
+    tmp_path: str | None = None
     try:
         if not file.filename:
             raise HTTPException(
@@ -184,9 +183,10 @@ async def upload_document(
             )
 
         if file_ext not in SUPPORTED_EXTENSIONS:
+            supported = ', '.join(sorted(SUPPORTED_EXTENSIONS))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Unsupported file type: {file_ext}. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+                detail=f"Unsupported file type: {file_ext}. Supported formats: {supported}"
             )
 
         # Validate file size (50MB default limit from config)
@@ -247,8 +247,8 @@ async def upload_document(
             path: str,
             metadata_dict: dict[str, Any],
             doc_id_inner: str,
-            user_id_inner: Optional[str] = None,
-            dataset_name_inner: Optional[str] = None,
+            user_id_inner: str | None = None,
+            dataset_name_inner: str | None = None,
         ) -> None:
             try:
                 job_store.mark_running(job_id=doc_id_inner)

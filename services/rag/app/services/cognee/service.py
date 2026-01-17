@@ -9,7 +9,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 import aiofiles
@@ -72,8 +72,10 @@ DEFAULT_GRAPH_EXTRACTION_PROMPT = """
 Extract entities and relationships from the provided text content.
 
 CRITICAL REQUIREMENTS for FalkorDB compatibility:
-1. ALL entity type names (node labels) MUST be in English using PascalCase (e.g., Person, Organization, Document, Concept)
-2. ALL relationship type names MUST be in English using UPPER_SNAKE_CASE (e.g., WORKS_FOR, LOCATED_IN, RELATED_TO)
+1. ALL entity type names (node labels) MUST be in English using PascalCase
+   (e.g., Person, Organization, Document, Concept)
+2. ALL relationship type names MUST be in English using UPPER_SNAKE_CASE
+   (e.g., WORKS_FOR, LOCATED_IN, RELATED_TO)
 3. ALL property names MUST be in English using snake_case (e.g., name, description, created_at)
 4. Property VALUES can be in any language (Chinese, etc.) - only the keys must be English
 
@@ -86,7 +88,8 @@ Focus on extracting meaningful entities and their relationships while strictly f
 """
 
 # System prompt for GRAPH_COMPLETION search - generates detailed, comprehensive answers
-DEFAULT_GRAPH_COMPLETION_PROMPT = """You are a knowledgeable assistant that provides comprehensive answers based on the provided context.
+DEFAULT_GRAPH_COMPLETION_PROMPT = """You are a knowledgeable assistant that provides \
+comprehensive answers based on the provided context.
 
 Instructions:
 1. Provide detailed and thorough answers based on the context
@@ -170,9 +173,9 @@ class CogneeService:
             await self.initialize()
 
         try:
-            from sqlalchemy import select, cast, String
             from cognee.infrastructure.databases.relational import get_relational_engine
             from cognee.modules.data.models import Data, Dataset, DatasetData
+            from sqlalchemy import String, cast, select
 
             db_engine = get_relational_engine()
             async with db_engine.get_async_session() as session:
@@ -249,10 +252,10 @@ class CogneeService:
     async def add_document(
         self,
         content: str,
-        metadata: Optional[dict[str, Any]] = None,
-        document_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        dataset_name: Optional[str] = None,
+        metadata: dict[str, Any] | None = None,
+        document_id: str | None = None,
+        user_id: str | None = None,
+        dataset_name: str | None = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base.
 
@@ -272,7 +275,7 @@ class CogneeService:
             await self.initialize()
 
         # Track temporary files created by Vision processing for cleanup
-        vision_temp_file: Optional[str] = None
+        vision_temp_file: str | None = None
 
         try:
             start_time = time.time()
@@ -349,7 +352,7 @@ class CogneeService:
                     cognee.add(file_to_ingest, **add_kwargs),
                     timeout=timeout_seconds,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 elapsed = time.time() - start_time
                 error_msg = (
                     f"cognee.add() timed out after {elapsed:.1f}s "
@@ -401,7 +404,7 @@ class CogneeService:
                             cognee.cognify(**cognify_kwargs),
                             timeout=remaining_timeout,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         elapsed = time.time() - start_time
                         error_msg = (
                             f"cognee.cognify() timed out after {elapsed:.1f}s "
@@ -452,11 +455,11 @@ class CogneeService:
         self,
         query: str,
         search_type: ApiSearchType | None = None,
-        top_k: Optional[int] = None,
-        similarity_threshold: Optional[float] = None,
-        _filters: Optional[dict[str, Any]] = None,
-        user_id: Optional[str] = None,
-        datasets: Optional[list[str]] = None,
+        top_k: int | None = None,
+        similarity_threshold: float | None = None,
+        _filters: dict[str, Any] | None = None,
+        user_id: str | None = None,
+        datasets: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base.
 
@@ -655,12 +658,12 @@ class CogneeService:
     async def generate(
         self,
         query: str,
-        top_k: Optional[int] = None,
-        system_prompt: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        user_id: Optional[str] = None,
-        datasets: Optional[list[str]] = None,
+        top_k: int | None = None,
+        system_prompt: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        user_id: str | None = None,
+        datasets: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG.
 
@@ -766,7 +769,10 @@ class CogneeService:
                 )
                 return {
                     "success": False,
-                    "response": "No documents have been indexed yet. Please add documents first using the /api/v1/documents endpoint.",
+                    "response": (
+                        "No documents have been indexed yet. "
+                        "Please add documents first using the /api/v1/documents endpoint."
+                    ),
                     "sources": [],
                     "processing_time_ms": 0,
                 }
@@ -800,10 +806,10 @@ class CogneeService:
             start_time = time.time()
 
             # Import Cognee internals for data lookup
-            from sqlalchemy import select, cast, String
-            from cognee.infrastructure.databases.relational import get_relational_engine
-            from cognee.modules.data.models import Data, Dataset, DatasetData
             from cognee.api.v1.delete import delete as cognee_delete
+            from cognee.infrastructure.databases.relational import get_relational_engine
+            from cognee.modules.data.models import Data, DatasetData
+            from sqlalchemy import String, cast, select
 
             logger.info(f"Looking for documents with node_set containing: {document_id}")
 
@@ -1100,8 +1106,8 @@ class CogneeService:
             return False
 
         try:
-            from sqlalchemy import text
             from cognee.infrastructure.databases.relational import get_relational_engine
+            from sqlalchemy import text
 
             from ...config import settings
 

@@ -309,9 +309,9 @@ async def cleanup_legacy_site_packages_data() -> None:
     all new data (under /app/data/.data_storage) untouched.
     """
     try:
-        from sqlalchemy import select
         from cognee.infrastructure.databases.relational import get_async_session
         from cognee.modules.data.models import Data
+        from sqlalchemy import select
 
         legacy_substring = "/site-packages/cognee/.data_storage/"
 
@@ -362,9 +362,9 @@ async def cleanup_missing_local_files_data() -> None:
     - But whose underlying filesystem path no longer exists.
     """
     try:
-        from sqlalchemy import select
         from cognee.infrastructure.databases.relational import get_async_session
         from cognee.modules.data.models import Data
+        from sqlalchemy import select
 
         base_data_dir = os.path.abspath(settings.cognee_data_dir)
         data_root_prefix = os.path.join(base_data_dir, ".data_storage")

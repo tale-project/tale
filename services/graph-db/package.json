@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "setup": "uv sync",
-    "dev": "uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "setup": "uv sync --extra dev",
+    "dev": "docker compose up graph-db -d && docker compose logs -f graph-db",
     "build": "echo 'No build step'",
-    "lint": "uv run ruff check app",
-    "lint:fix": "uv run ruff check --fix app",
-    "test": "uv run pytest",
-    "test:watch": "uv run pytest-watch",
-    "test:coverage": "uv run pytest --cov=app --cov-report=html"
+    "docker:build": "docker compose build graph-db",
+    "logs": "docker compose logs -f graph-db",
+    "shell": "docker exec -it tale-graph-db sh",
+    "lint": "uv run ruff check .",
+    "lint:fix": "uv run ruff check --fix .",
+    "test": "uv run pytest"
   }
 }

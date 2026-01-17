@@ -7,8 +7,6 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
 import { Form } from '@/app/components/ui/forms/form';
-import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { GmailIcon } from '@/app/components/icons/gmail-icon';
 import { ExternalLink, Shield, Key } from 'lucide-react';
 import { toast } from '@/app/hooks/use-toast';
 import { useForm } from 'react-hook-form';
@@ -261,15 +259,6 @@ export function GmailCreateProviderDialog({
       setIsLoading(false);
     }
   };
-
-  const customHeader = (
-    <HStack gap={3}>
-      <div className="size-8 bg-background border border-border rounded-md grid place-items-center">
-        <GmailIcon className="size-5" />
-      </div>
-      <span className="font-semibold">{t('integrations.addProvider', { provider: 'Gmail' })}</span>
-    </HStack>
-  );
 
   return (
     <ViewDialog

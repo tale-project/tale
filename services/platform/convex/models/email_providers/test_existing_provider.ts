@@ -5,7 +5,7 @@
 
 import type { Doc } from '../../_generated/dataModel';
 
-interface TestExistingProviderArgs {
+export interface TestExistingProviderArgs {
   providerId: Doc<'emailProviders'>['_id'];
 }
 

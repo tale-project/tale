@@ -7,13 +7,13 @@ from fastapi.responses import Response
 from loguru import logger
 
 from app.models import (
-    MarkdownToPdfRequest,
     HtmlToPdfRequest,
-    UrlToPdfRequest,
+    MarkdownToPdfRequest,
     ParseFileResponse,
+    UrlToPdfRequest,
 )
-from app.services.pdf_service import get_pdf_service
 from app.services.file_parser_service import get_file_parser_service
+from app.services.pdf_service import get_pdf_service
 
 router = APIRouter(prefix="/api/v1/pdf", tags=["PDF"])
 

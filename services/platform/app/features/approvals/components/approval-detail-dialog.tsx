@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { lazyComponent } from '@/lib/utils/lazy-component';
 import { Sparkles } from 'lucide-react';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
@@ -14,15 +13,7 @@ import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useLocale, useT } from '@/lib/i18n/client';
-
-const CustomerInfoDialog = lazyComponent(
-  () =>
-    import('@/app/features/knowledge/customers/components/customer-info-dialog').then(
-      (mod) => ({
-        default: mod.CustomerInfoDialog,
-      }),
-    ),
-);
+import { CustomerInfoDialog } from '@/app/features/knowledge/customers/components/customer-info-dialog';
 
 const RecommendationIcon = () => (
   <Sparkles className="size-4 text-muted-foreground" />

@@ -32,7 +32,6 @@ export interface DataTableSkeletonProps {
   /** Number of rows to display */
   rows?: number;
   /** Column configuration - accepts TanStack Table columns or simple column config */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[];
   /** Whether to show the header row */
   showHeader?: boolean;
@@ -56,7 +55,6 @@ export interface DataTableSkeletonProps {
 
 /** Extract skeleton column info from TanStack Table column definitions */
 function normalizeColumns(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   columns: DataTableSkeletonColumn[] | ColumnDef<any, any>[],
 ): DataTableSkeletonColumn[] {
   return columns.map((col) => {

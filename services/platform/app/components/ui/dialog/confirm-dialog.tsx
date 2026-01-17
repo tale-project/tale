@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
 import { Dialog } from './dialog';
 import { Button } from '../primitives/button';
 import { cn } from '@/lib/utils/cn';

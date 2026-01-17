@@ -6,7 +6,7 @@ from fastapi import APIRouter
 
 from .. import __version__
 from ..config import settings
-from ..models import HealthResponse, ConfigResponse
+from ..models import ConfigResponse, HealthResponse
 from ..services.cognee import cognee_service
 
 router = APIRouter(tags=["Health"])

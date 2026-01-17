@@ -12,8 +12,8 @@ from app.models import (
     GeneratePptxResponse,
     ParseFileResponse,
 )
-from app.services.template_service import get_template_service
 from app.services.file_parser_service import get_file_parser_service
+from app.services.template_service import get_template_service
 
 router = APIRouter(prefix="/api/v1/pptx", tags=["PPTX"])
 

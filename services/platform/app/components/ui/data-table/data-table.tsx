@@ -50,7 +50,7 @@ import type { DateRange } from 'react-day-picker';
 
 export interface DataTableProps<TData> {
   /** Column definitions */
-  columns: ColumnDef<TData, any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  columns: ColumnDef<TData, any>[];
   /** Data to display */
   data: TData[];
   /** Accessible table caption for screen readers */
@@ -173,41 +173,12 @@ export function DataTable<TData>({
   const { t } = useT('common');
   const orgId = useOrganizationId();
 
-  // If error prop provided, show error display instead of table
-  if (error) {
-    return (
-      <ErrorDisplayCompact
-        error={error}
-        organizationId={orgId}
-        reset={onRetry || (() => {})}
-      />
-    );
-  }
-
   // Extract sorting config - presence of sortingConfig enables sorting
   const enableSorting = !!sortingConfig;
   const initialSorting = sortingConfig?.initialSorting ?? [];
   const onSortingChange = sortingConfig?.onSortingChange;
 
-  // Determine if we should render header
-  const hasHeader =
-    search || (filters && filters.length > 0) || dateRange || actionMenu;
-
-  // Build the header content
-  const headerContent = hasHeader ? (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <DataTableFilters
-        search={search}
-        filters={filters}
-        dateRange={dateRange}
-        isLoading={isFiltersLoading}
-        onClearAll={onClearFilters}
-      />
-      {actionMenu}
-    </div>
-  ) : null;
-
-  // Internal state for uncontrolled modes
+  // Internal state for uncontrolled modes - must be called before any early returns
   const [internalSorting, setInternalSorting] =
     useState<SortingState>(initialSorting);
   const [internalRowSelection, setInternalRowSelection] =
@@ -253,7 +224,36 @@ export function DataTable<TData>({
     }),
   });
 
-  // Check if any filters are actively applied
+  // If error prop provided, show error display instead of table
+  if (error) {
+    return (
+      <ErrorDisplayCompact
+        error={error}
+        organizationId={orgId}
+        reset={onRetry || (() => {})}
+      />
+    );
+  }
+
+  // Determine if we should render header
+  const hasHeader =
+    search || (filters && filters.length > 0) || dateRange || actionMenu;
+
+  // Build the header content
+  const headerContent = hasHeader ? (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <DataTableFilters
+        search={search}
+        filters={filters}
+        dateRange={dateRange}
+        isLoading={isFiltersLoading}
+        onClearAll={onClearFilters}
+      />
+      {actionMenu}
+    </div>
+  ) : null;
+
+  // Check if any filters are actively applied (moved here after hooks)
   const hasActiveFilters =
     (search?.value && search.value.trim().length > 0) ||
     (filters && filters.some((f) => f.selectedValues.length > 0)) ||

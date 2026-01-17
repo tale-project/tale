@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Image } from '@/app/components/ui/data-display/image';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';

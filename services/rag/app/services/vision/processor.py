@@ -5,7 +5,6 @@ It routes different file types to appropriate extractors.
 """
 
 from pathlib import Path
-from typing import Optional
 
 from loguru import logger
 
@@ -50,7 +49,7 @@ async def extract_text_from_document(
     *,
     process_images: bool = True,
     ocr_scanned_pages: bool = True,
-) -> tuple[Optional[str], bool]:
+) -> tuple[str | None, bool]:
     """Extract text from a document using Vision API where applicable.
 
     This is the main entry point for Vision-based document processing.
@@ -110,7 +109,7 @@ async def extract_text_from_bytes(
     *,
     process_images: bool = True,
     ocr_scanned_pages: bool = True,
-) -> tuple[Optional[str], bool]:
+) -> tuple[str | None, bool]:
     """Extract text from document bytes using Vision API where applicable.
 
     Args:

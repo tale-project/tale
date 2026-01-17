@@ -15,7 +15,6 @@ import {
   actionNodeConfigValidator,
   conditionNodeConfigValidator,
   loopNodeConfigValidator,
-  stepConfigValidator,
 } from './types/nodes';
 import {
   jsonValueValidator,

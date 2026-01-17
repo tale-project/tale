@@ -15,7 +15,6 @@ import { createContextHandler, type ContextHandler, type ContextHandlerOptions }
 import {
   AGENT_CONTEXT_CONFIGS,
   SUMMARIZATION_THRESHOLD,
-  DEFAULT_MODEL_CONTEXT_LIMIT,
   type AgentType,
 } from './constants';
 import { ContextPriority } from './context_priority';
@@ -190,7 +189,7 @@ export class AgentContextManager {
    */
   async setup(
     ctx: ActionCtx,
-    options?: {
+    _options?: {
       currentPromptTokens?: number;
     },
   ): Promise<ContextSetupResult> {

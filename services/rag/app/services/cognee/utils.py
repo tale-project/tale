@@ -4,7 +4,7 @@ This module provides helper functions to normalize results from
 cognee.add() and cognee.search() into consistent dictionary formats.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -31,7 +31,7 @@ def _safe_int(value: Any) -> int:
 
 def normalize_add_result(
     result: Any,
-    document_id: Optional[str] = None,
+    document_id: str | None = None,
 ) -> tuple[str, int]:
     """Normalize the result from cognee.add() into document_id and chunks_created.
 
@@ -66,7 +66,7 @@ def normalize_add_result(
     return doc_id, chunks_created
 
 
-def normalize_search_result(result: Any) -> Dict[str, Any]:
+def normalize_search_result(result: Any) -> dict[str, Any]:
     """Normalize a single search result into a consistent dictionary format.
 
     Args:
@@ -87,7 +87,7 @@ def normalize_search_result(result: Any) -> Dict[str, Any]:
         content = result.get("text", result.get("content", ""))
 
         # Build metadata, excluding large vector fields like text_vector
-        metadata: Dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
         for key in ("chunk_size", "chunk_index", "cut_type", "type"):
             if key in result:
                 metadata[key] = result[key]
@@ -117,7 +117,7 @@ def normalize_search_result(result: Any) -> Dict[str, Any]:
             }
 
 
-def normalize_search_results(raw_results: List[Any]) -> List[Dict[str, Any]]:
+def normalize_search_results(raw_results: list[Any]) -> list[dict[str, Any]]:
     """Normalize a list of search results into consistent dictionary format.
 
     Args:

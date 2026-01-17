@@ -2,10 +2,8 @@
 
 import gc
 import os
-from typing import Optional
 
 from loguru import logger
-
 
 # Optional memory debug logging (disabled by default; enable with RAG_DEBUG_MEMORY=1)
 _DEBUG_MEMORY = os.getenv("RAG_DEBUG_MEMORY", "").lower() in ("1", "true", "yes")
@@ -30,7 +28,7 @@ def _log_memory_snapshot(context: str) -> None:
         logger.debug(f"[RAG][MEM] Failed to read RSS: {exc}")
 
 
-def cleanup_memory(context: Optional[str] = None) -> None:
+def cleanup_memory(context: str | None = None) -> None:
     """Force Python garbage collection to free memory after heavy RAG operations.
 
     Note: This mainly helps reclaim unreachable Python objects. The overall RSS of

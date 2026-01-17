@@ -201,6 +201,7 @@ const StreamingMarkdown = memo(
         h5: createCursorWrapper('h5', components?.h5),
         h6: createCursorWrapper('h6', components?.h6),
       };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only need length for cursor position
     }, [components, showCursor, revealedContent.length]);
 
     if (!content) return null;

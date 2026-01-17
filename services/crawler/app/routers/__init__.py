@@ -10,9 +10,9 @@ This package contains modular routers following Clean Architecture principles:
 """
 
 from app.routers.crawler import router as crawler_router
-from app.routers.pdf import router as pdf_router
-from app.routers.image import router as image_router
 from app.routers.docx import router as docx_router
+from app.routers.image import router as image_router
+from app.routers.pdf import router as pdf_router
 from app.routers.pptx import router as pptx_router
 
 __all__ = [

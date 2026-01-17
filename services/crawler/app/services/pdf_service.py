@@ -5,7 +5,7 @@ Converts HTML, Markdown, and URLs to PDF documents using Playwright.
 """
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 from app.models import WaitUntilType
 from app.services.base_converter import BaseConverterService
@@ -72,7 +72,7 @@ class PdfService(BaseConverterService):
         margin_left: str = "20mm",
         margin_right: str = "20mm",
         print_background: bool = True,
-        extra_css: Optional[str] = None,
+        extra_css: str | None = None,
     ) -> bytes:
         """Convert HTML to PDF."""
         page = await self._get_page()
@@ -161,7 +161,7 @@ class PdfService(BaseConverterService):
 
 
 # Global service instance
-_pdf_service: Optional[PdfService] = None
+_pdf_service: PdfService | None = None
 
 
 def get_pdf_service() -> PdfService:
