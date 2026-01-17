@@ -11,11 +11,16 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 
 WORKDIR /app
 
-COPY package.json ./package.json
-COPY package-lock.json ./
-COPY services/platform/package.json ./services/platform/package.json
+COPY package.json package-lock.json ./
+COPY services/platform/package.json ./services/platform/
+COPY services/crawler/package.json ./services/crawler/
+COPY services/rag/package.json ./services/rag/
+COPY services/graph-db/package.json ./services/graph-db/
+COPY services/db/package.json ./services/db/
+COPY services/proxy/package.json ./services/proxy/
+COPY services/search/package.json ./services/search/
 
-RUN npm ci --legacy-peer-deps --workspace=@tale/platform
+RUN npm ci --legacy-peer-deps
 
 # ============================================================================
 # Stage 2: Builder
@@ -25,6 +30,7 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 WORKDIR /app
 
 COPY --from=workspace-deps /app/node_modules ./node_modules
+COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
 
 COPY services/platform/vite.config.ts \
      services/platform/tsconfig.json \

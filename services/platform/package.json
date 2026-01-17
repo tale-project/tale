@@ -164,8 +164,15 @@
     "react-is": "19.2.3"
   },
   "optionalDependencies": {
+    "@parcel/watcher-linux-arm64-glibc": "^2.5.4",
     "@parcel/watcher-linux-x64-glibc": "^2.5.4",
+    "@rollup/rollup-linux-arm64-gnu": "^4.55.1",
     "@rollup/rollup-linux-x64-gnu": "^4.55.1",
-    "@swc/core-linux-x64-gnu": "^1.15.8"
+    "@swc/core-linux-arm64-gnu": "^1.15.8",
+    "@swc/core-linux-x64-gnu": "^1.15.8",
+    "@tailwindcss/oxide-linux-arm64-gnu": "^4.1.18",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18",
+    "lightningcss-linux-arm64-gnu": "^1.30.2",
+    "lightningcss-linux-x64-gnu": "^1.30.2"
   }
 }
