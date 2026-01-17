@@ -129,7 +129,7 @@
     "@types/jexl": "2.3.4",
     "@types/lodash": "4.17.23",
     "@types/mailparser": "3.4.6",
-    "@types/mssql": "9.1.8",
+    "@types/mssql": "9.1.9",
     "@types/mustache": "4.2.6",
     "@types/nodemailer": "7.0.5",
     "@types/pg": "8.16.0",
