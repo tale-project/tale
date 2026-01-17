@@ -67,7 +67,7 @@
     "clsx": "2.1.1",
     "convex": "1.29.3",
     "convex-helpers": "0.1.111",
-    "cron-parser": "5.4.0",
+    "cron-parser": "5.5.0",
     "dagre": "0.8.5",
     "date-fns": "4.1.0",
     "dayjs": "1.11.19",
