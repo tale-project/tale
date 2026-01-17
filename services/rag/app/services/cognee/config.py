@@ -649,7 +649,9 @@ def _patch_falkordb_adapter_add_nodes() -> None:
     for properties that have non-None values. This causes IndexError when some
     embeddable properties are None.
 
-    Fix: Use vector_map to correctly map property names to their vector indices.
+    Fix: Use vector_map to correctly map property names to their vector indices,
+    and handle cases where embed_data returns empty results (all values filtered
+    as empty/whitespace).
     """
     try:
         from cognee.infrastructure.databases.graph.graph_db_interface import DataPoint
@@ -678,16 +680,22 @@ def _patch_falkordb_adapter_add_nodes() -> None:
 
                     vectorized_values = await self.embed_data(embeddable_values)
 
-                    # FIX: Only create vectors for properties that have values
-                    properties = {
-                        **node.model_dump(),
-                        **(
-                            {
-                                f"{property_name}_vector": vectorized_values[vector_map[property_name]]
-                                for property_name in vector_map.keys()
-                            }
-                        ),
-                    }
+                    # Build base properties from node data
+                    properties = {**node.model_dump()}
+
+                    # Only add vectors if embedding succeeded and returned expected count
+                    if len(vectorized_values) == len(vector_map):
+                        properties.update({
+                            f"{property_name}_vector": vectorized_values[vector_map[property_name]]
+                            for property_name in vector_map.keys()
+                        })
+                    elif len(vector_map) > 0:
+                        # Log warning if we expected vectors but didn't get them
+                        logger.warning(
+                            f"Vector embedding mismatch for node {node.id}: "
+                            f"expected {len(vector_map)} vectors but got {len(vectorized_values)}. "
+                            f"Properties: {list(vector_map.keys())}. Skipping vector properties."
+                        )
 
                     await self.add_node(str(node.id), properties)
                 else:
