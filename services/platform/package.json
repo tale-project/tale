@@ -165,6 +165,7 @@
   },
   "optionalDependencies": {
     "@parcel/watcher-linux-x64-glibc": "^2.5.4",
+    "@rollup/rollup-linux-x64-gnu": "^4.55.1",
     "@swc/core-linux-x64-gnu": "^1.15.8"
   }
 }
