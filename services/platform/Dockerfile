@@ -23,14 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files - need both root and platform package.json for workspace resolution
-COPY package.json ./
+# Copy package files - use platform's package.json directly
+# We copy package-lock.json for version hints but use npm install which is more flexible
 COPY package-lock.json ./
-COPY services/platform/package.json ./services/platform/package.json
+COPY services/platform/package.json ./package.json
 
-# Install dependencies using workspace mode to ensure lock file sync
-# Use --include=dev to ensure devDependencies are installed (needed for build tools like vite-tsconfig-paths)
-RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 --include=dev --workspace=@tale/platform
+# Install dependencies - use npm install instead of npm ci for flexibility with lock file
+RUN npm install --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10
 
 # ============================================================================
 # Stage 2: Builder
