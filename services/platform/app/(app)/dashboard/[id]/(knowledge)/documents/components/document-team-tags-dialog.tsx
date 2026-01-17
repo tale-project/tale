@@ -109,12 +109,17 @@ function DocumentTeamTagsDialogContent({
     return false;
   }, [currentTeamTags, selectedTeams]);
 
+  const displayName = useMemo(() => {
+    if (!documentName) return '';
+    const parts = documentName.split('/');
+    return parts[parts.length - 1] || documentName;
+  }, [documentName]);
+
   return (
     <Dialog
       open={open}
       onOpenChange={handleClose}
       title={tDocuments('teamTags.title')}
-      description={documentName ? tDocuments('teamTags.description', { name: documentName }) : undefined}
       footer={
         <>
           <Button
@@ -135,7 +140,12 @@ function DocumentTeamTagsDialogContent({
         </>
       }
     >
-      <Stack gap={4}>
+      <Stack gap={4} className="min-w-0">
+        {documentName && (
+          <p className="text-sm text-muted-foreground break-words">
+            {tDocuments('teamTags.description', { name: displayName })}
+          </p>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <span className="text-muted-foreground">
