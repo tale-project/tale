@@ -33,7 +33,7 @@ const member = ac.newRole({
 const disabled = ac.newRole({ content: [] });
 
 export const authClient = createAuthClient({
-  // Requests are same-origin via Next.js rewrites; no crossDomain client needed
+  // Requests are same-origin via proxy rewrites; no crossDomain client needed
   // baseURL: appUrl,
   plugins: [
     convexClient(),

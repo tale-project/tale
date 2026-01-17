@@ -6,8 +6,9 @@
 
 import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { createApproval } from '../../model/approvals/create_approval';
-import type { WorkflowCreationMetadata } from '../../model/approvals/types';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { createApproval } from '../../models/approvals/create_approval';
+import type { WorkflowCreationMetadata } from '../../models/approvals/types';
 
 /**
  * Create an approval for a workflow creation
@@ -22,7 +23,7 @@ export const createWorkflowCreationApproval = internalMutation({
       description: v.optional(v.string()),
       version: v.optional(v.string()),
       workflowType: v.optional(v.literal('predefined')),
-      config: v.optional(v.any()),
+      config: v.optional(jsonRecordValidator),
     }),
     stepsConfig: v.array(
       v.object({
@@ -36,7 +37,7 @@ export const createWorkflowCreationApproval = internalMutation({
           v.literal('loop'),
         ),
         order: v.number(),
-        config: v.any(),
+        config: jsonRecordValidator,
         nextSteps: v.record(v.string(), v.string()),
       }),
     ),

@@ -5,6 +5,7 @@
  *
  * This is the Convex action wrapper that delegates to the executeQuery helper.
  */
+import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
@@ -37,7 +38,7 @@ export const executeQueryInternal = internalAction({
       ),
     }),
     query: v.string(),
-    params: v.optional(v.any()),
+    params: v.optional(jsonRecordValidator),
     security: v.optional(
       v.object({
         maxResultRows: v.optional(v.number()),
@@ -49,7 +50,7 @@ export const executeQueryInternal = internalAction({
   },
   returns: v.object({
     success: v.boolean(),
-    data: v.optional(v.any()),
+    data: v.optional(jsonValueValidator),
     rowCount: v.optional(v.number()),
     error: v.optional(v.string()),
     duration: v.optional(v.number()),

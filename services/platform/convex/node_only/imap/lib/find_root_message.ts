@@ -1,6 +1,6 @@
 'use node';
 
-import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
+import type { EmailMessage } from '../../../workflow_engine/actions/imap/helpers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 

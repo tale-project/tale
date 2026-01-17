@@ -1,9 +1,9 @@
 # ============================================================================
 # Tale Platform Dockerfile
 # ============================================================================
-# This Dockerfile builds the Tale platform (Next.js + Convex Backend)
+# This Dockerfile builds the Tale platform (Vite SPA + Convex Backend)
 # It uses the official Convex backend image as the base to ensure compatibility
-# Both Next.js and Convex backend run in the same container
+# Both Vite application and Convex backend run in the same container
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
@@ -23,13 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files for npm workspace installation
-# The lock file was generated with workspaces, so we need the workspace structure
-COPY package.json package-lock.json ./
-COPY services/platform/package.json ./services/platform/package.json
+# Copy package files - use platform's package.json directly
+# We copy package-lock.json for version hints but use npm install which is more flexible
+COPY package-lock.json ./
+COPY services/platform/package.json ./package.json
 
-# Install platform workspace dependencies (including devDependencies for TypeScript build)
-RUN npm ci --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
+# Install dependencies - use npm install instead of npm ci for flexibility with lock file
+RUN npm install --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10
 
 # ============================================================================
 # Stage 2: Builder
@@ -38,64 +38,57 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
+# Copy dependencies from deps stage (hoisted to root by npm workspaces)
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy application source from services/platform directory
 COPY services/platform/ .
 
 # Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 # Note: convex/_generated/* files are committed to git and maintained by the dev workflow.
 # Developers must run `npx convex codegen` locally after schema/function changes.
 # The convex deploy at runtime will also regenerate these if needed.
 
 # Ensure TypeScript and platform-specific binaries are available
-# TypeScript is needed for next.config.ts transpilation (workspace resolution differs from isolated context)
-# Native binaries needed for Linux: @next/swc, @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide
+# Native binaries needed for Linux: @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide, @rollup/rollup
 # These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
 # Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
-RUN rm -rf ./node_modules/@next/swc-* 2>/dev/null || true && \
-    rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
+RUN rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
     rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
     rm -rf ./node_modules/@parcel/watcher-* 2>/dev/null || true && \
     rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@rollup/rollup-* 2>/dev/null || true && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save typescript \
+      npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-x64-glibc \
         lightningcss-linux-x64-gnu \
         @tailwindcss/oxide-linux-x64-gnu \
         @swc/core-linux-x64-gnu \
-        next@16.1.1; \
+        @rollup/rollup-linux-x64-gnu; \
     elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save typescript \
+      npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-arm64-glibc \
         lightningcss-linux-arm64-gnu \
         @tailwindcss/oxide-linux-arm64-gnu \
         @swc/core-linux-arm64-gnu \
-        next@16.1.1; \
+        @rollup/rollup-linux-arm64-gnu; \
     fi
 
-# Set NODE_ENV=production for the build step (after npm install to preserve devDependencies)
-ENV NODE_ENV=production
-
-# Build Next.js application
-# Note: NEXT_PUBLIC_* variables are set at runtime via env.sh in docker-entrypoint.sh
-# The build uses default/placeholder values; actual values are injected at container start
+# Build Vite application
 RUN npm run build
 
 # Prune unnecessary files from node_modules to reduce image size (~460MB savings)
 # This must be done in the builder stage before copying to runner, because Docker
 # layers are immutable - deleting files in a later layer doesn't reduce image size.
 # 1. musl binaries: Convex base image uses Ubuntu/glibc, musl binaries are not needed
-# 2. SWC compilers: Next.js standalone already includes runtime, build-time compilers not needed
+# 2. SWC compilers: Build-time compilers not needed in runtime
 # 3. TypeScript: Convex deploy uses --typecheck disable, so tsc is not needed
 # 4. Type definitions: Runtime doesn't need .d.ts files
 # 5. Other: test files, source maps, legacy browser fallbacks
 RUN find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true && \
-    rm -rf ./node_modules/@next/swc-linux-x64-gnu 2>/dev/null || true && \
     rm -rf ./node_modules/@swc/core-linux-x64-gnu 2>/dev/null || true && \
     rm -rf ./node_modules/typescript 2>/dev/null || true && \
     rm -rf ./node_modules/@types 2>/dev/null || true && \
@@ -143,7 +136,6 @@ ARG VERSION=dev
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV TALE_VERSION=${VERSION}
 
 # Create a non-root user (using groupadd/useradd for Ubuntu compatibility)
@@ -163,10 +155,9 @@ RUN mkdir -p /dashboard && chown -R nextjs:nodejs /dashboard
 # Copy Convex dashboard from official image
 COPY --from=convex-dashboard --chown=nextjs:nodejs /app /dashboard
 
-# Copy necessary files from builder with correct ownership
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy Vite build output
+COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
 
 # Copy Convex files and configuration with correct ownership
 COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
@@ -194,7 +185,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/env.sh /app/env.sh
 USER nextjs
 
 # Expose ports
-# 3000: Next.js application
+# 3000: Vite application (served by Node.js static server)
 # 3210: Convex backend API
 # 3211: Convex HTTP actions
 # 6791: Convex dashboard

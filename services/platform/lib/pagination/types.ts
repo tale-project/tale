@@ -18,12 +18,12 @@
  * - singleSelect: Single value from a list
  * - dateRange: From/to date range
  */
-export type FilterType = 'search' | 'multiSelect' | 'singleSelect' | 'dateRange';
+type FilterType = 'search' | 'multiSelect' | 'singleSelect' | 'dateRange';
 
 /**
  * Option for multiSelect and singleSelect filters
  */
-export interface FilterOption {
+interface FilterOption {
   value: string;
   /** Translation key for the label (used with useT hook) */
   labelKey: string;
@@ -32,7 +32,7 @@ export interface FilterOption {
 /**
  * Base filter definition
  */
-export interface BaseFilterDefinition {
+interface BaseFilterDefinition {
   /** Filter type determines parsing and rendering behavior */
   type: FilterType;
   /** URL query param key (defaults to the filter key if not specified) */
@@ -42,7 +42,7 @@ export interface BaseFilterDefinition {
 /**
  * Search filter with debouncing support
  */
-export interface SearchFilterDefinition extends BaseFilterDefinition {
+interface SearchFilterDefinition extends BaseFilterDefinition {
   type: 'search';
   /** Placeholder translation key */
   placeholderKey?: string;
@@ -53,7 +53,7 @@ export interface SearchFilterDefinition extends BaseFilterDefinition {
 /**
  * Multi-select filter (checkboxes)
  */
-export interface MultiSelectFilterDefinition extends BaseFilterDefinition {
+interface MultiSelectFilterDefinition extends BaseFilterDefinition {
   type: 'multiSelect';
   /** Available options */
   options: FilterOption[];
@@ -66,7 +66,7 @@ export interface MultiSelectFilterDefinition extends BaseFilterDefinition {
 /**
  * Single-select filter (radio or dropdown)
  */
-export interface SingleSelectFilterDefinition extends BaseFilterDefinition {
+interface SingleSelectFilterDefinition extends BaseFilterDefinition {
   type: 'singleSelect';
   /** Available options */
   options: FilterOption[];
@@ -79,7 +79,7 @@ export interface SingleSelectFilterDefinition extends BaseFilterDefinition {
 /**
  * Date range filter
  */
-export interface DateRangeFilterDefinition extends BaseFilterDefinition {
+interface DateRangeFilterDefinition extends BaseFilterDefinition {
   type: 'dateRange';
   /** Filter section title translation key */
   titleKey: string;
@@ -88,7 +88,7 @@ export interface DateRangeFilterDefinition extends BaseFilterDefinition {
 /**
  * Union type for all filter definitions
  */
-export type FilterDefinition =
+type FilterDefinition =
   | SearchFilterDefinition
   | MultiSelectFilterDefinition
   | SingleSelectFilterDefinition
@@ -106,15 +106,16 @@ export type FilterDefinitions = Record<string, FilterDefinition>;
 /**
  * Parsed value type based on filter definition type
  */
-export type ParsedFilterValue<T extends FilterDefinition> = T extends SearchFilterDefinition
-  ? string
-  : T extends MultiSelectFilterDefinition
-    ? string[]
-    : T extends SingleSelectFilterDefinition
-      ? string | undefined
-      : T extends DateRangeFilterDefinition
-        ? { from?: string; to?: string }
-        : never;
+export type ParsedFilterValue<T extends FilterDefinition> =
+  T extends SearchFilterDefinition
+    ? string
+    : T extends MultiSelectFilterDefinition
+      ? string[]
+      : T extends SingleSelectFilterDefinition
+        ? string | undefined
+        : T extends DateRangeFilterDefinition
+          ? { from?: string; to?: string }
+          : never;
 
 /**
  * Parsed filter state from URL
@@ -130,7 +131,7 @@ export type ParsedFilters<T extends FilterDefinitions> = {
 /**
  * Sorting state compatible with TanStack Table's SortingState
  */
-export interface SortingItem {
+interface SortingItem {
   /** Column ID to sort by */
   id: string;
   /** Sort direction (true = descending, false = ascending) */
@@ -157,7 +158,7 @@ export interface OffsetPaginationState {
 /**
  * Cursor-based pagination state (for infinite scroll)
  */
-export interface CursorPaginationState {
+interface CursorPaginationState {
   cursor: string | null;
   numItems: number;
 }
@@ -165,7 +166,7 @@ export interface CursorPaginationState {
 /**
  * Pagination configuration
  */
-export interface PaginationConfig {
+interface PaginationConfig {
   /** Default page size */
   defaultPageSize?: number;
   /** Available page size options */
@@ -189,13 +190,18 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
   /** Current sorting state (TanStack Table compatible) */
   sorting: SortingState;
   /** Update a single filter value */
-  setFilter: <K extends keyof T>(key: K, value: ParsedFilterValue<T[K]>) => void;
+  setFilter: <K extends keyof T>(
+    key: K,
+    value: ParsedFilterValue<T[K]>,
+  ) => void;
   /** Set current page */
   setPage: (page: number) => void;
   /** Set page size */
   setPageSize: (size: number) => void;
   /** Set sorting state (TanStack Table compatible) */
-  setSorting: (sorting: SortingState | ((prev: SortingState) => SortingState)) => void;
+  setSorting: (
+    sorting: SortingState | ((prev: SortingState) => SortingState),
+  ) => void;
   /** Clear all filters and reset pagination */
   clearAll: () => void;
   /** Whether any filters are active */
@@ -207,7 +213,7 @@ export interface UseUrlFiltersReturn<T extends FilterDefinitions> {
 /**
  * Return type for useOffsetPaginatedQuery hook
  */
-export interface UseOffsetPaginatedQueryReturn<TData> {
+interface UseOffsetPaginatedQueryReturn<TData> {
   /** Query result data */
   data: TData | undefined;
   /** Whether query is loading */
@@ -226,7 +232,7 @@ export interface UseOffsetPaginatedQueryReturn<TData> {
 /**
  * Return type for useCursorPaginatedQuery hook
  */
-export interface UseCursorPaginatedQueryReturn<TData> {
+interface UseCursorPaginatedQueryReturn<TData> {
   /** Query result data (accumulated pages) */
   data: TData[];
   /** Error that occurred during query, if any */
@@ -246,12 +252,3 @@ export interface UseCursorPaginatedQueryReturn<TData> {
   /** Refetch data (alias for reset) */
   refetch: () => void;
 }
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-export const DEFAULT_PAGE_SIZE = 10;
-export const DEFAULT_PAGE = 1;
-export const DEFAULT_DEBOUNCE_MS = 300;
-export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;

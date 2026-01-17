@@ -1,10 +1,10 @@
-# Tale Platform (Next.js + Convex)
+# Tale Platform (Vite + TanStack Start + Convex)
 
-The main web application. Runs a Next.js app alongside a Convex self-hosted backend in one container. Provides a health endpoint and connects to the Tale data services over the internal Docker network.
+The main web application. Runs a Vite SPA with TanStack Start alongside a Convex self-hosted backend in one container. Provides a health endpoint and connects to the Tale data services over the internal Docker network.
 
 ## Ports
 
-- 3000 — Next.js app
+- 3000 — Vite application (static server)
 - 3210 — Convex backend API
 - 3211 — Convex HTTP actions
 - 6791 — Convex dashboard UI (direct access at http://localhost:6791)
@@ -33,12 +33,12 @@ With Compose (recommended):
 docker compose up -d platform
 ```
 
-During development you may temporarily expose 3000 in compose.yml for direct Next.js access.
+During development you may temporarily expose 3000 in compose.yml for direct Vite access.
 
 ## Admin and Utilities
 
 - scripts:
-  - docker-entrypoint.sh — orchestrates Convex + Next.js + dashboard
+  - docker-entrypoint.sh — orchestrates Convex + Vite + dashboard
   - env.sh — normalizes env configuration
   - generate_admin_key.sh — helper for admin keys
 

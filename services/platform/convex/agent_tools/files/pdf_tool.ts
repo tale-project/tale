@@ -150,7 +150,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
       try {
         const result = await ctx.runAction(
-          internal.documents.generateDocumentInternal,
+          internal.actions.documents.generateDocumentInternal,
           {
             fileName: args.fileName,
             sourceType: args.sourceType,

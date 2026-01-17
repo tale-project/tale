@@ -288,7 +288,7 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Platform (Next.js + Convex)
+  # Tale Platform (TanStack Start + Convex)
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
   platform:
@@ -331,7 +331,7 @@ services:
     restart: unless-stopped
 
     # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy (both Next.js and Convex)
+    # Docker will check if the service is healthy (both TanStack Start and Convex)
     healthcheck:
       test:
         [

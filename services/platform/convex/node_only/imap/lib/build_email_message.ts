@@ -1,7 +1,7 @@
 'use node';
 
 import type { ParsedMail } from 'mailparser';
-import type { EmailMessage } from '../../../workflow/actions/imap/helpers/types';
+import type { EmailMessage } from '../../../workflow_engine/actions/imap/helpers/types';
 import extractAddresses from './addresses';
 import parseHeaders from './parse_headers';
 

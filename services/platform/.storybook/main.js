@@ -1,12 +1,12 @@
 /** @type {import('@storybook/react-vite').StorybookConfig} */
 const config = {
   stories: [
-    '../components/ui/**/*.stories.@(ts|tsx)',
-    '../components/ui/**/*.mdx',
-    '../components/icons/**/*.stories.@(ts|tsx)',
-    '../components/skeletons/**/*.stories.@(ts|tsx)',
-    '../components/layout/**/*.stories.@(ts|tsx)',
-    '../components/theme/**/*.stories.@(ts|tsx)',
+    '../app/components/ui/**/*.stories.@(ts|tsx)',
+    '../app/components/ui/**/*.mdx',
+    '../app/components/icons/**/*.stories.@(ts|tsx)',
+    '../app/components/skeletons/**/*.stories.@(ts|tsx)',
+    '../app/components/layout/**/*.stories.@(ts|tsx)',
+    '../app/components/theme/**/*.stories.@(ts|tsx)',
   ],
   addons: [
     '@storybook/addon-essentials',

@@ -6,7 +6,7 @@ import type {
   AuthMethod,
   ConnectorConfig,
   OperationType,
-} from '../model/integrations/types';
+} from '../models/integrations/types';
 
 /**
  * Schema definition for a single parameter in an SQL operation

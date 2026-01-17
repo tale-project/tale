@@ -7,8 +7,9 @@
 
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal, components } from '../../_generated/api';
-import type { WorkflowCreationMetadata } from '../../model/approvals/types';
+import type { WorkflowCreationMetadata } from '../../models/approvals/types';
 import { saveMessage } from '@convex-dev/agent';
 
 /**
@@ -19,7 +20,7 @@ export const executeApprovedWorkflowCreation = internalAction({
     approvalId: v.id('approvals'),
     approvedBy: v.string(),
   },
-  returns: v.any(),
+  returns: jsonValueValidator,
   handler: async (ctx, args): Promise<unknown> => {
     // Get the approval record
     const approval: {
@@ -29,7 +30,7 @@ export const executeApprovedWorkflowCreation = internalAction({
       organizationId: string;
       threadId?: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.approvals.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.queries.approvals.getApprovalInternal, {
       approvalId: args.approvalId,
     });
 
@@ -60,7 +61,7 @@ export const executeApprovedWorkflowCreation = internalAction({
     // Execute the workflow creation with error handling
     try {
       const result = await ctx.runMutation(
-        internal.wf_definitions.createWorkflowWithSteps,
+        internal.wf_definitions.mutations.createWorkflow.createWorkflowWithSteps,
         {
           organizationId: approval.organizationId,
           workflowConfig: metadata.workflowConfig,

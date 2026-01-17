@@ -14,7 +14,7 @@
  * - Maps Circuly product fields to local product schema
  */
 
-export const circulySyncProductsWorkflow = {
+const circulySyncProductsWorkflow = {
   workflowConfig: {
     name: 'Circuly Products Sync',
     description:

@@ -1,0 +1,79 @@
+'use client';
+
+import { useState, useCallback, useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
+import { Button } from '@/app/components/ui/primitives/button';
+import { Doc } from '@/convex/_generated/dataModel';
+import { EntityDeleteDialog } from '@/app/components/ui/entity/entity-delete-dialog';
+import { useT } from '@/lib/i18n/client';
+import { useDeleteCustomer } from '../hooks/use-delete-customer';
+
+interface DeleteCustomerButtonProps {
+  customer: Doc<'customers'>;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  asChild?: boolean;
+}
+
+export function CustomerDeleteDialog({
+  customer,
+  isOpen: controlledIsOpen,
+  onOpenChange: controlledOnOpenChange,
+  asChild = false,
+}: DeleteCustomerButtonProps) {
+  const { t: tCustomers } = useT('customers');
+  const { t: tToast } = useT('toast');
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const deleteCustomer = useDeleteCustomer();
+
+  const isDialogOpen =
+    controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const setIsDialogOpen = controlledOnOpenChange || setInternalIsOpen;
+
+  const handleDelete = useCallback(
+    async (c: Doc<'customers'>) => {
+      await deleteCustomer({ customerId: c._id });
+    },
+    [deleteCustomer]
+  );
+
+  const getEntityName = useCallback(
+    (c: Doc<'customers'>) => c.name || tCustomers('thisCustomer'),
+    [tCustomers]
+  );
+
+  const translations = useMemo(
+    () => ({
+      title: tCustomers('deleteCustomer'),
+      description: tCustomers('deleteConfirmation', { name: '{name}' }),
+      warningText: tCustomers('deleteWarning'),
+      successMessage: tToast('success.deleted'),
+      errorMessage: tCustomers('deleteError'),
+    }),
+    [tCustomers, tToast]
+  );
+
+  return (
+    <>
+      {!asChild && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsDialogOpen(true)}
+          aria-label={tCustomers('deleteCustomer')}
+        >
+          <Trash2 className="size-4 text-muted-foreground" />
+        </Button>
+      )}
+
+      <EntityDeleteDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        entity={customer}
+        getEntityName={getEntityName}
+        deleteMutation={handleDelete}
+        translations={translations}
+      />
+    </>
+  );
+}

@@ -1,26 +1,17 @@
 import { ReactElement, ReactNode } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NextIntlClientProvider } from 'next-intl';
-import enMessages from '../../messages/en.json';
+import { I18nProvider } from '../../lib/i18n/i18n-provider';
 
 interface WrapperProps {
   children: ReactNode;
 }
 
 function AllProviders({ children }: WrapperProps) {
-  return (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
-      {children}
-    </NextIntlClientProvider>
-  );
+  return <I18nProvider>{children}</I18nProvider>;
 }
 
-interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
-  locale?: string;
-}
-
-function customRender(ui: ReactElement, options?: CustomRenderOptions) {
+function customRender(ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) {
   return {
     user: userEvent.setup(),
     ...render(ui, { wrapper: AllProviders, ...options }),
@@ -29,4 +20,3 @@ function customRender(ui: ReactElement, options?: CustomRenderOptions) {
 
 export * from '@testing-library/react';
 export { customRender as render };
-export { userEvent };

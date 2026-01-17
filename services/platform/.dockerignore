@@ -9,11 +9,9 @@ yarn-error.log*
 coverage
 .nyc_output
 
-# Next.js
-.next/
-out/
-build
-dist
+# Build outputs
+dist/
+build/
 
 # Misc
 .DS_Store
@@ -31,7 +29,6 @@ dist
 
 # TypeScript
 *.tsbuildinfo
-next-env.d.ts
 
 # IDE
 .vscode
@@ -56,6 +53,7 @@ docs/
 
 # Convex local
 .convex/
+
 # Storybook
 .storybook/
 **/*.stories.tsx

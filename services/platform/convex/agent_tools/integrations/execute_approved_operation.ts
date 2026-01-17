@@ -7,7 +7,8 @@
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
-import type { IntegrationOperationMetadata } from '../../model/approvals/types';
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import type { IntegrationOperationMetadata } from '../../models/approvals/types';
 
 /**
  * Execute an approved integration operation
@@ -17,7 +18,7 @@ export const executeApprovedOperation = internalAction({
     approvalId: v.id('approvals'),
     approvedBy: v.string(),
   },
-  returns: v.any(),
+  returns: jsonValueValidator,
   handler: async (ctx, args): Promise<unknown> => {
     // Get the approval record
     const approval: {
@@ -26,7 +27,7 @@ export const executeApprovedOperation = internalAction({
       resourceType: string;
       organizationId: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.approvals.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.queries.approvals.getApprovalInternal, {
       approvalId: args.approvalId,
     });
 
@@ -106,7 +107,7 @@ export const executeApprovedOperation = internalAction({
 export const updateApprovalWithResult = internalMutation({
   args: {
     approvalId: v.id('approvals'),
-    executionResult: v.any(),
+    executionResult: jsonValueValidator,
     executionError: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {

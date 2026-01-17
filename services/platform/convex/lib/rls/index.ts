@@ -17,4 +17,6 @@ export * from './wrappers/with_organization_rls';
 export * from './wrappers/with_resource_rls';
 export * from './helpers/query_with_rls';
 export * from './helpers/mutation_with_rls';
+export * from './helpers/z_query_with_rls';
+export * from './helpers/z_mutation_with_rls';
 export * from './helpers/rls_rules';

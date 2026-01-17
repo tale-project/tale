@@ -28,11 +28,10 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "3.3.3",
     "@types/node": "24.10.8",
     "@vitest/coverage-v8": "4.0.17",
     "eslint": "9.39.2",
-    "eslint-plugin-unicorn": "62.0.0",
+    "knip": "^5.81.0",
     "postcss": "8.5.6",
     "turbo": "2.7.5",
     "typescript": "5.9.3",
@@ -40,5 +39,8 @@
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18"
+  },
+  "overrides": {
+    "react-is": "19.2.3"
   }
 }
