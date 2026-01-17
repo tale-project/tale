@@ -85,7 +85,7 @@ services:
     environment:
       - RAG_CHUNK_SIZE=512
       - RAG_CHUNK_OVERLAP=50
-      # Disable cognee multi-user access control mode (required for kuzu-remote)
+      # Disable cognee multi-user access control mode
       - ENABLE_BACKEND_ACCESS_CONTROL=false
 
     restart: unless-stopped

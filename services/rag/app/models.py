@@ -2,7 +2,7 @@
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ============================================================================
@@ -55,6 +55,24 @@ class DocumentAddRequest(BaseModel):
         default=None,
         description="Optional custom document ID",
     )
+    # Multi-tenancy support
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User ID for multi-tenant isolation. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
+                    "documents are stored in the user's isolated dataset.",
+    )
+    dataset_name: Optional[str] = Field(
+        default=None,
+        description="Dataset name for organizing documents. When specified with user_id, "
+                    "creates a user-scoped dataset. Format: 'tale_team_{teamId}' for team datasets.",
+    )
+
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure dataset_name is only used with user_id for proper tenant scoping."""
+        if self.dataset_name and not self.user_id:
+            raise ValueError("dataset_name requires user_id for tenant scoping")
+        return self
 
 
 class DocumentAddResponse(BaseModel):
@@ -81,6 +99,11 @@ class DocumentAddResponse(BaseModel):
     job_id: Optional[str] = Field(
         default=None,
         description="Background job identifier when ingestion is queued",
+    )
+    cleaned_datasets: Optional[List[str]] = Field(
+        default=None,
+        description="List of old datasets that were cleaned up during upload "
+                    "(when document was moved to a different team/dataset)",
     )
 
 
@@ -204,6 +227,24 @@ class QueryRequest(BaseModel):
         default=None,
         description="Optional filters for metadata"
     )
+    # Multi-tenancy support
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User ID for multi-tenant search. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
+                    "search is restricted to datasets accessible by this user.",
+    )
+    datasets: Optional[List[str]] = Field(
+        default=None,
+        description="List of dataset names to search within. When not specified, searches all "
+                    "datasets accessible by the user. Format: ['tale_team_{teamId}', ...]",
+    )
+
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure datasets is only used with user_id for proper tenant scoping."""
+        if self.datasets and not self.user_id:
+            raise ValueError("datasets requires user_id for tenant scoping")
+        return self
 
 
 class SearchResult(BaseModel):
@@ -252,6 +293,24 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Maximum tokens to generate (overrides default)"
     )
+    # Multi-tenancy support
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User ID for multi-tenant generation. Context is retrieved from "
+                    "datasets accessible by this user.",
+    )
+    datasets: Optional[List[str]] = Field(
+        default=None,
+        description="List of dataset names to retrieve context from. "
+                    "Format: ['tale_team_{teamId}', ...]",
+    )
+
+    @model_validator(mode="after")
+    def validate_tenant_scope(self):
+        """Ensure datasets is only used with user_id for proper tenant scoping."""
+        if self.datasets and not self.user_id:
+            raise ValueError("datasets requires user_id for tenant scoping")
+        return self
 
 
 class GenerateResponse(BaseModel):

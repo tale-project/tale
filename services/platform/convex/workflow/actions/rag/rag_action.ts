@@ -8,6 +8,7 @@ import { uploadFileDirect } from './helpers/upload_file_direct';
 import { deleteDocumentById } from './helpers/delete_document';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
+import { teamIdToDatasetName, DEFAULT_DATASET_NAME } from '../../../lib/get_user_teams';
 
 export const ragAction: ActionDefinition<RagActionParams> = {
   type: 'rag',
@@ -72,12 +73,23 @@ export const ragAction: ActionDefinition<RagActionParams> = {
       // Document upload (from documents table)
       const documentInfo = await getDocumentInfo(ctx, processedParams);
 
+      // Determine dataset name based on team tags
+      // If document has team tags, upload to first team's dataset
+      // Otherwise, upload to default organization-level dataset
+      // Note: If document belongs to multiple teams, we upload to the first one
+      // In the future, we may want to upload to all team datasets
+      const datasetName =
+        documentInfo.teamTags && documentInfo.teamTags.length > 0
+          ? teamIdToDatasetName(documentInfo.teamTags[0])
+          : DEFAULT_DATASET_NAME;
+
       if (documentInfo.type === 'text') {
         // Upload text content directly
         uploadResult = await uploadTextDocument({
           ragServiceUrl: ragConfig.serviceUrl,
           content: documentInfo.content as string,
           metadata: documentInfo.metadata,
+          datasetName,
         });
       } else {
         // Upload file directly by downloading from storage and uploading to RAG
@@ -87,6 +99,7 @@ export const ragAction: ActionDefinition<RagActionParams> = {
           filename: documentInfo.filename || 'document',
           contentType: documentInfo.contentType || 'application/octet-stream',
           metadata: documentInfo.metadata,
+          datasetName,
         });
       }
       documentType = documentInfo.type;

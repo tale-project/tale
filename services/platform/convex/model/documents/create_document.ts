@@ -24,6 +24,8 @@ export async function createDocument(
     metadata: args.metadata,
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
+    teamTags: args.teamTags,
+    createdBy: args.createdBy,
   });
 
   return {

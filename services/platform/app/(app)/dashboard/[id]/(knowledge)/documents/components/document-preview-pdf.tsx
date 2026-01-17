@@ -2,18 +2,41 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronUp, ChevronDown, ZoomIn, ZoomOut } from 'lucide-react';
-import type {
-  PDFDocumentProxy,
-  PDFPageProxy,
-  RenderTask,
-  PageViewport,
-} from 'pdfjs-dist/types/src/pdf';
 import { useT } from '@/lib/i18n/client';
 
-type PdfJsLib = {
-  getDocument: typeof import('pdfjs-dist/types/src/pdf').getDocument;
-  GlobalWorkerOptions: typeof import('pdfjs-dist/types/src/pdf').GlobalWorkerOptions;
-};
+interface PageViewport {
+  width: number;
+  height: number;
+}
+
+interface RenderTask {
+  promise: Promise<void>;
+  cancel: () => void;
+}
+
+interface PDFPageProxy {
+  getViewport: (options: { scale: number }) => PageViewport;
+  render: (options: {
+    canvas: HTMLCanvasElement | null;
+    canvasContext: CanvasRenderingContext2D;
+    viewport: PageViewport;
+    intent: string;
+  }) => RenderTask;
+}
+
+interface PDFDocumentProxy {
+  numPages: number;
+  getPage: (pageNumber: number) => Promise<PDFPageProxy>;
+}
+
+interface PDFDocumentLoadingTask {
+  promise: Promise<PDFDocumentProxy>;
+}
+
+interface PdfJsLib {
+  getDocument: (url: string) => PDFDocumentLoadingTask;
+  GlobalWorkerOptions: { workerSrc: string };
+}
 
 export const DocumentPreviewPDF = ({ url }: { url: string }) => {
   const { t } = useT('documents');

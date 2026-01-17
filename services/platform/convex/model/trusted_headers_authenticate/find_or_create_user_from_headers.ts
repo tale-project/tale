@@ -1,6 +1,13 @@
 /**
  * Business logic for finding or creating a Better Auth user from
- * trusted headers and ensuring their profile (name, role) is up to date.
+ * trusted headers. In trusted headers mode, the role is NOT stored
+ * in the member table - it comes from the session/JWT instead.
+ *
+ * This function only handles:
+ * - Finding or creating the user record
+ * - Finding or creating organization membership (for organizationId linkage)
+ * - The member.role field is set to 'member' as a placeholder; the actual
+ *   role is stored in the session and included in JWT claims.
  */
 
 import type { MutationCtx } from '../../_generated/server';
@@ -97,25 +104,8 @@ export async function findOrCreateUserFromHeaders(
     if (memberResult && memberResult.page.length > 0) {
       const member = memberResult.page[0];
       organizationId = member.organizationId;
-
-      // Update member's role if it changed
-      if (member.role !== role) {
-        await ctx.runMutation(components.betterAuth.adapter.updateOne, {
-          input: {
-            model: 'member',
-            update: {
-              role,
-            },
-            where: [
-              {
-                field: '_id',
-                value: member._id,
-                operator: 'eq',
-              },
-            ],
-          },
-        });
-      }
+      // Note: We don't update member.role here because in trusted headers mode,
+      // the role comes from the session/JWT, not the member table.
     }
   } else {
     // User doesn't exist - create them
@@ -163,15 +153,15 @@ export async function findOrCreateUserFromHeaders(
       const existingOrgId = existingAdminMember.organizationId;
       organizationId = existingOrgId;
 
-      // Add the new user as a member of the existing organization, using
-      // the role provided by the trusted headers (already normalized).
+      // Add the new user as a member of the existing organization.
+      // Use 'member' as placeholder role - actual role comes from session/JWT.
       await ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
           model: 'member',
           data: {
             organizationId: existingOrgId,
             userId,
-            role,
+            role: 'member',
             createdAt: Date.now(),
           },
         },

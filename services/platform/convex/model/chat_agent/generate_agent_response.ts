@@ -39,6 +39,7 @@ import {
   classifyError,
   NonRetryableError,
 } from '../../lib/error_classification';
+import { startRagPrefetch } from '../../lib/rag_prefetch';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
 
@@ -63,6 +64,17 @@ export interface GenerateAgentResponseArgs {
    * The stream is populated with text content as it's generated.
    */
   streamId?: string;
+  /**
+   * User ID for the thread owner.
+   * Resolved in the mutation and passed to the action for RAG prefetch.
+   */
+  userId?: string;
+  /**
+   * User's team IDs for RAG search.
+   * Resolved in the mutation (where we have auth identity) and passed to the action
+   * to avoid insecure session table lookups.
+   */
+  userTeamIds?: string[];
 }
 
 export interface GenerateAgentResponseResult {
@@ -120,7 +132,7 @@ export async function generateAgentResponse(
   ctx: ActionCtx,
   args: GenerateAgentResponseArgs,
 ): Promise<GenerateAgentResponseResult> {
-  const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText, streamId } = args;
+  const { threadId, organizationId, maxSteps, promptMessageId, attachments, messageText, streamId, userId, userTeamIds } = args;
 
   const startTime = Date.now();
 
@@ -132,6 +144,19 @@ export async function generateAgentResponse(
 
   try {
     const userQuery = messageText || '';
+
+    // Start RAG prefetch immediately (non-blocking)
+    // This runs in parallel with context loading below.
+    // The first rag_search tool call will use this prefetched result.
+    const ragPrefetchCache = userId && userQuery
+      ? startRagPrefetch({
+          ctx,
+          threadId,
+          userMessage: userQuery,
+          userId,
+          userTeamIds: userTeamIds ?? [],
+        })
+      : undefined;
 
     // Load context summary and integrations in parallel for faster startup
     // RAG is no longer pre-loaded - AI uses rag_search tool on-demand to reduce token usage
@@ -253,7 +278,11 @@ export async function generateAgentResponse(
       ...ctx,
       organizationId,
       threadId,
+      // User's team IDs for RAG search, passed from mutation where auth identity is available
+      userTeamIds: userTeamIds ?? [],
       variables: {},
+      // RAG prefetch cache for the first rag_search tool call
+      ragPrefetchCache,
     };
 
     // Build the prompt content - this may include multi-modal content for attachments

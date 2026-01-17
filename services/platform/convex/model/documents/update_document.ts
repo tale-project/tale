@@ -6,6 +6,7 @@ import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import _ from 'lodash';
 import { extractExtension } from './extract_extension';
+import { getUserTeamIds } from '../../lib/get_user_teams';
 
 export async function updateDocument(
   ctx: MutationCtx,
@@ -19,11 +20,27 @@ export async function updateDocument(
     extension?: string;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
+    teamTags?: string[];
+    userId?: string;
   },
 ): Promise<void> {
   const document = await ctx.db.get(args.documentId);
   if (!document) {
     throw new Error('Document not found');
+  }
+
+  // Validate teamTags: user can only assign document to teams they belong to
+  if (args.teamTags !== undefined) {
+    if (!args.userId) {
+      throw new Error('userId is required when updating teamTags');
+    }
+    const userTeamIds = await getUserTeamIds(ctx, args.userId);
+    const userTeamSet = new Set(userTeamIds);
+    for (const tag of args.teamTags) {
+      if (!userTeamSet.has(tag)) {
+        throw new Error('Cannot assign document to a team you do not belong to');
+      }
+    }
   }
 
   const updateData: {
@@ -35,6 +52,7 @@ export async function updateDocument(
     extension?: string;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
+    teamTags?: string[];
   } = {};
   if (args.title !== undefined) updateData.title = args.title;
   if (args.content !== undefined) updateData.content = args.content;
@@ -50,6 +68,7 @@ export async function updateDocument(
     updateData.sourceProvider = args.sourceProvider;
   if (args.externalItemId !== undefined)
     updateData.externalItemId = args.externalItemId;
+  if (args.teamTags !== undefined) updateData.teamTags = args.teamTags;
 
   if (args.metadata !== undefined) {
     const existingMetadata = (document as { metadata?: unknown }).metadata;

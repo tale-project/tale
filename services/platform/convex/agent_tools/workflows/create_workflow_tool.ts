@@ -105,10 +105,9 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      // Use parentThreadId if available (when running as sub-agent), otherwise use threadId
+      // parentThreadId comes from extended context (when running as sub-agent)
       // This ensures approvals are linked to the parent conversation thread
-      const ctxWithParent = ctx as ToolCtx & { parentThreadId?: string };
-      const { organizationId, threadId: currentThreadId, parentThreadId } = ctxWithParent;
+      const { organizationId, threadId: currentThreadId, parentThreadId } = ctx;
       const threadId = parentThreadId ?? currentThreadId;
 
       if (!organizationId) {

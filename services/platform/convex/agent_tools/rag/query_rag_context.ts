@@ -133,6 +133,16 @@ Current question: ${currentQuery}`;
 }
 
 /**
+ * Options for multi-tenant RAG context queries.
+ */
+export interface RagContextOptions {
+  /** User ID for multi-tenant search */
+  userId?: string;
+  /** List of dataset names to search within */
+  datasets?: string[];
+}
+
+/**
  * Query the RAG service for relevant context based on the user's message.
  * Returns formatted context string that can be injected into the agent's context.
  *
@@ -141,6 +151,7 @@ Current question: ${currentQuery}`;
  * @param similarityThreshold - Minimum similarity score (default: 0.3)
  * @param signal - Optional AbortSignal for timeout control
  * @param recentMessages - Optional recent conversation messages for context expansion
+ * @param options - Optional multi-tenant options (userId, datasets)
  * @returns Formatted context string or undefined if no relevant results
  */
 export async function queryRagContext(
@@ -149,6 +160,7 @@ export async function queryRagContext(
   similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
   signal?: AbortSignal,
   recentMessages?: RecentMessage[],
+  options?: RagContextOptions,
 ): Promise<string | undefined> {
   try {
     const ragServiceUrl = getRagServiceUrl();
@@ -174,17 +186,28 @@ export async function queryRagContext(
     const fetchSignal = signal || controller.signal;
 
     try {
+      // Build request payload with multi-tenant support
+      const requestPayload: Record<string, unknown> = {
+        query: expandedQuery,
+        top_k: topK,
+        similarity_threshold: similarityThreshold,
+        include_metadata: true,
+      };
+
+      // Add multi-tenant parameters if provided
+      if (options?.userId) {
+        requestPayload.user_id = options.userId;
+      }
+      if (options?.datasets && options.datasets.length > 0) {
+        requestPayload.datasets = options.datasets;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          query: expandedQuery,
-          top_k: topK,
-          similarity_threshold: similarityThreshold,
-          include_metadata: true,
-        }),
+        body: JSON.stringify(requestPayload),
         signal: fetchSignal,
       });
 

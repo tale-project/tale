@@ -10,7 +10,7 @@ import type { Doc } from '../../_generated/dataModel';
 import type { DocumentItemResponse } from './types';
 import { paginateWithFilter, DEFAULT_PAGE_SIZE } from '../../lib/pagination';
 import { getMetadataString } from '../../lib/metadata/get_metadata_string';
-import { transformToDocumentItem } from './transform_to_document_item';
+import { transformDocumentsBatch } from './transform_to_document_item';
 
 export interface GetDocumentsCursorArgs {
   organizationId: string;
@@ -74,10 +74,9 @@ export async function getDocumentsCursor(
     filter,
   });
 
-  // Transform documents to DocumentItemResponse format (expensive operation - only on paginated subset)
-  const items = await Promise.all(
-    result.page.map((doc) => transformToDocumentItem(ctx, doc)),
-  );
+  // Transform documents to DocumentItemResponse format using batch processing
+  // This efficiently fetches user names and storage URLs in parallel
+  const items = await transformDocumentsBatch(ctx, result.page);
 
   return {
     page: items,

@@ -635,3 +635,100 @@ export const getMemberRoleInternal = internalQuery({
     return member?.role ?? null;
   },
 });
+
+// Types for Better Auth team records
+interface BetterAuthTeam {
+  _id: string;
+  name: string;
+  organizationId: string;
+  createdAt: number;
+  updatedAt?: number | null;
+}
+
+interface BetterAuthTeamMember {
+  _id: string;
+  teamId: string;
+  userId: string;
+  createdAt?: number | null;
+}
+
+/**
+ * Get teams that the current user belongs to in an organization.
+ * Used for document scope selection during upload.
+ *
+ * In trusted headers mode, teams come directly from JWT claims (trustedTeams).
+ * In normal auth mode, team IDs come from the teamMember table.
+ */
+export const getMyTeams = queryWithRLS({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    teams: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+      }),
+    ),
+    /** True if teams are managed by external IdP (trusted headers mode) */
+    isExternallyManaged: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthenticatedUser(ctx);
+    if (!authUser) {
+      return { teams: [], isExternallyManaged: false };
+    }
+
+    // Check if JWT contains trusted teams (trusted headers mode)
+    const identity = await ctx.auth.getUserIdentity();
+    const trustedTeamsRaw = (identity as Record<string, unknown>)?.trustedTeams;
+
+    if (trustedTeamsRaw && typeof trustedTeamsRaw === 'string') {
+      // Trusted headers mode: return teams directly from JWT claim
+      // Format: [{id: "...", name: "..."}, ...]
+      try {
+        const teams = JSON.parse(trustedTeamsRaw) as Array<{ id: string; name: string }>;
+        return { teams, isExternallyManaged: true };
+      } catch {
+        return { teams: [], isExternallyManaged: true };
+      }
+    }
+
+    // Normal auth mode: query teamMember table
+    const teamMembershipsRes: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 1000 },
+        where: [{ field: 'userId', operator: 'eq', value: authUser.userId }],
+      });
+    const teamIds = teamMembershipsRes?.page?.map((m) => m.teamId) ?? [];
+
+    if (teamIds.length === 0) {
+      return { teams: [], isExternallyManaged: false };
+    }
+
+    // Get all teams in the organization
+    const teamsRes: BetterAuthFindManyResult<BetterAuthTeam> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'team',
+        paginationOpts: { cursor: null, numItems: 1000 },
+        where: [
+          {
+            field: 'organizationId',
+            operator: 'eq',
+            value: args.organizationId,
+          },
+        ],
+      });
+
+    // Filter to only teams the user is a member of
+    const userTeams = (teamsRes?.page ?? [])
+      .filter((team) => teamIds.includes(team._id))
+      .map((team) => ({
+        id: team._id,
+        name: team.name,
+      }));
+
+    return { teams: userTeams, isExternallyManaged: false };
+  },
+});

@@ -90,58 +90,6 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Graph DB (Kuzu)
-  # ============================================================================
-  # Stateful service - Kuzu requires exclusive file lock, cannot run two instances
-  graph-db:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-graph-db:${VERSION:-latest}
-    # Pull policy: 'build' for local dev, 'always' for production
-    pull_policy: ${PULL_POLICY:-build}
-    # Build from local Dockerfile (used when PULL_POLICY=build)
-    build:
-      context: ./services/graph-db
-      dockerfile: Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # Container name - stateful service like db
-    container_name: tale-graph-db
-
-    # No port mapping needed - only accessed by other services (rag)
-    # internally via http://graph-db:8000
-
-    # Volume mounts
-    # Persist graph database data
-    volumes:
-      - graph-db-data:/data
-
-    # Restart policy
-    # Automatically restart the container if it crashes
-    restart: unless-stopped
-
-    # Health check - optimized for faster blue-green deployment
-    # Docker will check if the service is healthy
-    # Note: Using Python since curl is not available in python:3.11-slim
-    healthcheck:
-      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health")']
-      interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 10s
-
-    # Logging configuration
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Networks
-    networks:
-      - internal
-
-  # ============================================================================
   # Tale Crawler (Crawl4AI)
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
@@ -202,6 +150,65 @@ services:
       - internal
 
   # ============================================================================
+  # Tale Graph DB (FalkorDB)
+  # ============================================================================
+  # Redis-based graph database optimized for GraphRAG
+  # - Native multi-tenant support (10K+ graphs per instance)
+  # - Low latency (~140ms p99)
+  # - Client-server architecture (no file-level locking issues)
+  # - Combined graph and vector storage via hybrid adapter
+  # Replaces embedded Kuzu (archived) and LanceDB
+  graph-db:
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-graph-db:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
+    build:
+      context: .
+      dockerfile: services/graph-db/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+
+    # Port mapping: host:container
+    # Access FalkorDB at localhost:6379 (Redis protocol)
+    # Access FalkorDB Browser UI at localhost:6380 (mapped from internal 3000)
+    ports:
+      - '6379:6379'
+      - '6380:3000'
+
+    # Volume mounts
+    # Persist graph and vector data
+    # FalkorDB stores data in /var/lib/falkordb/data (not /data)
+    volumes:
+      - graph-db-data:/var/lib/falkordb/data
+
+    # Environment file
+    env_file:
+      - .env
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
   # Tale RAG (Cognee)
   # ============================================================================
   # Stateless service - no container_name for blue-green deployment
@@ -239,8 +246,6 @@ services:
       # Smaller chunks (512) reduce LLM output size for knowledge graph extraction
       - RAG_CHUNK_SIZE=512
       - RAG_CHUNK_OVERLAP=50
-      # Disable cognee multi-user access control mode (required for kuzu-remote)
-      - ENABLE_BACKEND_ACCESS_CONTROL=false
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -256,7 +261,7 @@ services:
       start_period: 40s
 
     # Dependencies
-    # Wait for database and graph DB to be ready
+    # Wait for database and graph-db (FalkorDB) to be ready
     depends_on:
       - db
       - graph-db
@@ -342,7 +347,6 @@ services:
     # Wait for backend services to be ready
     depends_on:
       - db
-      - graph-db
       - rag
       - crawler
       - search
@@ -539,12 +543,12 @@ volumes:
   db-backup:
     driver: local
 
-  # Persistent storage for graph database data (Kuzu)
-  graph-db-data:
+  # Persistent storage for RAG service data (temp files, document processing)
+  rag-data:
     driver: local
 
-  # Persistent storage for RAG service data
-  rag-data:
+  # Persistent storage for graph-db (FalkorDB graph + vector data)
+  graph-db-data:
     driver: local
 
   # Persistent storage for Platform Convex local backend

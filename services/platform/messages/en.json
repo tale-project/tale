@@ -189,6 +189,7 @@
     "settings": "Settings",
     "settingsAndMore": "Settings and more",
     "organization": "Organization",
+    "teams": "Teams",
     "integrations": "Integrations",
     "account": "Account",
     "logs": "Logs"
@@ -278,7 +279,9 @@
       "executionId": "Execution ID",
       "startedAt": "Started at",
       "duration": "Duration",
-      "triggeredBy": "Triggered by"
+      "triggeredBy": "Triggered by",
+      "teams": "Teams",
+      "uploadedBy": "Uploaded by"
     },
     "cells": {
       "noEmail": "No email",
@@ -474,7 +477,7 @@
     "title": "Settings",
     "organization": {
       "title": "Organization (optional)",
-      "teamMembers": "Team members",
+      "membersTitle": "Organization members",
       "manageAccess": "Manage access to the organization",
       "searchMember": "Search member",
       "addMember": "Add member",
@@ -497,7 +500,6 @@
       "memberUpdateFailed": "Failed to update member",
       "memberRemoved": "Member removed",
       "memberRemoveFailed": "Failed to remove member",
-      "removeTeamMember": "Remove team member",
       "emailCannotChange": "Email cannot be changed",
       "cannotChangeOwnRole": "You cannot change your own role",
       "updatePassword": "Update password",
@@ -508,6 +510,41 @@
       "leaveOrganization": "Leave organization",
       "leaveConfirmation": "Are you sure you want to leave this organization? You will lose access to all resources.",
       "leaving": "Leaving..."
+    },
+    "teams": {
+      "title": "Teams",
+      "description": "Create and manage teams within your organization for granular access control",
+      "externallyManagedDescription": "Teams are managed by your identity provider. You belong to the teams shown below.",
+      "createTeam": "Create team",
+      "searchTeam": "Search teams",
+      "noTeams": "No teams yet",
+      "noTeamsDescription": "Create your first team to organize members and control access to documents.",
+      "noTeamsExternallyManaged": "You are not assigned to any teams. Contact your identity provider administrator to update your team membership.",
+      "columns": {
+        "name": "Name",
+        "members": "Members",
+        "created": "Created"
+      },
+      "editTeam": "Edit team",
+      "deleteTeam": "Delete team",
+      "deleteConfirmation": "Are you sure you want to delete this team? Team members will lose access to team-specific documents.",
+      "teamDeleted": "Team deleted",
+      "teamDeleteFailed": "Failed to delete team",
+      "teamCreated": "Team created",
+      "teamCreateFailed": "Failed to create team",
+      "teamUpdated": "Team updated",
+      "teamUpdateFailed": "Failed to update team",
+      "teamNameRequired": "Team name is required",
+      "manageMembers": "Manage members",
+      "addMember": "Add member",
+      "removeMember": "Remove member",
+      "memberAdded": "Member added to team",
+      "memberAddFailed": "Failed to add member",
+      "memberRemoved": "Member removed from team",
+      "memberRemoveFailed": "Failed to remove member",
+      "selectMember": "Select a member to add",
+      "noMembersToAdd": "All organization members are already in this team",
+      "noTeamMembers": "No members in this team yet"
     },
     "integrations": {
       "accessDenied": "You need Admin or Developer permissions to access integrations settings.",
@@ -1407,7 +1444,17 @@
       "deleteDocument": "Delete document",
       "deleteSyncFolder": "Delete sync folder",
       "deleteFolderFailed": "Failed to delete folder",
-      "deleteFileFailed": "An unexpected error occurred while deleting"
+      "deleteFileFailed": "An unexpected error occurred while deleting the file.",
+      "manageTeams": "Manage teams",
+      "reindex": "Reindex"
+    },
+    "teamTags": {
+      "title": "Manage document teams",
+      "description": "Select which teams can access \"{name}\"",
+      "updated": "Document teams updated",
+      "updateFailed": "Failed to update document teams",
+      "noTeams": "No teams available. Create teams in Settings to enable team-based access control.",
+      "hint": "Documents without any team tags are accessible to all organization members."
     },
     "deleteFile": {
       "title": "Delete file",
@@ -1455,7 +1502,11 @@
       "uploadSuccessful": "Upload successful",
       "filesUploadedSuccessfully": "{count} {count, plural, one {file} other {files}} uploaded successfully",
       "uploadCancelled": "Upload cancelled",
-      "uploadFailed": "Upload failed"
+      "uploadFailed": "Upload failed",
+      "selectTeams": "Select teams",
+      "selectTeamsDescription": "Choose which teams can access the uploaded documents",
+      "noTeamsAvailable": "You are not a member of any teams",
+      "allMembersHint": "Documents without team tags are accessible to everyone in the organization."
     },
     "import": {
       "noResponseBody": "No response body received"
@@ -1474,7 +1525,7 @@
       "syncImport": "Sync import",
       "syncDescription": "Keep files automatically synchronized",
       "importCount": "Import ({count})",
-      "importItem": "{type, select, one-time {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
+      "importItem": "{type, select, oneTime {Import} other {Sync}} {count} {count, plural, one {Item} other {Items}}",
       "importing": "Importing...",
       "syncing": "Syncing...",
       "importStarted": "Import started",
@@ -1491,8 +1542,8 @@
       "syncCancelled": "Sync cancelled",
       "importCancelledDescription": "File import was cancelled",
       "syncCancelledDescription": "File synchronization was cancelled",
-      "cancelledByUser": "{type, select, one-time {Import} other {Sync}} cancelled by user",
-      "failedToStart": "Failed to start {type, select, one-time {import} other {sync}}",
+      "cancelledByUser": "{type, select, oneTime {Import} other {Sync}} cancelled by user",
+      "failedToStart": "Failed to start {type, select, oneTime {import} other {sync}}",
       "failedToParseSSE": "Failed to parse SSE data",
       "failedToProcessStream": "Failed to process stream"
     },
@@ -1849,7 +1900,8 @@
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
-    "organization": "You need Admin permissions to access organization settings."
+    "organization": "You need Admin permissions to access organization settings.",
+    "teams": "You need Admin permissions to access team settings."
   },
   "metadata": {
     "suffix": "Tale",
@@ -1921,6 +1973,10 @@
     "organization": {
       "title": "Organization",
       "description": "Manage your organization settings."
+    },
+    "teams": {
+      "title": "Teams",
+      "description": "Manage teams within your organization."
     },
     "integrations": {
       "title": "Integrations",

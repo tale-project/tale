@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu, type DataTableActionMenuItem } from '@/components/ui/data-table/data-table-action-menu';
 import { OneDriveIcon } from '@/components/icons/onedrive-icon';
-import { useDocumentUpload } from '../hooks/use-document-upload';
 import { useT } from '@/lib/i18n/client';
 
-// Lazy-load OneDrive dialog to reduce initial bundle size
+// Lazy-load dialogs to reduce initial bundle size
 const OneDriveImportDialog = dynamic(
   () => import('./onedrive-import-dialog').then(mod => ({ default: mod.OneDriveImportDialog })),
+);
+
+const DocumentUploadDialog = dynamic(
+  () => import('./document-upload-dialog').then(mod => ({ default: mod.DocumentUploadDialog })),
 );
 
 export interface DocumentsActionMenuProps {
@@ -23,31 +26,12 @@ export function DocumentsActionMenu({
   hasMicrosoftAccount,
 }: DocumentsActionMenuProps) {
   const { t: tDocuments } = useT('documents');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isOneDriveDialogOpen, setIsOneDriveDialogOpen] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
-  // Data refresh happens automatically via Convex reactivity when documents page uses preloadQuery
-  const { uploadFiles, isUploading } = useDocumentUpload({
-    organizationId,
-  });
-
-  const handleFileSelect = useCallback(() => {
-    fileInputRef.current?.click();
+  const handleDeviceUpload = useCallback(() => {
+    setIsUploadDialogOpen(true);
   }, []);
-
-  const handleFileChange = useCallback(async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const files = Array.from(event.target.files || []) as File[];
-    if (files.length === 0) return;
-
-    await uploadFiles(files);
-
-    // Reset the input
-    if (event.target) {
-      event.target.value = '';
-    }
-  }, [uploadFiles]);
 
   const handleOneDriveClick = useCallback(() => {
     setIsOneDriveDialogOpen(true);
@@ -63,8 +47,7 @@ export function DocumentsActionMenu({
       {
         label: tDocuments('upload.fromYourDevice'),
         icon: HardDrive,
-        onClick: handleFileSelect,
-        disabled: isUploading,
+        onClick: handleDeviceUpload,
       },
     ];
 
@@ -77,7 +60,7 @@ export function DocumentsActionMenu({
     }
 
     return items;
-  }, [tDocuments, handleFileSelect, handleOneDriveClick, hasMicrosoftAccount, isUploading]);
+  }, [tDocuments, handleDeviceUpload, handleOneDriveClick, hasMicrosoftAccount]);
 
   return (
     <>
@@ -87,23 +70,13 @@ export function DocumentsActionMenu({
         menuItems={menuItems}
       />
 
-      {isUploading && (
-        <div className="fixed bottom-4 right-4 p-3 border rounded-lg bg-background shadow-lg">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm font-medium">{tDocuments('upload.uploading')}</span>
-          </div>
-        </div>
+      {isUploadDialogOpen && (
+        <DocumentUploadDialog
+          open={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          organizationId={organizationId}
+        />
       )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        disabled={isUploading}
-        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt"
-        onChange={handleFileChange}
-        className="hidden"
-      />
 
       {isOneDriveDialogOpen && (
         <OneDriveImportDialog

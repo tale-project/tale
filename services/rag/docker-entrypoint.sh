@@ -18,8 +18,11 @@ if [ -z "${RAG_DATABASE_URL:-}" ]; then
 fi
 
 # Start the application with environment variables
+# NOTE: RAG_WORKERS must be 1 for embedded databases (Kuzu + LanceDB).
+# Multiple workers would fork separate processes, each trying to write to the
+# same database files, causing data corruption. FastAPI async handles
+# concurrency well within a single process.
 exec python -m uvicorn app.main:app \
   --host "${RAG_HOST:-0.0.0.0}" \
   --port "${RAG_PORT:-8001}" \
-  --workers "${RAG_WORKERS:-2}" \
-  --limit-max-requests "${RAG_MAX_REQUESTS_PER_WORKER:-100000}"
+  --workers "${RAG_WORKERS:-1}"

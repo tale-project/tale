@@ -102,25 +102,23 @@ export function RagStatusBadge({
 
   const config = statusConfig[effectiveStatus];
 
-  function RetryButton() {
-    return (
-      <Button
-        size="icon"
-        variant="ghost"
-        className="size-6 rounded-full hover:bg-muted p-1"
-        onClick={handleRetry}
-        disabled={isRetrying || !documentId}
-        title={t('rag.retryIndexing')}
-        aria-label={t('rag.retryIndexing')}
-      >
-        {isRetrying ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <RotateCw className="size-3.5" />
-        )}
-      </Button>
-    );
-  }
+  const retryButton = (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-6 rounded-full hover:bg-muted p-1"
+      onClick={handleRetry}
+      disabled={isRetrying || !documentId}
+      title={t('rag.retryIndexing')}
+      aria-label={t('rag.retryIndexing')}
+    >
+      {isRetrying ? (
+        <Loader2 className="size-3.5 animate-spin" />
+      ) : (
+        <RotateCw className="size-3.5" />
+      )}
+    </Button>
+  );
 
   // Show clickable dialog with indexed date for completed status
   if (effectiveStatus === 'completed') {
@@ -189,7 +187,7 @@ export function RagStatusBadge({
             </pre>
           </div>
         </ViewDialog>
-        <RetryButton />
+        {retryButton}
       </span>
     );
   }
@@ -199,9 +197,9 @@ export function RagStatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5">
         <Badge variant={config.variant} dot>
-          {t('rag.status.stale')}
+          {getStatusLabel(effectiveStatus)}
         </Badge>
-        <RetryButton />
+        {retryButton}
       </span>
     );
   }
@@ -213,7 +211,7 @@ export function RagStatusBadge({
         <Badge variant={config.variant} dot>
           {getStatusLabel(effectiveStatus)}
         </Badge>
-        <RetryButton />
+        {retryButton}
       </span>
     );
   }

@@ -20,6 +20,8 @@ import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import type { DocumentMetadata } from './model/documents/types';
 import { checkOrganizationRateLimit } from './lib/rate_limiter/helpers';
+import { getAuthenticatedUser } from './lib/rls/auth/get_authenticated_user';
+import { getUserOrganizations } from './lib/rls/organization/get_user_organizations';
 
 // Import model functions and validators
 import * as DocumentsModel from './model/documents';
@@ -54,6 +56,9 @@ import {
   createDocumentFromUploadResponseValidator,
 } from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
+import { createDebugLog } from './lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
 // =============================================================================
 // INTERNAL FUNCTIONS (no RLS)
@@ -74,6 +79,8 @@ export const createDocument = internalMutation({
     metadata: v.optional(v.any()),
     sourceProvider: v.optional(sourceProviderValidator),
     externalItemId: v.optional(v.string()),
+    teamTags: v.optional(v.array(v.string())),
+    createdBy: v.optional(v.string()),
   },
   returns: v.object({
     success: v.boolean(),
@@ -403,7 +410,7 @@ export const checkRagJobStatus = internalAction({
 
     // Terminate: max attempts reached
     if (attempt > maxAttempts) {
-      console.warn(
+      debugLog(
         `[checkRagJobStatus] Max attempts (${maxAttempts}) reached for document ${args.documentId}`,
       );
       await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
@@ -429,7 +436,7 @@ export const checkRagJobStatus = internalAction({
       });
 
       if (!response.ok) {
-        console.warn(
+        debugLog(
           `[checkRagJobStatus] RAG service returned ${response.status} for job ${document.ragInfo.jobId} (attempt ${attempt}/${maxAttempts})`,
         );
         // Schedule next attempt on HTTP error
@@ -483,7 +490,7 @@ export const checkRagJobStatus = internalAction({
         { documentId: args.documentId, attempt: attempt + 1 },
       );
     } catch (error) {
-      console.error(
+      debugLog(
         `[checkRagJobStatus] Error checking job status (attempt ${attempt}/${maxAttempts}):`,
         error,
       );
@@ -528,7 +535,7 @@ export const deleteDocumentFromRagInternal = internalAction({
       mode: args.mode || 'hard',
     });
 
-    console.log('[documents] RAG deletion result:', {
+    debugLog('[documents] RAG deletion result:', {
       success: result.success,
       deletedCount: result.deletedCount,
       message: result.message,
@@ -618,10 +625,15 @@ export const updateDocument = mutationWithRLS({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await DocumentsModel.updateDocument(ctx, args);
+    const authUser = await getAuthenticatedUser(ctx);
+    await DocumentsModel.updateDocument(ctx, {
+      ...args,
+      userId: authUser?.userId,
+    });
     return null;
   },
 });
@@ -632,6 +644,11 @@ export const updateDocument = mutationWithRLS({
  * This also schedules RAG cleanup to delete associated knowledge
  * from the RAG service (graph nodes and vector embeddings).
  * Documents are always file-based, so we use file upload deletion.
+ *
+ * Permission rules:
+ * - Admin/Developer can delete any document
+ * - Editor/Member can only delete documents they created
+ * - Legacy documents (no createdBy) can be deleted by any editor+
  */
 export const deleteDocument = mutationWithRLS({
   args: {
@@ -643,6 +660,30 @@ export const deleteDocument = mutationWithRLS({
     const document = await ctx.db.get(args.documentId);
     if (!document) {
       throw new Error('Document not found');
+    }
+
+    // Check delete permission based on createdBy
+    const authUser = await getAuthenticatedUser(ctx);
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    const userOrganizations = await getUserOrganizations(ctx, authUser);
+    const membership = userOrganizations.find(
+      (m) => m.organizationId === document.organizationId,
+    );
+    const role = (membership?.role ?? 'member').toLowerCase();
+
+    // Admin/Developer can delete any document
+    const isAdminOrDeveloper = role === 'admin' || role === 'developer';
+
+    // Non-admin users can only delete documents they created
+    if (!isAdminOrDeveloper) {
+      // If document has createdBy, check if current user is the creator
+      if (document.createdBy && document.createdBy !== authUser.userId) {
+        throw new Error('You can only delete documents you created');
+      }
+      // Legacy documents without createdBy can be deleted by anyone with write access
     }
 
     // Store document ID for RAG cleanup (it's stored in Cognee's node_set)
@@ -663,7 +704,7 @@ export const deleteDocument = mutationWithRLS({
       );
     } catch (error) {
       // Log error but don't fail the deletion - RAG cleanup is best-effort
-      console.error('[documents] Failed to schedule RAG cleanup:', {
+      debugLog('[documents] Failed to schedule RAG cleanup:', {
         documentId: args.documentId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -728,6 +769,7 @@ export const uploadFile = action({
     fileData: v.bytes(),
     contentType: v.string(),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: uploadFileResponseValidator,
   handler: async (
@@ -832,6 +874,8 @@ export const uploadFile = action({
           fileId: fileId,
           mimeType: args.contentType,
           metadata: documentMetadata,
+          createdBy: identity.subject,
+          teamTags: args.teamTags,
         });
 
       return {
@@ -840,7 +884,7 @@ export const uploadFile = action({
         documentId: result.documentId,
       };
     } catch (error) {
-      console.error('Error uploading file:', error);
+      debugLog('Error uploading file:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed',
@@ -862,6 +906,7 @@ export const createOneDriveSyncConfig = mutationWithRLS({
     itemPath: v.optional(v.string()),
     targetBucket: v.string(),
     storagePrefix: v.optional(v.string()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: createOneDriveSyncConfigResponseValidator,
   handler: async (ctx, args) => {
@@ -886,6 +931,7 @@ export const createDocumentFromUpload = mutationWithRLS({
     fileName: v.string(),
     contentType: v.string(),
     metadata: v.optional(v.any()),
+    teamTags: v.optional(v.array(v.string())),
   },
   returns: createDocumentFromUploadResponseValidator,
   handler: async (ctx, args): Promise<{
@@ -894,6 +940,13 @@ export const createDocumentFromUpload = mutationWithRLS({
     error?: string;
   }> => {
     try {
+      // Get current authenticated user for createdBy tracking
+      const authUser = await getAuthenticatedUser(ctx);
+      if (!authUser) {
+        return { success: false, error: 'Not authenticated' };
+      }
+      const createdBy = authUser.userId;
+
       // Check if a document with the same name already exists
       const existingDocument = await DocumentsModel.findDocumentByTitle(ctx, {
         organizationId: args.organizationId,
@@ -933,6 +986,8 @@ export const createDocumentFromUpload = mutationWithRLS({
           sourceProvider: providerFromMetadata,
           externalItemId,
           metadata: documentMetadata,
+          teamTags: args.teamTags,
+          userId: authUser.userId,
         });
 
         return {
@@ -950,6 +1005,8 @@ export const createDocumentFromUpload = mutationWithRLS({
         fileId: args.fileId,
         mimeType: args.contentType,
         metadata: documentMetadata,
+        teamTags: args.teamTags,
+        createdBy,
       });
 
       return {
@@ -957,7 +1014,7 @@ export const createDocumentFromUpload = mutationWithRLS({
         documentId: result.documentId,
       };
     } catch (error) {
-      console.error('Error creating document from upload:', error);
+      debugLog('Error creating document from upload:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create document',
@@ -1074,6 +1131,8 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Not authorized to access this document' };
       }
 
+      debugLog('[retryRagIndexing] Starting RAG retry for document:', args.documentId);
+
       type RagResult = { success: boolean; jobId?: string };
       const result = (await ragAction.execute(
         ctx,
@@ -1081,9 +1140,18 @@ export const retryRagIndexing = action({
         {},
       )) as RagResult;
 
+      debugLog('[retryRagIndexing] RAG retry completed:', {
+        success: result.success,
+        jobId: result.jobId,
+      });
+
       return { success: result.success, jobId: result.jobId };
     } catch (error) {
-      console.error('[retryRagIndexing] Error:', error);
+      debugLog('[retryRagIndexing] Error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        documentId: args.documentId,
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to retry RAG indexing',

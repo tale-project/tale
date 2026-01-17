@@ -23,6 +23,10 @@ interface UploadResult {
   error?: string;
 }
 
+interface UploadFilesOptions {
+  teamTags?: string[];
+}
+
 interface UploadOptions {
   organizationId: string;
   onSuccess?: (fileInfo: FileInfo) => void;
@@ -36,7 +40,7 @@ export function useDocumentUpload(options: UploadOptions) {
   const generateUploadUrl = useMutation(api.file.generateUploadUrl);
   const createDocumentFromUpload = useMutation(api.documents.createDocumentFromUpload);
 
-  const uploadFiles = async (files: File[]): Promise<UploadResult> => {
+  const uploadFiles = async (files: File[], uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
     if (isUploading) {
       toast({
         title: t('upload.uploadInProgress'),
@@ -115,6 +119,7 @@ export function useDocumentUpload(options: UploadOptions) {
             sourceProvider: 'upload',
             sourceMode: 'manual',
           },
+          teamTags: uploadOptions?.teamTags,
         });
 
         return result;
@@ -194,12 +199,12 @@ export function useDocumentUpload(options: UploadOptions) {
     }
   };
 
-  const uploadFile = async (file: File): Promise<UploadResult> => {
-    return uploadFiles([file]);
+  const uploadFile = async (file: File, uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
+    return uploadFiles([file], uploadOptions);
   };
 
-  const uploadMultipleFiles = async (files: File[]): Promise<UploadResult> => {
-    return uploadFiles(files);
+  const uploadMultipleFiles = async (files: File[], uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
+    return uploadFiles(files, uploadOptions);
   };
 
   const cancelUpload = () => {

@@ -37,5 +37,8 @@
     "turbo": "2.7.4",
     "typescript": "5.9.3",
     "vitest": "4.0.17"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18"
   }
 }

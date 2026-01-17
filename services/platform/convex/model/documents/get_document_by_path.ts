@@ -4,7 +4,7 @@
 
 import type { QueryCtx } from '../../_generated/server';
 import type { DocumentItemResponse } from './types';
-import { transformToDocumentItem } from './transform_to_document_item';
+import { transformDocumentsBatch } from './transform_to_document_item';
 
 export async function getDocumentByPath(
   ctx: QueryCtx,
@@ -33,7 +33,8 @@ export async function getDocumentByPath(
       };
     }
 
-    const item = await transformToDocumentItem(ctx, document);
+    // Use batch transform for consistent behavior (even for single document)
+    const [item] = await transformDocumentsBatch(ctx, [document]);
 
     return {
       success: true,
