@@ -19,7 +19,7 @@
  *   threadId,
  *   enableSummarization: true,
  *   onSummarizationNeeded: async (ctx, tid) => {
- *     ctx.scheduler.runAfter(0, internal.chat_agent.autoSummarizeIfNeeded, { threadId: tid });
+ *     ctx.scheduler.runAfter(0, internal.chat_agent.actions.autoSummarizeIfNeeded, { threadId: tid });
  *   },
  * });
  *

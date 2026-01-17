@@ -2,7 +2,7 @@
  * Test Circuly connection by making a simple API call
  */
 
-import { CIRCULY_API_URL } from '../../constants';
+import { CIRCULY_API_URL } from '../constants';
 
 import { createDebugLog } from '../lib/debug_log';
 

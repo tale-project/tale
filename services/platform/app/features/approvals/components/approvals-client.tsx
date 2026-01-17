@@ -96,7 +96,7 @@ export function ApprovalsClient({
     useState(false);
 
   const queryStatus = status === 'pending' ? 'pending' : 'resolved';
-  const approvals = useQuery(api.queries.approvals.getApprovalsByOrganization, {
+  const approvals = useQuery(api.approvals.queries.getApprovalsByOrganization, {
     organizationId,
     status: queryStatus,
     resourceType: ['product_recommendation'],
@@ -104,7 +104,7 @@ export function ApprovalsClient({
     limit: 500,
   });
 
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
 

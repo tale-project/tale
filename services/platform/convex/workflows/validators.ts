@@ -6,92 +6,45 @@
  * - steps/validators.ts
  * - executions/validators.ts
  * - processing_records/validators.ts
- *
- * For now, it consolidates validators from the old structure.
  */
 
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod3';
-
-// From wf_definitions
-import {
-  workflowStatusSchema,
-  workflowTypeSchema,
-  retryPolicySchema,
-  secretConfigSchema,
-  workflowConfigSchema,
-  workflowUpdateSchema,
-} from '../../lib/shared/schemas/wf_definitions';
-
-// From wf_executions
-import {
-  executionSortOrderSchema,
-  updateExecutionStatusArgsSchema,
-  completeExecutionArgsSchema,
-  failExecutionArgsSchema,
-  patchExecutionArgsSchema,
-  resumeExecutionArgsSchema,
-  setComponentWorkflowArgsSchema,
-  updateExecutionMetadataArgsSchema,
-  updateExecutionVariablesArgsSchema,
-  listExecutionsArgsSchema,
-  listExecutionsPaginatedArgsSchema,
-  listExecutionsCursorArgsSchema,
-} from '../../lib/shared/schemas/wf_executions';
 
 // From workflow_engine
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
-// WORKFLOW DEFINITIONS VALIDATORS
+// WORKFLOW DEFINITIONS VALIDATORS (re-export from definitions/validators.ts)
 // =============================================================================
 
-export const workflowStatusValidator = zodToConvex(workflowStatusSchema);
-export const workflowTypeValidator = zodToConvex(workflowTypeSchema);
-export const retryPolicyValidator = zodToConvex(retryPolicySchema);
-export const secretConfigValidator = zodToConvex(secretConfigSchema);
-export const workflowConfigValidator = zodToConvex(workflowConfigSchema);
-export const workflowUpdateValidator = zodToConvex(workflowUpdateSchema);
+export {
+  workflowStatusValidator,
+  workflowTypeValidator,
+  retryPolicyValidator,
+  secretConfigValidator,
+  workflowConfigValidator,
+  workflowUpdateValidator,
+} from './definitions/validators';
 
 // =============================================================================
-// WORKFLOW EXECUTIONS VALIDATORS
+// WORKFLOW EXECUTIONS VALIDATORS (re-export from executions/validators.ts)
 // =============================================================================
 
-export const executionSortOrderValidator = zodToConvex(
-  executionSortOrderSchema,
-);
-export const updateExecutionStatusArgsValidator = zodToConvex(
-  updateExecutionStatusArgsSchema,
-);
-export const completeExecutionArgsValidator = zodToConvex(
-  completeExecutionArgsSchema,
-);
-export const failExecutionArgsValidator = zodToConvex(failExecutionArgsSchema);
-export const patchExecutionArgsValidator = zodToConvex(
-  patchExecutionArgsSchema,
-);
-export const resumeExecutionArgsValidator = zodToConvex(
-  resumeExecutionArgsSchema,
-);
-export const setComponentWorkflowArgsValidator = zodToConvex(
-  setComponentWorkflowArgsSchema,
-);
-export const updateExecutionMetadataArgsValidator = zodToConvex(
-  updateExecutionMetadataArgsSchema,
-);
-export const updateExecutionVariablesArgsValidator = zodToConvex(
-  updateExecutionVariablesArgsSchema,
-);
-export const listExecutionsArgsValidator = zodToConvex(
-  listExecutionsArgsSchema,
-);
-export const listExecutionsPaginatedArgsValidator = zodToConvex(
-  listExecutionsPaginatedArgsSchema,
-);
-export const listExecutionsCursorArgsValidator = zodToConvex(
-  listExecutionsCursorArgsSchema,
-);
+export {
+  executionSortOrderValidator,
+  updateExecutionStatusArgsValidator,
+  completeExecutionArgsValidator,
+  failExecutionArgsValidator,
+  patchExecutionArgsValidator,
+  resumeExecutionArgsValidator,
+  setComponentWorkflowArgsValidator,
+  updateExecutionMetadataArgsValidator,
+  updateExecutionVariablesArgsValidator,
+  listExecutionsArgsValidator,
+  listExecutionsPaginatedArgsValidator,
+  listExecutionsCursorArgsValidator,
+} from './executions/validators';
 
 // =============================================================================
 // WORKFLOW STEP DEFINITIONS VALIDATORS

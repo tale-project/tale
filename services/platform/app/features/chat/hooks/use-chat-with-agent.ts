@@ -13,9 +13,9 @@ import { api } from '@/convex/_generated/api';
  * Note: Our mutation uses `message` instead of `prompt`, so we adapt the args.
  */
 export function useChatWithAgent() {
-  return useMutation(api.chat_agent.chatWithAgent).withOptimisticUpdate(
+  return useMutation(api.chat_agent.mutations.chatWithAgent).withOptimisticUpdate(
     (store, args) => {
-      optimisticallySendMessage(api.queries.threads.getThreadMessagesStreaming)(store, {
+      optimisticallySendMessage(api.threads.queries.getThreadMessagesStreaming)(store, {
         threadId: args.threadId,
         prompt: args.message,
       });

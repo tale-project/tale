@@ -13,7 +13,7 @@ import {
 import { decryptAndMergeSecrets } from './decrypt_and_merge_secrets';
 import { extractStepsWithOutputs } from './extract_steps_with_outputs';
 import { extractLoopVariables } from './extract_loop_variables';
-import { serializeVariables } from '../../../workflow/helpers/serialization/serialize_variables';
+import { serializeVariables } from '../serialization/serialize_variables';
 
 export async function initializeExecutionVariables(
   ctx: ActionCtx,

@@ -131,7 +131,7 @@ export function AddMemberDialog({
       // First, check if user already exists
       const client = new ConvexHttpClient(convexUrl);
 
-      const existingUserId = await client.query(api.queries.member.getUserIdByEmail, {
+      const existingUserId = await client.query(api.members.queries.getUserIdByEmail, {
         email: data.email,
       });
 

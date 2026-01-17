@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { ChatInterface } from '@/app/features/chat/components/chat-interface';
-import { ChatLayoutProvider } from '@/app/features/chat/context/chat-layout-context';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 
 export const Route = createFileRoute('/dashboard/$id/chat/$threadId')({
@@ -64,10 +63,8 @@ function ChatThreadPage() {
   const { id: organizationId, threadId } = Route.useParams();
 
   return (
-    <ChatLayoutProvider>
-      <Suspense fallback={<ChatSkeleton />}>
-        <ChatInterface organizationId={organizationId} threadId={threadId} />
-      </Suspense>
-    </ChatLayoutProvider>
+    <Suspense fallback={<ChatSkeleton />}>
+      <ChatInterface organizationId={organizationId} threadId={threadId} />
+    </Suspense>
   );
 }

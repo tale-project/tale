@@ -13,6 +13,10 @@
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
 import * as vm from 'vm';
+import {
+  jsonRecordValidator,
+  jsonValueValidator,
+} from '../../../lib/shared/schemas/utils/json-value';
 import type {
   IntegrationExecutionParams,
   IntegrationExecutionResult,

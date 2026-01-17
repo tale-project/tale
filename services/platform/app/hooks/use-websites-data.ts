@@ -9,7 +9,7 @@ interface WebsiteFilters {
 }
 
 const useWebsitesDataBase = createEntityDataHook({
-  queryFn: api.queries.websites.getAllWebsites,
+  queryFn: api.websites.queries.getAllWebsites,
   searchFields: ['domain', 'title', 'description'],
   sortConfig: {
     string: ['domain', 'title'] as WebsiteSortBy[],

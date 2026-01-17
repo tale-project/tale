@@ -13,6 +13,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useT } from '@/lib/i18n/client';
+import { getEnv } from '@/lib/env';
 
 export const Route = createFileRoute('/_auth/sign-up')({
   component: SignUpPage,
@@ -27,9 +28,7 @@ function SignUpPage() {
   const navigate = useNavigate();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
-  const microsoftEnabled = Boolean(
-    import.meta.env.VITE_MICROSOFT_AUTH_ENABLED === 'true',
-  );
+  const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
 
   const signUpSchema = useMemo(
     () =>

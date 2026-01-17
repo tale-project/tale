@@ -32,7 +32,7 @@ function AccountSkeleton() {
 
 function AccountPage() {
   const { id: organizationId } = Route.useParams();
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
 

@@ -6,7 +6,7 @@ import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
 import { StepDefinition, StepExecutionResult } from './types';
-import { deserializeVariablesInAction } from '../../../workflow/helpers/serialization/deserialize_variables';
+import { deserializeVariablesInAction } from '../serialization/deserialize_variables';
 
 export async function buildStepsMap(
   ctx: ActionCtx,

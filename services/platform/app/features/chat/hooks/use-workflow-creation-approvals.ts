@@ -22,7 +22,7 @@ export interface WorkflowCreationApproval {
  */
 export function useWorkflowCreationApprovals(threadId: string | undefined) {
   const approvals = useQuery(
-    api.queries.approvals.getWorkflowCreationApprovalsForThread,
+    api.approvals.queries.getWorkflowCreationApprovalsForThread,
     threadId ? { threadId } : 'skip',
   );
 

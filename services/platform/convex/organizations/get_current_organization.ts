@@ -3,7 +3,7 @@
  */
 
 import type { QueryCtx } from '../_generated/server';
-import { authComponent } from '../../auth';
+import { authComponent } from '../auth';
 import { components } from '../_generated/api';
 
 /**

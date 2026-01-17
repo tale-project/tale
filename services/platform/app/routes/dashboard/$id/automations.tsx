@@ -48,7 +48,7 @@ function AutomationsPage() {
   const { query, status } = Route.useSearch();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
   const hasAutomations = useQuery(api.wf_definitions.queries.hasAutomations.hasAutomations, {

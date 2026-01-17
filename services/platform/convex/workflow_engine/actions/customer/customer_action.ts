@@ -37,7 +37,7 @@ import {
 	customerStatusValidator,
 	customerSourceValidator,
 	customerAddressValidator,
-} from '../../../validators/customers';
+} from '../../../customers/validators';
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 import type { DataSource } from '../../../../lib/shared/schemas/common';
 

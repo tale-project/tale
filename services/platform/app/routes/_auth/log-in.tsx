@@ -15,6 +15,7 @@ import { toast } from '@/app/hooks/use-toast';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useT } from '@/lib/i18n/client';
+import { getEnv } from '@/lib/env';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
@@ -36,10 +37,8 @@ function LogInPage() {
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
 
-  const hasUsers = useQuery(api.queries.users.hasAnyUsers, {});
-  const microsoftEnabled = Boolean(
-    import.meta.env.VITE_MICROSOFT_AUTH_ENABLED === 'true',
-  );
+  const hasUsers = useQuery(api.users.queries.hasAnyUsers, {});
+  const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
 
   useEffect(() => {
     if (hasUsers === false) {

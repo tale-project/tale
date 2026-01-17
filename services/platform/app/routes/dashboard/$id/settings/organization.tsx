@@ -55,13 +55,13 @@ function OrganizationSettingsPage() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
-  const organization = useQuery(api.queries.organizations.getOrganization, {
+  const organization = useQuery(api.organizations.queries.getOrganization, {
     id: organizationId,
   });
-  const members = useQuery(api.queries.member.listByOrganization, {
+  const members = useQuery(api.members.queries.listByOrganization, {
     organizationId,
     sortOrder: 'asc',
   });

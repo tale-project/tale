@@ -7,7 +7,7 @@ import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import type { ConnectionConfig } from './types';
 import { getWorkflowsForIntegration } from './get_workflows_for_integration';
-import { toPredefinedWorkflowPayload } from '../wf_definitions/types';
+import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 
 import { createDebugLog } from '../lib/debug_log';
 

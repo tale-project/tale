@@ -20,7 +20,7 @@ function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('settings');
 
-  const userContext = useQuery(api.queries.member.getCurrentMemberContext, { organizationId });
+  const userContext = useQuery(api.members.queries.getCurrentMemberContext, { organizationId });
 
   if (userContext === undefined) {
     return (

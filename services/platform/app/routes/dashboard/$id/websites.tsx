@@ -19,7 +19,7 @@ export const Route = createFileRoute('/dashboard/$id/websites')({
 
 function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
-  const hasWebsites = useQuery(api.queries.websites.hasWebsites, {
+  const hasWebsites = useQuery(api.websites.queries.hasWebsites, {
     organizationId,
   });
 

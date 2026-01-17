@@ -34,7 +34,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
 import type { QueryResult } from '../conversation/helpers/types';
-import { productStatusValidator } from '../../../validators/products';
+import { productStatusValidator } from '../../../products/validators';
 import {
 	jsonRecordValidator,
 	jsonValueValidator,

@@ -44,10 +44,18 @@ export function useMessageProcessing(
     loadMore,
     status: paginationStatus,
   } = useUIMessages(
-    api.queries.threads.getThreadMessagesStreaming,
+    api.threads.queries.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 20, stream: true },
   );
+
+  // Debug logging
+  console.log('[useMessageProcessing]', {
+    threadId,
+    uiMessagesLength: uiMessages?.length,
+    paginationStatus,
+    uiMessages: uiMessages?.slice(0, 2),
+  });
 
   const canLoadMore = paginationStatus === 'CanLoadMore';
   const isLoadingMore = paginationStatus === 'LoadingMore';

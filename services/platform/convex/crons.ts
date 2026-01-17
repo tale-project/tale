@@ -14,7 +14,7 @@ const crons = cronJobs();
 crons.cron(
   'scan scheduled workflows (minutely)',
   '*/1 * * * *',
-  internal.workflow.scheduler.scanAndTrigger,
+  internal.workflow_engine.scheduler.scanAndTrigger,
   {},
 );
 

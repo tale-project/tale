@@ -1,6 +1,8 @@
 /**
  * Convex validators for workflow definitions
- * Generated from shared Zod schemas using zodToConvex
+ *
+ * Note: Some schemas use jsonRecordSchema which contains z.lazy() for recursive types.
+ * zodToConvex doesn't support z.lazy(), so complex validators are defined with native Convex v.
  */
 
 import { v } from 'convex/values';
@@ -10,8 +12,6 @@ import {
   workflowTypeSchema,
   retryPolicySchema,
   secretConfigSchema,
-  workflowConfigSchema,
-  workflowUpdateSchema,
 } from '../../../lib/shared/schemas/wf_definitions';
 import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 
@@ -24,12 +24,29 @@ export {
   workflowUpdateSchema,
 } from '../../../lib/shared/schemas/wf_definitions';
 
+// Simple schemas without z.lazy()
 export const workflowStatusValidator = zodToConvex(workflowStatusSchema);
 export const workflowTypeValidator = zodToConvex(workflowTypeSchema);
 export const retryPolicyValidator = zodToConvex(retryPolicySchema);
 export const secretConfigValidator = zodToConvex(secretConfigSchema);
-export const workflowConfigValidator = zodToConvex(workflowConfigSchema);
-export const workflowUpdateValidator = zodToConvex(workflowUpdateSchema);
+
+// Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
+export const workflowConfigValidator = v.object({
+  timeout: v.optional(v.number()),
+  retryPolicy: v.optional(retryPolicyValidator),
+  variables: v.optional(jsonRecordValidator),
+  secrets: v.optional(v.record(v.string(), secretConfigValidator)),
+});
+
+export const workflowUpdateValidator = v.object({
+  name: v.optional(v.string()),
+  description: v.optional(v.string()),
+  version: v.optional(v.string()),
+  status: v.optional(workflowStatusValidator),
+  workflowType: v.optional(workflowTypeValidator),
+  config: v.optional(workflowConfigValidator),
+  metadata: v.optional(jsonRecordValidator),
+});
 
 export const userRequirementValidator = v.object({
   goal: v.string(),

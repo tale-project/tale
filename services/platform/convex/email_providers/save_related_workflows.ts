@@ -8,11 +8,11 @@ import { internal } from '../_generated/api';
 import {
   toPredefinedWorkflowPayload,
   type PredefinedWorkflowDefinition,
-} from '../wf_definitions/types';
+} from '../workflows/definitions/types';
 
 // Import workflow definitions
-import emailSyncImap from '../../predefined_workflows/email_sync_imap';
-import conversationAutoReply from '../../predefined_workflows/conversation_auto_reply';
+import emailSyncImap from '../predefined_workflows/email_sync_imap';
+import conversationAutoReply from '../predefined_workflows/conversation_auto_reply';
 
 import { createDebugLog } from '../lib/debug_log';
 

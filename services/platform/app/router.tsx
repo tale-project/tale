@@ -1,18 +1,19 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { QueryClient } from '@tanstack/react-query';
 import { ConvexQueryClient } from '@convex-dev/react-query';
-import { ConvexReactClient } from 'convex/react';
 import { routeTree } from './routeTree.gen';
+import { getEnv } from '@/lib/env';
 
 export interface RouterContext {
   queryClient: QueryClient;
   convexQueryClient: ConvexQueryClient;
-  convex: ConvexReactClient;
 }
 
 export function createRouter() {
-  const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
-  const convexQueryClient = new ConvexQueryClient(convex);
+  const siteUrl = getEnv('SITE_URL');
+  const convexQueryClient = new ConvexQueryClient(`${siteUrl}/ws_api`, {
+    expectAuth: true,
+  });
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -31,7 +32,6 @@ export function createRouter() {
     context: {
       queryClient,
       convexQueryClient,
-      convex,
     },
     defaultPreload: 'intent',
     scrollRestoration: true,

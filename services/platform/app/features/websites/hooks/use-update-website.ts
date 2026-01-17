@@ -4,7 +4,7 @@ import { api } from '@/convex/_generated/api';
 export function useUpdateWebsite(organizationId: string) {
   return useMutation(api.mutations.websites.updateWebsite).withOptimisticUpdate(
     (localStore, args) => {
-      const current = localStore.getQuery(api.queries.websites.getAllWebsites, {
+      const current = localStore.getQuery(api.websites.queries.getAllWebsites, {
         organizationId,
       });
 
@@ -19,7 +19,7 @@ export function useUpdateWebsite(organizationId: string) {
             : website,
         );
         localStore.setQuery(
-          api.queries.websites.getAllWebsites,
+          api.websites.queries.getAllWebsites,
           { organizationId },
           updated,
         );

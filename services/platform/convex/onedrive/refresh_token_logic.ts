@@ -3,7 +3,7 @@
  */
 
 import type { ActionCtx, MutationCtx } from '../_generated/server';
-import * as MicrosoftAccountsModel from '../accounts/microsoft';
+import * as MicrosoftAccountsModel from '../accounts/helpers';
 
 export interface RefreshTokenResult {
   success: boolean;

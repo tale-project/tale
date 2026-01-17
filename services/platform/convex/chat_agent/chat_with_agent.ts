@@ -205,7 +205,7 @@ export async function chatWithAgent(
   // Schedule the action to run immediately
   // The agent component handles streaming status via syncStreams
   // We also pass streamId for Persistent Text Streaming
-  await ctx.scheduler.runAfter(0, internal.chat_agent.generateAgentResponse, {
+  await ctx.scheduler.runAfter(0, internal.chat_agent.actions.generateAgentResponse, {
     threadId,
     organizationId,
     maxSteps,
