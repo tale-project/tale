@@ -11,7 +11,6 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "build:deploy": "npm run build",
     "convex:dev": "CONVEX_AGENT_MODE=anonymous convex dev",
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous convex deploy",
     "convex:codegen": "convex codegen",
