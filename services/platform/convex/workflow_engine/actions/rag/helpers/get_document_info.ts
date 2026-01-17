@@ -46,7 +46,7 @@ export async function getDocumentInfo(
 
   // Check if document has file content
   if (document.fileId) {
-    const fileUrl = await ctx.runQuery?.(api.queries.file.getFileUrl, {
+    const fileUrl = await ctx.runQuery?.(api.files.queries.getFileUrl, {
       fileId: document.fileId,
     });
 

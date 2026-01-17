@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { deleteWorkflow as deleteWorkflowModel } from '../wf_definitions';
+import { deleteWorkflow as deleteWorkflowModel } from '../workflows/definitions/delete_workflow';
 
 /**
  * Delete a website and its attached Website Scan workflow (if any)

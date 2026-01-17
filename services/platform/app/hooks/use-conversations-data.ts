@@ -11,7 +11,7 @@ interface ConversationFilters {
 }
 
 const useConversationsDataBase = createEntityDataHook({
-  queryFn: api.queries.conversations.getAllConversations,
+  queryFn: api.conversations.queries.getAllConversations,
   searchFields: ['subject', 'externalMessageId'],
   sortConfig: {
     string: ['priority', 'status'] as ConversationSortBy[],

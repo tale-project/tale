@@ -3,10 +3,45 @@ import tsConfigPaths from 'vite-tsconfig-paths';
 import viteReact from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
+import { injectEnv } from './vite-plugins/inject-env';
 
 export default defineConfig({
+  resolve: {
+    dedupe: ['convex', 'convex/react', 'react', 'react-dom'],
+  },
   server: {
     port: 3000,
+    proxy: {
+      // Proxy Convex API requests to internal backend (matches Next.js rewrites)
+      '/ws_api': {
+        target: 'http://127.0.0.1:3210',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/ws_api/, ''),
+      },
+      '/http_api': {
+        target: 'http://127.0.0.1:3211',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/http_api/, ''),
+      },
+      // Proxy Convex Dashboard API calls to the Convex backend
+      '/convex-dashboard-api': {
+        target: 'http://127.0.0.1:3210',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/convex-dashboard-api/, '/api'),
+      },
+      // Handle WebSocket and API calls through dashboard proxy path
+      '/api/convex-dashboard-proxy/api': {
+        target: 'http://127.0.0.1:3210',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/convex-dashboard-proxy\/api/, '/api'),
+      },
+      // Proxy better-auth requests to Convex HTTP endpoint
+      '/api/auth': {
+        target: 'http://127.0.0.1:3211',
+        changeOrigin: true,
+      },
+    },
   },
   optimizeDeps: {
     exclude: [
@@ -59,6 +94,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    injectEnv(),
     stubSSRImports(),
     tsConfigPaths(),
     viteReact(),

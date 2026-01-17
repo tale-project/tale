@@ -2,9 +2,9 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
 export function useUpdateThread() {
-  return useMutation(api.mutations.threads.updateChatThread).withOptimisticUpdate(
+  return useMutation(api.threads.mutations.updateChatThread).withOptimisticUpdate(
     (localStore, args) => {
-      const currentThreads = localStore.getQuery(api.queries.threads.listThreads, {});
+      const currentThreads = localStore.getQuery(api.threads.queries.listThreads, {});
 
       if (currentThreads !== undefined && args.title) {
         const updatedThreads = currentThreads.map((thread) =>
@@ -12,7 +12,7 @@ export function useUpdateThread() {
             ? { ...thread, title: args.title }
             : thread
         );
-        localStore.setQuery(api.queries.threads.listThreads, {}, updatedThreads);
+        localStore.setQuery(api.threads.queries.listThreads, {}, updatedThreads);
       }
     }
   );

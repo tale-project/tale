@@ -10,7 +10,7 @@ interface ProductFilters {
 }
 
 const useOfflineProductsDataBase = createOfflineEntityDataHook({
-  queryFn: api.queries.products.getAllProducts,
+  queryFn: api.products.queries.getAllProducts,
   queryName: 'products.getAllProducts',
   searchFields: ['name', 'description', 'category'],
   sortConfig: {

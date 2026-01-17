@@ -5,7 +5,7 @@
 import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { Id } from '../../../_generated/dataModel';
-import { serializeVariables } from '../../../workflow/helpers/serialization/serialize_variables';
+import { serializeVariables } from '../serialization/serialize_variables';
 import { StepDefinition, StepExecutionResult } from './types';
 
 export async function persistExecutionResult(

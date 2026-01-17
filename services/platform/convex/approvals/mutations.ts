@@ -29,3 +29,13 @@ export const createApproval = internalMutation({
     return await ApprovalsHelpers.createApproval(ctx, args);
   },
 });
+
+export const linkApprovalsToMessage = internalMutation({
+  args: {
+    threadId: v.string(),
+    messageId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ApprovalsHelpers.linkApprovalsToMessage(ctx, args);
+  },
+});

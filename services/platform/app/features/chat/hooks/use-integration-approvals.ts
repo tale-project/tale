@@ -39,7 +39,7 @@ export interface IntegrationApproval {
  */
 export function useIntegrationApprovals(threadId: string | undefined) {
   const approvals = useQuery(
-    api.queries.approvals.getPendingIntegrationApprovalsForThread,
+    api.approvals.queries.getPendingIntegrationApprovalsForThread,
     threadId ? { threadId } : 'skip',
   );
 

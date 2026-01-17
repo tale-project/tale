@@ -3,12 +3,12 @@
  */
 
 // Import workflow definitions
-import shopifySyncProducts from '../../predefined_workflows/shopify_sync_products';
-import shopifySyncCustomers from '../../predefined_workflows/shopify_sync_customers';
-import circulySyncCustomers from '../../predefined_workflows/circuly_sync_customers';
-import circulySyncProducts from '../../predefined_workflows/circuly_sync_products';
-import circulySyncSubscriptions from '../../predefined_workflows/circuly_sync_subscriptions';
-import type { PredefinedWorkflowDefinition } from '../wf_definitions/types';
+import shopifySyncProducts from '../predefined_workflows/shopify_sync_products';
+import shopifySyncCustomers from '../predefined_workflows/shopify_sync_customers';
+import circulySyncCustomers from '../predefined_workflows/circuly_sync_customers';
+import circulySyncProducts from '../predefined_workflows/circuly_sync_products';
+import circulySyncSubscriptions from '../predefined_workflows/circuly_sync_subscriptions';
+import type { PredefinedWorkflowDefinition } from '../workflows/definitions/types';
 
 type WorkflowScheduleConfig = {
   schedule: string; // Cron expression

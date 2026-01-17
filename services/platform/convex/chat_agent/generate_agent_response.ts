@@ -164,7 +164,7 @@ export async function generateAgentResponse(
       // Load any existing incremental summary for this thread
       loadContextSummary(ctx, threadId),
       // Load available integrations for this organization
-      ctx.runQuery(internal.integrations.listInternal, { organizationId }),
+      ctx.runQuery(internal.integrations.queries.listInternal, { organizationId }),
     ]);
 
     // RAG context is no longer injected - AI uses rag_search tool when needed
@@ -519,7 +519,7 @@ export async function generateAgentResponse(
         debugLog(`Linking approvals: order=${currentOrder}, firstInOrder._id=${firstMessageInOrder._id}, role=${firstMessageInOrder.message?.role || 'tool'}`);
 
         const linkedCount = await ctx.runMutation(
-          internal.approvals.linkApprovalsToMessage,
+          internal.approvals.mutations.linkApprovalsToMessage,
           {
             threadId,
             messageId: firstMessageInOrder._id,
@@ -764,7 +764,7 @@ export async function generateAgentResponse(
     };
 
     // Call completion handler to save metadata and schedule summarization
-    await ctx.runMutation(internal.chat_agent.onChatComplete, {
+    await ctx.runMutation(internal.chat_agent.mutations.onChatComplete, {
       result: chatResult,
     });
 
@@ -780,7 +780,7 @@ export async function generateAgentResponse(
     }
 
     // Trigger summarization on error to reduce context for potential follow-up
-    await ctx.runAction(internal.chat_agent.autoSummarizeIfNeeded, {
+    await ctx.runAction(internal.chat_agent.actions.autoSummarizeIfNeeded, {
       threadId,
     });
 

@@ -3,7 +3,7 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import { authComponent } from '../../auth';
+import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
 
 export async function deleteOrganization(

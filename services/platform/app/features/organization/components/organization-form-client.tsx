@@ -40,7 +40,7 @@ export function OrganizationFormClient() {
   });
 
   const initializeDefaultWorkflows = useAction(
-    api.actions.organizations.initializeDefaultWorkflows,
+    api.organizations.actions.initializeDefaultWorkflows,
   );
 
   const handleSubmit = form.handleSubmit(async (data) => {

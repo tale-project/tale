@@ -10,7 +10,7 @@ interface ProductFilters {
 }
 
 const useProductsDataBase = createEntityDataHook({
-  queryFn: api.queries.products.getAllProducts,
+  queryFn: api.products.queries.getAllProducts,
   searchFields: ['name', 'description', 'category'],
   sortConfig: {
     string: ['name'] as ProductSortBy[],

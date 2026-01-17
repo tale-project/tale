@@ -119,7 +119,7 @@ export async function checkAndSummarizeIfNeeded(
 
   // Schedule async summarization - don't await
   // Uses scheduler to run in background after current action completes
-  ctx.scheduler.runAfter(0, internal.chat_agent.autoSummarizeIfNeeded, {
+  ctx.scheduler.runAfter(0, internal.chat_agent.actions.autoSummarizeIfNeeded, {
     threadId,
   });
 

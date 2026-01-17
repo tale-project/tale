@@ -3,7 +3,7 @@ import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 
 function useConvexAuthUser() {
-  const user = useQuery(api.queries.users.getCurrentUser);
+  const user = useQuery(api.users.queries.getCurrentUser);
 
   const isLoading = user === undefined;
   const isAuthenticated = !!user;

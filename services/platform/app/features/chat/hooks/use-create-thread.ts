@@ -2,9 +2,9 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
 export function useCreateThread() {
-  return useMutation(api.mutations.threads.createChatThread).withOptimisticUpdate(
+  return useMutation(api.threads.mutations.createChatThread).withOptimisticUpdate(
     (localStore, args) => {
-      const currentThreads = localStore.getQuery(api.queries.threads.listThreads, {});
+      const currentThreads = localStore.getQuery(api.threads.queries.listThreads, {});
 
       if (currentThreads !== undefined) {
         const optimisticThread = {
@@ -15,7 +15,7 @@ export function useCreateThread() {
           userId: undefined,
         };
 
-        localStore.setQuery(api.queries.threads.listThreads, {}, [
+        localStore.setQuery(api.threads.queries.listThreads, {}, [
           optimisticThread,
           ...currentThreads,
         ]);

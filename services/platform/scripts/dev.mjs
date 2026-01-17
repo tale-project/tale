@@ -272,7 +272,12 @@ async function main() {
     await runCommand('npx', ['--yes', 'convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
-    // Step 5: Start TanStack Start
+    // Step 5: Set CONVEX_URL for Vite proxy configuration
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || 'http://127.0.0.1:3210';
+    process.env.CONVEX_URL = convexUrl;
+    console.log(`[dev] ✅ Set CONVEX_URL=${convexUrl} for Vite proxy`);
+
+    // Step 6: Start TanStack Start
     const port = process.env.PORT || '3000';
     const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 
@@ -283,9 +288,9 @@ async function main() {
     );
     console.log('');
 
-    const nextProcess = spawn(
+    const viteProcess = spawn(
       'npx',
-      ['--yes', 'next', 'dev', '--port', port, '--hostname', '0.0.0.0'],
+      ['--yes', 'vite', 'dev', '--port', port, '--host', '0.0.0.0'],
       {
         stdio: 'inherit',
         cwd: platformRoot,
@@ -316,10 +321,10 @@ async function main() {
         );
       }
 
-      if (nextProcess && !nextProcess.killed && nextProcess.pid) {
+      if (viteProcess && !viteProcess.killed && viteProcess.pid) {
         killPromises.push(
           new Promise((resolve) => {
-            kill(nextProcess.pid, 'SIGTERM', (err) => {
+            kill(viteProcess.pid, 'SIGTERM', (err) => {
               if (err) {
                 console.warn(
                   '[dev] ⚠️  Error killing TanStack Start process tree:',
@@ -352,7 +357,7 @@ async function main() {
       shutdown();
     });
 
-    nextProcess.on('exit', (code) => {
+    viteProcess.on('exit', (code) => {
       console.log(`[dev] TanStack Start exited with code ${code}`);
       shutdown();
     });

@@ -5,16 +5,16 @@
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
-import documentRagSync from '../../predefined_workflows/document_rag_sync';
-import onedriveSync from '../../predefined_workflows/onedrive_sync';
-import generalCustomerStatusAssessmentWorkflow from '../../predefined_workflows/general_customer_status_assessment';
-import generalProductRecommendationWorkflow from '../../predefined_workflows/general_product_recommendation';
-import productRecommendationEmailWorkflow from '../../predefined_workflows/product_recommendation_email';
-import conversationAutoArchiveWorkflow from '../../predefined_workflows/conversation_auto_archive';
+import documentRagSync from '../predefined_workflows/document_rag_sync';
+import onedriveSync from '../predefined_workflows/onedrive_sync';
+import generalCustomerStatusAssessmentWorkflow from '../predefined_workflows/general_customer_status_assessment';
+import generalProductRecommendationWorkflow from '../predefined_workflows/general_product_recommendation';
+import productRecommendationEmailWorkflow from '../predefined_workflows/product_recommendation_email';
+import conversationAutoArchiveWorkflow from '../predefined_workflows/conversation_auto_archive';
 import {
   toPredefinedWorkflowPayload,
   type PredefinedWorkflowDefinition,
-} from '../wf_definitions/types';
+} from '../workflows/definitions/types';
 
 import { createDebugLog } from '../lib/debug_log';
 

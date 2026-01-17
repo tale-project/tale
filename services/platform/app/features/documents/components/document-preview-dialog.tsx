@@ -43,7 +43,7 @@ export function DocumentPreviewDialog({
 
   // Use documentId if available, otherwise use storagePath
   const dataById = useQuery(
-    api.queries.documents.getDocumentByIdPublic,
+    api.documents.queries.getDocumentByIdPublic,
     open && Boolean(documentId)
       ? {
           documentId: documentId as Id<'documents'>,
@@ -52,7 +52,7 @@ export function DocumentPreviewDialog({
   );
 
   const dataByPath = useQuery(
-    api.queries.documents.getDocumentByPath,
+    api.documents.queries.getDocumentByPath,
     open && Boolean(storagePath) && !documentId
       ? {
           organizationId: organizationId as string,

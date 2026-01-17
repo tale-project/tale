@@ -23,10 +23,10 @@ export const Route = createFileRoute('/dashboard/$id')({
 function DashboardLayout() {
   const { id: organizationId } = Route.useParams();
 
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
-  const organization = useQuery(api.queries.organizations.getOrganization, {
+  const organization = useQuery(api.organizations.queries.getOrganization, {
     id: organizationId,
   });
 

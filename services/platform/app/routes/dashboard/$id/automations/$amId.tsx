@@ -84,7 +84,7 @@ function AutomationDetailLayout() {
   const steps = useQuery(api.wf_step_defs.getWorkflowStepsPublic, {
     wfDefinitionId: automationId,
   });
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
 

@@ -5,7 +5,7 @@
 import type { QueryCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 import type { ConversationItem, CustomerInfo, MessageInfo } from './types';
-import { getPendingApprovalForResource } from '../approvals/get_approval_history';
+import { getPendingApprovalForResource } from '../approvals/helpers';
 
 import { createDebugLog } from '../lib/debug_log';
 

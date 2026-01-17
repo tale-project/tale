@@ -4,7 +4,7 @@
 
 import type { QueryCtx } from '../_generated/server';
 import { components } from '../_generated/api';
-import { authComponent } from '../../auth';
+import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
 
 // Minimal Better Auth organization shape we use server-side

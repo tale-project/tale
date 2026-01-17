@@ -7,8 +7,8 @@
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { api, internal } from '../_generated/api';
-import websiteScanWorkflow from '../../predefined_workflows/website_scan';
-import { toPredefinedWorkflowPayload } from '../wf_definitions/types';
+import websiteScanWorkflow from '../predefined_workflows/website_scan';
+import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 
 export interface ProvisionWebsiteScanWorkflowArgs {
   organizationId: string;

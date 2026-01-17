@@ -4,7 +4,7 @@
 
 import { MutationCtx } from '../_generated/server';
 import { components } from '../_generated/api';
-import { createAuth } from '../../auth';
+import { createAuth } from '../auth';
 import { Role } from './index';
 
 export interface CreateUserWithoutSessionArgs {

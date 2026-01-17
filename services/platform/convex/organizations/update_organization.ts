@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { authComponent } from '../../auth';
+import { authComponent } from '../auth';
 import { validateOrganizationAccess } from '../lib/rls';
 
 export interface UpdateOrganizationArgs {

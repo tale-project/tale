@@ -193,7 +193,7 @@ export function AutomationAssistant({
   );
 
   const { results: uiMessages } = useUIMessages(
-    api.queries.threads.getThreadMessagesStreaming,
+    api.threads.queries.getThreadMessagesStreaming,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 10, stream: true },
   );

@@ -2,18 +2,22 @@
  * Streaming Mutations
  *
  * Internal mutations for managing persistent text streams.
+ * Uses the Persistent Text Streaming component's lib functions directly.
  */
 
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
-import { persistentStreaming } from './helpers';
+import { components } from '../_generated/api';
 
 export const startStream = internalMutation({
   args: {
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await persistentStreaming.startStream(ctx, args.streamId as any);
+    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
+      streamId: args.streamId as any,
+      status: 'streaming',
+    });
   },
 });
 
@@ -23,7 +27,11 @@ export const appendToStream = internalMutation({
     text: v.string(),
   },
   handler: async (ctx, args) => {
-    await persistentStreaming.appendToStream(ctx, args.streamId as any, args.text);
+    await ctx.runMutation(components.persistentTextStreaming.lib.addChunk, {
+      streamId: args.streamId as any,
+      text: args.text,
+      final: false,
+    });
   },
 });
 
@@ -32,7 +40,10 @@ export const completeStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await persistentStreaming.completeStream(ctx, args.streamId as any);
+    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
+      streamId: args.streamId as any,
+      status: 'done',
+    });
   },
 });
 
@@ -41,6 +52,9 @@ export const errorStream = internalMutation({
     streamId: v.string(),
   },
   handler: async (ctx, args) => {
-    await persistentStreaming.errorStream(ctx, args.streamId as any);
+    await ctx.runMutation(components.persistentTextStreaming.lib.setStreamStatus, {
+      streamId: args.streamId as any,
+      status: 'error',
+    });
   },
 });

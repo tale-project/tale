@@ -60,7 +60,7 @@ export function UserButton({
   // Get member info to access display name
   // Skip query when user is not authenticated or organizationId is missing
   const memberContext = useQuery(
-    api.queries.member.getCurrentMemberContext,
+    api.members.queries.getCurrentMemberContext,
     organizationId && user ? { organizationId } : 'skip',
   );
 

@@ -20,7 +20,7 @@ export interface MessageMetadata {
 
 export function useMessageMetadata(messageId: string | null) {
   const metadata = useQuery(
-    api.message_metadata.getMessageMetadata,
+    api.message_metadata.queries.getMessageMetadata,
     messageId ? { messageId } : 'skip',
   );
 

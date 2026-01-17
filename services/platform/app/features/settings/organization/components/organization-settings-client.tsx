@@ -72,7 +72,7 @@ export function OrganizationSettingsClient({
   const hasFilters = sortOrder !== 'asc' || !!debouncedSearch;
 
   const filteredMembers = useQuery(
-    api.queries.member.listByOrganization,
+    api.members.queries.listByOrganization,
     hasFilters && organization
       ? {
           organizationId: organization._id,

@@ -164,7 +164,7 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   const { t } = useT('chat');
   // Use previewUrl for optimistic display, otherwise fetch from server
   const serverFileUrl = useQuery(
-    api.queries.file.getFileUrl,
+    api.files.queries.getFileUrl,
     attachment.previewUrl ? 'skip' : { fileId: attachment.fileId },
   );
   const displayUrl = attachment.previewUrl || serverFileUrl;

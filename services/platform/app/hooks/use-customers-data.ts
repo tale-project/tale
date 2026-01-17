@@ -11,7 +11,7 @@ interface CustomerFilters {
 }
 
 const useCustomersDataBase = createEntityDataHook({
-  queryFn: api.queries.customers.getAllCustomers,
+  queryFn: api.customers.queries.getAllCustomers,
   searchFields: ['name', 'email', 'externalId'],
   sortConfig: {
     string: ['name', 'email', 'status'] as CustomerSortBy[],

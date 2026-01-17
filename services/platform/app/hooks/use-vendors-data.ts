@@ -10,7 +10,7 @@ interface VendorFilters {
 }
 
 const useVendorsDataBase = createEntityDataHook({
-  queryFn: api.queries.vendors.getAllVendors,
+  queryFn: api.vendors.queries.getAllVendors,
   searchFields: ['name', 'email', 'externalId'],
   sortConfig: {
     string: ['name', 'email'] as VendorSortBy[],

@@ -1,12 +1,16 @@
 /**
  * Documents Queries
  *
- * Internal queries for document operations.
+ * Internal and public queries for document operations.
  */
 
 import { v } from 'convex/values';
-import { internalQuery } from '../_generated/server';
+import { internalQuery, query } from '../_generated/server';
 import * as DocumentsHelpers from './helpers';
+import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
+import { documentItemValidator, sourceProviderValidator as srcProviderValidator } from './validators';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 const sourceProviderValidator = v.union(v.literal('onedrive'), v.literal('upload'));
 
@@ -50,5 +54,87 @@ export const queryDocuments = internalQuery({
   },
   handler: async (ctx, args) => {
     return await DocumentsHelpers.queryDocuments(ctx, args);
+  },
+});
+
+// =============================================================================
+// PUBLIC QUERIES (for frontend via api.documents.queries.*)
+// =============================================================================
+
+/**
+ * Get a document by ID (public query).
+ */
+export const getDocumentByIdPublic = query({
+  args: {
+    documentId: v.id('documents'),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    return await DocumentsHelpers.getDocumentByIdPublic(ctx, args.documentId);
+  },
+});
+
+/**
+ * Get a document by storage path (public query).
+ */
+export const getDocumentByPath = query({
+  args: {
+    organizationId: v.string(),
+    storagePath: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    // Verify user has access to this organization
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
+      return { success: false, error: 'Access denied' };
+    }
+
+    return await DocumentsHelpers.getDocumentByPath(ctx, args);
+  },
+});
+
+/**
+ * Get documents with cursor-based pagination (public query).
+ */
+export const getDocumentsCursor = query({
+  args: {
+    organizationId: v.string(),
+    numItems: v.optional(v.number()),
+    cursor: v.union(v.string(), v.null()),
+    query: v.optional(v.string()),
+    folderPath: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return { page: [], isDone: true, continueCursor: '' };
+    }
+
+    // Verify user has access to this organization
+    try {
+      await getOrganizationMember(ctx, args.organizationId, {
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+      });
+    } catch {
+      return { page: [], isDone: true, continueCursor: '' };
+    }
+
+    return await DocumentsHelpers.getDocumentsCursor(ctx, args);
   },
 });

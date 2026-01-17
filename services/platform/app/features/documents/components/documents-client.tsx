@@ -91,7 +91,7 @@ export function DocumentsClient({
     [organizationId, debouncedQuery, currentFolderPath],
   );
 
-  const documentsResult = useQuery(api.queries.documents.getDocumentsCursor, queryArgs);
+  const documentsResult = useQuery(api.documents.queries.getDocumentsCursor, queryArgs);
 
   const previewDocument = useMemo(() => {
     if (!docId || !documentsResult) return null;

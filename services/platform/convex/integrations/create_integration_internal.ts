@@ -20,7 +20,7 @@ import {
   SqlConnectionConfig,
   SqlOperation,
 } from './types';
-import { getPredefinedIntegration } from '../../predefined_integrations';
+import { getPredefinedIntegration } from '../predefined_integrations';
 
 export interface CreateIntegrationInternalArgs {
   organizationId: string;

@@ -60,7 +60,7 @@ function IntegrationsPage() {
   const { tab } = Route.useSearch();
   const { t } = useT('accessDenied');
 
-  const memberContext = useQuery(api.queries.member.getCurrentMemberContext, {
+  const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
   const shopify = useQuery(api.integrations.queries.get_by_name.getByName, {

@@ -80,7 +80,7 @@ export async function onChatComplete(
     );
 
     if (firstAssistantMessage && result.usage) {
-      await ctx.runMutation(api.message_metadata.saveMessageMetadata, {
+      await ctx.runMutation(api.message_metadata.mutations.saveMessageMetadata, {
         messageId: firstAssistantMessage._id,
         threadId: result.threadId,
         model: result.model,
@@ -108,7 +108,7 @@ export async function onChatComplete(
   try {
     await ctx.scheduler.runAfter(
       0,
-      internal.chat_agent.autoSummarizeIfNeeded,
+      internal.chat_agent.actions.autoSummarizeIfNeeded,
       {
         threadId,
       },

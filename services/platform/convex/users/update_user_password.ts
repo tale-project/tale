@@ -3,7 +3,7 @@
  */
 
 import { MutationCtx } from '../_generated/server';
-import { createAuth, authComponent } from '../../auth';
+import { createAuth, authComponent } from '../auth';
 
 export interface UpdateUserPasswordArgs {
   currentPassword: string;
