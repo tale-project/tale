@@ -28,7 +28,7 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
-    "@types/node": "24.10.8",
+    "@types/node": "24.10.9",
     "@vitest/coverage-v8": "4.0.17",
     "eslint": "9.39.2",
     "knip": "^5.81.0",
