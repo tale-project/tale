@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "uv sync --extra dev",
-    "dev": "uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
+    "serve": "uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8001",
     "build": "echo 'No build step'",
     "lint": "uv run ruff check app",
     "lint:fix": "uv run ruff check --fix app",

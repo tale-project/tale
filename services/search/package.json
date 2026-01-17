@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "echo 'Docker service - no local setup'",
-    "dev": "docker compose up search -d && docker compose logs -f search",
+    "serve": "docker compose up search -d && docker compose logs -f search",
     "build": "echo 'No build step'",
     "docker:build": "docker compose build search",
     "logs": "docker compose logs -f search"

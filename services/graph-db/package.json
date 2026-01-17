@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "uv sync --extra dev",
-    "dev": "docker compose up graph-db -d && docker compose logs -f graph-db",
+    "serve": "docker compose up graph-db -d && docker compose logs -f graph-db",
     "build": "echo 'No build step'",
     "docker:build": "docker compose build graph-db",
     "logs": "docker compose logs -f graph-db",

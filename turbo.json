@@ -32,6 +32,10 @@
       "cache": false,
       "persistent": true
     },
+    "serve": {
+      "cache": false,
+      "persistent": true
+    },
     "lint": {
       "dependsOn": ["setup"],
       "outputs": []
