@@ -40,7 +40,7 @@ During development you may temporarily expose 3000 in compose.yml for direct Vit
 - scripts:
   - docker-entrypoint.sh — orchestrates Convex + Vite + dashboard
   - env.sh — normalizes env configuration
-  - generate_admin_key.sh — helper for admin keys
+  - generate-admin-key.sh — helper for admin keys
 
 ## Interaction with Other Services
 

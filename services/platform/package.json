@@ -11,7 +11,6 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "build:deploy": "npm run build",
     "convex:dev": "CONVEX_AGENT_MODE=anonymous convex dev",
     "convex:deploy": "CONVEX_AGENT_MODE=anonymous convex deploy",
     "convex:codegen": "convex codegen",
@@ -165,7 +164,15 @@
     "react-is": "19.2.3"
   },
   "optionalDependencies": {
+    "@parcel/watcher-linux-arm64-glibc": "^2.5.4",
     "@parcel/watcher-linux-x64-glibc": "^2.5.4",
-    "@swc/core-linux-x64-gnu": "^1.15.8"
+    "@rollup/rollup-linux-arm64-gnu": "^4.55.1",
+    "@rollup/rollup-linux-x64-gnu": "^4.55.1",
+    "@swc/core-linux-arm64-gnu": "^1.15.8",
+    "@swc/core-linux-x64-gnu": "^1.15.8",
+    "@tailwindcss/oxide-linux-arm64-gnu": "^4.1.18",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.18",
+    "lightningcss-linux-arm64-gnu": "^1.30.2",
+    "lightningcss-linux-x64-gnu": "^1.30.2"
   }
 }

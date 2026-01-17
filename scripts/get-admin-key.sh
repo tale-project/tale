@@ -20,5 +20,5 @@ else
   exit 1
 fi
 
-docker exec -it "$CONTAINER" ./generate_admin_key.sh "$@"
+docker exec -it "$CONTAINER" ./generate-admin-key.sh "$@"
 
