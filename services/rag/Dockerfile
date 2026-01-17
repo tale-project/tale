@@ -36,6 +36,17 @@ WORKDIR /app
 COPY services/rag/pyproject.toml /app/pyproject.toml
 RUN uv pip install --system .
 
+# Pre-download tiktoken encoding files to avoid runtime network requests
+# This ensures the container works in air-gapped environments
+# Download all common encodings used by OpenAI models
+RUN mkdir -p /root/.cache/tiktoken && \
+    python3 -c "import tiktoken; \
+    tiktoken.get_encoding('cl100k_base'); \
+    tiktoken.get_encoding('p50k_base'); \
+    tiktoken.get_encoding('r50k_base');" && \
+    echo "Tiktoken encodings downloaded successfully" && \
+    ls -la /root/.cache/tiktoken/ || echo "Warning: tiktoken cache directory is empty"
+
 # ============================================================================
 # Stage 3: Final
 # ============================================================================
@@ -94,7 +105,9 @@ ENV TALE_VERSION=${VERSION} \
     # Cognee BaseConfig paths (pydantic_settings reads these env vars)
     # These override the default paths in cognee.base_config.BaseConfig
     DATA_ROOT_DIRECTORY=/app/data/.data_storage \
-    SYSTEM_ROOT_DIRECTORY=/app/data/.cognee_system
+    SYSTEM_ROOT_DIRECTORY=/app/data/.cognee_system \
+    # Disable telemetry to prevent SSL errors to external telemetry endpoint
+    TELEMETRY_DISABLED=true
 
 # Expose port
 EXPOSE 8001

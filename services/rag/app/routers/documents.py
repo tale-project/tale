@@ -160,8 +160,35 @@ async def upload_document(
     but heavy ingestion work is delegated to a background task so callers
     (including Convex workflows) don't block on cognee processing.
     """
+    from pathlib import Path
+
+    SUPPORTED_EXTENSIONS = {
+        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+        ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+        ".txt", ".md", ".csv"
+    }
+
     tmp_path: Optional[str] = None
     try:
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Filename is required"
+            )
+
+        file_ext = Path(file.filename).suffix.lower()
+        if not file_ext:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File must have an extension. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+            )
+
+        if file_ext not in SUPPORTED_EXTENSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported file type: {file_ext}. Supported formats: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
+            )
+
         # Validate file size (50MB default limit from config)
         max_size_mb = (
             settings.max_document_size_mb
@@ -173,7 +200,6 @@ async def upload_document(
         # Create file on disk with original extension in the ingest directory
         ingest_dir = os.path.join(settings.cognee_data_dir, "ingest")
         os.makedirs(ingest_dir, exist_ok=True)
-        file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
         tmp_path = os.path.join(ingest_dir, f"upload_{uuid4().hex}{file_ext}")
 
         # Stream file to disk in chunks to avoid loading entire file into memory

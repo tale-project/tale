@@ -56,6 +56,9 @@ import {
   createDocumentFromUploadResponseValidator,
 } from './model/documents/validators';
 import { ragAction } from './workflow/actions/rag/rag_action';
+import { createDebugLog } from './lib/debug_log';
+
+const debugLog = createDebugLog('DEBUG_DOCUMENTS', '[Documents]');
 
 // =============================================================================
 // INTERNAL FUNCTIONS (no RLS)
@@ -407,7 +410,7 @@ export const checkRagJobStatus = internalAction({
 
     // Terminate: max attempts reached
     if (attempt > maxAttempts) {
-      console.warn(
+      debugLog(
         `[checkRagJobStatus] Max attempts (${maxAttempts}) reached for document ${args.documentId}`,
       );
       await ctx.runMutation(internal.documents.updateDocumentRagInfo, {
@@ -433,7 +436,7 @@ export const checkRagJobStatus = internalAction({
       });
 
       if (!response.ok) {
-        console.warn(
+        debugLog(
           `[checkRagJobStatus] RAG service returned ${response.status} for job ${document.ragInfo.jobId} (attempt ${attempt}/${maxAttempts})`,
         );
         // Schedule next attempt on HTTP error
@@ -487,7 +490,7 @@ export const checkRagJobStatus = internalAction({
         { documentId: args.documentId, attempt: attempt + 1 },
       );
     } catch (error) {
-      console.error(
+      debugLog(
         `[checkRagJobStatus] Error checking job status (attempt ${attempt}/${maxAttempts}):`,
         error,
       );
@@ -532,7 +535,7 @@ export const deleteDocumentFromRagInternal = internalAction({
       mode: args.mode || 'hard',
     });
 
-    console.log('[documents] RAG deletion result:', {
+    debugLog('[documents] RAG deletion result:', {
       success: result.success,
       deletedCount: result.deletedCount,
       message: result.message,
@@ -701,7 +704,7 @@ export const deleteDocument = mutationWithRLS({
       );
     } catch (error) {
       // Log error but don't fail the deletion - RAG cleanup is best-effort
-      console.error('[documents] Failed to schedule RAG cleanup:', {
+      debugLog('[documents] Failed to schedule RAG cleanup:', {
         documentId: args.documentId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -881,7 +884,7 @@ export const uploadFile = action({
         documentId: result.documentId,
       };
     } catch (error) {
-      console.error('Error uploading file:', error);
+      debugLog('Error uploading file:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed',
@@ -1011,7 +1014,7 @@ export const createDocumentFromUpload = mutationWithRLS({
         documentId: result.documentId,
       };
     } catch (error) {
-      console.error('Error creating document from upload:', error);
+      debugLog('Error creating document from upload:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create document',
@@ -1128,6 +1131,8 @@ export const retryRagIndexing = action({
         return { success: false, error: 'Not authorized to access this document' };
       }
 
+      debugLog('[retryRagIndexing] Starting RAG retry for document:', args.documentId);
+
       type RagResult = { success: boolean; jobId?: string };
       const result = (await ragAction.execute(
         ctx,
@@ -1135,9 +1140,18 @@ export const retryRagIndexing = action({
         {},
       )) as RagResult;
 
+      debugLog('[retryRagIndexing] RAG retry completed:', {
+        success: result.success,
+        jobId: result.jobId,
+      });
+
       return { success: result.success, jobId: result.jobId };
     } catch (error) {
-      console.error('[retryRagIndexing] Error:', error);
+      debugLog('[retryRagIndexing] Error:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        documentId: args.documentId,
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to retry RAG indexing',

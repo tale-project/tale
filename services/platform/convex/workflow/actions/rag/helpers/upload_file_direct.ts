@@ -45,6 +45,11 @@ export async function uploadFileDirect({
   const startTime = Date.now();
 
   // Step 1: Download file from Convex storage
+  console.log('[uploadFileDirect] Downloading file from storage:', {
+    fileUrl: fileUrl.substring(0, 100) + '...',
+    filename,
+  });
+
   const fileResponse = await fetch(fileUrl);
   if (!fileResponse.ok) {
     throw new Error(
@@ -53,6 +58,10 @@ export async function uploadFileDirect({
   }
 
   const fileBlob = await fileResponse.blob();
+  console.log('[uploadFileDirect] File downloaded:', {
+    size: fileBlob.size,
+    type: fileBlob.type,
+  });
 
   // Step 2: Prepare multipart/form-data upload
   const formData = new FormData();
@@ -87,6 +96,18 @@ export async function uploadFileDirect({
   // Step 3: Upload to RAG service
   const url = `${ragServiceUrl}/api/v1/documents/upload`;
 
+  console.log('[uploadFileDirect] Starting RAG upload:', {
+    url,
+    filename,
+    contentType,
+    fileSize: fileBlob.size,
+    timeoutMs,
+    hasMetadata: !!metadata,
+    hasDocumentId: !!recordIdFromMetadata,
+    hasUserId: !!userId,
+    datasetName,
+  });
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -100,7 +121,16 @@ export async function uploadFileDirect({
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`RAG service error: ${response.status} ${errorText}`);
+    console.error('[uploadFileDirect] RAG service error:', {
+      status: response.status,
+      statusText: response.statusText,
+      url,
+      errorText: errorText || '(empty response)',
+      headers: Object.fromEntries(response.headers.entries()),
+    });
+    throw new Error(
+      `RAG service error: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
+    );
   }
 
   const result = (await response.json()) as RagApiUploadResponse;

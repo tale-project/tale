@@ -326,11 +326,11 @@ def _patch_litellm_embedding() -> None:
             aembedding: bool = False,
             **kwargs: Any,
         ) -> Any:
-            # Remove encoding_format for non-OpenAI endpoints
             base_url = api_base or os.environ.get("OPENAI_BASE_URL", "")
             if optional_params and "api.openai.com" not in base_url:
                 optional_params.pop("encoding_format", None)
-                logger.debug("Removed encoding_format for non-OpenAI endpoint")
+                input_count = len(input) if isinstance(input, list) else 1
+                logger.debug(f"Embedding {input_count} text(s) with {model}")
 
             return _original_embedding(
                 self,

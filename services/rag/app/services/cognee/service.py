@@ -426,6 +426,14 @@ class CogneeService:
         except TimeoutError:
             # Re-raise timeout errors without wrapping
             raise
+        except UnicodeDecodeError as e:
+            error_msg = (
+                f"Failed to decode file '{content}': {e}. "
+                "The file appears to be binary or uses an unsupported encoding. "
+                "Supported file types: PDF, images (PNG, JPG, etc.), DOCX, PPTX, XLSX, TXT, MD, CSV."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
         except Exception as e:
             logger.error(f"Failed to add document: {e}")
             raise
