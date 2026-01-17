@@ -11,9 +11,7 @@ export interface RouterContext {
 
 export function createRouter() {
   const siteUrl = getEnv('SITE_URL');
-  const convexQueryClient = new ConvexQueryClient(`${siteUrl}/ws_api`, {
-    expectAuth: true,
-  });
+  const convexQueryClient = new ConvexQueryClient(`${siteUrl}/ws_api`);
 
   const queryClient = new QueryClient({
     defaultOptions: {

@@ -67,7 +67,7 @@ export async function handleDynamicWorkflow(
   const executionId = args.executionId;
 
   if (stepDefinitions.length === 0) {
-    await step.runMutation(internal.workflow.engine.markExecutionCompleted, {
+    await step.runMutation(internal.workflow_engine.engine.markExecutionCompleted, {
       executionId,
     });
     return;
@@ -105,7 +105,7 @@ export async function handleDynamicWorkflow(
     const retryBehavior = buildRetryBehaviorFromPolicy(effectiveRetryPolicy);
 
     const stepResult = await step.runAction(
-      internal.workflow.engine.executeStep,
+      internal.workflow_engine.engine.executeStep,
       {
         organizationId: stepDef.organizationId,
         executionId: executionId,
@@ -167,7 +167,7 @@ export async function handleDynamicWorkflow(
     currentStepSlug = nextStepSlug;
   }
 
-  await step.runMutation(internal.workflow.engine.markExecutionCompleted, {
+  await step.runMutation(internal.workflow_engine.engine.markExecutionCompleted, {
     executionId,
   });
 }

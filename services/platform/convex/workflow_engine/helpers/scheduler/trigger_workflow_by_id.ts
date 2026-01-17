@@ -33,7 +33,7 @@ export async function triggerWorkflowById(
   }
 
   const handle: string = await ctx.runMutation(
-    api.workflow.engine.startWorkflow,
+    api.workflow_engine.engine.startWorkflow,
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,
