@@ -61,21 +61,18 @@ RUN rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
     rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript vite-tsconfig-paths \
+      npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-x64-glibc \
         lightningcss-linux-x64-gnu \
         @tailwindcss/oxide-linux-x64-gnu \
         @swc/core-linux-x64-gnu; \
     elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript vite-tsconfig-paths \
+      npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-arm64-glibc \
         lightningcss-linux-arm64-gnu \
         @tailwindcss/oxide-linux-arm64-gnu \
         @swc/core-linux-arm64-gnu; \
     fi
-
-# Install Vite config dependencies (must be explicit as they may not be hoisted correctly from workspace install)
-RUN npm install --no-save --legacy-peer-deps vite-tsconfig-paths @vitejs/plugin-react vite-plugin-pwa
 
 # Build Vite application
 RUN npm run build
