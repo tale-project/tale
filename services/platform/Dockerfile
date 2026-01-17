@@ -23,13 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files - use platform's package.json directly (not workspace)
-# We need the root lock file for dependency resolution
+# Copy package files - need both root and platform package.json for workspace resolution
+COPY package.json ./
 COPY package-lock.json ./
-COPY services/platform/package.json ./package.json
+COPY services/platform/package.json ./services/platform/package.json
 
-# Install dependencies directly (not as workspace) to get flat node_modules structure
-RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10
+# Install dependencies using workspace mode to ensure lock file sync
+RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 --workspace=@tale/platform
 
 # ============================================================================
 # Stage 2: Builder
@@ -38,7 +38,7 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
+# Copy dependencies from deps stage (hoisted to root by npm workspaces)
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy application source from services/platform directory
