@@ -49,7 +49,7 @@
     "react-is": "19.2.3",
     "magic-string": "^0.30.17",
     "workbox-build": {
-      "source-map": "^0.7.4"
+      "source-map": "^0.7.0"
     }
   }
 }
