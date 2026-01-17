@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "2.0.89",
-    "@ai-sdk/provider-utils": "3.0.20",
+    "@ai-sdk/provider-utils": "4.0.8",
     "@convex-dev/action-cache": "0.3.0",
     "@convex-dev/agent": "^0.3.2",
     "@convex-dev/better-auth": "0.10.10",
