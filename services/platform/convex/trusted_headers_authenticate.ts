@@ -2,12 +2,19 @@ import { mutation, internalMutation, internalQuery } from './_generated/server';
 import { v } from 'convex/values';
 import * as TrustedHeadersAuthModel from './model/trusted_headers_authenticate';
 
+// Team entry with required ID and name
+const teamEntryValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+});
+
 // Public mutation: full trusted-headers auth flow
 export const trustedHeadersAuthenticate = mutation({
   args: {
     email: v.string(),
     name: v.string(),
     role: v.string(),
+    teams: v.union(v.array(teamEntryValidator), v.null()),
     existingSessionToken: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
@@ -18,6 +25,7 @@ export const trustedHeadersAuthenticate = mutation({
     organizationId: v.union(v.string(), v.null()),
     sessionToken: v.string(),
     shouldClearOldSession: v.boolean(),
+    trustedHeadersChanged: v.boolean(),
   }),
   handler: async (ctx, args) => {
     return await TrustedHeadersAuthModel.trustedHeadersAuthenticate(ctx, args);
@@ -69,6 +77,8 @@ export const createSessionForTrustedUser = internalMutation({
     existingSessionToken: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
     userAgent: v.optional(v.string()),
+    trustedRole: v.optional(v.string()),
+    trustedTeamIds: v.optional(v.string()),
   },
   returns: v.object({
     sessionToken: v.string(),

@@ -29,6 +29,7 @@ export interface UploadAndCreateDocDependencies {
     metadata: Record<string, unknown>;
     sourceProvider?: 'onedrive' | 'upload';
     externalItemId?: string;
+    createdBy?: string;
   }) => Promise<{ documentId?: Id<'documents'> }>;
   updateDocument: (args: {
     documentId: Id<'documents'>;
@@ -52,6 +53,7 @@ export async function uploadAndCreateDocumentLogic(
     contentType: string;
     metadata: OneDriveMetadata;
     documentIdToUpdate?: Id<'documents'>;
+    createdBy?: string;
   },
   deps: UploadAndCreateDocDependencies,
 ): Promise<UploadAndCreateDocResult> {
@@ -102,6 +104,7 @@ export async function uploadAndCreateDocumentLogic(
       metadata: args.metadata,
       sourceProvider: 'onedrive',
       externalItemId,
+      createdBy: args.createdBy,
     });
 
     return { success: true, fileId: storageId, documentId };

@@ -119,6 +119,7 @@ TRUSTED_HEADERS_ENABLED=true
 TRUSTED_EMAIL_HEADER=X-Auth-Email      # optional, default shown
 TRUSTED_NAME_HEADER=X-Auth-Name        # optional, default shown
 TRUSTED_ROLE_HEADER=X-Auth-Role        # optional, default shown
+TRUSTED_TEAMS_HEADER=X-Auth-Teams      # optional, default shown
 ```
 
 Your proxy must send these headers with every request:
@@ -126,6 +127,7 @@ Your proxy must send these headers with every request:
 - `X-Auth-Email`: User's email address
 - `X-Auth-Name`: User's display name
 - `X-Auth-Role`: One of `admin`, `developer`, `editor`, or `member`
+- `X-Auth-Teams` (optional): Comma-separated list of teams in `id:name` format (e.g., `abc123:Engineering, def456:Design`). The external IdP is the single source of truth - team IDs are passed through directly without any internal database lookup. Omit the header to leave teams unchanged, send empty to remove from all teams.
 
 ⚠️ **Security**: Only enable this when Tale is behind a trusted proxy that strips these headers from external requests.
 

@@ -36,12 +36,6 @@ class Settings(BaseSettings):
     database_url: Optional[str] = None
 
     # ========================================================================
-    # Graph Database Configuration (Kuzu Remote)
-    # ========================================================================
-    graph_db_provider: str = "kuzu-remote"
-    graph_db_url: str = "http://graph-db:8000"
-
-    # ========================================================================
     # LLM Provider Configuration (OpenAI-compatible)
     # ========================================================================
     # Supports OpenAI-compatible APIs. Set openai_base_url for alternatives:
@@ -78,6 +72,13 @@ class Settings(BaseSettings):
     vision_pdf_dpi: int = 150
     # Custom prompt for text extraction (optional)
     vision_extraction_prompt: Optional[str] = None
+
+    # ========================================================================
+    # Knowledge Graph Extraction Configuration
+    # ========================================================================
+    # Custom prompt for knowledge graph extraction (controls entity/relationship naming)
+    # If not set, uses default prompt that enforces English identifiers for FalkorDB
+    graph_extraction_prompt: Optional[str] = None
 
     # ========================================================================
     # Feature Flags

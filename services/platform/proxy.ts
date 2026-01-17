@@ -15,7 +15,44 @@ export async function proxy(request: NextRequest) {
   }
 
   // 2. Then handle authentication (either Trusted Headers or Better Auth)
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard');
+  const pathname = request.nextUrl.pathname;
+  const isProtectedRoute = pathname.startsWith('/dashboard');
+  const isAuthRoute = pathname.startsWith('/log-in') || pathname.startsWith('/sign-up');
+
+  // Handle Trusted Headers mode for auth routes (auto-login)
+  if (isAuthRoute && shouldUseTrustedHeaders()) {
+    const authResult = await authenticateViaTrustedHeaders(request);
+
+    if (authResult) {
+      // User is authenticated via trusted headers - redirect to dashboard
+      const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+      const isHttps = siteUrl.startsWith('https://');
+      const cookieName = isHttps
+        ? '__Secure-better-auth.session_token'
+        : 'better-auth.session_token';
+
+      // Check for redirectTo parameter
+      const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/dashboard';
+      const redirectUrl = new URL(redirectTo, request.url);
+
+      const response = NextResponse.redirect(redirectUrl);
+
+      if (authResult.shouldClearOldSession) {
+        response.cookies.delete(cookieName);
+      }
+
+      response.cookies.set(cookieName, authResult.signedSessionToken, {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24, // 24 hours
+      });
+
+      return response;
+    }
+    // If trusted headers auth fails, fall through to show login page
+  }
 
   if (isProtectedRoute) {
     // Check if trusted headers authentication is enabled
@@ -45,20 +82,29 @@ export async function proxy(request: NextRequest) {
       // we need to clear the old session cookie and set a new one
       const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
       const isHttps = siteUrl.startsWith('https://');
-      const cookieName = isHttps
+      const sessionCookieName = isHttps
         ? '__Secure-better-auth.session_token'
         : 'better-auth.session_token';
+      const jwtCookieName = isHttps
+        ? '__Secure-better-auth.convex_jwt'
+        : 'better-auth.convex_jwt';
 
       const response = NextResponse.next();
 
       // If we detected an account switch, clear the old cookie first
       if (authResult.shouldClearOldSession) {
-        response.cookies.delete(cookieName);
+        response.cookies.delete(sessionCookieName);
+      }
+
+      // If trusted headers changed (role or teams), clear JWT cookie to force refresh
+      // This ensures the JWT claims are regenerated with the new values
+      if (authResult.trustedHeadersChanged) {
+        response.cookies.delete(jwtCookieName);
       }
 
       // Set the new session cookie. Use the HMAC-signed value so Better Auth's
       // `getSignedCookie` can validate it and allow `/convex/token` to issue JWTs.
-      response.cookies.set(cookieName, authResult.signedSessionToken, {
+      response.cookies.set(sessionCookieName, authResult.signedSessionToken, {
         httpOnly: true,
         secure: isHttps,
         sameSite: 'lax',

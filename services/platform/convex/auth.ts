@@ -242,16 +242,40 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // Force secure cookies when running over HTTPS (this adds __Secure- prefix automatically)
       useSecureCookies: isHttps,
     },
+    session: {
+      additionalFields: {
+        trustedRole: {
+          type: 'string' as const,
+          required: false,
+        },
+        trustedTeams: {
+          type: 'string' as const,
+          required: false,
+        },
+      },
+    },
     plugins: [
       // The Convex plugin is required for Convex compatibility
       convex({
         authConfig,
+        jwt: {
+          definePayload: ({ user, session }) => ({
+            email: user.email,
+            name: user.name,
+            trustedRole: (session as any).trustedRole,
+            trustedTeams: (session as any).trustedTeams,
+          }),
+        },
       }),
       organization({
         ac,
         roles: orgRoles,
         // Set the default role for organization creators to admin
         creatorRole: 'admin',
+        // Enable teams for multi-tenancy support (team-level data isolation)
+        teams: {
+          enabled: true,
+        },
       }),
     ],
   };

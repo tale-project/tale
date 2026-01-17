@@ -70,39 +70,45 @@ def normalize_search_result(result: Any) -> Dict[str, Any]:
     """Normalize a single search result into a consistent dictionary format.
 
     Args:
-        result: A single result from cognee.search()
+        result: A single result (chunk) from cognee.search()
 
     Returns:
         Dictionary with content, score, document_id, and metadata
     """
     if isinstance(result, str):
-        # If result is a string, wrap it in a dict
         return {
             "content": result,
-            "score": 1.0,  # Default score for string results
+            "score": 1.0,
             "document_id": None,
             "metadata": {},
         }
     elif isinstance(result, dict):
-        # Normalize dict to expected schema with defaults for missing keys
+        # Extract content from chunk payload (use 'text' field from DocumentChunk)
+        content = result.get("text", result.get("content", ""))
+
+        # Build metadata, excluding large vector fields like text_vector
+        metadata: Dict[str, Any] = {}
+        for key in ("chunk_size", "chunk_index", "cut_type", "type"):
+            if key in result:
+                metadata[key] = result[key]
+
         return {
-            "content": result.get("content", result.get("text", str(result))),
+            "content": content,
             "score": result.get("score", result.get("similarity", 1.0)),
-            "document_id": result.get("document_id", result.get("id")),
-            "metadata": result.get("metadata", {}),
+            "document_id": result.get("id", result.get("document_id")),
+            "metadata": metadata,
         }
     else:
         # Try to convert to dict if it has attributes
         try:
             return {
-                "content": getattr(result, "content", str(result)),
+                "content": getattr(result, "text", getattr(result, "content", str(result))),
                 "score": getattr(result, "score", 1.0),
-                "document_id": getattr(result, "document_id", None),
-                "metadata": getattr(result, "metadata", {}),
+                "document_id": getattr(result, "id", getattr(result, "document_id", None)),
+                "metadata": {},
             }
         except Exception as conv_err:
             logger.warning(f"Could not normalize search result ({type(result)}): {conv_err}")
-            # Fallback: convert to string
             return {
                 "content": str(result),
                 "score": 1.0,

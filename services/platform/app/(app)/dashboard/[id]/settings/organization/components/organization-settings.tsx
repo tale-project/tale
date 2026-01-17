@@ -125,7 +125,7 @@ export function OrganizationSettings({
       <Stack className="pt-4">
         <Stack gap={1}>
           <h2 className="text-base font-semibold text-foreground">
-            {tSettings('organization.teamMembers')}
+            {tSettings('organization.membersTitle')}
           </h2>
           <p className="text-sm text-muted-foreground tracking-[-0.084px]">
             {tSettings('organization.manageAccess')}

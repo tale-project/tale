@@ -3,6 +3,7 @@
 This module provides functions to:
 - Clean up stale or legacy data rows that reference files that no longer exist
 - Migrate vector tables when embedding dimensions change
+- Create HNSW indexes on vector tables for fast similarity search
 """
 
 import os
@@ -11,6 +12,133 @@ from urllib.parse import urlparse
 from loguru import logger
 
 from ...config import settings
+
+
+async def ensure_vector_hnsw_indexes() -> dict:
+    """Create HNSW indexes on all PGVector tables that don't have one.
+
+    Cognee creates vector tables dynamically (one per collection/dataset).
+    Without HNSW indexes, queries on large datasets (200k+ vectors) can take
+    5-15 seconds. With HNSW indexes, queries complete in <500ms.
+
+    This function is idempotent - it only creates indexes that don't exist.
+
+    Returns:
+        Dict with 'created' (list of index names) and 'existing' (count).
+    """
+    result = {"created": [], "existing": 0, "errors": []}
+
+    try:
+        import asyncpg
+
+        db_url = settings.get_database_url()
+        parsed = urlparse(db_url)
+
+        if parsed.scheme not in ("postgresql", "postgres"):
+            logger.debug(
+                "Unsupported database scheme '{}', skipping HNSW index creation",
+                parsed.scheme,
+            )
+            return result
+
+        conn = await asyncpg.connect(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 5432,
+            database=parsed.path.lstrip("/") if parsed.path else "",
+            user=parsed.username or "",
+            password=parsed.password or "",
+        )
+
+        try:
+            # Find all tables with vector columns
+            vector_columns = await conn.fetch(
+                """
+                SELECT
+                    c.relname as table_name,
+                    a.attname as column_name
+                FROM pg_class c
+                JOIN pg_attribute a ON a.attrelid = c.oid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relkind = 'r'
+                AND n.nspname = 'public'
+                AND a.attnum > 0
+                AND pg_catalog.format_type(a.atttypid, a.atttypmod) LIKE 'vector%'
+                ORDER BY c.relname
+                """
+            )
+
+            if not vector_columns:
+                logger.debug("No vector tables found, skipping HNSW index creation")
+                return result
+
+            for row in vector_columns:
+                table_name = row["table_name"]
+                column_name = row["column_name"]
+                index_name = f"{table_name}_{column_name}_hnsw_idx"
+
+                # Check if index already exists
+                exists = await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM pg_indexes
+                        WHERE schemaname = 'public'
+                        AND indexname = $1
+                    )
+                    """,
+                    index_name,
+                )
+
+                if exists:
+                    result["existing"] += 1
+                    continue
+
+                # Create HNSW index
+                try:
+                    logger.info(
+                        "Creating HNSW index: {} on {}.{}",
+                        index_name,
+                        table_name,
+                        column_name,
+                    )
+                    # Use cosine distance (most common for embeddings)
+                    # m=16, ef_construction=64 are good defaults
+                    await conn.execute(
+                        f'CREATE INDEX "{index_name}" ON "{table_name}" '
+                        f'USING hnsw ("{column_name}" vector_cosine_ops) '
+                        f"WITH (m = 16, ef_construction = 64)"
+                    )
+                    result["created"].append(index_name)
+                    logger.info("Created HNSW index: {}", index_name)
+                except Exception as e:
+                    error_msg = f"Failed to create index {index_name}: {e}"
+                    logger.error(error_msg)
+                    result["errors"].append(error_msg)
+
+        finally:
+            await conn.close()
+
+        if result["created"]:
+            logger.info(
+                "HNSW index creation complete: {} created, {} already existed",
+                len(result["created"]),
+                result["existing"],
+            )
+        elif result["existing"] > 0:
+            logger.debug(
+                "All {} vector column(s) already have HNSW indexes",
+                result["existing"],
+            )
+
+    except ImportError:
+        logger.debug(
+            "asyncpg not available, skipping HNSW index creation. "
+            "Install asyncpg to enable automatic index management."
+        )
+    except Exception as e:
+        logger.error("HNSW index creation failed: {}", e)
+        result["errors"].append(str(e))
+
+    return result
 
 
 async def migrate_vector_dimensions() -> None:
@@ -209,7 +337,14 @@ async def cleanup_legacy_site_packages_data() -> None:
                 legacy_substring,
             )
     except Exception as cleanup_err:
-        logger.error("Failed to cleanup legacy Cognee data rows: {}", cleanup_err)
+        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(
+            cleanup_err
+        ):
+            logger.warning(
+                "Cognee data table does not exist yet, skipping legacy cleanup (this is normal on first run)"
+            )
+        else:
+            logger.error("Failed to cleanup legacy Cognee data rows: {}", cleanup_err)
 
 
 async def cleanup_missing_local_files_data() -> None:
@@ -291,8 +426,15 @@ async def cleanup_missing_local_files_data() -> None:
                 data_root_prefix,
             )
     except Exception as cleanup_err:
-        logger.error(
-            "Failed to cleanup Cognee data rows with missing local files: {}",
-            cleanup_err,
-        )
+        if "UndefinedTableError" in str(type(cleanup_err).__name__) or "does not exist" in str(
+            cleanup_err
+        ):
+            logger.warning(
+                "Cognee data table does not exist yet, skipping missing-file cleanup (this is normal on first run)"
+            )
+        else:
+            logger.error(
+                "Failed to cleanup Cognee data rows with missing local files: {}",
+                cleanup_err,
+            )
 

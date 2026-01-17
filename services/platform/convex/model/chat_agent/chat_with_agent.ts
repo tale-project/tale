@@ -26,6 +26,7 @@ import { components, internal } from '../../_generated/api';
 import { listMessages, saveMessage } from '@convex-dev/agent';
 import { computeDeduplicationState } from './message_deduplication';
 import { persistentStreaming } from '../../streaming';
+import { getUserTeamIds } from '../../lib/get_user_teams';
 
 import { createDebugLog } from '../../lib/debug_log';
 
@@ -63,6 +64,14 @@ export async function chatWithAgent(
   // Create a persistent text stream for the AI response
   // This enables optimized text delivery to the frontend via reactive query or HTTP streaming
   const streamId = await persistentStreaming.createStream(ctx);
+
+  // Get thread to retrieve userId, then get user's team IDs for RAG search
+  // This is done in the mutation (where we have auth identity) so the action
+  // doesn't need to query the session table (which could be insecure)
+  const thread = await ctx.runQuery(components.agent.threads.getThread, { threadId });
+  const userTeamIds = thread?.userId
+    ? await getUserTeamIds(ctx, thread.userId)
+    : [];
 
   // Load recent non-tool messages to deduplicate the last user message
   const existingMessages = await listMessages(ctx, components.agent, {
@@ -206,6 +215,10 @@ export async function chatWithAgent(
     messageText: trimmedMessage,
     // Pass streamId for Persistent Text Streaming (optimized text delivery)
     streamId,
+    // Pass userId for RAG prefetch
+    userId: thread?.userId,
+    // Pass user's team IDs for RAG search (resolved in mutation where we have auth identity)
+    userTeamIds,
   });
 
   return { messageAlreadyExists, streamId };

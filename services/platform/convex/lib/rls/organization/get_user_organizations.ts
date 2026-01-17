@@ -5,10 +5,21 @@
 import type { QueryCtx } from '../../../_generated/server';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
+import { getTrustedAuthData } from '../auth/get_trusted_auth_data';
 import { components } from '../../../_generated/api';
 
+const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
+type ValidRole = (typeof VALID_ROLES)[number];
+
+function isValidRole(role: string): role is ValidRole {
+  return VALID_ROLES.includes(role as ValidRole);
+}
+
 /**
- * Get all organizations user has access to from Better Auth's member table
+ * Get all organizations user has access to from Better Auth's member table.
+ *
+ * In trusted headers mode, the role comes from the JWT claims (trustedRole)
+ * instead of the member.role field in the database.
  */
 export async function getUserOrganizations(
   ctx: QueryCtx,
@@ -21,6 +32,9 @@ export async function getUserOrganizations(
   }>
 > {
   const authUser = user || (await requireAuthenticatedUser(ctx));
+
+  // Check if we're in trusted headers mode (role from JWT)
+  const trustedData = await getTrustedAuthData(ctx);
 
   // Query Better Auth's member table for all memberships
   const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
@@ -42,9 +56,16 @@ export async function getUserOrganizations(
     return [];
   }
 
-  return result.page.map((member: any) => ({
-    organizationId: member.organizationId,
-    role: (member.role || 'member').toLowerCase(),
-    member,
-  }));
+  return result.page.map((member: any) => {
+    // Get role from trusted headers if available, otherwise from database
+    const rawRole = trustedData?.trustedRole || (member.role || 'member');
+    const normalizedRole = rawRole.toLowerCase();
+    const role: ValidRole = isValidRole(normalizedRole) ? normalizedRole : 'member';
+
+    return {
+      organizationId: member.organizationId,
+      role,
+      member,
+    };
+  });
 }

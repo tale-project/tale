@@ -6,7 +6,7 @@ import type { QueryCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import type { DocumentItemResponse } from './types';
 import { getDocumentById } from './get_document_by_id';
-import { transformToDocumentItem } from './transform_to_document_item';
+import { transformDocumentsBatch } from './transform_to_document_item';
 
 export async function getDocumentByIdPublic(
   ctx: QueryCtx,
@@ -24,7 +24,8 @@ export async function getDocumentByIdPublic(
       };
     }
 
-    const item = await transformToDocumentItem(ctx, document);
+    // Use batch transform for consistent behavior (even for single document)
+    const [item] = await transformDocumentsBatch(ctx, [document]);
 
     return {
       success: true,

@@ -128,6 +128,7 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_error_classification from "../lib/error_classification.js";
+import type * as lib_get_user_teams from "../lib/get_user_teams.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
 import type * as lib_openai_provider from "../lib/openai_provider.js";
 import type * as lib_pagination_helpers from "../lib/pagination/helpers.js";
@@ -137,9 +138,11 @@ import type * as lib_query_builder_build_query from "../lib/query_builder/build_
 import type * as lib_query_builder_index from "../lib/query_builder/index.js";
 import type * as lib_query_builder_select_index from "../lib/query_builder/select_index.js";
 import type * as lib_query_builder_types from "../lib/query_builder/types.js";
+import type * as lib_rag_prefetch_index from "../lib/rag_prefetch/index.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_rls_auth_get_authenticated_user from "../lib/rls/auth/get_authenticated_user.js";
+import type * as lib_rls_auth_get_trusted_auth_data from "../lib/rls/auth/get_trusted_auth_data.js";
 import type * as lib_rls_auth_require_authenticated_user from "../lib/rls/auth/require_authenticated_user.js";
 import type * as lib_rls_context_create_org_query_builder from "../lib/rls/context/create_org_query_builder.js";
 import type * as lib_rls_context_create_rls_context from "../lib/rls/context/create_rls_context.js";
@@ -260,6 +263,7 @@ import type * as model_documents_get_document_by_path from "../model/documents/g
 import type * as model_documents_get_documents from "../model/documents/get_documents.js";
 import type * as model_documents_get_documents_cursor from "../model/documents/get_documents_cursor.js";
 import type * as model_documents_get_onedrive_sync_configs from "../model/documents/get_onedrive_sync_configs.js";
+import type * as model_documents_get_user_names_batch from "../model/documents/get_user_names_batch.js";
 import type * as model_documents_index from "../model/documents/index.js";
 import type * as model_documents_list_documents_by_extension from "../model/documents/list_documents_by_extension.js";
 import type * as model_documents_query_documents from "../model/documents/query_documents.js";
@@ -389,6 +393,7 @@ import type * as model_trusted_headers_authenticate_create_session_for_trusted_u
 import type * as model_trusted_headers_authenticate_find_or_create_user_from_headers from "../model/trusted_headers_authenticate/find_or_create_user_from_headers.js";
 import type * as model_trusted_headers_authenticate_get_user_by_id from "../model/trusted_headers_authenticate/get_user_by_id.js";
 import type * as model_trusted_headers_authenticate_index from "../model/trusted_headers_authenticate/index.js";
+import type * as model_trusted_headers_authenticate_resolve_team_names from "../model/trusted_headers_authenticate/resolve_team_names.js";
 import type * as model_trusted_headers_authenticate_trusted_headers_authenticate from "../model/trusted_headers_authenticate/trusted_headers_authenticate.js";
 import type * as model_users_add_member_internal from "../model/users/add_member_internal.js";
 import type * as model_users_create_member from "../model/users/create_member.js";
@@ -575,6 +580,7 @@ import type * as predefined_workflows_website_scan from "../predefined_workflows
 import type * as predefined_workflows_workflow_rag_sync from "../predefined_workflows/workflow_rag_sync.js";
 import type * as products from "../products.js";
 import type * as streaming from "../streaming.js";
+import type * as team_members from "../team_members.js";
 import type * as threads from "../threads.js";
 import type * as tone_of_voice from "../tone_of_voice.js";
 import type * as trusted_headers_authenticate from "../trusted_headers_authenticate.js";
@@ -864,6 +870,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/debug_log": typeof lib_debug_log;
   "lib/error_classification": typeof lib_error_classification;
+  "lib/get_user_teams": typeof lib_get_user_teams;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;
   "lib/openai_provider": typeof lib_openai_provider;
   "lib/pagination/helpers": typeof lib_pagination_helpers;
@@ -873,9 +880,11 @@ declare const fullApi: ApiFromModules<{
   "lib/query_builder/index": typeof lib_query_builder_index;
   "lib/query_builder/select_index": typeof lib_query_builder_select_index;
   "lib/query_builder/types": typeof lib_query_builder_types;
+  "lib/rag_prefetch/index": typeof lib_rag_prefetch_index;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/rls/auth/get_authenticated_user": typeof lib_rls_auth_get_authenticated_user;
+  "lib/rls/auth/get_trusted_auth_data": typeof lib_rls_auth_get_trusted_auth_data;
   "lib/rls/auth/require_authenticated_user": typeof lib_rls_auth_require_authenticated_user;
   "lib/rls/context/create_org_query_builder": typeof lib_rls_context_create_org_query_builder;
   "lib/rls/context/create_rls_context": typeof lib_rls_context_create_rls_context;
@@ -996,6 +1005,7 @@ declare const fullApi: ApiFromModules<{
   "model/documents/get_documents": typeof model_documents_get_documents;
   "model/documents/get_documents_cursor": typeof model_documents_get_documents_cursor;
   "model/documents/get_onedrive_sync_configs": typeof model_documents_get_onedrive_sync_configs;
+  "model/documents/get_user_names_batch": typeof model_documents_get_user_names_batch;
   "model/documents/index": typeof model_documents_index;
   "model/documents/list_documents_by_extension": typeof model_documents_list_documents_by_extension;
   "model/documents/query_documents": typeof model_documents_query_documents;
@@ -1125,6 +1135,7 @@ declare const fullApi: ApiFromModules<{
   "model/trusted_headers_authenticate/find_or_create_user_from_headers": typeof model_trusted_headers_authenticate_find_or_create_user_from_headers;
   "model/trusted_headers_authenticate/get_user_by_id": typeof model_trusted_headers_authenticate_get_user_by_id;
   "model/trusted_headers_authenticate/index": typeof model_trusted_headers_authenticate_index;
+  "model/trusted_headers_authenticate/resolve_team_names": typeof model_trusted_headers_authenticate_resolve_team_names;
   "model/trusted_headers_authenticate/trusted_headers_authenticate": typeof model_trusted_headers_authenticate_trusted_headers_authenticate;
   "model/users/add_member_internal": typeof model_users_add_member_internal;
   "model/users/create_member": typeof model_users_create_member;
@@ -1311,6 +1322,7 @@ declare const fullApi: ApiFromModules<{
   "predefined_workflows/workflow_rag_sync": typeof predefined_workflows_workflow_rag_sync;
   products: typeof products;
   streaming: typeof streaming;
+  team_members: typeof team_members;
   threads: typeof threads;
   tone_of_voice: typeof tone_of_voice;
   trusted_headers_authenticate: typeof trusted_headers_authenticate;
@@ -1523,10 +1535,13 @@ export declare const components: {
             | {
                 data: {
                   activeOrganizationId?: null | string;
+                  activeTeamId?: null | string;
                   createdAt: number;
                   expiresAt: number;
                   ipAddress?: null | string;
                   token: string;
+                  trustedRole?: null | string;
+                  trustedTeams?: null | string;
                   updatedAt: number;
                   userAgent?: null | string;
                   userId: string;
@@ -1563,6 +1578,7 @@ export declare const components: {
             | {
                 data: {
                   createdAt: number;
+                  expiresAt?: null | number;
                   privateKey: string;
                   publicKey: string;
                 };
@@ -1581,6 +1597,23 @@ export declare const components: {
             | {
                 data: {
                   createdAt: number;
+                  name: string;
+                  organizationId: string;
+                  updatedAt?: null | number;
+                };
+                model: "team";
+              }
+            | {
+                data: {
+                  createdAt?: null | number;
+                  teamId: string;
+                  userId: string;
+                };
+                model: "teamMember";
+              }
+            | {
+                data: {
+                  createdAt: number;
                   organizationId: string;
                   role: string;
                   userId: string;
@@ -1589,12 +1622,14 @@ export declare const components: {
               }
             | {
                 data: {
+                  createdAt: number;
                   email: string;
                   expiresAt: number;
                   inviterId: string;
                   organizationId: string;
                   role?: null | string;
                   status: string;
+                  teamId?: null | string;
                 };
                 model: "invitation";
               };
@@ -1655,6 +1690,9 @@ export declare const components: {
                     | "userAgent"
                     | "userId"
                     | "activeOrganizationId"
+                    | "activeTeamId"
+                    | "trustedRole"
+                    | "trustedTeams"
                     | "_id";
                   operator?:
                     | "lt"
@@ -1752,7 +1790,12 @@ export declare const components: {
                 model: "jwks";
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  field:
+                    | "publicKey"
+                    | "privateKey"
+                    | "createdAt"
+                    | "expiresAt"
+                    | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -1785,6 +1828,63 @@ export declare const components: {
                     | "createdAt"
                     | "metadata"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "team";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "organizationId"
+                    | "createdAt"
+                    | "updatedAt"
+                    | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "teamMember";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "teamId" | "userId" | "createdAt" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -1845,8 +1945,10 @@ export declare const components: {
                     | "organizationId"
                     | "email"
                     | "role"
+                    | "teamId"
                     | "status"
                     | "expiresAt"
+                    | "createdAt"
                     | "inviterId"
                     | "_id";
                   operator?:
@@ -1934,6 +2036,9 @@ export declare const components: {
                     | "userAgent"
                     | "userId"
                     | "activeOrganizationId"
+                    | "activeTeamId"
+                    | "trustedRole"
+                    | "trustedTeams"
                     | "_id";
                   operator?:
                     | "lt"
@@ -2031,7 +2136,12 @@ export declare const components: {
                 model: "jwks";
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  field:
+                    | "publicKey"
+                    | "privateKey"
+                    | "createdAt"
+                    | "expiresAt"
+                    | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -2064,6 +2174,63 @@ export declare const components: {
                     | "createdAt"
                     | "metadata"
                     | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "team";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "organizationId"
+                    | "createdAt"
+                    | "updatedAt"
+                    | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "teamMember";
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "teamId" | "userId" | "createdAt" | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -2124,8 +2291,10 @@ export declare const components: {
                     | "organizationId"
                     | "email"
                     | "role"
+                    | "teamId"
                     | "status"
                     | "expiresAt"
+                    | "createdAt"
                     | "inviterId"
                     | "_id";
                   operator?:
@@ -2166,6 +2335,8 @@ export declare const components: {
             | "verification"
             | "jwks"
             | "organization"
+            | "team"
+            | "teamMember"
             | "member"
             | "invitation";
           offset?: number;
@@ -2216,6 +2387,8 @@ export declare const components: {
             | "verification"
             | "jwks"
             | "organization"
+            | "team"
+            | "teamMember"
             | "member"
             | "invitation";
           select?: Array<string>;
@@ -2297,10 +2470,13 @@ export declare const components: {
                 model: "session";
                 update: {
                   activeOrganizationId?: null | string;
+                  activeTeamId?: null | string;
                   createdAt?: number;
                   expiresAt?: number;
                   ipAddress?: null | string;
                   token?: string;
+                  trustedRole?: null | string;
+                  trustedTeams?: null | string;
                   updatedAt?: number;
                   userAgent?: null | string;
                   userId?: string;
@@ -2316,6 +2492,9 @@ export declare const components: {
                     | "userAgent"
                     | "userId"
                     | "activeOrganizationId"
+                    | "activeTeamId"
+                    | "trustedRole"
+                    | "trustedTeams"
                     | "_id";
                   operator?:
                     | "lt"
@@ -2434,12 +2613,18 @@ export declare const components: {
                 model: "jwks";
                 update: {
                   createdAt?: number;
+                  expiresAt?: null | number;
                   privateKey?: string;
                   publicKey?: string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  field:
+                    | "publicKey"
+                    | "privateKey"
+                    | "createdAt"
+                    | "expiresAt"
+                    | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -2501,6 +2686,74 @@ export declare const components: {
                 }>;
               }
             | {
+                model: "team";
+                update: {
+                  createdAt?: number;
+                  name?: string;
+                  organizationId?: string;
+                  updatedAt?: null | number;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "organizationId"
+                    | "createdAt"
+                    | "updatedAt"
+                    | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "teamMember";
+                update: {
+                  createdAt?: null | number;
+                  teamId?: string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "teamId" | "userId" | "createdAt" | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
                 model: "member";
                 update: {
                   createdAt?: number;
@@ -2540,12 +2793,14 @@ export declare const components: {
             | {
                 model: "invitation";
                 update: {
+                  createdAt?: number;
                   email?: string;
                   expiresAt?: number;
                   inviterId?: string;
                   organizationId?: string;
                   role?: null | string;
                   status?: string;
+                  teamId?: null | string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
@@ -2553,8 +2808,10 @@ export declare const components: {
                     | "organizationId"
                     | "email"
                     | "role"
+                    | "teamId"
                     | "status"
                     | "expiresAt"
+                    | "createdAt"
                     | "inviterId"
                     | "_id";
                   operator?:
@@ -2642,10 +2899,13 @@ export declare const components: {
                 model: "session";
                 update: {
                   activeOrganizationId?: null | string;
+                  activeTeamId?: null | string;
                   createdAt?: number;
                   expiresAt?: number;
                   ipAddress?: null | string;
                   token?: string;
+                  trustedRole?: null | string;
+                  trustedTeams?: null | string;
                   updatedAt?: number;
                   userAgent?: null | string;
                   userId?: string;
@@ -2661,6 +2921,9 @@ export declare const components: {
                     | "userAgent"
                     | "userId"
                     | "activeOrganizationId"
+                    | "activeTeamId"
+                    | "trustedRole"
+                    | "trustedTeams"
                     | "_id";
                   operator?:
                     | "lt"
@@ -2779,12 +3042,18 @@ export declare const components: {
                 model: "jwks";
                 update: {
                   createdAt?: number;
+                  expiresAt?: null | number;
                   privateKey?: string;
                   publicKey?: string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
-                  field: "publicKey" | "privateKey" | "createdAt" | "_id";
+                  field:
+                    | "publicKey"
+                    | "privateKey"
+                    | "createdAt"
+                    | "expiresAt"
+                    | "_id";
                   operator?:
                     | "lt"
                     | "lte"
@@ -2846,6 +3115,74 @@ export declare const components: {
                 }>;
               }
             | {
+                model: "team";
+                update: {
+                  createdAt?: number;
+                  name?: string;
+                  organizationId?: string;
+                  updatedAt?: null | number;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field:
+                    | "name"
+                    | "organizationId"
+                    | "createdAt"
+                    | "updatedAt"
+                    | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
+                model: "teamMember";
+                update: {
+                  createdAt?: null | number;
+                  teamId?: string;
+                  userId?: string;
+                };
+                where?: Array<{
+                  connector?: "AND" | "OR";
+                  field: "teamId" | "userId" | "createdAt" | "_id";
+                  operator?:
+                    | "lt"
+                    | "lte"
+                    | "gt"
+                    | "gte"
+                    | "eq"
+                    | "in"
+                    | "not_in"
+                    | "ne"
+                    | "contains"
+                    | "starts_with"
+                    | "ends_with";
+                  value:
+                    | string
+                    | number
+                    | boolean
+                    | Array<string>
+                    | Array<number>
+                    | null;
+                }>;
+              }
+            | {
                 model: "member";
                 update: {
                   createdAt?: number;
@@ -2885,12 +3222,14 @@ export declare const components: {
             | {
                 model: "invitation";
                 update: {
+                  createdAt?: number;
                   email?: string;
                   expiresAt?: number;
                   inviterId?: string;
                   organizationId?: string;
                   role?: null | string;
                   status?: string;
+                  teamId?: null | string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
@@ -2898,8 +3237,10 @@ export declare const components: {
                     | "organizationId"
                     | "email"
                     | "role"
+                    | "teamId"
                     | "status"
                     | "expiresAt"
+                    | "createdAt"
                     | "inviterId"
                     | "_id";
                   operator?:

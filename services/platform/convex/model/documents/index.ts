@@ -10,6 +10,7 @@ export * from './query_documents';
 export * from './check_membership';
 export * from './generate_signed_url';
 export * from './transform_to_document_item';
+export * from './get_user_names_batch';
 export * from './get_documents';
 export * from './get_documents_cursor';
 export * from './get_document_by_id_public';

@@ -9,7 +9,7 @@
     "lint": "uv run ruff check app",
     "lint:fix": "uv run ruff check --fix app",
     "test": "uv run pytest",
-    "test:watch": "uv run pytest-watch",
+    "test:watch": "uv run ptw",
     "test:coverage": "uv run pytest --cov=app --cov-report=html"
   }
 }

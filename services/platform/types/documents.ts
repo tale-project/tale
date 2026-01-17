@@ -17,6 +17,12 @@ export interface DocumentItem {
   ragIndexedAt?: number;
   /** Error message (for failed status) */
   ragError?: string;
+  /** Team tags for multi-tenancy support - Better Auth team IDs */
+  teamTags?: string[];
+  /** User ID who created/uploaded this document */
+  createdBy?: string;
+  /** Display name of the user who created/uploaded this document */
+  createdByName?: string;
 }
 
 export interface DocumentListResponse {

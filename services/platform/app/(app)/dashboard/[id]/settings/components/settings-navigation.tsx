@@ -12,7 +12,7 @@ interface SettingsNavigationProps {
   canChangePassword?: boolean;
 }
 
-type SettingsLabelKey = 'organization' | 'integrations' | 'account';
+type SettingsLabelKey = 'organization' | 'teams' | 'integrations' | 'account';
 
 export function SettingsNavigation({
   userRole,
@@ -28,6 +28,12 @@ export function SettingsNavigation({
       labelKey: 'organization',
       label: t('organization'),
       href: `/dashboard/${organizationId}/settings/organization`,
+      roles: ['admin'],
+    },
+    {
+      labelKey: 'teams',
+      label: t('teams'),
+      href: `/dashboard/${organizationId}/settings/teams`,
       roles: ['admin'],
     },
     {

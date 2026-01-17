@@ -168,9 +168,13 @@ function AutomationStepsInner({
 
     const resizeObserver = new ResizeObserver(updateMinimapSize);
     resizeObserver.observe(container);
+    window.addEventListener('resize', updateMinimapSize);
     updateMinimapSize(); // Initial calculation
 
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateMinimapSize);
+    };
   }, []);
 
   // Reposition the view when sidepanel opens/closes (maintain zoom, just recenter)

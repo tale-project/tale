@@ -15,11 +15,14 @@ export interface CreateSessionForTrustedUserArgs {
   existingSessionToken?: string;
   ipAddress?: string;
   userAgent?: string;
+  trustedRole?: string;
+  trustedTeams?: string;
 }
 
 export interface CreateSessionForTrustedUserResult {
   sessionToken: string;
   shouldClearOldSession: boolean;
+  trustedHeadersChanged: boolean;
 }
 
 export async function createSessionForTrustedUser(
@@ -65,13 +68,23 @@ export async function createSessionForTrustedUser(
         });
         // Signal that we need to clear the old cookie
       } else if (existingSession.expiresAt > now) {
-        // Same user, session still valid - extend it and return
+        // Same user, session still valid - extend it and update trusted fields
+        // Check if trusted headers values have changed
+        const sessionRecord = existingSession as unknown as Record<string, unknown>;
+        const existingRole = sessionRecord.trustedRole as string | null | undefined;
+        const existingTeams = sessionRecord.trustedTeams as string | null | undefined;
+        const trustedHeadersChanged =
+          (existingRole ?? null) !== (args.trustedRole ?? null) ||
+          (existingTeams ?? null) !== (args.trustedTeams ?? null);
+
         await ctx.runMutation(components.betterAuth.adapter.updateOne, {
           input: {
             model: 'session',
             update: {
               expiresAt: now + 24 * 60 * 60 * 1000,
               updatedAt: now,
+              trustedRole: args.trustedRole ?? null,
+              trustedTeams: args.trustedTeams ?? null,
             },
             where: [
               {
@@ -85,6 +98,7 @@ export async function createSessionForTrustedUser(
         return {
           sessionToken: existingSession.token,
           shouldClearOldSession: false,
+          trustedHeadersChanged,
         };
       }
     }
@@ -111,12 +125,22 @@ export async function createSessionForTrustedUser(
   if (userSessionResult && userSessionResult.page.length > 0) {
     const session = userSessionResult.page[0];
     if (session.expiresAt > now) {
+      // Check if trusted headers values have changed
+      const sessionRecord = session as unknown as Record<string, unknown>;
+      const existingRole = sessionRecord.trustedRole as string | null | undefined;
+      const existingTeams = sessionRecord.trustedTeams as string | null | undefined;
+      const trustedHeadersChanged =
+        (existingRole ?? null) !== (args.trustedRole ?? null) ||
+        (existingTeams ?? null) !== (args.trustedTeams ?? null);
+
       await ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {
           model: 'session',
           update: {
             expiresAt: now + 24 * 60 * 60 * 1000,
             updatedAt: now,
+            trustedRole: args.trustedRole ?? null,
+            trustedTeams: args.trustedTeams ?? null,
           },
           where: [
             {
@@ -130,6 +154,7 @@ export async function createSessionForTrustedUser(
       return {
         sessionToken: session.token,
         shouldClearOldSession: args.existingSessionToken ? true : false,
+        trustedHeadersChanged,
       };
     }
   }
@@ -150,6 +175,8 @@ export async function createSessionForTrustedUser(
         updatedAt: now,
         ipAddress: args.ipAddress || null,
         userAgent: args.userAgent || null,
+        trustedRole: args.trustedRole ?? null,
+        trustedTeams: args.trustedTeams ?? null,
       },
     },
   });
@@ -157,5 +184,6 @@ export async function createSessionForTrustedUser(
   return {
     sessionToken,
     shouldClearOldSession: args.existingSessionToken ? true : false,
+    trustedHeadersChanged: true,
   };
 }

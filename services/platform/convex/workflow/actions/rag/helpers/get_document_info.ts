@@ -2,7 +2,7 @@ import type { RagActionParams } from './types';
 import type { ActionCtx } from '../../../../_generated/server';
 import { api, internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { DocumentRecord, DocumentMetadata } from '../../../../model/documents/types';
+import type { DocumentMetadata } from '../../../../model/documents/types';
 
 /**
  * Document information without downloading content
@@ -14,6 +14,8 @@ export interface DocumentInfo {
   filename?: string;
   contentType?: string;
   metadata: Record<string, unknown>;
+  /** Team tags for multi-tenancy - determines which datasets the document belongs to */
+  teamTags?: string[];
 }
 
 /**
@@ -63,6 +65,7 @@ export async function getDocumentInfo(
         title: document.title,
         ...baseMetadata,
       },
+      teamTags: document.teamTags,
     };
   }
 
@@ -77,6 +80,7 @@ export async function getDocumentInfo(
         title: document.title,
         ...baseMetadata,
       },
+      teamTags: document.teamTags,
     };
   }
 

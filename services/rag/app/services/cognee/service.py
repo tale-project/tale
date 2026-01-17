@@ -66,6 +66,40 @@ def _map_api_search_type_to_cognee(search_type: ApiSearchType | None) -> SearchT
 # thousands of small documents.
 DEFAULT_COGNEE_DATASET_NAME = "tale_documents"
 
+# Default prompt for knowledge graph extraction - enforces English identifiers
+# for FalkorDB compatibility (Cypher parser only supports ASCII in identifiers)
+DEFAULT_GRAPH_EXTRACTION_PROMPT = """
+Extract entities and relationships from the provided text content.
+
+CRITICAL REQUIREMENTS for FalkorDB compatibility:
+1. ALL entity type names (node labels) MUST be in English using PascalCase (e.g., Person, Organization, Document, Concept)
+2. ALL relationship type names MUST be in English using UPPER_SNAKE_CASE (e.g., WORKS_FOR, LOCATED_IN, RELATED_TO)
+3. ALL property names MUST be in English using snake_case (e.g., name, description, created_at)
+4. Property VALUES can be in any language (Chinese, etc.) - only the keys must be English
+
+Examples:
+- Entity type: "Person" (not "人物"), "Organization" (not "组织"), "Document" (not "文档")
+- Relationship: "BELONGS_TO" (not "属于"), "CREATED_BY" (not "创建者")
+- Property: {"name": "张三", "description": "这是中文描述"} (keys in English, values can be Chinese)
+
+Focus on extracting meaningful entities and their relationships while strictly following the naming conventions above.
+"""
+
+# System prompt for GRAPH_COMPLETION search - generates detailed, comprehensive answers
+DEFAULT_GRAPH_COMPLETION_PROMPT = """You are a knowledgeable assistant that provides comprehensive answers based on the provided context.
+
+Instructions:
+1. Provide detailed and thorough answers based on the context
+2. Include specific information, policy details, and key points from the source documents
+3. If there are specific clauses, regulations, or procedures mentioned, include them
+4. Structure your answer clearly with sections if the topic has multiple aspects
+5. Respond in the same language as the user's question
+6. If the context is insufficient, clearly state what information is missing
+7. Do not make up information - only use what is provided in the context
+
+Your goal is to give the user a complete understanding of the topic, not just a brief summary.
+"""
+
 
 class CogneeService:
     """Service wrapper for cognee RAG operations."""
@@ -77,6 +111,8 @@ class CogneeService:
         # Created once during initialize() to avoid per-request overhead
         self._llm_config: dict[str, Any] | None = None
         self._openai_client: AsyncOpenAI | None = None
+        # Note: FalkorDB is client-server architecture, no file-level locking
+        # issues like Kuzu had. No need for per-dataset initialization locks.
 
     async def initialize(self) -> None:
         """Initialize cognee with configuration."""
@@ -118,11 +154,105 @@ class CogneeService:
             logger.error(f"Failed to initialize cognee: {e}")
             raise
 
+    async def get_document_datasets(self, document_id: str) -> list[dict[str, Any]]:
+        """Query all datasets that contain a document.
+
+        Finds all Data records containing the given document_id in their node_set,
+        and returns dataset information for each record.
+
+        Args:
+            document_id: The document ID to search for
+
+        Returns:
+            List of dicts, each containing { data_id: UUID, dataset_id: UUID, dataset_name: str }
+        """
+        if not self.initialized:
+            await self.initialize()
+
+        try:
+            from sqlalchemy import select, cast, String
+            from cognee.infrastructure.databases.relational import get_relational_engine
+            from cognee.modules.data.models import Data, Dataset, DatasetData
+
+            db_engine = get_relational_engine()
+            async with db_engine.get_async_session() as session:
+                # Find all Data records containing this document_id in node_set
+                result = await session.execute(
+                    select(Data).where(
+                        cast(Data.node_set, String).contains(document_id)
+                    )
+                )
+                matching_data = result.scalars().all()
+
+                if not matching_data:
+                    return []
+
+                # Get dataset information for each record
+                entries = []
+                for data in matching_data:
+                    dataset_link = (
+                        await session.execute(
+                            select(DatasetData).where(DatasetData.data_id == data.id)
+                        )
+                    ).scalars().first()
+
+                    if dataset_link:
+                        # Get the dataset name
+                        dataset = (
+                            await session.execute(
+                                select(Dataset).where(Dataset.id == dataset_link.dataset_id)
+                            )
+                        ).scalars().first()
+
+                        entries.append({
+                            "data_id": data.id,
+                            "dataset_id": dataset_link.dataset_id,
+                            "dataset_name": dataset.name if dataset else "unknown",
+                        })
+
+                return entries
+
+        except Exception as e:
+            logger.warning(f"Failed to get document datasets for '{document_id}': {e}")
+            return []
+
+    async def _delete_data_entry(
+        self,
+        data_id: Any,
+        dataset_id: Any,
+        mode: str = "hard"
+    ) -> bool:
+        """Delete a single Data record and its associated data.
+
+        Args:
+            data_id: Cognee Data record UUID
+            dataset_id: Dataset UUID
+            mode: Delete mode ("soft" or "hard")
+
+        Returns:
+            Whether deletion was successful
+        """
+        try:
+            from cognee.api.v1.delete import delete as cognee_delete
+
+            await cognee_delete(
+                data_id=data_id,
+                dataset_id=dataset_id,
+                mode=mode,
+            )
+            logger.info(f"Deleted data entry: {data_id} from dataset: {dataset_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete data entry {data_id}: {e}")
+            return False
+
     async def add_document(
         self,
         content: str,
         metadata: Optional[dict[str, Any]] = None,
         document_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        dataset_name: Optional[str] = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base.
 
@@ -130,6 +260,10 @@ class CogneeService:
             content: Path to the document file to ingest
             metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID (used for tagging and later deletion)
+            user_id: Reserved for future user-level permission support. Currently not used;
+                     multi-tenancy is handled via dataset_name.
+            dataset_name: Dataset name for multi-tenant isolation.
+                          Format: 'tale_team_{teamId}' for team datasets, or 'tale_documents' for default.
 
         Returns:
             Dictionary with operation results
@@ -144,10 +278,28 @@ class CogneeService:
             start_time = time.time()
             timeout_seconds = settings.ingestion_timeout_seconds
 
-            # Add document to cognee. We use a shared logical dataset instead of
-            # creating one dataset per document_id to keep Cognee's in-memory
-            # structures bounded even when ingesting many small documents.
-            dataset_name = DEFAULT_COGNEE_DATASET_NAME
+            # Use the provided dataset_name for multi-tenant isolation,
+            # or fall back to the default shared dataset.
+            effective_dataset_name = dataset_name or DEFAULT_COGNEE_DATASET_NAME
+
+            # Clean up document from old datasets if it exists elsewhere
+            # This handles the case when a document's team assignment changes
+            cleaned_datasets: list[str] = []
+            if document_id:
+                existing_entries = await self.get_document_datasets(document_id)
+                for entry in existing_entries:
+                    # Only delete records from datasets other than the target
+                    if entry["dataset_name"] != effective_dataset_name:
+                        success = await self._delete_data_entry(
+                            entry["data_id"],
+                            entry["dataset_id"],
+                            mode="hard"
+                        )
+                        if success:
+                            cleaned_datasets.append(entry["dataset_name"])
+                            logger.info(
+                                f"Cleaned up document '{document_id}' from old dataset: {entry['dataset_name']}"
+                            )
 
             # Use node_set to tag the document with our document_id for later deletion
             # This allows us to find and delete documents by their external ID
@@ -155,7 +307,7 @@ class CogneeService:
 
             logger.info(
                 f"Starting document ingestion for {document_id or 'unknown'} "
-                f"(timeout: {timeout_seconds}s)"
+                f"(timeout: {timeout_seconds}s, dataset: {effective_dataset_name})"
             )
 
             # Pre-process PDFs and images with Vision API
@@ -184,13 +336,17 @@ class CogneeService:
                     )
 
             # Wrap cognee.add() with timeout
+            # Multi-tenancy is handled via dataset_name filtering, not Cognee's user system.
+            # We use logical isolation (dataset names like "tale_team_xxx") instead of
+            # Cognee's ENABLE_BACKEND_ACCESS_CONTROL which requires specific backends.
             try:
+                add_kwargs: dict[str, Any] = {
+                    "dataset_name": effective_dataset_name,
+                    "node_set": node_set,
+                }
+
                 result = await asyncio.wait_for(
-                    cognee.add(
-                        file_to_ingest,
-                        dataset_name=dataset_name,
-                        node_set=node_set,
-                    ),
+                    cognee.add(file_to_ingest, **add_kwargs),
                     timeout=timeout_seconds,
                 )
             except asyncio.TimeoutError:
@@ -226,11 +382,23 @@ class CogneeService:
             ):
                 with attempt:
                     try:
+                        # Build cognify kwargs
+                        cognify_kwargs: dict[str, Any] = {
+                            "datasets": [effective_dataset_name],
+                            "incremental_loading": True,
+                            # Explicitly set chunk_size to override cognee's default (8191)
+                            # Smaller chunks improve retrieval precision for RAG
+                            "chunk_size": settings.chunk_size,
+                        }
+
+                        # Add custom prompt for English identifier enforcement
+                        # This helps FalkorDB compatibility (Cypher parser requires ASCII)
+                        custom_prompt = settings.graph_extraction_prompt or DEFAULT_GRAPH_EXTRACTION_PROMPT
+                        cognify_kwargs["custom_prompt"] = custom_prompt
+
+                        logger.info(f"Calling cognee.cognify with chunk_size={cognify_kwargs.get('chunk_size')}")
                         await asyncio.wait_for(
-                            cognee.cognify(
-                                datasets=[dataset_name],
-                                incremental_loading=True,
-                            ),
+                            cognee.cognify(**cognify_kwargs),
                             timeout=remaining_timeout,
                         )
                     except asyncio.TimeoutError:
@@ -252,11 +420,20 @@ class CogneeService:
                 "document_id": doc_id,
                 "chunks_created": chunks_created,
                 "processing_time_ms": processing_time,
+                "cleaned_datasets": cleaned_datasets,
             }
 
         except TimeoutError:
             # Re-raise timeout errors without wrapping
             raise
+        except UnicodeDecodeError as e:
+            error_msg = (
+                f"Failed to decode file '{content}': {e}. "
+                "The file appears to be binary or uses an unsupported encoding. "
+                "Supported file types: PDF, images (PNG, JPG, etc.), DOCX, PPTX, XLSX, TXT, MD, CSV."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
         except Exception as e:
             logger.error(f"Failed to add document: {e}")
             raise
@@ -278,6 +455,8 @@ class CogneeService:
         top_k: Optional[int] = None,
         similarity_threshold: Optional[float] = None,
         _filters: Optional[dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+        datasets: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base.
 
@@ -288,6 +467,10 @@ class CogneeService:
             top_k: Number of results to return
             similarity_threshold: Minimum similarity score
             _filters: Optional metadata filters (reserved for future use)
+            user_id: Reserved for future user-level permission support. Currently not used;
+                     multi-tenancy is handled via datasets parameter.
+            datasets: List of dataset names to search within for multi-tenant isolation.
+                      Format: ['tale_documents', 'tale_team_xxx', ...]
 
         Returns:
             List of search results
@@ -302,15 +485,108 @@ class CogneeService:
             cognee_search_type = _map_api_search_type_to_cognee(search_type)
 
             logger.info(
-                f"Searching with type={cognee_search_type.value}, query='{query[:50]}...'"
+                f"Searching with type={cognee_search_type.value}, query='{query[:50]}...', "
+                f"datasets={datasets}"
             )
 
-            # Use cognee search with specified search type
-            raw_results = await cognee.search(
-                query,
-                query_type=cognee_search_type,
-                top_k=top_k or settings.top_k,
-            )
+            # Build base search kwargs
+            # Multi-tenancy is handled via dataset filtering, not Cognee's user system.
+            # We use logical isolation (dataset names like "tale_team_xxx") instead of
+            # Cognee's ENABLE_BACKEND_ACCESS_CONTROL which requires specific backends.
+            effective_top_k = top_k or settings.top_k
+
+            # Use custom system prompt for GRAPH_COMPLETION to generate detailed answers
+            system_prompt = None
+            if cognee_search_type in (
+                SearchType.GRAPH_COMPLETION,
+                SearchType.RAG_COMPLETION,
+                SearchType.GRAPH_SUMMARY_COMPLETION,
+            ):
+                system_prompt = DEFAULT_GRAPH_COMPLETION_PROMPT
+
+            # Search datasets concurrently, handling partial failures gracefully.
+            # If one dataset has no vector index, we still want results from others.
+            raw_results: list[Any] = []
+
+            if datasets:
+                import asyncio
+
+                async def search_dataset(ds: str) -> tuple[str, list[Any] | Exception]:
+                    try:
+                        results = await cognee.search(
+                            query,
+                            query_type=cognee_search_type,
+                            top_k=effective_top_k,
+                            datasets=[ds],
+                            system_prompt=system_prompt,
+                        )
+                        return (ds, results or [])
+                    except Exception as e:
+                        return (ds, e)
+
+                # Search all datasets concurrently
+                dataset_results = await asyncio.gather(
+                    *[search_dataset(ds) for ds in datasets]
+                )
+
+                # Collect results, skip failed datasets
+                for dataset, result in dataset_results:
+                    if isinstance(result, Exception):
+                        error_str = str(result)
+                        if (
+                            "No vector index found" in error_str
+                            or "CollectionNotFoundError" in error_str
+                            or "NoDataError" in error_str
+                            or "No data found in the system" in error_str
+                            or "DatabaseNotCreatedError" in error_str
+                            or "DatasetNotFoundError" in error_str
+                            or "No datasets found" in error_str
+                        ):
+                            logger.debug(f"Dataset '{dataset}' skipped: no data yet")
+                        else:
+                            logger.warning(f"Dataset '{dataset}' search failed: {result}")
+                    elif result:
+                        # Extract actual chunks from cognee's nested structure
+                        # cognee.search returns: [{'search_result': [...], 'dataset_id': ...}]
+                        # search_result can be [[chunk1, chunk2]] (nested) or [chunk1, chunk2] (flat)
+                        chunks_extracted = 0
+                        for item in result:
+                            if isinstance(item, dict) and "search_result" in item:
+                                search_results = item.get("search_result", [])
+                                if search_results:
+                                    # Handle both nested [[chunk]] and flat [chunk] structures
+                                    if isinstance(search_results[0], list):
+                                        # Nested: [[chunk1, chunk2, ...]]
+                                        raw_results.extend(search_results[0])
+                                        chunks_extracted += len(search_results[0])
+                                    else:
+                                        # Flat: [chunk1, chunk2, ...]
+                                        raw_results.extend(search_results)
+                                        chunks_extracted += len(search_results)
+                            else:
+                                raw_results.append(item)
+                                chunks_extracted += 1
+                        logger.debug(f"Dataset '{dataset}' returned {chunks_extracted} chunks")
+            else:
+                # No datasets specified - search globally
+                global_results = await cognee.search(
+                    query,
+                    query_type=cognee_search_type,
+                    top_k=effective_top_k,
+                    system_prompt=system_prompt,
+                )
+                # Extract actual chunks from cognee's nested structure
+                for item in global_results or []:
+                    if isinstance(item, dict) and "search_result" in item:
+                        search_results = item.get("search_result", [])
+                        if search_results:
+                            # Handle both nested [[chunk]] and flat [chunk] structures
+                            if isinstance(search_results[0], list):
+                                raw_results.extend(search_results[0])
+                            else:
+                                raw_results.extend(search_results)
+                    else:
+                        raw_results.append(item)
 
             # Normalize results - cognee.search may return strings or dicts
             normalized_results = normalize_search_results(raw_results)
@@ -343,6 +619,17 @@ class CogneeService:
                 )
                 return []
 
+            # Handle DatasetNotFoundError - happens when the specified dataset(s) don't exist
+            # This is normal when searching before any documents are indexed or
+            # when searching datasets that haven't been created yet
+            if "DatasetNotFoundError" in error_str or "No datasets found" in error_str:
+                logger.info(
+                    f"Dataset(s) not found for search: {datasets}. "
+                    "This is normal if no documents have been indexed to these datasets yet. "
+                    "Search returning empty results."
+                )
+                return []
+
             # Handle BamlValidationError - this happens when the knowledge graph
             # has no relevant nodes/connections for the query. The LLM returns
             # an empty response which BAML fails to parse. Return empty results.
@@ -372,6 +659,8 @@ class CogneeService:
         system_prompt: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        user_id: Optional[str] = None,
+        datasets: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG.
 
@@ -381,6 +670,9 @@ class CogneeService:
             system_prompt: Optional system prompt
             temperature: LLM temperature
             max_tokens: Maximum tokens to generate
+            user_id: Reserved for future user-level permission support. Currently not used;
+                     multi-tenancy is handled via datasets parameter.
+            datasets: List of dataset names to retrieve context from for multi-tenant isolation.
 
         Returns:
             Dictionary with generated response and sources
@@ -391,8 +683,10 @@ class CogneeService:
         try:
             start_time = time.time()
 
-            # Search for relevant context
-            search_results = await self.search(query, top_k=top_k)
+            # Search for relevant context with multi-tenant dataset filtering
+            search_results = await self.search(
+                query, top_k=top_k, user_id=user_id, datasets=datasets
+            )
 
             # Build context from search results
             context_parts = []
@@ -557,6 +851,7 @@ class CogneeService:
 
                     if dataset_link:
                         dataset_id = dataset_link.dataset_id
+
                         try:
                             # Use Cognee's delete function
                             await cognee_delete(
@@ -596,6 +891,20 @@ class CogneeService:
                 "processing_time_ms": None,
             }
         except Exception as e:
+            error_str = str(e)
+            # Handle case where data table doesn't exist yet (fresh database)
+            # This is normal on first run before any documents are indexed
+            if "UndefinedTableError" in error_str or "relation \"data\" does not exist" in error_str:
+                logger.info(
+                    f"Data table does not exist yet, no documents to delete for '{document_id}'"
+                )
+                return {
+                    "success": True,
+                    "message": f"No documents found with ID '{document_id}' (database not initialized)",
+                    "deleted_count": 0,
+                    "deleted_data_ids": [],
+                    "processing_time_ms": None,
+                }
             logger.error(f"Failed to delete document: {e}")
             raise
 
@@ -858,42 +1167,15 @@ class CogneeService:
             logger.warning(f"PGVector cleanup failed (continuing): {e}")
 
     async def _cleanup_graph_database(self) -> None:
-        """Clear all data from the Kuzu graph database.
+        """Clear graph data from FalkorDB.
 
-        Sends Cypher queries to delete all nodes and relationships.
+        FalkorDB is a Redis-based client-server database. Graph data is managed
+        centrally and will be cleared when the PostgreSQL metadata is reset.
+        FalkorDB graphs are created dynamically per dataset and will be
+        recreated when documents are re-indexed.
+
+        Note: For a complete FalkorDB reset, you may also want to flush the
+        FalkorDB instance directly using redis-cli FLUSHALL.
         """
-        try:
-            import httpx
-
-            from ...config import settings
-
-            graph_url = settings.graph_db_url
-
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Delete all relationships first, then all nodes
-                # Kuzu uses Cypher-like syntax
-                queries = [
-                    "MATCH ()-[r]->() DELETE r",  # Delete all relationships
-                    "MATCH (n) DELETE n",  # Delete all nodes
-                ]
-
-                for query in queries:
-                    try:
-                        response = await client.post(
-                            f"{graph_url}/query",
-                            json={"query": query},
-                        )
-                        if response.status_code == 200:
-                            logger.debug(f"Graph query executed: {query}")
-                        else:
-                            logger.warning(
-                                f"Graph query failed: {query}, status: {response.status_code}"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Graph query failed: {query}, error: {e}")
-
-                logger.info("Graph database cleanup completed")
-
-        except Exception as e:
-            logger.warning(f"Graph database cleanup failed (continuing): {e}")
+        logger.info("FalkorDB graph database: data will be recreated on re-index")
 

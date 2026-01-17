@@ -67,6 +67,8 @@ export interface CreateDocumentArgs {
   metadata?: unknown;
   sourceProvider?: SourceProvider;
   externalItemId?: string;
+  teamTags?: string[];
+  createdBy?: string;
 }
 
 export interface CreateDocumentResult {

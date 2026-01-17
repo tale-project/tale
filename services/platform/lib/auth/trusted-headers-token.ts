@@ -95,6 +95,7 @@ export async function authenticateViaTrustedHeaders(
   signedSessionToken: string;
   user: TrustedHeadersUser;
   shouldClearOldSession: boolean;
+  trustedHeadersChanged: boolean;
 } | null> {
   // Check if trusted headers are enabled
   if (!isTrustedHeadersEnabled()) {
@@ -103,8 +104,6 @@ export async function authenticateViaTrustedHeaders(
 
   // Extract user info from headers
   const headerUser = extractTrustedHeaders(request);
-
-  console.log({ headerUser });
 
   if (!headerUser) {
     return null;
@@ -129,6 +128,7 @@ export async function authenticateViaTrustedHeaders(
         email: headerUser.email,
         name: headerUser.name,
         role: headerUser.role,
+        teams: headerUser.teams,
         existingSessionToken,
         ipAddress: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
@@ -150,6 +150,7 @@ export async function authenticateViaTrustedHeaders(
       signedSessionToken,
       user: headerUser,
       shouldClearOldSession: result.shouldClearOldSession,
+      trustedHeadersChanged: result.trustedHeadersChanged,
     };
   } catch (error) {
     console.error('Error authenticating via trusted headers:', error);

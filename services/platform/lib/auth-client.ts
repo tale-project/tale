@@ -46,6 +46,10 @@ export const authClient = createAuthClient({
         member,
         disabled,
       },
+      // Enable teams for multi-tenancy support (team-level data isolation)
+      teams: {
+        enabled: true,
+      },
     }),
   ],
 });

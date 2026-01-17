@@ -64,6 +64,10 @@ export const generateAgentResponse = internalAction({
     messageText: v.optional(v.string()),
     // Stream ID for Persistent Text Streaming (optimized text delivery)
     streamId: v.optional(v.string()),
+    // User ID for RAG prefetch
+    userId: v.optional(v.string()),
+    // User's team IDs for RAG search (resolved in mutation where we have auth identity)
+    userTeamIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
     threadId: v.string(),

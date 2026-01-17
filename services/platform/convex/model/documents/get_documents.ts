@@ -8,7 +8,7 @@
 import type { QueryCtx } from '../../_generated/server';
 import type { Doc } from '../../_generated/dataModel';
 import type { DocumentListResponse } from './types';
-import { transformToDocumentItem } from './transform_to_document_item';
+import { transformDocumentsBatch } from './transform_to_document_item';
 
 export async function getDocuments(
   ctx: QueryCtx,
@@ -85,10 +85,9 @@ export async function getDocuments(
       startIndex + size,
     );
 
-    // Transform documents to DocumentItem format (expensive operation - only on paginated subset)
-    const items = await Promise.all(
-      paginatedDocuments.map((doc) => transformToDocumentItem(ctx, doc)),
-    );
+    // Transform documents to DocumentItem format using batch processing
+    // This efficiently fetches user names and storage URLs in parallel
+    const items = await transformDocumentsBatch(ctx, paginatedDocuments);
 
     const hasNextPage = page * size < totalItems;
 

@@ -32,10 +32,12 @@ async function DocumentsSkeleton() {
         { header: t('headers.size'), size: 128 },
         { header: t('headers.source'), size: 96 },
         { header: t('headers.ragStatus'), size: 128 },
+        { header: t('headers.teams'), size: 160 },
         { header: t('headers.modified'), size: 192 },
         { isAction: true, size: 160 },
       ]}
       stickyLayout
+      showPagination={false}
       searchPlaceholder={tDocuments('searchPlaceholder')}
       actionMenu={<Skeleton className="h-9 w-40" />}
     />

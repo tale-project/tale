@@ -1,14 +1,15 @@
 'use client';
 
-import * as React from 'react';
+import { useCallback, useRef } from 'react';
 import { Dialog } from './dialog';
 import { Button } from '../primitives/button';
-import { Form } from '../forms/form';
 import { Stack } from '../layout/layout';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
 import { DialogErrorBoundary } from '@/components/error-boundaries/boundaries/dialog-error-boundary';
 import { useOrganizationId } from '@/hooks/use-organization-id';
+
+const preventDefaultSubmit = (e: React.FormEvent) => e.preventDefault();
 
 export interface FormDialogProps {
   /** Whether the dialog is open */
@@ -76,18 +77,31 @@ export function FormDialog({
   const { t: tCommon } = useT('common');
   const orgId = useOrganizationId();
 
-  const handleClose = () => {
-    if (!isSubmitting) {
-      onOpenChange?.(false);
+  // Use refs to track values so handleClose has a stable reference
+  const isSubmittingRef = useRef(isSubmitting);
+  isSubmittingRef.current = isSubmitting;
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+
+  const handleClose = useCallback((open: boolean) => {
+    // Block closing while submitting, but always allow opening
+    if (open || !isSubmittingRef.current) {
+      onOpenChangeRef.current?.(open);
     }
-  };
+  }, []);
+
+  // Memoize the error handler to prevent inline function recreation
+  const handleBoundaryError = useCallback((error: Error) => {
+    onError?.(error);
+    onOpenChangeRef.current?.(false);
+  }, [onError]);
 
   const footer = customFooter ?? (
     <>
       <Button
         type="button"
         variant="outline"
-        onClick={handleClose}
+        onClick={() => handleClose(false)}
         disabled={isSubmitting}
       >
         {cancelText ?? tCommon('actions.cancel')}
@@ -111,14 +125,11 @@ export function FormDialog({
       trigger={trigger}
       customHeader={customHeader}
     >
-      <Form onSubmit={onSubmit ?? ((e) => e.preventDefault())} className="space-y-0 contents">
+      <form onSubmit={onSubmit ?? preventDefaultSubmit} className="space-y-4">
         {enableErrorBoundary ? (
           <DialogErrorBoundary
             organizationId={orgId}
-            onError={(error) => {
-              onError?.(error);
-              onOpenChange?.(false);
-            }}
+            onError={handleBoundaryError}
           >
             <Stack>
               {children}
@@ -132,7 +143,7 @@ export function FormDialog({
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-2">
           {footer}
         </div>
-      </Form>
+      </form>
     </Dialog>
   );
 }

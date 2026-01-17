@@ -7,7 +7,6 @@ import { X } from 'lucide-react';
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils/cn';
-import { IconButton } from '../primitives/icon-button';
 import { useT } from '@/lib/i18n/client';
 
 // =============================================================================
@@ -42,16 +41,17 @@ export type DialogSize = NonNullable<
 // Internal Components
 // =============================================================================
 
-const DialogCloseButton = React.forwardRef<
-  HTMLButtonElement,
-  React.ComponentPropsWithoutRef<'button'>
->((props, ref) => {
+function DialogCloseButton() {
   const { t } = useT('common');
   return (
-    <IconButton ref={ref} icon={X} aria-label={t('aria.close')} {...props} />
+    <DialogPrimitive.Close
+      className="inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      aria-label={t('aria.close')}
+    >
+      <X className="size-4" aria-hidden="true" />
+    </DialogPrimitive.Close>
   );
-});
-DialogCloseButton.displayName = 'DialogCloseButton';
+}
 
 // =============================================================================
 // Dialog Wrapper Component
@@ -93,6 +93,25 @@ export interface DialogProps {
 /**
  * Base dialog component that provides a consistent structure for all dialogs.
  * Use this as the foundation for more specific dialog types or directly for custom dialogs.
+ *
+ * IMPORTANT: If your dialog content uses hooks (useQuery, useMutation, useEffect, etc.),
+ * wrap the content in a conditional render pattern to prevent "Maximum update depth exceeded"
+ * errors. Radix UI keeps dialog content mounted during closing animations, and hooks
+ * running during this phase can conflict with Radix's usePresence hook.
+ *
+ * @example
+ * // Wrapper pattern for dialogs with hooks:
+ * function MyDialogContent(props) {
+ *   const data = useQuery(...);  // hooks here
+ *   return <Dialog {...props}>...</Dialog>;
+ * }
+ *
+ * export function MyDialog(props) {
+ *   if (!props.open) return null;  // Prevents hooks during close animation
+ *   return <MyDialogContent {...props} />;
+ * }
+ *
+ * See: https://github.com/radix-ui/primitives/issues/3675
  */
 export function Dialog({
   open,
@@ -120,12 +139,11 @@ export function Dialog({
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
+          {...(customHeader || !description ? { 'aria-describedby': undefined } : {})}
         >
           {!hideClose && !customHeader && (
             <div className="absolute right-4 top-4">
-              <DialogPrimitive.Close asChild>
-                <DialogCloseButton />
-              </DialogPrimitive.Close>
+              <DialogCloseButton />
             </div>
           )}
           {customHeader ? (

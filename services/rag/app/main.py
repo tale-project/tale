@@ -73,6 +73,17 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("Failed to cleanup stale jobs on startup")
 
+    # Ensure HNSW indexes exist on vector tables for fast similarity search
+    try:
+        from .services.cognee.cleanup import ensure_vector_hnsw_indexes
+        index_result = await ensure_vector_hnsw_indexes()
+        if index_result["created"]:
+            logger.info(
+                f"Created {len(index_result['created'])} HNSW index(es) on startup"
+            )
+    except Exception:
+        logger.exception("Failed to ensure HNSW indexes on startup")
+
     # Start periodic GC cleanup task (replaces per-request middleware)
     gc_task = asyncio.create_task(periodic_gc_cleanup())
 

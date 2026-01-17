@@ -53,7 +53,7 @@ export function DeleteMemberDialog({
     <DeleteDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={t('organization.removeTeamMember')}
+      title={t('organization.removeMember')}
       description={tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
       deleteText={t('organization.removeMember')}
       onDelete={handleConfirm}
