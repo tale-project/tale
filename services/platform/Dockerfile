@@ -52,26 +52,29 @@ ENV NODE_ENV=production
 # The convex deploy at runtime will also regenerate these if needed.
 
 # Ensure TypeScript and platform-specific binaries are available
-# Native binaries needed for Linux: @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide
+# Native binaries needed for Linux: @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide, @rollup/rollup
 # These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
 # Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
 RUN rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
     rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
     rm -rf ./node_modules/@parcel/watcher-* 2>/dev/null || true && \
     rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
+    rm -rf ./node_modules/@rollup/rollup-* 2>/dev/null || true && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
       npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-x64-glibc \
         lightningcss-linux-x64-gnu \
         @tailwindcss/oxide-linux-x64-gnu \
-        @swc/core-linux-x64-gnu; \
+        @swc/core-linux-x64-gnu \
+        @rollup/rollup-linux-x64-gnu; \
     elif [ "$ARCH" = "aarch64" ]; then \
       npm install --no-save --legacy-peer-deps typescript \
         @parcel/watcher-linux-arm64-glibc \
         lightningcss-linux-arm64-gnu \
         @tailwindcss/oxide-linux-arm64-gnu \
-        @swc/core-linux-arm64-gnu; \
+        @swc/core-linux-arm64-gnu \
+        @rollup/rollup-linux-arm64-gnu; \
     fi
 
 # Build Vite application
