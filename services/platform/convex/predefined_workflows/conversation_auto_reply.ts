@@ -26,7 +26,7 @@
  * - Processes one message per execution
  */
 
-export const conversationAutoReplyWorkflow = {
+const conversationAutoReplyWorkflow = {
   workflowConfig: {
     name: 'Conversation Auto-Reply',
     description:

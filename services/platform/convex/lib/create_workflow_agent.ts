@@ -12,7 +12,7 @@ import { type ToolName } from '../agent_tools/tool_registry';
 import {
   WORKFLOW_AGENT_CORE_INSTRUCTIONS,
   WORKFLOW_AGENT_DELEGATION_INSTRUCTIONS,
-} from '../workflow/instructions/core_instructions';
+} from '../workflow_engine/instructions/core_instructions';
 
 import { createDebugLog } from './debug_log';
 

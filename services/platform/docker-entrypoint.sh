@@ -6,7 +6,7 @@ set -e
 # ============================================================================
 # This script orchestrates the startup of three services:
 # 1. Convex backend (local backend server on ports 3210/3211)
-# 2. Next.js application (frontend on port 3000)
+# 2. Vite application (frontend on port 3000)
 # 3. Convex Dashboard (admin UI on port 6791)
 # ============================================================================
 
@@ -18,7 +18,7 @@ echo "🚀 Starting Tale Platform with integrated Convex backend..."
 
 # PIDs for background processes
 CONVEX_PID=""
-NEXTJS_PID=""
+VITE_PID=""
 DASHBOARD_PID=""
 MONITOR_PID=""
 
@@ -69,7 +69,7 @@ shutdown() {
   # Step 4: Send SIGTERM to all services (including monitor)
   echo "   🔌 Sending SIGTERM to services..."
   kill -TERM "$MONITOR_PID" 2>/dev/null || true
-  kill -TERM "$NEXTJS_PID" 2>/dev/null || true
+  kill -TERM "$VITE_PID" 2>/dev/null || true
   [ -n "$current_convex_pid" ] && kill -TERM "$current_convex_pid" 2>/dev/null || true
   kill -TERM "$DASHBOARD_PID" 2>/dev/null || true
 
@@ -83,7 +83,7 @@ shutdown() {
     # Check if all processes have exited
     local still_running=0
     kill -0 "$MONITOR_PID" 2>/dev/null && still_running=1
-    kill -0 "$NEXTJS_PID" 2>/dev/null && still_running=1
+    kill -0 "$VITE_PID" 2>/dev/null && still_running=1
     [ -n "$current_convex_pid" ] && kill -0 "$current_convex_pid" 2>/dev/null && still_running=1
     kill -0 "$DASHBOARD_PID" 2>/dev/null && still_running=1
 
@@ -98,7 +98,7 @@ shutdown() {
   # Force kill if still running
   if [ "$waited" -ge "$shutdown_timeout" ]; then
     echo "   ⚠️  Timeout reached, force killing remaining processes..."
-    kill -KILL "$MONITOR_PID" "$NEXTJS_PID" "$current_convex_pid" "$DASHBOARD_PID" 2>/dev/null || true
+    kill -KILL "$MONITOR_PID" "$VITE_PID" "$current_convex_pid" "$DASHBOARD_PID" 2>/dev/null || true
   fi
 
   # Cleanup
@@ -383,7 +383,7 @@ wait_for_database() {
 # Convex Backend Startup
 # ============================================================================
 
-# Hardcoded Convex ports (internal to container, proxied via Next.js)
+# Hardcoded Convex ports (internal to container, proxied via TanStack Start)
 CONVEX_BACKEND_PORT=3210
 CONVEX_SITE_PROXY_PORT=3211
 CONVEX_DASHBOARD_PORT=6791
@@ -460,7 +460,7 @@ deploy_convex_functions() {
   ADMIN_KEY=$(generate_key "$INSTANCE_NAME" "$INSTANCE_SECRET")
 
   # Set HOME for npm to work properly
-  export HOME=/home/nextjs
+  export HOME=/home/tanstack
 
   # List of environment variables to sync to Convex
   # These are the variables that Convex functions need access to
@@ -554,14 +554,14 @@ deploy_convex_functions() {
 deploy_convex_functions
 
 # ============================================================================
-# Next.js Application Startup
+# Vite Application Startup
 # ============================================================================
 
-echo "🌐 Starting Next.js server on port ${PORT}..."
+echo "🌐 Starting Vite server on port ${PORT}..."
 node server.js &
-NEXTJS_PID=$!
+VITE_PID=$!
 
-wait_for_http "http://localhost:${PORT}/api/health" 30 "Next.js server" true
+wait_for_http "http://localhost:${PORT}/api/health" 30 "Vite server" true
 
 # ============================================================================
 # Convex Dashboard Startup
@@ -571,7 +571,7 @@ echo "📊 Starting Convex Dashboard on port ${CONVEX_DASHBOARD_PORT}..."
 cd /dashboard
 # Derive deployment URL from SITE_URL for dashboard
 # Note: We use SITE_URL without /ws_api suffix because the dashboard's API paths
-# are rewritten to /convex-dashboard-api/ and handled by Next.js rewrites.
+# are rewritten to /convex-dashboard-api/ and handled by TanStack Start rewrites.
 NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \
@@ -593,7 +593,7 @@ DISPLAY_BASE_URL="${SITE_URL:-http://localhost:${PORT}}"
 echo ""
 echo "🎉 Tale Platform is running!"
 echo ""
-echo "   📱 Next.js Application:  ${DISPLAY_BASE_URL}"
+echo "   📱 Vite Application:     ${DISPLAY_BASE_URL}"
 echo "   🔌 Convex API:           ${DISPLAY_BASE_URL}/ws_api"
 echo "   ⚡ Convex Actions:        ${DISPLAY_BASE_URL}/http_api"
 echo "   📊 Convex Dashboard:     ${DISPLAY_BASE_URL}/convex-dashboard"
@@ -675,4 +675,4 @@ monitor_convex &
 MONITOR_PID=$!
 
 # Wait for all background processes
-wait "$CONVEX_PID" "$NEXTJS_PID" "$DASHBOARD_PID"
+wait "$CONVEX_PID" "$VITE_PID" "$DASHBOARD_PID"

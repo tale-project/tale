@@ -13,7 +13,7 @@
  * - Uses unified integration action (credentials + plugin execution in one step)
  */
 
-export const circulySyncCustomersWorkflow = {
+const circulySyncCustomersWorkflow = {
   workflowConfig: {
     name: 'Circuly Customers Sync',
     description:

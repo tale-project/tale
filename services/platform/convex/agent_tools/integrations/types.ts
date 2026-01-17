@@ -2,7 +2,7 @@
  * Integration Tool Type Definitions
  */
 
-import type { ConnectorOperation, SqlOperation } from '../../model/integrations/types';
+import type { ConnectorOperation, SqlOperation } from '../../models/integrations/types';
 
 // =============================================================================
 // INTEGRATION TOOL RESULT TYPES

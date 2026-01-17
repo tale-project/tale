@@ -1,0 +1,65 @@
+'use client';
+
+import { useT } from '@/lib/i18n/client';
+import {
+  TabNavigation,
+  type TabNavigationItem,
+} from '@/app/components/ui/navigation/tab-navigation';
+
+interface SettingsNavigationProps {
+  organizationId: string;
+  userRole?: string | null;
+  canChangePassword?: boolean;
+}
+
+type SettingsLabelKey = 'organization' | 'teams' | 'integrations' | 'account';
+
+export function SettingsNavigation({
+  organizationId,
+  userRole,
+  canChangePassword = true,
+}: SettingsNavigationProps) {
+  const { t } = useT('navigation');
+  const { t: tCommon } = useT('common');
+
+  const allItems: (TabNavigationItem & { labelKey: SettingsLabelKey })[] = [
+    {
+      labelKey: 'organization',
+      label: t('organization'),
+      href: `/dashboard/${organizationId}/settings/organization`,
+      roles: ['admin'],
+    },
+    {
+      labelKey: 'teams',
+      label: t('teams'),
+      href: `/dashboard/${organizationId}/settings/teams`,
+      roles: ['admin'],
+    },
+    {
+      labelKey: 'integrations',
+      label: t('integrations'),
+      href: `/dashboard/${organizationId}/settings/integrations`,
+      roles: ['admin', 'developer'],
+    },
+    {
+      labelKey: 'account',
+      label: t('account'),
+      href: `/dashboard/${organizationId}/settings/account`,
+    },
+  ];
+
+  const navigationItems = allItems.filter(
+    (item) => canChangePassword || item.labelKey !== 'account',
+  );
+
+  return (
+    <TabNavigation
+      items={navigationItems}
+      userRole={userRole}
+      matchMode="exact"
+      standalone={false}
+      className="py-3 h-12"
+      ariaLabel={tCommon('aria.settingsNavigation')}
+    />
+  );
+}

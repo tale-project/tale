@@ -10,7 +10,7 @@
  * 4. If no, finish (nothing to do)
  */
 
-export const documentRagSyncWorkflow = {
+const documentRagSyncWorkflow = {
   workflowConfig: {
     name: 'Document RAG Sync',
     description: 'Find one unprocessed document and upload it to RAG service',

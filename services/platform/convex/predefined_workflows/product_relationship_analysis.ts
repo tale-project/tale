@@ -22,7 +22,7 @@
  * - Products with no meaningful relationship are not stored in the metadata
  */
 
-export const productRelationshipAnalysisWorkflow = {
+const productRelationshipAnalysisWorkflow = {
   workflowConfig: {
     name: 'Product Relationship Analysis',
     description:

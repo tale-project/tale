@@ -101,7 +101,7 @@ EXAMPLES:
       }
 
       // Check user role - only admin and developer can use this tool
-      const userRole = await ctx.runQuery(internal.member.getMemberRoleInternal, {
+      const userRole = await ctx.runQuery(internal.queries.member.getMemberRoleInternal, {
         userId,
         organizationId,
       });
@@ -121,7 +121,7 @@ EXAMPLES:
 
         // Load available integrations for this organization
         // This is critical - sub-agents need to know what integrations exist
-        const integrationsList = await ctx.runQuery(internal.integrations.listInternal, {
+        const integrationsList = await ctx.runQuery(internal.integrations.queries.list_internal.listInternal, {
           organizationId,
         });
         const integrationsInfo = formatIntegrationsForContext(integrationsList);

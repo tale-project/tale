@@ -1,4 +1,4 @@
-import type { Message } from '@/app/(app)/dashboard/[id]/conversations/types';
+import type { Message } from '../../../app/features/conversations/types';
 import { formatDate, formatDateHeader, dayjs } from '@/lib/utils/date/format';
 import { defaultLocale } from '@/lib/i18n/config';
 
@@ -6,26 +6,7 @@ export function formatMessageTime(timestamp: string, locale: string = defaultLoc
   return formatDate(timestamp, { preset: 'time', locale });
 }
 
-export function formatConversationDateHeader(timestamp: string, locale: string = defaultLocale): string {
-  return formatDateHeader(timestamp, { locale });
-}
-
 export * from '@/lib/utils/date/format';
-
-/**
- * Format timestamp for email display using relative time to avoid timezone issues
- * Returns relative time like "2 hours ago", "yesterday", "3 days ago"
- * Supports internationalization based on customer locale
- */
-export function formatEmailTimestamp(
-  timestamp: string,
-  locale: string = defaultLocale,
-): string {
-  return formatDate(timestamp, {
-    preset: 'relative',
-    locale,
-  });
-}
 
 interface MessageGroup {
   date: string;

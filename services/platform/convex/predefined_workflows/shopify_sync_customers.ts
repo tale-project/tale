@@ -13,7 +13,7 @@
  * - Uses unified integration action (credentials + plugin execution in one step)
  */
 
-export const shopifySyncCustomersWorkflow = {
+const shopifySyncCustomersWorkflow = {
   workflowConfig: {
     name: 'Shopify Customers Sync',
     description:

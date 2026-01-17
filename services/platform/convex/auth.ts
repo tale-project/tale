@@ -193,7 +193,7 @@ export function authorizeRls(
 // The component client has methods needed for integrating Convex with Better Auth,
 // as well as helper methods for general use.
 export const authComponent = createClient<DataModel, typeof authSchema>(
-  components.betterAuth,
+  components.better_auth,
   {
     local: {
       schema: authSchema,

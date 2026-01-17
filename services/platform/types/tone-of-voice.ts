@@ -2,23 +2,23 @@ import { Doc } from '@/convex/_generated/dataModel';
 
 // ==================== TONE OF VOICE TYPES ====================
 
-export type ToneOfVoice = Doc<'toneOfVoice'>;
+type ToneOfVoice = Doc<'toneOfVoice'>;
 export type ExampleMessage = Doc<'exampleMessages'>;
 
-export interface ToneOfVoiceWithExamples {
+interface ToneOfVoiceWithExamples {
   toneOfVoice: ToneOfVoice;
   examples: ExampleMessage[];
 }
 
 // ==================== FORM TYPES ====================
 
-export interface ExampleMessageFormData {
+interface ExampleMessageFormData {
   content: string;
 }
 
 // ==================== API RESPONSE TYPES ====================
 
-export interface GenerateToneResponse {
+interface GenerateToneResponse {
   success: boolean;
   tone?: string;
   error?: string;

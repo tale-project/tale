@@ -6,21 +6,16 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
-// Chat streaming endpoint - provides low-latency HTTP streaming for AI responses
-// Uses Persistent Text Streaming component for real-time token delivery
-import { streamChatHttp, streamChatHttpOptions } from './streaming';
+import { streamChatHttp, streamChatHttpOptions } from './actions/streaming';
 
 const http = httpRouter();
 
-// Simple health check to verify HTTP actions are enabled
 http.route({
   path: '/ping',
   method: 'GET',
   handler: httpAction(async () => new Response('ok', { status: 200 })),
 });
 
-// File download with proper Content-Disposition header for friendly filenames
-// URL format: /storage/{storageId}?filename={encodedFilename}
 http.route({
   path: '/storage',
   method: 'GET',
@@ -33,7 +28,6 @@ http.route({
       return new Response('Missing storage ID', { status: 400 });
     }
 
-    // Rate limit by IP address
     const ip =
       req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
       req.headers.get('x-real-ip') ||
@@ -63,11 +57,8 @@ http.route({
         'Content-Length': blob.size.toString(),
       };
 
-      // Add Content-Disposition header if filename is provided
       if (filename) {
-        // Sanitize filename and encode for Content-Disposition header
         const sanitizedFilename = filename.replace(/[^\w\s.-]/g, '_');
-        // Use RFC 5987 encoding for non-ASCII characters
         const encodedFilename = encodeURIComponent(filename);
         headers['Content-Disposition'] =
           `attachment; filename="${sanitizedFilename}"; filename*=UTF-8''${encodedFilename}`;
@@ -81,8 +72,6 @@ http.route({
   }),
 });
 
-// Register Better Auth HTTP routes; no CORS needed for Next.js rewrites
-// This automatically registers endpoints like /api/auth/get-session
 authComponent.registerRoutes(http, createAuth);
 
 http.route({

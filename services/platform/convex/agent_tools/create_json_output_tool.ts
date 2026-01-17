@@ -12,7 +12,7 @@
 import { createTool } from '@convex-dev/agent';
 import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
 import type { z } from 'zod';
-import type { JsonSchemaDefinition } from '../workflow/types/nodes';
+import type { JsonSchemaDefinition } from '../workflow_engine/types/nodes';
 
 /**
  * Result from creating a json_output tool

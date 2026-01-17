@@ -30,7 +30,7 @@
  * - Can be scheduled or triggered manually
  */
 
-export const loopiProductRecommendationWorkflow = {
+const loopiProductRecommendationWorkflow = {
   workflowConfig: {
     name: 'Product Recommendation',
     description:

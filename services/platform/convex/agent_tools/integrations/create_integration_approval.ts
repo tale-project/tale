@@ -6,8 +6,9 @@
 
 import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { createApproval } from '../../model/approvals/create_approval';
-import type { IntegrationOperationMetadata } from '../../model/approvals/types';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { createApproval } from '../../models/approvals/create_approval';
+import type { IntegrationOperationMetadata } from '../../models/approvals/types';
 
 /**
  * Create an approval for an integration operation
@@ -21,7 +22,7 @@ export const createIntegrationApproval = internalMutation({
     operationName: v.string(),
     operationTitle: v.string(),
     operationType: v.union(v.literal('read'), v.literal('write')),
-    parameters: v.any(),
+    parameters: jsonRecordValidator,
     threadId: v.optional(v.string()),
     messageId: v.optional(v.string()),
     estimatedImpact: v.optional(v.string()),

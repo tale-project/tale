@@ -13,7 +13,7 @@
  * - Can be triggered manually or scheduled based on scanInterval
  */
 
-export const websiteScanWorkflow = {
+const websiteScanWorkflow = {
   workflowConfig: {
     name: 'Website Scan',
     description:

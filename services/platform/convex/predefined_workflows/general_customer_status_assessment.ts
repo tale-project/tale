@@ -1,4 +1,4 @@
-export const generalCustomerStatusAssessmentWorkflow = {
+const generalCustomerStatusAssessmentWorkflow = {
   workflowConfig: {
     name: 'General Customer Status Assessment',
     description:

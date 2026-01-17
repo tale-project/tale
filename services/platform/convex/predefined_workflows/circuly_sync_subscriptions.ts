@@ -16,7 +16,7 @@
  * - Automatically fetches next page until all customers are processed
  */
 
-export const circulySyncSubscriptionsWorkflow = {
+const circulySyncSubscriptionsWorkflow = {
   workflowConfig: {
     name: 'Circuly Subscriptions Sync',
     description:

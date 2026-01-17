@@ -23,7 +23,7 @@ export async function readWorkflowExamples(
 
   try {
     const allWorkflows = (await ctx.runQuery(
-      internal.wf_definitions.listWorkflows,
+      internal.wf_definitions.queries.listWorkflows.listWorkflows,
       {
         organizationId,
       },

@@ -1,4 +1,4 @@
-export const generalProductRecommendationWorkflow = {
+const generalProductRecommendationWorkflow = {
   workflowConfig: {
     name: 'General Product Recommendation',
     description:

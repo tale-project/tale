@@ -14,7 +14,7 @@
   3) Wait until it's listening on the local port (using wait-on library)
   4) Sync .env vars into Convex (SITE_URL, Entra ID keys, etc.)
   5) Trigger code generation with updated environment
-  6) Start Next.js dev server with loaded environment variables
+  6) Start TanStack Start dev server with loaded environment variables
   7) Handle Ctrl+C (SIGINT/SIGTERM) to cleanly shut down both processes
 
   This ensures local development without cloud dependencies and avoids timing issues.
@@ -66,7 +66,7 @@ function parseDotEnv(filePath) {
  * Does not overwrite already-set values.
  */
 function envNormalizeCommon() {
-  // Next.js/server basics
+  // TanStack Start/server basics
   // Force development mode for local dev
   process.env.NODE_ENV = 'development';
   if (!process.env.PORT) process.env.PORT = '3000';
@@ -272,11 +272,11 @@ async function main() {
     await runCommand('npx', ['--yes', 'convex', 'codegen']);
     console.log('[dev] ✅ Code generation completed');
 
-    // Step 5: Start Next.js
+    // Step 5: Start TanStack Start
     const port = process.env.PORT || '3000';
     const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 
-    console.log('[dev] 🚀 Starting Next.js dev server...');
+    console.log('[dev] 🚀 Starting TanStack Start dev server...');
     console.log(`[dev] 🌐 Your app will be available at ${siteUrl}`);
     console.log(
       `[dev] 🌐 Also accessible via your internal IP address on port ${port}`,
@@ -322,7 +322,7 @@ async function main() {
             kill(nextProcess.pid, 'SIGTERM', (err) => {
               if (err) {
                 console.warn(
-                  '[dev] ⚠️  Error killing Next.js process tree:',
+                  '[dev] ⚠️  Error killing TanStack Start process tree:',
                   err.message,
                 );
               }
@@ -353,7 +353,7 @@ async function main() {
     });
 
     nextProcess.on('exit', (code) => {
-      console.log(`[dev] Next.js exited with code ${code}`);
+      console.log(`[dev] TanStack Start exited with code ${code}`);
       shutdown();
     });
 

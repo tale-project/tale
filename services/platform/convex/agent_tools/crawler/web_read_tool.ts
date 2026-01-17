@@ -119,7 +119,7 @@ EXAMPLES:
 • Research query: { operation: "search_and_fetch", query: "React 19 new features" }
 • Fetch specific URL: { operation: "fetch_url", url: "https://example.com/article" }
 • Site-specific research: { operation: "search_and_fetch", query: "hooks", site: "react.dev" }
-• Browse many results: { operation: "search", query: "next.js tutorials", num_results: 20 }`,
+• Browse many results: { operation: "search", query: "React tutorials", num_results: 20 }`,
     args: webReadArgs,
     handler: async (
       ctx: ToolCtx,

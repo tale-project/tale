@@ -1,27 +1,21 @@
 /**
  * Common validators for RLS-enabled functions
- * Updated to use Better Auth's string-based organization IDs
+ * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { v } from 'convex/values';
+import { zodToConvex } from 'convex-helpers/server/zod3';
+import {
+  organizationIdArgSchema,
+  rlsWithPaginationArgsSchema,
+  rlsWithSearchArgsSchema,
+} from '../../../lib/shared/schemas/rls';
 
-/**
- * Validator for organization ID arguments (Better Auth uses string IDs)
- */
-export const organizationIdArg = v.string();
+export * from '../../../lib/shared/schemas/rls';
 
-/**
- * Common validators for RLS-enabled functions
- */
+export const organizationIdArg = zodToConvex(organizationIdArgSchema);
+
 export const rlsValidators = {
   organizationId: organizationIdArg,
-  withPagination: {
-    organizationId: organizationIdArg,
-    page: v.optional(v.number()),
-    size: v.optional(v.number()),
-  },
-  withSearch: {
-    organizationId: organizationIdArg,
-    query: v.optional(v.string()),
-  },
+  withPagination: zodToConvex(rlsWithPaginationArgsSchema),
+  withSearch: zodToConvex(rlsWithSearchArgsSchema),
 };

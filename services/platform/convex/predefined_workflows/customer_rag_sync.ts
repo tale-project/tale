@@ -12,7 +12,7 @@
  * 6. If no customer found, finish (nothing to do)
  */
 
-export const customerRagSyncWorkflow = {
+const customerRagSyncWorkflow = {
   workflowConfig: {
     name: 'Customer RAG Sync',
     description: 'Find one unprocessed customer and upload it to RAG service',

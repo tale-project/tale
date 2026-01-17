@@ -33,7 +33,7 @@
  * - Graceful termination when no customers need processing
  */
 
-export const loopiCustomerStatusAssessmentWorkflow = {
+const loopiCustomerStatusAssessmentWorkflow = {
   workflowConfig: {
     name: 'Customer Status Assessment',
     description:
