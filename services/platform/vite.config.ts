@@ -73,8 +73,7 @@ export default defineConfig({
         injectionPoint: undefined,
       },
       devOptions: {
-        enabled: true,
-        type: 'module',
+        enabled: false,
       },
     }),
   ],

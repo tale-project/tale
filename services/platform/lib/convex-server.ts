@@ -11,12 +11,12 @@ let cachedClient: ConvexHttpClient | null = null;
 function getConvexHttpUrl(): string {
   if (cachedConvexHttpUrl) return cachedConvexHttpUrl;
 
-  const rawSiteUrl = process.env.SITE_URL || 'http://localhost:3000';
+  const rawSiteUrl = import.meta.env.VITE_SITE_URL || 'http://localhost:3000';
   const trimmed = rawSiteUrl.replace(/\/+$/, '');
   const url = `${trimmed}/ws_api`;
 
   cachedConvexHttpUrl = url;
-  if (process.env.NODE_ENV !== 'production') {
+  if (import.meta.env.DEV) {
     console.log('[convex-server] Using Convex HTTP URL:', cachedConvexHttpUrl);
   }
   return cachedConvexHttpUrl;

@@ -35,7 +35,6 @@ export function createRouter() {
     },
     defaultPreload: 'intent',
     scrollRestoration: true,
-    ...(history && { history }),
   });
 
   return router;

@@ -1,9 +1,9 @@
 import { convexBetterAuthReactStart } from '@convex-dev/better-auth/react-start';
 
-const siteUrl = process.env.SITE_URL || 'http://localhost:3000';
+const siteUrl = import.meta.env.VITE_SITE_URL || 'http://localhost:3000';
 
 const auth = convexBetterAuthReactStart({
-  convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
+  convexUrl: import.meta.env.VITE_CONVEX_URL,
   convexSiteUrl: `${siteUrl}/http_api`,
 });
 
