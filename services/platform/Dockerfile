@@ -11,10 +11,11 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 
 WORKDIR /app
 
-COPY services/platform/package.json ./package.json
+COPY package.json ./package.json
 COPY package-lock.json ./
+COPY services/platform/package.json ./services/platform/package.json
 
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --workspace=@tale/platform
 
 # ============================================================================
 # Stage 2: Builder
