@@ -29,7 +29,8 @@ COPY package-lock.json ./
 COPY services/platform/package.json ./services/platform/package.json
 
 # Install dependencies using workspace mode to ensure lock file sync
-RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 --workspace=@tale/platform
+# Use --include=dev to ensure devDependencies are installed (needed for build tools like vite-tsconfig-paths)
+RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10 --include=dev --workspace=@tale/platform
 
 # ============================================================================
 # Stage 2: Builder
