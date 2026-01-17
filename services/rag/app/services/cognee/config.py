@@ -241,11 +241,30 @@ def _patch_litellm_aembedding() -> None:
 
         _original_aembedding = litellm.aembedding
 
+        # Track aembedding calls
+        _aembedding_call_stats = {"count": 0, "total_items": 0}
+
         async def _patched_aembedding(
             model: str,
             input: list | str,
             **kwargs: Any,
         ) -> Any:
+            import time
+
+            # Track call statistics
+            _aembedding_call_stats["count"] += 1
+            call_num = _aembedding_call_stats["count"]
+
+            input_count = 1 if isinstance(input, str) else len(input) if input else 0
+            _aembedding_call_stats["total_items"] += input_count
+
+            logger.warning(
+                f"[PERF-EMBED] aembedding call #{call_num} "
+                f"(total {_aembedding_call_stats['total_items']} items embedded): "
+                f"processing {input_count} text(s)"
+            )
+            call_start = time.time()
+
             # Handle string input (OpenAI-compatible APIs accept str or list[str])
             if isinstance(input, str):
                 if not input.strip():
@@ -256,7 +275,10 @@ def _patch_litellm_aembedding() -> None:
                         data=[],
                         usage={"prompt_tokens": 0, "total_tokens": 0},
                     )
-                return await _original_aembedding(model=model, input=input, **kwargs)
+                result = await _original_aembedding(model=model, input=input, **kwargs)
+                call_duration = time.time() - call_start
+                logger.warning(f"[PERF-EMBED] call #{call_num} complete in {call_duration:.2f}s")
+                return result
 
             # Filter out empty or whitespace-only strings from list input
             original_input_len = len(input) if input else 0
@@ -282,7 +304,13 @@ def _patch_litellm_aembedding() -> None:
                     usage={"prompt_tokens": 0, "total_tokens": 0},
                 )
 
-            return await _original_aembedding(model=model, input=input, **kwargs)
+            result = await _original_aembedding(model=model, input=input, **kwargs)
+            call_duration = time.time() - call_start
+            logger.warning(
+                f"[PERF-EMBED] call #{call_num} complete in {call_duration:.2f}s "
+                f"({input_count / call_duration:.1f} items/sec)"
+            )
+            return result
 
         litellm.aembedding = _patched_aembedding
         litellm._tale_aembedding_patch_applied = True
@@ -311,6 +339,9 @@ def _patch_litellm_embedding() -> None:
 
         _original_embedding = OpenAIChatCompletion.embedding
 
+        # Track embedding API calls
+        _embedding_call_stats = {"count": 0, "total_items": 0}
+
         def _patched_embedding(
             self: Any,
             model: str,
@@ -325,13 +356,41 @@ def _patch_litellm_embedding() -> None:
             aembedding: bool = False,
             **kwargs: Any,
         ) -> Any:
+            import time
+
+            # Track call statistics
+            _embedding_call_stats["count"] += 1
+            call_num = _embedding_call_stats["count"]
+
             base_url = api_base or os.environ.get("OPENAI_BASE_URL", "")
+            input_count = len(input) if isinstance(input, list) else 1
+            _embedding_call_stats["total_items"] += input_count
+
+            logger.warning(
+                f"[PERF-EMBED] OpenAIChatCompletion.embedding call #{call_num} "
+                f"(total {_embedding_call_stats['total_items']} items): "
+                f"processing {input_count} text(s) to {base_url}"
+            )
+            call_start = time.time()
+
             if optional_params and "api.openai.com" not in base_url:
                 optional_params.pop("encoding_format", None)
-                input_count = len(input) if isinstance(input, list) else 1
-                logger.debug(f"Embedding {input_count} text(s) with {model}")
 
-            return _original_embedding(
+            # Log text preview for debugging
+            if isinstance(input, list):
+                previews = []
+                for text in input[:3]:  # Show first 3 items
+                    text_str = str(text)[:100]  # First 100 chars
+                    previews.append(text_str)
+                preview_text = " | ".join(previews)
+                if len(input) > 3:
+                    preview_text += f" ... (+{len(input) - 3} more)"
+                logger.debug(f"Embedding {input_count} text(s) with {model}: {preview_text}")
+            else:
+                preview_text = str(input)[:100]
+                logger.debug(f"Embedding {input_count} text(s) with {model}: {preview_text}")
+
+            result = _original_embedding(
                 self,
                 model=model,
                 input=input,
@@ -345,6 +404,13 @@ def _patch_litellm_embedding() -> None:
                 aembedding=aembedding,
                 **kwargs,
             )
+
+            call_duration = time.time() - call_start
+            logger.warning(
+                f"[PERF-EMBED] call #{call_num} complete in {call_duration:.2f}s "
+                f"({input_count / call_duration:.1f} items/sec)"
+            )
+            return result
 
         OpenAIChatCompletion.embedding = _patched_embedding
         OpenAIChatCompletion._tale_embedding_patch_applied = True
@@ -661,51 +727,104 @@ def _patch_falkordb_adapter_add_nodes() -> None:
 
         _original_add_nodes = FalkorDBAdapter.add_nodes
 
+        # Global counter to track how many times add_nodes is called
+        _add_nodes_call_count = {"count": 0, "total_nodes": 0}
+
         async def _patched_add_nodes(self: Any, nodes: list) -> None:
-            """Add nodes with fixed vector index mapping."""
+            """Add nodes with fixed vector index mapping and batched embeddings.
+
+            Performance optimization: Collect all embeddable values from all nodes
+            first, then embed them in one batched API call instead of one call per node.
+            This reduces API overhead from hundreds of calls to just one.
+            """
+            # Track call statistics
+            _add_nodes_call_count["count"] += 1
+            _add_nodes_call_count["total_nodes"] += len(nodes)
+
+            # Phase 1: Collect all embeddable values and build metadata
+            tuple_nodes = []
+            datapoint_nodes = []
+            all_embeddable_values = []
+            node_metadata = []
+
             for node in nodes:
                 if isinstance(node, tuple) and len(node) == 2:
-                    node_id, properties = node
-                    await self.add_node(node_id, properties)
+                    tuple_nodes.append(node)
                 elif hasattr(node, "id") and hasattr(node, "model_dump"):
-                    embeddable_values = []
                     property_names = DataPoint.get_embeddable_property_names(node)
                     vector_map = {}
+                    node_embeddable_values = []
+
                     for property_name in property_names:
                         property_value = getattr(node, property_name, None)
                         if property_value is not None:
-                            vector_map[property_name] = len(embeddable_values)
-                            embeddable_values.append(property_value)
+                            vector_map[property_name] = len(all_embeddable_values) + len(node_embeddable_values)
+                            node_embeddable_values.append(property_value)
 
-                    vectorized_values = await self.embed_data(embeddable_values)
-
-                    # Build base properties from node data
-                    properties = {**node.model_dump()}
-
-                    # Only add vectors if embedding succeeded and returned expected count
-                    if len(vectorized_values) == len(vector_map):
-                        properties.update({
-                            f"{property_name}_vector": vectorized_values[vector_map[property_name]]
-                            for property_name in vector_map.keys()
-                        })
-                    elif len(vector_map) > 0:
-                        # Log warning if we expected vectors but didn't get them
-                        logger.warning(
-                            f"Vector embedding mismatch for node {node.id}: "
-                            f"expected {len(vector_map)} vectors but got {len(vectorized_values)}. "
-                            f"Properties: {list(vector_map.keys())}. Skipping vector properties."
-                        )
-
-                    await self.add_node(str(node.id), properties)
+                    all_embeddable_values.extend(node_embeddable_values)
+                    datapoint_nodes.append(node)
+                    node_metadata.append({
+                        "node": node,
+                        "vector_map": vector_map,
+                        "num_values": len(node_embeddable_values)
+                    })
                 else:
                     raise ValueError(
                         f"Invalid node format: {node}. Expected tuple (node_id, properties) "
                         f"or DataPoint object."
                     )
 
+            # Phase 2: Batch embed all values at once (huge performance improvement)
+            all_vectorized_values = []
+            if all_embeddable_values:
+                logger.warning(
+                    f"[PERF] add_nodes call #{_add_nodes_call_count['count']} "
+                    f"({_add_nodes_call_count['total_nodes']} total nodes processed): "
+                    f"batching {len(all_embeddable_values)} embeddings from {len(datapoint_nodes)} DataPoint nodes"
+                )
+                import time
+                batch_start = time.time()
+                all_vectorized_values = await self.embed_data(all_embeddable_values)
+                batch_duration = time.time() - batch_start
+                logger.warning(
+                    f"[PERF] Batch #{_add_nodes_call_count['count']} complete: "
+                    f"{len(all_vectorized_values)} vectors in {batch_duration:.2f}s "
+                    f"({len(all_embeddable_values)/batch_duration:.1f} vectors/sec)"
+                )
+
+            # Phase 3: Add tuple nodes directly
+            for node_id, properties in tuple_nodes:
+                await self.add_node(node_id, properties)
+
+            # Phase 4: Add DataPoint nodes with their vectors
+            for metadata in node_metadata:
+                node = metadata["node"]
+                vector_map = metadata["vector_map"]
+
+                properties = {**node.model_dump()}
+
+                if vector_map and len(all_vectorized_values) >= max(vector_map.values()) + 1:
+                    properties.update({
+                        f"{property_name}_vector": all_vectorized_values[vector_idx]
+                        for property_name, vector_idx in vector_map.items()
+                    })
+                elif vector_map:
+                    logger.warning(
+                        f"Vector embedding mismatch for node {node.id}: "
+                        f"expected indices up to {max(vector_map.values())} but got {len(all_vectorized_values)} vectors. "
+                        f"Properties: {list(vector_map.keys())}. Skipping vector properties."
+                    )
+                    if "metadata" in properties and "index_fields" in properties["metadata"]:
+                        properties["metadata"]["index_fields"] = [
+                            field for field in properties["metadata"]["index_fields"]
+                            if field not in vector_map
+                        ]
+
+                await self.add_node(str(node.id), properties)
+
         FalkorDBAdapter.add_nodes = _patched_add_nodes
         FalkorDBAdapter._tale_add_nodes_patch_applied = True
-        logger.info("Patched FalkorDB adapter add_nodes to fix vector index bug")
+        logger.info("Patched FalkorDB adapter add_nodes with batched embedding optimization")
 
     except ImportError as e:
         logger.debug(f"FalkorDB adapter not available, skipping add_nodes patch: {e}")
