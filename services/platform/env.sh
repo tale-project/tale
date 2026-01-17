@@ -74,7 +74,7 @@ ensure_instance_secret() {
 }
 
 # Ensure INSTANCE_SECRET is a 64-char hex string; error out if not.
-# Use in tools that require a cryptographically valid secret (e.g., generate_admin_key.sh).
+# Use in tools that require a cryptographically valid secret (e.g., generate-admin-key.sh).
 ensure_hex_instance_secret() {
   if ! echo "${INSTANCE_SECRET:-}" | grep -Eq '^[0-9a-fA-F]{64}$'; then
     echo "Error: INSTANCE_SECRET must be a 64-character hex string. Set INSTANCE_SECRET in your .env." >&2

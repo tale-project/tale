@@ -1,9 +1,5 @@
-# ============================================================================
 # Tale Platform Dockerfile
-# ============================================================================
-# This Dockerfile builds the Tale platform (Vite SPA + Convex Backend)
-# It uses the official Convex backend image as the base to ensure compatibility
-# Both Vite application and Convex backend run in the same container
+# Builds the Vite SPA + Convex Backend with multi-stage optimization
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
 ARG VERSION=dev
@@ -11,25 +7,20 @@ ARG VERSION=dev
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
-# Use the official Convex backend image as base - it already has Node.js and all binaries
-FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS deps
-
-# Install dependencies required for node-gyp and building
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS workspace-deps
 
 WORKDIR /app
 
-# Copy package files - use platform's package.json directly
-# We copy package-lock.json for version hints but use npm install which is more flexible
-COPY package-lock.json ./
-COPY services/platform/package.json ./package.json
+COPY package.json package-lock.json ./
+COPY services/platform/package.json ./services/platform/
+COPY services/crawler/package.json ./services/crawler/
+COPY services/rag/package.json ./services/rag/
+COPY services/graph-db/package.json ./services/graph-db/
+COPY services/db/package.json ./services/db/
+COPY services/proxy/package.json ./services/proxy/
+COPY services/search/package.json ./services/search/
 
-# Install dependencies - use npm install instead of npm ci for flexibility with lock file
-RUN npm install --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10
+RUN npm ci --legacy-peer-deps
 
 # ============================================================================
 # Stage 2: Builder
@@ -38,168 +29,109 @@ FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed 
 
 WORKDIR /app
 
-# Copy dependencies from deps stage (hoisted to root by npm workspaces)
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=workspace-deps /app/node_modules ./node_modules
+COPY --from=workspace-deps /app/services/platform/node_modules/ ./node_modules/
 
-# Copy application source from services/platform directory
-COPY services/platform/ .
+COPY services/platform/vite.config.ts \
+     services/platform/tsconfig.json \
+     services/platform/postcss.config.mjs \
+     services/platform/tailwind.config.ts \
+     services/platform/index.html \
+     services/platform/vite-env.d.ts \
+     services/platform/tsr.config.json \
+     services/platform/components.json \
+     services/platform/package.json \
+     ./
 
-# Set environment variables for build
+COPY services/platform/app ./app
+COPY services/platform/lib ./lib
+COPY services/platform/convex ./convex
+COPY services/platform/public ./public
+COPY services/platform/types ./types
+COPY services/platform/messages ./messages
+COPY services/platform/vite-plugins ./vite-plugins
+
+COPY services/platform/server.js \
+     services/platform/docker-entrypoint.sh \
+     services/platform/generate-admin-key.sh \
+     services/platform/env.sh \
+     ./
+
 ENV NODE_ENV=production
 
-# Note: convex/_generated/* files are committed to git and maintained by the dev workflow.
-# Developers must run `npx convex codegen` locally after schema/function changes.
-# The convex deploy at runtime will also regenerate these if needed.
-
-# Ensure TypeScript and platform-specific binaries are available
-# Native binaries needed for Linux: @swc/core, @parcel/watcher, lightningcss, @tailwindcss/oxide, @rollup/rollup
-# These are platform-specific and must be installed for Linux since package-lock.json was generated on macOS
-# Remove ALL platform-specific binaries first (macOS, Windows, wrong Linux arch), then install correct Linux variant
-RUN rm -rf ./node_modules/@swc/core-* 2>/dev/null || true && \
-    rm -rf ./node_modules/lightningcss-* 2>/dev/null || true && \
-    rm -rf ./node_modules/@parcel/watcher-* 2>/dev/null || true && \
-    rm -rf ./node_modules/@tailwindcss/oxide-* 2>/dev/null || true && \
-    rm -rf ./node_modules/@rollup/rollup-* 2>/dev/null || true && \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript \
-        @parcel/watcher-linux-x64-glibc \
-        lightningcss-linux-x64-gnu \
-        @tailwindcss/oxide-linux-x64-gnu \
-        @swc/core-linux-x64-gnu \
-        @rollup/rollup-linux-x64-gnu; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-      npm install --no-save --legacy-peer-deps typescript \
-        @parcel/watcher-linux-arm64-glibc \
-        lightningcss-linux-arm64-gnu \
-        @tailwindcss/oxide-linux-arm64-gnu \
-        @swc/core-linux-arm64-gnu \
-        @rollup/rollup-linux-arm64-gnu; \
-    fi
-
-# Build Vite application
-RUN npm run build
-
-# Prune unnecessary files from node_modules to reduce image size (~460MB savings)
-# This must be done in the builder stage before copying to runner, because Docker
-# layers are immutable - deleting files in a later layer doesn't reduce image size.
-# 1. musl binaries: Convex base image uses Ubuntu/glibc, musl binaries are not needed
-# 2. SWC compilers: Build-time compilers not needed in runtime
-# 3. TypeScript: Convex deploy uses --typecheck disable, so tsc is not needed
-# 4. Type definitions: Runtime doesn't need .d.ts files
-# 5. Other: test files, source maps, legacy browser fallbacks
-RUN find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true && \
-    rm -rf ./node_modules/@swc/core-linux-x64-gnu 2>/dev/null || true && \
-    rm -rf ./node_modules/typescript 2>/dev/null || true && \
-    rm -rf ./node_modules/@types 2>/dev/null || true && \
-    rm -rf ./node_modules/pdfjs-dist/legacy 2>/dev/null || true && \
-    find ./node_modules -type f -name "*.map" -delete 2>/dev/null || true && \
-    find ./node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" \) -exec rm -rf {} + 2>/dev/null || true
-
-# Note: docker-entrypoint.sh is already copied as part of "COPY . ."
+RUN npx vite build
 
 # ============================================================================
-# Stage 3: Convex Dashboard
+# Stage 3: Pruner
+# ============================================================================
+FROM builder AS pruner
+
+RUN npm prune --omit=dev --legacy-peer-deps 2>/dev/null || true \
+    && rm -rf ./node_modules/@swc/core* \
+              ./node_modules/lightningcss* \
+              ./node_modules/@parcel/watcher* \
+              ./node_modules/typescript \
+              ./node_modules/@types \
+              ./node_modules/@storybook \
+              ./node_modules/storybook \
+              ./node_modules/pdfjs-dist/legacy \
+    2>/dev/null || true \
+    && find ./node_modules -type d \( -name "*-musl*" -o -name "*linuxmusl*" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find ./node_modules -type f -name "*.map" -delete 2>/dev/null || true \
+    && find ./node_modules -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "__mocks__" -o -name "coverage" \) -exec rm -rf {} + 2>/dev/null || true \
+    && find ./node_modules -type f \( -name "*.md" -o -name "*.markdown" -o -name "CHANGELOG*" -o -name "LICENSE*" -o -name "README*" \) -delete 2>/dev/null || true
+
+# ============================================================================
+# Stage 4: Convex Dashboard
 # ============================================================================
 FROM ghcr.io/get-convex/convex-dashboard:272e7f4d46f0a9189d6e167f39f07d152b409fed AS convex-dashboard
 
 # ============================================================================
-# Stage 4: Runner
+# Stage 5: Runtime
 # ============================================================================
-# Use the official Convex backend image as base - it already has everything we need
 FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS runner
 
 WORKDIR /app
 
-# Install additional runtime dependencies
-# - curl: for health checks
-# - tini: for proper signal handling with multiple processes
-# - postgresql-client: for database connectivity checks
-# - ca-certificates: for trusting custom CA certificates (e.g., Caddy's self-signed CA)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    tini \
-    postgresql-client \
-    ca-certificates \
+    curl tini postgresql-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /usr/local/share/ca-certificates \
-    && chmod 755 /usr/local/share/ca-certificates
+    && chmod 755 /usr/local/share/ca-certificates \
+    && chmod +x /convex/convex-local-backend /convex/generate_key \
+    && ln -s /convex/convex-local-backend /usr/local/bin/convex-local-backend \
+    && ln -s /convex/generate_key /usr/local/bin/generate_key \
+    && groupadd --system --gid 1001 app || true \
+    && useradd --system --uid 1001 --gid app app || true \
+    && mkdir -p /home/app && chmod 777 /home/app \
+    && mkdir -p /app/convex-data /dashboard \
+    && chown -R app:app /app/convex-data /dashboard
 
-# Note: convex-local-backend and generate_key are already in the base image at /convex/
-# We'll create symlinks to make them available in PATH and ensure they're executable
-RUN chmod +x /convex/convex-local-backend /convex/generate_key && \
-    ln -s /convex/convex-local-backend /usr/local/bin/convex-local-backend && \
-    ln -s /convex/generate_key /usr/local/bin/generate_key
-
-# Re-declare VERSION arg for this stage (ARGs don't persist across stages)
+# Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set environment variables
-ENV NODE_ENV=production
-ENV TALE_VERSION=${VERSION}
+ENV NODE_ENV=production \
+    TALE_VERSION=${VERSION} \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0" \
+    CONVEX_PORT=3210 \
+    INSTANCE_NAME=tale_platform
 
-# Create a non-root user (using groupadd/useradd for Ubuntu compatibility)
-RUN groupadd --system --gid 1001 nodejs || true
-RUN useradd --system --uid 1001 --gid nodejs nextjs || true
+COPY --from=convex-dashboard --chown=app:app /app /dashboard
 
-# Create and set permissions for nextjs home directory (needed for npm)
-# Make it world-writable so both root and nextjs user can use it
-RUN mkdir -p /home/nextjs && chmod 777 /home/nextjs
+COPY --from=pruner --chown=app:app /app/dist ./dist
+COPY --from=pruner --chown=app:app /app/server.js ./
+COPY --from=pruner --chown=app:app /app/convex ./convex
+COPY --from=pruner --chown=app:app /app/lib ./lib
+COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
+COPY --from=pruner --chown=app:app /app/package.json ./
+COPY --from=pruner --chown=app:app /app/docker-entrypoint.sh /app/generate-admin-key.sh /app/env.sh ./
 
-# Create Convex data directory with proper permissions
-RUN mkdir -p /app/convex-data && chown -R nextjs:nodejs /app/convex-data
+RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh
 
-# Create dashboard directory with proper permissions
-RUN mkdir -p /dashboard && chown -R nextjs:nodejs /dashboard
+USER app
 
-# Copy Convex dashboard from official image
-COPY --from=convex-dashboard --chown=nextjs:nodejs /app /dashboard
-
-# Copy Vite build output
-COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nextjs:nodejs /app/server.js ./server.js
-
-# Copy Convex files and configuration with correct ownership
-COPY --from=builder --chown=nextjs:nodejs /app/convex ./convex
-# Copy shared application libraries used by Convex functions (e.g., lib/utils/toonify)
-COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
-
-
-# Copy pruned node_modules for Convex deploy (includes all transitive dependencies)
-# The @convex-dev/* packages require many dependencies (zod, ai, better-auth, etc.)
-# Note: node_modules was already pruned in the builder stage to remove unnecessary files
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
-
-# Copy startup script with correct ownership and set execute permission
-COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Copy admin key generation script with correct ownership and set execute permission
-COPY --from=builder --chown=nextjs:nodejs /app/generate_admin_key.sh /app/generate_admin_key.sh
-RUN chmod +x /app/generate_admin_key.sh
-# Copy shared env normalization script
-COPY --from=builder --chown=nextjs:nodejs /app/env.sh /app/env.sh
-
-# Switch to non-root user
-USER nextjs
-
-# Expose ports
-# 3000: Vite application (served by Node.js static server)
-# 3210: Convex backend API
-# 3211: Convex HTTP actions
-# 6791: Convex dashboard
 EXPOSE 3000 3210 3211 6791
 
-# Set environment variables
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-ENV CONVEX_PORT=3210
-ENV INSTANCE_NAME=tale_platform
-
-# Use tini as init system for proper signal handling
 ENTRYPOINT ["/usr/bin/tini", "--"]
-
-# Start both services
 CMD ["/app/docker-entrypoint.sh"]
-
