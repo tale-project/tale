@@ -21,6 +21,7 @@
     "test:watch": "turbo run test:watch",
     "test:coverage": "turbo run test:coverage",
     "typecheck": "turbo run typecheck",
+    "knip": "knip",
     "setup": "turbo run setup",
     "docker:build": "turbo run docker:build",
     "docker:up": "docker compose up -d",
@@ -29,12 +30,15 @@
   },
   "devDependencies": {
     "@types/node": "24.10.9",
+    "@convex-dev/eslint-plugin": "^1.1.1",
     "@vitest/coverage-v8": "4.0.17",
     "eslint": "9.39.2",
+    "eslint-plugin-unicorn": "^62.0.0",
     "knip": "^5.81.0",
     "postcss": "8.5.6",
     "turbo": "2.7.5",
     "typescript": "5.9.3",
+    "typescript-eslint": "^8.53.0",
     "vitest": "4.0.17"
   },
   "optionalDependencies": {

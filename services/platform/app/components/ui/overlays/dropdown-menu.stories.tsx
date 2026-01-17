@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import {
-  Cloud,
   CreditCard,
-  Github,
   Keyboard,
-  LifeBuoy,
   LogOut,
   Mail,
   MessageSquare,
@@ -13,7 +10,6 @@ import {
   Settings,
   User,
   UserPlus,
-  Users,
 } from 'lucide-react';
 import {
   DropdownMenu,

@@ -9,7 +9,7 @@ Handles:
 import logging
 from copy import deepcopy
 from io import BytesIO
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from docx import Document
@@ -23,7 +23,7 @@ class DocxService:
     """Service for generating DOCX documents."""
 
     def __init__(self):
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -46,7 +46,7 @@ class DocxService:
 
     async def generate_docx(
         self,
-        content: Dict[str, Any],
+        content: dict[str, Any],
     ) -> bytes:
         """
         Generate a DOCX document from structured content.
@@ -100,7 +100,7 @@ class DocxService:
         except KeyError:
             pass
 
-    def _process_section(self, doc: Document, section: Dict[str, Any]) -> None:
+    def _process_section(self, doc: Document, section: dict[str, Any]) -> None:
         """Process a single section and add it to the document."""
         section_type = section.get("type", "paragraph")
 
@@ -131,7 +131,7 @@ class DocxService:
         elif section_type == "code":
             doc.add_paragraph(section.get("text", ""))
 
-    def _add_table(self, doc: Document, section: Dict[str, Any]) -> None:
+    def _add_table(self, doc: Document, section: dict[str, Any]) -> None:
         """Add a table to the document."""
         headers = section.get("headers", [])
         rows = section.get("rows", [])
@@ -171,7 +171,7 @@ class DocxService:
 
     async def generate_docx_from_template(
         self,
-        content: Dict[str, Any],
+        content: dict[str, Any],
         template_bytes: bytes,
     ) -> bytes:
         """
@@ -249,7 +249,7 @@ class DocxService:
 
 
 # Global service instance
-_docx_service: Optional[DocxService] = None
+_docx_service: DocxService | None = None
 
 
 def get_docx_service() -> DocxService:

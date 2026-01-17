@@ -207,6 +207,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
     if (pdfDoc) {
       queueRenderPage(pageNum);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- queueRenderPage is defined inside component but stable
   }, [scale, pageNum, pdfDoc]);
 
   // Load PDF document

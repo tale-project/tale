@@ -50,7 +50,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
     execution._id ? { executionId: execution._id } : 'skip',
   );
 
-  const { metadata, parsedVariables, variables } = useMemo(() => {
+  const { metadata, parsedVariables, variables: _variables } = useMemo(() => {
     const meta = execution.metadata
       ? (() => {
           try {
@@ -279,19 +279,22 @@ export function ExecutionsClient({
     });
   };
 
-  const handleStatusChange = (values: string[]) => {
-    navigate({
-      to: '/dashboard/$id/automations/$amId/executions',
-      params: { id: organizationId, amId },
-      search: {
-        query: searchTerm,
-        status: values[0] || undefined,
-        triggeredBy: triggeredBy?.[0],
-        dateFrom,
-        dateTo,
-      },
-    });
-  };
+  const handleStatusChange = useCallback(
+    (values: string[]) => {
+      navigate({
+        to: '/dashboard/$id/automations/$amId/executions',
+        params: { id: organizationId, amId },
+        search: {
+          query: searchTerm,
+          status: values[0] || undefined,
+          triggeredBy: triggeredBy?.[0],
+          dateFrom,
+          dateTo,
+        },
+      });
+    },
+    [navigate, organizationId, amId, searchTerm, triggeredBy, dateFrom, dateTo],
+  );
 
   const handleDateRangeChange = (range: { from?: Date; to?: Date } | undefined) => {
     navigate({
@@ -330,7 +333,7 @@ export function ExecutionsClient({
         onChange: handleStatusChange,
       },
     ],
-    [status, tTables, tCommon],
+    [status, tTables, tCommon, handleStatusChange],
   );
 
   const renderExpandedRow = useCallback(

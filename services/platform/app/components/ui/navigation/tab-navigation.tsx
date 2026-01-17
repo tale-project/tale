@@ -131,6 +131,7 @@ export function TabNavigation({
   const allRefs = useMemo(() => {
     const refs: (HTMLElement | null)[] = [navRef.current, ...itemRefs.current];
     return { current: refs };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Rebuild refs array when item count changes
   }, [accessibleItems.length]);
 
   // Re-measure on resize

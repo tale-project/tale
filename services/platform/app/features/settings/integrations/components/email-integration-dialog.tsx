@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Stack, HStack, Center } from '@/app/components/ui/layout/layout';
+import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
   DropdownMenuContent,

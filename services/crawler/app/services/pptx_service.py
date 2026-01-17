@@ -8,13 +8,13 @@ Handles:
 
 import logging
 from io import BytesIO
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 import httpx
 from pptx import Presentation
-from pptx.util import Inches, Pt
-from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.shapes import MSO_SHAPE_TYPE
+from pptx.util import Inches, Pt
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class PptxService:
     """Service for analyzing and generating PPTX documents."""
 
     def __init__(self):
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -71,7 +71,7 @@ class PptxService:
             pass
         return ""
 
-    def _parse_hex_color(self, hex_color: Optional[str]):
+    def _parse_hex_color(self, hex_color: str | None):
         """Parse a hex color string to RGBColor."""
         from pptx.dml.color import RGBColor
 
@@ -91,10 +91,10 @@ class PptxService:
 
     async def analyze_pptx_template(
         self,
-        template_url: Optional[str] = None,
-        template_bytes: Optional[bytes] = None,
-        template_base64: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        template_url: str | None = None,
+        template_bytes: bytes | None = None,
+        template_base64: str | None = None,
+    ) -> dict[str, Any]:
         """
         Analyze a PPTX template and extract its FULL structure and content.
 
@@ -135,7 +135,7 @@ class PptxService:
             "branding": branding,
         }
 
-    def _extract_slide_info(self, idx: int, slide) -> Dict[str, Any]:
+    def _extract_slide_info(self, idx: int, slide) -> dict[str, Any]:
         """Extract information from a single slide."""
         slide_info = {
             "slideNumber": idx + 1,
@@ -153,7 +153,7 @@ class PptxService:
 
         return slide_info
 
-    def _extract_shape_info(self, shape, slide_info: Dict[str, Any]) -> None:
+    def _extract_shape_info(self, shape, slide_info: dict[str, Any]) -> None:
         """Extract information from a shape and add to slide_info."""
         # Extract title/subtitle from placeholders
         if shape.is_placeholder:
@@ -224,7 +224,7 @@ class PptxService:
         except Exception:
             pass
 
-    def _extract_branding(self, prs: Presentation) -> Dict[str, Any]:
+    def _extract_branding(self, prs: Presentation) -> dict[str, Any]:
         """Extract branding information from a presentation."""
         branding = {
             "slideWidth": prs.slide_width,
@@ -283,10 +283,10 @@ class PptxService:
     def _add_table_to_slide(
         self,
         slide,
-        table_data: Dict[str, Any],
+        table_data: dict[str, Any],
         top: int = None,
         slide_width: float = 10,
-        font_name: Optional[str] = None,
+        font_name: str | None = None,
         header_color=None,
     ) -> None:
         """Add a table to a slide with optional branding."""
@@ -346,9 +346,9 @@ class PptxService:
     def _add_bullet_list_to_slide(
         self,
         slide,
-        items: List[str],
+        items: list[str],
         top: int = None,
-        font_name: Optional[str] = None,
+        font_name: str | None = None,
         font_size: int = 12,
         bullet_color=None,
     ) -> None:
@@ -375,7 +375,7 @@ class PptxService:
             if bullet_color:
                 p.font.color.rgb = bullet_color
 
-    def _find_layout_by_name(self, prs: Presentation, layout_name: Optional[str]) -> Any:
+    def _find_layout_by_name(self, prs: Presentation, layout_name: str | None) -> Any:
         """Find a slide layout by name, with fallback to common layouts."""
         if not layout_name:
             layout_name = "Blank"
@@ -394,9 +394,14 @@ class PptxService:
 
         # Common layout name mappings
         layout_mappings = {
-            "title and content": ["title and content", "title_and_body", "title and body", "one_column_text", "content"],
+            "title and content": [
+                "title and content", "title_and_body", "title and body", "one_column_text", "content"
+            ],
             "title slide": ["title slide", "title"],
-            "content": ["title and content", "title_and_body", "title and body", "one_column_text", "content", "two content"],
+            "content": [
+                "title and content", "title_and_body", "title and body",
+                "one_column_text", "content", "two content"
+            ],
             "blank": ["blank"],
             "section": ["section header", "section", "section_header"],
         }
@@ -419,7 +424,7 @@ class PptxService:
         slide,
         title: str = "",
         subtitle: str = "",
-        body_text: List[str] = None,
+        body_text: list[str] = None,
     ) -> bool:
         """Fill placeholders in a slide. Returns True if any placeholder was filled."""
         from pptx.enum.shapes import PP_PLACEHOLDER
@@ -523,6 +528,7 @@ class PptxService:
             pptx.slide.Slide: The cloned slide added to the presentation.
         """
         from copy import deepcopy
+
         from lxml import etree
 
         # Add a new slide with the same layout (this gives us the background)
@@ -563,7 +569,7 @@ class PptxService:
 
         return dest
 
-    def _should_clone_slide(self, content: Dict[str, Any], idx: int) -> bool:
+    def _should_clone_slide(self, content: dict[str, Any], idx: int) -> bool:
         """
         Determine if we should clone a template slide for this content.
 
@@ -588,8 +594,8 @@ class PptxService:
 
     def _find_template_slide_for_clone(
         self,
-        template_slides: List[Any],
-    ) -> Optional[Any]:
+        template_slides: list[Any],
+    ) -> Any | None:
         """
         Find a template slide to clone (only for title slides).
 
@@ -611,7 +617,7 @@ class PptxService:
 
         return None
 
-    def _get_best_layout_for_content(self, prs: Presentation, content: Dict[str, Any]) -> Any:
+    def _get_best_layout_for_content(self, prs: Presentation, content: dict[str, Any]) -> Any:
         """
         Get the best layout from the presentation's slide layouts based on content.
 
@@ -678,10 +684,10 @@ class PptxService:
     def _create_slide_from_layout_only(
         self,
         prs: Presentation,
-        content: Dict[str, Any],
+        content: dict[str, Any],
         slide_width: float,
-        title_font: Optional[str],
-        body_font: Optional[str],
+        title_font: str | None,
+        body_font: str | None,
         title_font_size: int,
         body_font_size: int,
         primary_color,
@@ -775,9 +781,9 @@ class PptxService:
 
     async def generate_pptx_from_content(
         self,
-        slides_content: List[Dict[str, Any]],
-        branding: Optional[Dict[str, Any]] = None,
-        template_bytes: Optional[bytes] = None,
+        slides_content: list[dict[str, Any]],
+        branding: dict[str, Any] | None = None,
+        template_bytes: bytes | None = None,
     ) -> bytes:
         """
         Generate a PPTX based on provided content.
@@ -871,9 +877,9 @@ class PptxService:
     def _fill_cloned_slide(
         self,
         slide,
-        content: Dict[str, Any],
+        content: dict[str, Any],
         slide_width: float,
-        body_font: Optional[str],
+        body_font: str | None,
         primary_color,
     ) -> None:
         """
@@ -972,10 +978,10 @@ class PptxService:
         self,
         prs: Presentation,
         idx: int,
-        content: Dict[str, Any],
+        content: dict[str, Any],
         slide_width: float,
-        title_font: Optional[str],
-        body_font: Optional[str],
+        title_font: str | None,
+        body_font: str | None,
         title_font_size: int,
         body_font_size: int,
         primary_color,
@@ -1042,7 +1048,7 @@ class PptxService:
 
     def _add_title_to_slide(
         self, slide, title: str, top: float, slide_width: float,
-        font_name: Optional[str], font_size: int, color
+        font_name: str | None, font_size: int, color
     ) -> None:
         """Add a title to a slide."""
         title_box = slide.shapes.add_textbox(
@@ -1060,7 +1066,7 @@ class PptxService:
 
     def _add_subtitle_to_slide(
         self, slide, subtitle: str, top: float, slide_width: float,
-        font_name: Optional[str], font_size: int, color
+        font_name: str | None, font_size: int, color
     ) -> None:
         """Add a subtitle to a slide."""
         sub_box = slide.shapes.add_textbox(
@@ -1077,7 +1083,7 @@ class PptxService:
 
     def _add_text_to_slide(
         self, slide, text: str, top: float, slide_width: float,
-        font_name: Optional[str], font_size: int
+        font_name: str | None, font_size: int
     ) -> None:
         """Add text to a slide."""
         text_box = slide.shapes.add_textbox(
@@ -1093,7 +1099,7 @@ class PptxService:
 
 
 # Global service instance
-_pptx_service: Optional[PptxService] = None
+_pptx_service: PptxService | None = None
 
 
 def get_pptx_service() -> PptxService:

@@ -17,7 +17,7 @@ const debugLog = createDebugLog('DEBUG_ACCOUNTS', '[Accounts]');
  * This function accesses the Better Auth component's account storage
  * to retrieve Microsoft OAuth tokens for the authenticated user.
  */
-async function getMicrosoftAccount(
+export async function getMicrosoftAccount(
   ctx: QueryCtx,
 ): Promise<OAuthAccount | null> {
   // Get current authenticated user

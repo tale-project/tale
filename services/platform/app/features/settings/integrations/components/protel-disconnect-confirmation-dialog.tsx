@@ -21,7 +21,6 @@ export function ProtelDisconnectConfirmationDialog({
   onConfirm,
 }: ProtelDisconnectConfirmDialogProps) {
   const { t } = useT('settings');
-  const { t: tCommon } = useT('common');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const handleConfirm = async () => {

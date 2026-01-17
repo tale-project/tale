@@ -7,9 +7,17 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    pool: 'threads',
     setupFiles: ['./test/setup-ui.ts'],
-    include: ['components/**/*.test.{ts,tsx}'],
+    include: ['app/components/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'dist', 'convex/**'],
+    deps: {
+      optimizer: {
+        web: {
+          include: ['@exodus/bytes', 'html-encoding-sniffer'],
+        },
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'json'],

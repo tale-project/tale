@@ -4,7 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -12,10 +12,9 @@ from loguru import logger
 from . import __version__
 from .config import settings
 from .models import ErrorResponse
-from .routers import health_router, documents_router, search_router, jobs_router
+from .routers import documents_router, health_router, jobs_router, search_router
 from .services.cognee import cognee_service
 from .utils import cleanup_memory
-
 
 # Configure logging
 logging.basicConfig(

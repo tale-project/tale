@@ -6,10 +6,10 @@ from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 
 from ..models import (
-    QueryRequest,
-    QueryResponse,
     GenerateRequest,
     GenerateResponse,
+    QueryRequest,
+    QueryResponse,
     SearchResult,
 )
 from ..services.cognee import cognee_service

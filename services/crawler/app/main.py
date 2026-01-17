@@ -22,17 +22,16 @@ from loguru import logger
 from app import __version__
 from app.config import settings
 from app.models import HealthResponse
-from app.services.crawler_service import get_crawler_service
-from app.services.pdf_service import get_pdf_service
-from app.services.image_service import get_image_service
 from app.routers import (
     crawler_router,
-    pdf_router,
-    image_router,
     docx_router,
+    image_router,
+    pdf_router,
     pptx_router,
 )
-
+from app.services.crawler_service import get_crawler_service
+from app.services.image_service import get_image_service
+from app.services.pdf_service import get_pdf_service
 
 
 @asynccontextmanager

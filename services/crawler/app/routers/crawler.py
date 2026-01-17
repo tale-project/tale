@@ -9,9 +9,9 @@ from loguru import logger
 from pydantic import HttpUrl
 
 from app.models import (
+    DiscoveredUrl,
     DiscoverRequest,
     DiscoverResponse,
-    DiscoveredUrl,
     FetchUrlsRequest,
     FetchUrlsResponse,
     PageContent,

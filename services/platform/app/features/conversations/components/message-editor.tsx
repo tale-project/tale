@@ -216,6 +216,7 @@ function MilkdownEditorInner({
       setMessage(pending);
       setHasContent(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setMessage is stable, setHasContent is intentionally excluded
   }, [pendingMessage, message]);
 
   // Focus improve input when improve mode is activated

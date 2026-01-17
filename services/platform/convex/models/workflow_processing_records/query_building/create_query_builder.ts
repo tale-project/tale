@@ -27,14 +27,12 @@ export function createQueryBuilder(
 ) {
   return (resumeFrom: number | null) => {
     // Build the index query dynamically based on index values
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query = ctx.db.query(tableName) as any;
 
     // Build the index query by applying each field value
     // The order of fields must match the index definition
     // Note: Object.entries preserves insertion order for string keys (ES2015+)
     // The caller (selectOptimalIndex) ensures indexValues has keys in index order
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const applyIndexFields = (q: any) => {
       let result = q;
 

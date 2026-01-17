@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
@@ -34,7 +34,7 @@ class BatchJobsRequest(BaseModel):
 class BatchJobsResponse(BaseModel):
     """Response containing multiple job statuses."""
 
-    jobs: dict[str, Optional[JobStatus]] = Field(
+    jobs: dict[str, JobStatus | None] = Field(
         ...,
         description="Map of job_id to JobStatus (null if job not found)",
     )
@@ -50,7 +50,7 @@ class JobStatsResponse(BaseModel):
     stale: int = Field(
         ..., description="Number of stale jobs that would be cleaned up with default TTLs"
     )
-    oldest_by_state: dict[str, Optional[float]] = Field(
+    oldest_by_state: dict[str, float | None] = Field(
         ..., description="Age in hours of the oldest job for each state (null if no jobs in that state)"
     )
 
@@ -58,17 +58,17 @@ class JobStatsResponse(BaseModel):
 class CleanupRequest(BaseModel):
     """Request to trigger job cleanup."""
 
-    completed_ttl_hours: Optional[float] = Field(
+    completed_ttl_hours: float | None = Field(
         default=None,
         description="TTL in hours for completed jobs (uses default if not specified)",
         ge=0,
     )
-    failed_ttl_hours: Optional[float] = Field(
+    failed_ttl_hours: float | None = Field(
         default=None,
         description="TTL in hours for failed jobs (uses default if not specified)",
         ge=0,
     )
-    orphaned_ttl_hours: Optional[float] = Field(
+    orphaned_ttl_hours: float | None = Field(
         default=None,
         description="TTL in hours for orphaned jobs (uses default if not specified)",
         ge=0,

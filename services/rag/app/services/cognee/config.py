@@ -303,7 +303,6 @@ def _patch_litellm_embedding() -> None:
     We patch litellm.llms.openai.openai.OpenAIChatCompletion.embedding method.
     """
     try:
-        import litellm
         from litellm.llms.openai.openai import OpenAIChatCompletion
 
         # Check if already patched

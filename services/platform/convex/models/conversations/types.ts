@@ -22,14 +22,14 @@ import {
 
 export type ConversationStatus = Infer<typeof conversationStatusValidator>;
 export type ConversationPriority = Infer<typeof conversationPriorityValidator>;
-type MessageStatus = Infer<typeof messageStatusValidator>;
+export type MessageStatus = Infer<typeof messageStatusValidator>;
 export type MessageInfo = Infer<typeof messageValidator>;
 export type CustomerInfo = Infer<typeof customerInfoValidator>;
 export type ConversationItem = Infer<typeof conversationItemValidator>;
 export type ConversationListResponse = Infer<
   typeof conversationListResponseValidator
 >;
-type ConversationWithMessages = Infer<
+export type ConversationWithMessages = Infer<
   typeof conversationWithMessagesValidator
 >;
 export type BulkOperationResult = Infer<typeof bulkOperationResultValidator>;

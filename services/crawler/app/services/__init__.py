@@ -13,11 +13,11 @@ This package contains business logic services:
 """
 
 from app.services.base_converter import BaseConverterService
-from app.services.pdf_service import PdfService, get_pdf_service
-from app.services.image_service import ImageService, get_image_service
 from app.services.crawler_service import CrawlerService, get_crawler_service
 from app.services.docx_service import DocxService, get_docx_service
 from app.services.file_parser_service import FileParserService
+from app.services.image_service import ImageService, get_image_service
+from app.services.pdf_service import PdfService, get_pdf_service
 from app.services.pptx_service import PptxService, get_pptx_service
 from app.services.template_service import TemplateService, get_template_service
 

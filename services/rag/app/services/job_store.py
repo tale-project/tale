@@ -14,13 +14,12 @@ import json
 import os
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
 from ..config import settings
-from ..models import JobStatus, JobState
-
+from ..models import JobState, JobStatus
 
 # Directory where job status JSON files are stored
 _JOBS_DIR = os.path.join(settings.cognee_data_dir, "jobs")
@@ -38,7 +37,7 @@ def _job_path(job_id: str) -> str:
     return os.path.join(_JOBS_DIR, f"{safe_id}.json")
 
 
-def get_job(job_id: str) -> Optional[JobStatus]:
+def get_job(job_id: str) -> JobStatus | None:
     """Load job status from disk.
 
     Returns None if no job with this id exists.
@@ -49,8 +48,8 @@ def get_job(job_id: str) -> Optional[JobStatus]:
 
     with _LOCK:
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                data: Dict[str, Any] = json.load(f)
+            with open(path, encoding="utf-8") as f:
+                data: dict[str, Any] = json.load(f)
             return JobStatus(**data)
         except Exception:
             # Corrupted job file: treat as missing
@@ -66,7 +65,7 @@ def _write_job(status: JobStatus) -> None:
             json.dump(payload, f)
 
 
-def create_queued(job_id: str, document_id: Optional[str]) -> JobStatus:
+def create_queued(job_id: str, document_id: str | None) -> JobStatus:
     """Create an initial queued job record.
 
     If a job file already exists, it will be overwritten with a fresh
@@ -114,7 +113,7 @@ def mark_running(job_id: str) -> None:
     _write_job(status)
 
 
-def mark_completed(job_id: str, *, document_id: Optional[str], chunks_created: int) -> None:
+def mark_completed(job_id: str, *, document_id: str | None, chunks_created: int) -> None:
     """Mark a job as completed successfully."""
     status = get_job(job_id)
     now = time.time()
@@ -164,14 +163,14 @@ def mark_failed(job_id: str, *, error: str) -> None:
     _write_job(status)
 
 
-def get_jobs_batch(job_ids: list[str]) -> Dict[str, Optional[JobStatus]]:
+def get_jobs_batch(job_ids: list[str]) -> dict[str, JobStatus | None]:
     """Load multiple job statuses from disk.
 
     Returns a dictionary mapping job_id to JobStatus (or None if not found).
     This is a convenience wrapper that iterates over job_ids and calls get_job()
     for each one. It provides a simpler API for batch status retrieval.
     """
-    result: Dict[str, Optional[JobStatus]] = {}
+    result: dict[str, JobStatus | None] = {}
     for job_id in job_ids:
         result[job_id] = get_job(job_id)
     return result
@@ -212,7 +211,7 @@ def list_all_jobs() -> list[JobStatus]:
             path = os.path.join(_JOBS_DIR, filename)
             try:
                 with open(path, encoding="utf-8") as f:
-                    data: Dict[str, Any] = json.load(f)
+                    data: dict[str, Any] = json.load(f)
                 jobs.append(JobStatus(**data))
             except Exception:
                 # Skip corrupted job files but log for debugging
@@ -237,7 +236,7 @@ def delete_job(job_id: str) -> bool:
             return False
 
 
-def get_job_stats() -> Dict[str, Any]:
+def get_job_stats() -> dict[str, Any]:
     """Get statistics about jobs.
 
     Returns a dictionary with:
@@ -249,13 +248,13 @@ def get_job_stats() -> Dict[str, Any]:
     now = time.time()
     jobs = list_all_jobs()
 
-    by_state: Dict[str, int] = {
+    by_state: dict[str, int] = {
         JobState.QUEUED.value: 0,
         JobState.RUNNING.value: 0,
         JobState.COMPLETED.value: 0,
         JobState.FAILED.value: 0,
     }
-    oldest_by_state: Dict[str, Optional[float]] = {
+    oldest_by_state: dict[str, float | None] = {
         JobState.QUEUED.value: None,
         JobState.RUNNING.value: None,
         JobState.COMPLETED.value: None,
@@ -290,11 +289,11 @@ def get_job_stats() -> Dict[str, Any]:
 
 def cleanup_stale_jobs(
     *,
-    completed_ttl_hours: Optional[float] = None,
-    failed_ttl_hours: Optional[float] = None,
-    orphaned_ttl_hours: Optional[float] = None,
+    completed_ttl_hours: float | None = None,
+    failed_ttl_hours: float | None = None,
+    orphaned_ttl_hours: float | None = None,
     dry_run: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Clean up stale jobs based on TTL settings.
 
     Args:
@@ -316,8 +315,8 @@ def cleanup_stale_jobs(
     now = time.time()
     jobs = list_all_jobs()
 
-    deleted_jobs: list[Dict[str, Any]] = []
-    by_reason: Dict[str, int] = {
+    deleted_jobs: list[dict[str, Any]] = []
+    by_reason: dict[str, int] = {
         "completed_expired": 0,
         "failed_expired": 0,
         "orphaned": 0,
@@ -325,7 +324,7 @@ def cleanup_stale_jobs(
 
     for job in jobs:
         age_hours = (now - job.updated_at) / 3600
-        reason: Optional[str] = None
+        reason: str | None = None
 
         if job.state == JobState.COMPLETED and age_hours > ttl_completed:
             reason = "completed_expired"

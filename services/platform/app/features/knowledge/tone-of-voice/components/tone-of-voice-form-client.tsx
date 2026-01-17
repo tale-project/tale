@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { api } from '@/convex/_generated/api';
 import type { Id, Doc } from '@/convex/_generated/dataModel';
 import { useAddExample } from '../hooks/use-add-example';
 import { useUpdateExample } from '../hooks/use-update-example';

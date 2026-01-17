@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
@@ -47,42 +47,46 @@ export function AutomationsClient({
     queryArgs,
   );
 
-  if (automationsResult === undefined) {
-    return <AutomationsTableSkeleton organizationId={organizationId} />;
-  }
+  // Define handlers with useCallback before any early returns
+  const handleRowClick = useCallback(
+    (row: Row<Doc<'wfDefinitions'>>) => {
+      navigate({
+        to: '/dashboard/$id/automations/$amId',
+        params: { id: organizationId, amId: row.original._id },
+      });
+    },
+    [navigate, organizationId],
+  );
 
-  const automations = automationsResult.page ?? [];
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      navigate({
+        to: '/dashboard/$id/automations',
+        params: { id: organizationId },
+        search: { query: value || undefined, status: status?.[0] },
+      });
+    },
+    [navigate, organizationId, status],
+  );
 
-  const handleRowClick = (row: Row<Doc<'wfDefinitions'>>) => {
-    navigate({
-      to: '/dashboard/$id/automations/$amId',
-      params: { id: organizationId, amId: row.original._id },
-    });
-  };
+  const handleStatusChange = useCallback(
+    (values: string[]) => {
+      navigate({
+        to: '/dashboard/$id/automations',
+        params: { id: organizationId },
+        search: { query: searchTerm, status: values[0] || undefined },
+      });
+    },
+    [navigate, organizationId, searchTerm],
+  );
 
-  const handleSearchChange = (value: string) => {
-    navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      search: { query: value || undefined, status: status?.[0] },
-    });
-  };
-
-  const handleStatusChange = (values: string[]) => {
-    navigate({
-      to: '/dashboard/$id/automations',
-      params: { id: organizationId },
-      search: { query: searchTerm, status: values[0] || undefined },
-    });
-  };
-
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     navigate({
       to: '/dashboard/$id/automations',
       params: { id: organizationId },
       search: {},
     });
-  };
+  }, [navigate, organizationId]);
 
   const filterConfigs = useMemo(
     () => [
@@ -97,8 +101,14 @@ export function AutomationsClient({
         onChange: handleStatusChange,
       },
     ],
-    [status, tTables, tCommon],
+    [status, tTables, tCommon, handleStatusChange],
   );
+
+  if (automationsResult === undefined) {
+    return <AutomationsTableSkeleton organizationId={organizationId} />;
+  }
+
+  const automations = automationsResult.page ?? [];
 
   return (
     <DataTable

@@ -29,19 +29,19 @@ export interface DriveItem {
   '@microsoft.graph.downloadUrl'?: string;
 }
 
-interface DriveItemsResponse {
+export interface DriveItemsResponse {
   '@odata.context': string;
   '@odata.nextLink'?: string;
   value: DriveItem[];
 }
 
-interface DriveItemContent {
+export interface DriveItemContent {
   content: string | ArrayBuffer;
   mimeType: string;
   size: number;
 }
 
-interface GraphError {
+export interface GraphError {
   error: {
     code: string;
     message: string;
@@ -52,7 +52,7 @@ interface GraphError {
   };
 }
 
-interface ListFilesOptions {
+export interface ListFilesOptions {
   folderId?: string;
   pageSize?: number;
   nextLink?: string;
@@ -60,12 +60,12 @@ interface ListFilesOptions {
   orderBy?: string;
 }
 
-interface FileReadOptions {
+export interface FileReadOptions {
   asText?: boolean;
   encoding?: string;
 }
 
-interface EnhancedError extends Error {
+export interface EnhancedError extends Error {
   graphError: {
     status: number;
     code?: string;

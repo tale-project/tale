@@ -17,7 +17,6 @@ import { MutationCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
 import type {
   SubAgentType,
-  SubThreadsMap,
   ThreadSummaryWithSubThreads,
 } from '../../agent_tools/sub_agents/helpers/types';
 

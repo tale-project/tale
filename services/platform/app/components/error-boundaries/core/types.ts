@@ -3,7 +3,7 @@ import type { ReactNode, ErrorInfo } from 'react';
 /**
  * Size variants for error displays
  */
-type ErrorBoundarySize = 'full' | 'compact' | 'inline';
+export type ErrorBoundarySize = 'full' | 'compact' | 'inline';
 
 /**
  * Props passed to error fallback render functions

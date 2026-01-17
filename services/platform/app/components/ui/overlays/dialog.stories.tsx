@@ -163,7 +163,7 @@ export const WithIcon: Story = {
 };
 
 export const WithTrigger: Story = {
-  render: () => {
+  render: function Render() {
     const [open, setOpen] = useState(false);
     return (
       <Dialog
@@ -180,7 +180,7 @@ export const WithTrigger: Story = {
   },
 };
 
-const ConfirmDialogMeta: Meta<typeof ConfirmDialog> = {
+const _ConfirmDialogMeta: Meta<typeof ConfirmDialog> = {
   title: 'Overlays/ConfirmDialog',
   component: ConfirmDialog,
   tags: ['autodocs'],

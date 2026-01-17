@@ -25,7 +25,7 @@ export interface DocumentItem {
   createdByName?: string;
 }
 
-interface DocumentListResponse {
+export interface DocumentListResponse {
   success: boolean;
   items: DocumentItem[];
   totalItems: number;
@@ -37,7 +37,7 @@ interface DocumentListResponse {
   error?: string;
 }
 
-interface UploadResult {
+export interface UploadResult {
   success: boolean;
   fileInfo?: {
     name: string;

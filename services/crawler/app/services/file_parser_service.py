@@ -9,7 +9,7 @@ Handles:
 
 import logging
 from io import BytesIO
-from typing import Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class FileParserService:
     """Service for parsing and extracting text from various document formats."""
 
-    def parse_pdf(self, file_bytes: bytes, filename: str = "document.pdf") -> Dict[str, Any]:
+    def parse_pdf(self, file_bytes: bytes, filename: str = "document.pdf") -> dict[str, Any]:
         """Extract text content from a PDF file."""
         import fitz  # PyMuPDF
 
@@ -51,7 +51,7 @@ class FileParserService:
             logger.error(f"Error parsing PDF: {e}")
             return {"success": False, "filename": filename, "file_type": "application/pdf", "error": str(e)}
 
-    def parse_docx(self, file_bytes: bytes, filename: str = "document.docx") -> Dict[str, Any]:
+    def parse_docx(self, file_bytes: bytes, filename: str = "document.docx") -> dict[str, Any]:
         """Extract text content from a DOCX file."""
         from docx import Document
 
@@ -87,7 +87,7 @@ class FileParserService:
             logger.error(f"Error parsing DOCX: {e}")
             return {"success": False, "filename": filename, "error": str(e)}
 
-    def parse_pptx(self, file_bytes: bytes, filename: str = "presentation.pptx") -> Dict[str, Any]:
+    def parse_pptx(self, file_bytes: bytes, filename: str = "presentation.pptx") -> dict[str, Any]:
         """Extract text content from a PPTX file."""
         from pptx import Presentation
 
@@ -111,7 +111,11 @@ class FileParserService:
                                 if text:
                                     slide_text.append(text)
                 
-                slides.append({"slide_number": slide_num, "text_content": slide_text, "full_text": "\n".join(slide_text)})
+                slides.append({
+                    "slide_number": slide_num,
+                    "text_content": slide_text,
+                    "full_text": "\n".join(slide_text),
+                })
                 full_text_parts.extend(slide_text)
             
             core_props = prs.core_properties
@@ -128,7 +132,7 @@ class FileParserService:
             logger.error(f"Error parsing PPTX: {e}")
             return {"success": False, "filename": filename, "error": str(e)}
 
-    def parse_file(self, file_bytes: bytes, filename: str, content_type: str = "") -> Dict[str, Any]:
+    def parse_file(self, file_bytes: bytes, filename: str, content_type: str = "") -> dict[str, Any]:
         """Parse a file based on its content type or filename extension."""
         filename_lower = filename.lower()
         content_type_lower = content_type.lower() if content_type else ""

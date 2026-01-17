@@ -4,7 +4,7 @@ Image Converter Service.
 Converts HTML, Markdown, and URLs to images (PNG/JPEG) using Playwright.
 """
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from loguru import logger
 
@@ -99,7 +99,7 @@ class ImageService(BaseConverterService):
         quality: int = 100,
         full_page: bool = True,
         width: int = 1200,
-        extra_css: Optional[str] = None,
+        extra_css: str | None = None,
         scale: float = 2.0,
     ) -> bytes:
         """Convert HTML to image (PNG or JPEG)."""
@@ -183,7 +183,9 @@ class ImageService(BaseConverterService):
                     try:
                         await page.wait_for_load_state(wait_until, timeout=timeout)
                     except PlaywrightTimeoutError:
-                        logger.warning(f"'{wait_until}' event timed out after {timeout}ms, continuing with domcontentloaded state")
+                        logger.warning(
+                            f"'{wait_until}' timed out after {timeout}ms, using domcontentloaded"
+                        )
 
             # Dismiss cookie consent dialogs before taking screenshot
             await self._dismiss_cookie_dialogs(page)
@@ -237,7 +239,7 @@ class ImageService(BaseConverterService):
 
 
 # Global service instance
-_image_service: Optional[ImageService] = None
+_image_service: ImageService | None = None
 
 
 def get_image_service() -> ImageService:

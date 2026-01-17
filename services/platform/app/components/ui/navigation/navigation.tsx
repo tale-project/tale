@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, useParams, useLocation } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 import {
   NavigationMenu,
   NavigationMenuItem,

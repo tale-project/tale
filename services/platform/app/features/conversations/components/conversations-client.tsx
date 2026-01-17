@@ -64,10 +64,10 @@ function ConversationsClientSkeleton() {
 export function ConversationsClient({
   status,
   organizationId,
-  page = 1,
-  limit = 20,
+  page: _page = 1,
+  limit: _limit = 20,
   priority: initialPriority,
-  category: initialCategory,
+  category: _initialCategory,
   search: initialSearch,
 }: ConversationsClientProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<

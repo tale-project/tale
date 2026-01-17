@@ -111,11 +111,9 @@ export async function buildOffsetPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (ctx.db as any).query(table);
 
   // Apply index conditions
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query = query.withIndex(indexName, (q: any) => {
     let builder = q;
     for (const field of indexedFields) {
@@ -254,11 +252,9 @@ export async function buildCursorPaginatedQuery<T extends GenericDocument>(
 
   // Build base query with selected index
   // Note: Dynamic table/index names require type assertions - validated at runtime by Convex
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (ctx.db as any).query(table);
 
   // Apply index conditions
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query = query.withIndex(indexName, (q: any) => {
     let builder = q;
     for (const field of indexedFields) {

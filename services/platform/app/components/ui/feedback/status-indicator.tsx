@@ -40,7 +40,7 @@ const statusDotVariants = cva('rounded-full', {
   },
 });
 
-type StatusVariant = NonNullable<
+type _StatusVariant = NonNullable<
   VariantProps<typeof statusIndicatorVariants>['variant']
 >;
 

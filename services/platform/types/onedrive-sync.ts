@@ -21,7 +21,7 @@ export interface SyncResult {
   currentFile?: string;
 }
 
-interface SyncToStorageParams {
+export interface SyncToStorageParams {
   businessId: string;
   selectedItems: Array<{
     id: string;

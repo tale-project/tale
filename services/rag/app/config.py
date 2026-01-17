@@ -6,7 +6,7 @@ OPENAI_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
 """
 
 import os
-from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Database Configuration
     # ========================================================================
     # PostgreSQL connection for cognee storage and PGVector
-    database_url: Optional[str] = None
+    database_url: str | None = None
 
     # ========================================================================
     # LLM Provider Configuration (OpenAI-compatible)
@@ -43,10 +43,10 @@ class Settings(BaseSettings):
     #   - DeepSeek: https://api.deepseek.com
     #   - Together AI: https://api.together.xyz/v1
     #   - Ollama (local): http://localhost:11434/v1
-    openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None
-    openai_max_tokens: Optional[int] = None
-    openai_temperature: Optional[float] = None
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
+    openai_max_tokens: int | None = None
+    openai_temperature: float | None = None
 
     # ========================================================================
     # Cognee Configuration
@@ -65,20 +65,20 @@ class Settings(BaseSettings):
     # Vision API Configuration
     # ========================================================================
     # Vision model for OCR and image description (OpenAI-compatible)
-    openai_vision_model: Optional[str] = None
+    openai_vision_model: str | None = None
     # Maximum concurrent Vision API calls per PDF
     vision_max_concurrent_pages: int = 5
     # DPI for rendering PDF pages as images for OCR
     vision_pdf_dpi: int = 150
     # Custom prompt for text extraction (optional)
-    vision_extraction_prompt: Optional[str] = None
+    vision_extraction_prompt: str | None = None
 
     # ========================================================================
     # Knowledge Graph Extraction Configuration
     # ========================================================================
     # Custom prompt for knowledge graph extraction (controls entity/relationship naming)
     # If not set, uses default prompt that enforces English identifiers for FalkorDB
-    graph_extraction_prompt: Optional[str] = None
+    graph_extraction_prompt: str | None = None
 
     # ========================================================================
     # Feature Flags

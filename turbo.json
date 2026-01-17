@@ -9,6 +9,24 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "@tale/crawler#build": {
+      "outputs": []
+    },
+    "@tale/db#build": {
+      "outputs": []
+    },
+    "@tale/graph-db#build": {
+      "outputs": []
+    },
+    "@tale/proxy#build": {
+      "outputs": []
+    },
+    "@tale/rag#build": {
+      "outputs": []
+    },
+    "@tale/search#build": {
+      "outputs": []
+    },
     "dev": {
       "dependsOn": ["setup"],
       "cache": false,
@@ -19,6 +37,11 @@
       "outputs": []
     },
     "lint:fix": {
+      "dependsOn": ["setup"],
+      "cache": false,
+      "outputs": []
+    },
+    "format": {
       "dependsOn": ["setup"],
       "cache": false,
       "outputs": []
@@ -37,6 +60,10 @@
       "outputs": ["coverage/**"]
     },
     "typecheck": {
+      "outputs": []
+    },
+    "knip": {
+      "cache": false,
       "outputs": []
     },
     "docker:build": {

@@ -17,7 +17,7 @@ import {
 
 export type CustomerStatus = Infer<typeof customerStatusValidator>;
 export type CustomerSource = Infer<typeof customerSourceValidator>;
-type CustomerAddress = Infer<typeof customerAddressValidator>;
+export type CustomerAddress = Infer<typeof customerAddressValidator>;
 export type Customer = Infer<typeof customerValidator>;
 
 // =============================================================================
@@ -27,7 +27,7 @@ export type Customer = Infer<typeof customerValidator>;
 /**
  * Result from creating a customer
  */
-interface CreateCustomerResult {
+export interface CreateCustomerResult {
   success: boolean;
   customerId: Id<'customers'>;
 }

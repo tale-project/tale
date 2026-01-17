@@ -4,14 +4,12 @@ import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Button } from '@/app/components/ui/primitives/button';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Select } from '@/app/components/ui/forms/select';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { toast } from '@/app/hooks/use-toast';
-import { Plus } from 'lucide-react';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 

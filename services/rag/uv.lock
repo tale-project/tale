@@ -634,6 +634,21 @@ baml = [
 ]
 
 [[package]]
+name = "cognee-community-hybrid-adapter-falkor"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cognee" },
+    { name = "falkordb" },
+    { name = "instructor" },
+    { name = "starlette" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/e5/88cfeac4bf4f18f6b7a177139e47ded79d58ad716c593acc5f5346dc2f64/cognee_community_hybrid_adapter_falkor-0.2.0.tar.gz", hash = "sha256:2c0c72106ef92b8d102773b7b0c24dce17efa721e00a8bab7c57c59d4c8dac0f", size = 14602, upload-time = "2025-12-19T17:48:20.216Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/61/1ce25376f68ed3128d37a9e10c9db03291f85ee0e2d762a194ae4d2ba3f2/cognee_community_hybrid_adapter_falkor-0.2.0-py3-none-any.whl", hash = "sha256:090a617e0fffe3b8e8b6742a3ce4364f386d19087f67eddb10da4a1a973c6fca", size = 15071, upload-time = "2025-12-19T17:48:19.332Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -952,6 +967,19 @@ wheels = [
 [package.optional-dependencies]
 lua = [
     { name = "lupa" },
+]
+
+[[package]]
+name = "falkordb"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "redis" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/14/0e/95ef4ac84130b7d2bb87b357648cdfe9414abea10e066aca4737be21375a/falkordb-1.4.0.tar.gz", hash = "sha256:89b6bd02f0e0ce214852cc07c0be3fa44bb3a08daf39d343f790c7a92b50636f", size = 30344, upload-time = "2025-12-24T15:43:47.671Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/ef/b03cd82bc93479745ca0b58b4cee176cda0cf6ba353c24613ec0a8143093/falkordb-1.4.0-py3-none-any.whl", hash = "sha256:3ede67ebf096013e93f46f3365e9c4a68a5bc3e0116eec88d22540422d335601", size = 36197, upload-time = "2025-12-24T15:43:46.488Z" },
 ]
 
 [[package]]
@@ -2726,18 +2754,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pgvector"
-version = "0.4.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/25/6c/6d8b4b03b958c02fa8687ec6063c49d952a189f8c91ebbe51e877dfab8f7/pgvector-0.4.2.tar.gz", hash = "sha256:322cac0c1dc5d41c9ecf782bd9991b7966685dee3a00bc873631391ed949513a", size = 31354, upload-time = "2025-12-05T01:07:17.87Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/26/6cee8a1ce8c43625ec561aff19df07f9776b7525d9002c86bceb3e0ac970/pgvector-0.4.2-py3-none-any.whl", hash = "sha256:549d45f7a18593783d5eec609ea1684a724ba8405c4cb182a0b2b08aeff04e08", size = 27441, upload-time = "2025-12-05T01:07:16.536Z" },
-]
-
-[[package]]
 name = "pillow"
 version = "11.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4101,19 +4117,20 @@ wheels = [
 [[package]]
 name = "tale-rag"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "asyncpg" },
     { name = "cognee", extra = ["baml"] },
+    { name = "cognee-community-hybrid-adapter-falkor" },
     { name = "httpx" },
     { name = "loguru" },
-    { name = "pgvector" },
     { name = "psycopg2-binary" },
     { name = "pymupdf" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "tenacity" },
+    { name = "unidecode" },
     { name = "unstructured", extra = ["docx", "pptx", "xlsx"] },
 ]
 
@@ -4131,9 +4148,9 @@ requires-dist = [
     { name = "aiofiles", specifier = "==25.1.0" },
     { name = "asyncpg", specifier = "==0.31.0" },
     { name = "cognee", extras = ["baml"], specifier = "==0.5.1" },
+    { name = "cognee-community-hybrid-adapter-falkor", specifier = "==0.2.0" },
     { name = "httpx", specifier = "==0.28.1" },
     { name = "loguru", specifier = "==0.7.3" },
-    { name = "pgvector", specifier = "==0.4.2" },
     { name = "psycopg2-binary", specifier = "==2.9.11" },
     { name = "pymupdf", specifier = "==1.26.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.2" },
@@ -4144,6 +4161,7 @@ requires-dist = [
     { name = "python-multipart", specifier = "==0.0.20" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.14.11" },
     { name = "tenacity", specifier = "==9.1.2" },
+    { name = "unidecode", specifier = "==1.3.8" },
     { name = "unstructured", extras = ["xlsx", "docx", "pptx"], specifier = "==0.18.27" },
 ]
 provides-extras = ["dev"]
@@ -4393,6 +4411,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf398f3b8a477eeb205cf3b6f32e7ec3a6bac0629ca975/tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7", size = 196772, upload-time = "2025-12-13T17:45:35.667Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
+]
+
+[[package]]
+name = "unidecode"
+version = "1.3.8"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/89/19151076a006b9ac0dd37b1354e031f5297891ee507eb624755e58e10d3e/Unidecode-1.3.8.tar.gz", hash = "sha256:cfdb349d46ed3873ece4586b96aa75258726e2fa8ec21d6f00a591d98806c2f4", size = 192701, upload-time = "2024-01-11T11:58:35.609Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/b7/6ec57841fb67c98f52fc8e4a2d96df60059637cba077edc569a302a8ffc7/Unidecode-1.3.8-py3-none-any.whl", hash = "sha256:d130a61ce6696f8148a3bd8fe779c99adeb4b870584eeb9526584e9aa091fd39", size = 235494, upload-time = "2024-01-11T11:58:33.012Z" },
 ]
 
 [[package]]

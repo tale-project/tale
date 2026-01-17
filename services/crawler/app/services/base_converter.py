@@ -10,9 +10,8 @@ Provides shared infrastructure for document conversion services:
 
 import asyncio
 import logging
-from typing import Optional
 
-from playwright.async_api import async_playwright, Browser, Page
+from playwright.async_api import Browser, Page, async_playwright
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,8 @@ DEFAULT_HTML_TEMPLATE = """
     <style>
         * {{ box-sizing: border-box; }}
         body {{
-            font-family: 'Noto Sans', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', 'DejaVu Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Noto Sans', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR',
+                'DejaVu Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             line-height: 1.8;
             color: #333;
             max-width: 800px;
@@ -119,7 +119,7 @@ class BaseConverterService:
     def __init__(self) -> None:
         self.initialized = False
         self._playwright = None
-        self._browser: Optional[Browser] = None
+        self._browser: Browser | None = None
         self._lock = asyncio.Lock()
 
     async def initialize(self):

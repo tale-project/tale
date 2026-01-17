@@ -7,7 +7,6 @@ This module provides a wrapper around the OpenAI Vision API for:
 
 import base64
 import imghdr
-from typing import Optional
 
 from loguru import logger
 from openai import AsyncOpenAI
@@ -52,7 +51,7 @@ class VisionClient:
 
     def __init__(self) -> None:
         """Initialize the Vision client."""
-        self._client: Optional[AsyncOpenAI] = None
+        self._client: AsyncOpenAI | None = None
 
     def _get_client(self) -> AsyncOpenAI:
         """Get or create the OpenAI client."""
@@ -68,7 +67,7 @@ class VisionClient:
     async def ocr_image(
         self,
         image_bytes: bytes,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ) -> str:
         """Extract text from a scanned document image using Vision API.
 
@@ -129,7 +128,7 @@ class VisionClient:
     async def describe_image(
         self,
         image_bytes: bytes,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
     ) -> str:
         """Generate a description of an image for indexing.
 

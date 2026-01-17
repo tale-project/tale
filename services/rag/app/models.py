@@ -1,9 +1,9 @@
 """Pydantic models for Tale RAG API."""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, model_validator
+from typing import Any
 
+from pydantic import BaseModel, Field, model_validator
 
 # ============================================================================
 # Health & Status Models
@@ -47,21 +47,21 @@ class DocumentAddRequest(BaseModel):
         default=ContentType.TEXT,
         description="Type of content. Only 'text' is supported; URL ingestion via this endpoint has been removed.",
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None,
         description="Optional metadata for the document",
     )
-    document_id: Optional[str] = Field(
+    document_id: str | None = Field(
         default=None,
         description="Optional custom document ID",
     )
     # Multi-tenancy support
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="User ID for multi-tenant isolation. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
                     "documents are stored in the user's isolated dataset.",
     )
-    dataset_name: Optional[str] = Field(
+    dataset_name: str | None = Field(
         default=None,
         description="Dataset name for organizing documents. When specified with user_id, "
                     "creates a user-scoped dataset. Format: 'tale_team_{teamId}' for team datasets.",
@@ -96,11 +96,11 @@ class DocumentAddResponse(BaseModel):
         default=False,
         description="Whether ingestion was queued for background processing",
     )
-    job_id: Optional[str] = Field(
+    job_id: str | None = Field(
         default=None,
         description="Background job identifier when ingestion is queued",
     )
-    cleaned_datasets: Optional[List[str]] = Field(
+    cleaned_datasets: list[str] | None = Field(
         default=None,
         description="List of old datasets that were cleaned up during upload "
                     "(when document was moved to a different team/dataset)",
@@ -122,11 +122,11 @@ class DocumentDeleteResponse(BaseModel):
         default=0,
         description="Number of documents deleted",
     )
-    deleted_data_ids: List[str] = Field(
+    deleted_data_ids: list[str] = Field(
         default_factory=list,
         description="List of Cognee Data IDs that were deleted",
     )
-    processing_time_ms: Optional[float] = Field(
+    processing_time_ms: float | None = Field(
         default=None,
         description="Processing time in milliseconds",
     )
@@ -153,7 +153,7 @@ class JobStatus(BaseModel):
     """
 
     job_id: str = Field(..., description="Identifier for the background job")
-    document_id: Optional[str] = Field(
+    document_id: str | None = Field(
         default=None,
         description="Associated document identifier, if known",
     )
@@ -162,11 +162,11 @@ class JobStatus(BaseModel):
         default=0,
         description="Number of chunks created so far (final value when completed)",
     )
-    message: Optional[str] = Field(
+    message: str | None = Field(
         default=None,
         description="Human-readable status message",
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description="Error message when the job is in FAILED state",
     )
@@ -204,18 +204,18 @@ class SearchType(str, Enum):
 class QueryRequest(BaseModel):
     """Request to query the knowledge base."""
     query: str = Field(..., description="Query text")
-    search_type: Optional[SearchType] = Field(
+    search_type: SearchType | None = Field(
         default=SearchType.CHUNKS,
         description="Type of search to perform. CHUNKS returns raw text passages (default), "
                     "GRAPH_COMPLETION uses knowledge graph reasoning, "
                     "RAG_COMPLETION provides shorter answers, "
                     "SUMMARIES returns document summaries."
     )
-    top_k: Optional[int] = Field(
+    top_k: int | None = Field(
         default=None,
         description="Number of results to return (overrides default)"
     )
-    similarity_threshold: Optional[float] = Field(
+    similarity_threshold: float | None = Field(
         default=None,
         description="Minimum similarity score (overrides default)"
     )
@@ -223,17 +223,17 @@ class QueryRequest(BaseModel):
         default=True,
         description="Whether to include metadata in results"
     )
-    filters: Optional[Dict[str, Any]] = Field(
+    filters: dict[str, Any] | None = Field(
         default=None,
         description="Optional filters for metadata"
     )
     # Multi-tenancy support
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="User ID for multi-tenant search. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
                     "search is restricted to datasets accessible by this user.",
     )
-    datasets: Optional[List[str]] = Field(
+    datasets: list[str] | None = Field(
         default=None,
         description="List of dataset names to search within. When not specified, searches all "
                     "datasets accessible by the user. Format: ['tale_team_{teamId}', ...]",
@@ -251,11 +251,11 @@ class SearchResult(BaseModel):
     """A single search result."""
     content: str = Field(..., description="Content of the result")
     score: float = Field(..., description="Similarity score")
-    document_id: Optional[str] = Field(
+    document_id: str | None = Field(
         default=None,
         description="Source document ID"
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None,
         description="Result metadata"
     )
@@ -265,7 +265,7 @@ class QueryResponse(BaseModel):
     """Response to a query."""
     success: bool = Field(..., description="Whether the query succeeded")
     query: str = Field(..., description="Original query")
-    results: List[SearchResult] = Field(..., description="Search results")
+    results: list[SearchResult] = Field(..., description="Search results")
     total_results: int = Field(..., description="Total number of results")
     processing_time_ms: float = Field(..., description="Query processing time in milliseconds")
 
@@ -277,29 +277,29 @@ class QueryResponse(BaseModel):
 class GenerateRequest(BaseModel):
     """Request to generate a response using RAG."""
     query: str = Field(..., description="User query")
-    top_k: Optional[int] = Field(
+    top_k: int | None = Field(
         default=None,
         description="Number of context documents to retrieve"
     )
-    system_prompt: Optional[str] = Field(
+    system_prompt: str | None = Field(
         default=None,
         description="Optional system prompt override"
     )
-    temperature: Optional[float] = Field(
+    temperature: float | None = Field(
         default=None,
         description="LLM temperature (overrides default)"
     )
-    max_tokens: Optional[int] = Field(
+    max_tokens: int | None = Field(
         default=None,
         description="Maximum tokens to generate (overrides default)"
     )
     # Multi-tenancy support
-    user_id: Optional[str] = Field(
+    user_id: str | None = Field(
         default=None,
         description="User ID for multi-tenant generation. Context is retrieved from "
                     "datasets accessible by this user.",
     )
-    datasets: Optional[List[str]] = Field(
+    datasets: list[str] | None = Field(
         default=None,
         description="List of dataset names to retrieve context from. "
                     "Format: ['tale_team_{teamId}', ...]",
@@ -318,7 +318,7 @@ class GenerateResponse(BaseModel):
     success: bool = Field(..., description="Whether generation succeeded")
     query: str = Field(..., description="Original query")
     response: str = Field(..., description="Generated response")
-    sources: List[SearchResult] = Field(..., description="Source documents used")
+    sources: list[SearchResult] = Field(..., description="Source documents used")
     processing_time_ms: float = Field(..., description="Total processing time in milliseconds")
 
 
@@ -338,7 +338,7 @@ class GraphQueryRequest(BaseModel):
 class GraphQueryResponse(BaseModel):
     """Response from knowledge graph query."""
     success: bool = Field(..., description="Whether the query succeeded")
-    results: List[Dict[str, Any]] = Field(..., description="Query results")
+    results: list[dict[str, Any]] = Field(..., description="Query results")
     total_results: int = Field(..., description="Total number of results")
 
 
@@ -350,7 +350,7 @@ class ErrorResponse(BaseModel):
     """Error response."""
     error: str = Field(..., description="Error type")
     message: str = Field(..., description="Error message")
-    details: Optional[Dict[str, Any]] = Field(
+    details: dict[str, Any] | None = Field(
         default=None,
         description="Additional error details"
     )
