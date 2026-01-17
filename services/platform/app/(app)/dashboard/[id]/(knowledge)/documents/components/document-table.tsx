@@ -189,24 +189,29 @@ export function DocumentTable({
       {
         accessorKey: 'name',
         header: tTables('headers.document'),
-        cell: ({ row }) => (
-          <HStack gap={3}>
-            <DocumentIcon
-              fileName={row.original.name ?? ''}
-              isFolder={row.original.type === 'folder'}
-            />
-            <button
-              type="button"
-              title={row.original.name ?? ''}
-              className="text-left"
-              onClick={(e) => handleDocumentClick(row.original, e)}
-            >
-              <div className="text-sm font-medium text-primary hover:underline truncate max-w-[30rem]">
-                {row.original.name ?? ''}
-              </div>
-            </button>
-          </HStack>
-        ),
+        cell: ({ row }) => {
+          const fullPath = row.original.name ?? '';
+          const fileName = fullPath.split('/').pop() || fullPath;
+
+          return (
+            <HStack gap={3}>
+              <DocumentIcon
+                fileName={fileName}
+                isFolder={row.original.type === 'folder'}
+              />
+              <button
+                type="button"
+                title={fullPath}
+                className="text-left"
+                onClick={(e) => handleDocumentClick(row.original, e)}
+              >
+                <div className="text-sm font-medium text-primary hover:underline truncate max-w-[30rem]">
+                  {fileName}
+                </div>
+              </button>
+            </HStack>
+          );
+        },
       },
       {
         accessorKey: 'size',
