@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "setup": "echo 'Docker service - no local setup'",
-    "dev": "docker compose up proxy -d && docker compose logs -f proxy",
+    "serve": "docker compose up proxy -d && docker compose logs -f proxy",
     "build": "echo 'No build step'",
     "docker:build": "docker compose build proxy",
     "logs": "docker compose logs -f proxy",

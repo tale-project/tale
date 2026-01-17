@@ -8,6 +8,14 @@ export default defineConfig({
   server: {
     port: 3000,
   },
+  optimizeDeps: {
+    exclude: [
+      '@tanstack/react-start/server',
+      '@tanstack/react-start-server',
+      '@tanstack/start-server-core',
+      '@tanstack/start-plugin-core',
+    ],
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
