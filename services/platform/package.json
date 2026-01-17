@@ -143,7 +143,7 @@
     "@types/react-dom": "19.2.3",
     "@types/react-file-icon": "1.0.4",
     "@vitejs/plugin-react": "5.1.2",
-    "bcryptjs": "2.4.3",
+    "bcryptjs": "3.0.3",
     "convex-test": "0.0.40",
     "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "27.4.0",
