@@ -1,5 +1,5 @@
-import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import tsConfigPaths from 'vite-tsconfig-paths';
 import viteReact from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { stubSSRImports } from './vite-plugins/stub-ssr';
@@ -12,13 +12,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, '.'),
-    },
-  },
   plugins: [
     stubSSRImports(),
+    tsConfigPaths(),
     viteReact(),
     VitePWA({
       strategies: 'injectManifest',

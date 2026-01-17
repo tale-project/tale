@@ -23,13 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package files for npm workspace installation
-# The lock file was generated with workspaces, so we need the workspace structure
-COPY package.json package-lock.json ./
-COPY services/platform/package.json ./services/platform/package.json
+# Copy package files - use platform's package.json directly (not workspace)
+# We need the root lock file for dependency resolution
+COPY package-lock.json ./
+COPY services/platform/package.json ./package.json
 
-# Install platform workspace dependencies (including devDependencies for TypeScript build)
-RUN npm ci --fetch-timeout=600000 --fetch-retries=10 -w @tale/platform
+# Install dependencies directly (not as workspace) to get flat node_modules structure
+RUN npm ci --legacy-peer-deps --fetch-timeout=600000 --fetch-retries=10
 
 # ============================================================================
 # Stage 2: Builder
