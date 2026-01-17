@@ -1,5 +1,5 @@
 import type { Id } from '../../../../_generated/dataModel';
-import type { ApprovalResourceType } from '../../../../models/approvals/types';
+import type { ApprovalResourceType } from '../../../../approvals/types';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';

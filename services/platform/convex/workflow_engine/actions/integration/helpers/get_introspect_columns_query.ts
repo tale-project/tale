@@ -2,7 +2,7 @@
  * Get introspection query for listing columns in a table
  */
 
-import type { SqlEngine } from '../../../../models/integrations/types';
+import type { SqlEngine } from '../../../../integrations/types';
 
 export function getIntrospectColumnsQuery(
   engine: SqlEngine,

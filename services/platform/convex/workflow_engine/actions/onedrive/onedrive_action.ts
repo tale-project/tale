@@ -22,7 +22,7 @@ import {
 import type {
   DocumentRecord,
   DocumentMetadata,
-} from '../../../models/documents/types';
+} from '../../../documents/types';
 
 // Common field validators
 const filesValidator = v.array(
@@ -269,7 +269,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
             page: DocumentRecord[];
             isDone: boolean;
             continueCursor: string;
-          } = await ctx.runQuery!(internal.queries.documents.queryDocuments, {
+          } = await ctx.runQuery!(internal.documents.queries.queryDocuments, {
             organizationId,
             sourceProvider: 'onedrive',
             paginationOpts: { numItems: 100, cursor },

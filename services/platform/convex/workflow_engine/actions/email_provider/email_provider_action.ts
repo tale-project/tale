@@ -8,7 +8,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { api, internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
-import { decryptAndRefreshOAuth2Token } from '../../../models/email_providers/decrypt_and_refresh_oauth2';
+import { decryptAndRefreshOAuth2Token } from '../../../email_providers/helpers';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -157,7 +157,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
             provider._id,
             provider.oauth2Auth,
             async (encrypted: string) =>
-              await ctx.runAction!(internal.actions.oauth2.decryptStringInternal, {
+              await ctx.runAction!(internal.lib.crypto.actions.decryptStringInternal, {
                 encrypted,
               }),
             async (params) =>

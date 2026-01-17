@@ -2,7 +2,7 @@ import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { CreateApprovalResult, ApprovalPriority } from './types';
-import type { ApprovalResourceType } from '../../../../models/approvals/types';
+import type { ApprovalResourceType } from '../../../../approvals/types';
 
 export async function createApproval(
   ctx: ActionCtx,
@@ -20,7 +20,7 @@ export async function createApproval(
   },
 ): Promise<CreateApprovalResult> {
   const approvalId: Id<'approvals'> = await ctx.runMutation(
-    internal.mutations.approvals.createApproval,
+    internal.approvals.mutations.createApproval,
     {
       organizationId: params.organizationId,
       resourceType: params.resourceType as ApprovalResourceType,
@@ -37,7 +37,7 @@ export async function createApproval(
 
   // Fetch and return the full created entity
   const createdApproval = await ctx.runQuery(
-    internal.queries.approvals.getApprovalById,
+    internal.approvals.queries.getApprovalById,
     { approvalId },
   );
 

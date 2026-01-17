@@ -2,7 +2,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { Id } from '../../../_generated/dataModel';
 import { internal } from '../../../_generated/api';
 import { defaultGetFields, type CustomerReadGetByIdResult } from './types';
-import type { Customer } from '../../../models/customers/types';
+import type { Customer } from '../../../customers/types';
 
 import { createDebugLog } from '../../../lib/debug_log';
 

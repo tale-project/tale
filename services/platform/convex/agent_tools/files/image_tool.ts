@@ -216,7 +216,7 @@ CRITICAL RULES:
 
       try {
         const result = await ctx.runAction(
-          internal.actions.documents.generateDocumentInternal,
+          internal.documents.actions.generateDocumentInternal,
           {
             fileName: args.fileName,
             sourceType: args.sourceType,

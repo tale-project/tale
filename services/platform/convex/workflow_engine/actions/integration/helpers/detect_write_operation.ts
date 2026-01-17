@@ -6,7 +6,7 @@
  * both SQL and REST API integrations in a generic way.
  */
 
-import type { OperationType } from '../../../../models/integrations/types';
+import type { OperationType } from '../../../../integrations/types';
 
 /**
  * Common interface for operation configs (works for both SQL and REST API operations)

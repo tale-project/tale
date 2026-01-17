@@ -3,9 +3,9 @@ import { Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
-import { ProductTable } from '@/app/features/knowledge/products/components/product-table';
-import { ProductTableSkeleton } from '@/app/features/knowledge/products/components/product-table-skeleton';
-import { ProductsEmptyState } from '@/app/features/knowledge/products/components/products-empty-state';
+import { ProductTable } from '@/app/features/products/components/product-table';
+import { ProductTableSkeleton } from '@/app/features/products/components/product-table-skeleton';
+import { ProductsEmptyState } from '@/app/features/products/components/products-empty-state';
 
 const searchSchema = z.object({
   query: z.string().optional(),

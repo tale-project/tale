@@ -6,9 +6,9 @@
 
 import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { createApproval } from '../../models/approvals/create_approval';
-import type { IntegrationOperationMetadata } from '../../models/approvals/types';
+import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { createApproval } from '../../approvals/helpers';
+import type { IntegrationOperationMetadata } from '../../approvals/types';
 
 /**
  * Create an approval for an integration operation

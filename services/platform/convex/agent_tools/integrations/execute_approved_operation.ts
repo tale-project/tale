@@ -7,8 +7,8 @@
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
-import type { IntegrationOperationMetadata } from '../../models/approvals/types';
+import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
+import type { IntegrationOperationMetadata } from '../../approvals/types';
 
 /**
  * Execute an approved integration operation
@@ -27,7 +27,7 @@ export const executeApprovedOperation = internalAction({
       resourceType: string;
       organizationId: string;
       metadata?: unknown;
-    } | null = await ctx.runQuery(internal.queries.approvals.getApprovalInternal, {
+    } | null = await ctx.runQuery(internal.approvals.queries.getApprovalInternal, {
       approvalId: args.approvalId,
     });
 

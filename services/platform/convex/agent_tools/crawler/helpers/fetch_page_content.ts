@@ -35,7 +35,7 @@ export async function fetchPageContent(
   if (organizationId) {
     try {
       const cachedPage = await ctx.runQuery(
-        internal.queries.websites.getWebsitePageByUrlInternal,
+        internal.websites.queries.getWebsitePageByUrlInternal,
         {
           organizationId,
           url: args.url,

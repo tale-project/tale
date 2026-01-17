@@ -6,9 +6,9 @@
 
 import { internalMutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-import { createApproval } from '../../models/approvals/create_approval';
-import type { WorkflowCreationMetadata } from '../../models/approvals/types';
+import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { createApproval } from '../../approvals/helpers';
+import type { WorkflowCreationMetadata } from '../../approvals/types';
 
 /**
  * Create an approval for a workflow creation

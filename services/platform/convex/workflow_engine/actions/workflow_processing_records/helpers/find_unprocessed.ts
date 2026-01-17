@@ -19,7 +19,7 @@ export async function findUnprocessed(
   },
 ): Promise<FindUnprocessedResult> {
   const result = await ctx.runMutation(
-    internal.mutations.workflow_processing_records.findUnprocessed,
+    internal.workflows.processing_records.mutations.findUnprocessed,
     {
       organizationId: params.organizationId,
       tableName: params.tableName,

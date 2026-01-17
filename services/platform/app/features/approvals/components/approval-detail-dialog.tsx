@@ -13,7 +13,7 @@ import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { CustomerInfoDialog } from '@/app/features/knowledge/customers/components/customer-info-dialog';
+import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 
 const RecommendationIcon = () => (
   <Sparkles className="size-4 text-muted-foreground" />

@@ -15,7 +15,7 @@ export async function recordProcessed(
 ): Promise<RecordProcessedResult> {
   const processingRecordId: Id<'workflowProcessingRecords'> =
     await ctx.runMutation(
-      internal.mutations.workflow_processing_records.recordProcessed,
+      internal.workflows.processing_records.mutations.recordProcessed,
       {
         organizationId: params.organizationId,
         tableName: params.tableName,
@@ -29,7 +29,7 @@ export async function recordProcessed(
   // Fetch and return the full created entity
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
   const createdRecord = await ctx.runQuery(
-    internal.queries.workflow_processing_records.getProcessingRecordById,
+    internal.workflows.processing_records.queries.getProcessingRecordById,
     { processingRecordId },
   );
 

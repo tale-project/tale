@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { ToneOfVoiceFormClient } from '@/app/features/knowledge/tone-of-voice/components/tone-of-voice-form-client';
+import { ToneOfVoiceFormClient } from '@/app/features/tone-of-voice/components/tone-of-voice-form-client';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';

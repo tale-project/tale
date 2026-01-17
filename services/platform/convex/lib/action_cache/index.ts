@@ -26,23 +26,6 @@ export const TTL = {
 } as const;
 
 // ============================================
-// AI Operation Caches
-// ============================================
-
-/**
- * Cache for AI text improvement results.
- * Same input produces same output (deterministic).
- * 24-hour TTL for daily refresh.
- */
-export const improveMessageCache: ActionCache<
-  FunctionReference<'action', 'internal'>
-> = new ActionCache(components.actionCache, {
-  action: internal.actions.improve_message.improveMessageUncached,
-  name: `improve_message_${CACHE_VERSION}`,
-  ttl: TTL.ONE_DAY,
-});
-
-// ============================================
 // File Processing Caches
 // ============================================
 

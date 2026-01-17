@@ -3,9 +3,9 @@ import { Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
-import { VendorsTable } from '@/app/features/knowledge/vendors/components/vendors-table';
-import { VendorsTableSkeleton } from '@/app/features/knowledge/vendors/components/vendors-table-skeleton';
-import { VendorsPageWrapper } from '@/app/features/knowledge/vendors/components/vendors-page-wrapper';
+import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
+import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
+import { VendorsPageWrapper } from '@/app/features/vendors/components/vendors-page-wrapper';
 
 const searchSchema = z.object({
   query: z.string().optional(),

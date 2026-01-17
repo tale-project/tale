@@ -182,7 +182,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
         try {
           const documents = await ctx.runQuery(
-            internal.queries.documents.listDocumentsByExtension,
+            internal.documents.queries.listDocumentsByExtension,
             {
               organizationId,
               extension: 'pptx',
@@ -264,7 +264,7 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
       try {
         const result = await ctx.runAction(
-          internal.actions.documents.generatePptxInternal,
+          internal.documents.actions.generatePptxInternal,
           {
             fileName: args.fileName,
             slidesContent: args.slidesContent,
