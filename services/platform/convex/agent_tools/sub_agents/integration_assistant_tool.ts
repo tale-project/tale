@@ -101,7 +101,7 @@ EXAMPLES:
       }
 
       // Check user role - only admin and developer can use this tool
-      const userRole = await ctx.runQuery(internal.queries.member.getMemberRoleInternal, {
+      const userRole = await ctx.runQuery(internal.members.queries.getMemberRoleInternal, {
         userId,
         organizationId,
       });

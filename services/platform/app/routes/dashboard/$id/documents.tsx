@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
-import { DocumentsClient } from '@/app/features/knowledge/documents/components/documents-client';
+import { DocumentsClient } from '@/app/features/documents/components/documents-client';
 
 const searchSchema = z.object({
   query: z.string().optional(),

@@ -2,7 +2,7 @@
  * Get introspection query for listing tables
  */
 
-import type { SqlEngine } from '../../../../models/integrations/types';
+import type { SqlEngine } from '../../../../integrations/types';
 
 export function getIntrospectTablesQuery(engine: SqlEngine): string {
   switch (engine) {

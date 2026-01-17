@@ -17,7 +17,7 @@ import { getPredefinedIntegration } from '../../../predefined_integrations';
 import { buildSecretsFromIntegration } from './helpers/build_secrets_from_integration';
 import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
-import { isSqlIntegration } from '../../../models/integrations/guards/is_sql_integration';
+import { isSqlIntegration } from '../../../integrations/helpers';
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
 
 import { createDebugLog } from '../../../lib/debug_log';

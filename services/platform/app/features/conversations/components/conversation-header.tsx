@@ -14,7 +14,7 @@ import {
   ShieldX,
   UserIcon,
 } from 'lucide-react';
-import { CustomerInfoDialog } from '@/app/features/knowledge/customers/components/customer-info-dialog';
+import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';

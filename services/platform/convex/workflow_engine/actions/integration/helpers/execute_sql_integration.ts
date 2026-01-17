@@ -15,7 +15,7 @@ import { getIntrospectionOperations } from './get_introspection_operations';
 import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
 import { validateRequiredParameters } from './validate_required_parameters';
-import { type SqlIntegration, type SqlOperation } from '../../../../models/integrations/types';
+import { type SqlIntegration, type SqlOperation } from '../../../../integrations/types';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 

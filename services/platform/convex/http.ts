@@ -6,7 +6,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
-import { streamChatHttp, streamChatHttpOptions } from './actions/streaming';
+import { streamChatHttp, streamChatHttpOptions } from './streaming/http_actions';
 
 const http = httpRouter();
 

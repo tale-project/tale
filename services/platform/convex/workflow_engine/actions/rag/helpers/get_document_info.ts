@@ -2,7 +2,7 @@ import type { RagActionParams } from './types';
 import type { ActionCtx } from '../../../../_generated/server';
 import { api, internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { DocumentMetadata } from '../../../../models/documents/types';
+import type { DocumentMetadata } from '../../../../documents/types';
 
 /**
  * Document information without downloading content
@@ -32,7 +32,7 @@ export async function getDocumentInfo(
     throw new Error('recordId is required');
   }
 
-  const document = await ctx.runQuery?.(internal.queries.documents.getDocumentById, {
+  const document = await ctx.runQuery?.(internal.documents.queries.getDocumentById, {
     documentId: params.recordId as Id<'documents'>,
   });
 

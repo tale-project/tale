@@ -7,7 +7,7 @@
 
 import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { integrationAction } from '../../workflow_engine/actions/integration/integration_action';
 
 /**

@@ -2,7 +2,7 @@
  * Type definitions for SQL execution
  */
 
-import type { SqlEngine } from '../../models/integrations/types';
+import type { SqlEngine } from '../../integrations/types';
 
 export interface SqlCredentials {
   server: string;

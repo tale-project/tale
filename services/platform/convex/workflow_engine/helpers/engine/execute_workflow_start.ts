@@ -13,8 +13,7 @@ import { internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import type { WorkflowType } from '../../types/workflow';
 import { loadDatabaseWorkflow } from './load_database_workflow';
-import { failExecution } from '../../../models/wf_executions/fail_execution';
-import { updateExecutionMetadata } from '../../../models/wf_executions/update_execution_metadata';
+import { failExecution, updateExecutionMetadata } from '../../../workflows/helpers';
 import type { WorkflowManager } from '@convex-dev/workflow';
 
 import { createDebugLog } from '../../../lib/debug_log';

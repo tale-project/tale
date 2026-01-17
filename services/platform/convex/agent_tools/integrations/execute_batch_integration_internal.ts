@@ -9,7 +9,7 @@
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator, jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonValueValidator, jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 import type { SqlExecutionResult } from '../../node_only/sql/types';
 import { isIntrospectionOperation } from '../../workflow_engine/actions/integration/helpers/is_introspection_operation';
 import { getIntrospectTablesQuery } from '../../workflow_engine/actions/integration/helpers/get_introspect_tables_query';
@@ -18,9 +18,8 @@ import { getIntrospectionOperations } from '../../workflow_engine/actions/integr
 import { decryptSqlCredentials } from '../../workflow_engine/actions/integration/helpers/decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from '../../workflow_engine/actions/integration/helpers/detect_write_operation';
 import { validateRequiredParameters } from '../../workflow_engine/actions/integration/helpers/validate_required_parameters';
-import type { Integration, SqlIntegration, SqlOperation } from '../../models/integrations/types';
-import { getIntegrationType } from '../../models/integrations/utils/get_integration_type';
-import { isSqlIntegration } from '../../models/integrations/guards/is_sql_integration';
+import type { Integration, SqlIntegration, SqlOperation } from '../../integrations/types';
+import { getIntegrationType, isSqlIntegration } from '../../integrations/helpers';
 
 /** Single operation result validator */
 const operationResultValidator = v.object({

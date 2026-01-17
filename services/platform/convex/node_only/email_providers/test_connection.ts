@@ -4,7 +4,7 @@ import { internalAction } from '../../_generated/server';
 import { v } from 'convex/values';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
-import * as EmailProviders from '../../models/email_providers';
+import * as EmailProviders from '../../email_providers/helpers';
 
 /**
  * Internal action to test email provider connection (Node.js runtime)
