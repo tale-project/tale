@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { useEffect } from 'react';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
@@ -17,10 +17,15 @@ export const Route = createFileRoute('/dashboard/')({
 
 function DashboardIndex() {
   const navigate = useNavigate();
-  const organizations = useQuery(api.members.queries.getUserOrganizationsList, {});
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+
+  const organizations = useQuery(
+    api.members.queries.getUserOrganizationsList,
+    isAuthLoading || !isAuthenticated ? 'skip' : {},
+  );
 
   useEffect(() => {
-    if (organizations === undefined) {
+    if (isAuthLoading || !isAuthenticated || organizations === undefined) {
       return;
     }
 
@@ -29,7 +34,7 @@ function DashboardIndex() {
     } else {
       navigate({ to: '/dashboard/$id', params: { id: organizations[0].organizationId } });
     }
-  }, [organizations, navigate]);
+  }, [isAuthLoading, isAuthenticated, organizations, navigate]);
 
   return (
     <div className="flex items-center justify-center h-screen">
