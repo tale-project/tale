@@ -33,7 +33,7 @@ export async function getDecryptedCredentialsLogic(
 
   if (integration.apiKeyAuth) {
     const key = await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
-      encrypted: integration.apiKeyAuth.keyEncrypted,
+      jwe: integration.apiKeyAuth.keyEncrypted,
     });
     credentials.apiKey = key;
     credentials.keyPrefix = integration.apiKeyAuth.keyPrefix;
@@ -43,7 +43,7 @@ export async function getDecryptedCredentialsLogic(
     const password = await ctx.runAction(
       internal.lib.crypto.actions.decryptStringInternal,
       {
-        encrypted: integration.basicAuth.passwordEncrypted,
+        jwe: integration.basicAuth.passwordEncrypted,
       },
     );
     credentials.username = integration.basicAuth.username;
@@ -54,7 +54,7 @@ export async function getDecryptedCredentialsLogic(
     const accessToken = await ctx.runAction(
       internal.lib.crypto.actions.decryptStringInternal,
       {
-        encrypted: integration.oauth2Auth.accessTokenEncrypted,
+        jwe: integration.oauth2Auth.accessTokenEncrypted,
       },
     );
     credentials.accessToken = accessToken;
@@ -63,7 +63,7 @@ export async function getDecryptedCredentialsLogic(
       const refreshToken = await ctx.runAction(
         internal.lib.crypto.actions.decryptStringInternal,
         {
-          encrypted: integration.oauth2Auth.refreshTokenEncrypted,
+          jwe: integration.oauth2Auth.refreshTokenEncrypted,
         },
       );
       credentials.refreshToken = refreshToken;

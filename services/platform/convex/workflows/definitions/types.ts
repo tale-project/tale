@@ -5,7 +5,7 @@
 import type { Infer } from 'convex/values';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { StepConfig } from '../../workflow_engine/types/nodes';
-import type { StepType } from '../wf_step_defs/types';
+import type { StepType } from '../steps/types';
 import {
   workflowConfigValidator,
   workflowStatusValidator,

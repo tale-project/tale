@@ -30,7 +30,7 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
 import { toast } from '@/app/hooks/use-toast';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
-import { useUIMessages } from '@convex-dev/agent/react';
+import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { Image } from '@/app/components/ui/data-display/image';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
 import { useT } from '@/lib/i18n/client';
@@ -192,16 +192,17 @@ export function AutomationAssistant({
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { results: uiMessages } = useUIMessages(
-    api.threads.queries.getThreadMessagesStreaming,
+    api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 10, stream: true },
-  );
+  ) as unknown as { results: UIMessage[] | undefined };
 
   // Load threadId from workflow metadata when workflow is loaded
   useEffect(() => {
     if (workflow?.metadata?.threadId && !threadId) {
-      setThreadId(workflow.metadata.threadId);
+      setThreadId(String(workflow.metadata.threadId));
     }
   }, [workflow, threadId, automationId]);
 
@@ -518,7 +519,7 @@ export function AutomationAssistant({
   };
 
   const handleClearChat = async () => {
-    if (!user?._id) {
+    if (!user?.userId) {
       console.error('User not authenticated');
       return;
     }
@@ -536,7 +537,7 @@ export function AutomationAssistant({
         await updateWorkflowMetadata({
           wfDefinitionId: automationId,
           metadata: { ...workflow.metadata, threadId: null },
-          updatedBy: user._id,
+          updatedBy: user.userId,
         });
       }
 

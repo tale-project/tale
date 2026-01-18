@@ -37,6 +37,6 @@ export function useConversationsData(options: UseConversationsDataOptions) {
 
   return useConversationsDataBase({
     ...rest,
-    filters: { status, priority, channel } as ConversationFilters,
+    filters: { status, priority, channel },
   });
 }

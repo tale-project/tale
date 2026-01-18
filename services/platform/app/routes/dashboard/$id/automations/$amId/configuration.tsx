@@ -100,7 +100,7 @@ function ConfigurationPage() {
   const handleSave = async () => {
     if (!workflow) return;
 
-    if (!user?._id) {
+    if (!user?.userId) {
       toast({
         title: tCommon('errors.generic'),
         variant: 'destructive',

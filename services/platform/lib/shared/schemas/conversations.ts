@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { prioritySchema } from './common';
 import { jsonRecordSchema } from './utils/json-value';
 

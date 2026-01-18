@@ -86,7 +86,8 @@ export async function createProviderInternal(
     imapConfig: args.imapConfig,
     isDefault: isDefault,
     status: 'active',
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
   });
 
   return providerId;

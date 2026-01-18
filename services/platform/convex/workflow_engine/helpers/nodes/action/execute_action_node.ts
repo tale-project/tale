@@ -15,12 +15,12 @@ import type { Id } from '../../../../_generated/dataModel';
 // Secure wrapper type guard
 function isSecureWrapper(
   val: unknown,
-): val is { __secure: true; encrypted: string } {
+): val is { __secure: true; jwe: string } {
   return (
     !!val &&
     typeof val === 'object' &&
     (val as Record<string, unknown>)['__secure'] === true &&
-    typeof (val as Record<string, unknown>)['encrypted'] === 'string'
+    typeof (val as Record<string, unknown>)['jwe'] === 'string'
   );
 }
 
@@ -33,7 +33,7 @@ async function resolveSecretsInParams(
     const decrypted = (await ctx.runAction!(
       internal.lib.crypto.actions.decryptStringInternal,
       {
-        encrypted: value.encrypted,
+        jwe: value.jwe,
       },
     )) as string;
     return decrypted;

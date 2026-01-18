@@ -38,6 +38,6 @@ export function useOfflineProductsData(options: UseOfflineProductsDataOptions) {
 
   return useOfflineProductsDataBase({
     ...rest,
-    filters: { status, category } as ProductFilters,
+    filters: { status, category },
   });
 }

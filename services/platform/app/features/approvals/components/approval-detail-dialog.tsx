@@ -47,7 +47,7 @@ export function ApprovalDetailDialog({
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
   const customer = useQuery(
-    api.customers.getCustomerByEmail,
+    api.customers.queries.getCustomerByEmail,
     approvalDetail?.customer.email
       ? {
           email: approvalDetail.customer.email,

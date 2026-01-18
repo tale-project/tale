@@ -7,9 +7,11 @@
  */
 
 import { internalAction, type ActionCtx } from '../../_generated/server';
-import { v } from 'convex/values';
+import { v, Infer } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { jsonValueValidator, jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 import type { SqlExecutionResult } from '../../node_only/sql/types';
 import { isIntrospectionOperation } from '../../workflow_engine/actions/integration/helpers/is_introspection_operation';
 import { getIntrospectTablesQuery } from '../../workflow_engine/actions/integration/helpers/get_introspect_tables_query';
@@ -52,7 +54,7 @@ interface OperationResult {
   id?: string;
   operation: string;
   success: boolean;
-  data?: unknown;
+  data?: ConvexJsonValue;
   error?: string;
   duration?: number;
   rowCount?: number;
@@ -60,18 +62,8 @@ interface OperationResult {
   approvalId?: string;
 }
 
-/** Batch result type */
-interface BatchResult {
-  success: boolean;
-  integration: string;
-  results: OperationResult[];
-  stats: {
-    totalTime: number;
-    successCount: number;
-    failureCount: number;
-    approvalCount: number;
-  };
-}
+/** Batch result type matching Convex validator */
+type BatchResult = Infer<typeof batchResultValidator>;
 
 /**
  * Execute multiple integration operations in parallel
@@ -108,7 +100,7 @@ export const executeBatchIntegrationInternal = internalAction({
 
     // 1. Load integration config ONCE
     const integration = await ctx.runQuery(
-      internal.integrations.queries.get_by_name.getByNameInternal,
+      internal.integrations.queries.getByName,
       { organizationId, name: integrationName },
     );
 
@@ -315,7 +307,7 @@ async function executeSqlBatch(
   );
 
   // Process results
-  const processedResults: OperationResult[] = results.map((result, index) => {
+  const processedResults = results.map((result, index): OperationResult => {
     if (result.status === 'fulfilled') {
       return result.value;
     }
@@ -426,7 +418,7 @@ async function executeRestApiBatch(
     }),
   );
 
-  const processedResults: OperationResult[] = results.map((result, index) => {
+  const processedResults = results.map((result, index): OperationResult => {
     if (result.status === 'fulfilled') {
       return result.value;
     }

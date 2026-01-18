@@ -64,7 +64,7 @@ export const integrationAction: ActionDefinition<{
 
     // 1. Load the integration from database by name
     const integration = await ctx.runQuery!(
-      internal.integrations.queries.get_by_name.getByNameInternal,
+      internal.integrations.queries.getByName,
       { organizationId, name },
     );
 
@@ -100,9 +100,9 @@ export const integrationAction: ActionDefinition<{
     }
 
     // 4. Validate the operation is supported and get operation config
-    const operationConfig = connectorConfig.operations.find((op) => op.name === operation);
+    const operationConfig = connectorConfig.operations.find((op: { name: string }) => op.name === operation);
     if (!operationConfig) {
-      const supportedOps = connectorConfig.operations.map((op) => op.name);
+      const supportedOps = connectorConfig.operations.map((op: { name: string }) => op.name);
       throw new Error(
         `Operation "${operation}" not supported by integration "${name}". ` +
           `Supported operations: ${supportedOps.join(', ')}`,

@@ -42,8 +42,8 @@ function SettingsLayout() {
     );
   }
 
-  const userRole = userContext?.member?.role ?? 'Member';
-  const canChangePassword = userContext?.canChangePassword ?? true;
+  const userRole = userContext?.role ?? 'member';
+  const canChangePassword = true;
 
   return (
     <>

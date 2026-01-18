@@ -28,7 +28,7 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
   const { teams, isLoading, isExternallyManaged } = useListTeams(organizationId);
 
   // Filter teams by search query
-  const filteredTeams = teams?.filter((team) =>
+  const filteredTeams = teams?.filter((team: { id: string; name: string }) =>
     team.name.toLowerCase().includes(debouncedSearch.toLowerCase()),
   );
 

@@ -63,7 +63,7 @@ export function createOfflineMutation<
               ...config.getOptimisticItem(args),
               _id: `temp_${queueId}`,
               _creationTime: Date.now(),
-            } as TItem;
+            } as unknown as TItem;
             await appendToCacheItem<TItem>(cacheKey, optimisticItem);
           } else if (config.type === 'update' && config.getItemId) {
             const itemId = config.getItemId(args);

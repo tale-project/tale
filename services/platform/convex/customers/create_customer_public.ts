@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import type { DataSource } from '../common/validators';
+import type { DataSource } from '../../lib/shared/schemas/common';
 
 interface CreateCustomerPublicArgs {
   organizationId: string;
@@ -60,5 +60,6 @@ export async function createCustomerPublic(
     }
   }
 
-  return await ctx.db.insert('customers', args);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return await ctx.db.insert('customers', { ...args, metadata: args.metadata as any });
 }

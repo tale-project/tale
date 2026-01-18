@@ -11,7 +11,7 @@ export async function checkConversationExists(
   externalMessageId: string,
 ): Promise<{ _id: Id<'conversations'>; metadata?: unknown } | null> {
   return (await ctx.runQuery(
-    internal.conversations.getConversationByExternalMessageId,
+    internal.conversations.queries.getConversationByExternalMessageId,
     {
       organizationId,
       externalMessageId,

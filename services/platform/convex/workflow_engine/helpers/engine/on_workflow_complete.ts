@@ -36,17 +36,17 @@ export async function handleWorkflowComplete(
   const result = args.result as ComponentRunResult;
   const kind = result?.kind;
   if (kind === 'success') {
-    await ctx.runMutation(internal.wf_executions.mutations.completeExecution.completeExecution, {
+    await ctx.runMutation(internal.wf_executions.mutations.completeExecution, {
       executionId: exec._id as Id<'wfExecutions'>,
       output: result.returnValue,
     });
   } else if (kind === 'failed') {
-    await ctx.runMutation(internal.wf_executions.mutations.failExecution.failExecution, {
+    await ctx.runMutation(internal.wf_executions.mutations.failExecution, {
       executionId: exec._id as Id<'wfExecutions'>,
       error: result.error || 'failed',
     });
   } else if (kind === 'canceled') {
-    await ctx.runMutation(internal.wf_executions.mutations.updateExecution.updateExecutionStatus, {
+    await ctx.runMutation(internal.wf_executions.mutations.updateExecutionStatus, {
       executionId: exec._id as Id<'wfExecutions'>,
       status: 'failed',
       error: 'canceled',

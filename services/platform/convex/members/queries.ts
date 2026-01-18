@@ -28,14 +28,21 @@ export const getMemberRoleInternal = internalQuery({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const member = await ctx.db
-      .query('member')
-      .withIndex('organizationId_userId', (q) =>
-        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
-      )
-      .unique();
+    const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
+      model: 'member',
+      paginationOpts: {
+        cursor: null,
+        numItems: 1,
+      },
+      where: [
+        { field: 'organizationId', value: args.organizationId, operator: 'eq' },
+        { field: 'userId', value: args.userId, operator: 'eq' },
+      ],
+    });
 
-    return member?.role ?? null;
+    const member = result?.page?.[0];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (member as any)?.role ?? null;
   },
 });
 
@@ -54,8 +61,16 @@ export const getCurrentMemberContext = query({
       memberId: v.string(),
       organizationId: v.string(),
       userId: v.string(),
-      role: v.string(),
+      role: v.union(
+        v.literal('admin'),
+        v.literal('member'),
+        v.literal('editor'),
+        v.literal('developer'),
+        v.literal('disabled'),
+      ),
       createdAt: v.number(),
+      displayName: v.optional(v.string()),
+      isAdmin: v.boolean(),
     }),
     v.null(),
   ),
@@ -77,6 +92,7 @@ export const getCurrentMemberContext = query({
       }
 
       const role = isValidRole(member.role) ? member.role : 'member';
+      const isAdmin = role === 'admin';
 
       return {
         memberId: member._id,
@@ -84,6 +100,8 @@ export const getCurrentMemberContext = query({
         userId: member.userId,
         role,
         createdAt: member.createdAt,
+        displayName: authUser.name,
+        isAdmin,
       };
     } catch {
       return null;
@@ -116,7 +134,7 @@ export const listByOrganization = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId,
+        userId: String(authUser._id),
         email: authUser.email,
         name: authUser.name,
       });

@@ -91,6 +91,20 @@ export async function sendMessageViaEmail(
 
   // Create the message with 'queued' status
   // Use the provider from the conversation (or the one we just determined)
+  const messageMetadata: Record<string, unknown> = {
+    sender: senderEmail,
+    isCustomer: false,
+    to: args.to,
+    subject: args.subject,
+  };
+  if (args.cc) messageMetadata.cc = args.cc;
+  if (args.bcc) messageMetadata.bcc = args.bcc;
+  if (args.replyTo) messageMetadata.replyTo = args.replyTo;
+  if (args.inReplyTo) messageMetadata.inReplyTo = args.inReplyTo;
+  if (args.references) messageMetadata.references = args.references;
+  if (args.headers) messageMetadata.headers = args.headers;
+  if (args.attachments) messageMetadata.attachments = args.attachments;
+
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
@@ -99,19 +113,8 @@ export async function sendMessageViaEmail(
     direction: 'outbound',
     deliveryState: 'queued',
     content: args.content,
-    metadata: {
-      sender: senderEmail,
-      isCustomer: false,
-      to: args.to,
-      cc: args.cc,
-      bcc: args.bcc,
-      subject: args.subject,
-      replyTo: args.replyTo,
-      inReplyTo: args.inReplyTo,
-      references: args.references,
-      headers: args.headers,
-      attachments: args.attachments,
-    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: messageMetadata as any,
   });
 
   // Determine send method: 'api' or 'smtp' (default to 'smtp' for backwards compatibility)
@@ -123,7 +126,7 @@ export async function sendMessageViaEmail(
     // Send via API (Gmail API / Microsoft Graph)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.actions.send_message_via_api_internal.sendMessageViaAPIInternal,
+      internal.email_providers.internal_actions.send_message_via_api_internal.sendMessageViaAPIInternal,
       {
         messageId,
         organizationId: args.organizationId,
@@ -146,7 +149,7 @@ export async function sendMessageViaEmail(
     // Send via SMTP (default)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
+      internal.email_providers.internal_actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
       {
         messageId,
         organizationId: args.organizationId,
@@ -203,21 +206,24 @@ export async function sendMessageViaEmail(
       (pendingApproval.metadata as Record<string, unknown>) || {};
 
     // Update approval status to approved and record the actual sent content
+    const approvalMetadata: Record<string, unknown> = {
+      ...existingMetadata,
+      sentContent: args.content,
+      sentTo: args.to,
+      sentSubject: args.subject,
+      sentAt: Date.now(),
+    };
+    if (args.html) approvalMetadata.sentHtml = args.html;
+    if (args.text) approvalMetadata.sentText = args.text;
+    if (args.cc) approvalMetadata.sentCc = args.cc;
+    if (args.bcc) approvalMetadata.sentBcc = args.bcc;
+
     await ctx.db.patch(pendingApproval._id, {
       status: 'approved',
       approvedBy,
       reviewedAt: Date.now(),
-      metadata: {
-        ...existingMetadata,
-        sentContent: args.content,
-        sentHtml: args.html,
-        sentText: args.text,
-        sentTo: args.to,
-        sentCc: args.cc,
-        sentBcc: args.bcc,
-        sentSubject: args.subject,
-        sentAt: Date.now(),
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      metadata: approvalMetadata as any,
     });
   }
 

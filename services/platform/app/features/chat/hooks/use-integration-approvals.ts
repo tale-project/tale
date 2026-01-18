@@ -43,13 +43,16 @@ export function useIntegrationApprovals(threadId: string | undefined) {
     threadId ? { threadId } : 'skip',
   );
 
+  type ApprovalItem = NonNullable<typeof approvals>[number];
+
   // Transform the approvals to a more usable format
   const integrationApprovals: IntegrationApproval[] = (approvals || [])
-    .filter((a) => a.resourceType === 'integration_operation' && a.metadata)
-    .map((a) => ({
+    .filter((a: ApprovalItem): a is ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> } =>
+      a.resourceType === 'integration_operation' && a.metadata !== undefined)
+    .map((a: ApprovalItem & { metadata: NonNullable<ApprovalItem['metadata']> }): IntegrationApproval => ({
       _id: a._id,
       status: a.status as 'pending' | 'approved' | 'rejected',
-      metadata: a.metadata as IntegrationOperationMetadata,
+      metadata: a.metadata as unknown as IntegrationOperationMetadata,
       executedAt: a.executedAt,
       executionError: a.executionError,
       _creationTime: a._creationTime,

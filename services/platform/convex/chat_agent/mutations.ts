@@ -19,7 +19,7 @@ export const chatWithAgent = mutation({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.string(),
+          fileId: v.id('_storage'),
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),
@@ -45,17 +45,17 @@ export const onChatComplete = internalMutation({
   args: {
     result: v.object({
       threadId: v.string(),
+      text: v.string(),
+      model: v.string(),
+      provider: v.string(),
       totalTokens: v.optional(v.number()),
       inputTokens: v.optional(v.number()),
       outputTokens: v.optional(v.number()),
       reasoningTokens: v.optional(v.number()),
-      model: v.optional(v.string()),
-      provider: v.optional(v.string()),
       stepCount: v.optional(v.number()),
       finishReason: v.optional(v.string()),
       durationMs: v.optional(v.number()),
       timeToFirstTokenMs: v.optional(v.number()),
-      text: v.optional(v.string()),
       usage: v.optional(
         v.object({
           inputTokens: v.optional(v.number()),

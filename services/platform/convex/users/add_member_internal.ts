@@ -3,7 +3,7 @@
  */
 
 import { MutationCtx } from '../_generated/server';
-import { Role } from './index';
+import type { Role } from './types';
 import { components } from '../_generated/api';
 
 export interface AddMemberInternalArgs {

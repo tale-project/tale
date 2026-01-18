@@ -2,12 +2,12 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { useSyncStatus } from '@/app/hooks/use-sync-status';
 import { useMutationQueue } from '@/app/hooks/use-mutation-queue';
 import { cn } from '@/lib/utils/cn';
-import { Button } from '@/app/components/ui/controls/button';
+import { Button } from '@/app/components/ui/primitives/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/app/components/ui/feedback/tooltip';
+} from '@/app/components/ui/overlays/tooltip';
 
 interface SyncStatusIndicatorProps {
   className?: string;

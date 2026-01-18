@@ -44,7 +44,7 @@ export class DatabaseWorkflowDataSource implements WorkflowDataSource {
 
   async getStepDefinitions(): Promise<StepDefinition[]> {
     const steps = (await this.ctx.runQuery(
-      internal.wf_step_defs.getOrderedSteps,
+      internal.wf_step_defs.queries.getOrderedSteps,
       { wfDefinitionId: this.wfDefinitionId },
     )) as Array<Doc<'wfStepDefs'>>;
 

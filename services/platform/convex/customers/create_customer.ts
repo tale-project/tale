@@ -3,7 +3,7 @@
  */
 
 import type { MutationCtx } from '../_generated/server';
-import type { DataSource } from '../common/validators';
+import type { DataSource } from '../../lib/shared/schemas/common';
 
 export interface CreateCustomerArgs {
   organizationId: string;
@@ -36,7 +36,8 @@ export async function createCustomer(
     locale: args.locale,
     address: args.address,
     externalId: args.externalId,
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
   });
 
   return {

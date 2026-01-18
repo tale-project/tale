@@ -82,7 +82,7 @@ export function UserButton({
   };
 
   const displayName =
-    memberContext?.member?.displayName ||
+    memberContext?.displayName ||
     user?.name ||
     t('userButton.defaultName');
 

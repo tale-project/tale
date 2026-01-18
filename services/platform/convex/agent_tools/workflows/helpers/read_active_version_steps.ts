@@ -30,7 +30,7 @@ export async function readActiveVersionSteps(
   try {
     // Get the active version of the workflow
     const workflow = (await ctx.runQuery(
-      internal.wf_definitions.queries.getActiveVersion.getActiveVersion,
+      internal.wf_definitions.queries.getWorkflow.getActiveVersion,
       {
         organizationId,
         name: args.workflowName,
@@ -47,7 +47,7 @@ export async function readActiveVersionSteps(
     }
 
     // Get all steps for the active workflow version
-    const steps = (await ctx.runQuery(internal.wf_step_defs.listWorkflowSteps, {
+    const steps = (await ctx.runQuery(internal.wf_step_defs.queries.listWorkflowSteps, {
       wfDefinitionId: workflow._id,
     })) as Doc<'wfStepDefs'>[];
 

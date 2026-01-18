@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Optimistic updates not added for create operations - complex type matching
 export function useAddExample() {
-  return useMutation(api.tone_of_voice.mutations.example_messages.addExampleMessage);
+  return useMutation(api.tone_of_voice.mutations.addExampleMessage);
 }

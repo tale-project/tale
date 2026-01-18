@@ -21,7 +21,7 @@ export const Route = createFileRoute('/dashboard/$id/customers')({
 
 function CustomersPage() {
   const { id: organizationId } = Route.useParams();
-  const hasCustomers = useQuery(api.customers.hasCustomers, { organizationId });
+  const hasCustomers = useQuery(api.customers.queries.hasCustomers, { organizationId });
 
   if (hasCustomers === undefined) {
     return <CustomersTableSkeleton organizationId={organizationId} />;

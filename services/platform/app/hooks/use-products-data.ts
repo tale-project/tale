@@ -34,6 +34,6 @@ export function useProductsData(options: UseProductsDataOptions) {
 
   return useProductsDataBase({
     ...rest,
-    filters: { status, category } as ProductFilters,
+    filters: { status, category },
   });
 }

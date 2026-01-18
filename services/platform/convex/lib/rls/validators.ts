@@ -3,7 +3,7 @@
  * Re-exports shared Zod schemas and generates Convex validators from them
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   organizationIdArgSchema,
   rlsWithPaginationArgsSchema,

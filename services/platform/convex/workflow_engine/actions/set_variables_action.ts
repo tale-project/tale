@@ -83,7 +83,7 @@ export const setVariablesAction: ActionDefinition<{
           (workingContext.secrets as Record<string, unknown>) || {};
         const secureWrapper = {
           __secure: true,
-          encrypted: processedValue,
+          jwe: processedValue,
         } as const;
         secrets[name] = secureWrapper;
 

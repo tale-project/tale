@@ -37,7 +37,7 @@ interface TestExistingProviderDependencies {
     smtpConfig: { host: string; port: number; secure: boolean };
     imapConfig: { host: string; port: number; secure: boolean };
   }) => Promise<TestResult>;
-  decryptString: (encrypted: string) => Promise<string>;
+  decryptString: (jwe: string) => Promise<string>;
   refreshToken: (params: {
     provider: string;
     clientId: string;

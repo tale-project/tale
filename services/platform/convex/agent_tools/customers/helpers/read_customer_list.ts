@@ -17,13 +17,16 @@ export async function readCustomerList(
   const numItems = args.numItems ?? 200;
   const cursor = args.cursor ?? null;
 
-  const result = await ctx.runQuery(internal.customers.queryCustomers, {
-    organizationId,
-    paginationOpts: {
-      numItems,
-      cursor,
+  const result = await ctx.runQuery(
+    internal.customers.internal_queries.query_customers.queryCustomersInternal,
+    {
+      organizationId,
+      paginationOpts: {
+        numItems,
+        cursor,
+      },
     },
-  });
+  );
 
   return {
     operation: 'list',

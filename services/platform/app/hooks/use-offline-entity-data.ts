@@ -84,8 +84,9 @@ export function createOfflineEntityDataHook<
 
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const liveData = useQuery(
-      config.queryFn,
+      config.queryFn as any,
       isOnline ? { organizationId } : 'skip'
     );
 
@@ -144,7 +145,7 @@ export function createOfflineEntityDataHook<
 
       const getSorter = () => {
         const actualField =
-          config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as keyof TItem);
+          config.sortConfig.fieldMap?.[sortBy] ?? (sortBy as unknown as keyof TItem);
         if (config.sortConfig.number.includes(sortBy)) {
           return sortByNumber<TItem>(actualField, sortOrder);
         }

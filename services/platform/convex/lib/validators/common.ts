@@ -2,7 +2,7 @@
  * Common Convex validators shared across multiple domains
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   sortOrderSchema,
   prioritySchema,

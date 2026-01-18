@@ -21,7 +21,8 @@ export async function createDocument(
     fileId: args.fileId,
     mimeType: args.mimeType,
     extension,
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,
     teamTags: args.teamTags,

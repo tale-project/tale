@@ -20,7 +20,7 @@ export const Route = createFileRoute('/dashboard/$id/vendors')({
 
 function VendorsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasVendors = useQuery(api.vendors.hasVendors, { organizationId });
+  const hasVendors = useQuery(api.vendors.queries.hasVendors, { organizationId });
 
   if (hasVendors === undefined) {
     return <VendorsTableSkeleton organizationId={organizationId} />;

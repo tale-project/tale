@@ -1,5 +1,5 @@
 /**
- * Custom mutation with RLS enforcement using convex-helpers/zod3
+ * Custom mutation with RLS enforcement using convex-helpers/zod4
  * Allows using Zod schemas for argument validation
  */
 
@@ -8,8 +8,9 @@ import {
 	wrapDatabaseWriter,
 	type RLSConfig,
 } from 'convex-helpers/server/rowLevelSecurity';
-import { zCustomMutation } from 'convex-helpers/server/zod3';
-import { mutation } from '../../../_generated/server';
+import { zCustomMutation } from 'convex-helpers/server/zod4';
+import { mutation, type MutationCtx } from '../../../_generated/server';
+import type { DataModel } from '../../../_generated/dataModel';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -28,7 +29,7 @@ const rlsConfig: RLSConfig = {
  *
  * Example:
  * ```ts
- * import { z } from 'zod';
+ * import { z } from 'zod/v4';
  * import { zMutationWithRLS } from './z_mutation_with_rls';
  *
  * export const updateProduct = zMutationWithRLS({
@@ -46,13 +47,13 @@ const rlsConfig: RLSConfig = {
  */
 export const zMutationWithRLS = zCustomMutation(
 	mutation,
-	customCtx(async (ctx) => {
+	customCtx(async (ctx: MutationCtx) => {
 		const rules = await rlsRules(ctx);
 		const user = await getAuthenticatedUser(ctx);
 		const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
 		return {
-			db: wrapDatabaseWriter(
+			db: wrapDatabaseWriter<{ user: typeof user; userOrganizations: typeof userOrganizations }, DataModel>(
 				{ user, userOrganizations },
 				ctx.db,
 				rules,

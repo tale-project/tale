@@ -39,7 +39,8 @@ export async function createProductPublic(
     tags: args.tags || [],
     status: args.status || 'draft',
     translations: args.translations || [],
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
     lastUpdated: now,
   });
 

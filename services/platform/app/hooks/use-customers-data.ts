@@ -36,6 +36,6 @@ export function useCustomersData(options: UseCustomersDataOptions) {
 
   return useCustomersDataBase({
     ...rest,
-    filters: { status, source, locale } as CustomerFilters,
+    filters: { status, source, locale },
   });
 }

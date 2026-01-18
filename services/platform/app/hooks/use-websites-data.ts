@@ -32,6 +32,6 @@ export function useWebsitesData(options: UseWebsitesDataOptions) {
 
   return useWebsitesDataBase({
     ...rest,
-    filters: { status } as WebsiteFilters,
+    filters: { status },
   });
 }

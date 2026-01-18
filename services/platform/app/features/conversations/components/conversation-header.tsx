@@ -60,7 +60,7 @@ export function ConversationHeader({
 
   // Fetch full customer document when dialog is open
   const customerDoc = useQuery(
-    api.customers.getCustomer,
+    api.customers.queries.getCustomer,
     isCustomerInfoOpen && conversation.customerId
       ? { customerId: conversation.customerId as Id<'customers'> }
       : 'skip',

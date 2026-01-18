@@ -45,7 +45,8 @@ export function createUpdateMutation<
   return function useUpdateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        const current = localStore.getQuery(config.getAllQuery, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
@@ -56,8 +57,9 @@ export function createUpdateMutation<
               ? config.applyUpdate(item, args)
               : item,
           );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           localStore.setQuery(
-            config.getAllQuery,
+            config.getAllQuery as any,
             { organizationId },
             updated,
           );
@@ -75,7 +77,8 @@ export function createDeleteMutation<
   return function useDeleteMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        const current = localStore.getQuery(config.getAllQuery, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
@@ -84,8 +87,9 @@ export function createDeleteMutation<
           const updated = (current as TItem[]).filter(
             (item) => config.getItemId(item) !== targetId,
           );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           localStore.setQuery(
-            config.getAllQuery,
+            config.getAllQuery as any,
             { organizationId },
             updated,
           );
@@ -103,15 +107,17 @@ export function createCreateMutation<
   return function useCreateMutation(organizationId: string) {
     return useMutation(config.mutationFn).withOptimisticUpdate(
       (localStore, args) => {
-        const current = localStore.getQuery(config.getAllQuery, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const current = localStore.getQuery(config.getAllQuery as any, {
           organizationId,
         });
 
         if (current !== undefined) {
           const optimisticItem = config.createOptimisticItem(args);
           const updated = [...(current as TItem[]), optimisticItem];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           localStore.setQuery(
-            config.getAllQuery,
+            config.getAllQuery as any,
             { organizationId },
             updated,
           );

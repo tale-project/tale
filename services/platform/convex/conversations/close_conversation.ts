@@ -17,15 +17,16 @@ export async function closeConversation(
     throw new Error('Conversation not found');
   }
 
-  const existingMetadata =
-    (conversation.metadata as Record<string, unknown>) || {};
+  const existingMetadata = conversation.metadata || {};
+  const patchMetadata = {
+    ...existingMetadata,
+    resolved_at: new Date().toISOString(),
+    ...(args.resolvedBy ? { resolved_by: args.resolvedBy } : {}),
+  };
+
   await ctx.db.patch(args.conversationId, {
     status: 'closed',
-    metadata: {
-      ...existingMetadata,
-      resolved_at: new Date().toISOString(),
-      resolved_by: args.resolvedBy,
-    },
+    metadata: patchMetadata,
   });
 }
 

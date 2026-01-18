@@ -1,13 +1,17 @@
 /**
  * Documents Actions
  *
- * Internal actions for document generation operations.
+ * Internal and public actions for document generation operations.
  */
 
+'use node';
+
 import { v } from 'convex/values';
-import { internalAction } from '../_generated/server';
+import { internalAction, action } from '../_generated/server';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as DocumentsHelpers from './helpers';
+import { authComponent } from '../auth';
+import { internal } from '../_generated/api';
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -190,5 +194,48 @@ export const checkRagJobStatus = internalAction({
       documentId: args.documentId,
       attempt: args.attempt,
     });
+  },
+});
+
+// =============================================================================
+// PUBLIC ACTIONS (for frontend via api.documents.actions.*)
+// =============================================================================
+
+/**
+ * Retry RAG indexing for a failed document (public action)
+ */
+export const retryRagIndexing = action({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    jobId: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return { success: false, error: 'Unauthenticated' };
+    }
+
+    // Get document and verify access
+    const document = await ctx.runQuery(internal.documents.queries.getDocumentById, {
+      documentId: args.documentId,
+    });
+
+    if (!document) {
+      return { success: false, error: 'Document not found' };
+    }
+
+    // Update RAG info to queued status
+    await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
+      documentId: args.documentId,
+      ragInfo: {
+        status: 'queued',
+      },
+    });
+
+    return { success: true };
   },
 });

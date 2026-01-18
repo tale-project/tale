@@ -38,17 +38,20 @@ export async function upsertProductTranslation(
     description: args.description,
     category: args.category,
     tags: args.tags,
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
     lastUpdated: now,
     createdAt: existingIndex >= 0 ? translations[existingIndex].createdAt : now,
   };
 
   if (existingIndex >= 0) {
     // Update existing translation
-    translations[existingIndex] = newTranslation;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    translations[existingIndex] = newTranslation as any;
   } else {
     // Add new translation
-    translations.push(newTranslation);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    translations.push(newTranslation as any);
   }
 
   await ctx.db.patch(args.productId, {

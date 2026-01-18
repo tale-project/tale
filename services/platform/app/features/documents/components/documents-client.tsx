@@ -77,7 +77,7 @@ export function DocumentsClient({
   // Create a map of team ID to team name for efficient lookups
   const teamMap = useMemo(() => {
     if (!teams) return new Map<string, string>();
-    return new Map(teams.map((team) => [team.id, team.name]));
+    return new Map(teams.map((team: { id: string; name: string }) => [team.id, team.name]));
   }, [teams]);
 
   const queryArgs = useMemo(

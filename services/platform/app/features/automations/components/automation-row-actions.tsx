@@ -59,7 +59,7 @@ export function AutomationRowActions({
         await updateAutomation({
           wfDefinitionId: automation._id,
           updates: { name },
-          updatedBy: user._id,
+          updatedBy: user.userId,
         });
         toast({
           title: tToast('success.automationRenamed'),

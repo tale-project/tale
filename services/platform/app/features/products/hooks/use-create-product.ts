@@ -7,5 +7,5 @@ import { api } from '@/convex/_generated/api';
  * where multiple products are created and proper validation is needed.
  */
 export function useCreateProduct() {
-  return useMutation(api.products.createProductPublic);
+  return useMutation(api.products.mutations.createProductPublic);
 }

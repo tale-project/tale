@@ -6,7 +6,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { getCustomerByEmail } from './get_customer_by_email';
 import { createCustomer, type CreateCustomerArgs } from './create_customer';
-import type { DataSource } from '../common/validators';
+import type { DataSource } from '../../lib/shared/schemas/common';
 
 export interface FindOrCreateCustomerArgs {
   organizationId: string;

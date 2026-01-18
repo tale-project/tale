@@ -17,7 +17,7 @@ import type {
   BetterAuthFindManyResult,
   BetterAuthMember,
   BetterAuthUser,
-} from '../members/types';
+} from '../../members/types';
 
 export interface FindOrCreateUserFromHeadersArgs {
   email: string;

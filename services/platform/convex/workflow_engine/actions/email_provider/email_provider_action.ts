@@ -53,7 +53,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
 
         // Call internal query to get default provider (bypasses RLS)
         const provider = (await ctx.runQuery!(
-          internal.email_providers.queries.get_default_internal.getDefaultInternal,
+          internal.email_providers.internal_queries.get_default_internal.getDefaultInternal,
           {
             organizationId,
           },
@@ -100,7 +100,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
 
         // Get default provider
         const provider = (await ctx.runQuery!(
-          internal.email_providers.queries.get_default_internal.getDefaultInternal,
+          internal.email_providers.internal_queries.get_default_internal.getDefaultInternal,
           {
             organizationId,
           },
@@ -156,9 +156,9 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
             ctx,
             provider._id,
             provider.oauth2Auth,
-            async (encrypted: string) =>
+            async (jwe: string) =>
               await ctx.runAction!(internal.lib.crypto.actions.decryptStringInternal, {
-                encrypted,
+                jwe,
               }),
             async (params) =>
               await ctx.runAction!(api.oauth2.refreshToken, params),
@@ -175,7 +175,7 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
 
           // After potential refresh, read the latest encrypted token from DB
           const updatedProvider = (await ctx.runQuery!(
-            internal.email_providers.queries.get_internal.getInternal,
+            internal.email_providers.internal_queries.get_internal.getInternal,
             { providerId: provider._id },
           )) as Doc<'emailProviders'> | null;
 

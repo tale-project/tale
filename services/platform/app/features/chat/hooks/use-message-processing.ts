@@ -43,11 +43,12 @@ export function useMessageProcessing(
     results: uiMessages,
     loadMore,
     status: paginationStatus,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useUIMessages(
-    api.threads.queries.getThreadMessagesStreaming,
+    api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 20, stream: true },
-  );
+  ) as unknown as { results: UIMessage[] | undefined; loadMore: (numItems: number) => void; status: string };
 
   const canLoadMore = paginationStatus === 'CanLoadMore';
   const isLoadingMore = paginationStatus === 'LoadingMore';
@@ -70,9 +71,9 @@ export function useMessageProcessing(
         return true;
       })
       .map((m) => {
-        const fileParts = (m.parts || [])
+        const fileParts = ((m.parts || []) as { type: string; mediaType?: string; filename?: string; url?: string }[])
           .filter((p): p is FilePart => p.type === 'file')
-          .map((p) => ({
+          .map((p: FilePart) => ({
             type: 'file' as const,
             mediaType: p.mediaType,
             filename: p.filename,
@@ -100,12 +101,11 @@ export function useMessageProcessing(
   // Check for active tools in streaming message
   const hasActiveTools = useMemo(() => {
     if (!streamingMessage?.parts) return false;
-    return streamingMessage.parts.some((part) => {
+    return streamingMessage.parts.some((part: { type: string; state?: string }) => {
       if (!part.type.startsWith('tool-')) return false;
-      const toolPart = part as { state?: string };
       return (
-        toolPart.state === 'input-streaming' ||
-        toolPart.state === 'input-available'
+        part.state === 'input-streaming' ||
+        part.state === 'input-available'
       );
     });
   }, [streamingMessage?.parts]);

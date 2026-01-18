@@ -26,6 +26,7 @@ type EditMemberFormData = {
 
 type MemberLite = {
   _id: string;
+  organizationId: string;
   displayName?: string;
   role?: string;
   email?: string;
@@ -84,6 +85,7 @@ export function EditMemberDialog({
 
   const handleUpdateMember = async (
     memberId: string,
+    organizationId: string,
     data: {
       displayName: string;
       role: 'disabled' | 'admin' | 'developer' | 'editor' | 'member';
@@ -131,7 +133,7 @@ export function EditMemberDialog({
 
   const onSubmit = async (data: EditMemberFormData) => {
     if (!member) return;
-    await handleUpdateMember(member._id, data, {
+    await handleUpdateMember(member._id, member.organizationId, data, {
       role: member.role,
       displayName: member.displayName,
     });

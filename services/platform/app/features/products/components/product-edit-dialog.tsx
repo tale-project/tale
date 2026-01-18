@@ -14,7 +14,7 @@ interface EditProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
   product: {
-    id: string;
+    _id: string;
     name: string;
     description?: string;
     imageUrl?: string;
@@ -74,7 +74,7 @@ export function ProductEditDialog({
       setIsSubmitting(true);
 
       await updateProduct({
-        productId: product.id as Id<'products'>,
+        productId: product._id as Id<'products'>,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
         imageUrl: formData.imageUrl.trim() || undefined,

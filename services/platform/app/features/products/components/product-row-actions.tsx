@@ -30,7 +30,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
     try {
       setIsDeleting(true);
       await deleteProduct({
-        productId: product.id as Id<'products'>,
+        productId: product._id,
       });
       dialogs.setOpen.delete(false);
     } catch (err) {
@@ -42,7 +42,7 @@ export function ProductRowActions({ product }: ProductRowActionsProps) {
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteProduct, product.id, dialogs.setOpen, tProducts]);
+  }, [deleteProduct, product._id, dialogs.setOpen, tProducts]);
 
   const handleOpenExternalLink = useCallback(() => {
     if (typeof product.metadata?.url === 'string') {

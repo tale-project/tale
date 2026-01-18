@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Create operation - complex type matching for optimistic insert
 export function useCreateMember() {
-  return useMutation(api.mutations.users.createMember);
+  return useMutation(api.users.mutations.createMember);
 }

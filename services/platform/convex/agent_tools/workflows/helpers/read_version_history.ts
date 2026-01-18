@@ -58,7 +58,7 @@ export async function readVersionHistory(
         let steps: Doc<'wfStepDefs'>[] | undefined;
 
         if (includeSteps) {
-          steps = (await ctx.runQuery(internal.wf_step_defs.listWorkflowSteps, {
+          steps = (await ctx.runQuery(internal.wf_step_defs.queries.listWorkflowSteps, {
             wfDefinitionId: wf._id,
           })) as Doc<'wfStepDefs'>[];
         }

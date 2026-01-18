@@ -2,8 +2,9 @@ import { createFileRoute, Outlet, useLocation, Link, useNavigate } from '@tansta
 import { useQuery } from 'convex/react';
 import { lazy, Suspense, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
+import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { Stack, Center } from '@/app/components/ui/layout/layout';
 import { Input } from '@/app/components/ui/forms/input';
@@ -31,7 +32,12 @@ const AutomationSteps = lazy(() =>
   })),
 );
 
+const searchSchema = z.object({
+  panel: z.string().optional(),
+});
+
 export const Route = createFileRoute('/dashboard/$id/automations/$amId')({
+  validateSearch: searchSchema,
   component: AutomationDetailLayout,
 });
 
@@ -81,7 +87,7 @@ function AutomationDetailLayout() {
   const automation = useQuery(api.wf_definitions.queries.getWorkflow.getWorkflowPublic, {
     wfDefinitionId: automationId,
   });
-  const steps = useQuery(api.wf_step_defs.getWorkflowStepsPublic, {
+  const steps = useQuery(api.wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic, {
     wfDefinitionId: automationId,
   });
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
@@ -89,7 +95,7 @@ function AutomationDetailLayout() {
   });
 
   const versions = useQuery(
-    api.wf_definitions.listVersionsPublic,
+    api.wf_definitions.queries.listVersions.listVersionsPublic,
     automation?.name && organizationId
       ? {
           organizationId,
@@ -114,7 +120,7 @@ function AutomationDetailLayout() {
       isSubmittingRef.current = false;
       return;
     }
-    if (!user?._id) {
+    if (!user?.userId) {
       setEditMode(false);
       isSubmittingRef.current = false;
       return;
@@ -123,7 +129,7 @@ function AutomationDetailLayout() {
     await updateWorkflow({
       wfDefinitionId: automationId,
       updates: { name: values.name },
-      updatedBy: user._id,
+      updatedBy: user.userId,
     });
     setEditMode(false);
     isSubmittingRef.current = false;
@@ -218,7 +224,7 @@ function AutomationDetailLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                {versions.map((version) => (
+                {versions.map((version: Doc<'wfDefinitions'>) => (
                   <DropdownMenuItem
                     key={version._id}
                     onClick={() => handleVersionChange(version._id)}
@@ -240,7 +246,7 @@ function AutomationDetailLayout() {
           organizationId={organizationId}
           automationId={amId}
           automation={automation}
-          userRole={memberContext?.member?.role ?? 'Member'}
+          userRole={memberContext?.role ?? 'Member'}
         />
       </StickyHeader>
       <LayoutErrorBoundary organizationId={organizationId}>

@@ -18,13 +18,12 @@ import { useT } from '@/lib/i18n/client';
 
 type Member = {
   _id: string;
-  _creationTime: number;
   organizationId: string;
-  identityId?: string;
+  userId?: string;
   email?: string;
   role?: string;
   displayName?: string;
-  metadata?: Record<string, unknown>;
+  createdAt?: number;
 };
 
 type MemberContext = {
@@ -69,20 +68,31 @@ export function OrganizationSettingsClient({
   const { formState, handleSubmit, register, reset } = form;
   const { isDirty, isSubmitting } = formState;
 
-  const hasFilters = sortOrder !== 'asc' || !!debouncedSearch;
-
-  const filteredMembers = useQuery(
+  const liveMembers = useQuery(
     api.members.queries.listByOrganization,
-    hasFilters && organization
-      ? {
-          organizationId: organization._id,
-          sortOrder,
-          search: debouncedSearch || undefined,
-        }
-      : 'skip',
+    organization ? { organizationId: organization._id } : 'skip',
   );
 
-  const members = hasFilters ? filteredMembers : initialMembers;
+  // Use live members if available, otherwise fall back to initial members
+  const allMembers = liveMembers ?? initialMembers;
+
+  // Apply client-side filtering and sorting
+  const members = allMembers
+    .filter((member: Member) => {
+      if (!debouncedSearch) return true;
+      const search = debouncedSearch.toLowerCase();
+      return (
+        member.displayName?.toLowerCase().includes(search) ||
+        member.email?.toLowerCase().includes(search)
+      );
+    })
+    .sort((a: Member, b: Member) => {
+      const nameA = a.displayName || a.email || '';
+      const nameB = b.displayName || b.email || '';
+      return sortOrder === 'asc'
+        ? nameA.localeCompare(nameB)
+        : nameB.localeCompare(nameA);
+    });
 
   const onSubmit = async (data: OrganizationFormData) => {
     if (!organization) return;
@@ -167,10 +177,10 @@ export function OrganizationSettingsClient({
           members={members || []}
           sortOrder={sortOrder}
           memberContext={memberContext ? {
-            member: memberContext.member ?? null,
-            role: memberContext.role ?? null,
-            isAdmin: memberContext.isAdmin ?? false,
-          } : null}
+            member: memberContext.member || null,
+            role: memberContext.role || null,
+            isAdmin: memberContext.isAdmin || false,
+          } : undefined}
           onSortChange={(newSortOrder) => {
             setSortOrder(newSortOrder);
           }}

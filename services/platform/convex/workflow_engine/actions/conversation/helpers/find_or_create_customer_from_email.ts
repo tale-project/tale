@@ -27,7 +27,7 @@ export async function findOrCreateCustomerFromEmail(
       : email.to?.[0]?.name || customerEmail;
 
   const result = await ctx.runMutation(
-    internal.customers.findOrCreateCustomer,
+    internal.customers.mutations.findOrCreateCustomer,
     {
       organizationId,
       email: customerEmail,

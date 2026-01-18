@@ -25,7 +25,7 @@ export async function buildStepsMap(
 
   // Load existing steps from execution variables, resolving from storage if needed
   const rawExecution = await ctx.runQuery(
-    internal.wf_executions.queries.getExecution.getRawExecution,
+    internal.wf_executions.queries.getRawExecution,
     {
       executionId: executionId as Id<'wfExecutions'>,
     },

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
 export const productStatusLiterals = ['active', 'inactive', 'draft', 'archived'] as const;

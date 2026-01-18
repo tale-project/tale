@@ -7,6 +7,7 @@ import { useT } from '@/lib/i18n/client';
 
 type MemberLite = {
   _id: string;
+  organizationId: string;
   email?: string;
   displayName?: string;
   role?: string;

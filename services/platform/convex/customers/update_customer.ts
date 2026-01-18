@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Doc, Id } from '../_generated/dataModel';
-import type { DataSource } from '../common/validators';
+import type { DataSource } from '../../lib/shared/schemas/common';
 
 export interface UpdateCustomerArgs {
   customerId: Id<'customers'>;

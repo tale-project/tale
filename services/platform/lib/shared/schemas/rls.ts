@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export const organizationIdArgSchema = z.string();
 export type OrganizationIdArg = z.infer<typeof organizationIdArgSchema>;

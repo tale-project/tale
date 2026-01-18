@@ -22,7 +22,7 @@ export async function buildSecretsFromIntegration(
   if (integration.authMethod === 'api_key' && integration.apiKeyAuth) {
     const decrypted = (await ctx.runAction!(
       internal.lib.crypto.actions.decryptStringInternal,
-      { encrypted: integration.apiKeyAuth.keyEncrypted },
+      { jwe: integration.apiKeyAuth.keyEncrypted },
     )) as string;
     secrets['accessToken'] = decrypted;
   }
@@ -31,7 +31,7 @@ export async function buildSecretsFromIntegration(
     secrets['username'] = integration.basicAuth.username;
     const decrypted = (await ctx.runAction!(
       internal.lib.crypto.actions.decryptStringInternal,
-      { encrypted: integration.basicAuth.passwordEncrypted },
+      { jwe: integration.basicAuth.passwordEncrypted },
     )) as string;
     secrets['password'] = decrypted;
   }

@@ -57,10 +57,10 @@ function ToneFormSkeleton() {
 function ToneOfVoicePage() {
   const { id: organizationId } = Route.useParams();
 
-  const hasExamples = useQuery(api.tone_of_voice.queries.has_example_messages.hasExampleMessages, {
+  const hasExamples = useQuery(api.tone_of_voice.queries.hasExampleMessages, {
     organizationId,
   });
-  const toneOfVoice = useQuery(api.tone_of_voice.queries.get_tone_of_voice.getToneOfVoiceWithExamples, {
+  const toneOfVoice = useQuery(api.tone_of_voice.queries.getToneOfVoiceWithExamples, {
     organizationId,
   });
 

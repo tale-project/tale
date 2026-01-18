@@ -13,17 +13,19 @@ interface LazyComponentOptions {
  * @param options - Configuration options including loading fallback
  * @returns A wrapped component that lazy loads the actual component
  */
-export function lazyComponent<T extends ComponentType<unknown>>(
-  importFn: () => Promise<{ default: T }>,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lazyComponent<P = any>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},
-): T {
+): ComponentType<P> {
   const LazyComponent = lazy(importFn);
 
-  const WrappedComponent = ((props: Parameters<T>[0]) => (
+  const WrappedComponent = (props: P) => (
     <Suspense fallback={options.loading?.() ?? null}>
       <LazyComponent {...(props as object)} />
     </Suspense>
-  )) as unknown as T;
+  );
 
   return WrappedComponent;
 }

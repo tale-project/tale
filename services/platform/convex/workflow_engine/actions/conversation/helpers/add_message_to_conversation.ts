@@ -19,7 +19,7 @@ export async function addMessageToConversation(
   const emailTimestamp = new Date(email.date).getTime();
 
   await ctx.runMutation(
-    internal.conversations.addMessageToConversationInternal,
+    internal.conversations.mutations.addMessageToConversationInternal,
     {
       conversationId,
       organizationId,

@@ -19,7 +19,7 @@ export async function createConversation(
   },
 ) {
   const result: { success: boolean; conversationId: string } =
-    await ctx.runMutation(internal.conversations.createConversation, {
+    await ctx.runMutation(internal.conversations.mutations.createConversation, {
       organizationId: params.organizationId,
       customerId: params.customerId,
       subject: params.subject,
@@ -34,7 +34,7 @@ export async function createConversation(
 
   // Fetch and return the full created entity
   const createdConversation = await ctx.runQuery(
-    internal.conversations.getConversationById,
+    internal.conversations.queries.getConversationById,
     { conversationId: result.conversationId as Id<'conversations'> },
   );
 

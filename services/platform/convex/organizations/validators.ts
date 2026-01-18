@@ -6,7 +6,7 @@
  */
 
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import { memberRoleSchema } from '../../lib/shared/schemas/organizations';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 

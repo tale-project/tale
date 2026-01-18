@@ -10,7 +10,7 @@
  * - operation = 'list_version_history': list all versions of a workflow
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
@@ -131,7 +131,7 @@ BEST PRACTICES:
           );
         }
         // Get the step by ID using internal query
-        const stepDoc = await ctx.runQuery(internal.wf_step_defs.getStepById, {
+        const stepDoc = await ctx.runQuery(internal.wf_step_defs.queries.getStepById, {
           stepId: args.stepId as Id<'wfStepDefs'>,
         });
         if (!stepDoc) {

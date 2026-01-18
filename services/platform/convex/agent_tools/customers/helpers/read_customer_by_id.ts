@@ -22,9 +22,10 @@ export async function readCustomerById(
   // Cast string to Id at the boundary - validated by Convex runtime
   const customerId = args.customerId as Id<'customers'>;
 
-  const customer = await ctx.runQuery(internal.customers.getCustomerById, {
-    customerId,
-  });
+  const customer = await ctx.runQuery(
+    internal.customers.internal_queries.get_by_id.getCustomerById_internal,
+    { customerId },
+  );
 
   if (!customer) {
     debugLog('tool:customer_read get_by_id not found', {

@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Create operation - paginated list makes optimistic insert complex
 export function useCreateWebsite() {
-  return useMutation(api.mutations.websites.createWebsite);
+  return useMutation(api.websites.mutations.createWebsite);
 }

@@ -88,12 +88,13 @@ export async function createConversationWithMessage(
       : direction === 'inbound' && args.initialMessage.sentAt
         ? args.initialMessage.sentAt
         : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata: {
       sender: args.initialMessage.sender,
       isCustomer: args.initialMessage.isCustomer,
-      attachment: args.initialMessage.attachment,
-      ...(args.initialMessage.metadata as Record<string, unknown> | undefined),
-    },
+      ...(args.initialMessage.attachment ? { attachment: args.initialMessage.attachment } : {}),
+      ...(args.initialMessage.metadata || {}),
+    } as any,
   });
 
   // Update conversation with initial message info

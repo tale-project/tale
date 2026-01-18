@@ -7,7 +7,7 @@
  * - operation = 'search': search the web using SearXNG meta search engine
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool, type ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 

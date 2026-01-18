@@ -6,7 +6,7 @@
  * This enables AI to propose workflows in chat that users can review and approve.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';

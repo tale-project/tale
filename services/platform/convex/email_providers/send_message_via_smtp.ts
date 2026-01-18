@@ -50,12 +50,12 @@ export async function sendMessageViaSMTP(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.queries.get_internal.getInternal, {
+      provider = await ctx.runQuery(internal.email_providers.internal_queries.get_internal.getInternal, {
         providerId: args.providerId,
       });
     } else {
       provider = await ctx.runQuery(
-        internal.email_providers.queries.get_default_internal.getDefaultInternal,
+        internal.email_providers.internal_queries.get_default_internal.getDefaultInternal,
         {
           organizationId: args.organizationId,
         },
@@ -92,9 +92,9 @@ export async function sendMessageViaSMTP(
       // Password authentication
       const passwordAuth = await decryptPasswordAuth(
         typedProvider.passwordAuth,
-        async (encrypted) =>
+        async (jwe) =>
           await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
-            encrypted,
+            jwe,
           }),
       );
 
@@ -125,9 +125,9 @@ export async function sendMessageViaSMTP(
         ctx,
         typedProvider._id,
         typedProvider.oauth2Auth,
-        async (encrypted) =>
+        async (jwe) =>
           await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
-            encrypted,
+            jwe,
           }),
         async ({ provider, clientId, clientSecret, refreshToken, tokenUrl }) =>
           await ctx.runAction(api.oauth2.refreshToken, {
@@ -197,7 +197,7 @@ export async function sendMessageViaSMTP(
 
     // Update the conversation message with the external message ID
     await ctx.runMutation(
-      internal.conversations.updateConversationMessageInternal,
+      internal.conversations.mutations.updateConversationMessageInternal,
       {
         messageId: args.messageId,
         externalMessageId: result.messageId,
@@ -236,7 +236,7 @@ export async function sendMessageViaSMTP(
 
       // Update message with retry info (stays in 'queued' state)
       await ctx.runMutation(
-        internal.conversations.updateConversationMessageInternal,
+        internal.conversations.mutations.updateConversationMessageInternal,
         {
           messageId: args.messageId,
           retryCount: nextRetryCount,
@@ -250,7 +250,7 @@ export async function sendMessageViaSMTP(
       // Schedule retry with exponential backoff
       await ctx.scheduler.runAfter(
         delayMs,
-        internal.email_providers.actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
+        internal.email_providers.internal_actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
         {
           messageId: args.messageId,
           organizationId: args.organizationId,
@@ -281,7 +281,7 @@ export async function sendMessageViaSMTP(
     });
 
     await ctx.runMutation(
-      internal.conversations.updateConversationMessageInternal,
+      internal.conversations.mutations.updateConversationMessageInternal,
       {
         messageId: args.messageId,
         deliveryState: 'failed',

@@ -24,7 +24,7 @@ export async function retryRagIndexing(
     }
 
     return await fetchAction(
-      api.actions.documents.retryRagIndexing,
+      api.documents.actions.retryRagIndexing,
       { documentId: documentId as Id<'documents'> },
       { token },
     );

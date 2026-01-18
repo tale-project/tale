@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { jsonRecordSchema } from './utils/json-value';
 
 export const ragStatusLiterals = ['pending', 'queued', 'running', 'completed', 'failed', 'not_indexed', 'stale'] as const;

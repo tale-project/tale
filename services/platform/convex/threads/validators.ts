@@ -3,7 +3,7 @@
  * Generated from shared Zod schemas using zodToConvex
  */
 
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   chatTypeSchema,
   messageRoleSchema,

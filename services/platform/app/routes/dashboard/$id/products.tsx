@@ -20,7 +20,7 @@ export const Route = createFileRoute('/dashboard/$id/products')({
 
 function ProductsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasProducts = useQuery(api.products.hasProducts, { organizationId });
+  const hasProducts = useQuery(api.products.queries.hasProducts, { organizationId });
 
   if (hasProducts === undefined) {
     return <ProductTableSkeleton organizationId={organizationId} />;

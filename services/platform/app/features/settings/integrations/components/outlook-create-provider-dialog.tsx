@@ -136,13 +136,13 @@ export function OutlookCreateProviderDialog({
       // Step 2: Generate OAuth2 authorization URL
       const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
 
-      const authUrl = await generateAuthUrl({
+      const result = await generateAuthUrl({
         emailProviderId: providerId,
         organizationId: organizationId as string,
         redirectUri,
       });
 
-      console.log('[OAuth2 Client] Generated authUrl:', authUrl);
+      console.log('[OAuth2 Client] Generated authUrl:', result.authUrl);
 
       toast({
         title: t('integrations.redirectingToMicrosoft'),
@@ -150,7 +150,7 @@ export function OutlookCreateProviderDialog({
       });
 
       // Step 3: Redirect to Microsoft for authorization
-      window.location.href = authUrl;
+      window.location.href = result.authUrl;
     } catch (error) {
       console.error('Failed to initiate OAuth2 flow:', error);
       toast({

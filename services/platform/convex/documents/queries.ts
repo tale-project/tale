@@ -95,7 +95,7 @@ export const getDocumentByPath = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId,
+        userId: authUser.userId ?? '',
         email: authUser.email,
         name: authUser.name,
       });
@@ -127,7 +127,7 @@ export const getDocumentsCursor = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId,
+        userId: authUser.userId ?? '',
         email: authUser.email,
         name: authUser.name,
       });

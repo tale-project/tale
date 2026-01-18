@@ -46,7 +46,7 @@ const ExecutionDetails = memo(function ExecutionDetails({
   execution: Execution;
 }) {
   const journal = useQuery(
-    api.wf_executions.queries.getExecutionStats.getExecutionStepJournal,
+    api.wf_executions.queries.getExecutionStepJournal,
     execution._id ? { executionId: execution._id } : 'skip',
   );
 
@@ -130,14 +130,14 @@ export function ExecutionsClient({
       triggeredBy: triggeredBy && triggeredBy.length > 0 ? triggeredBy : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-      cursor: null,
+      cursor: undefined,
       numItems: pageSize,
     }),
     [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
   );
 
   const executionsResult = useQuery(
-    api.wf_executions.queries.listExecutions.listExecutionsCursor,
+    api.wf_executions.queries.listExecutionsCursor,
     queryArgs,
   );
 

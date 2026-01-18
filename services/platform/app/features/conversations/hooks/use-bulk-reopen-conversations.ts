@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Bulk operation - affects multiple items with complex selection
 export function useBulkReopenConversations() {
-  return useMutation(api.conversations.bulkReopenConversations);
+  return useMutation(api.conversations.mutations.bulkReopenConversations);
 }
