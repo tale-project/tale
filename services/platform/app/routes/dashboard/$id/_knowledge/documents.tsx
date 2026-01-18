@@ -8,7 +8,7 @@ const searchSchema = z.object({
   doc: z.string().optional(),
 });
 
-export const Route = createFileRoute('/dashboard/$id/documents')({
+export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
   validateSearch: searchSchema,
   component: DocumentsPage,
 });

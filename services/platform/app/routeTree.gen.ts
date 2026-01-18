@@ -19,17 +19,12 @@ import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
 import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
-import { Route as DashboardIdWebsitesRouteImport } from './routes/dashboard/$id/websites'
-import { Route as DashboardIdVendorsRouteImport } from './routes/dashboard/$id/vendors'
-import { Route as DashboardIdToneOfVoiceRouteImport } from './routes/dashboard/$id/tone-of-voice'
 import { Route as DashboardIdSettingsRouteImport } from './routes/dashboard/$id/settings'
-import { Route as DashboardIdProductsRouteImport } from './routes/dashboard/$id/products'
-import { Route as DashboardIdDocumentsRouteImport } from './routes/dashboard/$id/documents'
-import { Route as DashboardIdCustomersRouteImport } from './routes/dashboard/$id/customers'
 import { Route as DashboardIdConversationsRouteImport } from './routes/dashboard/$id/conversations'
 import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat'
 import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations'
 import { Route as DashboardIdApprovalsRouteImport } from './routes/dashboard/$id/approvals'
+import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge'
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index'
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
@@ -40,6 +35,12 @@ import { Route as DashboardIdConversationsStatusRouteImport } from './routes/das
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId'
 import { Route as DashboardIdAutomationsAmIdRouteImport } from './routes/dashboard/$id/automations/$amId'
 import { Route as DashboardIdApprovalsStatusRouteImport } from './routes/dashboard/$id/approvals/$status'
+import { Route as DashboardIdKnowledgeWebsitesRouteImport } from './routes/dashboard/$id/_knowledge/websites'
+import { Route as DashboardIdKnowledgeVendorsRouteImport } from './routes/dashboard/$id/_knowledge/vendors'
+import { Route as DashboardIdKnowledgeToneOfVoiceRouteImport } from './routes/dashboard/$id/_knowledge/tone-of-voice'
+import { Route as DashboardIdKnowledgeProductsRouteImport } from './routes/dashboard/$id/_knowledge/products'
+import { Route as DashboardIdKnowledgeDocumentsRouteImport } from './routes/dashboard/$id/_knowledge/documents'
+import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dashboard/$id/_knowledge/customers'
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
 
@@ -93,39 +94,9 @@ const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardIdRoute,
 } as any)
-const DashboardIdWebsitesRoute = DashboardIdWebsitesRouteImport.update({
-  id: '/websites',
-  path: '/websites',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdVendorsRoute = DashboardIdVendorsRouteImport.update({
-  id: '/vendors',
-  path: '/vendors',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdToneOfVoiceRoute = DashboardIdToneOfVoiceRouteImport.update({
-  id: '/tone-of-voice',
-  path: '/tone-of-voice',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
 const DashboardIdSettingsRoute = DashboardIdSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdProductsRoute = DashboardIdProductsRouteImport.update({
-  id: '/products',
-  path: '/products',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdDocumentsRoute = DashboardIdDocumentsRouteImport.update({
-  id: '/documents',
-  path: '/documents',
-  getParentRoute: () => DashboardIdRoute,
-} as any)
-const DashboardIdCustomersRoute = DashboardIdCustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
   getParentRoute: () => DashboardIdRoute,
 } as any)
 const DashboardIdConversationsRoute =
@@ -147,6 +118,10 @@ const DashboardIdAutomationsRoute = DashboardIdAutomationsRouteImport.update({
 const DashboardIdApprovalsRoute = DashboardIdApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
+  getParentRoute: () => DashboardIdRoute,
+} as any)
+const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
+  id: '/_knowledge',
   getParentRoute: () => DashboardIdRoute,
 } as any)
 const DashboardIdChatIndexRoute = DashboardIdChatIndexRouteImport.update({
@@ -206,6 +181,42 @@ const DashboardIdApprovalsStatusRoute =
     path: '/$status',
     getParentRoute: () => DashboardIdApprovalsRoute,
   } as any)
+const DashboardIdKnowledgeWebsitesRoute =
+  DashboardIdKnowledgeWebsitesRouteImport.update({
+    id: '/websites',
+    path: '/websites',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
+const DashboardIdKnowledgeVendorsRoute =
+  DashboardIdKnowledgeVendorsRouteImport.update({
+    id: '/vendors',
+    path: '/vendors',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
+const DashboardIdKnowledgeToneOfVoiceRoute =
+  DashboardIdKnowledgeToneOfVoiceRouteImport.update({
+    id: '/tone-of-voice',
+    path: '/tone-of-voice',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
+const DashboardIdKnowledgeProductsRoute =
+  DashboardIdKnowledgeProductsRouteImport.update({
+    id: '/products',
+    path: '/products',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
+const DashboardIdKnowledgeDocumentsRoute =
+  DashboardIdKnowledgeDocumentsRouteImport.update({
+    id: '/documents',
+    path: '/documents',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
+const DashboardIdKnowledgeCustomersRoute =
+  DashboardIdKnowledgeCustomersRouteImport.update({
+    id: '/customers',
+    path: '/customers',
+    getParentRoute: () => DashboardIdKnowledgeRoute,
+  } as any)
 const DashboardIdAutomationsAmIdExecutionsRoute =
   DashboardIdAutomationsAmIdExecutionsRouteImport.update({
     id: '/executions',
@@ -225,21 +236,21 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRouteWithChildren
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
-  '/dashboard/$id': typeof DashboardIdRouteWithChildren
+  '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/customers': typeof DashboardIdCustomersRoute
-  '/dashboard/$id/documents': typeof DashboardIdDocumentsRoute
-  '/dashboard/$id/products': typeof DashboardIdProductsRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
-  '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
-  '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
-  '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
   '/dashboard/$id/': typeof DashboardIdIndexRoute
+  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
+  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
+  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
+  '/dashboard/$id/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
+  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
+  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -260,17 +271,17 @@ export interface FileRoutesByTo {
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/customers': typeof DashboardIdCustomersRoute
-  '/dashboard/$id/documents': typeof DashboardIdDocumentsRoute
-  '/dashboard/$id/products': typeof DashboardIdProductsRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
-  '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
-  '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
-  '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
-  '/dashboard/$id': typeof DashboardIdIndexRoute
+  '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
+  '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
+  '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
+  '/dashboard/$id/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
+  '/dashboard/$id/vendors': typeof DashboardIdKnowledgeVendorsRoute
+  '/dashboard/$id/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -295,18 +306,19 @@ export interface FileRoutesById {
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/$id/_knowledge': typeof DashboardIdKnowledgeRouteWithChildren
   '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/automations': typeof DashboardIdAutomationsRouteWithChildren
   '/dashboard/$id/chat': typeof DashboardIdChatRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/customers': typeof DashboardIdCustomersRoute
-  '/dashboard/$id/documents': typeof DashboardIdDocumentsRoute
-  '/dashboard/$id/products': typeof DashboardIdProductsRoute
   '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
-  '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
-  '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
-  '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
   '/dashboard/$id/': typeof DashboardIdIndexRoute
+  '/dashboard/$id/_knowledge/customers': typeof DashboardIdKnowledgeCustomersRoute
+  '/dashboard/$id/_knowledge/documents': typeof DashboardIdKnowledgeDocumentsRoute
+  '/dashboard/$id/_knowledge/products': typeof DashboardIdKnowledgeProductsRoute
+  '/dashboard/$id/_knowledge/tone-of-voice': typeof DashboardIdKnowledgeToneOfVoiceRoute
+  '/dashboard/$id/_knowledge/vendors': typeof DashboardIdKnowledgeVendorsRoute
+  '/dashboard/$id/_knowledge/websites': typeof DashboardIdKnowledgeWebsitesRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -335,14 +347,14 @@ export interface FileRouteTypes {
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
+    | '/dashboard/$id/settings'
+    | '/dashboard/$id/'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/settings'
     | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
-    | '/dashboard/$id/'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -363,17 +375,17 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/dashboard/create-organization'
     | '/dashboard'
+    | '/dashboard/$id'
     | '/dashboard/$id/approvals'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/conversations'
+    | '/dashboard/$id/settings'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
-    | '/dashboard/$id/settings'
     | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
-    | '/dashboard/$id'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -397,18 +409,19 @@ export interface FileRouteTypes {
     | '/dashboard/$id'
     | '/dashboard/create-organization'
     | '/dashboard/'
+    | '/dashboard/$id/_knowledge'
     | '/dashboard/$id/approvals'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
     | '/dashboard/$id/conversations'
-    | '/dashboard/$id/customers'
-    | '/dashboard/$id/documents'
-    | '/dashboard/$id/products'
     | '/dashboard/$id/settings'
-    | '/dashboard/$id/tone-of-voice'
-    | '/dashboard/$id/vendors'
-    | '/dashboard/$id/websites'
     | '/dashboard/$id/'
+    | '/dashboard/$id/_knowledge/customers'
+    | '/dashboard/$id/_knowledge/documents'
+    | '/dashboard/$id/_knowledge/products'
+    | '/dashboard/$id/_knowledge/tone-of-voice'
+    | '/dashboard/$id/_knowledge/vendors'
+    | '/dashboard/$id/_knowledge/websites'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -502,53 +515,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdIndexRouteImport
       parentRoute: typeof DashboardIdRoute
     }
-    '/dashboard/$id/websites': {
-      id: '/dashboard/$id/websites'
-      path: '/websites'
-      fullPath: '/dashboard/$id/websites'
-      preLoaderRoute: typeof DashboardIdWebsitesRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/vendors': {
-      id: '/dashboard/$id/vendors'
-      path: '/vendors'
-      fullPath: '/dashboard/$id/vendors'
-      preLoaderRoute: typeof DashboardIdVendorsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/tone-of-voice': {
-      id: '/dashboard/$id/tone-of-voice'
-      path: '/tone-of-voice'
-      fullPath: '/dashboard/$id/tone-of-voice'
-      preLoaderRoute: typeof DashboardIdToneOfVoiceRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
     '/dashboard/$id/settings': {
       id: '/dashboard/$id/settings'
       path: '/settings'
       fullPath: '/dashboard/$id/settings'
       preLoaderRoute: typeof DashboardIdSettingsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/products': {
-      id: '/dashboard/$id/products'
-      path: '/products'
-      fullPath: '/dashboard/$id/products'
-      preLoaderRoute: typeof DashboardIdProductsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/documents': {
-      id: '/dashboard/$id/documents'
-      path: '/documents'
-      fullPath: '/dashboard/$id/documents'
-      preLoaderRoute: typeof DashboardIdDocumentsRouteImport
-      parentRoute: typeof DashboardIdRoute
-    }
-    '/dashboard/$id/customers': {
-      id: '/dashboard/$id/customers'
-      path: '/customers'
-      fullPath: '/dashboard/$id/customers'
-      preLoaderRoute: typeof DashboardIdCustomersRouteImport
       parentRoute: typeof DashboardIdRoute
     }
     '/dashboard/$id/conversations': {
@@ -577,6 +548,13 @@ declare module '@tanstack/react-router' {
       path: '/approvals'
       fullPath: '/dashboard/$id/approvals'
       preLoaderRoute: typeof DashboardIdApprovalsRouteImport
+      parentRoute: typeof DashboardIdRoute
+    }
+    '/dashboard/$id/_knowledge': {
+      id: '/dashboard/$id/_knowledge'
+      path: ''
+      fullPath: '/dashboard/$id'
+      preLoaderRoute: typeof DashboardIdKnowledgeRouteImport
       parentRoute: typeof DashboardIdRoute
     }
     '/dashboard/$id/chat/': {
@@ -649,6 +627,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIdApprovalsStatusRouteImport
       parentRoute: typeof DashboardIdApprovalsRoute
     }
+    '/dashboard/$id/_knowledge/websites': {
+      id: '/dashboard/$id/_knowledge/websites'
+      path: '/websites'
+      fullPath: '/dashboard/$id/websites'
+      preLoaderRoute: typeof DashboardIdKnowledgeWebsitesRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
+    '/dashboard/$id/_knowledge/vendors': {
+      id: '/dashboard/$id/_knowledge/vendors'
+      path: '/vendors'
+      fullPath: '/dashboard/$id/vendors'
+      preLoaderRoute: typeof DashboardIdKnowledgeVendorsRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
+    '/dashboard/$id/_knowledge/tone-of-voice': {
+      id: '/dashboard/$id/_knowledge/tone-of-voice'
+      path: '/tone-of-voice'
+      fullPath: '/dashboard/$id/tone-of-voice'
+      preLoaderRoute: typeof DashboardIdKnowledgeToneOfVoiceRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
+    '/dashboard/$id/_knowledge/products': {
+      id: '/dashboard/$id/_knowledge/products'
+      path: '/products'
+      fullPath: '/dashboard/$id/products'
+      preLoaderRoute: typeof DashboardIdKnowledgeProductsRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
+    '/dashboard/$id/_knowledge/documents': {
+      id: '/dashboard/$id/_knowledge/documents'
+      path: '/documents'
+      fullPath: '/dashboard/$id/documents'
+      preLoaderRoute: typeof DashboardIdKnowledgeDocumentsRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
+    '/dashboard/$id/_knowledge/customers': {
+      id: '/dashboard/$id/_knowledge/customers'
+      path: '/customers'
+      fullPath: '/dashboard/$id/customers'
+      preLoaderRoute: typeof DashboardIdKnowledgeCustomersRouteImport
+      parentRoute: typeof DashboardIdKnowledgeRoute
+    }
     '/dashboard/$id/automations/$amId/executions': {
       id: '/dashboard/$id/automations/$amId/executions'
       path: '/executions'
@@ -677,6 +697,27 @@ const AuthRouteChildren: AuthRouteChildren = {
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
+interface DashboardIdKnowledgeRouteChildren {
+  DashboardIdKnowledgeCustomersRoute: typeof DashboardIdKnowledgeCustomersRoute
+  DashboardIdKnowledgeDocumentsRoute: typeof DashboardIdKnowledgeDocumentsRoute
+  DashboardIdKnowledgeProductsRoute: typeof DashboardIdKnowledgeProductsRoute
+  DashboardIdKnowledgeToneOfVoiceRoute: typeof DashboardIdKnowledgeToneOfVoiceRoute
+  DashboardIdKnowledgeVendorsRoute: typeof DashboardIdKnowledgeVendorsRoute
+  DashboardIdKnowledgeWebsitesRoute: typeof DashboardIdKnowledgeWebsitesRoute
+}
+
+const DashboardIdKnowledgeRouteChildren: DashboardIdKnowledgeRouteChildren = {
+  DashboardIdKnowledgeCustomersRoute: DashboardIdKnowledgeCustomersRoute,
+  DashboardIdKnowledgeDocumentsRoute: DashboardIdKnowledgeDocumentsRoute,
+  DashboardIdKnowledgeProductsRoute: DashboardIdKnowledgeProductsRoute,
+  DashboardIdKnowledgeToneOfVoiceRoute: DashboardIdKnowledgeToneOfVoiceRoute,
+  DashboardIdKnowledgeVendorsRoute: DashboardIdKnowledgeVendorsRoute,
+  DashboardIdKnowledgeWebsitesRoute: DashboardIdKnowledgeWebsitesRoute,
+}
+
+const DashboardIdKnowledgeRouteWithChildren =
+  DashboardIdKnowledgeRoute._addFileChildren(DashboardIdKnowledgeRouteChildren)
 
 interface DashboardIdApprovalsRouteChildren {
   DashboardIdApprovalsStatusRoute: typeof DashboardIdApprovalsStatusRoute
@@ -770,32 +811,22 @@ const DashboardIdSettingsRouteWithChildren =
   DashboardIdSettingsRoute._addFileChildren(DashboardIdSettingsRouteChildren)
 
 interface DashboardIdRouteChildren {
+  DashboardIdKnowledgeRoute: typeof DashboardIdKnowledgeRouteWithChildren
   DashboardIdApprovalsRoute: typeof DashboardIdApprovalsRouteWithChildren
   DashboardIdAutomationsRoute: typeof DashboardIdAutomationsRouteWithChildren
   DashboardIdChatRoute: typeof DashboardIdChatRouteWithChildren
   DashboardIdConversationsRoute: typeof DashboardIdConversationsRouteWithChildren
-  DashboardIdCustomersRoute: typeof DashboardIdCustomersRoute
-  DashboardIdDocumentsRoute: typeof DashboardIdDocumentsRoute
-  DashboardIdProductsRoute: typeof DashboardIdProductsRoute
   DashboardIdSettingsRoute: typeof DashboardIdSettingsRouteWithChildren
-  DashboardIdToneOfVoiceRoute: typeof DashboardIdToneOfVoiceRoute
-  DashboardIdVendorsRoute: typeof DashboardIdVendorsRoute
-  DashboardIdWebsitesRoute: typeof DashboardIdWebsitesRoute
   DashboardIdIndexRoute: typeof DashboardIdIndexRoute
 }
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
+  DashboardIdKnowledgeRoute: DashboardIdKnowledgeRouteWithChildren,
   DashboardIdApprovalsRoute: DashboardIdApprovalsRouteWithChildren,
   DashboardIdAutomationsRoute: DashboardIdAutomationsRouteWithChildren,
   DashboardIdChatRoute: DashboardIdChatRouteWithChildren,
   DashboardIdConversationsRoute: DashboardIdConversationsRouteWithChildren,
-  DashboardIdCustomersRoute: DashboardIdCustomersRoute,
-  DashboardIdDocumentsRoute: DashboardIdDocumentsRoute,
-  DashboardIdProductsRoute: DashboardIdProductsRoute,
   DashboardIdSettingsRoute: DashboardIdSettingsRouteWithChildren,
-  DashboardIdToneOfVoiceRoute: DashboardIdToneOfVoiceRoute,
-  DashboardIdVendorsRoute: DashboardIdVendorsRoute,
-  DashboardIdWebsitesRoute: DashboardIdWebsitesRoute,
   DashboardIdIndexRoute: DashboardIdIndexRoute,
 }
 

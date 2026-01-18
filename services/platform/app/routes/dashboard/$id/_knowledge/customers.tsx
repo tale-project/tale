@@ -14,7 +14,7 @@ const searchSchema = z.object({
   locale: z.string().optional(),
 });
 
-export const Route = createFileRoute('/dashboard/$id/customers')({
+export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
   validateSearch: searchSchema,
   component: CustomersPage,
 });
