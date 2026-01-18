@@ -6,6 +6,7 @@
 
 import mysql from 'mysql2/promise';
 import type { SqlExecutionParams, SqlExecutionResult } from '../types';
+import type { ConvexJsonValue } from '../../../../lib/shared/schemas/utils/json-value';
 
 export async function executeMySqlQuery(
   params: SqlExecutionParams,
@@ -59,7 +60,7 @@ export async function executeMySqlQuery(
 
       return {
         success: true,
-        data,
+        data: data as ConvexJsonValue,
         rowCount: data.length,
       };
     } finally {

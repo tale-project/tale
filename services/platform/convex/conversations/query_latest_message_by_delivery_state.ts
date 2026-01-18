@@ -7,6 +7,7 @@
 
 import type { QueryCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export interface QueryLatestMessageByDeliveryStateArgs {
   organizationId: string;
@@ -29,7 +30,7 @@ export interface QueryLatestMessageByDeliveryStateResult {
     content: string;
     sentAt?: number;
     deliveredAt?: number;
-    metadata?: unknown;
+    metadata?: ConvexJsonRecord;
   } | null;
 }
 

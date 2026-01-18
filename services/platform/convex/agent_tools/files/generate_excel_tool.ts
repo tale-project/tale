@@ -83,14 +83,31 @@ CRITICAL:
           },
         );
 
+        // Decode base64 to Uint8Array and upload to storage
+        const binaryString = atob(result.fileBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const fileId = await ctx.storage.store(blob);
+        const url = await ctx.storage.getUrl(fileId);
+
         debugLog('tool:generate_excel success', {
           fileName: result.fileName,
-          fileId: result.fileId,
+          fileId,
           rowCount: result.rowCount,
           sheetCount: result.sheetCount,
         });
 
-        return result as GenerateExcelResult;
+        return {
+          success: true,
+          fileId,
+          url: url ?? '',
+          fileName: result.fileName,
+          rowCount: result.rowCount,
+          sheetCount: result.sheetCount,
+        };
       } catch (error) {
         console.error('[tool:generate_excel] error', {
           fileName: args.fileName,

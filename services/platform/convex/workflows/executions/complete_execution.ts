@@ -4,11 +4,11 @@
 
 import type { MutationCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
-// Inline serialization removed. Always pre-serialize in an action before calling this mutation.
 import type { CompleteExecutionArgs } from './types';
+import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
 
 type CompleteExecutionData = {
-  output: unknown;
+  output: ConvexJsonValue;
   variables?: string;
   variablesStorageId?: Id<'_storage'>;
   status: 'completed';
@@ -26,7 +26,7 @@ export async function completeExecution(
 
   const updates: CompleteExecutionData = {
     status: 'completed',
-    output: args.output,
+    output: args.output as ConvexJsonValue,
     completedAt: Date.now(),
     updatedAt: Date.now(),
   };

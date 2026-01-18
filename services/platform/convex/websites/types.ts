@@ -9,6 +9,7 @@ import {
   websiteStatusValidator,
   websiteValidator,
 } from './validators';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 // =============================================================================
 // INFERRED TYPES (from validators)
@@ -64,7 +65,7 @@ export interface BulkWebsiteData {
   description?: string;
   scanInterval: string;
   status?: WebsiteStatus;
-  metadata?: unknown;
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 /**
@@ -78,8 +79,8 @@ export interface BulkUpsertPagesArgs {
     title?: string;
     content?: string;
     wordCount?: number;
-    metadata?: Record<string, unknown>;
-    structuredData?: Record<string, unknown>;
+    metadata?: ConvexJsonRecord;
+    structuredData?: ConvexJsonRecord;
   }>;
 }
 

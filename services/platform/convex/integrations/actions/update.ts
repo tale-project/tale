@@ -15,7 +15,7 @@ import {
   connectionConfigValidator,
   capabilitiesValidator,
 } from '../validators';
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 
 export const update = action({
   args: {
@@ -28,7 +28,7 @@ export const update = action({
     connectionConfig: v.optional(connectionConfigValidator),
     capabilities: v.optional(capabilitiesValidator),
     errorMessage: v.optional(v.string()),
-    metadata: v.optional(jsonValueValidator),
+    metadata: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {

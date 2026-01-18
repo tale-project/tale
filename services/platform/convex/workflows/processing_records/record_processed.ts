@@ -6,6 +6,7 @@
 import { MutationCtx } from '../../_generated/server';
 import { Id } from '../../_generated/dataModel';
 import { TableName } from './types';
+import type { ConvexJsonRecord } from '../../../lib/shared/schemas/utils/json-value';
 
 export interface RecordProcessedArgs {
   organizationId: string;
@@ -13,7 +14,7 @@ export interface RecordProcessedArgs {
   recordId: string;
   wfDefinitionId: string;
   recordCreationTime: number;
-  metadata?: unknown;
+  metadata?: ConvexJsonRecord;
 }
 
 export async function recordProcessed(

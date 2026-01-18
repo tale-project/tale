@@ -169,11 +169,13 @@ Return ONLY JSON in the exact shape described in the system prompt.`,
               description: 'Customer lifecycle status',
             },
             churnReason: {
-              type: ['string', 'null'],
+              type: 'string',
+              nullable: true,
               description: 'Reason for churn if status is churned, otherwise null',
             },
             churnedAt: {
-              type: ['number', 'null'],
+              type: 'number',
+              nullable: true,
               description:
                 'Timestamp when customer churned if status is churned, otherwise null',
             },

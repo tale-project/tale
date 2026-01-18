@@ -20,6 +20,7 @@ import { testShopifyConnection } from './test_shopify_connection';
 import { testCirculyConnection } from './test_circuly_connection';
 
 import { createDebugLog } from '../lib/debug_log';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -33,7 +34,7 @@ export interface UpdateIntegrationLogicArgs {
   connectionConfig?: ConnectionConfig;
   capabilities?: Capabilities;
   errorMessage?: string;
-  metadata?: unknown;
+  metadata?: ConvexJsonRecord;
 }
 
 /**

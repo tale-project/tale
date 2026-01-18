@@ -12,7 +12,7 @@ import { useT } from '@/lib/i18n/client';
 
 type MemberItem = {
   _id: string;
-  _creationTime: number;
+  _creationTime?: number;
   organizationId: string;
   identityId?: string;
   email?: string;

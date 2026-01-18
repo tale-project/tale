@@ -1,4 +1,5 @@
 import type { Id } from '../../../../_generated/dataModel';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 // Discriminated union type for website operations
 export type WebsiteActionParams =
@@ -10,7 +11,7 @@ export type WebsiteActionParams =
       scanInterval?: string;
       lastScannedAt?: number;
       status?: 'active' | 'inactive' | 'error';
-      metadata?: Record<string, unknown>;
+      metadata?: ConvexJsonRecord;
     }
   | {
       operation: 'update';
@@ -21,7 +22,7 @@ export type WebsiteActionParams =
       scanInterval?: string;
       lastScannedAt?: number;
       status?: 'active' | 'inactive' | 'error';
-      metadata?: Record<string, unknown>;
+      metadata?: ConvexJsonRecord;
     }
   | {
       operation: 'get_by_domain';

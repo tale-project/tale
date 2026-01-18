@@ -10,6 +10,7 @@ import { validateOrganizationAccess } from '../lib/rls';
 // Minimal Better Auth organization shape we use server-side
 type BAOrganization = {
   _id: string;
+  _creationTime: number;
   name: string;
   slug?: string;
   logo?: string | null;

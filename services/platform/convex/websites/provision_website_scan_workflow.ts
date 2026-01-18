@@ -9,6 +9,7 @@ import type { Id } from '../_generated/dataModel';
 import { api, internal } from '../_generated/api';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export interface ProvisionWebsiteScanWorkflowArgs {
   organizationId: string;
@@ -60,13 +61,13 @@ export async function provisionWebsiteScanWorkflow(
     (websiteScanWorkflow.workflowConfig.config?.variables ||
       {}) as Record<string, unknown>;
 
-  const variables: Record<string, unknown> = {
+  const variables = {
     ...templateVars,
     organizationId: args.organizationId,
     websiteUrl,
     websiteDomain,
     scanInterval: args.scanInterval,
-  };
+  } as ConvexJsonRecord;
 
   const workflowName = `Website Scan - ${websiteDomain}`;
 

@@ -21,6 +21,7 @@ import {
   SqlOperation,
 } from './types';
 import { getPredefinedIntegration } from '../predefined_integrations';
+import type { ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
 
 export interface CreateIntegrationInternalArgs {
   organizationId: string;
@@ -40,7 +41,7 @@ export interface CreateIntegrationInternalArgs {
   type?: 'rest_api' | 'sql';
   sqlConnectionConfig?: SqlConnectionConfig;
   sqlOperations?: SqlOperation[];
-  metadata?: unknown;
+  metadata?: ConvexJsonValue;
 }
 
 export async function createIntegrationInternal(

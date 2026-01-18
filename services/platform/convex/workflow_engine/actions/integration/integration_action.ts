@@ -9,7 +9,7 @@
  * - Executes the connector operation in sandbox (via Node.js action)
  */
 
-import { v } from 'convex/values';
+import { v, Infer } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { IntegrationExecutionResult } from '../../../node_only/integration_sandbox/types';
@@ -19,6 +19,8 @@ import { executeSqlIntegration } from './helpers/execute_sql_integration';
 import { requiresApproval, getOperationType } from './helpers/detect_write_operation';
 import { isSqlIntegration } from '../../../integrations/helpers';
 import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -128,7 +130,7 @@ export const integrationAction: ActionDefinition<{
           operationName: operation,
           operationTitle: operationConfig.title || operation,
           operationType,
-          parameters: opParams,
+          parameters: opParams as ConvexJsonRecord,
           threadId,
           messageId,
           estimatedImpact: `This ${operationType} operation will modify data via ${name} API`,
@@ -159,7 +161,7 @@ export const integrationAction: ActionDefinition<{
       {
         code: connectorConfig.code,
         operation,
-        params: opParams,
+        params: opParams as ConvexJsonRecord,
         variables: {},
         secrets,
         allowedHosts: connectorConfig.allowedHosts ?? [],

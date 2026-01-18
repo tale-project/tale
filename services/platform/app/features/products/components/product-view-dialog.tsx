@@ -23,7 +23,7 @@ interface ViewProductDialogProps {
     category?: string;
     tags?: string[];
     status?: string;
-    lastUpdated: number;
+    lastUpdated?: number;
     metadata?: Record<string, unknown>;
   };
 }
@@ -120,16 +120,18 @@ export function ProductViewDialog({
           )}
 
           {/* Last Updated */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {tProducts('view.labels.lastUpdated')}
-            </label>
-            <p className="text-sm text-foreground mt-1">
-              {formatDate(new Date(product.lastUpdated), {
-                preset: 'long',
-              })}
-            </p>
-          </div>
+          {product.lastUpdated !== undefined && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {tProducts('view.labels.lastUpdated')}
+              </label>
+              <p className="text-sm text-foreground mt-1">
+                {formatDate(new Date(product.lastUpdated), {
+                  preset: 'long',
+                })}
+              </p>
+            </div>
+          )}
         </Grid>
 
         {/* Tags */}
@@ -183,7 +185,7 @@ export function ProductViewDialog({
             {tProducts('view.labels.productId')}
           </label>
           <code className="text-xs bg-muted px-2 py-1 rounded">
-            {product.id}
+            {product._id}
           </code>
         </div>
       </Stack>

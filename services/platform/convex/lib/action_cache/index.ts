@@ -78,10 +78,12 @@ export const searchResultsCache: ActionCache<
  * Stable until example messages change.
  * 24-hour TTL for daily refresh.
  */
+// Note: The internal_actions module needs to be regenerated (run `npx convex dev`)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const toneOfVoiceCache: ActionCache<
   FunctionReference<'action', 'internal'>
 > = new ActionCache(components.actionCache, {
-  action: internal.tone_of_voice.actions.generate_tone_of_voice.generateToneOfVoiceUncached,
+  action: (internal.tone_of_voice as any).internal_actions.generateToneOfVoiceUncached,
   name: `tone_of_voice_${CACHE_VERSION}`,
   ttl: TTL.ONE_DAY,
 });

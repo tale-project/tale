@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 
 type Member = {
   _id: string;
+  _creationTime?: number;
   organizationId: string;
   userId?: string;
   email?: string;

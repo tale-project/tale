@@ -7,6 +7,10 @@ import type { Id } from '../../../_generated/dataModel';
 import { snakeCase } from 'lodash';
 import type { WorkflowManager } from '@convex-dev/workflow';
 import { executeWorkflowStart } from './execute_workflow_start';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -64,12 +68,12 @@ export async function handleStartWorkflow(
     rootWfDefinitionId,
     status: 'pending',
     currentStepSlug: '',
-    input: args.input || {},
+    input: (args.input || {}) as ConvexJsonValue,
     variables: '{}',
     startedAt: Date.now(),
     updatedAt: Date.now(),
     triggeredBy: args.triggeredBy,
-    triggerData: args.triggerData,
+    triggerData: args.triggerData as ConvexJsonValue,
     metadata: '{}',
     workflowSlug,
   });

@@ -6,9 +6,8 @@
  */
 
 import { internalAction } from '../_generated/server';
-import type { Infer } from 'convex/values';
-import { v } from 'convex/values';
-import type { LLMNodeConfig, StepExecutionResult } from './types';
+import { Infer, v } from 'convex/values';
+import type { LLMNodeConfig } from './types';
 import {
   triggerNodeConfigValidator,
   llmStepConfigValidator,
@@ -75,13 +74,14 @@ export const executeActionNode = internalAction({
     threadId: v.optional(v.string()),
   },
   returns: stepExecutionResultValidator,
-  handler: async (ctx, args): Promise<StepExecutionResult> => {
-    return await ActionNodeHelpers.executeActionNode(
+  handler: async (ctx, args) => {
+    const result = await ActionNodeHelpers.executeActionNode(
       ctx,
       args.stepDef.config,
       args.variables ?? {},
       args.executionId,
     );
+    return result as Infer<typeof stepExecutionResultValidator>;
   },
 });
 
@@ -100,11 +100,12 @@ export const executeConditionNode = internalAction({
     executionId: v.union(v.string(), v.id('wfExecutions')),
   },
   returns: stepExecutionResultValidator,
-  handler: async (_ctx, args): Promise<StepExecutionResult> => {
-    return ConditionNodeHelpers.executeConditionNode(
+  handler: async (_ctx, args) => {
+    const result = ConditionNodeHelpers.executeConditionNode(
       args.stepDef.config,
       args.variables,
     );
+    return result as Infer<typeof stepExecutionResultValidator>;
   },
 });
 
@@ -124,14 +125,15 @@ export const executeLoopNode = internalAction({
     threadId: v.optional(v.string()),
   },
   returns: stepExecutionResultValidator,
-  handler: async (_ctx, args): Promise<StepExecutionResult> => {
-    return await LoopNodeHelpers.executeLoopNode(
+  handler: async (_ctx, args) => {
+    const result = await LoopNodeHelpers.executeLoopNode(
       args.stepDef.stepSlug,
       args.stepDef.config,
       args.variables,
       args.executionId,
       args.threadId,
     );
+    return result as Infer<typeof stepExecutionResultValidator>;
   },
 });
 
@@ -152,11 +154,11 @@ export const executeLLMNode = internalAction({
     threadId: v.optional(v.string()),
   },
   returns: stepExecutionResultValidator,
-  handler: async (ctx, args): Promise<StepExecutionResult> => {
+  handler: async (ctx, args) => {
     // Normalize config - extract LLMNodeConfig from either direct or wrapped shape
     // The config is validated/normalized here so callers don't need type assertions
     const llmConfig = normalizeLLMConfig(args.stepDef.config as LLMStepConfig);
-    return await LLMNodeHelpers.executeLLMNode(
+    const result = await LLMNodeHelpers.executeLLMNode(
       ctx,
       llmConfig,
       args.variables,
@@ -164,6 +166,7 @@ export const executeLLMNode = internalAction({
       args.stepDef.organizationId,
       args.threadId,
     );
+    return result as Infer<typeof stepExecutionResultValidator>;
   },
 });
 
@@ -183,12 +186,13 @@ export const executeTriggerNode = internalAction({
     threadId: v.optional(v.string()),
   },
   returns: stepExecutionResultValidator,
-  handler: async (_ctx, args): Promise<StepExecutionResult> => {
-    return await TriggerNodeHelpers.executeTriggerNode(
+  handler: async (_ctx, args) => {
+    const result = await TriggerNodeHelpers.executeTriggerNode(
       args.stepDef.config,
       args.variables,
       args.executionId,
       args.threadId,
     );
+    return result as Infer<typeof stepExecutionResultValidator>;
   },
 });

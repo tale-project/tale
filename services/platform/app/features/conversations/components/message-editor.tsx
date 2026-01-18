@@ -453,7 +453,7 @@ function MilkdownEditorInner({
               (isImproveMode || isImproving) && 'hidden',
             )}
           >
-            <style jsx global>{`
+            <style>{`
               .milkdown {
                 .milkdown-block-handle {
                   display: none !important;

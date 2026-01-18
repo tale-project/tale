@@ -36,9 +36,7 @@ export async function searchProductsByMetadata(
     // Check if metadata contains the target string
     let matches = false;
 
-    if (typeof product.metadata === 'string') {
-      matches = product.metadata.toLowerCase().includes(targetLower);
-    } else if (product.metadata !== undefined && product.metadata !== null) {
+    if (product.metadata !== undefined && product.metadata !== null) {
       // Convert object to JSON string for search
       const metadataString = JSON.stringify(product.metadata).toLowerCase();
       matches = metadataString.includes(targetLower);

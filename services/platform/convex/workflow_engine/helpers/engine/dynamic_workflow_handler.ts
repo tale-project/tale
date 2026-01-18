@@ -6,6 +6,10 @@ import type { WorkflowCtx } from '@convex-dev/workflow';
 import type { RetryBehavior } from '@convex-dev/workpool';
 import { internal } from '../../../_generated/api';
 import type { Doc, Id } from '../../../_generated/dataModel';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -14,13 +18,13 @@ const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 export type DynamicWorkflowArgs = {
   organizationId: string;
   executionId: Id<'wfExecutions'>;
-  workflowDefinition: Doc<'wfDefinitions'>;
-  steps: Array<Doc<'wfStepDefs'>>;
-  input?: Record<string, unknown>;
+  workflowDefinition: ConvexJsonValue;
+  steps: ConvexJsonValue[];
+  input?: ConvexJsonValue;
   triggeredBy: string;
-  triggerData?: Record<string, unknown>;
+  triggerData?: ConvexJsonValue;
   resumeFromStepSlug?: string;
-  resumeVariables?: Record<string, unknown>;
+  resumeVariables?: ConvexJsonValue;
   threadId?: string;
 };
 
@@ -42,13 +46,14 @@ export async function handleDynamicWorkflow(
   step: WorkflowCtx,
   args: DynamicWorkflowArgs,
 ): Promise<void> {
+  const workflowDefinition = args.workflowDefinition as unknown as Doc<'wfDefinitions'>;
+  const stepDefinitions = args.steps as unknown as Array<Doc<'wfStepDefs'>>;
+
   debugLog('dynamicWorkflow Starting workflow execution', {
     executionId: args.executionId,
-    workflowName: args.workflowDefinition.name,
-    stepsCount: args.steps.length,
+    workflowName: workflowDefinition.name,
+    stepsCount: stepDefinitions.length,
   });
-
-  const { workflowDefinition, steps: stepDefinitions } = args;
 
   // Allow both 'active' and 'draft' workflows to execute
   // This enables testing and development without requiring activation
@@ -94,7 +99,7 @@ export async function handleDynamicWorkflow(
 
     // Determine retry policy: step-level override > workflow-level default
     // Access retryPolicy safely - not all step config types have it
-    const workflowRetryPolicy = args.workflowDefinition?.config?.retryPolicy ?? null;
+    const workflowRetryPolicy = workflowDefinition?.config?.retryPolicy ?? null;
     const stepConfig = stepDef.config as Record<string, unknown> | undefined;
     const stepRetryPolicy =
       stepConfig && typeof stepConfig === 'object' && 'retryPolicy' in stepConfig
@@ -113,8 +118,8 @@ export async function handleDynamicWorkflow(
         stepType: stepDef.stepType,
         stepName: stepDef.name,
         threadId: args.threadId, // Pass shared threadId for agent orchestration workflows
-        initialInput: args.input,
-        resumeVariables: args.resumeVariables,
+        initialInput: args.input as ConvexJsonValue,
+        resumeVariables: args.resumeVariables as ConvexJsonValue,
       },
       {
         name: `${stepDef.name} (${stepDef.stepType})`,

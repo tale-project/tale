@@ -62,6 +62,9 @@ export const documentItemSchema = z.object({
 	ragStatus: ragStatusSchema.optional(),
 	ragIndexedAt: z.number().optional(),
 	ragError: z.string().optional(),
+	teamTags: z.array(z.string()).optional(),
+	createdBy: z.string().optional(),
+	createdByName: z.string().optional(),
 });
 export type DocumentItem = z.infer<typeof documentItemSchema>;
 

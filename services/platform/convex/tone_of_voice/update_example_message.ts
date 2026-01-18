@@ -4,13 +4,14 @@
 
 import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export async function updateExampleMessage(
   ctx: MutationCtx,
   args: {
     messageId: Id<'exampleMessages'>;
     content?: string;
-    metadata?: unknown;
+    metadata?: ConvexJsonRecord;
   },
 ): Promise<null> {
   const { messageId, ...updates } = args;

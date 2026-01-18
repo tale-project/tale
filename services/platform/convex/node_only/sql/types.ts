@@ -3,6 +3,7 @@
  */
 
 import type { SqlEngine } from '../../integrations/types';
+import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
 
 export interface SqlCredentials {
   server: string;
@@ -33,7 +34,7 @@ export interface SqlExecutionParams {
 
 export interface SqlExecutionResult {
   success: boolean;
-  data?: unknown[];
+  data?: ConvexJsonValue;
   rowCount?: number;
   error?: string;
   duration?: number;

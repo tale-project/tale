@@ -5,6 +5,7 @@
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
+import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export interface CreateWebsiteArgs {
   organizationId: string;
@@ -13,7 +14,7 @@ export interface CreateWebsiteArgs {
   description?: string;
   scanInterval: string; // e.g., '60m' | '6h' | '12h' | '1d' | '5d' | '7d' | '30d'
   status?: 'active' | 'inactive' | 'error';
-  metadata?: unknown;
+  metadata?: ConvexJsonRecord;
 }
 
 function toUrlAndDomain(input: string): {

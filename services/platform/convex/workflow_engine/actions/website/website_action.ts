@@ -66,7 +66,6 @@ export const websiteAction: ActionDefinition<WebsiteActionParams> = {
             title: params.title,
             description: params.description,
             scanInterval: params.scanInterval || '6h',
-            lastScannedAt: params.lastScannedAt,
             status: params.status || 'active',
             metadata: params.metadata,
           },

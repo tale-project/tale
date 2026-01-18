@@ -6,6 +6,7 @@
 
 import sql from 'mssql';
 import type { SqlExecutionParams, SqlExecutionResult } from '../types';
+import type { ConvexJsonValue } from '../../../../lib/shared/schemas/utils/json-value';
 
 /**
  * Extract all parameter names referenced in a SQL query (e.g., @paramName)
@@ -109,7 +110,7 @@ export async function executeMsSqlQuery(
 
     return {
       success: true,
-      data,
+      data: data as ConvexJsonValue,
       rowCount: data.length,
     };
   } finally {

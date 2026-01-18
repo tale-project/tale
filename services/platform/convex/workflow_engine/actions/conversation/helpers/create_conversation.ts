@@ -2,6 +2,7 @@ import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { ConversationStatus, ConversationPriority } from './types';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 export async function createConversation(
   ctx: ActionCtx,
@@ -29,7 +30,7 @@ export async function createConversation(
       channel: params.channel,
       direction: params.direction,
       providerId: params.providerId,
-      metadata: params.metadata,
+      metadata: params.metadata as ConvexJsonRecord | undefined,
     });
 
   // Fetch and return the full created entity

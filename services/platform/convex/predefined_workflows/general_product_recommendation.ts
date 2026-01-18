@@ -154,7 +154,6 @@ If tools are available, call them as needed to look up products, validate image 
         maxTokens: 4000,
         maxSteps: 20,
         outputFormat: 'json',
-        // Output schema for structured output validation
         outputSchema: {
           type: 'object',
           description: 'AI-generated product recommendations for a customer',
@@ -164,50 +163,6 @@ If tools are available, call them as needed to look up products, validate image 
               description: 'List of recommended products (up to 5)',
               items: {
                 type: 'object',
-                properties: {
-                  productId: {
-                    type: 'string',
-                    description: 'Convex product ID',
-                  },
-                  productName: {
-                    type: 'string',
-                    description: 'Human-readable product name',
-                  },
-                  imageUrl: {
-                    type: 'string',
-                    description:
-                      'Valid, accessible image URL verified using resource_check tool',
-                  },
-                  relationshipType: {
-                    type: 'string',
-                    description: 'Type of product relationship',
-                    enum: [
-                      'Complementary',
-                      'Upgrade',
-                      'Bundle',
-                      'Substitute',
-                      'Other',
-                    ],
-                  },
-                  reasoning: {
-                    type: 'string',
-                    description: 'Why this product is recommended for this customer',
-                  },
-                  confidence: {
-                    type: 'number',
-                    description: 'Confidence score between 0 and 1',
-                    minimum: 0,
-                    maximum: 1,
-                  },
-                },
-                required: [
-                  'productId',
-                  'productName',
-                  'imageUrl',
-                  'relationshipType',
-                  'reasoning',
-                  'confidence',
-                ],
               },
             },
             summary: {

@@ -1,4 +1,4 @@
-import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, type ConvexJsonValue } from '../../lib/shared/schemas/utils/json-value';
 
 import { v } from 'convex/values';
 import { mutationWithRLS } from '../lib/rls';
@@ -104,7 +104,7 @@ export const bulkCreateVendors = mutationWithRLS({
     const results = {
       success: 0,
       failed: 0,
-      errors: [] as Array<{ index: number; error: string; vendor: unknown }>,
+      errors: [] as Array<{ index: number; error: string; vendor: ConvexJsonValue }>,
     };
 
     for (let i = 0; i < args.vendors.length; i++) {
@@ -156,7 +156,7 @@ export const bulkCreateVendors = mutationWithRLS({
         results.errors.push({
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
-          vendor: vendorData,
+          vendor: vendorData as ConvexJsonValue,
         });
       }
     }

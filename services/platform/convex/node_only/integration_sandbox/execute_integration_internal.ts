@@ -16,6 +16,7 @@ import * as vm from 'vm';
 import {
   jsonRecordValidator,
   jsonValueValidator,
+  type ConvexJsonValue,
 } from '../../../lib/shared/schemas/utils/json-value';
 import type {
   IntegrationExecutionParams,
@@ -146,7 +147,7 @@ async function executeIntegration(
 
       return {
         success: true,
-        result,
+        result: result as ConvexJsonValue,
         logs,
         duration: Date.now() - startTime,
       };
@@ -161,7 +162,7 @@ async function executeIntegration(
 
       return {
         success: true,
-        result,
+        result: result as ConvexJsonValue,
         logs,
         duration: Date.now() - startTime,
       };

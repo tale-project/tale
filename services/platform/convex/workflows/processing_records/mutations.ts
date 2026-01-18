@@ -6,7 +6,7 @@
 
 import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { findUnprocessed as findUnprocessedHelper } from './query_building/find_unprocessed';
 import { recordProcessed as recordProcessedHelper } from './record_processed';
 
@@ -48,7 +48,7 @@ export const recordProcessed = internalMutation({
     recordId: v.string(),
     wfDefinitionId: v.string(),
     recordCreationTime: v.number(),
-    metadata: v.optional(jsonValueValidator),
+    metadata: v.optional(jsonRecordValidator),
   },
   handler: async (ctx, args) => {
     return await recordProcessedHelper(ctx, args);

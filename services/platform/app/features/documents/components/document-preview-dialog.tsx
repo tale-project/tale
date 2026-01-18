@@ -66,8 +66,8 @@ export function DocumentPreviewDialog({
 
   const isLoading = data === undefined;
   const isError = data?.success === false;
-  const queryError = isError ? new Error(data?.error || t('preview.unknownError')) : null;
-  const doc = data?.success ? data.item : undefined;
+  const queryError = isError && 'error' in data ? new Error(data.error || t('preview.unknownError')) : null;
+  const doc = data?.success && 'item' in data ? data.item : undefined;
 
   // Determine display name
   const displayName =

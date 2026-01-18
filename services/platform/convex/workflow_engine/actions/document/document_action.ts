@@ -13,7 +13,7 @@ import { v } from 'convex/values';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { internal } from '../../../_generated/api';
 import type { Id } from '../../../_generated/dataModel';
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
 
 // Type for document operation params (discriminated union)
 type DocumentActionParams = {
@@ -57,7 +57,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
           documentId, // Required by validator
           title: params.title,
           content: params.content,
-          metadata: params.metadata,
+          metadata: params.metadata as ConvexJsonRecord | undefined,
           fileId: params.fileId as Id<'_storage'> | undefined,
           mimeType: params.mimeType,
           extension: params.extension,

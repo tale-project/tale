@@ -73,7 +73,7 @@ export const chatWithWorkflowAssistant = action({
       // Generate the response - messages are automatically stored in the thread
       await workflowAgent.generateText(
         ctx,
-        { threadId, userId: authUser.user.id },
+        { threadId, userId: String(authUser._id) },
         {
           prompt: message,
         },

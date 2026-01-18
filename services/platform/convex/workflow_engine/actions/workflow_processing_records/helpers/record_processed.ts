@@ -2,6 +2,7 @@ import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
 import type { TableName, RecordProcessedResult } from './types';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 export async function recordProcessed(
   ctx: ActionCtx,
@@ -10,7 +11,7 @@ export async function recordProcessed(
     tableName: TableName;
     recordId: string;
     wfDefinitionId: string;
-    metadata?: unknown;
+    metadata?: ConvexJsonRecord;
   },
 ): Promise<RecordProcessedResult> {
   const processingRecordId: Id<'workflowProcessingRecords'> =
