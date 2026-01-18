@@ -30,7 +30,7 @@ export const listFiles = action({
     items: v.optional(v.array(oneDriveItemValidator)),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ success: boolean; items?: Array<{ id: string; name: string; size: number; isFolder: boolean; mimeType?: string; lastModified?: number; childCount?: number; webUrl?: string; }>; error?: string }> => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
       return { success: false, error: 'Unauthenticated' };
@@ -40,12 +40,7 @@ export const listFiles = action({
 
     try {
       // Get Microsoft Graph token
-      const tokenResult: {
-        token?: string;
-        needsRefresh?: boolean;
-        accountId?: string;
-        refreshToken?: string;
-      } = await ctx.runQuery(
+      const tokenResult = await ctx.runQuery(
         internal.onedrive.queries.getUserToken,
         { userId },
       );
@@ -58,7 +53,7 @@ export const listFiles = action({
         });
 
         // Get the new token
-        const newTokenResult: { token?: string } = await ctx.runQuery(
+        const newTokenResult = await ctx.runQuery(
           internal.onedrive.queries.getUserToken,
           { userId },
         );

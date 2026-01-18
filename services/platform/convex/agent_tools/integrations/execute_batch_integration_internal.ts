@@ -9,9 +9,10 @@
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { v, Infer } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator, jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { jsonValueValidator, jsonRecordValidator, type JsonRecord } from '../../../lib/shared/schemas/utils/json-value';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 import type { SqlExecutionResult } from '../../node_only/sql/types';
 import { isIntrospectionOperation } from '../../workflow_engine/actions/integration/helpers/is_introspection_operation';
 import { getIntrospectTablesQuery } from '../../workflow_engine/actions/integration/helpers/get_introspect_tables_query';
@@ -231,7 +232,7 @@ async function executeSqlBatch(
                 operationName: op.operation,
                 operationTitle: operationConfig.title || op.operation,
                 operationType,
-                parameters: params,
+                parameters: params as ConvexJsonRecord,
                 threadId,
                 messageId,
                 estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
@@ -266,7 +267,7 @@ async function executeSqlBatch(
               options: sqlConnectionConfig.options,
             },
             query,
-            params: queryParams,
+            params: queryParams as ConvexJsonRecord,
             security: {
               maxResultRows: sqlConnectionConfig.security?.maxResultRows,
               queryTimeoutMs: sqlConnectionConfig.security?.queryTimeoutMs,
@@ -287,10 +288,10 @@ async function executeSqlBatch(
             name: integration.name,
             operation: op.operation,
             engine: sqlConnectionConfig.engine,
-            data: result.data,
+            data: result.data as ConvexJsonValue,
             rowCount: result.rowCount,
             duration: result.duration,
-          },
+          } as ConvexJsonValue,
           duration: Date.now() - opStartTime,
           rowCount: result.rowCount,
         };
@@ -402,7 +403,7 @@ async function executeRestApiBatch(
           id: op.id,
           operation: op.operation,
           success: true,
-          data: result,
+          data: result as ConvexJsonValue,
           duration,
           rowCount,
         };

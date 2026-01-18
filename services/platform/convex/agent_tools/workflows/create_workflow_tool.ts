@@ -143,8 +143,14 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
             organizationId,
             workflowName: args.workflowConfig.name,
             workflowDescription: args.workflowConfig.description,
-            workflowConfig: args.workflowConfig,
-            stepsConfig: args.stepsConfig,
+            workflowConfig: {
+              ...args.workflowConfig,
+              config: args.workflowConfig.config as Record<string, string | number | boolean | null> | undefined,
+            },
+            stepsConfig: args.stepsConfig.map(step => ({
+              ...step,
+              config: step.config as Record<string, string | number | boolean | null>,
+            })),
             threadId,
           },
         );

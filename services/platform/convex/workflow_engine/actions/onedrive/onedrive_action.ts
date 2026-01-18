@@ -18,6 +18,7 @@ import type { Id } from '../../../_generated/dataModel';
 import {
 	jsonRecordValidator,
 	jsonValueValidator,
+	type ConvexJsonRecord,
 } from '../../../../lib/shared/schemas/utils/json-value';
 import type {
   DocumentRecord,
@@ -216,7 +217,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               ? new TextEncoder().encode(params.fileContent).buffer
               : params.fileContent, // Required by validator
           contentType: params.contentType || 'application/octet-stream',
-          metadata: params.metadata || {},
+          metadata: (params.metadata || {}) as ConvexJsonRecord,
           createdBy: params.createdBy,
         });
 
@@ -326,7 +327,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
             // Merge metadata
             const baseMeta = existingMeta ?? {};
-            const metadata: Record<string, unknown> = {
+            const metadata = {
               ...baseMeta,
               oneDriveItemId: f.id,
               itemPath: params.folderItemPath,
@@ -336,7 +337,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
               syncedAt: Date.now(),
               sourceModifiedAt: lastModified,
               size: f.size,
-            };
+            } as ConvexJsonRecord;
 
             // Upload or update
             const uploadRes = await ctx.runAction!(
@@ -348,7 +349,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
                 contentType:
                   fileMimeType || f.mimeType || 'application/octet-stream',
                 metadata,
-                documentIdToUpdate: existing?._id,
+                documentIdToUpdate: existing?._id as Id<'documents'> | undefined,
                 createdBy: params.createdBy,
               },
             );

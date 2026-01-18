@@ -4,7 +4,7 @@ import type {
   WebsitePagesActionParams,
 } from './helpers/types';
 import { internal } from '../../../_generated/api';
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
 
 // Page validator
 const pageValidator = v.object({
@@ -47,8 +47,8 @@ export const websitePagesAction: ActionDefinition<WebsitePagesActionParams> = {
       title: p.title ?? undefined,
       content: p.content ?? undefined,
       wordCount: p.wordCount ?? p.word_count ?? undefined,
-      metadata: p.metadata ?? undefined,
-      structuredData: p.structuredData ?? p.structured_data ?? undefined,
+      metadata: (p.metadata ?? undefined) as ConvexJsonRecord | undefined,
+      structuredData: (p.structuredData ?? p.structured_data ?? undefined) as ConvexJsonRecord | undefined,
     }));
 
     const result = await ctx.runMutation(

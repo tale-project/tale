@@ -9,6 +9,7 @@ import { action } from '../../_generated/server';
 import { internal, api } from '../../_generated/api';
 import type { TestResult } from '../test_existing_provider';
 import { testExistingProviderLogic } from '../test_existing_provider_logic';
+import type { EmailProviderVendor } from '../../../lib/shared/schemas/email_providers';
 
 export const testExistingProvider = action({
   args: {
@@ -31,7 +32,10 @@ export const testExistingProvider = action({
       testConnection: async (params) => {
         return await ctx.runAction(
           internal.email_providers.internal_actions.test_new_provider_connection.testNewProviderConnection,
-          params,
+          {
+            ...params,
+            vendor: params.vendor as EmailProviderVendor,
+          },
         );
       },
       decryptString: async (encrypted) => {

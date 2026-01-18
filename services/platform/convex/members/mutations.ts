@@ -89,10 +89,10 @@ export const removeMember = mutation({
       throw new Error('Only Admins can remove members');
     }
 
-    await ctx.runMutation(components.betterAuth.adapter.delete, {
+    await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {
         model: 'member',
-        id: args.memberId,
+        where: [{ field: '_id', value: args.memberId, operator: 'eq' }],
       },
     });
 

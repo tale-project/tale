@@ -227,7 +227,7 @@ export function ConversationPanel({
     // Send message with attachments (backend handles channel-specific routing)
     // The backend will determine the sender email from the email provider
     await sendMessageViaEmail({
-      conversationId: conversation._id,
+      conversationId: conversation._id as Id<'conversations'>,
       organizationId: conversation.organizationId,
       content: message,
       to: [customerEmail],

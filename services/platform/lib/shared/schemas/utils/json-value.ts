@@ -1,5 +1,5 @@
 import { z } from 'zod/v4';
-import { v } from 'convex/values';
+import { v, Infer } from 'convex/values';
 
 export type JsonValue =
 	| string
@@ -49,3 +49,7 @@ export const jsonValueValidator = v.union(
 );
 
 export const jsonRecordValidator = v.record(v.string(), jsonValueLevel1Validator);
+
+// Convex-compatible types (use these instead of JsonValue/JsonRecord when passing to Convex functions)
+export type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+export type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;

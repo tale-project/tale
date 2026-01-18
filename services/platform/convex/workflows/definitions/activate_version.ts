@@ -57,7 +57,7 @@ export async function activateVersion(
       ...(workflow.metadata as Record<string, unknown>),
       reactivatedAt: Date.now(),
       reactivatedBy: args.activatedBy,
-      reactivationReason: args.changeLog,
+      reactivationReason: args.changeLog ?? null,
     },
   });
 

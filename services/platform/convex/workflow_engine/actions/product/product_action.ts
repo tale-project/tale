@@ -38,6 +38,7 @@ import { productStatusValidator } from '../../../products/validators';
 import {
 	jsonRecordValidator,
 	jsonValueValidator,
+	type ConvexJsonRecord,
 } from '../../../../lib/shared/schemas/utils/json-value';
 
 type CreateProductResult = {
@@ -182,7 +183,7 @@ export const productAction: ActionDefinition<ProductActionParams> = {
             externalId: Array.isArray(params.externalId)
               ? params.externalId[0]
               : params.externalId,
-            metadata: params.metadata,
+            metadata: params.metadata as ConvexJsonRecord | undefined,
           },
         )) as CreateProductResult;
 

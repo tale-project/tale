@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import type { Id, Doc } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { ToneOfVoiceWithExamples } from '@/convex/tone_of_voice/types';
 import { useAddExample } from '../hooks/use-add-example';
 import { useUpdateExample } from '../hooks/use-update-example';
 import { useDeleteExample } from '../hooks/use-delete-example';
@@ -20,14 +21,9 @@ import { exampleMessageToUI } from '@/types/tone-of-voice';
 import type { ExampleMessageUI } from '@/types/tone-of-voice';
 import { useT } from '@/lib/i18n/client';
 
-type ToneOfVoiceWithExamples = {
-  toneOfVoice: Doc<'toneOfVoice'> | null;
-  examples: Doc<'exampleMessages'>[];
-} | null;
-
 interface ToneOfVoiceFormClientProps {
   organizationId: string;
-  toneOfVoice: ToneOfVoiceWithExamples;
+  toneOfVoice: ToneOfVoiceWithExamples | null;
 }
 
 interface ToneFormData {

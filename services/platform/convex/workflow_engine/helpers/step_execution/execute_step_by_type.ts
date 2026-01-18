@@ -5,6 +5,8 @@
 import { ActionCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import { StepDefinition, StepExecutionResult } from './types';
+import type { Infer } from 'convex/values';
+import type { llmStepConfigValidator } from '../../types/nodes';
 
 export async function executeStepByType(
   ctx: ActionCtx,
@@ -75,6 +77,9 @@ export async function executeStepByType(
     return result;
   }
 
+  // Type alias for variables compatible with Convex validators
+  type JsonVariables = Record<string, string | number | boolean | (string | number | boolean | (string | number | boolean | null)[] | Record<string, string | number | boolean | null> | null)[] | Record<string, string | number | boolean | null> | null>;
+
   switch (stepDef.stepType) {
     case 'trigger':
       return await ctx.runAction(internal.workflow_engine.nodes.executeTriggerNode, {
@@ -83,7 +88,7 @@ export async function executeStepByType(
           stepType: 'trigger' as const,
           config: { type: 'manual' },
         },
-        variables,
+        variables: variables as JsonVariables,
         executionId,
         threadId,
       });
@@ -94,10 +99,10 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'llm' as const,
-          config: stepDef.config,
+          config: stepDef.config as Infer<typeof llmStepConfigValidator>,
           organizationId: stepDef.organizationId,
         },
-        variables,
+        variables: variables as JsonVariables,
         executionId,
         threadId, // Pass shared threadId for agent orchestration workflows
       });
@@ -107,9 +112,9 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'condition' as const,
-          config: stepDef.config,
+          config: stepDef.config as { expression: string },
         },
-        variables,
+        variables: variables as JsonVariables,
         executionId,
       });
 
@@ -119,10 +124,9 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'action' as const,
-          config: stepDef.config,
-          organizationId: stepDef.organizationId,
+          config: stepDef.config as { type: string; parameters: Record<string, JsonVariables[string]>; retryPolicy?: { maxRetries: number; backoffMs: number } },
         },
-        variables: trimmedVariables,
+        variables: trimmedVariables as JsonVariables,
         executionId,
         threadId,
       });
@@ -133,9 +137,9 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'loop' as const,
-          config: stepDef.config,
+          config: stepDef.config as { collection: string; itemVariable: string; indexVariable?: string; maxIterations?: number; parallelism?: number },
         },
-        variables,
+        variables: variables as JsonVariables,
         executionId,
         threadId,
       });

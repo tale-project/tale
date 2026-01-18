@@ -12,21 +12,14 @@
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
 
-    /* Resolve @/* to project root for files compiled in convex/ */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["../*"]
-    },
-
     /* These compiler options are required by Convex */
     "target": "ESNext",
-    "lib": ["ES2022", "dom"],
+    "lib": ["ES2021", "dom"],
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "isolatedModules": true,
-    "noEmit": true,
-    "types": ["vitest"]
+    "noEmit": true
   },
-  "include": ["./**/*", "../types/**/*", "../constants/**/*"],
+  "include": ["./**/*"],
   "exclude": ["./_generated"]
 }

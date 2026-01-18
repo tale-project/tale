@@ -5,6 +5,10 @@
 import { ActionCtx } from '../../../_generated/server';
 import { internal, api } from '../../../_generated/api';
 import type { Id, Doc } from '../../../_generated/dataModel';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 export interface TriggerWorkflowByIdArgs {
   wfDefinitionId: Id<'wfDefinitions'>;
@@ -37,7 +41,7 @@ export async function triggerWorkflowById(
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,
-      input: args.input || {},
+      input: (args.input || {}) as ConvexJsonValue,
       triggeredBy: args.triggeredBy || 'manual',
       triggerData: {
         triggerType: 'manual',

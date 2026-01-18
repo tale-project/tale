@@ -53,7 +53,7 @@ export const readFileFromOneDrive = internalAction({
     const result = await readFileLogic(args);
     return {
       success: result.success,
-      content: result.content ? new Uint8Array(result.content) : undefined,
+      content: result.content,
       mimeType: result.mimeType,
       size: result.size,
       error: result.error,

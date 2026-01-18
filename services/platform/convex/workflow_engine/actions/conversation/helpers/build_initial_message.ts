@@ -16,7 +16,6 @@ export function buildInitialMessage(
     content: email.html || email.text || '',
     isCustomer,
     status,
-    attachment: email.attachments,
     externalMessageId: email.messageId,
     metadata: buildEmailMetadata(email),
     sentAt: emailTimestamp,

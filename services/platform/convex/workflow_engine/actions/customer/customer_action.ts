@@ -38,7 +38,7 @@ import {
 	customerSourceValidator,
 	customerAddressValidator,
 } from '../../../customers/validators';
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
 import type { DataSource } from '../../../../lib/shared/schemas/common';
 
 // Type definitions for customer operations
@@ -165,7 +165,7 @@ export const customerAction: ActionDefinition<CustomerActionParams> = {
             locale: params.locale,
             address: params.address,
             externalId: params.externalId,
-            metadata: params.metadata,
+            metadata: params.metadata as ConvexJsonRecord | undefined,
           },
         )) as CreateCustomerResult;
 

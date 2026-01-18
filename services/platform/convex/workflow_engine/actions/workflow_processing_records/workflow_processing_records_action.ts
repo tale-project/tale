@@ -10,7 +10,7 @@
  */
 
 import { v } from 'convex/values';
-import { jsonRecordValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, type ConvexJsonRecord } from '../../../../lib/shared/schemas/utils/json-value';
 import type { ActionDefinition } from '../../helpers/nodes/action/types';
 
 import { findUnprocessed } from './helpers/find_unprocessed';
@@ -56,7 +56,7 @@ type WorkflowProcessingRecordsActionParams =
       operation: 'record_processed';
       tableName: TableName;
       recordId: string;
-      metadata?: unknown;
+      metadata?: ConvexJsonRecord;
     };
 
 export const workflowProcessingRecordsAction: ActionDefinition<WorkflowProcessingRecordsActionParams> =

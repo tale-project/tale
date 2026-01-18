@@ -9,6 +9,10 @@ import type { MutationCtx } from '../../../_generated/server';
 import { internal } from '../../../_generated/api';
 import type { Id, Doc } from '../../../_generated/dataModel';
 import type { ComponentRunResult } from '../../types';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 export async function handleWorkflowComplete(
   ctx: MutationCtx,
@@ -38,7 +42,7 @@ export async function handleWorkflowComplete(
   if (kind === 'success') {
     await ctx.runMutation(internal.wf_executions.mutations.completeExecution, {
       executionId: exec._id as Id<'wfExecutions'>,
-      output: result.returnValue,
+      output: result.returnValue as unknown as ConvexJsonValue,
     });
   } else if (kind === 'failed') {
     await ctx.runMutation(internal.wf_executions.mutations.failExecution, {

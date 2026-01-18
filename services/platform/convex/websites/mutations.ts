@@ -6,7 +6,7 @@
 
 import { v } from 'convex/values';
 import { internalMutation, internalAction, mutation } from '../_generated/server';
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as WebsitesHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
@@ -28,7 +28,7 @@ export const createWebsiteInternal = internalMutation({
     description: v.optional(v.string()),
     scanInterval: v.string(),
     status: v.optional(websiteStatusValidator),
-    metadata: v.optional(jsonValueValidator),
+    metadata: v.optional(jsonRecordValidator),
   },
   handler: async (ctx, args) => {
     return await WebsitesHelpers.createWebsite(ctx, args);
@@ -67,8 +67,8 @@ export const bulkUpsertPagesInternal = internalMutation({
         title: v.optional(v.string()),
         content: v.optional(v.string()),
         wordCount: v.optional(v.number()),
-        metadata: v.optional(v.record(v.string(), jsonValueValidator)),
-        structuredData: v.optional(v.record(v.string(), jsonValueValidator)),
+        metadata: v.optional(jsonRecordValidator),
+        structuredData: v.optional(jsonRecordValidator),
       }),
     ),
   },

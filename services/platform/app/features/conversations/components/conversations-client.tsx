@@ -116,7 +116,7 @@ export function ConversationsClient({
   }
 
   // Use all conversations (already filtered/sorted by hook)
-  const conversations: ConversationItem[] = allConversations as ConversationItem[];
+  const conversations = allConversations as unknown as ConversationItem[];
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Show empty state when there are no conversations and no email providers configured

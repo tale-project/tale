@@ -1,5 +1,6 @@
 import type { Id } from '../../../../_generated/dataModel';
 import type { ApprovalResourceType } from '../../../../approvals/types';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalPriority = 'low' | 'medium' | 'high' | 'urgent';
@@ -19,7 +20,7 @@ export type ApprovalData = {
   requestedBy?: string;
   description?: string;
   dueDate?: number;
-  metadata?: unknown;
+  metadata?: ConvexJsonRecord;
 };
 
 // Actions should return data directly (not wrapped in { data: ... })

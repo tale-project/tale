@@ -16,6 +16,7 @@ import { decryptSqlCredentials } from './decrypt_sql_credentials';
 import { requiresApproval, getOperationType } from './detect_write_operation';
 import { validateRequiredParameters } from './validate_required_parameters';
 import { type SqlIntegration, type SqlOperation } from '../../../../integrations/types';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 const debugLog = createDebugLog('DEBUG_INTEGRATIONS', '[Integrations]');
 
@@ -133,7 +134,7 @@ export async function executeSqlIntegration(
           operationName: operation,
           operationTitle: operationConfig.title || operation,
           operationType,
-          parameters: params,
+          parameters: params as ConvexJsonRecord,
           threadId,
           messageId,
           estimatedImpact: `This ${operationType} operation will modify data in ${sqlConnectionConfig.database}`,
@@ -181,7 +182,7 @@ export async function executeSqlIntegration(
         options: sqlConnectionConfig.options,
       },
       query,
-      params: queryParams,
+      params: queryParams as ConvexJsonRecord,
       security: {
         maxResultRows: sqlConnectionConfig.security?.maxResultRows,
         queryTimeoutMs: sqlConnectionConfig.security?.queryTimeoutMs,
@@ -196,7 +197,7 @@ export async function executeSqlIntegration(
   }
 
   // For write operations, check if any rows were affected
-  if (isWriteOperation && (result.rowCount === 0 || !result.data || result.data.length === 0)) {
+  if (isWriteOperation && (result.rowCount === 0 || !result.data || (Array.isArray(result.data) && result.data.length === 0))) {
     throw new Error(
       `Write operation "${operation}" completed but no rows were affected. ` +
       `This may indicate the target record doesn't exist or doesn't match the operation's criteria.`

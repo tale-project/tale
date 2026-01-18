@@ -15,7 +15,10 @@ import { api } from '@/convex/_generated/api';
 export function useChatWithAgent() {
   return useMutation(api.chat_agent.mutations.chatWithAgent).withOptimisticUpdate(
     (store, args) => {
-      optimisticallySendMessage(api.threads.queries.getThreadMessagesStreaming)(store, {
+      // Type assertion needed due to SDK type compatibility issue
+      // The streaming query return type doesn't exactly match what optimisticallySendMessage expects
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      optimisticallySendMessage(api.threads.queries.getThreadMessagesStreaming as any)(store, {
         threadId: args.threadId,
         prompt: args.message,
       });

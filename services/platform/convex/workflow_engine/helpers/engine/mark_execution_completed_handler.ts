@@ -6,6 +6,10 @@
 
 import type { MutationCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 export type MarkExecutionCompletedArgs = {
   executionId: Id<'wfExecutions'>;
@@ -64,7 +68,7 @@ export async function handleMarkExecutionCompleted(
   // Persist execution completion (keep full output on execution record for UI/use)
   await ctx.db.patch(args.executionId, {
     status: 'completed',
-    output: finalOutput,
+    output: finalOutput as ConvexJsonValue,
     completedAt: Date.now(),
     updatedAt: Date.now(),
   });

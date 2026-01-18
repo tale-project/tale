@@ -2,6 +2,8 @@
  * Integration Sandbox Types
  */
 
+import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-value';
+
 export interface IntegrationExecutionParams {
   code: string;
   operation: string;
@@ -14,7 +16,7 @@ export interface IntegrationExecutionParams {
 
 export interface IntegrationExecutionResult {
   success: boolean;
-  result?: unknown;
+  result?: ConvexJsonValue;
   error?: string;
   logs?: string[];
   duration?: number;

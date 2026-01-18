@@ -63,7 +63,7 @@ function AutomationsPage() {
     );
   }
 
-  const userRole = (memberContext.role ?? '').toLowerCase();
+  const userRole = (memberContext?.role ?? '').toLowerCase();
   if (userRole !== 'admin' && userRole !== 'developer') {
     return <AccessDenied message={t('automations')} />;
   }

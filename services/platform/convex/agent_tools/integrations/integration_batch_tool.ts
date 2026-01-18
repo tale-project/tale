@@ -81,7 +81,7 @@ Max 10 operations. Use 'id' field to identify results.`,
             operations: args.operations.map(op => ({
               id: op.id,
               operation: op.operation,
-              params: op.params || {},
+              params: (op.params || {}) as Record<string, string | number | boolean | null>,
             })),
             threadId,
             messageId,

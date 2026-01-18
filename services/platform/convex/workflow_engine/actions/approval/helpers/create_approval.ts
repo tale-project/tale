@@ -1,8 +1,9 @@
 import type { ActionCtx } from '../../../../_generated/server';
 import { internal } from '../../../../_generated/api';
 import type { Id } from '../../../../_generated/dataModel';
-import type { CreateApprovalResult, ApprovalPriority } from './types';
+import type { CreateApprovalResult, ApprovalPriority, ApprovalData } from './types';
 import type { ApprovalResourceType } from '../../../../approvals/types';
+import type { ConvexJsonRecord } from '../../../../../lib/shared/schemas/utils/json-value';
 
 export async function createApproval(
   ctx: ActionCtx,
@@ -16,7 +17,7 @@ export async function createApproval(
     description?: string;
     wfExecutionId?: Id<'wfExecutions'>;
     stepSlug?: string;
-    metadata?: unknown;
+    metadata?: ConvexJsonRecord;
   },
 ): Promise<CreateApprovalResult> {
   const approvalId: Id<'approvals'> = await ctx.runMutation(
@@ -46,5 +47,5 @@ export async function createApproval(
   }
 
   // Note: execute_action_node wraps this in output: { type: 'action', data: result }
-  return createdApproval;
+  return createdApproval as ApprovalData;
 }

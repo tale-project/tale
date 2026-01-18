@@ -73,7 +73,7 @@ Write operations create approval cards. Use integration_batch for multiple paral
             organizationId,
             integrationName: args.integrationName,
             operation: args.operation,
-            params: args.params || {},
+            params: (args.params || {}) as Record<string, string | number | boolean | null>,
             threadId: threadId, // Pass threadId for approval card linking
             messageId: messageId, // Pass messageId for approval card linking to the current message
           },

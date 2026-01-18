@@ -6,19 +6,20 @@ import { v } from 'convex/values';
 import { internalMutation } from '../../_generated/server';
 import { createIntegrationInternal as createIntegrationInternalHelper } from '../create_integration_internal';
 import { jsonValueValidator, jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { connectorConfigValidator, sqlConnectionConfigValidator, sqlOperationValidator } from '../validators';
 
 const statusValidator = v.union(
   v.literal('active'),
   v.literal('inactive'),
   v.literal('error'),
-  v.literal('pending'),
+  v.literal('testing'),
 );
 
 const authMethodValidator = v.union(
   v.literal('api_key'),
+  v.literal('bearer_token'),
   v.literal('basic_auth'),
   v.literal('oauth2'),
-  v.literal('none'),
 );
 
 const typeValidator = v.union(
@@ -41,29 +42,26 @@ export const createIntegrationInternal = internalMutation({
       prefix: v.optional(v.string()),
     })),
     basicAuth: v.optional(v.object({
-      usernameEncrypted: v.string(),
+      username: v.string(),
       passwordEncrypted: v.string(),
     })),
     oauth2Auth: v.optional(v.object({
-      accessTokenEncrypted: v.optional(v.string()),
+      accessTokenEncrypted: v.string(),
       refreshTokenEncrypted: v.optional(v.string()),
-      clientId: v.optional(v.string()),
-      clientSecretEncrypted: v.optional(v.string()),
-      tokenUrl: v.optional(v.string()),
+      tokenExpiry: v.optional(v.number()),
       scopes: v.optional(v.array(v.string())),
-      expiresAt: v.optional(v.number()),
     })),
     connectionConfig: v.optional(jsonRecordValidator),
     capabilities: v.optional(v.object({
-      supportsRead: v.optional(v.boolean()),
-      supportsWrite: v.optional(v.boolean()),
-      supportsDelete: v.optional(v.boolean()),
-      supportsBatch: v.optional(v.boolean()),
+      canSync: v.optional(v.boolean()),
+      canPush: v.optional(v.boolean()),
+      canWebhook: v.optional(v.boolean()),
+      syncFrequency: v.optional(v.string()),
     })),
-    connector: v.optional(jsonValueValidator),
+    connector: v.optional(connectorConfigValidator),
     type: v.optional(typeValidator),
-    sqlConnectionConfig: v.optional(jsonRecordValidator),
-    sqlOperations: v.optional(v.array(jsonRecordValidator)),
+    sqlConnectionConfig: v.optional(sqlConnectionConfigValidator),
+    sqlOperations: v.optional(v.array(sqlOperationValidator)),
     metadata: v.optional(jsonValueValidator),
   },
   handler: async (ctx, args) => {

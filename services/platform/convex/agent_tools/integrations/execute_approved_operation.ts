@@ -7,9 +7,10 @@
 import { internalAction, internalMutation } from '../../_generated/server';
 import { v, Infer } from 'convex/values';
 import { internal } from '../../_generated/api';
-import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
+import { jsonValueValidator, jsonRecordValidator } from '../../../lib/shared/schemas/utils/json-value';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+type ConvexJsonRecord = Infer<typeof jsonRecordValidator>;
 
 interface IntegrationOperationMetadataLocal {
   integrationId: string;
@@ -80,7 +81,7 @@ export const executeApprovedOperation = internalAction({
           organizationId: approval.organizationId,
           integrationName: metadata.integrationName,
           operation: metadata.operationName,
-          params: metadata.parameters as Record<string, ConvexJsonValue> | undefined,
+          params: metadata.parameters as ConvexJsonRecord | undefined,
           skipApprovalCheck: true, // Skip approval check since we're executing an approved operation
         },
       );
@@ -141,7 +142,7 @@ export const updateApprovalWithResult = internalMutation({
         executedAt: Date.now(),
         executionResult: args.executionResult as ConvexJsonValue,
         executionError: args.executionError || undefined,
-      } as Record<string, ConvexJsonValue>,
+      } as ConvexJsonRecord,
     });
   },
 });

@@ -18,6 +18,7 @@
  */
 
 import type { QueryCtx } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
 import { evaluateExpression } from '../lib/variables/evaluate_expression';
 
 export async function filterCustomers(
@@ -26,10 +27,10 @@ export async function filterCustomers(
     organizationId: string;
     expression: string;
   },
-): Promise<{ customers: unknown[]; count: number }> {
+): Promise<{ customers: Doc<'customers'>[]; count: number }> {
   const { organizationId, expression } = args;
 
-  const matchedCustomers: unknown[] = [];
+  const matchedCustomers: Doc<'customers'>[] = [];
 
   // Use async iteration for efficient streaming (better than fetching one at a time)
   const query = ctx.db

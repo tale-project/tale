@@ -27,7 +27,6 @@ export async function addMessageToConversation(
       content: email.html || email.text || '',
       isCustomer,
       status,
-      attachment: email.attachments,
       providerId,
       externalMessageId: email.messageId,
       metadata: buildEmailMetadata(email),

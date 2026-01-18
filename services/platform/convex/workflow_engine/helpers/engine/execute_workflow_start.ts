@@ -15,6 +15,10 @@ import type { WorkflowType } from '../../types/workflow';
 import { loadDatabaseWorkflow } from './load_database_workflow';
 import { failExecution, updateExecutionMetadata } from '../../../workflows/helpers';
 import type { WorkflowManager } from '@convex-dev/workflow';
+import { Infer } from 'convex/values';
+import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -121,14 +125,17 @@ export async function executeWorkflowStart(
     {
       organizationId: args.organizationId,
       executionId: args.executionId,
-      workflowDefinition: definition,
-      steps: workflowData.steps,
-      input: args.input || {},
+      workflowDefinition: definition as unknown as ConvexJsonValue,
+      steps: workflowData.steps as unknown as ConvexJsonValue[],
+      input: (args.input || {}) as ConvexJsonValue,
       triggeredBy: args.triggeredBy,
-      triggerData: args.triggerData || {},
+      triggerData: (args.triggerData || {}) as ConvexJsonValue,
     },
     {
-      onComplete: internal.workflow_engine.engine.onWorkflowComplete,
+      // Type assertion: our onComplete handler accepts jsonValueValidator which is compatible
+      // with the workflow component's OnCompleteArgs at runtime, but not at compile time
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onComplete: internal.workflow_engine.engine.onWorkflowComplete as any,
       context: { executionId: args.executionId },
     },
   );
