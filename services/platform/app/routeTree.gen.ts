@@ -18,6 +18,7 @@ import { Route as DashboardCreateOrganizationRouteImport } from './routes/dashbo
 import { Route as DashboardIdRouteImport } from './routes/dashboard/$id'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthLogInRouteImport } from './routes/_auth/log-in'
+import { Route as DashboardIdIndexRouteImport } from './routes/dashboard/$id/index'
 import { Route as DashboardIdWebsitesRouteImport } from './routes/dashboard/$id/websites'
 import { Route as DashboardIdVendorsRouteImport } from './routes/dashboard/$id/vendors'
 import { Route as DashboardIdToneOfVoiceRouteImport } from './routes/dashboard/$id/tone-of-voice'
@@ -86,6 +87,11 @@ const AuthLogInRoute = AuthLogInRouteImport.update({
   id: '/log-in',
   path: '/log-in',
   getParentRoute: () => AuthRoute,
+} as any)
+const DashboardIdIndexRoute = DashboardIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardIdRoute,
 } as any)
 const DashboardIdWebsitesRoute = DashboardIdWebsitesRouteImport.update({
   id: '/websites',
@@ -233,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
   '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
+  '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -251,7 +258,6 @@ export interface FileRoutesByTo {
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
-  '/dashboard/$id': typeof DashboardIdRouteWithChildren
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
@@ -264,6 +270,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
   '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
+  '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -299,6 +306,7 @@ export interface FileRoutesById {
   '/dashboard/$id/tone-of-voice': typeof DashboardIdToneOfVoiceRoute
   '/dashboard/$id/vendors': typeof DashboardIdVendorsRoute
   '/dashboard/$id/websites': typeof DashboardIdWebsitesRoute
+  '/dashboard/$id/': typeof DashboardIdIndexRoute
   '/dashboard/$id/approvals/$status': typeof DashboardIdApprovalsStatusRoute
   '/dashboard/$id/automations/$amId': typeof DashboardIdAutomationsAmIdRouteWithChildren
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
@@ -334,6 +342,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
+    | '/dashboard/$id/'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -352,7 +361,6 @@ export interface FileRouteTypes {
     | '/convex-dashboard'
     | '/log-in'
     | '/sign-up'
-    | '/dashboard/$id'
     | '/dashboard/create-organization'
     | '/dashboard'
     | '/dashboard/$id/approvals'
@@ -365,6 +373,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
+    | '/dashboard/$id'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -399,6 +408,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/tone-of-voice'
     | '/dashboard/$id/vendors'
     | '/dashboard/$id/websites'
+    | '/dashboard/$id/'
     | '/dashboard/$id/approvals/$status'
     | '/dashboard/$id/automations/$amId'
     | '/dashboard/$id/chat/$threadId'
@@ -484,6 +494,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/log-in'
       preLoaderRoute: typeof AuthLogInRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/dashboard/$id/': {
+      id: '/dashboard/$id/'
+      path: '/'
+      fullPath: '/dashboard/$id/'
+      preLoaderRoute: typeof DashboardIdIndexRouteImport
+      parentRoute: typeof DashboardIdRoute
     }
     '/dashboard/$id/websites': {
       id: '/dashboard/$id/websites'
@@ -764,6 +781,7 @@ interface DashboardIdRouteChildren {
   DashboardIdToneOfVoiceRoute: typeof DashboardIdToneOfVoiceRoute
   DashboardIdVendorsRoute: typeof DashboardIdVendorsRoute
   DashboardIdWebsitesRoute: typeof DashboardIdWebsitesRoute
+  DashboardIdIndexRoute: typeof DashboardIdIndexRoute
 }
 
 const DashboardIdRouteChildren: DashboardIdRouteChildren = {
@@ -778,6 +796,7 @@ const DashboardIdRouteChildren: DashboardIdRouteChildren = {
   DashboardIdToneOfVoiceRoute: DashboardIdToneOfVoiceRoute,
   DashboardIdVendorsRoute: DashboardIdVendorsRoute,
   DashboardIdWebsitesRoute: DashboardIdWebsitesRoute,
+  DashboardIdIndexRoute: DashboardIdIndexRoute,
 }
 
 const DashboardIdRouteWithChildren = DashboardIdRoute._addFileChildren(
