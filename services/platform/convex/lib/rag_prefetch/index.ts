@@ -262,20 +262,36 @@ export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchC
     });
 
     // 4. Fetch RAG results
-    const result = await fetchRagResults({
-      query: expandedQuery,
-      datasets,
-      userId: options.userId,
-      top_k,
-    });
+    try {
+      const result = await fetchRagResults({
+        query: expandedQuery,
+        datasets,
+        userId: options.userId,
+        top_k,
+      });
 
-    debugLog('RAG prefetch completed', {
-      success: result.success,
-      total_results: result.total_results,
-      processing_time_ms: result.processing_time_ms,
-    });
+      debugLog('RAG prefetch completed', {
+        success: result.success,
+        total_results: result.total_results,
+        processing_time_ms: result.processing_time_ms,
+      });
 
-    return result;
+      return result;
+    } catch (fetchError) {
+      // RAG prefetch is non-critical - return empty result on failure
+      // This prevents the entire chat from failing when RAG service is unavailable
+      debugLog('RAG prefetch failed (non-fatal)', {
+        error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+      });
+
+      return {
+        success: false,
+        query: expandedQuery,
+        results: [],
+        total_results: 0,
+        processing_time_ms: 0,
+      };
+    }
   })();
 
   return {
