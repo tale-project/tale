@@ -2,11 +2,8 @@
  * Central export point for organizations model
  */
 
-// Validators
+// Validators (includes types like MemberRole)
 export * from './validators';
-
-// Types
-export * from './types';
 
 // Model operations
 export * from './get_current_organization';

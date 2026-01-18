@@ -5,7 +5,7 @@
 import { MutationCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import { createAuth, authComponent } from '../auth';
-import { Role } from './index';
+import type { Role } from './types';
 
 export interface CreateMemberArgs {
   organizationId: string;

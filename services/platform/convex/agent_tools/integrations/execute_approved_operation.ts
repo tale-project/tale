@@ -5,10 +5,26 @@
  */
 
 import { internalAction, internalMutation } from '../../_generated/server';
-import { v } from 'convex/values';
+import { v, Infer } from 'convex/values';
 import { internal } from '../../_generated/api';
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
-import type { IntegrationOperationMetadata } from '../../approvals/types';
+
+type ConvexJsonValue = Infer<typeof jsonValueValidator>;
+
+interface IntegrationOperationMetadataLocal {
+  integrationId: string;
+  integrationName: string;
+  integrationType: string;
+  operationName: string;
+  operationDescription?: string;
+  operationCategory?: string;
+  parameters?: Record<string, ConvexJsonValue>;
+  requiresApproval: boolean;
+  requestedAt?: number;
+  executedAt?: number;
+  executionResult?: ConvexJsonValue;
+  executionError?: string | null;
+}
 
 /**
  * Execute an approved integration operation
@@ -19,14 +35,14 @@ export const executeApprovedOperation = internalAction({
     approvedBy: v.string(),
   },
   returns: jsonValueValidator,
-  handler: async (ctx, args): Promise<unknown> => {
+  handler: async (ctx, args): Promise<ConvexJsonValue> => {
     // Get the approval record
     const approval: {
       _id: unknown;
       status: string;
       resourceType: string;
       organizationId: string;
-      metadata?: unknown;
+      metadata?: Record<string, ConvexJsonValue>;
     } | null = await ctx.runQuery(internal.approvals.queries.getApprovalInternal, {
       approvalId: args.approvalId,
     });
@@ -47,7 +63,7 @@ export const executeApprovedOperation = internalAction({
       );
     }
 
-    const metadata = approval.metadata as IntegrationOperationMetadata;
+    const metadata = approval.metadata as unknown as IntegrationOperationMetadataLocal | undefined;
 
     if (!metadata?.integrationName || !metadata?.operationName) {
       throw new Error(
@@ -57,14 +73,14 @@ export const executeApprovedOperation = internalAction({
 
     // Execute the integration operation with error handling
     try {
-      const result: unknown = await ctx.runAction(
+      const result = await ctx.runAction(
         internal.agent_tools.integrations.execute_integration_internal
           .executeIntegrationInternal,
         {
           organizationId: approval.organizationId,
           integrationName: metadata.integrationName,
           operation: metadata.operationName,
-          params: metadata.parameters,
+          params: metadata.parameters as Record<string, ConvexJsonValue> | undefined,
           skipApprovalCheck: true, // Skip approval check since we're executing an approved operation
         },
       );
@@ -75,12 +91,12 @@ export const executeApprovedOperation = internalAction({
           .updateApprovalWithResult,
         {
           approvalId: args.approvalId,
-          executionResult: result,
+          executionResult: result as ConvexJsonValue,
           executionError: null,
         },
       );
 
-      return result;
+      return result as ConvexJsonValue;
     } catch (error) {
       // Store the error in the approval record
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -115,7 +131,7 @@ export const updateApprovalWithResult = internalMutation({
     if (!approval) return;
 
     // Cast metadata - this mutation is only called for integration_operation approvals
-    const metadata = (approval.metadata || {}) as IntegrationOperationMetadata;
+    const metadata = (approval.metadata || {}) as unknown as IntegrationOperationMetadataLocal;
 
     await ctx.db.patch(args.approvalId, {
       executedAt: Date.now(),
@@ -123,9 +139,9 @@ export const updateApprovalWithResult = internalMutation({
       metadata: {
         ...metadata,
         executedAt: Date.now(),
-        executionResult: args.executionResult,
+        executionResult: args.executionResult as ConvexJsonValue,
         executionError: args.executionError || undefined,
-      },
+      } as Record<string, ConvexJsonValue>,
     });
   },
 });

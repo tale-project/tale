@@ -40,7 +40,8 @@ export async function addExampleMessage(
     content: args.content,
     createdAt: now,
     updatedAt: now,
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
   });
 
   return id;

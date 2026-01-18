@@ -6,6 +6,7 @@ import {
   ToastTitle,
   ToastDescription,
   ToastClose,
+  ToastAction,
 } from './toast';
 
 const meta: Meta<typeof Toast> = {

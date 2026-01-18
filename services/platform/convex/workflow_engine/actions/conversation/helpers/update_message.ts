@@ -15,7 +15,7 @@ export async function updateMessage(
   const emailTimestamp = new Date(email.date).getTime();
 
   await ctx.runMutation(
-    internal.conversations.updateConversationMessageInternal,
+    internal.conversations.mutations.updateConversationMessageInternal,
     {
       messageId,
       deliveryState: 'delivered',

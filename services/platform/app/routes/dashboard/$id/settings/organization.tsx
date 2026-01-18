@@ -63,11 +63,11 @@ function OrganizationSettingsPage() {
   });
   const members = useQuery(api.members.queries.listByOrganization, {
     organizationId,
-    sortOrder: 'asc',
   });
 
   if (
     memberContext === undefined ||
+    memberContext === null ||
     organization === undefined ||
     members === undefined
   ) {

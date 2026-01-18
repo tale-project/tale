@@ -70,7 +70,7 @@ export const hasWebsites = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId,
+        userId: authUser.userId ?? '',
         email: authUser.email,
         name: authUser.name,
       });
@@ -106,7 +106,7 @@ export const getAllWebsites = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId,
+        userId: authUser.userId ?? '',
         email: authUser.email,
         name: authUser.name,
       });

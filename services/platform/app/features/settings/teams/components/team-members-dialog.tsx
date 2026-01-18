@@ -35,7 +35,7 @@ export function TeamMembersDialog({
   // Fetch organization members from Convex (skip when dialog is closed)
   const orgMembers = useQuery(
     api.member.listByOrganization,
-    open ? { organizationId, sortOrder: 'asc' } : 'skip'
+    open ? { organizationId } : 'skip'
   );
 
   // Fetch team members directly from Convex
@@ -50,20 +50,20 @@ export function TeamMembersDialog({
 
   const isLoading = teamMembers === undefined;
 
+  type OrgMember = NonNullable<typeof orgMembers>[number];
+  type TeamMember = NonNullable<typeof teamMembers>[number];
+
   // Get members that are not yet in the team
   const availableMembers = useMemo(() => {
     if (!orgMembers || !teamMembers) return [];
-    const teamMemberIds = new Set(teamMembers.map((m) => m.userId));
-    return orgMembers.filter(
-      (m): m is typeof m & { identityId: string } =>
-        !!m.identityId && !teamMemberIds.has(m.identityId)
-    );
+    const teamMemberIds = new Set(teamMembers.map((m: TeamMember) => m.userId));
+    return orgMembers.filter((m: OrgMember) => !!m.userId && !teamMemberIds.has(m.userId));
   }, [orgMembers, teamMembers]);
 
   // Create a lookup map for member details
   const memberDetailsMap = useMemo(() => {
-    if (!orgMembers) return new Map<string, NonNullable<typeof orgMembers>[number]>();
-    return new Map(orgMembers.map((m) => [m.identityId, m]));
+    if (!orgMembers) return new Map<string, OrgMember>();
+    return new Map(orgMembers.map((m: OrgMember) => [m.userId, m]));
   }, [orgMembers]);
 
   const handleAddMember = async () => {
@@ -74,6 +74,7 @@ export function TeamMembersDialog({
       await addTeamMember({
         teamId: team.id,
         userId: selectedMemberId,
+        organizationId,
       });
 
       toast({
@@ -93,12 +94,12 @@ export function TeamMembersDialog({
     }
   };
 
-  const handleRemoveMember = async (userId: string) => {
-    setRemovingMemberId(userId);
+  const handleRemoveMember = async (teamMemberId: string) => {
+    setRemovingMemberId(teamMemberId);
     try {
       await removeTeamMember({
-        teamId: team.id,
-        userId,
+        teamMemberId,
+        organizationId,
       });
 
       toast({
@@ -132,8 +133,8 @@ export function TeamMembersDialog({
               placeholder={tSettings('teams.selectMember')}
               options={
                 availableMembers.length > 0
-                  ? availableMembers.map((m) => ({
-                      value: m.identityId,
+                  ? availableMembers.map((m: OrgMember) => ({
+                      value: m.userId,
                       label: m.displayName || m.email || 'Unknown',
                     }))
                   : []
@@ -172,7 +173,7 @@ export function TeamMembersDialog({
               </p>
             </div>
           ) : (
-            teamMembers.map((member) => {
+            teamMembers.map((member: TeamMember) => {
               const details = memberDetailsMap.get(member.userId);
               const hasDistinctName = details?.displayName && details.displayName !== details.email;
               return (
@@ -195,8 +196,8 @@ export function TeamMembersDialog({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleRemoveMember(member.userId)}
-                    disabled={removingMemberId === member.userId}
+                    onClick={() => handleRemoveMember(member._id)}
+                    disabled={removingMemberId === member._id}
                     className="text-destructive hover:text-destructive hover:bg-destructive/10"
                     aria-label={tSettings('teams.removeMember')}
                   >

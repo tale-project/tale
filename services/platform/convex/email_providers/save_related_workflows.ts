@@ -59,7 +59,7 @@ export async function saveRelatedWorkflows(
   // Check all existing workflows in parallel
   const existingWorkflows = await Promise.all(
     workflowsToSave.map(({ def }) =>
-      ctx.runQuery(internal.wf_definitions.queries.getWorkflowByName.getWorkflowByName, {
+      ctx.runQuery(internal.wf_definitions.queries.getWorkflow.getWorkflowByName, {
         organizationId: args.organizationId,
         name: def.workflowConfig.name,
       }),
@@ -123,11 +123,11 @@ export async function saveRelatedWorkflows(
       ),
     );
 
-    const newWorkflowIds = results.map((r) => r.workflowId);
+    const newWorkflowIds = results.map((r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId);
 
     // Activate all new workflows in parallel
     await Promise.all(
-      newWorkflowIds.map((workflowId) =>
+      newWorkflowIds.map((workflowId: Id<'wfDefinitions'>) =>
         ctx.runMutation(internal.wf_definitions.mutations.updateWorkflow.updateWorkflowStatus, {
           wfDefinitionId: workflowId,
           status: 'active',

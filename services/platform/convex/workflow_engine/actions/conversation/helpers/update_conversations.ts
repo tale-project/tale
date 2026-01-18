@@ -10,7 +10,7 @@ export async function updateConversations(
     updates: Record<string, unknown>;
   },
 ) {
-  await ctx.runMutation(internal.conversations.updateConversations, {
+  await ctx.runMutation(internal.conversations.mutations.updateConversations, {
     organizationId: params.organizationId,
     conversationId: params.conversationId,
     updates: params.updates,
@@ -18,7 +18,7 @@ export async function updateConversations(
 
   // Fetch and return the updated entity
   const updatedConversation = await ctx.runQuery(
-    internal.conversations.getConversationById,
+    internal.conversations.queries.getConversationById,
     { conversationId: params.conversationId },
   );
 

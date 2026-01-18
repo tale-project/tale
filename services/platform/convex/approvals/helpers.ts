@@ -5,7 +5,7 @@
  */
 
 import type { QueryCtx, MutationCtx } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
+import type { Id, Doc } from '../_generated/dataModel';
 import { components } from '../_generated/api';
 import type {
   ApprovalItem,
@@ -18,6 +18,8 @@ import type {
   RemoveRecommendedProductArgs,
   LinkApprovalsToMessageArgs,
 } from './types';
+
+type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
 // =============================================================================
 // QUERY HELPERS
@@ -275,9 +277,9 @@ export async function createApproval(
     threadId: args.threadId,
     messageId: args.messageId,
     metadata: {
-      requestedBy: args.requestedBy,
       createdAt: Date.now(),
-      description: args.description,
+      ...(args.requestedBy ? { requestedBy: args.requestedBy } : {}),
+      ...(args.description ? { description: args.description } : {}),
       ...(args.metadata as Record<string, unknown>),
     },
   });
@@ -330,13 +332,16 @@ export async function removeRecommendedProduct(
     throw new Error('Cannot modify products in non-pending approvals');
   }
 
-  const metadata = (approval.metadata || {}) as Record<string, unknown>;
+  const metadata = approval.metadata || {};
   const recommendedProducts = Array.isArray(metadata.recommendedProducts)
-    ? (metadata.recommendedProducts as Array<Record<string, unknown>>)
+    ? metadata.recommendedProducts
     : [];
 
   const updatedProducts = recommendedProducts.filter((product) => {
-    const id = product['productId'];
+    if (typeof product !== 'object' || product === null || Array.isArray(product)) {
+      return true;
+    }
+    const id = (product as Record<string, unknown>)['productId'];
     return id !== args.productId;
   });
 
@@ -344,7 +349,7 @@ export async function removeRecommendedProduct(
     metadata: {
       ...metadata,
       recommendedProducts: updatedProducts,
-    },
+    } as ApprovalMetadata,
   });
 }
 

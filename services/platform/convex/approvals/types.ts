@@ -105,7 +105,7 @@ export interface ListPendingApprovalsArgs {
 
 export interface ListApprovalsByOrganizationArgs {
   organizationId: string;
-  status: 'pending' | 'resolved';
+  status?: ApprovalStatus;
   resourceType?: string | string[];
   search?: string;
   limit?: number;

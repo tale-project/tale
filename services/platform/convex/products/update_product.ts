@@ -46,7 +46,8 @@ export async function updateProduct(
   if (args.tags !== undefined) updates.tags = args.tags;
   if (args.status !== undefined) updates.status = args.status;
   if (args.translations !== undefined) updates.translations = args.translations;
-  if (args.metadata !== undefined) updates.metadata = args.metadata;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (args.metadata !== undefined) updates.metadata = args.metadata as any;
 
   await ctx.db.patch(args.productId, updates);
   return args.productId;

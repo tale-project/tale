@@ -201,7 +201,7 @@ export function AutomationNavigation({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              {versions.map((version) => (
+              {versions.map((version: Doc<'wfDefinitions'>) => (
                 <DropdownMenuItem
                   key={version._id}
                   onClick={() => handleVersionChange(version._id)}

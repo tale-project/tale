@@ -17,7 +17,7 @@ import { formatDate } from '@/lib/utils/date/format';
 import { useQuery } from 'convex/react';
 import { useLocale } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
-import type { Id, Doc } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
 import { useRemoveRecommendedProduct } from '../hooks/use-remove-recommended-product';
 import { CellErrorBoundary } from '@/app/components/error-boundaries/boundaries/cell-error-boundary';
@@ -27,7 +27,25 @@ import {
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
 
-type ApprovalDoc = Doc<'approvals'>;
+type ApprovalItem = {
+  _id: string;
+  _creationTime: number;
+  organizationId: string;
+  wfExecutionId?: string;
+  stepSlug?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  reviewedAt?: number;
+  resourceType: string;
+  resourceId: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate?: number;
+  executedAt?: number;
+  executionError?: string;
+  metadata?: Record<string, unknown>;
+  threadId?: string;
+  messageId?: string;
+};
 
 interface ApprovalsClientProps {
   status?: 'pending' | 'resolved';
@@ -95,10 +113,9 @@ export function ApprovalsClient({
   const [approvalDetailDialogOpen, setApprovalDetailDialogOpen] =
     useState(false);
 
-  const queryStatus = status === 'pending' ? 'pending' : 'resolved';
   const approvals = useQuery(api.approvals.queries.getApprovalsByOrganization, {
     organizationId,
-    status: queryStatus,
+    status: status === 'pending' ? 'pending' : undefined,
     resourceType: ['product_recommendation'],
     search: search || undefined,
     limit: 500,
@@ -113,7 +130,7 @@ export function ApprovalsClient({
 
   const handleApprove = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.member?._id) {
+      if (!memberContext?.memberId) {
         toast({
           title: t('toast.loginRequired'),
           variant: 'destructive',
@@ -126,7 +143,6 @@ export function ApprovalsClient({
         await updateApprovalStatus({
           approvalId: approvalId as Id<'approvals'>,
           status: 'approved',
-          approvedBy: memberContext.member._id,
           comments: 'Approved via UI',
         });
       } catch (error) {
@@ -139,12 +155,12 @@ export function ApprovalsClient({
         setApproving(null);
       }
     },
-    [memberContext?.member?._id, updateApprovalStatus, t],
+    [memberContext?.memberId, updateApprovalStatus, t],
   );
 
   const handleReject = useCallback(
     async (approvalId: string) => {
-      if (!memberContext?.member?._id) {
+      if (!memberContext?.memberId) {
         toast({
           title: t('toast.loginRequired'),
           variant: 'destructive',
@@ -157,7 +173,6 @@ export function ApprovalsClient({
         await updateApprovalStatus({
           approvalId: approvalId as Id<'approvals'>,
           status: 'rejected',
-          approvedBy: memberContext.member._id,
           comments: 'Rejected via UI',
         });
       } catch (error) {
@@ -170,12 +185,12 @@ export function ApprovalsClient({
         setRejecting(null);
       }
     },
-    [memberContext?.member?._id, updateApprovalStatus, t],
+    [memberContext?.memberId, updateApprovalStatus, t],
   );
 
   const handleRemoveRecommendation = useCallback(
     async (approvalId: string, productId: string) => {
-      if (!memberContext?.member?._id) {
+      if (!memberContext?.memberId) {
         toast({
           title: t('toast.loginRequired'),
           variant: 'destructive',
@@ -199,7 +214,7 @@ export function ApprovalsClient({
         setRemovingProductId(null);
       }
     },
-    [memberContext?.member?._id, removeRecommendedProduct, t],
+    [memberContext?.memberId, removeRecommendedProduct, t],
   );
 
   const handleApprovalRowClick = useCallback((approvalId: string) => {
@@ -217,7 +232,7 @@ export function ApprovalsClient({
   const getApprovalDetail = useCallback(
     (approvalId: string): ApprovalDetail | null => {
       if (!approvals) return null;
-      const approval = approvals.find((a) => a._id === approvalId);
+      const approval = approvals.find((a: ApprovalItem) => a._id === approvalId);
       if (!approval) return null;
 
       const metadata = (approval.metadata || {}) as Record<string, unknown>;
@@ -416,7 +431,7 @@ export function ApprovalsClient({
   );
 
   const getCustomerLabel = useCallback(
-    (approval: ApprovalDoc) => {
+    (approval: ApprovalItem) => {
       const metadata = (approval.metadata || {}) as Record<string, unknown>;
       return (
         safeGetString(metadata, 'customerName', '').trim() ||
@@ -427,7 +442,7 @@ export function ApprovalsClient({
     [t],
   );
 
-  const getConfidencePercent = useCallback((approval: ApprovalDoc) => {
+  const getConfidencePercent = useCallback((approval: ApprovalItem) => {
     const metadata = (approval.metadata || {}) as Record<string, unknown>;
     const recs = safeGetArray(metadata, 'recommendedProducts', []);
     const firstConf =
@@ -445,7 +460,7 @@ export function ApprovalsClient({
     return <ApprovalsSkeleton status={status} />;
   }
 
-  const pendingColumns: ColumnDef<ApprovalDoc>[] = [
+  const pendingColumns: ColumnDef<ApprovalItem>[] = [
     {
       id: 'approval',
       header: t('columns.approvalRecipient'),
@@ -581,7 +596,7 @@ export function ApprovalsClient({
     },
   ];
 
-  const resolvedColumns: ColumnDef<ApprovalDoc>[] = [
+  const resolvedColumns: ColumnDef<ApprovalItem>[] = [
     {
       id: 'approval',
       header: t('columns.approvalRecipient'),

@@ -18,10 +18,10 @@ import { components } from '../_generated/api';
 import type {
   SubAgentType,
   ThreadSummaryWithSubThreads,
-} from '../../agent_tools/sub_agents/helpers/types';
+} from '../agent_tools/sub_agents/helpers/types';
 
 // Re-export for consumers that import from this module
-export type { SubAgentType } from '../../agent_tools/sub_agents/helpers/types';
+export type { SubAgentType } from '../agent_tools/sub_agents/helpers/types';
 
 /** Result of get or create operation */
 export interface GetOrCreateSubThreadResult {

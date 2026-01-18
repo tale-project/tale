@@ -117,7 +117,8 @@ export async function createIntegrationInternal(
     sqlConnectionConfig,
     sqlOperations,
     lastTestedAt: Date.now(),
-    metadata: args.metadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: args.metadata as any,
   });
 
   return integrationId;

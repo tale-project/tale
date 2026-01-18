@@ -18,7 +18,7 @@ export async function loadAndValidateExecution(
   stepSlug: string,
 ): Promise<LoadExecutionResult> {
   // Load execution to get wfDefinitionId and workflowConfig
-  const execution = await ctx.runQuery(internal.wf_executions.queries.getExecution.getExecution, {
+  const execution = await ctx.runQuery(internal.wf_executions.queries.getExecution, {
     executionId: executionId as Id<'wfExecutions'>,
   });
 
@@ -36,7 +36,7 @@ export async function loadAndValidateExecution(
     debugLog('loadAndValidateExecution Variables in storage, fetching...');
     // Get the raw execution to access the serialized variables string
     const rawExecution = await ctx.runQuery(
-      internal.wf_executions.queries.getExecution.getRawExecution,
+      internal.wf_executions.queries.getRawExecution,
       { executionId: executionId as Id<'wfExecutions'> },
     );
     if (rawExecution?.variables) {

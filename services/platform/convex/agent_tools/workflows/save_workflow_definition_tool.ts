@@ -12,7 +12,7 @@
  * - Config structure for each step type
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';

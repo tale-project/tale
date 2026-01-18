@@ -7,7 +7,7 @@
  * 2. Detail mode: Returns full details for a specific operation
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
@@ -52,7 +52,7 @@ Returns operation names and types. Use 'operation' param to get parameter detail
 
       // Fetch the specific integration
       const integration = await ctx.runQuery(
-        internal.integrations.queries.get_by_name.getByNameInternal,
+        internal.integrations.queries.getByName,
         { organizationId, name: args.integrationName },
       );
 

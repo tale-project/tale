@@ -48,7 +48,7 @@ function TeamsSettingsPage() {
     organizationId,
   });
 
-  if (memberContext === undefined) {
+  if (memberContext === undefined || memberContext === null) {
     return <TeamsSettingsSkeleton />;
   }
 

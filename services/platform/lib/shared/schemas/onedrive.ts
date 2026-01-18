@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export const syncConfigStatusLiterals = ['active', 'inactive', 'error'] as const;
 export const syncConfigStatusSchema = z.enum(syncConfigStatusLiterals);

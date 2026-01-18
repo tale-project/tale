@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils/cn';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import type { ConversationItem } from '@/convex/model/conversations/types';
+import type { ConversationItem } from '@/convex/conversations/types';
 import { useBulkCloseConversations } from '../hooks/use-bulk-close-conversations';
 import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversations';
 import { useAddMessage } from '../hooks/use-add-message';

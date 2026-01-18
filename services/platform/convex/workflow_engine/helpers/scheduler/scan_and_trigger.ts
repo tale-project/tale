@@ -3,12 +3,21 @@
  */
 
 import { ActionCtx } from '../../../_generated/server';
+import type { Id } from '../../../_generated/dataModel';
 import { internal, api } from '../../../_generated/api';
 import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
+
+interface ScheduledWorkflow {
+  wfDefinitionId: Id<'wfDefinitions'>;
+  organizationId: string;
+  name: string;
+  schedule: string;
+  timezone?: string;
+}
 
 export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
   try {
@@ -18,13 +27,13 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
     const scheduled = await ctx.runQuery(
       internal.workflow_engine.scheduler.getScheduledWorkflows,
       {},
-    );
+    ) as ScheduledWorkflow[];
 
     debugLog(`Found ${scheduled.length} scheduled workflows`);
 
     // OPTIMIZATION: Batch load last execution times for all scheduled workflows
     // to avoid N+1 query problem
-    const wfDefinitionIds = scheduled.map((wf) => wf.wfDefinitionId);
+    const wfDefinitionIds = scheduled.map((wf: ScheduledWorkflow) => wf.wfDefinitionId);
     const lastExecutionTimesObj = await ctx.runQuery(
       internal.workflow_engine.scheduler.getLastExecutionTimes,
       { wfDefinitionIds },

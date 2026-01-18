@@ -11,13 +11,7 @@ import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-ske
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Search, Home, Loader2, Database, X, Users } from 'lucide-react';
-import type { DriveItem } from '@/types/microsoft-graph';
-import {
-  isFolder,
-  isFile,
-  formatFileSize,
-  formatDate,
-} from '@/lib/utils/onedrive-helpers';
+import { formatFileSize, formatDate } from '@/lib/utils/onedrive-helpers';
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -27,6 +21,21 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
 import { camelCase } from 'lodash';
 import { useT } from '@/lib/i18n/client';
+
+// Normalized OneDrive item type returned by Convex action
+type OneDriveApiItem = {
+  id: string;
+  name: string;
+  size: number;
+  isFolder: boolean;
+  mimeType?: string;
+  lastModified?: number;
+  childCount?: number;
+  webUrl?: string;
+};
+
+const isFolder = (item: OneDriveApiItem): boolean => item.isFolder;
+const isFile = (item: OneDriveApiItem): boolean => !item.isFolder;
 
 interface OneDriveImportDialogProps {
   open?: boolean;
@@ -40,7 +49,7 @@ type Stage = 'picker' | 'settings';
 
 const noop = () => {};
 
-type OneDriveItem = {
+type OneDriveSelectedItem = {
   id: string;
   name: string;
   path: string;
@@ -49,17 +58,17 @@ type OneDriveItem = {
 };
 
 interface OneDriveFileTableProps {
-  items: DriveItem[];
+  items: OneDriveApiItem[];
   isLoading: boolean;
   isMicrosoftAccountError: boolean;
   searchQuery: string;
-  selectedItems: Map<string, OneDriveItem>;
+  selectedItems: Map<string, OneDriveSelectedItem>;
   getSelectAllState: () => boolean | 'indeterminate';
   handleSelectAllChange: (checked: boolean | 'indeterminate') => void;
-  getCheckedState: (item: OneDriveItem) => boolean;
+  getCheckedState: (item: OneDriveSelectedItem) => boolean;
   handleCheckChange: (itemId: string, isSelected: boolean) => void;
-  handleFolderClick: (folder: DriveItem) => void;
-  buildItemPath: (item: DriveItem) => string;
+  handleFolderClick: (folder: OneDriveApiItem) => void;
+  buildItemPath: (item: OneDriveApiItem) => string;
 }
 
 function OneDriveFileTable({
@@ -77,7 +86,7 @@ function OneDriveFileTable({
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
-  const columns = useMemo<ColumnDef<DriveItem>[]>(
+  const columns = useMemo<ColumnDef<OneDriveApiItem>[]>(
     () => [
       {
         id: 'select',
@@ -140,7 +149,9 @@ function OneDriveFileTable({
         header: () => <div className="text-right">{tTables('headers.modified')}</div>,
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
-            {formatDate(row.original.lastModifiedDateTime)}
+            {row.original.lastModified
+              ? formatDate(new Date(row.original.lastModified).toISOString())
+              : ''}
           </div>
         ),
       },
@@ -212,7 +223,7 @@ export function OneDriveImportDialog({
   const { t: tCommon } = useT('common');
 
   // OneDrive file listing via Convex action
-  const listOneDriveFiles = useAction(api.onedrive.listFiles);
+  const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
@@ -226,7 +237,7 @@ export function OneDriveImportDialog({
 
   // File picker state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Map<string, OneDriveItem>>(
+  const [selectedItems, setSelectedItems] = useState<Map<string, OneDriveSelectedItem>>(
     new Map(),
   );
   const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(
@@ -266,10 +277,10 @@ export function OneDriveImportDialog({
     queryFn: async () => {
       try {
         const result = await listOneDriveFiles({ folderId: currentFolderId });
-        if (!result.success || !result.data) {
+        if (!result.success || !result.items) {
           throw new Error(result.error || t('onedrive.loadFailed'));
         }
-        return result.data.value;
+        return result.items;
       } catch (error) {
         toast({
           title: t('onedrive.loadFailed'),
@@ -290,7 +301,7 @@ export function OneDriveImportDialog({
 
   // Function to recursively collect all files from folders with path preservation
   const collectAllFiles = async (
-    items: DriveItem[],
+    items: OneDriveApiItem[],
     currentPath: string = '',
     directlySelectedItems?: Set<string>,
     selectedParentInfo?: { id: string; name: string; path: string } | null,
@@ -335,10 +346,9 @@ export function OneDriveImportDialog({
           // Get files from this folder
           const folderResult = await listOneDriveFiles({
             folderId: item.id,
-            pageSize: 100,
           });
 
-          if (folderResult.success && folderResult.data) {
+          if (folderResult.success && folderResult.items) {
             // Build the path for files in this folder
             const folderPath = currentPath
               ? `${currentPath}/${item.name}`
@@ -355,7 +365,7 @@ export function OneDriveImportDialog({
 
             // Recursively collect files from subfolders
             const subFiles = await collectAllFiles(
-              folderResult.data.value,
+              folderResult.items,
               folderPath,
               directlySelectedItems,
               parentInfoForSubFiles,
@@ -554,7 +564,7 @@ export function OneDriveImportDialog({
   };
 
   // Helper function to build hierarchical path for an item
-  const buildItemPath = (item: DriveItem): string => {
+  const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts = [];
 
     // Add each folder in the current navigation path
@@ -571,7 +581,7 @@ export function OneDriveImportDialog({
   };
 
   // Simple selection state - each item is independently selectable
-  const getCheckedState = (item: OneDriveItem): boolean => {
+  const getCheckedState = (item: OneDriveSelectedItem): boolean => {
     return selectedItems.has(item.id);
   };
 
@@ -580,7 +590,7 @@ export function OneDriveImportDialog({
 
     if (isSelected) {
       // Find the item details and store with path
-      const item = (itemsData || []).find((i: DriveItem) => i.id === itemId);
+      const item = (itemsData || []).find((i: OneDriveApiItem) => i.id === itemId);
       if (item) {
         newSelectedItems.set(itemId, {
           id: item.id,
@@ -601,7 +611,7 @@ export function OneDriveImportDialog({
   const selectAllVisible = () => {
     const newSelectedItems = new Map(selectedItems);
 
-    filteredItems.forEach((item: DriveItem) => {
+    filteredItems.forEach((item: OneDriveApiItem) => {
       newSelectedItems.set(item.id, {
         id: item.id,
         name: item.name,
@@ -621,7 +631,7 @@ export function OneDriveImportDialog({
   const getSelectAllState = (): boolean | 'indeterminate' => {
     if (filteredItems.length === 0) return false;
 
-    const selectedCount = filteredItems.filter((item: DriveItem) =>
+    const selectedCount = filteredItems.filter((item: OneDriveApiItem) =>
       selectedItems.has(item.id),
     ).length;
 
@@ -640,7 +650,7 @@ export function OneDriveImportDialog({
     }
   };
 
-  const handleFolderClick = (folder: DriveItem) => {
+  const handleFolderClick = (folder: OneDriveApiItem) => {
     setCurrentFolderId(folder.id);
     setFolderPath([...folderPath, { id: folder.id, name: folder.name }]);
     // Clear selections when navigating to a new folder
@@ -676,34 +686,17 @@ export function OneDriveImportDialog({
       const abortController = new AbortController();
       setSyncAbortController(abortController);
 
-      // Convert selected items to DriveItem format for collectAllFiles
-      const driveItems: DriveItem[] = selectedItemsArray.map((item: OneDriveItem) => ({
+      // Convert selected items to OneDriveApiItem format for collectAllFiles
+      const driveItems: OneDriveApiItem[] = selectedItemsArray.map((item: OneDriveSelectedItem) => ({
         id: item.id,
         name: item.name,
-        // Add required DriveItem properties
-        lastModifiedDateTime: '',
-        createdDateTime: '',
         size: item.size ?? 0,
-        webUrl: '',
-        parentReference: {
-          driveId: '',
-          driveType: 'personal',
-          id: '',
-          path: '',
-        },
-        // Determine if it's a folder or file based on type
-        ...(item.type === 'folder'
-          ? {
-              folder: { childCount: 0 },
-            }
-          : {
-              file: { mimeType: '' },
-            }),
+        isFolder: item.type === 'folder',
       }));
 
       // Create Set of directly selected item IDs
       const directlySelectedIds = new Set(
-        selectedItemsArray.map((item: OneDriveItem) => item.id),
+        selectedItemsArray.map((item: OneDriveSelectedItem) => item.id),
       );
 
       // Convert current folder path to relative path string
@@ -772,7 +765,7 @@ export function OneDriveImportDialog({
     }
   };
 
-  const filteredItems = (itemsData || []).filter((item: DriveItem) =>
+  const filteredItems = (itemsData || []).filter((item: OneDriveApiItem) =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
@@ -1008,7 +1001,7 @@ export function OneDriveImportDialog({
               </div>
             ) : (
               <Stack gap={2}>
-                {teams.map((team) => (
+                {teams.map((team: { id: string; name: string }) => (
                   <div
                     key={team.id}
                     className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"

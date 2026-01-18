@@ -34,6 +34,6 @@ export function useVendorsData(options: UseVendorsDataOptions) {
 
   return useVendorsDataBase({
     ...rest,
-    filters: { source, locale } as VendorFilters,
+    filters: { source, locale },
   });
 }

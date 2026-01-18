@@ -13,7 +13,7 @@ interface ViewProductDialogProps {
   isOpen: boolean;
   onClose: () => void;
   product: {
-    id: string;
+    _id: string;
     name: string;
     description?: string;
     imageUrl?: string;

@@ -1,5 +1,5 @@
 /**
- * Custom query with RLS enforcement using convex-helpers/zod3
+ * Custom query with RLS enforcement using convex-helpers/zod4
  * Allows using Zod schemas for argument validation
  */
 
@@ -8,8 +8,9 @@ import {
 	wrapDatabaseReader,
 	type RLSConfig,
 } from 'convex-helpers/server/rowLevelSecurity';
-import { zCustomQuery } from 'convex-helpers/server/zod3';
-import { query } from '../../../_generated/server';
+import { zCustomQuery } from 'convex-helpers/server/zod4';
+import { query, type QueryCtx } from '../../../_generated/server';
+import type { DataModel } from '../../../_generated/dataModel';
 import { getAuthenticatedUser } from '../auth/get_authenticated_user';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { rlsRules } from './rls_rules';
@@ -28,7 +29,7 @@ const rlsConfig: RLSConfig = {
  *
  * Example:
  * ```ts
- * import { z } from 'zod';
+ * import { z } from 'zod/v4';
  * import { zQueryWithRLS } from './z_query_with_rls';
  *
  * export const getProducts = zQueryWithRLS({
@@ -42,13 +43,13 @@ const rlsConfig: RLSConfig = {
  */
 export const zQueryWithRLS = zCustomQuery(
 	query,
-	customCtx(async (ctx) => {
+	customCtx(async (ctx: QueryCtx) => {
 		const rules = await rlsRules(ctx);
 		const user = await getAuthenticatedUser(ctx);
 		const userOrganizations = user ? await getUserOrganizations(ctx, user) : [];
 
 		return {
-			db: wrapDatabaseReader(
+			db: wrapDatabaseReader<{ user: typeof user; userOrganizations: typeof userOrganizations }, DataModel>(
 				{ user, userOrganizations },
 				ctx.db,
 				rules,

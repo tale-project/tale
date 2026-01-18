@@ -103,8 +103,13 @@ export async function transformConversation(
       console.warn('Message missing sentAt:', m._id);
     }
 
+    const rawAttachment = (m.metadata as { attachment?: unknown })?.attachment;
+    const attachment = rawAttachment && typeof rawAttachment === 'object' && rawAttachment !== null
+      ? (rawAttachment as { url: string; filename: string; contentType?: string; size?: number })
+      : undefined;
+
     return {
-      id: m._id,
+      id: String(m._id),
       sender:
         (m.metadata as { sender?: string })?.sender ||
         (m.direction === 'inbound' ? 'Customer' : 'Agent'),
@@ -112,7 +117,7 @@ export async function transformConversation(
       timestamp,
       isCustomer: m.direction === 'inbound',
       status: (m.deliveryState as 'queued' | 'sent' | 'delivered' | 'failed') || 'sent',
-      attachment: (m.metadata as { attachment?: unknown })?.attachment,
+      attachment,
     };
   });
 
@@ -124,7 +129,8 @@ export async function transformConversation(
     resourceId: conversation._id,
   });
 
-  return {
+  // Base result conforming to ConversationItem type
+  const result = {
     ...conversation,
     id: conversation._id,
     title: conversation.subject || 'Untitled Conversation',
@@ -154,4 +160,6 @@ export async function transformConversation(
     messages,
     pendingApproval: pendingApproval || undefined,
   };
+
+  return result as ConversationItem;
 }

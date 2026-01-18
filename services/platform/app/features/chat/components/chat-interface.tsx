@@ -186,6 +186,7 @@ export function ChatInterface({
             <ChatMessages
               items={mergedChatItems}
               threadId={threadId}
+              organizationId={organizationId}
               canLoadMore={canLoadMore}
               isLoadingMore={isLoadingMore}
               loadMore={loadMore}

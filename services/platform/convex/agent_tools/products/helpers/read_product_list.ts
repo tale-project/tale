@@ -17,7 +17,7 @@ export async function readProductList(
   const numItems = args.numItems ?? 200;
   const cursor = args.cursor ?? null;
 
-  const result = await ctx.runQuery(internal.products.listByOrganization, {
+  const result = await ctx.runQuery(internal.products.queries.listByOrganization, {
     organizationId,
     paginationOpts: {
       numItems,

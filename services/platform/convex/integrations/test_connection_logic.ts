@@ -40,7 +40,7 @@ export async function testConnectionLogic(
 
     if (integration.apiKeyAuth) {
       const key = await ctx.runAction(internal.lib.crypto.actions.decryptStringInternal, {
-        encrypted: integration.apiKeyAuth.keyEncrypted,
+        jwe: integration.apiKeyAuth.keyEncrypted,
       });
 
       // Test Shopify connection
@@ -57,7 +57,7 @@ export async function testConnectionLogic(
       const password = await ctx.runAction(
         internal.lib.crypto.actions.decryptStringInternal,
         {
-          encrypted: integration.basicAuth.passwordEncrypted,
+          jwe: integration.basicAuth.passwordEncrypted,
         },
       );
 
@@ -74,7 +74,7 @@ export async function testConnectionLogic(
       throw new Error(`Testing not implemented for ${integration.name}`);
     }
 
-    await ctx.runMutation(internal.integrations.mutations.update_integration_internal.updateIntegrationInternal, {
+    await ctx.runMutation(internal.integrations.internal_mutations.update_integration_internal.updateIntegrationInternal, {
       integrationId: args.integrationId,
       status: 'active',
       isActive: true,
@@ -95,7 +95,7 @@ export async function testConnectionLogic(
       error,
     );
 
-    await ctx.runMutation(internal.integrations.mutations.update_integration_internal.updateIntegrationInternal, {
+    await ctx.runMutation(internal.integrations.internal_mutations.update_integration_internal.updateIntegrationInternal, {
       integrationId: args.integrationId,
       status: 'error',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',

@@ -10,7 +10,13 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 interface MemberContext {
-  canChangePassword?: boolean;
+  memberId: string;
+  organizationId: string;
+  userId: string;
+  role: 'admin' | 'member' | 'editor' | 'developer' | 'disabled';
+  createdAt: number;
+  displayName?: string;
+  isAdmin: boolean;
 }
 
 interface AccountFormClientProps {
@@ -69,16 +75,6 @@ export function AccountFormClient({
       });
     }
   };
-
-  if (memberContext && !memberContext.canChangePassword) {
-    return (
-      <NarrowContainer className="py-4">
-        <div className="text-sm text-muted-foreground">
-          {tAuth('changePassword.ssoMessage')}
-        </div>
-      </NarrowContainer>
-    );
-  }
 
   return (
     <NarrowContainer className="p-0!">

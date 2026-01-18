@@ -32,7 +32,7 @@ export async function decryptAndRefreshOAuth2Token(
   ctx: ActionCtx,
   providerId: Doc<'emailProviders'>['_id'],
   oauth2Auth: OAuth2Provider,
-  decryptAction: (encrypted: string) => Promise<string>,
+  decryptAction: (jwe: string) => Promise<string>,
   refreshTokenAction: (params: {
     provider: string;
     clientId: string;
@@ -153,7 +153,7 @@ export async function decryptAndRefreshOAuth2Token(
  */
 export async function decryptPasswordAuth(
   passwordAuth: { user: string; passEncrypted: string },
-  decryptAction: (encrypted: string) => Promise<string>,
+  decryptAction: (jwe: string) => Promise<string>,
 ): Promise<{ user: string; pass: string }> {
   try {
     const decryptedPass = await decryptAction(passwordAuth.passEncrypted);

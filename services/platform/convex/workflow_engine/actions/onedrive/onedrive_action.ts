@@ -142,7 +142,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       case 'get_user_token': {
         // Get Microsoft Graph token for the specific user
         const result = await ctx.runQuery!(
-          internal.onedrive.getUserMicrosoftGraphToken,
+          internal.onedrive.queries.getUserToken,
           {
             userId: params.userId, // Required by validator
           },
@@ -161,7 +161,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       case 'refresh_token': {
         // Refresh the Microsoft Graph token
         const result = await ctx.runAction!(
-          internal.onedrive.refreshMicrosoftGraphToken,
+          internal.onedrive.internal_actions.refreshToken,
           {
             accountId: params.accountId, // Required by validator
             refreshToken: params.refreshToken, // Required by validator
@@ -181,7 +181,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       case 'read_file': {
         // Read file from OneDrive using Microsoft Graph API
         const result = await ctx.runAction!(
-          internal.onedrive.readFileFromOneDrive,
+          internal.onedrive.internal_actions.readFileFromOneDrive,
           {
             itemId: params.itemId, // Required by validator
             token: params.token, // Required by validator
@@ -208,7 +208,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
         }
 
         // Upload file to Convex storage
-        const result = await ctx.runAction!(internal.onedrive.uploadToStorage, {
+        const result = await ctx.runAction!(internal.onedrive.internal_actions.uploadToStorage, {
           organizationId,
           fileName: params.fileName, // Required by validator
           fileData:
@@ -235,7 +235,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
       case 'list_folder_contents': {
         // List files in OneDrive folder using Microsoft Graph API
         const result = await ctx.runAction!(
-          internal.onedrive.listFolderContents,
+          internal.onedrive.internal_actions.listFolderContents,
           {
             itemId: params.itemId, // Required by validator
             token: params.token, // Required by validator
@@ -313,7 +313,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
             // Read file from OneDrive
             const readRes = await ctx.runAction!(
-              internal.onedrive.readFileFromOneDrive,
+              internal.onedrive.internal_actions.readFileFromOneDrive,
               { itemId: f.id, token: params.token }, // Required by validator
             );
             if (!readRes.success || !readRes.content) {
@@ -340,7 +340,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
             // Upload or update
             const uploadRes = await ctx.runAction!(
-              internal.onedrive.uploadToStorage,
+              internal.onedrive.internal_actions.uploadToStorage,
               {
                 organizationId,
                 fileName: f.name,
@@ -380,7 +380,7 @@ export const onedriveAction: ActionDefinition<OneDriveActionParams> = {
 
       case 'update_sync_config': {
         // Update OneDrive sync configuration
-        await ctx.runMutation!(internal.onedrive.updateSyncConfig, {
+        await ctx.runMutation!(internal.onedrive.internal_mutations.updateSyncConfig, {
           configId: params.configId as Id<'onedriveSyncConfigs'>, // Required by validator
           status: params.status,
           lastSyncAt: params.lastSyncAt,

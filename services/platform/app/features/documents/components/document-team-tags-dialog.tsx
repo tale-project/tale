@@ -45,7 +45,7 @@ function DocumentTeamTagsDialogContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Update document mutation
-  const updateDocument = useMutation(api.documents.updateDocument);
+  const updateDocument = useMutation(api.documents.update_document_public.updateDocument);
 
   // Fetch only teams that the current user belongs to
   const teamsResult = useQuery(
@@ -161,7 +161,7 @@ function DocumentTeamTagsDialogContent({
           </div>
         ) : (
           <Stack gap={2}>
-            {teams.map((team) => (
+            {teams.map((team: { id: string; name: string }) => (
               <div
                 key={team.id}
                 className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"

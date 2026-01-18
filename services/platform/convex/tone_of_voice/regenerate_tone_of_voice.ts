@@ -7,7 +7,7 @@ import { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { GenerateToneResponse } from './types';
 
 export async function regenerateToneOfVoice(
@@ -17,7 +17,7 @@ export async function regenerateToneOfVoice(
   // Implementation is identical to generateToneOfVoice
   try {
     const examples = await ctx.runQuery(
-      internal.tone_of_voice.queries.load_example_messages_for_generation.loadExampleMessagesForGeneration,
+      internal.tone_of_voice.queries.loadExampleMessagesForGeneration,
       {
         organizationId: args.organizationId,
       },
@@ -77,7 +77,7 @@ Format your response with proper line breaks between sections for readability. U
 
     const generatedTone: string = result.object.tone;
 
-    await ctx.runMutation(internal.tone_of_voice.mutations.save_generated_tone.saveGeneratedTone, {
+    await ctx.runMutation(internal.tone_of_voice.mutations.saveGeneratedTone, {
       organizationId: args.organizationId,
       generatedTone,
     });

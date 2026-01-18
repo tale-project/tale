@@ -61,7 +61,7 @@ export function ConversationPanel({
 
   // Use Convex query hook
   const conversation = useConvexQuery(
-    api.conversations.getConversationWithMessages,
+    api.conversations.queries.getConversationWithMessages,
     selectedConversationId
       ? { conversationId: selectedConversationId as Id<'conversations'> }
       : 'skip',

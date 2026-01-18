@@ -207,7 +207,7 @@ export async function createConversationFromEmail(
     // Create new conversation with initial message
     debugLog('create_from_email Creating conversation from root email');
     const result = await ctx.runMutation(
-      internal.conversations.createConversationWithMessage,
+      internal.conversations.mutations.createConversationWithMessage,
       {
         organizationId: params.organizationId,
         customerId: customerResult.customerId,

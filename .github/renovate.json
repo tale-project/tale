@@ -78,6 +78,21 @@
         "services/platform/package.json"
       ],
       "allowedVersions": "0.3.0"
+    },
+    {
+      "description": "Disable Renovate updates for AI SDK packages (@convex-dev/agent requires ai@5, manual upgrades only)",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "ai",
+        "@ai-sdk/openai",
+        "@ai-sdk/provider-utils"
+      ],
+      "matchFileNames": [
+        "services/platform/package.json"
+      ],
+      "enabled": false
     }
   ]
 }

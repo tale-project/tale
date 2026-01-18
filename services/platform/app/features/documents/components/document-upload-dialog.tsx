@@ -246,7 +246,7 @@ export function DocumentUploadDialog({
             </div>
           ) : (
             <Stack gap={2}>
-              {teams.map((team) => (
+              {teams.map((team: { id: string; name: string }) => (
                 <div
                   key={team.id}
                   className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors"

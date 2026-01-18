@@ -83,11 +83,11 @@ export async function saveRelatedWorkflows(
     ),
   );
 
-  const workflowIds = results.map((r) => r.workflowId);
+  const workflowIds = results.map((r: { workflowId: Id<'wfDefinitions'> }) => r.workflowId);
 
   // Activate all workflows in parallel
   await Promise.all(
-    workflowIds.map((workflowId) =>
+    workflowIds.map((workflowId: Id<'wfDefinitions'>) =>
       ctx.runMutation(internal.wf_definitions.mutations.updateWorkflow.updateWorkflowStatus, {
         wfDefinitionId: workflowId,
         status: 'active',

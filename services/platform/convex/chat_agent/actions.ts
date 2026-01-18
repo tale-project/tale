@@ -20,7 +20,7 @@ export const generateAgentResponse = internalAction({
     attachments: v.optional(
       v.array(
         v.object({
-          fileId: v.string(),
+          fileId: v.id('_storage'),
           fileName: v.string(),
           fileType: v.string(),
           fileSize: v.number(),

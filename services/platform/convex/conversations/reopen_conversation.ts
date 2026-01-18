@@ -14,11 +14,13 @@ export async function reopenConversation(
     throw new Error('Conversation not found');
   }
 
-  const metadata = (conversation.metadata as Record<string, unknown>) || {};
-  const { _resolved_at, _resolved_by, ...restMetadata } = metadata;
+  const metadata = conversation.metadata || {};
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { resolved_at: _resolved_at, resolved_by: _resolved_by, ...restMetadata } = metadata as Record<string, unknown>;
 
   await ctx.db.patch(conversationId, {
     status: 'open',
-    metadata: restMetadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: restMetadata as any,
   });
 }

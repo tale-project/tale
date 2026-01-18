@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export const chatTypeLiterals = ['general', 'workflow_assistant'] as const;
 export const chatTypeSchema = z.enum(chatTypeLiterals);

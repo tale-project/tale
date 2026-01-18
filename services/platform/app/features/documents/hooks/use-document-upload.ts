@@ -26,6 +26,12 @@ interface UploadFilesOptions {
   teamTags?: string[];
 }
 
+interface CreateDocumentResult {
+  success: boolean;
+  documentId: Id<'documents'>;
+  error?: string;
+}
+
 interface UploadOptions {
   organizationId: string;
   onSuccess?: (fileInfo: FileInfo) => void;
@@ -36,8 +42,8 @@ export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const generateUploadUrl = useMutation(api.mutations.file.generateUploadUrl);
-  const createDocumentFromUpload = useMutation(api.mutations.documents.createDocumentFromUpload);
+  const generateUploadUrl = useMutation(api.file.mutations.generateUploadUrl);
+  const createDocumentFromUpload = useMutation(api.documents.mutations.createDocumentFromUpload);
 
   const uploadFiles = async (files: File[], uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
     if (isUploading) {
@@ -124,10 +130,10 @@ export function useDocumentUpload(options: UploadOptions) {
         return result;
       });
 
-      const results = await Promise.all(uploadPromises);
+      const results = await Promise.all(uploadPromises) as CreateDocumentResult[];
 
       // Check if all uploads were successful
-      const failedUploads = results.filter((result) => !result.success);
+      const failedUploads = results.filter((result: CreateDocumentResult) => !result.success);
       if (failedUploads.length > 0) {
         throw new Error(failedUploads[0].error || t('upload.uploadFailed'));
       }

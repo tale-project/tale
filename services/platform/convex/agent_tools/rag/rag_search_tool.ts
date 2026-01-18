@@ -5,7 +5,7 @@
  * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';

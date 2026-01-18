@@ -6,7 +6,7 @@
  */
 
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   conversationStatusSchema,
   conversationPrioritySchema,
@@ -30,6 +30,7 @@ export {
   attachmentSchema,
   conversationWithMessagesSchema,
 } from '../../lib/shared/schemas/conversations';
+import { approvalItemValidator } from '../approvals/validators';
 
 // Simple schemas without z.lazy()
 export const conversationStatusValidator = zodToConvex(conversationStatusSchema);
@@ -72,6 +73,7 @@ export const conversationItemValidator = v.object({
   updated_at: v.string(),
   customer: customerInfoValidator,
   messages: v.array(messageValidator),
+  pendingApproval: v.optional(v.union(approvalItemValidator, v.null())),
 });
 
 export const conversationListResponseValidator = v.object({

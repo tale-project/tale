@@ -23,7 +23,7 @@ export function VendorsPageWrapper({
 }: VendorsPageWrapperProps) {
   // Subscribe to hasVendors for reactive updates
   // Convex useQuery automatically updates when data changes
-  const hasVendors = useQuery(api.vendors.hasVendors, { organizationId });
+  const hasVendors = useQuery(api.vendors.queries.hasVendors, { organizationId });
 
   // Use initial value while loading, then use reactive value
   const showVendors = hasVendors ?? initialHasVendors;

@@ -74,7 +74,7 @@ export function ProductTable({ organizationId }: ProductTableProps) {
     <DataTable
       columns={columns}
       data={displayedProducts}
-      getRowId={(row) => row.id}
+      getRowId={(row) => row._id}
       stickyLayout={stickyLayout}
       search={{
         value: search,

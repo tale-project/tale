@@ -62,7 +62,8 @@ export function createEntityDataHook<
       sortOrder = config.defaultSort.order,
     } = options;
 
-    const allItems = useQuery(config.queryFn, { organizationId });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allItems = useQuery(config.queryFn as any, { organizationId });
 
     const processed = useMemo(() => {
       if (!allItems) return [];

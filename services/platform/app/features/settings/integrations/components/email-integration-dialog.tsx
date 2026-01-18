@@ -19,8 +19,9 @@ import { toast } from '@/app/hooks/use-toast';
 import { EmailProviderTypeSelector } from './email-provider-type-selector';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import type { Id } from '@/convex/_generated/dataModel';
-import type { EmailProviderDoc } from '@/convex/model/email_providers/types';
+import type { Id, Doc } from '@/convex/_generated/dataModel';
+
+type EmailProviderDoc = Doc<'emailProviders'>;
 import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
 import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
 import { useTestEmailProvider } from '../hooks/use-test-email-provider';

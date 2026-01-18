@@ -4,7 +4,7 @@ import { memo, useState } from 'react';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { WorkflowCreationMetadata } from '@/convex/model/approvals/types';
+import { WorkflowCreationMetadata } from '@/convex/approvals/types';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Link } from '@tanstack/react-router';
+import { useAuth } from '@/app/hooks/use-convex-auth';
 
 interface WorkflowCreationApprovalCardProps {
   approvalId: Id<'approvals'>;
@@ -65,7 +66,7 @@ function WorkflowCreationApprovalCardComponent({
   executionError,
   className,
 }: WorkflowCreationApprovalCardProps) {
-
+  const { user } = useAuth();
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,22 +74,24 @@ function WorkflowCreationApprovalCardComponent({
 
   // No optimistic update: approval triggers external workflow creation action with
   // side effects that cannot be safely rolled back if the mutation fails.
-  const updateApprovalStatus = useMutation(api.mutations.approvals.updateApprovalStatusPublic);
+  const updateApprovalStatus = useMutation(api.approvals.mutations.updateApprovalStatusPublic);
   const executeApprovedWorkflow = useAction(
-    api.actions.approvals.executeApprovedWorkflowCreation
+    api.approvals.actions.executeApprovedWorkflowCreation
   );
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;
 
   const handleApprove = async () => {
+    if (!user?.userId) {
+      setError('User not authenticated');
+      return;
+    }
     setIsApproving(true);
     setError(null);
     try {
-      // Execute the approved workflow creation (handles status update + execution)
       await executeApprovedWorkflow({
         approvalId,
-        approvedBy: 'user', // TODO: Get actual user ID from auth context
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workflow');
@@ -99,13 +102,16 @@ function WorkflowCreationApprovalCardComponent({
   };
 
   const handleReject = async () => {
+    if (!user?.userId) {
+      setError('User not authenticated');
+      return;
+    }
     setIsRejecting(true);
     setError(null);
     try {
       await updateApprovalStatus({
         approvalId,
         status: 'rejected',
-        approvedBy: 'user', // TODO: Get actual user ID
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject');

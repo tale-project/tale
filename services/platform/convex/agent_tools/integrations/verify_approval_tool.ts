@@ -5,7 +5,7 @@
  * before claiming it was created. This prevents hallucination of approval IDs.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';

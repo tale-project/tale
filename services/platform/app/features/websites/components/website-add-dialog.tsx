@@ -74,7 +74,6 @@ export function AddWebsiteDialog({
         organizationId,
         domain: data.domain,
         scanInterval: data.scanInterval,
-        status: 'active',
       });
 
       toast({

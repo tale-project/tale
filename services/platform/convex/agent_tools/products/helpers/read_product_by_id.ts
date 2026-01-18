@@ -21,7 +21,7 @@ export async function readProductById(
   // Cast string to Id at the boundary - validated by Convex runtime
   const productId = args.productId as Id<'products'>;
 
-  const product = await ctx.runQuery(internal.products.getProductById, {
+  const product = await ctx.runQuery(internal.products.queries.getProductById, {
     productId,
   });
 

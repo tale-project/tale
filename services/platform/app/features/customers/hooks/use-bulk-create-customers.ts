@@ -7,5 +7,5 @@ import { api } from '@/convex/_generated/api';
  * and the server handles validation/deduplication.
  */
 export function useBulkCreateCustomers() {
-  return useMutation(api.customers.bulkCreateCustomers);
+  return useMutation(api.customers.mutations.bulkCreateCustomers);
 }

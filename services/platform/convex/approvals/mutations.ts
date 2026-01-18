@@ -1,13 +1,14 @@
 /**
  * Approvals Mutations
  *
- * Internal mutations for approval operations.
+ * Internal and public mutations for approval operations.
  */
 
 import { v } from 'convex/values';
-import { internalMutation } from '../_generated/server';
+import { internalMutation, mutation } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
-import { approvalResourceTypeValidator, approvalPriorityValidator } from './validators';
+import { authComponent } from '../auth';
+import { approvalResourceTypeValidator, approvalPriorityValidator, approvalStatusValidator } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
 export const createApproval = internalMutation({
@@ -37,5 +38,54 @@ export const linkApprovalsToMessage = internalMutation({
   },
   handler: async (ctx, args) => {
     return await ApprovalsHelpers.linkApprovalsToMessage(ctx, args);
+  },
+});
+
+// =============================================================================
+// PUBLIC MUTATIONS (for frontend via api.approvals.mutations.*)
+// =============================================================================
+
+export const updateApprovalStatusPublic = mutation({
+  args: {
+    approvalId: v.id('approvals'),
+    status: approvalStatusValidator,
+    comments: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await ApprovalsHelpers.updateApprovalStatus(ctx, {
+      approvalId: args.approvalId,
+      status: args.status,
+      approvedBy: String(authUser._id),
+      comments: args.comments,
+    });
+
+    return null;
+  },
+});
+
+export const removeRecommendedProduct = mutation({
+  args: {
+    approvalId: v.id('approvals'),
+    productId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    await ApprovalsHelpers.removeRecommendedProduct(ctx, {
+      approvalId: args.approvalId,
+      productId: args.productId,
+    });
+
+    return null;
   },
 });

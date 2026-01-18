@@ -6,7 +6,7 @@
  * along with 1 message before and 1 message after each match for context.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool, type ToolCtx } from '@convex-dev/agent';
 import Fuse from 'fuse.js';
 import type { ToolDefinition } from '../types';

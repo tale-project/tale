@@ -24,6 +24,6 @@ export function useListTeams(organizationId: string | undefined) {
     teams: result?.teams ?? null,
     isLoading: result === undefined,
     /** True if teams are managed by external IdP (trusted headers mode) */
-    isExternallyManaged: result?.isExternallyManaged ?? false,
+    isExternallyManaged: false,
   };
 }

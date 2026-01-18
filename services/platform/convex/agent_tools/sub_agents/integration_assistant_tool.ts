@@ -11,7 +11,7 @@
  * - Token-aware context management
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
@@ -121,7 +121,7 @@ EXAMPLES:
 
         // Load available integrations for this organization
         // This is critical - sub-agents need to know what integrations exist
-        const integrationsList = await ctx.runQuery(internal.integrations.queries.list_internal.listInternal, {
+        const integrationsList = await ctx.runQuery(internal.integrations.queries.listInternal, {
           organizationId,
         });
         const integrationsInfo = formatIntegrationsForContext(integrationsList);

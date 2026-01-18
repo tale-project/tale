@@ -64,7 +64,8 @@ export async function updateCustomerMetadata(
 
   // Update the customer with the new metadata
   await ctx.db.patch(customerId, {
-    metadata: updatedMetadata,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    metadata: updatedMetadata as any,
   });
 
   return {

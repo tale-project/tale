@@ -16,7 +16,7 @@ export async function triggerWorkflowById(
   ctx: ActionCtx,
   args: TriggerWorkflowByIdArgs,
 ): Promise<string> {
-  const workflow = (await ctx.runQuery(internal.wf_definitions.queries.getWorkflow.getWorkflow, {
+  const workflow = (await ctx.runQuery(internal.wf_definitions.queries.getWorkflow.getWorkflowInternal, {
     wfDefinitionId: args.wfDefinitionId,
   })) as unknown as Doc<'wfDefinitions'> | null;
 

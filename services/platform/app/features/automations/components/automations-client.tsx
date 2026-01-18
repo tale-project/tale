@@ -108,7 +108,7 @@ export function AutomationsClient({
     return <AutomationsTableSkeleton organizationId={organizationId} />;
   }
 
-  const automations = automationsResult.page ?? [];
+  const automations = automationsResult ?? [];
 
   return (
     <DataTable

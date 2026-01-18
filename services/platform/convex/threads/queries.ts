@@ -35,7 +35,7 @@ export const listThreadsQuery = query({
     }
 
     return await listThreads(ctx, {
-      userId: authUser.userId,
+      userId: String(authUser._id),
       search: args.search,
     });
   },

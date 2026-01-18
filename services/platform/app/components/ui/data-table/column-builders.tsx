@@ -51,9 +51,9 @@ interface TextColumnOptions {
  * createActionsColumn(CustomerRowActions, 'customer')
  * ```
  */
-export function createActionsColumn<TData>(
-  ActionsComponent: ComponentType<Record<string, TData>>,
-  entityPropName: string,
+export function createActionsColumn<TData, TPropName extends string>(
+  ActionsComponent: ComponentType<{ [K in TPropName]: TData }>,
+  entityPropName: TPropName,
   options?: ActionsColumnOptions,
 ): ColumnDef<TData> {
   return {
@@ -65,7 +65,7 @@ export function createActionsColumn<TData>(
     meta: { isAction: true },
     cell: ({ row }) => (
       <HStack justify="end">
-        <ActionsComponent {...{ [entityPropName]: row.original }} />
+        <ActionsComponent {...{ [entityPropName]: row.original } as { [K in TPropName]: TData }} />
       </HStack>
     ),
   };

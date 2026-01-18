@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { BulkCreateResult } from './types';
-import type { DataSource } from '../common/validators';
+import type { DataSource } from '../../lib/shared/schemas/common';
 
 export interface BulkCreateCustomerData {
   name?: string;
@@ -73,9 +73,11 @@ export async function bulkCreateCustomers(
         }
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,
+        metadata: customerData.metadata as any,
       });
 
       results.success++;

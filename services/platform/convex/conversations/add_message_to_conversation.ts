@@ -63,12 +63,13 @@ export async function addMessageToConversation(
       : direction === 'inbound' && args.sentAt
         ? args.sentAt
         : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata: {
       sender: args.sender,
       isCustomer: args.isCustomer,
-      attachment: args.attachment,
-      ...(args.metadata as Record<string, unknown> | undefined),
-    },
+      ...(args.attachment ? { attachment: args.attachment } : {}),
+      ...(args.metadata || {}),
+    } as any,
   });
 
   // Update conversation's providerId if provided and not already set
@@ -81,15 +82,14 @@ export async function addMessageToConversation(
   // Update parent conversation with last message info
   // Set both the indexed lastMessageAt field and metadata for backwards compatibility
   const now = Date.now();
-  const existingMetadata =
-    (parentConversation.metadata as Record<string, unknown>) || {};
+  const existingMetadata = parentConversation.metadata || {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
     metadata: {
       ...existingMetadata,
       last_message_at: now,
       unread_count:
-        ((existingMetadata.unread_count as number) || 0) +
+        ((existingMetadata as Record<string, unknown>).unread_count as number || 0) +
         (args.isCustomer ? 1 : 0),
     },
   });

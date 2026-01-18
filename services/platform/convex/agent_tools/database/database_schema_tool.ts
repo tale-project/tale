@@ -9,7 +9,7 @@
  * - get_table_schema: Get filterable fields for a specific table
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 

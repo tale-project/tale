@@ -8,7 +8,7 @@ import { components } from '../../_generated/api';
 import type {
   BetterAuthFindManyResult,
   BetterAuthSession,
-} from '../members/types';
+} from '../../members/types';
 
 export interface CreateSessionForTrustedUserArgs {
   userId: string;

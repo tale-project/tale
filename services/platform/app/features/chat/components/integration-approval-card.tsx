@@ -4,7 +4,7 @@ import { memo, useState } from 'react';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { IntegrationOperationMetadata } from '@/convex/model/approvals/types';
+import { IntegrationOperationMetadata } from '@/convex/approvals/types';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import {
@@ -27,6 +27,7 @@ import { useAuth } from '@/app/hooks/use-convex-auth';
 
 interface IntegrationApprovalCardProps {
   approvalId: Id<'approvals'>;
+  organizationId: string;
   status: 'pending' | 'approved' | 'rejected';
   metadata: IntegrationOperationMetadata;
   executedAt?: number;
@@ -39,6 +40,7 @@ interface IntegrationApprovalCardProps {
  */
 function IntegrationApprovalCardComponent({
   approvalId,
+  organizationId: _organizationId,
   status,
   metadata,
   executedAt,
@@ -51,16 +53,16 @@ function IntegrationApprovalCardComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const updateApprovalStatus = useMutation(api.mutations.approvals.updateApprovalStatusPublic);
+  const updateApprovalStatus = useMutation(api.approvals.mutations.updateApprovalStatusPublic);
   const executeApprovedOperation = useAction(
-    api.actions.approvals.executeApprovedIntegrationOperation
+    api.approvals.actions.executeApprovedIntegrationOperation
   );
 
   const isPending = status === 'pending';
   const isProcessing = isApproving || isRejecting;
 
   const handleApprove = async () => {
-    if (!user?._id) {
+    if (!user?.userId) {
       setError('User not authenticated');
       return;
     }
@@ -70,7 +72,6 @@ function IntegrationApprovalCardComponent({
       // Execute the approved operation (handles status update + execution)
       await executeApprovedOperation({
         approvalId,
-        approvedBy: user._id,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve operation');
@@ -81,7 +82,7 @@ function IntegrationApprovalCardComponent({
   };
 
   const handleReject = async () => {
-    if (!user?._id) {
+    if (!user?.userId) {
       setError('User not authenticated');
       return;
     }
@@ -91,7 +92,6 @@ function IntegrationApprovalCardComponent({
       await updateApprovalStatus({
         approvalId,
         status: 'rejected',
-        approvedBy: user._id,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reject operation');

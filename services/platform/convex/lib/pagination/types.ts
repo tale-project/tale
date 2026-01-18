@@ -8,7 +8,7 @@
 
 import type { GenericValidator } from 'convex/values';
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   cursorPaginationOptsSchema,
   offsetPaginationOptsSchema,

@@ -6,11 +6,15 @@
  */
 
 import { internalAction, internalMutation } from '../../_generated/server';
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 import { jsonValueValidator } from '../../../lib/shared/schemas/utils/json-value';
 import { internal, components } from '../../_generated/api';
+import type { Doc } from '../../_generated/dataModel';
 import type { WorkflowCreationMetadata } from '../../approvals/types';
 import { saveMessage } from '@convex-dev/agent';
+
+type JsonValue = Infer<typeof jsonValueValidator>;
+type ApprovalMetadata = Doc<'approvals'>['metadata'];
 
 /**
  * Execute an approved workflow creation
@@ -21,7 +25,7 @@ export const executeApprovedWorkflowCreation = internalAction({
     approvedBy: v.string(),
   },
   returns: jsonValueValidator,
-  handler: async (ctx, args): Promise<unknown> => {
+  handler: async (ctx, args): Promise<JsonValue> => {
     // Get the approval record
     const approval: {
       _id: unknown;
@@ -149,20 +153,20 @@ export const updateWorkflowApprovalWithResult = internalMutation({
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) return;
 
-    const metadata = (approval.metadata || {}) as WorkflowCreationMetadata;
+    const metadata = (approval.metadata || {}) as unknown as WorkflowCreationMetadata;
 
     // executedAt stored at both record level (for indexing/queries) and in metadata
     // (for self-contained approval context). Using single timestamp for consistency.
     const now = Date.now();
     await ctx.db.patch(args.approvalId, {
       executedAt: now,
-      executionError: args.executionError || undefined,
+      executionError: args.executionError ?? undefined,
       metadata: {
         ...metadata,
         executedAt: now,
-        createdWorkflowId: args.createdWorkflowId || undefined,
-        executionError: args.executionError || undefined,
-      },
+        ...(args.createdWorkflowId ? { createdWorkflowId: args.createdWorkflowId } : {}),
+        ...(args.executionError ? { executionError: args.executionError } : {}),
+      } as unknown as ApprovalMetadata,
     });
   },
 });

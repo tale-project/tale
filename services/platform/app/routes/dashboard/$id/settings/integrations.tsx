@@ -79,6 +79,7 @@ function IntegrationsPage() {
 
   if (
     memberContext === undefined ||
+    memberContext === null ||
     shopify === undefined ||
     circuly === undefined ||
     protel === undefined ||

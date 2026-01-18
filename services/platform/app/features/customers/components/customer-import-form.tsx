@@ -104,7 +104,7 @@ export function CustomerImportForm({
       )}
       {dataSource === 'circuly' && (
         <Link
-          to={`/dashboard/${organizationId}/settings/integrations`}
+          to={`/dashboard/${organizationId}/settings/integrations` as '/dashboard/$id/settings/integrations'}
           search={{ tab: 'shopify' }}
           className="bg-background box-border content-stretch flex gap-[12px] items-center justify-start p-[12px] relative rounded-[8px] size-full cursor-pointer transition-colors hover:bg-secondary/20 text-left"
         >

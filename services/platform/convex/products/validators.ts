@@ -6,7 +6,7 @@
  */
 
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod3';
+import { zodToConvex } from 'convex-helpers/server/zod4';
 import {
   productStatusSchema,
   productSortBySchema,
@@ -24,6 +24,9 @@ export {
 // Simple schemas without z.lazy()
 export const productStatusValidator = zodToConvex(productStatusSchema);
 export const productSortByValidator = zodToConvex(productSortBySchema);
+
+// sortOrder validator for list queries
+export const sortOrderValidator = v.union(v.literal('asc'), v.literal('desc'));
 
 // Complex schemas with jsonRecordSchema (contains z.lazy) - use native Convex v
 export const productTranslationValidator = v.object({

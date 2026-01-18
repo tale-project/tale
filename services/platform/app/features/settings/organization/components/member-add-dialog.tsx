@@ -143,10 +143,8 @@ export function AddMemberDialog({
         // Add existing user to organization
         await addMember({
           organizationId: organizationId as string,
-          email: data.email,
           userId: userId as string,
           role: data.role,
-          displayName: data.displayName,
         });
       } else {
         // User doesn't exist - create new account SERVER-SIDE

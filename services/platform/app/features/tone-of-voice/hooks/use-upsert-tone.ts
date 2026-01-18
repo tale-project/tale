@@ -1,19 +1,19 @@
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
-export function useUpsertTone(organizationId: string) {
-  return useMutation(api.tone_of_voice.mutations.upsert_tone_of_voice.upsertToneOfVoice).withOptimisticUpdate(
+export function useUpsertTone() {
+  return useMutation(api.tone_of_voice.mutations.upsertToneOfVoice).withOptimisticUpdate(
     (localStore, args) => {
       if (!args.generatedTone) return;
 
       const current = localStore.getQuery(
-        api.tone_of_voice.queries.get_tone_of_voice.getToneOfVoiceWithExamples,
-        { organizationId }
+        api.tone_of_voice.queries.getToneOfVoiceWithExamples,
+        { organizationId: args.organizationId }
       );
       if (current !== undefined && current !== null && current.toneOfVoice) {
         localStore.setQuery(
-          api.tone_of_voice.queries.get_tone_of_voice.getToneOfVoiceWithExamples,
-          { organizationId },
+          api.tone_of_voice.queries.getToneOfVoiceWithExamples,
+          { organizationId: args.organizationId },
           {
             ...current,
             toneOfVoice: { ...current.toneOfVoice, generatedTone: args.generatedTone },

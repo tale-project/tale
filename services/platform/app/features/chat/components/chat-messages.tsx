@@ -14,6 +14,7 @@ import type { RefObject } from 'react';
 interface ChatMessagesProps {
   items: ChatItem[];
   threadId: string | undefined;
+  organizationId: string;
   canLoadMore: boolean;
   isLoadingMore: boolean;
   loadMore: (numItems: number) => void;
@@ -29,6 +30,7 @@ interface ChatMessagesProps {
 export function ChatMessages({
   items,
   threadId,
+  organizationId,
   canLoadMore,
   isLoadingMore,
   loadMore,
@@ -92,6 +94,7 @@ export function ChatMessages({
             >
               <IntegrationApprovalCard
                 approvalId={approval._id}
+                organizationId={organizationId}
                 status={approval.status}
                 metadata={approval.metadata}
                 executedAt={approval.executedAt}
@@ -108,6 +111,7 @@ export function ChatMessages({
             >
               <WorkflowCreationApprovalCard
                 approvalId={approval._id}
+                organizationId={organizationId}
                 status={approval.status}
                 metadata={approval.metadata}
                 executedAt={approval.executedAt}
