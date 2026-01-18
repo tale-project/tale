@@ -75,7 +75,12 @@ export const getCurrentMemberContext = query({
     v.null(),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return null;
+    }
     if (!authUser) {
       return null;
     }
@@ -126,7 +131,12 @@ export const listByOrganization = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return [];
+    }
     if (!authUser) {
       return [];
     }
@@ -196,7 +206,12 @@ export const getUserIdByEmail = query({
   args: { email: v.string() },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return null;
+    }
     if (!authUser) {
       return null;
     }
@@ -232,7 +247,12 @@ export const getUserOrganizationsList = query({
     }),
   ),
   handler: async (ctx) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return [];
+    }
     if (!authUser) {
       return [];
     }

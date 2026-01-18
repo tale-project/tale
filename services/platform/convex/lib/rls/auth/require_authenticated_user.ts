@@ -18,7 +18,12 @@ import { authComponent } from '../../../auth';
 export async function requireAuthenticatedUser(
   ctx: QueryCtx | MutationCtx | ActionCtx,
 ): Promise<AuthenticatedUser> {
-  const authUser = await authComponent.getAuthUser(ctx);
+  let authUser;
+  try {
+    authUser = await authComponent.getAuthUser(ctx);
+  } catch {
+    throw new UnauthenticatedError();
+  }
 
   if (!authUser || !authUser._id) {
     throw new UnauthenticatedError();
