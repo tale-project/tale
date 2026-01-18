@@ -13,7 +13,7 @@ const searchSchema = z.object({
   locale: z.string().optional(),
 });
 
-export const Route = createFileRoute('/dashboard/$id/vendors')({
+export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
   validateSearch: searchSchema,
   component: VendorsPage,
 });

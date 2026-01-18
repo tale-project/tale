@@ -7,7 +7,7 @@ import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { useT } from '@/lib/i18n/client';
 
-export const Route = createFileRoute('/dashboard/$id/tone-of-voice')({
+export const Route = createFileRoute('/dashboard/$id/_knowledge/tone-of-voice')({
   component: ToneOfVoicePage,
 });
 
