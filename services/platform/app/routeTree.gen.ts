@@ -25,6 +25,7 @@ import { Route as DashboardIdChatRouteImport } from './routes/dashboard/$id/chat
 import { Route as DashboardIdAutomationsRouteImport } from './routes/dashboard/$id/automations'
 import { Route as DashboardIdApprovalsRouteImport } from './routes/dashboard/$id/approvals'
 import { Route as DashboardIdKnowledgeRouteImport } from './routes/dashboard/$id/_knowledge'
+import { Route as DashboardIdSettingsIndexRouteImport } from './routes/dashboard/$id/settings/index'
 import { Route as DashboardIdChatIndexRouteImport } from './routes/dashboard/$id/chat/index'
 import { Route as DashboardIdAutomationsIndexRouteImport } from './routes/dashboard/$id/automations/index'
 import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard/$id/settings/teams'
@@ -125,6 +126,12 @@ const DashboardIdKnowledgeRoute = DashboardIdKnowledgeRouteImport.update({
   id: '/_knowledge',
   getParentRoute: () => DashboardIdRoute,
 } as any)
+const DashboardIdSettingsIndexRoute =
+  DashboardIdSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdChatIndexRoute = DashboardIdChatIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -269,6 +276,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
+  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
 }
@@ -282,7 +290,6 @@ export interface FileRoutesByTo {
   '/dashboard/$id': typeof DashboardIdIndexRoute
   '/dashboard/$id/approvals': typeof DashboardIdApprovalsRouteWithChildren
   '/dashboard/$id/conversations': typeof DashboardIdConversationsRouteWithChildren
-  '/dashboard/$id/settings': typeof DashboardIdSettingsRouteWithChildren
   '/dashboard/$id/customers': typeof DashboardIdKnowledgeCustomersRoute
   '/dashboard/$id/documents': typeof DashboardIdKnowledgeDocumentsRoute
   '/dashboard/$id/products': typeof DashboardIdKnowledgeProductsRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/automations': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat': typeof DashboardIdChatIndexRoute
+  '/dashboard/$id/settings': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
 }
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/dashboard/$id/settings/teams': typeof DashboardIdSettingsTeamsRoute
   '/dashboard/$id/automations/': typeof DashboardIdAutomationsIndexRoute
   '/dashboard/$id/chat/': typeof DashboardIdChatIndexRoute
+  '/dashboard/$id/settings/': typeof DashboardIdSettingsIndexRoute
   '/dashboard/$id/automations/$amId/configuration': typeof DashboardIdAutomationsAmIdConfigurationRoute
   '/dashboard/$id/automations/$amId/executions': typeof DashboardIdAutomationsAmIdExecutionsRoute
 }
@@ -375,6 +384,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
+    | '/dashboard/$id/settings/'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
   fileRoutesByTo: FileRoutesByTo
@@ -388,7 +398,6 @@ export interface FileRouteTypes {
     | '/dashboard/$id'
     | '/dashboard/$id/approvals'
     | '/dashboard/$id/conversations'
-    | '/dashboard/$id/settings'
     | '/dashboard/$id/customers'
     | '/dashboard/$id/documents'
     | '/dashboard/$id/products'
@@ -406,6 +415,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/automations'
     | '/dashboard/$id/chat'
+    | '/dashboard/$id/settings'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
   id:
@@ -443,6 +453,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/settings/teams'
     | '/dashboard/$id/automations/'
     | '/dashboard/$id/chat/'
+    | '/dashboard/$id/settings/'
     | '/dashboard/$id/automations/$amId/configuration'
     | '/dashboard/$id/automations/$amId/executions'
   fileRoutesById: FileRoutesById
@@ -567,6 +578,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/$id'
       preLoaderRoute: typeof DashboardIdKnowledgeRouteImport
       parentRoute: typeof DashboardIdRoute
+    }
+    '/dashboard/$id/settings/': {
+      id: '/dashboard/$id/settings/'
+      path: '/'
+      fullPath: '/dashboard/$id/settings/'
+      preLoaderRoute: typeof DashboardIdSettingsIndexRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/chat/': {
       id: '/dashboard/$id/chat/'
@@ -817,6 +835,7 @@ interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
   DashboardIdSettingsTeamsRoute: typeof DashboardIdSettingsTeamsRoute
+  DashboardIdSettingsIndexRoute: typeof DashboardIdSettingsIndexRoute
 }
 
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
@@ -825,6 +844,7 @@ const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
   DashboardIdSettingsTeamsRoute: DashboardIdSettingsTeamsRoute,
+  DashboardIdSettingsIndexRoute: DashboardIdSettingsIndexRoute,
 }
 
 const DashboardIdSettingsRouteWithChildren =

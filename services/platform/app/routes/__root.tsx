@@ -7,6 +7,7 @@ import { Toaster } from '@/app/components/ui/feedback/toaster';
 import { ServiceWorkerManager } from '@/app/components/service-worker-manager';
 import { OfflineProvider } from '@/app/components/offline-provider';
 import { I18nProvider } from '@/lib/i18n/i18n-provider';
+import { SiteUrlProvider } from '@/lib/site-url-context';
 import { authClient } from '@/lib/auth-client';
 import type { RouterContext } from '@/app/router';
 
@@ -18,22 +19,24 @@ function RootComponent() {
   const { queryClient, convexQueryClient } = Route.useRouteContext();
 
   return (
-    <ConvexBetterAuthProvider
-      client={convexQueryClient.convexClient}
-      authClient={authClient}
-    >
-      <I18nProvider>
-        <ThemeProvider defaultTheme="system">
-          <ThemeColorMeta />
-          <QueryClientProvider client={queryClient}>
-            <OfflineProvider>
-              <Outlet />
-            </OfflineProvider>
-          </QueryClientProvider>
-          <ServiceWorkerManager />
-          <Toaster />
-        </ThemeProvider>
-      </I18nProvider>
-    </ConvexBetterAuthProvider>
+    <SiteUrlProvider>
+      <ConvexBetterAuthProvider
+        client={convexQueryClient.convexClient}
+        authClient={authClient}
+      >
+        <I18nProvider>
+          <ThemeProvider defaultTheme="system">
+            <ThemeColorMeta />
+            <QueryClientProvider client={queryClient}>
+              <OfflineProvider>
+                <Outlet />
+              </OfflineProvider>
+            </QueryClientProvider>
+            <ServiceWorkerManager />
+            <Toaster />
+          </ThemeProvider>
+        </I18nProvider>
+      </ConvexBetterAuthProvider>
+    </SiteUrlProvider>
   );
 }
