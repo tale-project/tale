@@ -48,7 +48,7 @@ export const chatWithWorkflowAssistant = action({
       let workflowContext = '';
       if (workflowId) {
         const workflow = await ctx.runQuery(
-          internal.wf_definitions.queries.getWorkflow.getWorkflowInternal,
+          internal.wf_definitions.queries.getWorkflowInternal,
           { wfDefinitionId: workflowId },
         );
         if (workflow) {

@@ -65,7 +65,7 @@ export const executeApprovedWorkflowCreation = internalAction({
     // Execute the workflow creation with error handling
     try {
       const result = await ctx.runMutation(
-        internal.wf_definitions.mutations.createWorkflow.createWorkflowWithSteps,
+        internal.wf_definitions.mutations.createWorkflowWithSteps,
         {
           organizationId: approval.organizationId,
           workflowConfig: metadata.workflowConfig,

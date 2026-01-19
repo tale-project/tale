@@ -3,6 +3,7 @@ import { Agent } from '@convex-dev/agent';
 import { loadConvexToolsAsObject } from '../agent_tools/load_convex_tools_as_object';
 import type { ToolName } from '../agent_tools/tool_registry';
 import { createDebugLog } from './debug_log';
+import { getEnvOrThrow } from './get_or_throw';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 
@@ -97,22 +98,16 @@ export function createAgentConfig(opts: {
     }
 
     if (opts.useFastModel) {
-      const fastModel = (process.env.OPENAI_FAST_MODEL || '').trim();
-      if (!fastModel) {
-        throw new Error(
-          'OPENAI_FAST_MODEL environment variable is required when useFastModel is true but is not set',
-        );
-      }
-      return fastModel;
-    }
-
-    const defaultModel = (process.env.OPENAI_MODEL || '').trim();
-    if (!defaultModel) {
-      throw new Error(
-        'OPENAI_MODEL environment variable is required for Agent configuration but is not set',
+      return getEnvOrThrow(
+        'OPENAI_FAST_MODEL',
+        'Fast model for chat agent - required when useFastModel is true',
       );
     }
-    return defaultModel;
+
+    return getEnvOrThrow(
+      'OPENAI_MODEL',
+      'Default OpenAI model - required for Agent configuration',
+    );
   };
 
   const model = getModel();
@@ -134,12 +129,10 @@ export function createAgentConfig(opts: {
   let embeddingModel: string | undefined;
   const enableVectorSearch = opts.enableVectorSearch ?? false;
   if (enableVectorSearch) {
-    embeddingModel = (process.env.OPENAI_EMBEDDING_MODEL || '').trim();
-    if (!embeddingModel) {
-      throw new Error(
-        'OPENAI_EMBEDDING_MODEL environment variable is required when enableVectorSearch is true',
-      );
-    }
+    embeddingModel = getEnvOrThrow(
+      'OPENAI_EMBEDDING_MODEL',
+      'Embedding model - required when enableVectorSearch is true',
+    );
   }
 
   const hasMaxTokens = typeof opts.maxTokens === 'number';

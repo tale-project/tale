@@ -9,6 +9,7 @@ import { Agent } from '@convex-dev/agent';
 import { components } from '../../../_generated/api';
 import { openai } from '../../../lib/openai_provider';
 import { createDebugLog } from '../../../lib/debug_log';
+import { getEnvOrThrow, getEnvOptional } from '../../../lib/get_or_throw';
 
 const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
 
@@ -16,14 +17,14 @@ const debugLog = createDebugLog('DEBUG_IMAGE_ANALYSIS', '[VisionAgent]');
  * Get the vision model ID from environment variables
  */
 export function getVisionModel(): string {
-  const visionModel = process.env.OPENAI_VISION_MODEL;
-  const mainModel = visionModel || process.env.OPENAI_MODEL;
-  if (!mainModel) {
-    throw new Error(
-      'OPENAI_VISION_MODEL or OPENAI_MODEL environment variable is required',
-    );
+  const visionModel = getEnvOptional('OPENAI_VISION_MODEL');
+  if (visionModel) {
+    return visionModel;
   }
-  return mainModel;
+  return getEnvOrThrow(
+    'OPENAI_MODEL',
+    'Vision model or default model - required for image analysis',
+  );
 }
 
 /**
@@ -33,7 +34,7 @@ export function createVisionAgent(): Agent {
   const visionModelId = getVisionModel();
   debugLog('Creating vision agent', {
     model: visionModelId,
-    baseUrl: process.env.OPENAI_BASE_URL,
+    baseUrl: getEnvOptional('OPENAI_BASE_URL'),
   });
   return new Agent(components.agent, {
     name: 'vision-analyzer',

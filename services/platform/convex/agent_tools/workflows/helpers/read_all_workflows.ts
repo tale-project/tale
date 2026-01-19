@@ -26,7 +26,7 @@ export async function readAllWorkflows(
 
   try {
     const allWorkflows = (await ctx.runQuery(
-      internal.wf_definitions.queries.listVersions.listWorkflows,
+      internal.wf_definitions.queries.listWorkflows,
       {
         organizationId,
         status: args.status,

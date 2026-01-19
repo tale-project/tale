@@ -4,8 +4,9 @@
  * Validates LLM step configurations.
  */
 
-import { JSONSchemaToZod } from '@dmitryrechkin/json-schema-to-zod';
+import { z } from 'zod/v4';
 import type { ValidationResult } from '../types';
+import type { JsonSchemaDefinition } from '../../../types/nodes';
 import { TOOL_NAMES } from '../../../../agent_tools/tool_registry';
 
 /**
@@ -78,9 +79,7 @@ export function validateLlmStep(
   // Validate schema syntax if provided
   if (hasOutputSchema) {
     try {
-      JSONSchemaToZod.convert(
-        llmConfig.outputSchema as Parameters<typeof JSONSchemaToZod.convert>[0],
-      );
+      z.fromJSONSchema(llmConfig.outputSchema as JsonSchemaDefinition);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       errors.push(`LLM step "outputSchema" is invalid: ${message}`);

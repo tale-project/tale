@@ -84,7 +84,7 @@ function AutomationDetailLayout() {
   const { register, getValues } = useForm<{ name: string }>();
   const updateWorkflow = useUpdateAutomation();
 
-  const automation = useQuery(api.wf_definitions.queries.getWorkflow.getWorkflowPublic, {
+  const automation = useQuery(api.wf_definitions.queries.getWorkflowPublic, {
     wfDefinitionId: automationId,
   });
   const steps = useQuery(api.wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic, {
@@ -95,7 +95,7 @@ function AutomationDetailLayout() {
   });
 
   const versions = useQuery(
-    api.wf_definitions.queries.listVersions.listVersionsPublic,
+    api.wf_definitions.queries.listVersionsPublic,
     automation?.name && organizationId
       ? {
           organizationId,

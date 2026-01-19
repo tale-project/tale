@@ -9,6 +9,7 @@ import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod/v4';
 import { GenerateToneResponse } from './types';
+import { getEnvOrThrow } from '../lib/get_or_throw';
 
 export async function regenerateToneOfVoice(
   ctx: ActionCtx,
@@ -37,13 +38,7 @@ export async function regenerateToneOfVoice(
       )
       .join('\n\n---\n\n');
 
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (!openaiKey) {
-      return {
-        success: false,
-        error: 'OpenAI API key not configured',
-      };
-    }
+    const openaiKey = getEnvOrThrow('OPENAI_API_KEY', 'OpenAI API key');
 
     const result = await generateObject({
       model: openai('gpt-4o'),

@@ -88,7 +88,7 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   const saved = await ctx.runMutation(
-    internal.wf_definitions.mutations.createWorkflow.createWorkflowWithSteps,
+    internal.wf_definitions.mutations.createWorkflowWithSteps,
     {
       organizationId: args.organizationId,
       ...payload,
@@ -96,7 +96,7 @@ export async function provisionWebsiteScanWorkflow(
   );
 
   // Newly created workflows start as drafts; publish immediately.
-  await ctx.runMutation(internal.wf_definitions.mutations.publishDraft.publishDraft, {
+  await ctx.runMutation(internal.wf_definitions.mutations.publishDraft, {
     wfDefinitionId: saved.workflowId,
     publishedBy: 'system',
     changeLog: 'Auto-created and published from website creation',

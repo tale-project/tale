@@ -4,7 +4,11 @@
       "mssql",
       "tedious",
       "mysql2",
-      "pg"
+      "pg",
+      "imapflow",
+      "mailparser",
+      "nodemailer",
+      "xlsx"
     ]
   }
 }

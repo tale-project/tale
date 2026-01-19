@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Complex state change - converts draft to active version
 export function usePublishAutomationDraft() {
-  return useMutation(api.wf_definitions.mutations.publishDraft.publishDraftPublic);
+  return useMutation(api.wf_definitions.mutations.publishDraftPublic);
 }
