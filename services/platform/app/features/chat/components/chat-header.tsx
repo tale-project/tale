@@ -20,9 +20,6 @@ import {
   SheetTitle,
 } from '@/app/components/ui/overlays/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import {
-  AdaptiveHeaderRoot,
-} from '@/app/components/layout/adaptive-header';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 
@@ -108,35 +105,6 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
 
   return (
     <>
-      <AdaptiveHeaderRoot standalone={false} className="ml-auto gap-0">
-        <div className="flex items-center ml-auto">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleToggleHistory}
-            aria-label={tChat('chatHistory')}
-          >
-            <Clock className={baseIconClasses} />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleToggleSearch}
-            aria-label={tChat('searchChat')}
-          >
-            <Search className={baseIconClasses} />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleNewChat}
-            aria-label={tChat('newChat')}
-          >
-            <Plus className={baseIconClasses} />
-          </Button>
-        </div>
-      </AdaptiveHeaderRoot>
-
       <Sheet open={isMobileHistoryOpen} onOpenChange={setIsMobileHistoryOpen}>
         <SheetContent side="left" hideClose className="w-[18rem] p-0 sm:hidden">
           <VisuallyHidden>
