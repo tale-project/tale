@@ -7,7 +7,7 @@ ARG VERSION=dev
 
 # Use official SearXNG image as base
 # Pinned to specific digest for reproducibility (SearXNG 2025.11.28)
-FROM searxng/searxng@sha256:445319b907a0e01d0ff5bf8192be396b1c439a47e12675d626ce29af1b439d93
+FROM searxng/searxng@sha256:93f28a7503b41bbf8b0ded80e14baf999b9d85a5f3665091ae7c18190f506a59
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
