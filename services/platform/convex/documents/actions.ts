@@ -12,6 +12,7 @@ import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { internal } from '../_generated/api';
+import { ragAction } from '../workflow_engine/actions/rag/rag_action';
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -176,24 +177,153 @@ export const generateDocxFromTemplateInternal = internalAction({
 });
 
 /**
+ * Progressive intervals to cover ~24 hours with 50 attempts:
+ * - Attempts 1-30: 2 minutes each (~60 minutes total)
+ * - Attempts 31-50: Progressive increase from 15 to 129 minutes (~24 hours total)
+ */
+const getPollingInterval = (attempt: number): number => {
+  const MINUTE = 60 * 1000;
+
+  if (attempt < 30) {
+    return 2 * MINUTE;
+  }
+
+  // After first hour: progressively increase interval
+  // Formula: 15 + (attempt - 30) * 6 minutes
+  return (15 + (attempt - 30) * 6) * MINUTE;
+};
+
+/**
  * Check RAG job status (internal action)
- * Called by scheduler to poll RAG indexing job status
+ *
+ * Polls RAG service with progressive intervals:
+ * - First check: 10 seconds after upload (scheduled by ragAction)
+ * - Attempts 2-30: every 2 minutes (~1 hour coverage)
+ * - Attempts 31-50: progressive increase from 15 to 129 minutes (~23 hours)
+ * - Maximum 50 attempts, final check at ~24 hours
+ * - Terminates when status is 'completed' or 'failed'
  */
 export const checkRagJobStatus = internalAction({
   args: {
     documentId: v.id('documents'),
     attempt: v.number(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
-    // TODO: Implement RAG job status checking
-    // This action should:
-    // 1. Query the RAG service for job status
-    // 2. Update document ragInfo based on status
-    // 3. Reschedule itself if job is still running (with backoff)
-    console.warn('[checkRagJobStatus] Not implemented yet', {
-      documentId: args.documentId,
-      attempt: args.attempt,
-    });
+    const maxAttempts = 50;
+
+    const document = await ctx.runQuery(
+      internal.documents.queries.getDocumentById,
+      { documentId: args.documentId },
+    );
+
+    if (!document?.ragInfo?.jobId) {
+      return null;
+    }
+
+    // Terminate: status already in terminal state (completed or failed)
+    if (
+      document.ragInfo.status === 'completed' ||
+      document.ragInfo.status === 'failed'
+    ) {
+      return null;
+    }
+
+    // Terminate: max attempts reached
+    if (args.attempt > maxAttempts) {
+      console.warn(
+        `[checkRagJobStatus] Max attempts (${maxAttempts}) reached for document ${args.documentId}`,
+      );
+      await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
+        documentId: args.documentId,
+        ragInfo: {
+          status: 'failed',
+          jobId: document.ragInfo.jobId,
+          error: `Job status check timed out after ${maxAttempts} attempts`,
+        },
+      });
+      return null;
+    }
+
+    // Query RAG service for job status
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+    const url = `${ragUrl}/api/v1/jobs/${document.ragInfo.jobId}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `[checkRagJobStatus] RAG service returned ${response.status} for job ${document.ragInfo.jobId} (attempt ${args.attempt}/${maxAttempts})`,
+        );
+        // Schedule next attempt on HTTP error
+        await ctx.scheduler.runAfter(
+          getPollingInterval(args.attempt),
+          internal.documents.actions.checkRagJobStatus,
+          { documentId: args.documentId, attempt: args.attempt + 1 },
+        );
+        return null;
+      }
+
+      const job = (await response.json()) as {
+        state: 'queued' | 'running' | 'completed' | 'failed';
+        updated_at?: number;
+        error?: string;
+        message?: string;
+      };
+
+      // Terminate: job reached terminal state
+      if (job.state === 'completed' || job.state === 'failed') {
+        await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
+          documentId: args.documentId,
+          ragInfo: {
+            status: job.state,
+            jobId: document.ragInfo.jobId,
+            indexedAt: job.state === 'completed' ? job.updated_at : undefined,
+            error:
+              job.state === 'failed'
+                ? job.error || job.message || 'Unknown error'
+                : undefined,
+          },
+        });
+        return null;
+      }
+
+      // Update status if changed to running
+      if (job.state === 'running' && document.ragInfo.status !== 'running') {
+        await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
+          documentId: args.documentId,
+          ragInfo: {
+            status: 'running',
+            jobId: document.ragInfo.jobId,
+          },
+        });
+      }
+
+      // Schedule next attempt
+      await ctx.scheduler.runAfter(
+        getPollingInterval(args.attempt),
+        internal.documents.actions.checkRagJobStatus,
+        { documentId: args.documentId, attempt: args.attempt + 1 },
+      );
+    } catch (error) {
+      console.error(
+        `[checkRagJobStatus] Error checking job status (attempt ${args.attempt}/${maxAttempts}):`,
+        error,
+      );
+      // Schedule next attempt on network error
+      await ctx.scheduler.runAfter(
+        getPollingInterval(args.attempt),
+        internal.documents.actions.checkRagJobStatus,
+        { documentId: args.documentId, attempt: args.attempt + 1 },
+      );
+    }
+
+    return null;
   },
 });
 
@@ -214,28 +344,37 @@ export const retryRagIndexing = action({
     error: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      return { success: false, error: 'Unauthenticated' };
+    try {
+      const authUser = await authComponent.getAuthUser(ctx);
+      if (!authUser) {
+        return { success: false, error: 'Unauthenticated' };
+      }
+
+      // Get document and verify access
+      const document = await ctx.runQuery(
+        internal.documents.queries.getDocumentById,
+        { documentId: args.documentId },
+      );
+
+      if (!document) {
+        return { success: false, error: 'Document not found' };
+      }
+
+      // Execute RAG upload action directly
+      const result = (await ragAction.execute(
+        ctx,
+        { operation: 'upload_document', recordId: args.documentId },
+        {},
+      )) as { success: boolean; jobId?: string };
+
+      return { success: result.success, jobId: result.jobId };
+    } catch (error) {
+      console.error('[retryRagIndexing] Error:', error);
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to retry RAG indexing',
+      };
     }
-
-    // Get document and verify access
-    const document = await ctx.runQuery(internal.documents.queries.getDocumentById, {
-      documentId: args.documentId,
-    });
-
-    if (!document) {
-      return { success: false, error: 'Document not found' };
-    }
-
-    // Update RAG info to queued status
-    await ctx.runMutation(internal.documents.mutations.updateDocumentRagInfo, {
-      documentId: args.documentId,
-      ragInfo: {
-        status: 'queued',
-      },
-    });
-
-    return { success: true };
   },
 });
