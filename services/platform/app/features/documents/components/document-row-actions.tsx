@@ -8,12 +8,12 @@ import {
 } from '@/app/components/ui/entity/entity-row-actions';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useDeleteDocument } from '../hooks/use-delete-document';
+import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { retryRagIndexing } from '../actions/retry-rag-indexing';
 
 type StorageSourceMode = 'auto' | 'manual';
 
@@ -43,6 +43,7 @@ export function DocumentRowActions({
   const [isReindexing, setIsReindexing] = useState(false);
   const reindexingRef = useRef(false);
   const deleteDocument = useDeleteDocument();
+  const retryRagIndexing = useRetryRagIndexing();
 
   // Determine if delete action should be visible
   const canDelete =
@@ -99,7 +100,9 @@ export function DocumentRowActions({
     reindexingRef.current = true;
     setIsReindexing(true);
     try {
-      const result = await retryRagIndexing(documentId);
+      const result = await retryRagIndexing({
+        documentId: documentId as Id<'documents'>,
+      });
       if (result.success) {
         toast({
           title: tDocuments('rag.toast.indexingStarted'),
@@ -121,7 +124,7 @@ export function DocumentRowActions({
       reindexingRef.current = false;
       setIsReindexing(false);
     }
-  }, [documentId, tDocuments]);
+  }, [documentId, retryRagIndexing, tDocuments]);
 
   const actions = useMemo(
     () => [

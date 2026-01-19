@@ -8,7 +8,8 @@ import { Badge, type BadgeProps } from '@/app/components/ui/feedback/badge';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
-import { retryRagIndexing } from '../actions/retry-rag-indexing';
+import type { Id } from '@/convex/_generated/dataModel';
+import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
 import { useDateFormat } from '@/app/hooks/use-date-format';
 
 interface RagStatusBadgeProps {
@@ -41,6 +42,7 @@ export function RagStatusBadge({
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
   const { formatDate } = useDateFormat();
+  const retryRagIndexing = useRetryRagIndexing();
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
   const [isFailedDialogOpen, setIsFailedDialogOpen] = useState(false);
@@ -73,7 +75,9 @@ export function RagStatusBadge({
 
     setIsRetrying(true);
     try {
-      const result = await retryRagIndexing(documentId);
+      const result = await retryRagIndexing({
+        documentId: documentId as Id<'documents'>,
+      });
       if (result.success) {
         toast({
           title: t('rag.toast.indexingStarted'),
