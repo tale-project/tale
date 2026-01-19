@@ -47,7 +47,7 @@ export const updateWebsiteInternal = internalMutation({
     scanInterval: v.optional(v.string()),
     lastScannedAt: v.optional(v.number()),
     status: v.optional(websiteStatusValidator),
-    metadata: v.optional(jsonValueValidator),
+    metadata: v.optional(jsonRecordValidator),
   },
   handler: async (ctx, args) => {
     return await WebsitesHelpers.updateWebsite(ctx, args);

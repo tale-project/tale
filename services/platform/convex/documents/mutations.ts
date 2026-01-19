@@ -37,7 +37,7 @@ export const updateDocumentInternal = internalMutation({
     documentId: v.id('documents'),
     title: v.optional(v.string()),
     content: v.optional(v.string()),
-    metadata: v.optional(jsonValueValidator),
+    metadata: v.optional(jsonRecordValidator),
     fileId: v.optional(v.id('_storage')),
     mimeType: v.optional(v.string()),
     extension: v.optional(v.string()),

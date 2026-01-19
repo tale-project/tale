@@ -4,7 +4,7 @@
  * We trigger exactly once per scheduled minute if lastExecution < previousScheduledTime.
  */
 
-import CronExpressionParser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 
 export async function shouldTriggerWorkflow(
   schedule: string,
