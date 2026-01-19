@@ -1173,15 +1173,38 @@ class CogneeService:
             logger.warning(f"PGVector cleanup failed (continuing): {e}")
 
     async def _cleanup_graph_database(self) -> None:
-        """Clear graph data from FalkorDB.
+        """Clear all graph data from FalkorDB.
 
-        FalkorDB is a Redis-based client-server database. Graph data is managed
-        centrally and will be cleared when the PostgreSQL metadata is reset.
-        FalkorDB graphs are created dynamically per dataset and will be
-        recreated when documents are re-indexed.
-
-        Note: For a complete FalkorDB reset, you may also want to flush the
-        FalkorDB instance directly using redis-cli FLUSHALL.
+        Connects to FalkorDB and deletes all graphs to ensure complete reset.
+        Uses GRAPH.LIST to enumerate graphs and GRAPH.DELETE to remove each one.
         """
-        logger.info("FalkorDB graph database: data will be recreated on re-index")
+        import redis
+
+        falkordb_url = os.environ.get("GRAPH_DATABASE_URL", "graph-db")
+        falkordb_port = int(os.environ.get("GRAPH_DATABASE_PORT", "6379"))
+
+        try:
+            client = redis.Redis(host=falkordb_url, port=falkordb_port, decode_responses=True)
+
+            graphs = client.execute_command("GRAPH.LIST")
+
+            if not graphs:
+                logger.info("FalkorDB: No graphs to delete")
+                return
+
+            deleted_count = 0
+            for graph_name in graphs:
+                try:
+                    client.execute_command("GRAPH.DELETE", graph_name)
+                    deleted_count += 1
+                    logger.debug(f"Deleted FalkorDB graph: {graph_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete graph {graph_name}: {e}")
+
+            logger.info(f"FalkorDB cleanup complete: deleted {deleted_count}/{len(graphs)} graphs")
+
+        except redis.ConnectionError as e:
+            logger.warning(f"Could not connect to FalkorDB at {falkordb_url}:{falkordb_port}: {e}")
+        except Exception as e:
+            logger.warning(f"FalkorDB cleanup failed (continuing): {e}")
 

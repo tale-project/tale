@@ -124,7 +124,6 @@ export async function executeAgentWithTools(
         `Thread: ${threadId}, ` +
         `User prompt length: ${prompts.userPrompt?.length ?? 0}, ` +
         `System prompt length: ${prompts.systemPrompt?.length ?? 0}`,
-      { cause: error },
     );
   }
 

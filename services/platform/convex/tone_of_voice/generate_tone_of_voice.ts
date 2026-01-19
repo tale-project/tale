@@ -8,6 +8,7 @@ import { generateObject } from 'ai';
 import { openai } from '../lib/openai_provider';
 import { z } from 'zod/v4';
 import { GenerateToneResponse } from './types';
+import { getEnvOrThrow } from '../lib/get_or_throw';
 
 export async function generateToneOfVoice(
   ctx: ActionCtx,
@@ -37,14 +38,7 @@ export async function generateToneOfVoice(
       )
       .join('\n\n---\n\n');
 
-    // Get OpenAI API key
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (!openaiKey) {
-      return {
-        success: false,
-        error: 'OpenAI API key not configured',
-      };
-    }
+    const openaiKey = getEnvOrThrow('OPENAI_API_KEY', 'OpenAI API key');
 
     // Generate tone using AI
     const result = await generateObject({

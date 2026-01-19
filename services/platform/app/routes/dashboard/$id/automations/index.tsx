@@ -51,7 +51,7 @@ function AutomationsPage() {
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
-  const hasAutomations = useQuery(api.wf_definitions.queries.hasAutomations.hasAutomations, {
+  const hasAutomations = useQuery(api.wf_definitions.queries.hasAutomations, {
     organizationId,
   });
 

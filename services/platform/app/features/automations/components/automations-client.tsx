@@ -43,7 +43,7 @@ export function AutomationsClient({
   );
 
   const automationsResult = useQuery(
-    api.wf_definitions.queries.getAutomations.getAutomations,
+    api.wf_definitions.queries.getAutomations,
     queryArgs,
   );
 

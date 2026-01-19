@@ -7,6 +7,7 @@
 import { v } from 'convex/values';
 import { action } from './_generated/server';
 import { authComponent } from './auth';
+import { getEnvOrThrow, getEnvWithDefault } from './lib/get_or_throw';
 
 export const improveMessage = action({
   args: {
@@ -26,13 +27,8 @@ export const improveMessage = action({
     const { originalMessage, instruction } = args;
 
     try {
-      // Use OpenAI to improve the message
-      const model = process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
-      const apiKey = process.env.OPENAI_API_KEY;
-
-      if (!apiKey) {
-        return { improvedMessage: originalMessage, error: 'OpenAI API key not configured' };
-      }
+      const model = getEnvWithDefault('OPENAI_CHAT_MODEL', 'gpt-4o-mini');
+      const apiKey = getEnvOrThrow('OPENAI_API_KEY', 'OpenAI API key');
 
       const systemPrompt = `You are a helpful assistant that improves written messages for clarity, professionalism, and tone.
 Your task is to improve the given message while keeping its core meaning intact.

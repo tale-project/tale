@@ -104,7 +104,7 @@ export async function saveDefaultWorkflows(
   // Create all workflows in parallel
   const results = await Promise.all(
     payloads.map((payload) =>
-      ctx.runMutation(internal.wf_definitions.mutations.createWorkflow.createWorkflowWithSteps, {
+      ctx.runMutation(internal.wf_definitions.mutations.createWorkflowWithSteps, {
         organizationId: args.organizationId,
         ...payload,
       }),
@@ -116,7 +116,7 @@ export async function saveDefaultWorkflows(
   // Activate all workflows in parallel
   await Promise.all(
     workflowIds.map((workflowId: Id<'wfDefinitions'>) =>
-      ctx.runMutation(internal.wf_definitions.mutations.updateWorkflow.updateWorkflowStatus, {
+      ctx.runMutation(internal.wf_definitions.mutations.updateWorkflowStatus, {
         wfDefinitionId: workflowId,
         status: 'active',
         updatedBy: 'system',

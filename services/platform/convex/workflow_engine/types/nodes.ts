@@ -14,28 +14,32 @@ import {
 // =============================================================================
 
 /**
- * JSON Schema property definition for output schema validation
+ * JSON Schema property definition for output schema validation.
+ * Compatible with zod's JSONSchema type for use with z.fromJSONSchema().
  */
 export interface JsonSchemaProperty {
+  [k: string]: unknown;
   type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
   description?: string;
-  items?: JsonSchemaProperty; // For array types
-  properties?: Record<string, JsonSchemaProperty>; // For object types
-  required?: string[]; // For object types
-  enum?: (string | number | boolean)[]; // For enum values
-  nullable?: boolean; // Allow null values
+  items?: JsonSchemaProperty;
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  enum?: (string | number | boolean)[];
+  nullable?: boolean;
 }
 
 /**
  * JSON Schema definition for LLM output validation.
  * Used to validate and ensure structured LLM outputs conform to expected shape.
+ * Compatible with zod's JSONSchema type for use with z.fromJSONSchema().
  */
 export interface JsonSchemaDefinition {
+  [k: string]: unknown;
   type: 'object';
   properties: Record<string, JsonSchemaProperty>;
   required?: string[];
   description?: string;
-  additionalProperties?: boolean; // Whether to allow additional properties beyond those defined
+  additionalProperties?: boolean;
 }
 
 export interface LLMNodeConfig {

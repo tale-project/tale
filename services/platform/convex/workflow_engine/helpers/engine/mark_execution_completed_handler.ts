@@ -8,6 +8,11 @@ import type { MutationCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 import { Infer } from 'convex/values';
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import {
+  sanitizeDepth,
+  calculateDepth,
+  MAX_SAFE_DEPTH,
+} from '../serialization/sanitize_depth';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -44,9 +49,10 @@ export async function handleMarkExecutionCompleted(
           _storageRef: parsed._storageRef,
         };
       } else {
-        // Check size before storing inline
+        // Check size and depth before storing inline
         const outputJson = JSON.stringify(parsed);
         const sizeInBytes = new Blob([outputJson]).size;
+        const depth = calculateDepth(parsed);
 
         if (sizeInBytes > MAX_INLINE_OUTPUT_SIZE) {
           // Output is too large - store a summary instead
@@ -56,6 +62,9 @@ export async function handleMarkExecutionCompleted(
             _warning: 'Full output exceeded size limit and was truncated',
             _storageRef: parsed._storageRef || null,
           };
+        } else if (depth > MAX_SAFE_DEPTH) {
+          // Depth exceeds jsonValueValidator limit - sanitize by truncating deep levels
+          finalOutput = sanitizeDepth(parsed);
         } else {
           finalOutput = parsed;
         }

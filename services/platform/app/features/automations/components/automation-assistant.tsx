@@ -188,7 +188,7 @@ export function AutomationAssistant({
 
   // Load workflow to get threadId from metadata (use public API)
   const workflow = useQuery(
-    api.wf_definitions.queries.getWorkflow.getWorkflowPublic,
+    api.wf_definitions.queries.getWorkflowPublic,
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 

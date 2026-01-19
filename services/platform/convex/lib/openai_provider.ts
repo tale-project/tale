@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import { getEnvOrThrow, getEnvOptional } from './get_or_throw';
 
 /**
  * Shared OpenAI-compatible provider for Convex code.
@@ -6,11 +7,32 @@ import { createOpenAI } from '@ai-sdk/openai';
  * This is configured via environment variables so we can point at
  * OpenAI, OpenRouter, or any other OpenAI-compatible endpoint.
  *
- * - OPENAI_API_KEY: API key for the provider
+ * - OPENAI_API_KEY: API key for the provider (required)
  * - OPENAI_BASE_URL: optional custom base URL (e.g. https://openrouter.ai/api/v1)
+ *
+ * The provider is lazily initialized on first access to ensure environment
+ * variables are available (important for Convex startup sequence).
  */
-export const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL,
+
+let _openaiInstance: ReturnType<typeof createOpenAI> | null = null;
+
+function getOpenAIProvider() {
+  if (_openaiInstance === null) {
+    const apiKey = getEnvOrThrow('OPENAI_API_KEY', 'API key for OpenAI provider');
+    const baseURL = getEnvOptional('OPENAI_BASE_URL');
+
+    _openaiInstance = createOpenAI({
+      apiKey,
+      baseURL,
+    });
+  }
+  return _openaiInstance;
+}
+
+export const openai = new Proxy({} as ReturnType<typeof createOpenAI>, {
+  get(target, prop) {
+    const provider = getOpenAIProvider();
+    return provider[prop as keyof typeof provider];
+  },
 });
 
