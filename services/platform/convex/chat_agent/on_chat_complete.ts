@@ -61,27 +61,25 @@ export async function onChatComplete(
   if (latestAssistantMessage) {
     const currentOrder = latestAssistantMessage.order;
 
-    // Find the FIRST ASSISTANT message in this response group.
+    // Find the FIRST message (by stepOrder) in this response group.
     // The UI's createAssistantUIMessage groups assistant+tool messages together
-    // and uses the first ASSISTANT message's _id as the group's id.
+    // and uses the FIRST message's _id (sorted by stepOrder) as the UIMessage.id.
+    // This matches the @convex-dev/agent UIMessages.js logic: sorted(groupUnordered)[0]._id
     // Note: order groups ALL messages (including user), but we only want assistant/tool.
-    const assistantMessagesInCurrentResponse = sortedMessages
+    const messagesInCurrentResponse = sortedMessages
       .filter(
         (msg) =>
           msg.order === currentOrder &&
           (msg.message?.role === 'assistant' || msg.message?.role === 'tool'),
       )
-      .sort((a, b) => a._creationTime - b._creationTime);
+      .sort((a, b) => a.stepOrder - b.stepOrder);
 
-    // The first message should be an assistant message (not tool) since assistant
-    // generates text/tool-call first, then tool results come back
-    const firstAssistantMessage = assistantMessagesInCurrentResponse.find(
-      (msg) => msg.message?.role === 'assistant',
-    );
+    // Get the first message by stepOrder - this matches what UIMessage.id uses
+    const firstMessageInResponse = messagesInCurrentResponse[0];
 
-    if (firstAssistantMessage && result.usage) {
+    if (firstMessageInResponse && result.usage) {
       await ctx.runMutation(api.message_metadata.mutations.saveMessageMetadata, {
-        messageId: firstAssistantMessage._id,
+        messageId: firstMessageInResponse._id,
         threadId: result.threadId,
         model: result.model,
         provider: result.provider,
@@ -96,7 +94,7 @@ export async function onChatComplete(
         subAgentUsage: result.subAgentUsage,
       });
       debugLog('onChatComplete metadata saved', {
-        messageId: firstAssistantMessage._id,
+        messageId: firstMessageInResponse._id,
         model: result.model,
       });
     }

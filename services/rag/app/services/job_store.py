@@ -113,18 +113,38 @@ def mark_running(job_id: str) -> None:
     _write_job(status)
 
 
-def mark_completed(job_id: str, *, document_id: str | None, chunks_created: int) -> None:
-    """Mark a job as completed successfully."""
+def mark_completed(
+    job_id: str,
+    *,
+    document_id: str | None,
+    chunks_created: int,
+    skipped: bool = False,
+    skip_reason: str | None = None,
+) -> None:
+    """Mark a job as completed successfully.
+
+    Args:
+        job_id: The job identifier
+        document_id: The document identifier
+        chunks_created: Number of chunks created (0 if skipped)
+        skipped: Whether ingestion was skipped (e.g., content unchanged)
+        skip_reason: Reason for skipping (e.g., 'content_unchanged')
+    """
     status = get_job(job_id)
     now = time.time()
+
+    message = "Ingestion skipped (content unchanged)" if skipped else "Ingestion completed"
+
     if status is None:
         status = JobStatus(
             job_id=job_id,
             document_id=document_id,
             state=JobState.COMPLETED,
             chunks_created=chunks_created,
-            message="Ingestion completed",
+            message=message,
             error=None,
+            skipped=skipped,
+            skip_reason=skip_reason,
             created_at=now,
             updated_at=now,
         )
@@ -132,8 +152,10 @@ def mark_completed(job_id: str, *, document_id: str | None, chunks_created: int)
         status.state = JobState.COMPLETED
         status.document_id = document_id or status.document_id
         status.chunks_created = chunks_created
-        status.message = "Ingestion completed"
+        status.message = message
         status.error = None
+        status.skipped = skipped
+        status.skip_reason = skip_reason
         status.updated_at = now
 
     _write_job(status)

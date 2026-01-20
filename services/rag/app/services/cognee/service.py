@@ -32,7 +32,7 @@ from .cleanup import (
     cleanup_missing_local_files_data,
     migrate_vector_dimensions,
 )
-from .utils import normalize_add_result, normalize_search_results
+from .utils import compute_file_hash, normalize_add_result, normalize_search_results
 
 # Standard logging adapter for tenacity (it doesn't support loguru directly)
 _std_logger = logging.getLogger(__name__)
@@ -167,57 +167,99 @@ class CogneeService:
             document_id: The document ID to search for
 
         Returns:
-            List of dicts, each containing { data_id: UUID, dataset_id: UUID, dataset_name: str }
+            List of dicts, each containing:
+            - data_id: UUID
+            - dataset_id: UUID
+            - dataset_name: str
+            - content_hash: str | None (for deduplication)
         """
         if not self.initialized:
             await self.initialize()
 
         try:
-            from cognee.infrastructure.databases.relational import get_relational_engine
-            from cognee.modules.data.models import Data, Dataset, DatasetData
-            from sqlalchemy import String, cast, select
+            import asyncpg
+            from urllib.parse import urlparse
 
-            db_engine = get_relational_engine()
-            async with db_engine.get_async_session() as session:
-                # Find all Data records containing this document_id in node_set
-                result = await session.execute(
-                    select(Data).where(
-                        cast(Data.node_set, String).contains(document_id)
-                    )
+            db_url = settings.get_database_url()
+            parsed = urlparse(db_url)
+
+            conn = await asyncpg.connect(
+                host=parsed.hostname or "localhost",
+                port=parsed.port or 5432,
+                database=parsed.path.lstrip("/") if parsed.path else "",
+                user=parsed.username or "",
+                password=parsed.password or "",
+            )
+            try:
+                # Use raw SQL to get document datasets with original_content_hash
+                # SQLAlchemy ORM doesn't know about our custom column
+                rows = await conn.fetch(
+                    """
+                    SELECT d.id as data_id, dd.dataset_id, ds.name as dataset_name, d.original_content_hash
+                    FROM data d
+                    JOIN dataset_data dd ON d.id = dd.data_id
+                    JOIN datasets ds ON dd.dataset_id = ds.id
+                    WHERE d.node_set::text LIKE $1
+                    """,
+                    f'%{document_id}%',
                 )
-                matching_data = result.scalars().all()
 
-                if not matching_data:
-                    return []
-
-                # Get dataset information for each record
                 entries = []
-                for data in matching_data:
-                    dataset_link = (
-                        await session.execute(
-                            select(DatasetData).where(DatasetData.data_id == data.id)
-                        )
-                    ).scalars().first()
-
-                    if dataset_link:
-                        # Get the dataset name
-                        dataset = (
-                            await session.execute(
-                                select(Dataset).where(Dataset.id == dataset_link.dataset_id)
-                            )
-                        ).scalars().first()
-
-                        entries.append({
-                            "data_id": data.id,
-                            "dataset_id": dataset_link.dataset_id,
-                            "dataset_name": dataset.name if dataset else "unknown",
-                        })
+                for row in rows:
+                    entries.append({
+                        "data_id": row["data_id"],
+                        "dataset_id": row["dataset_id"],
+                        "dataset_name": row["dataset_name"] or "unknown",
+                        "original_content_hash": row["original_content_hash"],
+                    })
 
                 return entries
+            finally:
+                await conn.close()
 
         except Exception as e:
             logger.warning(f"Failed to get document datasets for '{document_id}': {e}")
             return []
+
+    async def _save_original_content_hash(
+        self,
+        document_id: str,
+        content_hash: str,
+    ) -> None:
+        """Save the original content hash to the data record.
+
+        Args:
+            document_id: The document identifier (stored in node_set)
+            content_hash: SHA-256 hash of the original uploaded file
+        """
+        import asyncpg
+        from urllib.parse import urlparse
+
+        db_url = settings.get_database_url()
+        parsed = urlparse(db_url)
+
+        conn = await asyncpg.connect(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 5432,
+            database=parsed.path.lstrip("/") if parsed.path else "",
+            user=parsed.username or "",
+            password=parsed.password or "",
+        )
+        try:
+            # Use raw SQL to update the column (bypasses SQLAlchemy model validation)
+            # node_set is JSON, use simple LIKE pattern without quotes
+            result = await conn.execute(
+                """
+                UPDATE data
+                SET original_content_hash = $1
+                WHERE node_set::text LIKE $2
+                """,
+                content_hash,
+                f'%{document_id}%',
+            )
+            logger.debug(f"Saved original_content_hash for document '{document_id}': {result}")
+        finally:
+            await conn.close()
 
     async def _delete_data_entry(
         self,
@@ -246,6 +288,10 @@ class CogneeService:
             logger.info(f"Deleted data entry: {data_id} from dataset: {dataset_id}")
             return True
         except Exception as e:
+            error_str = str(e)
+            if "404" in error_str or "not found" in error_str.lower():
+                logger.debug(f"Data entry {data_id} not found in graph (already deleted or never indexed)")
+                return True
             logger.error(f"Failed to delete data entry {data_id}: {e}")
             return False
 
@@ -285,14 +331,19 @@ class CogneeService:
             # or fall back to the default shared dataset.
             effective_dataset_name = dataset_name or DEFAULT_COGNEE_DATASET_NAME
 
-            # Clean up document from old datasets if it exists elsewhere
-            # This handles the case when a document's team assignment changes
+            # Compute content hash for deduplication (hash of original uploaded file)
+            new_content_hash: str | None = None
+            if Path(content).exists():
+                new_content_hash = await compute_file_hash(content)
+                logger.debug(f"Computed content hash for {document_id or 'unknown'}: {new_content_hash[:16]}...")
+
+            # Check for existing documents and handle deduplication
             cleaned_datasets: list[str] = []
             if document_id:
                 existing_entries = await self.get_document_datasets(document_id)
                 for entry in existing_entries:
-                    # Only delete records from datasets other than the target
                     if entry["dataset_name"] != effective_dataset_name:
+                        # Different dataset: delete old record (team assignment changed)
                         success = await self._delete_data_entry(
                             entry["data_id"],
                             entry["dataset_id"],
@@ -302,6 +353,36 @@ class CogneeService:
                             cleaned_datasets.append(entry["dataset_name"])
                             logger.info(
                                 f"Cleaned up document '{document_id}' from old dataset: {entry['dataset_name']}"
+                            )
+                    else:
+                        # Same dataset: check content hash for deduplication
+                        existing_hash = entry.get("original_content_hash")
+                        if existing_hash and new_content_hash and existing_hash == new_content_hash:
+                            # Content unchanged, skip re-indexing
+                            logger.info(
+                                f"Skipping document '{document_id}': content unchanged "
+                                f"(hash: {new_content_hash[:16]}...)"
+                            )
+                            return {
+                                "success": True,
+                                "document_id": document_id,
+                                "chunks_created": 0,
+                                "processing_time_ms": (time.time() - start_time) * 1000,
+                                "cleaned_datasets": cleaned_datasets,
+                                "skipped": True,
+                                "skip_reason": "content_unchanged",
+                            }
+                        # Content changed or no existing hash: delete old record first
+                        success = await self._delete_data_entry(
+                            entry["data_id"],
+                            entry["dataset_id"],
+                            mode="hard"
+                        )
+                        if success:
+                            logger.info(
+                                f"Deleted old version of document '{document_id}' for re-indexing "
+                                f"(old hash: {existing_hash[:16] if existing_hash else 'none'}..., "
+                                f"new hash: {new_content_hash[:16] if new_content_hash else 'none'}...)"
                             )
 
             # Use node_set to tag the document with our document_id for later deletion
@@ -417,6 +498,13 @@ class CogneeService:
             logger.info(f"Document added in {processing_time:.2f}ms")
 
             doc_id, chunks_created = normalize_add_result(result, document_id)
+
+            # Save original content hash for future deduplication
+            if document_id and new_content_hash:
+                try:
+                    await self._save_original_content_hash(document_id, new_content_hash)
+                except Exception as hash_err:
+                    logger.warning(f"Failed to save original_content_hash: {hash_err}")
 
             return {
                 "success": True,

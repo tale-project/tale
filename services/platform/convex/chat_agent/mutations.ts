@@ -65,6 +65,25 @@ export const onChatComplete = internalMutation({
           cachedInputTokens: v.optional(v.number()),
         }),
       ),
+      toolCalls: v.optional(
+        v.array(
+          v.object({
+            toolName: v.string(),
+            status: v.string(),
+          }),
+        ),
+      ),
+      reasoning: v.optional(v.string()),
+      subAgentUsage: v.optional(
+        v.array(
+          v.object({
+            toolName: v.string(),
+            inputTokens: v.optional(v.number()),
+            outputTokens: v.optional(v.number()),
+            totalTokens: v.optional(v.number()),
+          }),
+        ),
+      ),
     }),
   },
   handler: async (ctx, args) => {

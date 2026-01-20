@@ -438,3 +438,74 @@ async def cleanup_missing_local_files_data() -> None:
                 cleanup_err,
             )
 
+
+async def ensure_original_content_hash_column() -> bool:
+    """Ensure the 'original_content_hash' column exists in the data table.
+
+    This column stores the SHA-256 hash of the original uploaded file,
+    used for content deduplication. Cognee's built-in content_hash is
+    computed on the processed file (e.g., after Vision extraction), not
+    the original upload.
+
+    Returns:
+        True if the column was created, False if it already existed.
+    """
+    try:
+        import asyncpg
+
+        db_url = settings.get_database_url()
+        parsed = urlparse(db_url)
+
+        if parsed.scheme not in ("postgresql", "postgres"):
+            logger.debug(
+                "Unsupported database scheme '{}', skipping original_content_hash migration",
+                parsed.scheme,
+            )
+            return False
+
+        conn = await asyncpg.connect(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 5432,
+            database=parsed.path.lstrip("/") if parsed.path else "",
+            user=parsed.username or "",
+            password=parsed.password or "",
+        )
+
+        try:
+            # Check if column already exists
+            exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'data' AND column_name = 'original_content_hash'
+                )
+            """)
+
+            if exists:
+                logger.debug("Column 'original_content_hash' already exists in data table")
+                return False
+
+            # Add the column
+            await conn.execute("""
+                ALTER TABLE data ADD COLUMN original_content_hash VARCHAR
+            """)
+            logger.info("Added 'original_content_hash' column to data table for deduplication")
+            return True
+
+        finally:
+            await conn.close()
+
+    except ImportError:
+        logger.debug(
+            "asyncpg not available, skipping original_content_hash migration"
+        )
+        return False
+    except Exception as e:
+        # Table might not exist yet on first run
+        if "does not exist" in str(e).lower() or "undefinedtable" in str(type(e).__name__).lower():
+            logger.debug(
+                "Data table does not exist yet, skipping original_content_hash migration (normal on first run)"
+            )
+        else:
+            logger.warning("Failed to ensure original_content_hash column: {}", e)
+        return False
+
