@@ -221,6 +221,12 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       enabled: true,
       requireEmailVerification: false,
     },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['microsoft'],
+      },
+    },
     socialProviders: {
       microsoft: {
         clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID as string,

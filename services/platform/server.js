@@ -1,4 +1,5 @@
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -8,6 +9,15 @@ const __dirname = dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
+let indexHtmlTemplate = null;
+
+function getEnvConfig() {
+  return {
+    SITE_URL: process.env.SITE_URL,
+    MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+  };
+}
+
 app.use(express.static(join(__dirname, 'dist')));
 
 app.get('/api/health', (_req, res) => {
@@ -15,7 +25,18 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.get('*', (_req, res) => {
-  res.sendFile(join(__dirname, 'dist', 'index.html'));
+  if (!indexHtmlTemplate) {
+    indexHtmlTemplate = readFileSync(join(__dirname, 'dist', 'index.html'), 'utf-8');
+  }
+
+  const envConfig = getEnvConfig();
+  const html = indexHtmlTemplate.replace(
+    'window.__ENV__ = "__ENV_PLACEHOLDER__";',
+    `window.__ENV__ = ${JSON.stringify(envConfig)};`
+  );
+
+  res.setHeader('Content-Type', 'text/html');
+  res.send(html);
 });
 
 app.listen(port, '0.0.0.0', () => {

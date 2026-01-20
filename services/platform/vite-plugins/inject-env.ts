@@ -8,7 +8,7 @@ interface EnvConfig {
 function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL || 'http://localhost:3000',
-    MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
+    MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
   };
 }
 
