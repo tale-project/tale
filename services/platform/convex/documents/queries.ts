@@ -9,6 +9,7 @@ import { internalQuery, query } from '../_generated/server';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { getUserTeamIds } from '../lib/get_user_teams';
 import { documentItemValidator, sourceProviderValidator as srcProviderValidator } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
@@ -135,6 +136,11 @@ export const getDocumentsCursor = query({
       return { page: [], isDone: true, continueCursor: '' };
     }
 
-    return await DocumentsHelpers.getDocumentsCursor(ctx, args);
+    const userTeamIds = await getUserTeamIds(ctx, authUser.userId ?? '');
+
+    return await DocumentsHelpers.getDocumentsCursor(ctx, {
+      ...args,
+      userTeamIds,
+    });
   },
 });

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
@@ -20,19 +19,15 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
 
 function ProductsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasProducts = useQuery(api.products.queries.hasProducts, { organizationId });
+  const products = useQuery(api.products.queries.getAllProducts, { organizationId });
 
-  if (hasProducts === undefined) {
+  if (products === undefined) {
     return <ProductTableSkeleton organizationId={organizationId} />;
   }
 
-  if (!hasProducts) {
+  if (products.length === 0) {
     return <ProductsEmptyState organizationId={organizationId} />;
   }
 
-  return (
-    <Suspense fallback={<ProductTableSkeleton organizationId={organizationId} />}>
-      <ProductTable organizationId={organizationId} />
-    </Suspense>
-  );
+  return <ProductTable organizationId={organizationId} />;
 }

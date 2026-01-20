@@ -1,11 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { z } from 'zod';
 import { api } from '@/convex/_generated/api';
 import { VendorsTable } from '@/app/features/vendors/components/vendors-table';
 import { VendorsTableSkeleton } from '@/app/features/vendors/components/vendors-table-skeleton';
-import { VendorsPageWrapper } from '@/app/features/vendors/components/vendors-page-wrapper';
+import { VendorsEmptyState } from '@/app/features/vendors/components/vendors-empty-state';
 
 const searchSchema = z.object({
   query: z.string().optional(),
@@ -20,20 +19,15 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/vendors')({
 
 function VendorsPage() {
   const { id: organizationId } = Route.useParams();
-  const hasVendors = useQuery(api.vendors.queries.hasVendors, { organizationId });
+  const vendors = useQuery(api.vendors.queries.getAllVendors, { organizationId });
 
-  if (hasVendors === undefined) {
+  if (vendors === undefined) {
     return <VendorsTableSkeleton organizationId={organizationId} />;
   }
 
-  return (
-    <VendorsPageWrapper
-      organizationId={organizationId}
-      initialHasVendors={hasVendors}
-    >
-      <Suspense fallback={<VendorsTableSkeleton organizationId={organizationId} />}>
-        <VendorsTable organizationId={organizationId} />
-      </Suspense>
-    </VendorsPageWrapper>
-  );
+  if (vendors.length === 0) {
+    return <VendorsEmptyState organizationId={organizationId} />;
+  }
+
+  return <VendorsTable organizationId={organizationId} />;
 }
