@@ -113,6 +113,10 @@ export const getAutomations = queryWithRLS({
 
     const allItems: WorkflowDefinition[] = [];
     for await (const item of query) {
+      if (item.parentVersionId !== undefined) {
+        continue;
+      }
+
       if (args.status && args.status.length > 0) {
         if (!args.status.includes(item.status ?? 'active')) {
           continue;
@@ -140,13 +144,18 @@ export const hasAutomations = queryWithRLS({
     organizationId: v.string(),
   },
   handler: async (ctx, args) => {
-    const first = await ctx.db
+    const query = ctx.db
       .query('wfDefinitions')
       .withIndex('by_org', (q) =>
         q.eq('organizationId', args.organizationId),
-      )
-      .first();
+      );
 
-    return first !== null;
+    for await (const item of query) {
+      if (item.parentVersionId === undefined) {
+        return true;
+      }
+    }
+
+    return false;
   },
 });

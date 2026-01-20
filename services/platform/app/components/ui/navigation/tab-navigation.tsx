@@ -152,6 +152,10 @@ export function TabNavigation({
     >
       {accessibleItems.map((item, index) => {
         const isActive = isPathActive(item);
+        const [path, queryString] = item.href.split('?');
+        const search = queryString
+          ? Object.fromEntries(new URLSearchParams(queryString))
+          : undefined;
 
         return (
           <Link
@@ -159,7 +163,8 @@ export function TabNavigation({
             ref={(el) => {
               itemRefs.current[index] = el;
             }}
-            to={item.href}
+            to={path}
+            search={search}
             preload={prefetch ? 'intent' : false}
             aria-current={isActive ? 'page' : undefined}
             className={cn(
