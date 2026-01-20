@@ -52,6 +52,7 @@ export async function createIntegrationLogic(
   args: CreateIntegrationLogicArgs,
 ): Promise<Id<'integrations'>> {
   // Verify access (RLS check)
+  // @ts-ignore TS2589: Convex API type instantiation is excessively deep
   await ctx.runQuery(api.integrations.queries.list.list, {
     organizationId: args.organizationId,
   });

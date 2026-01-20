@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: useAction - provider list uses preloaded query, complex optimistic
 export function useCreateEmailProvider() {
-  return useAction(api.email_providers.actions.create.create);
+  return useAction(api.email_providers.actions.create);
 }
