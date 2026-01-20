@@ -136,7 +136,7 @@ export const getDocumentsCursor = query({
       return { page: [], isDone: true, continueCursor: '' };
     }
 
-    const userTeamIds = await getUserTeamIds(ctx, authUser.userId ?? '');
+    const userTeamIds = await getUserTeamIds(ctx, String(authUser._id));
 
     return await DocumentsHelpers.getDocumentsCursor(ctx, {
       ...args,
