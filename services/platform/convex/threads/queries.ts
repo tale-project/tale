@@ -53,6 +53,10 @@ export const getThreadMessagesStreamingQuery = query({
     paginationOpts: v.object({
       numItems: v.number(),
       cursor: v.union(v.string(), v.null()),
+      endCursor: v.optional(v.union(v.string(), v.null())),
+      id: v.optional(v.number()),
+      maximumRowsRead: v.optional(v.number()),
+      maximumBytesRead: v.optional(v.number()),
     }),
     streamArgs: v.optional(
       v.union(
