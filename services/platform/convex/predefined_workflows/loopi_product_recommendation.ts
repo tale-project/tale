@@ -379,51 +379,10 @@ DO NOT use the same confidence score for all recommendations.`,
           properties: {
             recommendations: {
               type: 'array',
-              description: 'List of 5 recommended products',
+              description: 'List of 5 recommended products with productId, productName, imageUrl, relationshipType (Complementary|Upgrade|Bundle|Substitute), reasoning, and confidence (0.3-1.0)',
               items: {
                 type: 'object',
-                properties: {
-                  productId: {
-                    type: 'string',
-                    description: 'Convex product ID (_id field)',
-                  },
-                  productName: {
-                    type: 'string',
-                    description: 'Product name',
-                  },
-                  imageUrl: {
-                    type: 'string',
-                    description: 'Product image URL',
-                  },
-                  relationshipType: {
-                    type: 'string',
-                    enum: ['Complementary', 'Upgrade', 'Bundle', 'Substitute'],
-                    description: 'Type of relationship to customer products',
-                  },
-                  reasoning: {
-                    type: 'string',
-                    description:
-                      'Clear explanation of why this product is recommended',
-                  },
-                  confidence: {
-                    type: 'number',
-                    minimum: 0.3,
-                    maximum: 1.0,
-                    description:
-                      'Confidence score reflecting recommendation strength',
-                  },
-                },
-                required: [
-                  'productId',
-                  'productName',
-                  'imageUrl',
-                  'relationshipType',
-                  'reasoning',
-                  'confidence',
-                ],
               },
-              minItems: 5,
-              maxItems: 5,
             },
             summary: {
               type: 'string',
