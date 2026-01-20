@@ -264,6 +264,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
       // The Convex plugin is required for Convex compatibility
       convex({
         authConfig,
+        jwksRotateOnTokenGenerationError: true,
         jwt: {
           definePayload: ({ user, session }) => ({
             email: user.email,
