@@ -21,6 +21,7 @@ import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
 import { useWorkflowCreationApprovals } from '../hooks/use-workflow-creation-approvals';
 import { useChatPendingState } from '../hooks/use-chat-pending-state';
 import { useSendMessage } from '../hooks/use-send-message';
+import { usePendingMessages } from '../hooks/use-pending-messages';
 
 interface ChatInterfaceProps {
   organizationId: string;
@@ -32,14 +33,20 @@ export function ChatInterface({
   threadId,
 }: ChatInterfaceProps) {
   const { t } = useT('chat');
-  const { isPending, setIsPending, clearChatState } = useChatLayout();
+  const {
+    isPending,
+    setIsPending,
+    clearChatState,
+    pendingMessage,
+    setPendingMessage,
+  } = useChatLayout();
 
   const [inputValue, setInputValue] = useState('');
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Message processing
   const {
-    messages,
+    messages: rawMessages,
     uiMessages,
     loadMore,
     canLoadMore,
@@ -47,6 +54,12 @@ export function ChatInterface({
     streamingMessage,
     hasActiveTools,
   } = useMessageProcessing(threadId);
+
+  // Merge with pending messages from context for optimistic UI
+  const messages = usePendingMessages({
+    threadId,
+    realMessages: rawMessages,
+  });
 
   // Approvals
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
@@ -147,8 +160,9 @@ export function ChatInterface({
   const { sendMessage } = useSendMessage({
     organizationId,
     threadId,
-    messages,
+    messages: rawMessages,
     setIsPending: setPendingWithCount,
+    setPendingMessage,
     clearChatState,
     onBeforeSend: () => {
       shouldScrollToAIRef.current = true;
@@ -164,8 +178,12 @@ export function ChatInterface({
   };
 
   // Determine what to show in content area
-  const showWelcome = !threadId && messages.length === 0;
-  const showMessages = threadId || messages.length > 0;
+  // Show welcome only when idle (no threadId, no messages, no pending message, not loading)
+  const showWelcome =
+    !threadId && messages.length === 0 && !pendingMessage && !isPending;
+  // Show messages view when we have content or are loading (to show ThinkingAnimation)
+  const showMessages =
+    threadId || messages.length > 0 || pendingMessage || isPending;
 
   return (
     <div className="relative flex flex-col h-full flex-1 min-h-0">

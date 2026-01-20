@@ -1,11 +1,33 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from 'react';
+
+interface PendingMessageAttachment {
+  fileId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+}
+
+export interface PendingMessage {
+  content: string;
+  threadId: string;
+  attachments?: PendingMessageAttachment[];
+  timestamp: Date;
+}
 
 interface ChatLayoutContextType {
   isPending: boolean;
   setIsPending: (pending: boolean) => void;
   clearChatState: () => void;
+  pendingMessage: PendingMessage | null;
+  setPendingMessage: (message: PendingMessage | null) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -24,9 +46,13 @@ interface ChatLayoutProviderProps {
 
 export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
   const [isPending, setIsPending] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
+    null,
+  );
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
+    setPendingMessage(null);
   }, []);
 
   return (
@@ -35,6 +61,8 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
         isPending,
         setIsPending,
         clearChatState,
+        pendingMessage,
+        setPendingMessage,
       }}
     >
       {children}

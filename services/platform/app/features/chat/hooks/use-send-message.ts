@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, startTransition } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -8,12 +8,14 @@ import { useUpdateThread } from './use-update-thread';
 import { useChatWithAgent } from './use-chat-with-agent';
 import type { FileAttachment } from '../types';
 import type { ChatMessage } from './use-message-processing';
+import type { PendingMessage } from '../context/chat-layout-context';
 
 interface UseSendMessageParams {
   organizationId: string;
   threadId: string | undefined;
   messages: ChatMessage[];
   setIsPending: (pending: boolean) => void;
+  setPendingMessage: (message: PendingMessage | null) => void;
   clearChatState: () => void;
   onBeforeSend?: () => void;
 }
@@ -27,6 +29,7 @@ export function useSendMessage({
   threadId,
   messages,
   setIsPending,
+  setPendingMessage,
   clearChatState,
   onBeforeSend,
 }: UseSendMessageParams) {
@@ -49,8 +52,25 @@ export function useSendMessage({
         let currentThreadId = threadId;
         let isFirstMessage = false;
 
+        // Convert attachments format (needed before storing pending message)
+        const mutationAttachments = attachments?.map((a) => ({
+          fileId: a.fileId,
+          fileName: a.fileName,
+          fileType: a.fileType,
+          fileSize: a.fileSize,
+        }));
+
         // Create thread if needed
         if (!currentThreadId) {
+          // Store pending message immediately for optimistic UI (before API call)
+          const pendingTimestamp = new Date();
+          setPendingMessage({
+            content: sanitizedContent,
+            threadId: 'pending',
+            attachments: mutationAttachments,
+            timestamp: pendingTimestamp,
+          });
+
           const title =
             message.length > 50 ? message.substring(0, 50) + '...' : message;
           const newThreadId = await createThread({
@@ -61,9 +81,20 @@ export function useSendMessage({
           currentThreadId = newThreadId;
           isFirstMessage = true;
 
-          navigate({
-            to: '/dashboard/$id/chat/$threadId',
-            params: { id: organizationId, threadId: newThreadId },
+          // Update pending message with real threadId
+          setPendingMessage({
+            content: sanitizedContent,
+            threadId: newThreadId,
+            attachments: mutationAttachments,
+            timestamp: pendingTimestamp,
+          });
+
+          // Use startTransition to prevent Suspense from triggering
+          startTransition(() => {
+            navigate({
+              to: '/dashboard/$id/chat/$threadId',
+              params: { id: organizationId, threadId: newThreadId },
+            });
           });
         } else {
           isFirstMessage = messages?.length === 0;
@@ -75,14 +106,6 @@ export function useSendMessage({
             message.length > 50 ? message.substring(0, 50) + '...' : message;
           await updateThread({ threadId: currentThreadId, title });
         }
-
-        // Convert attachments format
-        const mutationAttachments = attachments?.map((a) => ({
-          fileId: a.fileId,
-          fileName: a.fileName,
-          fileType: a.fileType,
-          fileSize: a.fileSize,
-        }));
 
         // Send message with optimistic update
         await chatWithAgent({
@@ -104,6 +127,7 @@ export function useSendMessage({
       messages?.length,
       organizationId,
       setIsPending,
+      setPendingMessage,
       clearChatState,
       onBeforeSend,
       createThread,
