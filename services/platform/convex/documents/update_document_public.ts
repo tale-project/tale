@@ -45,7 +45,7 @@ export const updateDocument = mutation({
 
     return await updateDocumentHelper(ctx, {
       ...args,
-      userId: authUser.userId ?? undefined,
+      userId: String(authUser._id),
     });
   },
 });
