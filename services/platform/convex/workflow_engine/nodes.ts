@@ -47,7 +47,7 @@ function normalizeLLMConfig(config: LLMStepConfig): LLMNodeConfig {
 
 const stepExecutionResultValidator = v.object({
   port: v.string(),
-  variables: v.optional(v.object({ loop: v.optional(jsonValueValidator) })),
+  variables: v.optional(jsonRecordValidator),
   output: v.object({
     type: v.string(),
     data: jsonValueValidator,
