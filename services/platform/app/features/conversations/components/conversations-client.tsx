@@ -47,17 +47,90 @@ function isAllSelection(state: SelectionState): state is { type: 'all' } {
 
 function ConversationsClientSkeleton() {
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-32" />
+    <>
+      {/* Left Panel - Conversation List Skeleton */}
+      <div className="flex flex-col border-r border-border overflow-y-auto relative w-full md:flex-[0_0_24.75rem] md:max-w-[24.75rem]">
+        {/* Sticky header skeleton */}
+        <div className="flex bg-background/50 backdrop-blur-sm items-center p-4 gap-2.5 border-b border-border sticky top-0 z-10 h-16">
+          <div className="size-4 rounded border-2 border-muted bg-background" />
+          <div className="relative flex-1">
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+        </div>
+
+        {/* Conversation list skeleton */}
+        <div className="divide-y divide-border">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex items-center mt-1">
+                  <div className="size-4 rounded border-2 border-muted bg-background" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between mb-1.5">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-12 ml-4" />
+                  </div>
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                  <div className="flex gap-2">
+                    {i % 3 === 0 && (
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                    )}
+                    {i % 2 === 0 && (
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="space-y-2">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
-        ))}
+
+      {/* Right Panel - Conversation Detail Skeleton */}
+      <div className="flex-1 min-w-0 hidden md:flex flex-col">
+        {/* Header skeleton */}
+        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
+          <div className="flex items-center gap-3 flex-1">
+            <Skeleton className="size-10 rounded-full" />
+            <div className="flex flex-col gap-1.5 flex-1">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+        </div>
+
+        {/* Messages skeleton */}
+        <div className="pt-6 mx-auto max-w-3xl flex-1 w-full px-4">
+          <div className="flex flex-col gap-4 mb-8">
+            <div className="flex justify-start">
+              <div className="relative">
+                <Skeleton className="h-24 w-96 rounded-2xl" />
+                <Skeleton className="h-3 w-20 mt-1" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Skeleton className="h-20 w-80 rounded-2xl" />
+            </div>
+            <div className="flex justify-start">
+              <div className="relative">
+                <Skeleton className="h-16 w-72 rounded-2xl" />
+                <Skeleton className="h-3 w-20 mt-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Message editor skeleton */}
+        <div className="sticky bottom-0 z-50 bg-background px-2">
+          <div className="max-w-3xl mx-auto w-full px-4 py-4">
+            <Skeleton className="h-32 w-full rounded-lg" />
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -83,17 +156,20 @@ export function ConversationsClient({
   const { t: tCommon } = useT('common');
 
   // Fetch conversations with CSR hook (instant client-side filtering)
-  const { data: allConversations, isLoading: conversationsLoading } = useConversationsData({
-    organizationId,
-    status: status ? [status] : undefined,
-    priority: initialPriority ? [initialPriority] : undefined,
-    search: searchQuery || initialSearch,
-    sortBy: 'lastMessageAt',
-    sortOrder: 'desc',
-  });
+  const { data: allConversations, isLoading: conversationsLoading } =
+    useConversationsData({
+      organizationId,
+      status: status ? [status] : undefined,
+      priority: initialPriority ? [initialPriority] : undefined,
+      search: searchQuery || initialSearch,
+      sortBy: 'lastMessageAt',
+      sortOrder: 'desc',
+    });
 
   // Fetch email providers
-  const emailProviders = useQuery(api.email_providers.queries.list, { organizationId });
+  const emailProviders = useQuery(api.email_providers.queries.list, {
+    organizationId,
+  });
 
   // Convex mutations
   const bulkResolve = useBulkCloseConversations();
@@ -121,7 +197,10 @@ export function ConversationsClient({
 
   // Show empty state when there are no conversations and no email providers configured
   const showActivateEmptyState =
-    conversations.length === 0 && !hasEmailProviders && !searchQuery && !initialSearch;
+    conversations.length === 0 &&
+    !hasEmailProviders &&
+    !searchQuery &&
+    !initialSearch;
 
   if (showActivateEmptyState) {
     return <ActivateConversationsEmptyState organizationId={organizationId} />;
@@ -165,7 +244,10 @@ interface ConversationsClientInnerProps {
   selectionState: SelectionState;
   setSelectionState: (state: SelectionState) => void;
   bulkSendMessagesDialog: { isOpen: boolean; isSending: boolean };
-  setBulkSendMessagesDialog: (dialog: { isOpen: boolean; isSending: boolean }) => void;
+  setBulkSendMessagesDialog: (dialog: {
+    isOpen: boolean;
+    isSending: boolean;
+  }) => void;
   bulkResolve: ReturnType<typeof useBulkCloseConversations>;
   bulkReopen: ReturnType<typeof useBulkReopenConversations>;
   addMessage: ReturnType<typeof useAddMessage>;
@@ -197,9 +279,12 @@ function ConversationsClientInner({
 }: ConversationsClientInnerProps) {
   const filteredConversations = conversations;
 
-  const handleConversationSelect = useCallback((conversation: Conversation) => {
-    setSelectedConversationId(conversation.id);
-  }, [setSelectedConversationId]);
+  const handleConversationSelect = useCallback(
+    (conversation: Conversation) => {
+      setSelectedConversationId(conversation.id);
+    },
+    [setSelectedConversationId],
+  );
 
   const handleConversationCheck = useCallback(
     (conversationId: string, checked: boolean) => {
@@ -230,15 +315,18 @@ function ConversationsClientInner({
     [selectionState, filteredConversations, setSelectionState],
   );
 
-  const handleSelectAll = useCallback((checked: boolean | 'indeterminate') => {
-    if (typeof checked !== 'boolean') return;
+  const handleSelectAll = useCallback(
+    (checked: boolean | 'indeterminate') => {
+      if (typeof checked !== 'boolean') return;
 
-    if (checked) {
-      setSelectionState({ type: 'all' });
-    } else {
-      setSelectionState({ type: 'individual', selectedIds: new Set() });
-    }
-  }, [setSelectionState]);
+      if (checked) {
+        setSelectionState({ type: 'all' });
+      } else {
+        setSelectionState({ type: 'individual', selectedIds: new Set() });
+      }
+    },
+    [setSelectionState],
+  );
 
   const isConversationSelected = useCallback(
     (conversationId: string): boolean => {
@@ -545,7 +633,9 @@ function ConversationsClientInner({
             <div className="flex gap-3 justify-end">
               <Button
                 variant="outline"
-                onClick={() => setBulkSendMessagesDialog({ isOpen: false, isSending: false })}
+                onClick={() =>
+                  setBulkSendMessagesDialog({ isOpen: false, isSending: false })
+                }
                 disabled={bulkSendMessagesDialog.isSending}
               >
                 {tCommon('actions.cancel')}
