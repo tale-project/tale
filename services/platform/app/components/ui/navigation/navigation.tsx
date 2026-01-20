@@ -91,7 +91,7 @@ function NavigationItem({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Link to={item.href} className="block">
+            <Link to={item.to} params={item.params} className="block">
               <div
                 className={cn(
                   'relative flex items-center justify-center p-2 rounded-lg transition-colors',
