@@ -198,18 +198,18 @@ export function DocumentUploadDialog({
               {selectedFiles.map((file, index) => (
                 <div
                   key={`${file.name}-${index}`}
-                  className="flex items-center gap-2 p-2 rounded-md bg-muted/50"
+                  className="flex items-start gap-2 p-2 rounded-md bg-muted/50"
                 >
-                  <FileText className="size-4 text-muted-foreground shrink-0" />
-                  <span className="text-sm truncate flex-1">{file.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">
+                  <FileText className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <span className="text-sm break-words flex-1 min-w-0">{file.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
                     {formatFileSize(file.size)}
                   </span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="size-6 p-0"
+                    className="size-6 p-0 shrink-0"
                     onClick={() => handleRemoveFile(index)}
                     disabled={isUploading}
                   >
