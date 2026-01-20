@@ -1,3 +1,7 @@
+## Git
+
+- DO NOT include "Co-Authored-By" in commit messages.
+
 ## General
 
 - USE turbo for running scripts: `turbo run <script> --filter=<workspace>` (e.g., `turbo run lint --filter=platform`).

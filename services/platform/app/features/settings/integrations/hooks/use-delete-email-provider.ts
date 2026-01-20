@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 import type { Doc } from '@/convex/_generated/dataModel';
 
 export function useDeleteEmailProvider() {
-  return useMutation(api.email_providers.mutations.delete_provider.deleteProvider);
+  return useMutation(api.email_providers.mutations.deleteProvider);
 }

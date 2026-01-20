@@ -50,12 +50,12 @@ export async function sendMessageViaSMTP(
     // Get email provider (use default if not specified)
     let provider: unknown;
     if (args.providerId) {
-      provider = await ctx.runQuery(internal.email_providers.internal_queries.get_internal.getInternal, {
+      provider = await ctx.runQuery(internal.email_providers.internal_queries.getInternal, {
         providerId: args.providerId,
       });
     } else {
       provider = await ctx.runQuery(
-        internal.email_providers.internal_queries.get_default_internal.getDefaultInternal,
+        internal.email_providers.internal_queries.getDefaultInternal,
         {
           organizationId: args.organizationId,
         },
@@ -145,7 +145,7 @@ export async function sendMessageViaSMTP(
           expiresIn,
           scope,
         }) =>
-          await ctx.runAction(api.email_providers.actions.store_oauth2_tokens.storeOAuth2Tokens, {
+          await ctx.runAction(api.email_providers.actions.storeOAuth2Tokens, {
             emailProviderId,
             accessToken,
             refreshToken,
@@ -250,7 +250,7 @@ export async function sendMessageViaSMTP(
       // Schedule retry with exponential backoff
       await ctx.scheduler.runAfter(
         delayMs,
-        internal.email_providers.internal_actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
+        internal.email_providers.internal_actions.sendMessageViaSMTPInternal,
         {
           messageId: args.messageId,
           organizationId: args.organizationId,

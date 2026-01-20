@@ -93,7 +93,7 @@ export function ConversationsClient({
   });
 
   // Fetch email providers
-  const emailProviders = useQuery(api.email_providers.queries.list.list, { organizationId });
+  const emailProviders = useQuery(api.email_providers.queries.list, { organizationId });
 
   // Convex mutations
   const bulkResolve = useBulkCloseConversations();

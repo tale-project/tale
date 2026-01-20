@@ -126,7 +126,7 @@ export async function sendMessageViaEmail(
     // Send via API (Gmail API / Microsoft Graph)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.internal_actions.send_message_via_api_internal.sendMessageViaAPIInternal,
+      internal.email_providers.internal_actions.sendMessageViaAPIInternal,
       {
         messageId,
         organizationId: args.organizationId,
@@ -149,7 +149,7 @@ export async function sendMessageViaEmail(
     // Send via SMTP (default)
     await ctx.scheduler.runAfter(
       0, // Send immediately - retry backoff is handled by consumer on failure
-      internal.email_providers.internal_actions.send_message_via_smtp_internal.sendMessageViaSMTPInternal,
+      internal.email_providers.internal_actions.sendMessageViaSMTPInternal,
       {
         messageId,
         organizationId: args.organizationId,

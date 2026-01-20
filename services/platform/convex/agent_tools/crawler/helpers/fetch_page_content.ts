@@ -8,6 +8,7 @@ import { getCrawlerServiceUrl } from './get_crawler_service_url';
 import { type FetchUrlsApiResponse, type WebReadFetchUrlResult } from './types';
 import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
+import type { Doc } from '../../../_generated/dataModel';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -34,13 +35,8 @@ export async function fetchPageContent(
   // Try cache first when organizationId is available.
   if (organizationId) {
     try {
-      const cachedPage = await ctx.runQuery(
-        internal.websites.queries.getWebsitePageByUrlInternal,
-        {
-          organizationId,
-          url: args.url,
-        },
-      );
+      // @ts-ignore TS2589: Convex API type instantiation is excessively deep
+      const cachedPage = (await ctx.runQuery(internal.websites.queries.getWebsitePageByUrlInternal, { organizationId, url: args.url })) as Doc<'websitePages'> | null;
 
       if (cachedPage && cachedPage.content) {
         const rawContent = cachedPage.content ?? '';

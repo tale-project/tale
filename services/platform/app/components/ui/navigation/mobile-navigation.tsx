@@ -60,7 +60,8 @@ function MobileNavigationItem({
   return (
     <NavigationMenuItem className="w-full">
       <Link
-        to={item.href}
+        to={item.to}
+        params={item.params}
         onClick={onClose}
         className={cn(
           'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors w-full',
@@ -79,7 +80,8 @@ function MobileNavigationItem({
             return (
               <Link
                 key={subItem.href}
-                to={subItem.href}
+                to={subItem.to}
+                params={subItem.params}
                 onClick={onClose}
                 className={cn(
                   'block px-3 py-1.5 rounded-lg text-sm transition-colors',

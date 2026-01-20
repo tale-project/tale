@@ -162,7 +162,7 @@ export function OrganizationSettingsClient({
               className="pl-10"
             />
           </div>
-          {memberContext?.canManageMembers && (
+          {memberContext?.isAdmin && (
             <Button
               size="sm"
               onClick={() => setIsAddMemberDialogOpen(true)}
