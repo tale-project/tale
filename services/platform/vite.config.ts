@@ -34,7 +34,8 @@ export default defineConfig({
       '/api/convex-dashboard-proxy/api': {
         target: 'http://127.0.0.1:3210',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/convex-dashboard-proxy\/api/, '/api'),
+        rewrite: (path) =>
+          path.replace(/^\/api\/convex-dashboard-proxy\/api/, '/api'),
       },
       // Proxy better-auth requests to Convex HTTP endpoint
       '/api/auth': {
@@ -44,6 +45,25 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react/jsx-runtime',
+      'convex/react',
+      '@tanstack/react-router',
+      '@tanstack/react-query',
+      '@convex-dev/react-query',
+      'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-tooltip',
+      '@radix-ui/react-slot',
+      'framer-motion',
+      'zod',
+      'lodash',
+      'date-fns',
+    ],
     exclude: [
       '@tanstack/react-start/server',
       '@tanstack/react-start-server',
@@ -82,7 +102,11 @@ export default defineConfig({
             if (id.includes('katex')) {
               return 'vendor-katex';
             }
-            if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@lezer')) {
+            if (
+              id.includes('codemirror') ||
+              id.includes('@codemirror') ||
+              id.includes('@lezer')
+            ) {
               return 'vendor-codemirror';
             }
             if (id.includes('lucide-react')) {
