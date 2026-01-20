@@ -1,26 +1,26 @@
 'use node';
 
 /**
- * Internal action to test new provider connection
- * Provides actual network I/O implementations for testing
+ * Email Providers Internal Actions
  */
 
 import { v } from 'convex/values';
-import { internalAction } from '../../_generated/server';
-import { testNewProviderConnectionLogic } from '../test_new_provider_connection_logic';
+import { internalAction } from '../_generated/server';
+import { sendMessageViaAPI } from './send_message_via_api';
+import { sendMessageViaSMTP } from './send_message_via_smtp';
+import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
 import {
   emailProviderVendorValidator,
   emailProviderAuthMethodValidator,
   smtpConfigValidator,
   imapConfigValidator,
-} from '../validators';
-import { connectionTestResultValidator } from '../validators';
+  connectionTestResultValidator,
+} from './validators';
 import type {
   VerifySmtpConnectionParams,
   VerifyImapConnectionParams,
-} from '../test_connection_types';
+} from './test_connection_types';
 
-// SMTP verification using nodemailer
 async function verifySmtpConnection(params: VerifySmtpConnectionParams): Promise<void> {
   const nodemailer = await import('nodemailer');
 
@@ -38,7 +38,6 @@ async function verifySmtpConnection(params: VerifySmtpConnectionParams): Promise
   transporter.close();
 }
 
-// IMAP verification using imapflow
 async function verifyImapConnection(params: VerifyImapConnectionParams): Promise<void> {
   const { ImapFlow } = await import('imapflow');
 
@@ -63,6 +62,52 @@ async function verifyImapConnection(params: VerifyImapConnectionParams): Promise
   await client.connect();
   await client.logout();
 }
+
+export const sendMessageViaAPIInternal = internalAction({
+  args: {
+    messageId: v.id('conversationMessages'),
+    organizationId: v.string(),
+    providerId: v.optional(v.id('emailProviders')),
+    from: v.string(),
+    to: v.array(v.string()),
+    cc: v.optional(v.array(v.string())),
+    bcc: v.optional(v.array(v.string())),
+    subject: v.string(),
+    html: v.optional(v.string()),
+    text: v.optional(v.string()),
+    replyTo: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.array(v.string())),
+    headers: v.optional(v.record(v.string(), v.string())),
+    retryCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await sendMessageViaAPI(ctx, args);
+  },
+});
+
+export const sendMessageViaSMTPInternal = internalAction({
+  args: {
+    messageId: v.id('conversationMessages'),
+    organizationId: v.string(),
+    providerId: v.optional(v.id('emailProviders')),
+    from: v.string(),
+    to: v.array(v.string()),
+    cc: v.optional(v.array(v.string())),
+    bcc: v.optional(v.array(v.string())),
+    subject: v.string(),
+    html: v.optional(v.string()),
+    text: v.optional(v.string()),
+    replyTo: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.array(v.string())),
+    headers: v.optional(v.record(v.string(), v.string())),
+    retryCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await sendMessageViaSMTP(ctx, args);
+  },
+});
 
 export const testNewProviderConnection = internalAction({
   args: {

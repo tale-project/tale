@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: useAction returns generated URL - can't predict result
 export function useGenerateOAuthUrl() {
-  return useAction(api.email_providers.actions.generate_oauth2_auth_url.generateOAuth2AuthUrl);
+  return useAction(api.email_providers.actions.generateOAuth2AuthUrl);
 }

@@ -75,7 +75,7 @@ function IntegrationsPage() {
     organizationId,
     name: 'protel',
   });
-  const emailProviders = useQuery(api.email_providers.queries.list.list, { organizationId });
+  const emailProviders = useQuery(api.email_providers.queries.list, { organizationId });
 
   if (
     memberContext === undefined ||

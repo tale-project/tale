@@ -1,12 +1,12 @@
 /**
- * Email Providers Public Query - List
+ * Email Providers Public Queries
  */
 
 import { v } from 'convex/values';
-import { query } from '../../_generated/server';
-import { listProviders } from '../list_providers';
-import { authComponent } from '../../auth';
-import { getOrganizationMember } from '../../lib/rls';
+import { query } from '../_generated/server';
+import { listProviders } from './list_providers';
+import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 
 export const list = query({
   args: {

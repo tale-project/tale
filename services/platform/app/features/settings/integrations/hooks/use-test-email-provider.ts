@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: useAction returns test result - can't predict success/failure
 export function useTestEmailProvider() {
-  return useAction(api.email_providers.actions.test_existing_provider.testExistingProvider);
+  return useAction(api.email_providers.actions.testExistingProvider);
 }

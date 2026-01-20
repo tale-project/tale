@@ -47,7 +47,7 @@ export function EmailIntegrationDialog({
 
   // Fetch all email providers using Convex
   const providersData = useQuery(
-    api.email_providers.queries.list.list,
+    api.email_providers.queries.list,
     organizationId ? { organizationId: organizationId as string } : 'skip',
   );
   const providers: EmailProviderDoc[] = providersData ?? [];

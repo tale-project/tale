@@ -337,7 +337,7 @@ export async function removeRecommendedProduct(
     ? metadata.recommendedProducts
     : [];
 
-  const updatedProducts = recommendedProducts.filter((product) => {
+  const updatedProducts = recommendedProducts.filter((product: unknown) => {
     if (typeof product !== 'object' || product === null || Array.isArray(product)) {
       return true;
     }
