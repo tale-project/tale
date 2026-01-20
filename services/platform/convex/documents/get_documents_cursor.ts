@@ -18,6 +18,7 @@ export interface GetDocumentsCursorArgs {
   cursor: string | null;
   query?: string;
   folderPath?: string;
+  userTeamIds?: string[];
 }
 
 export interface CursorPaginatedDocumentsResult {
@@ -42,8 +43,21 @@ export async function getDocumentsCursor(
     )
     .order('desc');
 
-  // Filter function for search and folder path
+  // Filter function for search, folder path, and team access
   const filter = (doc: Doc<'documents'>): boolean => {
+    // Team-based access control
+    if (args.userTeamIds !== undefined) {
+      const docTeamTags = doc.teamTags;
+      if (docTeamTags && docTeamTags.length > 0) {
+        const hasAccess = docTeamTags.some((tag) =>
+          args.userTeamIds!.includes(tag),
+        );
+        if (!hasAccess) {
+          return false;
+        }
+      }
+    }
+
     // Apply folder path filter
     if (folderPath) {
       const docPath = getMetadataString(doc.metadata, 'storagePath');
