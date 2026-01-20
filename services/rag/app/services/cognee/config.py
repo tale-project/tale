@@ -540,7 +540,7 @@ def _patch_falkordb_adapter_relationship_sanitize() -> None:
             Upstream: https://github.com/topoteretes/cognee-community/issues/60
             """
             query = "MATCH (n) RETURN true LIMIT 1;"
-            result = await self.query(query)
+            result = self.query(query)
             # Original bug: result_set[0][0] fails with IndexError when graph is empty
             # because an empty graph returns an empty result_set
             if not result.result_set:

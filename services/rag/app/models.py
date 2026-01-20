@@ -105,6 +105,14 @@ class DocumentAddResponse(BaseModel):
         description="List of old datasets that were cleaned up during upload "
                     "(when document was moved to a different team/dataset)",
     )
+    skipped: bool = Field(
+        default=False,
+        description="Whether ingestion was skipped due to content being unchanged",
+    )
+    skip_reason: str | None = Field(
+        default=None,
+        description="Reason for skipping ingestion (e.g., 'content_unchanged')",
+    )
 
 
 class DocumentDeleteRequest(BaseModel):
@@ -169,6 +177,14 @@ class JobStatus(BaseModel):
     error: str | None = Field(
         default=None,
         description="Error message when the job is in FAILED state",
+    )
+    skipped: bool = Field(
+        default=False,
+        description="Whether ingestion was skipped (e.g., content unchanged)",
+    )
+    skip_reason: str | None = Field(
+        default=None,
+        description="Reason for skipping ingestion (e.g., 'content_unchanged')",
     )
     created_at: float = Field(
         ..., description="Unix timestamp (seconds) when the job record was created",

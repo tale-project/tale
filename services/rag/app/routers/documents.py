@@ -16,7 +16,7 @@ from ..models import (
     DocumentAddResponse,
     DocumentDeleteResponse,
 )
-from ..services import job_store
+from ..services import job_store_db as job_store
 from ..services.cognee import cognee_service
 from ..utils import cleanup_memory
 
@@ -90,7 +90,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
     doc_id = request.document_id or f"doc-{uuid4().hex}"
 
     # Create an initial queued job record so callers can immediately query status.
-    job_store.create_queued(job_id=doc_id, document_id=doc_id)
+    await job_store.create_queued(job_id=doc_id, document_id=doc_id)
 
     async def _background_ingest_text(
         content: str,
@@ -100,7 +100,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         dataset_name: str | None = None,
     ) -> None:
         try:
-            job_store.mark_running(job_id=document_id)
+            await job_store.mark_running(job_id=document_id)
             response = await _ingest_single_document(
                 content=content,
                 metadata=metadata,
@@ -108,13 +108,15 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
                 user_id=user_id,
                 dataset_name=dataset_name,
             )
-            job_store.mark_completed(
+            await job_store.mark_completed(
                 job_id=document_id,
                 document_id=response.document_id,
                 chunks_created=response.chunks_created,
+                skipped=response.skipped,
+                skip_reason=response.skip_reason,
             )
         except Exception as exc:  # pragma: no cover - best-effort logging
-            job_store.mark_failed(job_id=document_id, error=str(exc))
+            await job_store.mark_failed(job_id=document_id, error=str(exc))
             logger.error(
                 "Background text ingestion failed",
                 extra={"document_id": document_id, "error": str(exc)},
@@ -240,7 +242,7 @@ async def upload_document(
         doc_id = document_id or f"file-{uuid4().hex}"
 
         # Create an initial queued job record so callers can immediately query status.
-        job_store.create_queued(job_id=doc_id, document_id=doc_id)
+        await job_store.create_queued(job_id=doc_id, document_id=doc_id)
 
         # Enqueue background ingestion of the file path
         async def _background_ingest_file(
@@ -251,7 +253,7 @@ async def upload_document(
             dataset_name_inner: str | None = None,
         ) -> None:
             try:
-                job_store.mark_running(job_id=doc_id_inner)
+                await job_store.mark_running(job_id=doc_id_inner)
                 result = await cognee_service.add_document(
                     content=path,
                     metadata=metadata_dict,
@@ -259,20 +261,31 @@ async def upload_document(
                     user_id=user_id_inner,
                     dataset_name=dataset_name_inner,
                 )
-                job_store.mark_completed(
+                await job_store.mark_completed(
                     job_id=doc_id_inner,
                     document_id=result.get("document_id", doc_id_inner),
                     chunks_created=result.get("chunks_created", 0),
+                    skipped=result.get("skipped", False),
+                    skip_reason=result.get("skip_reason"),
                 )
-                logger.info(
-                    "Background file ingestion completed",
-                    extra={
-                        "document_id": result.get("document_id", doc_id_inner),
-                        "chunks_created": result.get("chunks_created", 0),
-                    },
-                )
+                if result.get("skipped"):
+                    logger.info(
+                        "Background file ingestion skipped (content unchanged)",
+                        extra={
+                            "document_id": result.get("document_id", doc_id_inner),
+                            "skip_reason": result.get("skip_reason"),
+                        },
+                    )
+                else:
+                    logger.info(
+                        "Background file ingestion completed",
+                        extra={
+                            "document_id": result.get("document_id", doc_id_inner),
+                            "chunks_created": result.get("chunks_created", 0),
+                        },
+                    )
             except Exception as exc:  # pragma: no cover - best-effort logging
-                job_store.mark_failed(job_id=doc_id_inner, error=str(exc))
+                await job_store.mark_failed(job_id=doc_id_inner, error=str(exc))
                 logger.error(
                     "Background file ingestion failed",
                     extra={
@@ -379,7 +392,7 @@ async def reset_knowledge_base():
     """
     try:
         await cognee_service.reset()
-        jobs_deleted = job_store.clear_all_jobs()
+        jobs_deleted = await job_store.clear_all_jobs()
         return {
             "success": True,
             "message": "Knowledge base reset successfully. All data has been deleted.",

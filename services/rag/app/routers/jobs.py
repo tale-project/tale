@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..models import JobStatus
-from ..services import job_store
+from ..services import job_store_db as job_store
 
 router = APIRouter(prefix="/api/v1", tags=["Jobs"])
-
-# Thread pool for running blocking I/O operations without blocking the event loop
-_executor = ThreadPoolExecutor(max_workers=4)
 
 # Maximum number of job IDs allowed in a single batch request
 MAX_BATCH_SIZE = 100
@@ -110,8 +105,7 @@ async def get_job_stats() -> JobStatsResponse:
     Returns counts by state, the number of stale jobs that would be cleaned
     up with current TTL settings, and the age of the oldest job in each state.
     """
-    loop = asyncio.get_running_loop()
-    stats = await loop.run_in_executor(_executor, job_store.get_job_stats)
+    stats = await job_store.get_job_stats()
     return JobStatsResponse(**stats)
 
 
@@ -127,17 +121,12 @@ async def cleanup_jobs(request: CleanupRequest) -> CleanupResponse:
     - failed: 72 hours
     - orphaned (stuck running/queued): 6 hours
     """
-    loop = asyncio.get_running_loop()
-
-    def do_cleanup() -> dict[str, Any]:
-        return job_store.cleanup_stale_jobs(
-            completed_ttl_hours=request.completed_ttl_hours,
-            failed_ttl_hours=request.failed_ttl_hours,
-            orphaned_ttl_hours=request.orphaned_ttl_hours,
-            dry_run=request.dry_run,
-        )
-
-    result = await loop.run_in_executor(_executor, do_cleanup)
+    result: dict[str, Any] = await job_store.cleanup_stale_jobs(
+        completed_ttl_hours=request.completed_ttl_hours,
+        failed_ttl_hours=request.failed_ttl_hours,
+        orphaned_ttl_hours=request.orphaned_ttl_hours,
+        dry_run=request.dry_run,
+    )
 
     # Convert deleted_jobs dicts to DeletedJobInfo objects
     deleted_jobs = [DeletedJobInfo(**job) for job in result["deleted_jobs"]]
@@ -161,11 +150,7 @@ async def get_jobs_batch(request: BatchJobsRequest) -> BatchJobsResponse:
     Returns a map of job_id to JobStatus. If a job is not found, its value
     will be null in the response.
     """
-    # Run the synchronous file I/O in a thread pool to avoid blocking the event loop
-    loop = asyncio.get_running_loop()
-    jobs = await loop.run_in_executor(
-        _executor, job_store.get_jobs_batch, request.job_ids
-    )
+    jobs = await job_store.get_jobs_batch(request.job_ids)
     return BatchJobsResponse(jobs=jobs)
 
 
@@ -176,9 +161,7 @@ async def get_job_status(job_id: str) -> JobStatus:
     This endpoint allows callers (including Convex workflows and UIs) to
     poll for progress or completion of asynchronous document ingestion.
     """
-    # Run the synchronous file I/O in a thread pool to avoid blocking the event loop
-    loop = asyncio.get_running_loop()
-    status_obj = await loop.run_in_executor(_executor, job_store.get_job, job_id)
+    status_obj = await job_store.get_job(job_id)
     if status_obj is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

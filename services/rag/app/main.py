@@ -59,11 +59,19 @@ async def lifespan(app: FastAPI):
         logger.exception("Failed to initialize cognee")
         # Continue anyway - some endpoints may still work
 
+    # Initialize job store database table
+    try:
+        from .services import job_store_db
+        await job_store_db.init_job_store()
+        logger.info("Job store database initialized")
+    except Exception:
+        logger.exception("Failed to initialize job store database")
+
     # Job cleanup on startup
     if settings.job_cleanup_on_startup:
         try:
-            from .services import job_store
-            result = job_store.cleanup_stale_jobs()
+            from .services import job_store_db
+            result = await job_store_db.cleanup_stale_jobs()
             if result["deleted"] > 0:
                 logger.info(
                     f"Cleaned up {result['deleted']} stale jobs on startup: "
@@ -82,6 +90,13 @@ async def lifespan(app: FastAPI):
             )
     except Exception:
         logger.exception("Failed to ensure HNSW indexes on startup")
+
+    # Ensure original_content_hash column exists for deduplication
+    try:
+        from .services.cognee.cleanup import ensure_original_content_hash_column
+        await ensure_original_content_hash_column()
+    except Exception:
+        logger.exception("Failed to ensure original_content_hash column on startup")
 
     # Start periodic GC cleanup task (replaces per-request middleware)
     gc_task = asyncio.create_task(periodic_gc_cleanup())
@@ -106,6 +121,14 @@ async def lifespan(app: FastAPI):
         await gc_task
     except asyncio.CancelledError:
         pass
+
+    # Close job store database connection pool
+    try:
+        from .services import job_store_db
+        await job_store_db.close_pool()
+    except Exception:
+        logger.exception("Failed to close job store database pool")
+
     logger.info("Shutting down Tale RAG service...")
 
 

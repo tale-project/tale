@@ -4,9 +4,28 @@ This module provides helper functions to normalize results from
 cognee.add() and cognee.search() into consistent dictionary formats.
 """
 
+import hashlib
+from pathlib import Path
 from typing import Any
 
+import aiofiles
 from loguru import logger
+
+
+async def compute_file_hash(file_path: str | Path) -> str:
+    """Compute SHA-256 hash of a file's content.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        Hex-encoded SHA-256 hash string
+    """
+    sha256 = hashlib.sha256()
+    async with aiofiles.open(file_path, "rb") as f:
+        while chunk := await f.read(8192):
+            sha256.update(chunk)
+    return sha256.hexdigest()
 
 
 def _safe_int(value: Any) -> int:
