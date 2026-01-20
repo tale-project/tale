@@ -50,8 +50,13 @@ export function useMessageProcessing(
     { initialNumItems: 20, stream: true },
   ) as unknown as { results: UIMessage[] | undefined; loadMore: (numItems: number) => void; status: string };
 
-  const canLoadMore = paginationStatus === 'CanLoadMore';
   const isLoadingMore = paginationStatus === 'LoadingMore';
+
+  // Check if we've loaded the first message (order: 0)
+  // The SDK may report canLoadMore=true even when we have all messages
+  // because pagination is based on MessageDoc count, not UIMessage count
+  const hasFirstMessage = uiMessages?.some((m) => m.order === 0) ?? false;
+  const canLoadMore = paginationStatus === 'CanLoadMore' && !hasFirstMessage;
 
   // Convert UIMessage to ChatMessage format
   // Handles orphan filtering (Issue #184) and file part extraction
