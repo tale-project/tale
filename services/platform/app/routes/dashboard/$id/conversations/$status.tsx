@@ -29,7 +29,6 @@ function ConversationsStatusPage() {
 
   return (
     <ConversationsClient
-      key={`${status}-${category}-${priority}-${search}-${page}`}
       status={status as Doc<'conversations'>['status']}
       organizationId={organizationId}
       page={parseInt(page)}
