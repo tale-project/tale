@@ -18,6 +18,7 @@ export interface QueryProductsArgs {
   externalId?: string | number | Array<string | number>;
   status?: ProductStatus;
   category?: string;
+  minStock?: number;
   paginationOpts: {
     numItems: number;
     cursor: string | null;
@@ -60,6 +61,11 @@ export async function queryProducts(
     }
     if (args.category !== undefined) {
       products = products.filter((p) => p.category === args.category);
+    }
+    if (args.minStock !== undefined) {
+      products = products.filter(
+        (p) => p.stock !== undefined && p.stock !== null && p.stock >= args.minStock!,
+      );
     }
 
     // Sort by creation time (newest first)
@@ -124,6 +130,11 @@ export async function queryProducts(
       if (args.category !== undefined && product.category !== args.category) return false;
     } else if (indexUsed === 'status') {
       if (args.category !== undefined && product.category !== args.category) return false;
+    }
+    if (args.minStock !== undefined) {
+      if (product.stock === undefined || product.stock === null || product.stock < args.minStock) {
+        return false;
+      }
     }
     return true;
   };

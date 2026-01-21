@@ -87,7 +87,7 @@ AI analyzes data, outputs JSON, then condition branches based on result.
 
 **LLM Step with JSON Output:**
 \`\`\`json
-{ "stepSlug": "analyze", "stepType": "llm", "config": { "name": "Analyzer", "systemPrompt": "You are an expert analyst. Analyze the data and return a structured decision.", "userPrompt": "Analyze: {{data}}", "temperature": 0.3, "maxTokens": 2000, "maxSteps": 10, "outputFormat": "json", "outputSchema": { "type": "object", "properties": { "decision": { "type": "string", "enum": ["approve", "reject", "review"] }, "reasoning": { "type": "string" } }, "required": ["decision", "reasoning"] }, "tools": ["rag_search", "customer_read", "product_read"] }, "nextSteps": { "success": "check_decision" } }
+{ "stepSlug": "analyze", "stepType": "llm", "config": { "name": "Analyzer", "systemPrompt": "You are an expert analyst. Analyze the data and return a structured decision.", "userPrompt": "Analyze: {{data}}", "maxTokens": 2000, "maxSteps": 10, "outputFormat": "json", "outputSchema": { "type": "object", "properties": { "decision": { "type": "string", "enum": ["approve", "reject", "review"] }, "reasoning": { "type": "string" } }, "required": ["decision", "reasoning"] }, "tools": ["rag_search", "customer_read", "product_read"] }, "nextSteps": { "success": "check_decision" } }
 \`\`\`
 
 ### Pattern 4: Data Sync with Pagination
@@ -146,7 +146,7 @@ NextSteps: { success: 'next_step_slug' }
 
   llm: `## LLM Step (stepType: 'llm')
 
-Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, temperature?, maxTokens?, maxSteps?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
+Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?, contextVariables? }
 NextSteps: { success: 'next_step', error?: 'error_handler' }
 
 **CRITICAL FIELDS:**
@@ -159,8 +159,6 @@ NextSteps: { success: 'next_step', error?: 'error_handler' }
   "name": "Analyze Customer",
   "systemPrompt": "You are a customer analyst. Analyze the customer data and provide insights.",
   "userPrompt": "Analyze this customer: {{steps.get_customer.output.data}}",
-  "temperature": 0.7,
-  "maxTokens": 2000,
   "tools": ["customer_read", "product_read"],
   "outputFormat": "json"
 }

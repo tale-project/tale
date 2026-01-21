@@ -156,9 +156,6 @@ Return ONLY JSON in the exact shape described in the system prompt.`,
       order: 6,
       config: {
         name: 'General Customer Status Analyzer',
-        temperature: 0.3,
-        maxTokens: 2000,
-        maxSteps: 10,
         outputFormat: 'json',
         outputSchema: {
           type: 'object',

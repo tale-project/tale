@@ -17,7 +17,7 @@ Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, cont
 NextSteps: { success: 'next_step' }
 
 ### llm (stepType: 'llm')
-Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, temperature?, maxTokens?, maxSteps?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?: JsonSchemaDefinition, contextVariables? }
+Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?: JsonSchemaDefinition, contextVariables? }
 - outputSchema: When outputFormat is 'json', provides structured output validation using JSON Schema format
 - Schema format: { type: 'object', properties: { fieldName: { type: 'string'|'number'|'boolean'|'array'|'object', description?, items?, properties?, required?, enum? } }, required?: string[] }
 - When outputSchema is provided, the LLM output is validated against the schema at runtime

@@ -11,7 +11,12 @@ import type { JsonSchemaDefinition } from '../../../types/nodes';
 // =============================================================================
 
 /**
- * Normalized configuration for LLM node execution
+ * Normalized configuration for LLM node execution.
+ *
+ * Note: The following fields are intentionally not exposed in workflow definitions:
+ * - maxTokens: uses model's default value
+ * - maxSteps: defaults to 40 when tools are configured (see createAgentConfig)
+ * - temperature: auto-determined based on outputFormat (json→0.2, text→0.5)
  */
 export interface NormalizedConfig {
   name: string;
@@ -19,14 +24,11 @@ export interface NormalizedConfig {
   systemPrompt: string;
   userPrompt: string;
   model: string;
-  temperature: number;
-  maxTokens: number;
-  maxSteps?: number;
   outputFormat?: 'text' | 'json';
   /**
    * Output schema for structured output validation.
-   * When provided, the agent uses a json_output tool to capture structured
-   * output that conforms to this schema.
+   * When provided with outputFormat: 'json', the agent uses generateObject
+   * to produce structured output that conforms to this schema.
    */
   outputSchema?: JsonSchemaDefinition;
   tools?: string[];

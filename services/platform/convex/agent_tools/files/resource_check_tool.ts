@@ -7,20 +7,23 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import {
-  checkResourceAccessible,
-  type ResourceCheckResult,
+  checkResourcesAccessibleBatch,
+  type ResourceCheckBatchResult,
 } from './helpers/check_resource_accessible';
 
 export const resourceCheckTool = {
   name: 'resource_check' as const,
   tool: createTool({
-    description: `Check whether a remote resource (image, document, or other file URL) is accessible.
+    description: `Check whether remote resources (image, document, or other file URLs) are accessible.
 
-Use this tool when you need to verify that a URL the user provided actually works (for example, before embedding an image or linking to a file in an email).
+Use this tool when you need to verify that URLs the user provided actually work (for example, before embedding images or linking to files in emails).
 
-The tool performs a lightweight HTTP HEAD request and returns status code and basic metadata without downloading the full content.
+The tool performs lightweight HTTP HEAD requests in parallel and returns status codes and metadata without downloading content.
 
-Returns:
+Input:
+- urls: array of 1-20 HTTP/HTTPS URLs to check
+
+Returns an object with "results" array, each item containing:
 - success: whether the check completed successfully (network-level)
 - ok: whether the HTTP status indicates success (2xx)
 - status: HTTP status code
@@ -31,31 +34,31 @@ Returns:
 - isImage: true if the Content-Type starts with "image/"
 - error: error message when success=false
 
-EXAMPLE USAGE:
-• { "url": "https://example.com/logo.png" }
-• { "url": "https://example.com/report.pdf" }
+EXAMPLES:
+• Single URL: { "urls": ["https://example.com/logo.png"] }
+• Multiple URLs: { "urls": ["https://example.com/a.png", "https://example.com/b.pdf"] }
 `,
     args: z.object({
-      url: z
-        .string()
-        .describe(
-          'HTTP or HTTPS URL of the resource (image, document, or other file) to check.',
-        ),
+      urls: z
+        .array(z.string())
+        .min(1)
+        .max(20)
+        .describe('Array of HTTP/HTTPS URLs to check (1-20 URLs)'),
       timeout_ms: z
         .number()
         .int()
         .positive()
         .optional()
         .describe(
-          'Optional timeout in milliseconds for the check (default: 10000).',
+          'Optional timeout in milliseconds for each check (default: 10000).',
         ),
     }),
     handler: async (
       _ctx: ToolCtx,
       args,
-    ): Promise<ResourceCheckResult> => {
-      return checkResourceAccessible({
-        url: args.url,
+    ): Promise<ResourceCheckBatchResult> => {
+      return checkResourcesAccessibleBatch({
+        urls: args.urls,
         timeoutMs: args.timeout_ms,
       });
     },

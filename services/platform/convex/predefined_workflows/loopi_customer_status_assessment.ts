@@ -194,7 +194,6 @@ Analyze the subscription data and provide your determination strictly as JSON wi
             required: ['status', 'churnReason', 'churnedAt'],
             additionalProperties: false,
           },
-          temperature: 0.3,
           tools: ['rag_search'],
         },
       },

@@ -370,18 +370,49 @@ DO NOT use the same confidence score for all recommendations.`,
       order: 9,
       config: {
         name: 'Product Recommendation Generator',
-        temperature: 0.3,
-        maxTokens: 100000,
-        maxSteps: 30, // Allow up to 30 tool calls to browse products and gather recommendations
         outputFormat: 'json',
         outputSchema: {
           type: 'object',
           properties: {
             recommendations: {
               type: 'array',
-              description: 'List of 5 recommended products with productId, productName, imageUrl, relationshipType (Complementary|Upgrade|Bundle|Substitute), reasoning, and confidence (0.3-1.0)',
+              description: 'List of 5 recommended products',
               items: {
                 type: 'object',
+                properties: {
+                  productId: {
+                    type: 'string',
+                    description: 'The unique product identifier from the database',
+                  },
+                  productName: {
+                    type: 'string',
+                    description: 'Name of the product',
+                  },
+                  imageUrl: {
+                    type: 'string',
+                    description: 'URL of the product image',
+                  },
+                  relationshipType: {
+                    type: 'string',
+                    description:
+                      'Type of relationship: Complementary, Upgrade, Bundle, or Substitute',
+                  },
+                  reasoning: {
+                    type: 'string',
+                    description: 'Why this product is recommended',
+                  },
+                  confidence: {
+                    type: 'number',
+                    description: 'Confidence score between 0.3 and 1.0',
+                  },
+                },
+                required: [
+                  'productId',
+                  'productName',
+                  'relationshipType',
+                  'reasoning',
+                  'confidence',
+                ],
               },
             },
             summary: {

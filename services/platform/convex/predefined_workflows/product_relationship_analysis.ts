@@ -316,8 +316,6 @@ BIDIRECTIONAL RELATIONSHIPS:
       order: 10,
       config: {
         name: 'Product Relationship Analyzer',
-        temperature: 0.1,
-        maxTokens: 2000,
         userPrompt: '{{aiPrompt}}',
         systemPrompt:
           'You are an expert product analyst specializing in subscription-based product relationships. Analyze product relationships based on actual customer subscription patterns. Always return valid JSON format as specified. Focus on practical business relationships that would be useful for recommendations and cross-selling. CRITICAL: For Complementary, Substitute, and Bundle relationships, you MUST create bidirectional relationships (both A→B and B→A). For Upgrade relationships, only create unidirectional relationships (lower→higher tier). DO NOT include products with no meaningful relationship - simply omit them from the results.',

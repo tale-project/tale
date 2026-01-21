@@ -27,6 +27,7 @@ export const queryProducts = internalQuery({
     ),
     status: v.optional(productStatusValidator),
     category: v.optional(v.string()),
+    minStock: v.optional(v.number()),
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({

@@ -3,7 +3,7 @@
  *
  * Unified read-only product operations for agents.
  * Supports:
- * - operation = 'get_by_id': fetch a single product by productId
+ * - operation = 'get_by_id': fetch products by IDs (batch supported)
  * - operation = 'list': list products for the current organization with pagination
  */
 
@@ -16,7 +16,7 @@ import type {
   ProductReadGetByIdResult,
   ProductReadListResult,
 } from './helpers/types';
-import { readProductById } from './helpers/read_product_by_id';
+import { readProductsByIds } from './helpers/read_product_by_id';
 import { readProductList } from './helpers/read_product_list';
 
 // Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
@@ -25,36 +25,43 @@ const productReadArgs = z.object({
   operation: z
     .enum(['get_by_id', 'list'])
     .describe(
-      "Operation to perform: 'get_by_id' (fetch by ID) or 'list' (paginate all)",
+      "Operation to perform: 'get_by_id' (fetch by IDs) or 'list' (browse catalog)",
     ),
   // For get_by_id operation
-  productId: z
-    .string()
+  productIds: z
+    .array(z.string())
     .optional()
     .describe(
-      'Required for \'get_by_id\': Convex Id<"products"> (string format) for the target product',
+      'Required for \'get_by_id\': Array of Convex Id<"products"> strings. Can be single item or multiple.',
     ),
-  // Common fields for all operations
+  // For get_by_id operation only
   fields: z
     .array(z.string())
     .optional()
     .describe(
-      "Optional list of fields to return. Default: ['_id','name','description','price','currency','status','category','imageUrl','stock']",
+      "For 'get_by_id' only: Fields to return. Default: ['_id','name','description','price','currency','status','category','imageUrl','stock']. Ignored for 'list'.",
     ),
-  // For list operation
+  // For list operation - filters
+  status: z
+    .enum(['active', 'inactive', 'draft', 'archived'])
+    .optional()
+    .describe("For 'list': Filter by product status"),
+  minStock: z
+    .number()
+    .optional()
+    .describe("For 'list': Filter by minimum stock level. Only returns products with stock >= minStock"),
+  // For list operation - pagination
   cursor: z
     .string()
     .nullable()
     .optional()
     .describe(
-      "For 'list' operation: Pagination cursor from previous response, or null/omitted for first page",
+      "For 'list': Pagination cursor from previous response, or null/omitted for first page",
     ),
   numItems: z
     .number()
     .optional()
-    .describe(
-      "For 'list' operation: Number of items per page (default: 200). Fewer fields = more items allowed.",
-    ),
+    .describe("For 'list': Number of items per page (default: 50)"),
 });
 
 export const productReadTool: ToolDefinition = {
@@ -65,48 +72,40 @@ export const productReadTool: ToolDefinition = {
 SCOPE LIMITATION:
 This tool ONLY accesses the internal product catalog.
 DO NOT use this tool for products from external e-commerce systems - check [INTEGRATIONS] context and use integration_assistant instead.
-Example: Shopify products, external inventory systems, third-party catalogs are NOT in this database.
 
 OPERATIONS:
-• 'get_by_id': Fetch a single product by its Convex ID. Use when you have a specific product ID.
-• 'list': Paginate through all products for the organization. Use for browsing, searching, or bulk operations.
+• 'list': Browse/search the catalog. Returns ONLY: _id, name, description, status, stock (fixed fields).
+  Supports filters: status (active/inactive/draft/archived), minStock (minimum stock level).
+  Use this to find products, then use 'get_by_id' to get full details.
+• 'get_by_id': Fetch one or more products by ID. Supports batch queries (pass multiple IDs).
+  Use 'fields' parameter to select which fields to return.
 
-AVAILABLE FIELDS (select only what you need):
-• _id: Convex document ID (Id<"products">)
-• _creationTime: Document creation timestamp (number)
-• name: Product name (string, required)
-• description: Product description (string, optional)
-• price: Product price (number, optional)
-• currency: Currency code e.g. 'USD', 'EUR' (string, optional)
-• status: 'active' | 'inactive' | 'draft' | 'archived' (optional)
-• category: Product category (string, optional)
-• imageUrl: Product image URL (string, optional)
-• stock: Available stock quantity (number, optional)
-• tags: Array of tags for categorization (string[], optional)
-• externalId: External system ID for integrations (string | number, optional)
-• lastUpdated: Last modification timestamp (number)
-• translations: Localized product data (array, HEAVY - avoid unless needed)
-• metadata: Flexible additional data (object, HEAVY - avoid unless needed)
+WORKFLOW:
+1. Use 'list' to browse/search products (returns: _id, name, description, status, stock)
+2. Use 'get_by_id' with the IDs you need to fetch full product details
+
+AVAILABLE FIELDS FOR get_by_id (select only what you need):
+• _id, name, description, price, currency, status, category, imageUrl, stock, tags, externalId, lastUpdated
+• translations, metadata (HEAVY - avoid unless specifically needed)
 
 BEST PRACTICES:
-• Always specify 'fields' to minimize response size and improve performance.
-• Avoid 'translations' and 'metadata' unless specifically required - they can be large.
-• Use 'list' with pagination (cursor) for large catalogs instead of fetching all at once.
-• Default numItems is 200; reduce if selecting many fields or heavy fields.
-• If you need product information not found in standard fields, check the 'metadata' field - it may contain additional custom attributes imported from external systems.`,
+• Use 'list' for browsing, 'get_by_id' for details - this minimizes token usage
+• Use status and minStock filters to narrow down results
+• Batch multiple product IDs in a single 'get_by_id' call instead of multiple calls
+• Specify 'fields' in get_by_id to minimize response size`,
     args: productReadArgs,
     handler: async (
       ctx: ToolCtx,
       args,
     ): Promise<ProductReadGetByIdResult | ProductReadListResult> => {
       if (args.operation === 'get_by_id') {
-        if (!args.productId) {
+        if (!args.productIds || args.productIds.length === 0) {
           throw new Error(
-            "Missing required 'productId' for get_by_id operation",
+            "Missing required 'productIds' for get_by_id operation",
           );
         }
-        return readProductById(ctx, {
-          productId: args.productId,
+        return readProductsByIds(ctx, {
+          productIds: args.productIds,
           fields: args.fields,
         });
       }
@@ -115,6 +114,8 @@ BEST PRACTICES:
       return readProductList(ctx, {
         cursor: args.cursor,
         numItems: args.numItems,
+        status: args.status,
+        minStock: args.minStock,
       });
     },
   }),

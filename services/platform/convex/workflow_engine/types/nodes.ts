@@ -50,10 +50,10 @@ export interface LLMNodeConfig {
   // Model configuration (provider-agnostic; any OpenAI-compatible model id)
   // Model is now controlled centrally via environment (OPENAI_MODEL) and cannot
   // be customized per step.
+  // Temperature is automatically determined based on outputFormat:
+  // - json → 0.2 (more deterministic for structured output)
+  // - text → 0.5 (balanced creativity)
   model?: string;
-  temperature?: number; // 0.0 - 1.0
-  maxTokens?: number;
-  maxSteps?: number; // Maximum number of tool calling iterations (default: 10)
 
   // Core prompts
   systemPrompt: string; // The system instructions/role definition
@@ -127,46 +127,15 @@ export interface LoopNodeConfig {
   description?: string;
 }
 
-// JSON Schema property validator with limited depth (Convex doesn't support true recursion)
-const jsonSchemaPropertyBase = v.object({
-  type: v.union(
-    v.literal('string'),
-    v.literal('number'),
-    v.literal('integer'),
-    v.literal('boolean'),
-    v.literal('array'),
-    v.literal('object'),
-  ),
-  description: v.optional(v.string()),
-  required: v.optional(v.array(v.string())),
-  enum: v.optional(v.array(v.union(v.string(), v.number(), v.boolean()))),
-  nullable: v.optional(v.boolean()),
-});
-
-const jsonSchemaPropertyValidator = v.union(
-  jsonSchemaPropertyBase,
-  v.object({
-    type: v.literal('array'),
-    description: v.optional(v.string()),
-    items: v.optional(jsonSchemaPropertyBase),
-    nullable: v.optional(v.boolean()),
-  }),
-  v.object({
-    type: v.literal('object'),
-    description: v.optional(v.string()),
-    properties: v.optional(v.record(v.string(), jsonSchemaPropertyBase)),
-    required: v.optional(v.array(v.string())),
-    nullable: v.optional(v.boolean()),
-  }),
-);
-
 // JSON Schema definition validator for output schema
+// Uses a relaxed approach - accepts any valid JSON object structure.
+// Actual JSON Schema validation happens at runtime when the schema is used.
 const jsonSchemaDefinitionValidator = v.object({
   type: v.literal('object'),
-  properties: v.record(v.string(), jsonSchemaPropertyValidator),
+  properties: v.record(v.string(), v.any()),
   required: v.optional(v.array(v.string())),
   description: v.optional(v.string()),
-  additionalProperties: v.optional(v.boolean()), // Whether to allow additional properties
+  additionalProperties: v.optional(v.boolean()),
 });
 
 export const llmNodeConfigValidator = v.object({
@@ -176,10 +145,8 @@ export const llmNodeConfigValidator = v.object({
   // Allow arbitrary model ids so users can target any OpenAI-compatible provider
   // NOTE: Model is resolved from environment (OPENAI_MODEL) at runtime. This
   // field is optional and, if provided, is ignored by execution.
+  // Temperature is auto-determined based on outputFormat (json→0.2, text→0.5).
   model: v.optional(v.string()),
-  temperature: v.optional(v.number()),
-  maxTokens: v.optional(v.number()),
-  maxSteps: v.optional(v.number()),
   systemPrompt: v.string(),
   userPrompt: v.optional(v.string()),
   tools: v.optional(v.array(v.string())),
@@ -192,6 +159,16 @@ export const llmNodeConfigValidator = v.object({
       v.union(v.string(), v.number(), v.boolean(), v.null()),
     ),
   ),
+
+  // ==========================================================================
+  // DEPRECATED FIELDS (kept for backward compatibility during migration)
+  // These fields are ignored at runtime. Run the migration to remove them:
+  //   npx convex run workflows/migrations:removeDeprecatedLLMFields
+  // After migration completes, these fields can be removed from the validator.
+  // ==========================================================================
+  temperature: v.optional(v.number()),
+  maxTokens: v.optional(v.number()),
+  maxSteps: v.optional(v.number()),
 });
 
 export const conditionNodeConfigValidator = v.object({
