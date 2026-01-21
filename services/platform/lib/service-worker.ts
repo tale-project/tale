@@ -11,7 +11,12 @@ export async function registerServiceWorker(
     return null;
   }
 
-  if (import.meta.env.DEV) {
+  const isLocalDev =
+    import.meta.env.DEV ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname.endsWith('.local');
+
+  if (isLocalDev) {
     navigator.serviceWorker.getRegistrations().then((registrations) => {
       for (const registration of registrations) {
         registration.unregister();

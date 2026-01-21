@@ -569,9 +569,16 @@ wait_for_http "http://localhost:${PORT}/api/health" 30 "Vite server" true
 
 echo "📊 Starting Convex Dashboard on port ${CONVEX_DASHBOARD_PORT}..."
 cd /dashboard
+
+# Configure Dashboard to run under /convex-dashboard basePath
+# This allows the Dashboard to coexist with the main app on the same domain
+# We patch the server.js config to set basePath and assetPrefix
+DASHBOARD_BASE_PATH="/convex-dashboard"
+sed -i "s|\"basePath\":\"\"|\"basePath\":\"${DASHBOARD_BASE_PATH}\"|g" server.js
+sed -i "s|\"assetPrefix\":\"\"|\"assetPrefix\":\"${DASHBOARD_BASE_PATH}\"|g" server.js
+
 # Derive deployment URL from SITE_URL for dashboard
-# Note: We use SITE_URL without /ws_api suffix because the dashboard's API paths
-# are rewritten to /convex-dashboard-api/ and handled by TanStack Start rewrites.
+# The deployment URL should point to the main site (for API calls)
 NEXT_PUBLIC_DEPLOYMENT_URL="${SITE_URL}" \
   PORT=${CONVEX_DASHBOARD_PORT} \
   HOSTNAME=0.0.0.0 \

@@ -7,7 +7,7 @@ ARG VERSION=dev
 # ============================================================================
 # Stage 1: Dependencies
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS workspace-deps
+FROM ghcr.io/get-convex/convex-backend:6ee232ab462fc01b758b56784cf32eb60652ecda AS workspace-deps
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN npm ci --legacy-peer-deps
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS builder
+FROM ghcr.io/get-convex/convex-backend:6ee232ab462fc01b758b56784cf32eb60652ecda AS builder
 
 WORKDIR /app
 
@@ -84,12 +84,12 @@ RUN npm prune --omit=dev --legacy-peer-deps 2>/dev/null || true \
 # ============================================================================
 # Stage 4: Convex Dashboard
 # ============================================================================
-FROM ghcr.io/get-convex/convex-dashboard:272e7f4d46f0a9189d6e167f39f07d152b409fed AS convex-dashboard
+FROM ghcr.io/get-convex/convex-dashboard:6ee232ab462fc01b758b56784cf32eb60652ecda AS convex-dashboard
 
 # ============================================================================
 # Stage 5: Runtime
 # ============================================================================
-FROM ghcr.io/get-convex/convex-backend:272e7f4d46f0a9189d6e167f39f07d152b409fed AS runner
+FROM ghcr.io/get-convex/convex-backend:6ee232ab462fc01b758b56784cf32eb60652ecda AS runner
 
 WORKDIR /app
 

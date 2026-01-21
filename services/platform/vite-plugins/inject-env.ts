@@ -1,29 +1,38 @@
-import { type Plugin, loadEnv } from 'vite';
+import { type Plugin } from 'vite';
 
 interface EnvConfig {
   SITE_URL: string;
   MICROSOFT_AUTH_ENABLED: boolean;
 }
 
-function getEnvConfig(env: Record<string, string>): EnvConfig {
+function getEnvConfig(): EnvConfig {
+  if (!process.env.SITE_URL) {
+    throw new Error('Missing required environment variable: SITE_URL');
+  }
   return {
-    SITE_URL: env.SITE_URL || 'http://localhost:3000',
-    MICROSOFT_AUTH_ENABLED: env.MICROSOFT_AUTH_ENABLED === 'true',
+    SITE_URL: process.env.SITE_URL,
+    MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
   };
 }
 
 export function injectEnv(): Plugin {
   let envConfig: EnvConfig;
+  let isProduction = false;
 
   return {
     name: 'inject-env',
     configResolved(config) {
-      const env = loadEnv(config.mode, process.cwd(), '');
-      envConfig = getEnvConfig(env);
+      isProduction = config.command === 'build';
+      if (!isProduction) {
+        envConfig = getEnvConfig();
+      }
     },
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
+        if (isProduction) {
+          return html;
+        }
         const envScript = `window.__ENV__ = ${JSON.stringify(envConfig)};`;
         return html.replace(
           'window.__ENV__ = "__ENV_PLACEHOLDER__";',
