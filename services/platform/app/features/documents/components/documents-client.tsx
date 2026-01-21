@@ -225,9 +225,9 @@ export function DocumentsClient({
         size: 128,
         cell: ({ row }) => (
           <span className="whitespace-nowrap">
-            {row.original.type === 'folder'
+            {row.original.type === 'folder' || !row.original.size
               ? '—'
-              : formatBytes(row.original.size ?? 0)}
+              : formatBytes(row.original.size)}
           </span>
         ),
       },
