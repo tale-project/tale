@@ -30,6 +30,7 @@ export function createChatAgent(options?: {
     const defaultToolNames: ToolName[] = [
       // Direct tools (fast, bounded output)
       'rag_search',
+      'request_human_input', // Collect user input via interactive cards
       // Sub-agents (context isolation for large outputs)
       'web_assistant', // Replaces web_read - isolates web page content (20K-50K tokens)
       'document_assistant', // Replaces pdf, image, docx, pptx, generate_excel - isolates document content

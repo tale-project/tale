@@ -92,10 +92,14 @@ export async function onChatComplete(
         durationMs: result.durationMs,
         timeToFirstTokenMs: result.timeToFirstTokenMs,
         subAgentUsage: result.subAgentUsage,
+        // Save structured context window for debugging
+        contextWindow: result.contextWindow,
+        contextStats: result.contextStats,
       });
       debugLog('onChatComplete metadata saved', {
         messageId: firstMessageInResponse._id,
         model: result.model,
+        hasContextWindow: !!result.contextWindow,
       });
     }
   }

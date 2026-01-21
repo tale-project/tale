@@ -84,6 +84,17 @@ export const onChatComplete = internalMutation({
           }),
         ),
       ),
+      contextWindow: v.optional(v.string()),
+      contextStats: v.optional(
+        v.object({
+          totalTokens: v.number(),
+          messageCount: v.number(),
+          approvalCount: v.number(),
+          hasSummary: v.boolean(),
+          hasRag: v.boolean(),
+          hasIntegrations: v.boolean(),
+        }),
+      ),
     }),
   },
   handler: async (ctx, args) => {

@@ -1,11 +1,12 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { Button } from '@/app/components/ui/primitives/button';
 import { MessageBubble } from './message-bubble';
 import { IntegrationApprovalCard } from './integration-approval-card';
 import { WorkflowCreationApprovalCard } from './workflow-creation-approval-card';
+import { HumanInputRequestCard } from './human-input-request-card';
 import { ThinkingAnimation } from './thinking-animation';
 import type { ChatItem } from '../hooks/use-merged-chat-items';
 import type { UIMessage } from '@convex-dev/agent/react';
@@ -22,6 +23,7 @@ interface ChatMessagesProps {
   streamingMessage: UIMessage | undefined;
   hasActiveTools: boolean;
   aiResponseAreaRef: RefObject<HTMLDivElement | null>;
+  onHumanInputResponseSubmitted?: () => void;
 }
 
 /**
@@ -38,6 +40,7 @@ export function ChatMessages({
   streamingMessage,
   hasActiveTools,
   aiResponseAreaRef,
+  onHumanInputResponseSubmitted,
 }: ChatMessagesProps) {
   const { t } = useT('chat');
 
@@ -74,6 +77,27 @@ export function ChatMessages({
       {items.map((item) => {
         if (item.type === 'message') {
           const message = item.data;
+
+          // Render human input response as a special system message
+          if (message.isHumanInputResponse && message.role === 'system') {
+            // Parse the response from the message content
+            // Format: "User responded to question \"<question>\": <response>"
+            const match = message.content.match(/^User responded to question "(.+?)": (.+)$/);
+            const response = match ? match[2] : message.content;
+
+            return (
+              <div
+                key={message.key}
+                className="flex justify-end"
+              >
+                <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm">
+                  <CheckCircle2 className="size-4" />
+                  <span>{response}</span>
+                </div>
+              </div>
+            );
+          }
+
           const shouldShow = message.role === 'user' || message.content !== '';
 
           return shouldShow ? (
@@ -81,6 +105,7 @@ export function ChatMessages({
               key={message.key}
               message={{
                 ...message,
+                role: message.role as 'user' | 'assistant',
                 threadId: threadId,
               }}
             />
@@ -102,7 +127,7 @@ export function ChatMessages({
               />
             </div>
           );
-        } else {
+        } else if (item.type === 'workflow_approval') {
           const approval = item.data;
           return (
             <div
@@ -119,7 +144,23 @@ export function ChatMessages({
               />
             </div>
           );
+        } else if (item.type === 'human_input_request') {
+          const request = item.data;
+          return (
+            <div
+              key={`human-input-${request._id}`}
+              className="flex justify-start"
+            >
+              <HumanInputRequestCard
+                approvalId={request._id}
+                status={request.status}
+                metadata={request.metadata}
+                onResponseSubmitted={onHumanInputResponseSubmitted}
+              />
+            </div>
+          );
         }
+        return null;
       })}
 
       {/* Thinking animation area */}

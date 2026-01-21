@@ -41,6 +41,9 @@ import type * as agent_tools_files_internal_actions from "../agent_tools/files/i
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
+import type * as agent_tools_human_input_create_human_input_request from "../agent_tools/human_input/create_human_input_request.js";
+import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
+import type * as agent_tools_human_input_submit_human_input_response from "../agent_tools/human_input/submit_human_input_response.js";
 import type * as agent_tools_integrations_create_integration_approval from "../agent_tools/integrations/create_integration_approval.js";
 import type * as agent_tools_integrations_execute_approved_operation from "../agent_tools/integrations/execute_approved_operation.js";
 import type * as agent_tools_integrations_execute_batch_integration_internal from "../agent_tools/integrations/execute_batch_integration_internal.js";
@@ -278,6 +281,8 @@ import type * as lib_context_management_context_handler from "../lib/context_man
 import type * as lib_context_management_context_priority from "../lib/context_management/context_priority.js";
 import type * as lib_context_management_estimate_tokens from "../lib/context_management/estimate_tokens.js";
 import type * as lib_context_management_index from "../lib/context_management/index.js";
+import type * as lib_context_management_message_formatter from "../lib/context_management/message_formatter.js";
+import type * as lib_context_management_structured_context_builder from "../lib/context_management/structured_context_builder.js";
 import type * as lib_create_agent_config from "../lib/create_agent_config.js";
 import type * as lib_create_chat_agent from "../lib/create_chat_agent.js";
 import type * as lib_create_crm_agent from "../lib/create_crm_agent.js";
@@ -819,6 +824,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
+  "agent_tools/human_input/create_human_input_request": typeof agent_tools_human_input_create_human_input_request;
+  "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
+  "agent_tools/human_input/submit_human_input_response": typeof agent_tools_human_input_submit_human_input_response;
   "agent_tools/integrations/create_integration_approval": typeof agent_tools_integrations_create_integration_approval;
   "agent_tools/integrations/execute_approved_operation": typeof agent_tools_integrations_execute_approved_operation;
   "agent_tools/integrations/execute_batch_integration_internal": typeof agent_tools_integrations_execute_batch_integration_internal;
@@ -1056,6 +1064,8 @@ declare const fullApi: ApiFromModules<{
   "lib/context_management/context_priority": typeof lib_context_management_context_priority;
   "lib/context_management/estimate_tokens": typeof lib_context_management_estimate_tokens;
   "lib/context_management/index": typeof lib_context_management_index;
+  "lib/context_management/message_formatter": typeof lib_context_management_message_formatter;
+  "lib/context_management/structured_context_builder": typeof lib_context_management_structured_context_builder;
   "lib/create_agent_config": typeof lib_create_agent_config;
   "lib/create_chat_agent": typeof lib_create_chat_agent;
   "lib/create_crm_agent": typeof lib_create_crm_agent;

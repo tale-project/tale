@@ -21,18 +21,25 @@ import { listMessages, type MessageDoc } from '@convex-dev/agent';
 
 // Context management
 import {
-  createContextHandler,
   checkAndSummarizeIfNeeded,
   estimateTokens,
-  buildPrioritizedContexts,
-  trimContextsByPriority,
-  prioritizedContextsToMessages,
   DEFAULT_MODEL_CONTEXT_LIMIT,
   CONTEXT_SAFETY_MARGIN,
   SYSTEM_INSTRUCTIONS_TOKENS,
   OUTPUT_RESERVE,
-  RECENT_MESSAGES_TOKEN_ESTIMATE,
 } from './context_management';
+
+// Structured context builder for XML-like formatted context
+import {
+  buildStructuredContext,
+  type StructuredContextResult,
+} from '../lib/context_management/structured_context_builder';
+
+// Message formatter for current turn
+import {
+  formatCurrentTurn,
+  type CurrentTurnToolCall,
+} from '../lib/context_management/message_formatter';
 
 import { createDebugLog } from '../lib/debug_log';
 import {
@@ -93,6 +100,16 @@ export interface GenerateAgentResponseResult {
     outputTokens?: number;
     totalTokens?: number;
   }>;
+  // Structured context window for debugging
+  contextWindow?: string;
+  contextStats?: {
+    totalTokens: number;
+    messageCount: number;
+    approvalCount: number;
+    hasSummary: boolean;
+    hasRag: boolean;
+    hasIntegrations: boolean;
+  };
 }
 
 /**
@@ -179,8 +196,8 @@ export async function generateAgentResponse(
       integrationsCount: integrationsList?.length ?? 0,
     });
 
-    // Build system context messages using priority management (P1)
-    // This ensures critical context is preserved when approaching token limits
+    // Build structured context with XML-like formatting
+    // This replaces SDK's automatic history loading - we fully control the context
     type MessageContent = string | MessageContentPart[];
     const contextSummary = initialContextSummary;
 
@@ -198,36 +215,27 @@ export async function generateAgentResponse(
         .join('\n');
     }
 
-    // DEBUG: Log token breakdown for each context component
-    debugLog('Token breakdown analysis', {
+    // Build structured context window with XML formatting
+    // This queries messages and approvals, formats them with XML tags
+    const structuredContext: StructuredContextResult = await buildStructuredContext({
+      ctx,
       threadId,
-      userQueryTokens: estimateTokens(userQuery),
-      contextSummaryTokens: contextSummary ? estimateTokens(contextSummary) : 0,
-      ragContextTokens: 0, // RAG is now on-demand via rag_search tool
-      integrationsInfoTokens: integrationsInfo ? estimateTokens(integrationsInfo) : 0,
-      integrationsInfoLength: integrationsInfo?.length ?? 0,
-      // Log raw lengths for comparison
-      rawLengths: {
-        userQuery: userQuery.length,
-        contextSummary: contextSummary?.length ?? 0,
-        ragContext: 0,
-        integrationsInfo: integrationsInfo?.length ?? 0,
-      },
+      contextSummary,
+      ragContext,
+      integrationsInfo,
+      maxMessages: 20,
+    });
+
+    debugLog('Structured context built', {
+      threadId,
+      stats: structuredContext.stats,
+      contextTextLength: structuredContext.contextText.length,
     });
 
     // P1: Proactive context overflow detection
     // Check if we're approaching context limits and summarize if needed
     const currentPromptTokens = estimateTokens(userQuery);
-
-    // Build prioritized contexts for estimation and trimming
-    const prioritizedContexts = buildPrioritizedContexts({
-      threadId,
-      contextSummary,
-      ragContext,
-      integrationsInfo,
-    });
-
-    const initialContextTokens = prioritizedContexts.reduce((sum, c) => sum + c.tokens, 0);
+    const initialContextTokens = structuredContext.stats.totalTokens;
 
     // P2: Async summarization - triggers in background, doesn't block
     const overflowCheck = await checkAndSummarizeIfNeeded(ctx, {
@@ -244,30 +252,23 @@ export async function generateAgentResponse(
       });
     }
 
-    // Calculate available token budget for system context
-    // Reserve space for: system instructions, recent messages, current prompt, and output
+    // Token budget check for logging purposes
     const contextBudget =
       DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
       SYSTEM_INSTRUCTIONS_TOKENS -
-      RECENT_MESSAGES_TOKEN_ESTIMATE -
       currentPromptTokens -
       OUTPUT_RESERVE;
 
-    // Trim contexts by priority if needed
-    const trimResult = trimContextsByPriority(prioritizedContexts, contextBudget);
-
-    if (trimResult.wasTrimmed) {
-      debugLog('Context trimmed due to token budget', {
+    if (initialContextTokens > contextBudget) {
+      debugLog('Context may exceed budget', {
         threadId,
         budget: contextBudget,
-        keptTokens: trimResult.totalTokens,
-        trimmedCount: trimResult.trimmed.length,
-        trimmedIds: trimResult.trimmed.map((t) => t.id),
+        contextTokens: initialContextTokens,
       });
     }
 
-    // Convert prioritized contexts to system messages
-    const systemContextMessages = prioritizedContextsToMessages(trimResult.kept);
+    // Use the structured context messages (XML-formatted system message)
+    const systemContextMessages = structuredContext.messages;
 
     const agent = createChatAgent({
       withTools: true,
@@ -465,19 +466,15 @@ export async function generateAgentResponse(
       },
       {
         contextOptions: {
-          recentMessages: 20,
-          // Include tool messages so the model knows which tools were used.
-          // This prevents hallucination on follow-up queries (e.g., "What about Shanghai?"
-          // after asking about Beijing weather). Sub-agents maintain their own threads
-          // but the parent agent needs to see that tools were called.
+          // IMPORTANT: Set to 0 to disable SDK's automatic history loading
+          // We fully control context via buildStructuredContext() which queries
+          // messages and formats them with XML-like tags for clear organization
+          recentMessages: 0,
           excludeToolMessages: false,
           searchOtherThreads: false,
         },
-        // P0: Use contextHandler to fix message ordering
-        // Default SDK order: search -> recent -> inputMessages -> inputPrompt
-        // Our order: systemContext -> search -> conversationHistory -> currentUserMessage
-        // This ensures [SYSTEM], [CONTEXT], [KNOWLEDGE BASE] appear before history
-        contextHandler: createContextHandler(),
+        // No contextHandler needed - we build the complete structured context ourselves
+        // The systemContextMessages already contains the full XML-formatted history
         // Save stream deltas so UI can show real-time progress
         saveStreamDeltas: true,
         // User message was already saved in the mutation with promptMessageId.
@@ -568,7 +565,7 @@ export async function generateAgentResponse(
 
     // DEBUG: Log actual vs estimated token usage for analysis
     const actualInputTokens = result.usage?.inputTokens ?? 0;
-    const estimatedContextTokens = prioritizedContexts.reduce((sum, c) => sum + c.tokens, 0);
+    const estimatedContextTokens = structuredContext.stats.totalTokens;
     debugLog('Token usage comparison', {
       threadId,
       actual: {
@@ -584,7 +581,7 @@ export async function generateAgentResponse(
       },
       difference: {
         unexplainedTokens: actualInputTokens - estimatedContextTokens - estimateTokens(userQuery),
-        note: 'unexplainedTokens includes: tool definitions, system instructions, recent messages, SDK overhead',
+        note: 'unexplainedTokens includes: tool definitions, system instructions, SDK overhead',
       },
     });
 
@@ -750,6 +747,23 @@ export async function generateAgentResponse(
     // Calculate time to first token (undefined if no text was generated, e.g., tool-only responses)
     const timeToFirstTokenMs = firstTokenTime ? firstTokenTime - startTime : undefined;
 
+    // Build complete context window including current turn
+    // This appends the current user input, tool calls, and AI output to the historical context
+    const currentTurnFormatted = formatCurrentTurn({
+      userInput: userQuery,
+      assistantOutput: trimmedResponseText,
+      toolCalls: toolCalls.length > 0 ? toolCalls as CurrentTurnToolCall[] : undefined,
+      timestamp: Date.now(),
+    });
+    const completeContextWindow = structuredContext.contextText + '\n\n' + currentTurnFormatted;
+
+    // Update token count to include current turn
+    const currentTurnTokens = estimateTokens(currentTurnFormatted);
+    const completeContextStats = {
+      ...structuredContext.stats,
+      totalTokens: structuredContext.stats.totalTokens + currentTurnTokens,
+    };
+
     const chatResult = {
       threadId,
       text: trimmedResponseText,
@@ -761,6 +775,9 @@ export async function generateAgentResponse(
       durationMs: Date.now() - startTime,
       timeToFirstTokenMs,
       subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
+      // Include complete structured context (history + current turn) for debugging/logging
+      contextWindow: completeContextWindow,
+      contextStats: completeContextStats,
     };
 
     // Call completion handler to save metadata and schedule summarization

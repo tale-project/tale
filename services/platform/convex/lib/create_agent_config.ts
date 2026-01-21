@@ -114,19 +114,10 @@ export function createAgentConfig(opts: {
 
   const model = getModel();
 
-  // Build call settings with temperature and frequency_penalty
-  // Temperature priority:
-  // 1. Explicit opts.temperature if provided
-  // 2. Auto-determined based on outputFormat: json→0.2, text→0.5
-  // frequency_penalty helps prevent the model from repeating the same text in loops
-  const callSettings: Record<string, number> = {
-    // Add frequency_penalty to discourage repetition loops
-    // This penalizes tokens based on their frequency in the generated text so far
-    // Reduced from 0.3 to 0.15 to prevent degenerate word-list outputs (issue #88)
-    frequencyPenalty: 0.15,
-    temperature:
-      opts.temperature ?? (opts.outputFormat === 'json' ? 0.2 : 0.5),
-  };
+  // Call settings are intentionally empty
+  // temperature and frequencyPenalty are not supported by reasoning models (e.g., DeepSeek V3.2)
+  // and cause empty responses when set. Let the model use its defaults.
+  const callSettings: Record<string, number> = {};
 
   // Build text embedding model for vector search if enabled
   // Requires OPENAI_EMBEDDING_MODEL env var to be set

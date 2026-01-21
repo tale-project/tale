@@ -33,6 +33,18 @@ export const saveMessageMetadata = mutation({
         }),
       ),
     ),
+    // Structured context window for debugging
+    contextWindow: v.optional(v.string()),
+    contextStats: v.optional(
+      v.object({
+        totalTokens: v.number(),
+        messageCount: v.number(),
+        approvalCount: v.number(),
+        hasSummary: v.boolean(),
+        hasRag: v.boolean(),
+        hasIntegrations: v.boolean(),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -54,6 +66,8 @@ export const saveMessageMetadata = mutation({
         durationMs: args.durationMs ?? existing.durationMs,
         timeToFirstTokenMs: args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
         subAgentUsage: args.subAgentUsage ?? existing.subAgentUsage,
+        contextWindow: args.contextWindow ?? existing.contextWindow,
+        contextStats: args.contextStats ?? existing.contextStats,
       });
       return existing._id;
     }
@@ -73,6 +87,8 @@ export const saveMessageMetadata = mutation({
       durationMs: args.durationMs,
       timeToFirstTokenMs: args.timeToFirstTokenMs,
       subAgentUsage: args.subAgentUsage,
+      contextWindow: args.contextWindow,
+      contextStats: args.contextStats,
     });
   },
 });
