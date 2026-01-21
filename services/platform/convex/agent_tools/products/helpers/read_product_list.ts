@@ -1,10 +1,19 @@
 import type { ToolCtx } from '@convex-dev/agent';
 import { internal } from '../../../_generated/api';
+import type { ProductStatus } from '../../../products/types';
 import type { ProductReadListResult } from './types';
+import { defaultListFields } from './types';
+
+export interface ReadProductListArgs {
+  cursor?: string | null;
+  numItems?: number;
+  status?: ProductStatus;
+  minStock?: number;
+}
 
 export async function readProductList(
   ctx: ToolCtx,
-  args: { cursor?: string | null; numItems?: number },
+  args: ReadProductListArgs,
 ): Promise<ProductReadListResult> {
   const { organizationId } = ctx;
 
@@ -14,23 +23,42 @@ export async function readProductList(
     );
   }
 
-  const numItems = args.numItems ?? 200;
+  const numItems = args.numItems ?? 50;
   const cursor = args.cursor ?? null;
 
-  const result = await ctx.runQuery(internal.products.queries.listByOrganization, {
+  // @ts-ignore TS2589: Convex API type instantiation is excessively deep
+  const result = (await ctx.runQuery(internal.products.queries.queryProducts, {
     organizationId,
+    status: args.status,
+    minStock: args.minStock,
     paginationOpts: {
       numItems,
       cursor,
     },
+  })) as {
+    page: Array<Record<string, unknown>>;
+    isDone: boolean;
+    continueCursor: string;
+  };
+
+  const products = result.page;
+
+  const filteredProducts = products.map((product) => {
+    const filtered: Record<string, unknown> = {};
+    for (const field of defaultListFields) {
+      if (field in product) {
+        filtered[field] = product[field];
+      }
+    }
+    return filtered;
   });
 
   return {
     operation: 'list',
-    products: result.page,
+    products: filteredProducts,
     pagination: {
       hasMore: !result.isDone,
-      totalFetched: result.page.length,
+      totalFetched: filteredProducts.length,
       cursor: result.continueCursor || null,
     },
   };

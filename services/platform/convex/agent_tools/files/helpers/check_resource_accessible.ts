@@ -7,6 +7,15 @@ export interface ResourceCheckArgs {
   timeoutMs?: number;
 }
 
+export interface ResourceCheckBatchArgs {
+  urls: string[];
+  timeoutMs?: number;
+}
+
+export interface ResourceCheckBatchResult {
+  results: ResourceCheckResult[];
+}
+
 export interface ResourceCheckResult {
   success: boolean;
   url: string;
@@ -119,4 +128,42 @@ export async function checkResourceAccessible({
 
     return result;
   }
+}
+
+export async function checkResourcesAccessibleBatch({
+  urls,
+  timeoutMs = 10_000,
+}: ResourceCheckBatchArgs): Promise<ResourceCheckBatchResult> {
+  debugLog('tool:resource_check batch start', {
+    urlCount: urls.length,
+    timeoutMs,
+  });
+
+  const results = await Promise.allSettled(
+    urls.map((url) => checkResourceAccessible({ url, timeoutMs })),
+  );
+
+  const processedResults = results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    return {
+      success: false,
+      url: urls[index],
+      finalUrl: urls[index],
+      status: 0,
+      ok: false,
+      contentType: null,
+      contentLength: null,
+      isImage: false,
+      error: result.reason?.message || 'Unknown error',
+    };
+  });
+
+  debugLog('tool:resource_check batch complete', {
+    total: processedResults.length,
+    successCount: processedResults.filter((r) => r.success).length,
+  });
+
+  return { results: processedResults };
 }

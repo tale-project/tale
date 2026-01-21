@@ -264,8 +264,6 @@ const conversationAutoReplyWorkflow = {
       order: 11,
       config: {
         name: 'Reply Necessity Checker and Type Classifier',
-        temperature: 0.2,
-        maxTokens: 500,
         outputFormat: 'json',
         outputSchema: {
           type: 'object',
@@ -441,9 +439,6 @@ Note: Set should_update_type to true only if the current type is missing, empty,
       order: 15,
       config: {
         name: 'Reply Generator',
-        temperature: 0.7,
-        maxTokens: 20000,
-        maxSteps: 10,
         outputFormat: 'text',
         tools: ['customer_read', 'product_read'],
         systemPrompt: `You are John, a friendly and helpful customer service representative. Write natural, conversational replies that are warm, helpful, and genuinely human.

@@ -61,9 +61,10 @@ export function validateAndNormalizeConfig(
     // provide a fallback model: OPENAI_MODEL must be set explicitly in the
     // Convex environment or LLM workflow steps will fail to run.
     model: envModel,
-    temperature: llmConfig.temperature ?? 0.2,
-    maxTokens: llmConfig.maxTokens ?? 512,
-    maxSteps: llmConfig.maxSteps ?? 20, // Default to 20 steps for tool calling
+    // Note: The following are intentionally not configurable in workflow definitions:
+    // - maxTokens: uses model's default value
+    // - maxSteps: defaults to 40 when tools are configured (see createAgentConfig)
+    // - temperature: auto-determined based on outputFormat (json→0.2, text→0.5)
     outputFormat: llmConfig.outputFormat,
     outputSchema: llmConfig.outputSchema,
     tools: llmConfig.tools,

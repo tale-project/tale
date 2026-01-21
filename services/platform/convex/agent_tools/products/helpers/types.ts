@@ -1,7 +1,7 @@
 // Result types shared between the product_read tool and its helpers
 export type ProductReadGetByIdResult = {
   operation: 'get_by_id';
-  product: Record<string, unknown> | null;
+  products: Array<Record<string, unknown> | null>;
 };
 
 export type ProductReadListResult = {
@@ -27,12 +27,4 @@ export const defaultGetFields: string[] = [
   'stock',
 ];
 
-export const defaultListFields: string[] = [
-  '_id',
-  'name',
-  'description',
-  'price',
-  'currency',
-  'status',
-  'category',
-];
+export const defaultListFields: string[] = ['_id', 'name', 'description', 'status', 'stock'];

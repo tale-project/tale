@@ -186,9 +186,6 @@ const productRecommendationEmailWorkflow = {
       order: 6,
       config: {
         name: 'Email Generator',
-        temperature: 0.7,
-        maxTokens: 2000,
-        maxSteps: 20, // Allow multiple steps for tool calls + final response
         outputFormat: 'json',
         // Output schema for structured output validation - ensures LLM returns valid email structure
         outputSchema: {

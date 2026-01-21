@@ -113,13 +113,7 @@ CRITICAL BUSINESS RULE:
 - Never recommend products that are inactive, archived, or have stock less than or equal to 0.
 - Use tools as needed to verify that a product is active and in stock before including it in the recommendations.
 
-IMAGE URL VALIDATION RULES (CRITICAL):
-- Recommended products must have a valid, accessible image URL.
-- Use the "resource_check" tool to validate each candidate product's image URL before including it in the final recommendations.
-- Only include a product if resource_check returns success: true AND isImage: true for the chosen image URL.
-- If you cannot find a valid image URL for a product that passes resource_check, do NOT include that product in the recommendations.
-
-If tools are available, call them as needed to look up products, validate image URLs, or search the knowledge base.`,
+If tools are available, call them as needed to look up products or search the knowledge base.`,
             },
             {
               name: 'llmUserPrompt',
@@ -127,15 +121,9 @@ If tools are available, call them as needed to look up products, validate image 
 	            {{currentCustomer}}
 	            
 	            	    Task: Recommend up to 5 products that this customer is most likely to benefit from next.
-	            	    
+
 	            	    You must ONLY recommend products that are active and have stock greater than 0 (strictly positive). Do not recommend any products that are inactive, archived, or out of stock.
-	            	    
-	            	    Recommended products MUST also have a valid, accessible image URL. For each candidate product, you MUST:
-	            	    - Identify a candidate image URL (for example from the product's imageUrl field).
-	            	    - Call the "resource_check" tool with that URL.
-	            	    - Only include the product in the final recommendations if resource_check indicates the URL is accessible and isImage is true.
-	            	    - If you cannot find a valid image URL that passes resource_check for a product, skip that product and choose another one.
-	            	    
+
 	            	    Use any available product relationship metadata (for example on products they are linked to) when relevant, and you may also browse the product catalog and RAG knowledge base.`,
             },
           ],
@@ -150,9 +138,6 @@ If tools are available, call them as needed to look up products, validate image 
       order: 6,
       config: {
         name: 'Product Recommendation Generator',
-        temperature: 0.3,
-        maxTokens: 4000,
-        maxSteps: 20,
         outputFormat: 'json',
         outputSchema: {
           type: 'object',
@@ -163,6 +148,33 @@ If tools are available, call them as needed to look up products, validate image 
               description: 'List of recommended products (up to 5)',
               items: {
                 type: 'object',
+                properties: {
+                  productId: {
+                    type: 'string',
+                    description: 'The unique product identifier from the database',
+                  },
+                  productName: {
+                    type: 'string',
+                    description: 'Name of the product',
+                  },
+                  price: {
+                    type: 'number',
+                    description: 'Product price',
+                  },
+                  imageUrl: {
+                    type: 'string',
+                    description: 'URL of the product image',
+                  },
+                  reason: {
+                    type: 'string',
+                    description: 'Why this product is recommended for the customer',
+                  },
+                  confidence: {
+                    type: 'number',
+                    description: 'Confidence score for this recommendation (0-1)',
+                  },
+                },
+                required: ['productId', 'productName', 'reason', 'confidence'],
               },
             },
             summary: {
@@ -172,7 +184,7 @@ If tools are available, call them as needed to look up products, validate image 
           },
           required: ['recommendations', 'summary'],
         },
-        tools: ['product_read', 'rag_search', 'resource_check'],
+        tools: ['product_read'],
         systemPrompt: '{{llmSystemPrompt}}',
         userPrompt: '{{llmUserPrompt}}',
       },

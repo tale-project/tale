@@ -19,9 +19,11 @@ const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[AgentConfig]');
 export function createAgentConfig(opts: {
   name: string;
   model?: string;
+  /** Temperature override. If not provided, auto-determined by outputFormat: json→0.2, text→0.5 */
   temperature?: number;
   maxTokens?: number;
   instructions: string;
+  /** Output format - also determines default temperature if not explicitly set */
   outputFormat?: 'text' | 'json';
   convexToolNames?: ToolName[];
   /** Additional tools to merge (e.g., dynamic json_output tool) */
@@ -113,16 +115,18 @@ export function createAgentConfig(opts: {
   const model = getModel();
 
   // Build call settings with temperature and frequency_penalty
+  // Temperature priority:
+  // 1. Explicit opts.temperature if provided
+  // 2. Auto-determined based on outputFormat: json→0.2, text→0.5
   // frequency_penalty helps prevent the model from repeating the same text in loops
   const callSettings: Record<string, number> = {
     // Add frequency_penalty to discourage repetition loops
     // This penalizes tokens based on their frequency in the generated text so far
     // Reduced from 0.3 to 0.15 to prevent degenerate word-list outputs (issue #88)
     frequencyPenalty: 0.15,
+    temperature:
+      opts.temperature ?? (opts.outputFormat === 'json' ? 0.2 : 0.5),
   };
-  if (typeof opts.temperature === 'number') {
-    callSettings.temperature = opts.temperature;
-  }
 
   // Build text embedding model for vector search if enabled
   // Requires OPENAI_EMBEDDING_MODEL env var to be set
@@ -137,11 +141,11 @@ export function createAgentConfig(opts: {
 
   const hasMaxTokens = typeof opts.maxTokens === 'number';
 
-  // Default maxSteps to 10 when tools are configured but maxSteps is not set.
+  // Default maxSteps to 40 when tools are configured but maxSteps is not set.
   // Without maxSteps, AI SDK defaults to stepCountIs(1), which prevents tool call loops
   // and can cause models to "simulate" tool calls as XML text output.
   const effectiveMaxSteps =
-    hasAnyTools && typeof opts.maxSteps !== 'number' ? 10 : opts.maxSteps;
+    hasAnyTools && typeof opts.maxSteps !== 'number' ? 40 : opts.maxSteps;
 
   return {
     name: opts.name,
