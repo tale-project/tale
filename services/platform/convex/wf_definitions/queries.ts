@@ -107,9 +107,7 @@ export const getAutomations = queryWithRLS({
   handler: async (ctx, args) => {
     const query = ctx.db
       .query('wfDefinitions')
-      .withIndex('by_org', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
     const allItems: WorkflowDefinition[] = [];
     for await (const item of query) {
@@ -117,8 +115,14 @@ export const getAutomations = queryWithRLS({
         continue;
       }
 
+      const activeVersion = await getActiveVersionHelper(ctx, {
+        organizationId: args.organizationId,
+        name: item.name,
+      });
+      const effectiveStatus = activeVersion ? 'active' : 'draft';
+
       if (args.status && args.status.length > 0) {
-        if (!args.status.includes(item.status ?? 'active')) {
+        if (!args.status.includes(effectiveStatus)) {
           continue;
         }
       }
@@ -126,13 +130,20 @@ export const getAutomations = queryWithRLS({
       if (args.searchTerm) {
         const searchLower = args.searchTerm.toLowerCase();
         const matchesName = item.name?.toLowerCase().includes(searchLower);
-        const matchesDescription = item.description?.toLowerCase().includes(searchLower);
+        const matchesDescription = item.description
+          ?.toLowerCase()
+          .includes(searchLower);
         if (!matchesName && !matchesDescription) {
           continue;
         }
       }
 
-      allItems.push(item);
+      allItems.push({
+        ...item,
+        status: effectiveStatus,
+        version: activeVersion?.version ?? item.version,
+        versionNumber: activeVersion?.versionNumber ?? item.versionNumber,
+      });
     }
 
     return allItems;
