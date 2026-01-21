@@ -19,7 +19,7 @@ export function createWebAgent(options?: {
 }) {
   const maxSteps = options?.maxSteps ?? 5;
 
-  const convexToolNames: ToolName[] = ['web_read'];
+  const convexToolNames: ToolName[] = ['web_read', 'request_human_input'];
 
   debugLog('createWebAgent Loaded tools', {
     convexCount: convexToolNames.length,

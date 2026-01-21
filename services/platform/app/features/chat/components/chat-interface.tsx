@@ -181,7 +181,7 @@ export function ChatInterface({
   };
 
   const handleHumanInputResponseSubmitted = useCallback(() => {
-    setPendingWithCount(true);
+    setPendingWithCount(true, true);
     shouldScrollToAIRef.current = true;
   }, [setPendingWithCount]);
 

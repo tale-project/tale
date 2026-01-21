@@ -114,9 +114,22 @@ export const submitHumanInputResponse = mutation({
 
     // Resume agent execution by saving a system notification and scheduling the agent
     // The system message notifies the AI that a human response is available
+    // Map response value(s) back to their labels for better readability
+    const mapValueToLabel = (value: string): string => {
+      if (existingMetadata.options) {
+        const option = existingMetadata.options.find(
+          (opt) => (opt.value ?? opt.label) === value,
+        );
+        if (option) {
+          return option.label;
+        }
+      }
+      return value;
+    };
+
     const responseDisplay = Array.isArray(responseValue)
-      ? responseValue.join(', ')
-      : responseValue;
+      ? responseValue.map(mapValueToLabel).join(', ')
+      : mapValueToLabel(responseValue);
     const systemNotification = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
     const { messageId: promptMessageId } = await saveMessage(

@@ -156,9 +156,15 @@ EXAMPLES:
           minRecentMessages: Math.min(4, crmConfig.recentMessages),
         });
 
+        // Extend context with parentThreadId for human input card linking
+        const contextWithParentThread = {
+          ...ctx,
+          parentThreadId: threadId,
+        };
+
         const generationStartTime = Date.now();
         const result = await crmAgent.generateText(
-          ctx,
+          contextWithParentThread,
           { threadId: subThreadId, userId },
           {
             prompt: promptResult.prompt,
@@ -181,9 +187,21 @@ EXAMPLES:
           stepsCount: result.steps?.length ?? 0,
         });
 
+        // Check if a human input request was created (waiting for user selection)
+        const hasHumanInputRequest = result.text.toLowerCase().includes('input card') ||
+                                     result.text.toLowerCase().includes('waiting for') ||
+                                     result.text.toLowerCase().includes('select') ||
+                                     result.text.toLowerCase().includes('request_human_input');
+
+        // If waiting for human input, prepend a clear signal to the response
+        let finalResponse = result.text;
+        if (hasHumanInputRequest) {
+          finalResponse = `[HUMAN INPUT CARD CREATED - DO NOT FABRICATE OPTIONS]\n\n${result.text}`;
+        }
+
         return {
           success: true,
-          response: result.text,
+          response: finalResponse,
           usage: result.usage,
         };
       } catch (error) {

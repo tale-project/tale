@@ -78,7 +78,30 @@ export function createAgentConfig(opts: {
       'Return only a single JSON object and no extra commentary. If you used tools, still end with that JSON object.',
     );
   }
-  const finalInstructions = [opts.instructions, suffixParts.join(' ')]
+
+  // Add disambiguation rule for agents with request_human_input tool
+  if (opts.convexToolNames?.includes('request_human_input')) {
+    suffixParts.push(`
+**DISAMBIGUATION RULE**
+When searching for a specific record and finding MULTIPLE matches:
+1. DO NOT proceed with all matches or pick one arbitrarily
+2. Use request_human_input tool with format="single_select"
+3. Include distinguishing details in each option (name, email, status, etc.)
+4. STOP IMMEDIATELY after calling request_human_input - do NOT continue
+
+CRITICAL: After calling request_human_input:
+- You MUST produce your final response and STOP
+- Do NOT call any more tools
+- Do NOT assume what the user will select
+- Do NOT generate a fake <human_response>
+- The user's response will come in a FUTURE conversation turn
+
+Example: User asks for "John's email" and you find 3 Johns:
+→ Call request_human_input with options
+→ Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
+  }
+
+  const finalInstructions = [opts.instructions, suffixParts.join('\n\n')]
     .filter(Boolean)
     .join('\n\n');
 

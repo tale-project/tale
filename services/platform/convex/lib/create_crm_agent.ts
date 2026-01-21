@@ -22,6 +22,7 @@ export function createCrmAgent(options?: {
   const convexToolNames: ToolName[] = [
     'customer_read',
     'product_read',
+    'request_human_input',
   ];
 
   debugLog('createCrmAgent Loaded tools', {

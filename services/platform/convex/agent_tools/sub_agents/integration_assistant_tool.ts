@@ -212,9 +212,21 @@ EXAMPLES:
                            (result.text.toLowerCase().includes('created') ||
                             result.text.toLowerCase().includes('pending'));
 
+        // Check if a human input request was created (waiting for user selection)
+        const hasHumanInputRequest = result.text.toLowerCase().includes('input card') ||
+                                     result.text.toLowerCase().includes('waiting for') ||
+                                     result.text.toLowerCase().includes('select') ||
+                                     result.text.toLowerCase().includes('request_human_input');
+
+        // If waiting for human input, prepend a clear signal to the response
+        let finalResponse = result.text;
+        if (hasHumanInputRequest && !hasApproval) {
+          finalResponse = `[HUMAN INPUT CARD CREATED - DO NOT FABRICATE OPTIONS]\n\n${result.text}`;
+        }
+
         return {
           success: true,
-          response: result.text,
+          response: finalResponse,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
           usage: result.usage,

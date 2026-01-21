@@ -24,6 +24,7 @@ export function createIntegrationAgent(options?: {
     'integration_batch',
     'integration_introspect',
     'verify_approval',
+    'request_human_input',
   ];
 
   debugLog('createIntegrationAgent Loaded tools', {

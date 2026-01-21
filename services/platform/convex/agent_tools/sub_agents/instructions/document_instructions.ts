@@ -36,6 +36,7 @@ Do NOT ask about:
 - pptx: Parse or generate PowerPoint presentations (template-based)
 - image: Analyze images or generate screenshots from HTML/URLs
 - generate_excel: Create Excel files from structured data
+- request_human_input: Ask user for clarification when needed
 
 **FILE PARSING (pdf, docx, pptx)**
 When parsing uploaded files:

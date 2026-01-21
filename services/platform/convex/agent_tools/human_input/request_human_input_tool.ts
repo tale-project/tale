@@ -56,11 +56,13 @@ Call this tool with:
 - format: "single_select"
 - options: [{ label: "John Smith (Sales)", value: "contact_123" }, { label: "John Doe (Support)", value: "contact_456" }]
 
-**AFTER CALLING:**
-• The tool returns immediately after creating the request
+**AFTER CALLING - CRITICAL:**
 • An input card appears in the user's chat interface
-• The user's response will appear in your context as <human_response>
-• Wait for their response before continuing your task`,
+• You MUST STOP and produce your final response immediately
+• Do NOT call any more tools or continue with any operation
+• Do NOT assume or guess what the user will select
+• The user's response will appear in a FUTURE turn as <human_response>
+• Simply acknowledge you're waiting for their selection`,
     args: z.object({
       question: z
         .string()
@@ -157,7 +159,20 @@ Call this tool with:
           success: true,
           requestId: requestId as string,
           requestCreated: true,
-          message: `Human input request created (ID: ${requestId}). An input card will be shown to the user. Their response will appear in your context as <human_response id="${requestId}">. Wait for their response before continuing.`,
+          waitingForUser: true,
+          message: `STOP - WAITING FOR USER INPUT
+
+An input card (ID: ${requestId}) has been created and is now displayed to the user.
+
+CRITICAL: You MUST stop here and produce your final response now. Do NOT:
+- Call any more tools
+- Make assumptions about what the user will select
+- Generate a fake <human_response>
+- Continue with any operation
+
+The user's actual response will appear in a FUTURE conversation turn as <human_response id="${requestId}">. You will NOT see it in this turn.
+
+Your response now should acknowledge that you're waiting for the user to make their selection.`,
         };
       } catch (error) {
         return {

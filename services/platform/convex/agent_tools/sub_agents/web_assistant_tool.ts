@@ -135,9 +135,15 @@ EXAMPLES:
           minRecentMessages: Math.min(4, webConfig.recentMessages),
         });
 
+        // Extend context with parentThreadId for human input card linking
+        const contextWithParentThread = {
+          ...ctx,
+          parentThreadId: threadId,
+        };
+
         const generationStartTime = Date.now();
         const result = await webAgent.generateText(
-          ctx,
+          contextWithParentThread,
           { threadId: subThreadId, userId },
           {
             prompt: promptResult.prompt,

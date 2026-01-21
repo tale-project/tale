@@ -25,6 +25,7 @@ export function createDocumentAgent(options?: {
     'docx',
     'pptx',
     'generate_excel',
+    'request_human_input',
   ];
 
   debugLog('createDocumentAgent Loaded tools', {
