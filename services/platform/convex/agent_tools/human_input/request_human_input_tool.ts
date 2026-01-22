@@ -127,13 +127,21 @@ Call this tool with:
         };
       }
 
-      // For yes_no format, auto-generate options if not provided
+      // For yes_no format, ensure exactly two options
       let options = args.options;
-      if (args.format === 'yes_no' && !options) {
-        options = [
-          { label: 'Yes', value: 'yes' },
-          { label: 'No', value: 'no' },
-        ];
+      if (args.format === 'yes_no') {
+        if (options && options.length !== 2) {
+          return {
+            success: false,
+            message: 'yes_no format requires exactly 2 options.',
+          };
+        }
+        if (!options) {
+          options = [
+            { label: 'Yes', value: 'yes' },
+            { label: 'No', value: 'no' },
+          ];
+        }
       }
 
       try {
