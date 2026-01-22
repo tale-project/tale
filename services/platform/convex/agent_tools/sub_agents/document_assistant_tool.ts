@@ -11,7 +11,20 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import {
+  successResponse,
+  handleToolError,
+  type ToolResponse,
+} from './helpers/tool_response';
 import { getDocumentAgentGenerateResponseRef } from '../../lib/function_refs';
+
+const DOCUMENT_CONTEXT_MAPPING = {
+  fileId: 'file_id',
+  fileUrl: 'file_url',
+  fileName: 'file_name',
+} as const;
 
 export const documentAssistantTool = {
   name: 'document_assistant' as const,
@@ -56,39 +69,13 @@ EXAMPLES:
         .describe('Original filename (e.g., "report.pdf")'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      const validation = validateToolContext(ctx, 'document_assistant');
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
-
-      if (!threadId) {
-        return {
-          success: false,
-          response: '',
-          error: 'threadId is required for document_assistant to create sub-threads',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
       try {
-        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -104,19 +91,6 @@ EXAMPLES:
           isNew ? '(new)' : '(reused)',
         );
 
-        // Build additional context for the agent
-        const additionalContext: Record<string, string> = {};
-        if (args.fileId) {
-          additionalContext.file_id = args.fileId;
-        }
-        if (args.fileUrl) {
-          additionalContext.file_url = args.fileUrl;
-        }
-        if (args.fileName) {
-          additionalContext.file_name = args.fileName;
-        }
-
-        // Call the Document Agent via Convex API - all context management happens inside
         const result = await ctx.runAction(
           getDocumentAgentGenerateResponseRef(),
           {
@@ -124,26 +98,17 @@ EXAMPLES:
             userId,
             organizationId,
             taskDescription: args.userRequest,
-            additionalContext:
-              Object.keys(additionalContext).length > 0
-                ? additionalContext
-                : undefined,
+            additionalContext: buildAdditionalContext(
+              args,
+              DOCUMENT_CONTEXT_MAPPING,
+            ),
             parentThreadId: threadId,
           },
         );
 
-        return {
-          success: true,
-          response: result.text,
-          usage: result.usage,
-        };
+        return successResponse(result.text, result.usage);
       } catch (error) {
-        console.error('[document_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('document_assistant_tool', error);
       }
     },
   }),

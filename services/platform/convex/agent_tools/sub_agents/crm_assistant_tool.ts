@@ -11,7 +11,21 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import {
+  successResponse,
+  handleToolError,
+  type ToolResponse,
+} from './helpers/tool_response';
 import { getCrmAgentGenerateResponseRef } from '../../lib/function_refs';
+
+const CRM_CONTEXT_MAPPING = {
+  customerId: 'customer_id',
+  customerEmail: 'customer_email',
+  productId: 'product_id',
+  operation: 'operation_hint',
+} as const;
 
 export const crmAssistantTool = {
   name: 'crm_assistant' as const,
@@ -65,39 +79,13 @@ EXAMPLES:
         .describe('Hint about the operation type (optional, agent will infer)'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      const validation = validateToolContext(ctx, 'crm_assistant');
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
-
-      if (!threadId) {
-        return {
-          success: false,
-          response: '',
-          error: 'threadId is required for crm_assistant to create sub-threads',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
       try {
-        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -113,49 +101,18 @@ EXAMPLES:
           isNew ? '(new)' : '(reused)',
         );
 
-        // Build additional context for the agent
-        const additionalContext: Record<string, string> = {};
-        if (args.customerId) {
-          additionalContext.customer_id = args.customerId;
-        }
-        if (args.customerEmail) {
-          additionalContext.customer_email = args.customerEmail;
-        }
-        if (args.productId) {
-          additionalContext.product_id = args.productId;
-        }
-        if (args.operation) {
-          additionalContext.operation_hint = args.operation;
-        }
+        const result = await ctx.runAction(getCrmAgentGenerateResponseRef(), {
+          threadId: subThreadId,
+          userId,
+          organizationId,
+          taskDescription: args.userRequest,
+          additionalContext: buildAdditionalContext(args, CRM_CONTEXT_MAPPING),
+          parentThreadId: threadId,
+        });
 
-        // Call the CRM Agent via Convex API - all context management happens inside
-        const result = await ctx.runAction(
-          getCrmAgentGenerateResponseRef(),
-          {
-            threadId: subThreadId,
-            userId,
-            organizationId,
-            taskDescription: args.userRequest,
-            additionalContext:
-              Object.keys(additionalContext).length > 0
-                ? additionalContext
-                : undefined,
-            parentThreadId: threadId,
-          },
-        );
-
-        return {
-          success: true,
-          response: result.text,
-          usage: result.usage,
-        };
+        return successResponse(result.text, result.usage);
       } catch (error) {
-        console.error('[crm_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('crm_assistant_tool', error);
       }
     },
   }),

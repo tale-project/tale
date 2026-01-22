@@ -13,14 +13,23 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkRoleAccess } from './helpers/check_role_access';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
 import {
-  getGetMemberRoleInternalRef,
+  handleToolError,
+  type ToolResponseWithApproval,
+} from './helpers/tool_response';
+import {
   getListIntegrationsInternalRef,
   getIntegrationAgentGenerateResponseRef,
 } from '../../lib/function_refs';
 
-const ALLOWED_ROLES = ['admin', 'developer'] as const;
+const INTEGRATION_CONTEXT_MAPPING = {
+  integrationName: 'target_integration',
+  operation: 'target_operation',
+} as const;
 
 export const integrationAssistantTool = {
   name: 'integration_assistant' as const,
@@ -63,64 +72,29 @@ EXAMPLES:
         .describe('Specific operation to execute (if known)'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      approvalCreated?: boolean;
-      approvalId?: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponseWithApproval> => {
+      const validation = validateToolContext(ctx, 'integration_assistant', {
+        requireUserId: true,
+      });
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
-      if (!threadId || !userId) {
-        return {
-          success: false,
-          response: '',
-          error: 'Both threadId and userId are required for integration_assistant',
-        };
-      }
-
-      // Check user role - only admin and developer can use this tool
-      const userRole = await ctx.runQuery(
-        getGetMemberRoleInternalRef(),
-        { userId, organizationId },
+      const roleCheck = await checkRoleAccess(
+        ctx,
+        userId!,
+        organizationId,
+        'integration_assistant',
       );
-
-      const normalizedRole = (userRole ?? 'member').toLowerCase();
-      if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
-        console.log('[integration_assistant_tool] Access denied for role:', normalizedRole);
-        return {
-          success: false,
-          response: '',
-          error: `Access denied: The integration assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
-        };
-      }
+      if (!roleCheck.allowed) return roleCheck.error!;
 
       try {
-        // Load available integrations for this organization
         const integrationsList = await ctx.runQuery(
           getListIntegrationsInternalRef(),
           { organizationId },
         );
         const integrationsInfo = formatIntegrationsForContext(integrationsList);
 
-        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -135,18 +109,11 @@ EXAMPLES:
           subThreadId,
           isNew ? '(new)' : '(reused)',
         );
-        console.log('[integration_assistant_tool] Parent thread for approvals:', threadId);
+        console.log(
+          '[integration_assistant_tool] Parent thread for approvals:',
+          threadId,
+        );
 
-        // Build additional context for the agent
-        const additionalContext: Record<string, string> = {};
-        if (args.integrationName) {
-          additionalContext.target_integration = args.integrationName;
-        }
-        if (args.operation) {
-          additionalContext.target_operation = args.operation;
-        }
-
-        // Call the Integration Agent via Convex API - all context management happens inside
         const result = await ctx.runAction(
           getIntegrationAgentGenerateResponseRef(),
           {
@@ -154,16 +121,15 @@ EXAMPLES:
             userId,
             organizationId,
             taskDescription: args.userRequest,
-            additionalContext:
-              Object.keys(additionalContext).length > 0
-                ? additionalContext
-                : undefined,
+            additionalContext: buildAdditionalContext(
+              args,
+              INTEGRATION_CONTEXT_MAPPING,
+            ),
             parentThreadId: threadId,
             integrationsInfo,
           },
         );
 
-        // Check if an approval was created (look for approval patterns in response)
         const approvalMatch = result.text.match(
           /approval[^\w]*(?:ID|id)[^\w]*[:\s]*["']?([a-zA-Z0-9]+)["']?/i,
         );
@@ -172,14 +138,12 @@ EXAMPLES:
           (result.text.toLowerCase().includes('created') ||
             result.text.toLowerCase().includes('pending'));
 
-        // Check if a human input request was created (waiting for user selection)
         const hasHumanInputRequest =
           result.text.toLowerCase().includes('input card') ||
           result.text.toLowerCase().includes('waiting for') ||
           result.text.toLowerCase().includes('select') ||
           result.text.toLowerCase().includes('request_human_input');
 
-        // If waiting for human input, prepend a clear signal to the response
         let finalResponse = result.text;
         if (hasHumanInputRequest && !hasApproval) {
           finalResponse = `[HUMAN INPUT CARD CREATED - DO NOT FABRICATE OPTIONS]\n\n${result.text}`;
@@ -193,12 +157,7 @@ EXAMPLES:
           usage: result.usage,
         };
       } catch (error) {
-        console.error('[integration_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('integration_assistant_tool', error);
       }
     },
   }),

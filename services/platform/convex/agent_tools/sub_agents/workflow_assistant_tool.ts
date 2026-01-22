@@ -13,12 +13,18 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkRoleAccess } from './helpers/check_role_access';
 import {
-  getGetMemberRoleInternalRef,
-  getWorkflowAgentGenerateResponseRef,
-} from '../../lib/function_refs';
+  handleToolError,
+  type ToolResponseWithApproval,
+} from './helpers/tool_response';
+import { getWorkflowAgentGenerateResponseRef } from '../../lib/function_refs';
 
-const ALLOWED_ROLES = ['admin', 'developer'] as const;
+const WORKFLOW_CONTEXT_MAPPING = {
+  workflowId: 'target_workflow_id',
+} as const;
 
 export const workflowAssistantTool = {
   name: 'workflow_assistant' as const,
@@ -52,59 +58,23 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
         .describe('Workflow ID if the request is about a specific workflow'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      approvalCreated?: boolean;
-      approvalId?: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponseWithApproval> => {
+      const validation = validateToolContext(ctx, 'workflow_assistant');
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
-      if (!threadId) {
-        return {
-          success: false,
-          response: '',
-          error: 'threadId is required for workflow_assistant to create sub-threads',
-        };
-      }
-
-      // Check user role - only admin and developer can use this tool
       if (userId) {
-        const userRole = await ctx.runQuery(
-          getGetMemberRoleInternalRef(),
-          { userId, organizationId },
+        const roleCheck = await checkRoleAccess(
+          ctx,
+          userId,
+          organizationId,
+          'workflow_assistant',
         );
-
-        const normalizedRole = (userRole ?? 'member').toLowerCase();
-        if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
-          console.log('[workflow_assistant_tool] Access denied for role:', normalizedRole);
-          return {
-            success: false,
-            response: '',
-            error: `Access denied: The workflow assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
-          };
-        }
+        if (!roleCheck.allowed) return roleCheck.error!;
       }
 
       try {
-        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -119,15 +89,11 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           subThreadId,
           isNew ? '(new)' : '(reused)',
         );
-        console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
+        console.log(
+          '[workflow_assistant_tool] Parent thread for approvals:',
+          threadId,
+        );
 
-        // Build additional context for the agent
-        const additionalContext: Record<string, string> = {};
-        if (args.workflowId) {
-          additionalContext.target_workflow_id = args.workflowId;
-        }
-
-        // Call the Workflow Agent in delegation mode - all context management happens inside
         const result = await ctx.runAction(
           getWorkflowAgentGenerateResponseRef(),
           {
@@ -135,16 +101,15 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
             userId,
             organizationId,
             taskDescription: args.userRequest,
-            additionalContext:
-              Object.keys(additionalContext).length > 0
-                ? additionalContext
-                : undefined,
+            additionalContext: buildAdditionalContext(
+              args,
+              WORKFLOW_CONTEXT_MAPPING,
+            ),
             parentThreadId: threadId,
             delegationMode: true,
           },
         );
 
-        // Check if an approval was created
         const approvalMatch = result.text.match(/APPROVAL_CREATED:(\w+)/);
 
         return {
@@ -155,12 +120,7 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           usage: result.usage,
         };
       } catch (error) {
-        console.error('[workflow_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('workflow_assistant_tool', error);
       }
     },
   }),
