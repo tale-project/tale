@@ -138,11 +138,13 @@ EXAMPLES:
           (result.text.toLowerCase().includes('created') ||
             result.text.toLowerCase().includes('pending'));
 
+        // Detect human input request using specific markers to avoid false positives
+        // - request_human_input: the tool name used by the agent
+        // - HUMAN_INPUT_REQUESTED: marker that can be added to agent instructions
+        const lowerText = result.text.toLowerCase();
         const hasHumanInputRequest =
-          result.text.toLowerCase().includes('input card') ||
-          result.text.toLowerCase().includes('waiting for') ||
-          result.text.toLowerCase().includes('select') ||
-          result.text.toLowerCase().includes('request_human_input');
+          lowerText.includes('request_human_input') ||
+          result.text.includes('[HUMAN_INPUT_REQUESTED]');
 
         let finalResponse = result.text;
         if (hasHumanInputRequest && !hasApproval) {
