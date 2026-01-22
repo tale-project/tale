@@ -135,14 +135,15 @@ export const submitHumanInputResponse = mutation({
     const responseDisplay = Array.isArray(responseValue)
       ? responseValue.map(mapValueToLabel).join(', ')
       : mapValueToLabel(responseValue);
-    const systemNotification = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
+    // Use 'user' role for user-provided content to avoid prompt injection risks
+    const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
     const { messageId: promptMessageId } = await saveMessage(
       ctx,
       components.agent,
       {
         threadId,
-        message: { role: 'system', content: systemNotification },
+        message: { role: 'user', content: responseMessage },
       },
     );
 
@@ -166,7 +167,7 @@ export const submitHumanInputResponse = mutation({
         organizationId,
         maxSteps: 500,
         promptMessageId,
-        messageText: systemNotification,
+        messageText: responseMessage,
         streamId,
         userId: thread?.userId,
         userTeamIds,
