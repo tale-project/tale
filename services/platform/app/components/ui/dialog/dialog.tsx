@@ -89,6 +89,8 @@ export interface DialogProps {
   customHeader?: React.ReactNode;
   /** Optional trigger element that opens the dialog */
   trigger?: React.ReactNode;
+  /** Whether to prevent focus restoration when dialog closes (default: false) */
+  preventCloseAutoFocus?: boolean;
 }
 
 /**
@@ -130,6 +132,7 @@ export function Dialog({
   icon,
   customHeader,
   trigger,
+  preventCloseAutoFocus = false,
 }: DialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -141,7 +144,7 @@ export function Dialog({
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
           {...(customHeader || !description ? { 'aria-describedby': undefined } : {})}
-          onCloseAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={preventCloseAutoFocus ? (e) => e.preventDefault() : undefined}
         >
           {!hideClose && !customHeader && (
             <div className="absolute right-4 top-4">
