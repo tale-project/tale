@@ -127,7 +127,10 @@ export async function startAgentChat(
     });
     promptMessageId = messageId;
   } else {
-    promptMessageId = lastUserMessage!._id;
+    if (!lastUserMessage) {
+      throw new Error('Expected lastUserMessage to exist when messageAlreadyExists is true');
+    }
+    promptMessageId = lastUserMessage._id;
   }
 
   // Prepare attachments for action (only if new message)
