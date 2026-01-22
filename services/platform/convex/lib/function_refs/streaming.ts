@@ -19,13 +19,6 @@ export type CompleteStreamRef = FunctionReference<
   void
 >;
 
-export type FailStreamRef = FunctionReference<
-  'mutation',
-  'internal',
-  { streamId: string },
-  void
->;
-
 export type AppendToStreamRef = FunctionReference<
   'mutation',
   'internal',
@@ -46,10 +39,6 @@ export function getStartStreamRef(): StartStreamRef {
 
 export function getCompleteStreamRef(): CompleteStreamRef {
   return createRef<CompleteStreamRef>('internal', ['streaming', 'mutations', 'completeStream']);
-}
-
-export function getFailStreamRef(): FailStreamRef {
-  return createRef<FailStreamRef>('internal', ['streaming', 'mutations', 'failStream']);
 }
 
 export function getAppendToStreamRef(): AppendToStreamRef {
