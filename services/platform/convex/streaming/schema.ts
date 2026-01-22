@@ -22,6 +22,16 @@ export const messageMetadataTable = defineTable({
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
   }))),
+  // Structured context window for debugging (XML-like formatted)
+  contextWindow: v.optional(v.string()),
+  contextStats: v.optional(v.object({
+    totalTokens: v.number(),
+    messageCount: v.number(),
+    approvalCount: v.number(),
+    hasSummary: v.boolean(),
+    hasRag: v.boolean(),
+    hasIntegrations: v.boolean(),
+  })),
 })
   .index('by_messageId', ['messageId'])
   .index('by_threadId', ['threadId']);

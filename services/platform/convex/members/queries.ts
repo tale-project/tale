@@ -27,6 +27,7 @@ export const getMemberRoleInternal = internalQuery({
     userId: v.string(),
     organizationId: v.string(),
   },
+  returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     const result = await ctx.runQuery(components.betterAuth.adapter.findMany, {
       model: 'member',

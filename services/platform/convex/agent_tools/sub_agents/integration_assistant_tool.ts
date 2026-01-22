@@ -1,34 +1,40 @@
 /**
  * Integration Assistant Tool
  *
- * Delegates integration-related tasks to the specialized Integration Assistant Agent.
- * Isolates large database results from the main chat agent's context.
- * Requires admin/developer role for write operations.
+ * Delegates integration-related tasks to the specialized Integration Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Requires admin/developer role for access.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createIntegrationAgent } from '../../lib/create_integration_agent';
-import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import { checkRoleAccess } from './helpers/check_role_access';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import {
+  handleToolError,
+  type ToolResponseWithApproval,
+} from './helpers/tool_response';
+import {
+  getListIntegrationsInternalRef,
+  getIntegrationAgentGenerateResponseRef,
+} from '../../lib/function_refs';
 
-/** Roles that are allowed to use the integration assistant tool */
-const ALLOWED_ROLES = ['admin', 'developer'] as const;
+const INTEGRATION_CONTEXT_MAPPING = {
+  integrationName: 'target_integration',
+  operation: 'target_operation',
+} as const;
 
 export const integrationAssistantTool = {
   name: 'integration_assistant' as const,
   tool: createTool({
-    description: `Delegate integration-related tasks to the specialized Integration Assistant Agent.
+    description: `Delegate integration-related tasks to the specialized Integration Agent.
 
 Use this tool for ANY integration-related request, including:
 - Discovering available integrations and their operations
@@ -36,7 +42,7 @@ Use this tool for ANY integration-related request, including:
 - Executing write operations (with approval workflow)
 - Managing approval workflows for data modifications
 
-The Integration Assistant is specialized in:
+The Integration Agent is specialized in:
 - Integration introspection (discovering available operations)
 - Executing read operations on external systems
 - Managing write operation approvals
@@ -66,68 +72,29 @@ EXAMPLES:
         .describe('Specific operation to execute (if known)'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      approvalCreated?: boolean;
-      approvalId?: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
-
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
-
-      // Sub-thread creation and role check requires both threadId and userId
-      if (!threadId || !userId) {
-        return {
-          success: false,
-          response: '',
-          error: 'Both threadId and userId are required for integration_assistant',
-        };
-      }
-
-      // Check user role - only admin and developer can use this tool
-      const userRole = await ctx.runQuery(internal.members.queries.getMemberRoleInternal, {
-        userId,
-        organizationId,
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponseWithApproval> => {
+      const validation = validateToolContext(ctx, 'integration_assistant', {
+        requireUserId: true,
       });
+      if (!validation.valid) return validation.error;
 
-      const normalizedRole = (userRole ?? 'member').toLowerCase();
-      if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
-        console.log('[integration_assistant_tool] Access denied for role:', normalizedRole);
-        return {
-          success: false,
-          response: '',
-          error: `Access denied: The integration assistant is only available to users with admin or developer roles. Your current role is "${normalizedRole}".`,
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
+
+      const roleCheck = await checkRoleAccess(
+        ctx,
+        userId!,
+        organizationId,
+        'integration_assistant',
+      );
+      if (!roleCheck.allowed) return roleCheck.error!;
 
       try {
-        const integrationAgent = createIntegrationAgent();
-
-        // Load available integrations for this organization
-        // This is critical - sub-agents need to know what integrations exist
-        const integrationsList = await ctx.runQuery(internal.integrations.queries.listInternal, {
-          organizationId,
-        });
+        const integrationsList = await ctx.runQuery(
+          getListIntegrationsInternalRef(),
+          { organizationId },
+        );
         const integrationsInfo = formatIntegrationsForContext(integrationsList);
 
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -137,95 +104,62 @@ EXAMPLES:
           },
         );
 
-        console.log('[integration_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
-        console.log('[integration_assistant_tool] Parent thread for approvals:', threadId);
+        console.log(
+          '[integration_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
+        console.log(
+          '[integration_assistant_tool] Parent thread for approvals:',
+          threadId,
+        );
 
-        // Build structured prompt using the shared context management module
-        const additionalContext: Record<string, string> = {};
-        if (args.integrationName) {
-          additionalContext.target_integration = args.integrationName;
-        }
-        if (args.operation) {
-          additionalContext.requested_operation = args.operation;
-        }
-        if (integrationsInfo) {
-          additionalContext.available_integrations = integrationsInfo;
-        }
-
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'integration',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[integration_assistant_tool] Calling integrationAgent.generateText', {
-          integrationsCount: integrationsList.length,
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with integration agent configuration
-        const integrationConfig = AGENT_CONTEXT_CONFIGS.integration;
-        const contextHandler = createContextHandler({
-          modelContextLimit: integrationConfig.modelContextLimit,
-          outputReserve: integrationConfig.outputReserve,
-          minRecentMessages: Math.min(4, integrationConfig.recentMessages),
-        });
-
-        // Extend context with parentThreadId for approval card linking
-        const contextWithParentThread = {
-          ...ctx,
-          parentThreadId: threadId,
-        };
-
-        const generationStartTime = Date.now();
-        const result = await integrationAgent.generateText(
-          contextWithParentThread,
-          { threadId: subThreadId, userId },
+        const result = await ctx.runAction(
+          getIntegrationAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: integrationConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext: buildAdditionalContext(
+              args,
+              INTEGRATION_CONTEXT_MAPPING,
+            ),
+            parentThreadId: threadId,
+            integrationsInfo,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
 
-        console.log('[integration_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
+        const approvalMatch = result.text.match(
+          /approval[^\w]*(?:ID|id)[^\w]*[:\s]*["']?([a-zA-Z0-9]+)["']?/i,
+        );
+        const hasApproval =
+          result.text.toLowerCase().includes('approval') &&
+          (result.text.toLowerCase().includes('created') ||
+            result.text.toLowerCase().includes('pending'));
 
-        // Check if an approval was created (look for approval patterns in response)
-        const approvalMatch = result.text.match(/approval[^\w]*(?:ID|id)[^\w]*[:\s]*["']?([a-zA-Z0-9]+)["']?/i);
-        const hasApproval = result.text.toLowerCase().includes('approval') &&
-                           (result.text.toLowerCase().includes('created') ||
-                            result.text.toLowerCase().includes('pending'));
+        // Detect human input request using specific markers to avoid false positives
+        // - request_human_input: the tool name used by the agent
+        // - HUMAN_INPUT_REQUESTED: marker that can be added to agent instructions
+        const lowerText = result.text.toLowerCase();
+        const hasHumanInputRequest =
+          lowerText.includes('request_human_input') ||
+          result.text.includes('[HUMAN_INPUT_REQUESTED]');
+
+        let finalResponse = result.text;
+        if (hasHumanInputRequest && !hasApproval) {
+          finalResponse = `[HUMAN INPUT CARD CREATED - DO NOT FABRICATE OPTIONS]\n\n${result.text}`;
+        }
 
         return {
           success: true,
-          response: result.text,
+          response: finalResponse,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
           usage: result.usage,
         };
       } catch (error) {
-        console.error('[integration_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('integration_assistant_tool', error);
       }
     },
   }),

@@ -1,28 +1,36 @@
 /**
  * CRM Assistant Tool
  *
- * Delegates CRM-related tasks to the specialized CRM Assistant Agent.
- * Isolates potentially large customer/product data from the main chat agent's context.
- *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Delegates CRM-related tasks to the specialized CRM Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createCrmAgent } from '../../lib/create_crm_agent';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import {
+  successResponse,
+  handleToolError,
+  type ToolResponse,
+} from './helpers/tool_response';
+import { getCrmAgentGenerateResponseRef } from '../../lib/function_refs';
+
+const CRM_CONTEXT_MAPPING = {
+  customerId: 'customer_id',
+  customerEmail: 'customer_email',
+  productId: 'product_id',
+  operation: 'operation_hint',
+} as const;
 
 export const crmAssistantTool = {
   name: 'crm_assistant' as const,
   tool: createTool({
-    description: `Delegate CRM-related tasks to the specialized CRM Assistant Agent.
+    description: `Delegate CRM-related tasks to the specialized CRM Agent.
 
 Use this tool for ANY CRM data request, including:
 - Retrieving customer information (by ID, email, or listing)
@@ -31,7 +39,7 @@ Use this tool for ANY CRM data request, including:
 - Browsing the product catalog
 - Aggregating CRM data (counting, summarizing)
 
-The CRM Assistant is specialized in:
+The CRM Agent is specialized in:
 - Efficient data retrieval with field selection
 - Pagination handling for large datasets
 - Customer and product search operations
@@ -71,43 +79,13 @@ EXAMPLES:
         .describe('Hint about the operation type (optional, agent will infer)'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      const validation = validateToolContext(ctx, 'crm_assistant');
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
-
-      // Sub-thread creation requires both threadId and userId
-      if (!threadId || !userId) {
-        return {
-          success: false,
-          response: '',
-          error: 'Both threadId and userId are required for crm_assistant',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
       try {
-        const crmAgent = createCrmAgent();
-
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -117,82 +95,24 @@ EXAMPLES:
           },
         );
 
-        console.log('[crm_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
-
-        // Build structured prompt using the shared context management module
-        const additionalContext: Record<string, string> = {};
-        if (args.customerId) {
-          additionalContext.target_customer_id = args.customerId;
-        }
-        if (args.customerEmail) {
-          additionalContext.target_customer_email = args.customerEmail;
-        }
-        if (args.productId) {
-          additionalContext.target_product_id = args.productId;
-        }
-        if (args.operation) {
-          additionalContext.requested_operation = args.operation;
-        }
-
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'crm',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[crm_assistant_tool] Calling crmAgent.generateText', {
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with CRM agent configuration
-        const crmConfig = AGENT_CONTEXT_CONFIGS.crm;
-        const contextHandler = createContextHandler({
-          modelContextLimit: crmConfig.modelContextLimit,
-          outputReserve: crmConfig.outputReserve,
-          minRecentMessages: Math.min(4, crmConfig.recentMessages),
-        });
-
-        const generationStartTime = Date.now();
-        const result = await crmAgent.generateText(
-          ctx,
-          { threadId: subThreadId, userId },
-          {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: crmConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
-          },
+        console.log(
+          '[crm_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
         );
-        const generationDurationMs = Date.now() - generationStartTime;
 
-        console.log('[crm_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
+        const result = await ctx.runAction(getCrmAgentGenerateResponseRef(), {
+          threadId: subThreadId,
+          userId,
+          organizationId,
+          taskDescription: args.userRequest,
+          additionalContext: buildAdditionalContext(args, CRM_CONTEXT_MAPPING),
+          parentThreadId: threadId,
         });
 
-        return {
-          success: true,
-          response: result.text,
-          usage: result.usage,
-        };
+        return successResponse(result.text, result.usage);
       } catch (error) {
-        console.error('[crm_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('crm_assistant_tool', error);
       }
     },
   }),

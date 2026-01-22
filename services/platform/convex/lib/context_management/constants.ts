@@ -56,6 +56,13 @@ export const SUMMARIZATION_THRESHOLD = 0.65;
 
 /**
  * Agent-specific context configurations
+ *
+ * All agents are treated as equal and independent - they can be used as
+ * standalone entry points or as sub-agents delegated by the chat agent.
+ * Each agent has full context management capabilities including:
+ * - Complete message history loading
+ * - XML-structured context formatting
+ * - Summarization support for long conversations
  */
 export const AGENT_CONTEXT_CONFIGS = {
   /** Main chat agent - full context management */
@@ -65,40 +72,40 @@ export const AGENT_CONTEXT_CONFIGS = {
     outputReserve: OUTPUT_RESERVE,
     enableSummarization: true,
   },
-  /** Web assistant - uses same model, so same context limit */
+  /** Web assistant - independent agent for web operations */
   web: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: 10,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
-    enableSummarization: false,
+    enableSummarization: true,
   },
-  /** Document assistant - uses same model, so same context limit */
+  /** Document assistant - independent agent for document operations */
   document: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: 10,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 4096,
-    enableSummarization: false,
+    enableSummarization: true,
   },
-  /** Integration assistant - uses same model, so same context limit */
+  /** Integration assistant - independent agent for external system operations */
   integration: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: 10,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
-    enableSummarization: false,
+    enableSummarization: true,
   },
-  /** Workflow assistant - uses same model, so same context limit */
+  /** Workflow assistant - independent agent for workflow operations */
   workflow: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: 10,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
-    enableSummarization: false,
+    enableSummarization: true,
   },
-  /** CRM assistant - uses same model, so same context limit */
+  /** CRM assistant - independent agent for CRM operations */
   crm: {
     modelContextLimit: DEFAULT_MODEL_CONTEXT_LIMIT,
-    recentMessages: 10,
+    recentMessages: DEFAULT_RECENT_MESSAGES,
     outputReserve: 2048,
-    enableSummarization: false,
+    enableSummarization: true,
   },
 } as const;
 

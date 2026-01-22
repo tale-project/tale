@@ -18,6 +18,7 @@ export const approvalsTable = defineTable({
     v.literal('product_recommendation'),
     v.literal('integration_operation'),
     v.literal('workflow_creation'),
+    v.literal('human_input_request'),
   ),
   resourceId: v.string(),
   threadId: v.optional(v.string()),
@@ -51,4 +52,5 @@ export const approvalsTable = defineTable({
     'threadId',
     'status',
     'resourceType',
-  ]);
+  ])
+  .index('by_threadId', ['threadId']);

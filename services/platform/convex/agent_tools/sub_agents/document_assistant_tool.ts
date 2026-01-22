@@ -1,28 +1,35 @@
 /**
  * Document Assistant Tool
  *
- * Delegates document-related tasks to the specialized Document Assistant Agent.
- * Isolates large document content from the main chat agent's context.
- *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Delegates document-related tasks to the specialized Document Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createDocumentAgent } from '../../lib/create_document_agent';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
+import {
+  successResponse,
+  handleToolError,
+  type ToolResponse,
+} from './helpers/tool_response';
+import { getDocumentAgentGenerateResponseRef } from '../../lib/function_refs';
+
+const DOCUMENT_CONTEXT_MAPPING = {
+  fileId: 'file_id',
+  fileUrl: 'file_url',
+  fileName: 'file_name',
+} as const;
 
 export const documentAssistantTool = {
   name: 'document_assistant' as const,
   tool: createTool({
-    description: `Delegate document-related tasks to the specialized Document Assistant Agent.
+    description: `Delegate document-related tasks to the specialized Document Agent.
 
 Use this tool for ANY document-related request, including:
 - Parsing uploaded PDF, Word, or PowerPoint files
@@ -30,7 +37,7 @@ Use this tool for ANY document-related request, including:
 - Creating Excel files from structured data
 - Analyzing images using vision capabilities
 
-The Document Assistant is specialized in:
+The Document Agent is specialized in:
 - Extracting text and structure from documents
 - Generating downloadable files (PDF, Excel)
 - Image analysis with vision model
@@ -62,43 +69,13 @@ EXAMPLES:
         .describe('Original filename (e.g., "report.pdf")'),
     }),
 
-    handler: async (
-      ctx: ToolCtx,
-      args,
-    ): Promise<{
-      success: boolean;
-      response: string;
-      error?: string;
-      usage?: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      };
-    }> => {
-      const { organizationId, threadId, userId } = ctx;
+    handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
+      const validation = validateToolContext(ctx, 'document_assistant');
+      if (!validation.valid) return validation.error;
 
-      if (!organizationId) {
-        return {
-          success: false,
-          response: '',
-          error: 'organizationId is required',
-        };
-      }
-
-      // Sub-thread creation requires a parent threadId to link to
-      if (!threadId) {
-        return {
-          success: false,
-          response: '',
-          error: 'threadId is required for document_assistant to create sub-threads',
-        };
-      }
+      const { organizationId, threadId, userId } = validation.context;
 
       try {
-        const documentAgent = createDocumentAgent();
-
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -108,79 +85,30 @@ EXAMPLES:
           },
         );
 
-        console.log('[document_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
+        console.log(
+          '[document_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
 
-        // Build structured prompt using the shared context management module
-        const additionalContext: Record<string, string> = {};
-        if (args.fileId) {
-          additionalContext.file_id = args.fileId;
-        }
-        if (args.fileUrl) {
-          additionalContext.file_url = args.fileUrl;
-        }
-        if (args.fileName) {
-          additionalContext.file_name = args.fileName;
-        }
-
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'document',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[document_assistant_tool] Calling documentAgent.generateText', {
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with document agent configuration
-        const documentConfig = AGENT_CONTEXT_CONFIGS.document;
-        const contextHandler = createContextHandler({
-          modelContextLimit: documentConfig.modelContextLimit,
-          outputReserve: documentConfig.outputReserve,
-          minRecentMessages: Math.min(4, documentConfig.recentMessages),
-        });
-
-        const generationStartTime = Date.now();
-        const result = await documentAgent.generateText(
-          ctx,
-          { threadId: subThreadId, userId },
+        const result = await ctx.runAction(
+          getDocumentAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: documentConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext: buildAdditionalContext(
+              args,
+              DOCUMENT_CONTEXT_MAPPING,
+            ),
+            parentThreadId: threadId,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
 
-        console.log('[document_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
-
-        return {
-          success: true,
-          response: result.text,
-          usage: result.usage,
-        };
+        return successResponse(result.text, result.usage);
       } catch (error) {
-        console.error('[document_assistant_tool] Error:', error);
-        return {
-          success: false,
-          response: '',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        };
+        return handleToolError('document_assistant_tool', error);
       }
     },
   }),

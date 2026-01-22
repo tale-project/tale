@@ -78,7 +78,30 @@ export function createAgentConfig(opts: {
       'Return only a single JSON object and no extra commentary. If you used tools, still end with that JSON object.',
     );
   }
-  const finalInstructions = [opts.instructions, suffixParts.join(' ')]
+
+  // Add disambiguation rule for agents with request_human_input tool
+  if (opts.convexToolNames?.includes('request_human_input')) {
+    suffixParts.push(`
+**DISAMBIGUATION RULE**
+When searching for a specific record and finding MULTIPLE matches:
+1. DO NOT proceed with all matches or pick one arbitrarily
+2. Use request_human_input tool with format="single_select"
+3. Include distinguishing details in each option (name, email, status, etc.)
+4. STOP IMMEDIATELY after calling request_human_input - do NOT continue
+
+CRITICAL: After calling request_human_input:
+- You MUST produce your final response and STOP
+- Do NOT call any more tools
+- Do NOT assume what the user will select
+- Do NOT generate a fake <human_response>
+- The user's response will come in a FUTURE conversation turn
+
+Example: User asks for "John's email" and you find 3 Johns:
+→ Call request_human_input with options
+→ Then STOP and say "I found 3 customers named John. Please select which one you mean from the options above."`);
+  }
+
+  const finalInstructions = [opts.instructions, suffixParts.join('\n\n')]
     .filter(Boolean)
     .join('\n\n');
 
@@ -114,19 +137,10 @@ export function createAgentConfig(opts: {
 
   const model = getModel();
 
-  // Build call settings with temperature and frequency_penalty
-  // Temperature priority:
-  // 1. Explicit opts.temperature if provided
-  // 2. Auto-determined based on outputFormat: json→0.2, text→0.5
-  // frequency_penalty helps prevent the model from repeating the same text in loops
-  const callSettings: Record<string, number> = {
-    // Add frequency_penalty to discourage repetition loops
-    // This penalizes tokens based on their frequency in the generated text so far
-    // Reduced from 0.3 to 0.15 to prevent degenerate word-list outputs (issue #88)
-    frequencyPenalty: 0.15,
-    temperature:
-      opts.temperature ?? (opts.outputFormat === 'json' ? 0.2 : 0.5),
-  };
+  // Call settings are intentionally empty
+  // temperature and frequencyPenalty are not supported by reasoning models (e.g., DeepSeek V3.2)
+  // and cause empty responses when set. Let the model use its defaults.
+  const callSettings: Record<string, number> = {};
 
   // Build text embedding model for vector search if enabled
   // Requires OPENAI_EMBEDDING_MODEL env var to be set

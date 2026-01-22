@@ -32,6 +32,7 @@ import { webAssistantTool } from './sub_agents/web_assistant_tool';
 import { documentAssistantTool } from './sub_agents/document_assistant_tool';
 import { integrationAssistantTool } from './sub_agents/integration_assistant_tool';
 import { crmAssistantTool } from './sub_agents/crm_assistant_tool';
+import { requestHumanInputTool } from './human_input/request_human_input_tool';
 
 /**
  * Central list of tool names used for the ToolName union type.
@@ -66,6 +67,7 @@ export const TOOL_NAMES = [
   'document_assistant',
   'integration_assistant',
   'crm_assistant',
+  'request_human_input',
 ] as const;
 
 /**
@@ -98,6 +100,7 @@ export const TOOL_REGISTRY = [
   documentAssistantTool,
   integrationAssistantTool,
   crmAssistantTool,
+  requestHumanInputTool,
 ] as const;
 
 /**
