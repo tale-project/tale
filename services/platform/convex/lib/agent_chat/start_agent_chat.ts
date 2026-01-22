@@ -77,7 +77,6 @@ export async function startAgentChat(
     threadId,
     organizationId,
     message,
-    maxSteps = 500,
     attachments,
     additionalContext,
     agentConfig,
@@ -87,6 +86,9 @@ export async function startAgentChat(
     enableStreaming,
     hooks,
   } = args;
+
+  // Use caller's maxSteps if provided, otherwise use agent config's maxSteps
+  const maxSteps = args.maxSteps ?? agentConfig.maxSteps ?? 20;
 
   // Create persistent stream if streaming is enabled for this agent
   const streamId = enableStreaming
