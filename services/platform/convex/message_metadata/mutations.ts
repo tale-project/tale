@@ -8,6 +8,12 @@ import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
+/**
+ * Max size for contextWindow field to prevent Convex document size limit issues.
+ * Convex has a 1MB document limit; this leaves room for other fields.
+ */
+const MAX_CONTEXT_WINDOW_CHARS = 500000;
+
 export const saveMessageMetadata = mutation({
   args: {
     messageId: v.string(),
@@ -47,6 +53,16 @@ export const saveMessageMetadata = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    // Truncate contextWindow if it exceeds size limit
+    let contextWindow = args.contextWindow;
+    if (contextWindow && contextWindow.length > MAX_CONTEXT_WINDOW_CHARS) {
+      console.warn(
+        `[saveMessageMetadata] contextWindow truncated from ${contextWindow.length} to ${MAX_CONTEXT_WINDOW_CHARS} chars`,
+      );
+      contextWindow =
+        contextWindow.slice(0, MAX_CONTEXT_WINDOW_CHARS) + '\n... [truncated]';
+    }
+
     const existing = await ctx.db
       .query('messageMetadata')
       .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
@@ -66,7 +82,7 @@ export const saveMessageMetadata = mutation({
         durationMs: args.durationMs ?? existing.durationMs,
         timeToFirstTokenMs: args.timeToFirstTokenMs ?? existing.timeToFirstTokenMs,
         subAgentUsage: args.subAgentUsage ?? existing.subAgentUsage,
-        contextWindow: args.contextWindow ?? existing.contextWindow,
+        contextWindow: contextWindow ?? existing.contextWindow,
         contextStats: args.contextStats ?? existing.contextStats,
       });
       return existing._id;
@@ -87,7 +103,7 @@ export const saveMessageMetadata = mutation({
       durationMs: args.durationMs,
       timeToFirstTokenMs: args.timeToFirstTokenMs,
       subAgentUsage: args.subAgentUsage,
-      contextWindow: args.contextWindow,
+      contextWindow,
       contextStats: args.contextStats,
     });
   },
