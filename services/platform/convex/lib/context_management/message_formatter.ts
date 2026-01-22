@@ -12,7 +12,9 @@ function escapeXml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 /**
@@ -104,8 +106,8 @@ export function formatHumanResponse(
   const responseStr =
     typeof response === 'string' ? response : JSON.stringify(response);
 
-  return `<human_response id="${id}" user="${user}" timestamp="${formatTimestamp(timestamp)}">
-response: ${responseStr}
+  return `<human_response id="${id}" user="${escapeXml(user)}" timestamp="${formatTimestamp(timestamp)}">
+response: ${escapeXml(responseStr)}
 </human_response>`;
 }
 
