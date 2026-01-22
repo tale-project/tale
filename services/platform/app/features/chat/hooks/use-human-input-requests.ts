@@ -20,6 +20,7 @@ export interface HumanInputRequest {
  */
 export function useHumanInputRequests(threadId: string | undefined) {
   const approvals = useQuery(
+    // @ts-expect-error - Deep api path causes TS2589, but runtime access is valid
     api.approvals.queries.getHumanInputRequestsForThread,
     threadId ? { threadId } : 'skip',
   );
@@ -27,7 +28,7 @@ export function useHumanInputRequests(threadId: string | undefined) {
   type ApprovalItem = NonNullable<typeof approvals>[number];
 
   const humanInputRequests: HumanInputRequest[] = (approvals || [])
-    .filter((a: ApprovalItem) => a.resourceType === 'human_input_request' && a.metadata)
+    .filter((a: ApprovalItem) => a.metadata)
     .map((a: ApprovalItem) => ({
       _id: a._id,
       status: a.status as 'pending' | 'approved' | 'rejected',
