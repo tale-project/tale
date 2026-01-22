@@ -15,6 +15,7 @@ import {
   conversationStatusValidator,
   conversationPriorityValidator,
   conversationDocValidator,
+  conversationItemValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
@@ -318,12 +319,13 @@ export const getConversationWithMessages = queryWithRLS({
 /**
  * Get all conversations for an organization without pagination or filtering.
  * Filtering, sorting, and pagination are performed client-side using TanStack DB Collections.
+ * Returns fully transformed conversations with customer info and messages.
  */
 export const getAllConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
   },
-  returns: v.array(conversationDocValidator),
+  returns: v.array(conversationItemValidator),
   handler: async (ctx, args) => {
     const conversations = [];
     for await (const conversation of ctx.db
@@ -331,7 +333,12 @@ export const getAllConversations = queryWithRLS({
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {
-      conversations.push(conversation);
+      const transformed = await ConversationsHelpers.transformConversation(
+        ctx,
+        conversation,
+        { includeAllMessages: false },
+      );
+      conversations.push(transformed);
     }
     return conversations;
   },

@@ -25,6 +25,7 @@ export const completeExecution = internalMutation({
   args: {
     executionId: v.id('wfExecutions'),
     output: jsonValueValidator,
+    outputStorageId: v.optional(v.id('_storage')),
     variablesSerialized: v.optional(v.string()),
     variablesStorageId: v.optional(v.id('_storage')),
   },

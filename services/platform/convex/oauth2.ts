@@ -50,9 +50,17 @@ export const refreshToken = action({
       args.provider === 'outlook' ||
       args.provider === 'microsoft-entra-id'
     ) {
+      // Use tenant-specific endpoint based on account type
+      // personal -> consumers, organizational -> organizations, both/undefined -> common
+      const tenantType =
+        args.accountType === 'personal'
+          ? 'consumers'
+          : args.accountType === 'organizational'
+            ? 'organizations'
+            : 'common';
       tokenUrl =
         args.tokenUrl ||
-        'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+        `https://login.microsoftonline.com/${tenantType}/oauth2/v2.0/token`;
       body = new URLSearchParams({
         client_id: args.clientId,
         client_secret: args.clientSecret,

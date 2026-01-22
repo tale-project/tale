@@ -189,14 +189,37 @@ export async function testExistingProviderLogic(
   // Test the connection
   debugLog(`Testing connection for provider ${providerId}...`);
 
-  const result = await deps.testConnection({
-    vendor: providerData.vendor,
-    authMethod: providerData.authMethod,
-    passwordAuth,
-    oauth2Auth,
-    smtpConfig: providerData.smtpConfig!,
-    imapConfig: providerData.imapConfig!,
-  });
+  let result: TestResult;
+
+  // If sendMethod is 'api', skip SMTP test (use Graph API for sending)
+  if (providerData.sendMethod === 'api') {
+    // Only test IMAP connection
+    const imapOnlyResult = await deps.testConnection({
+      vendor: providerData.vendor,
+      authMethod: providerData.authMethod,
+      passwordAuth,
+      oauth2Auth,
+      // Use a dummy SMTP config since we won't actually test it
+      smtpConfig: { host: 'localhost', port: 587, secure: false },
+      imapConfig: providerData.imapConfig!,
+    });
+
+    // Override SMTP result to indicate it was skipped (API sending)
+    result = {
+      success: imapOnlyResult.imap.success,
+      smtp: { success: true, latencyMs: 0, error: undefined },
+      imap: imapOnlyResult.imap,
+    };
+  } else {
+    result = await deps.testConnection({
+      vendor: providerData.vendor,
+      authMethod: providerData.authMethod,
+      passwordAuth,
+      oauth2Auth,
+      smtpConfig: providerData.smtpConfig!,
+      imapConfig: providerData.imapConfig!,
+    });
+  }
 
   // Log the result
   if (result.success) {

@@ -7,6 +7,7 @@ import {
   RateLimitExceededError,
 } from './lib/rate_limiter/helpers';
 import { streamChatHttp, streamChatHttpOptions } from './streaming/http_actions';
+import { oauth2CallbackHandler } from './email_providers/oauth2_callback';
 
 const http = httpRouter();
 
@@ -73,6 +74,12 @@ http.route({
 });
 
 authComponent.registerRoutes(http, createAuth);
+
+http.route({
+  path: '/api/auth/oauth2/callback',
+  method: 'GET',
+  handler: oauth2CallbackHandler,
+});
 
 http.route({
   path: '/api/chat-stream',

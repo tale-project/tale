@@ -116,6 +116,7 @@ export const wfExecutionsTable = defineTable({
   variablesStorageId: v.optional(v.id('_storage')),
   input: v.optional(jsonValueValidator),
   output: v.optional(jsonValueValidator),
+  outputStorageId: v.optional(v.id('_storage')),
   workflowConfig: v.optional(v.string()),
   stepsConfig: v.optional(v.string()),
   triggeredBy: v.optional(v.string()),

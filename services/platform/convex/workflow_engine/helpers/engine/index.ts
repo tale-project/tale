@@ -13,4 +13,4 @@ export * from './on_workflow_complete';
 export * from './dynamic_workflow_handler';
 export * from './start_workflow_handler';
 export * from './execute_step_handler';
-export * from './mark_execution_completed_handler';
+export * from './serialize_and_complete_execution_handler';

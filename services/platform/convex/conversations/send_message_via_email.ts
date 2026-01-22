@@ -49,26 +49,69 @@ export async function sendMessageViaEmail(
     throw new Error('Conversation not found');
   }
 
-  // For outbound messages, always use the provider from the parent conversation
-  // This ensures replies use the same email account as the original conversation
+  // Get the original recipient email from conversation metadata (this is our email address)
+  const conversationMetadata = conversation.metadata as Record<string, unknown> | undefined;
+  let originalRecipientEmail: string | undefined;
+  if (conversationMetadata?.to) {
+    if (typeof conversationMetadata.to === 'string') {
+      originalRecipientEmail = conversationMetadata.to;
+    } else if (Array.isArray(conversationMetadata.to) && conversationMetadata.to.length > 0) {
+      const toObj = conversationMetadata.to[0] as { address?: string } | string;
+      originalRecipientEmail = typeof toObj === 'string' ? toObj : toObj.address;
+    }
+  }
+
+  // Helper to get provider email
+  const getProviderEmail = (p: NonNullable<typeof provider>): string | undefined => {
+    if (p.authMethod === 'password' && p.passwordAuth) {
+      return p.passwordAuth.user;
+    } else if (p.authMethod === 'oauth2' && p.metadata) {
+      const oauth2User = (p.metadata as Record<string, unknown>).oauth2_user;
+      return typeof oauth2User === 'string' ? oauth2User : undefined;
+    }
+    return undefined;
+  };
+
+  // 1. Try to use the provider from the conversation
   let provider;
   if (conversation.providerId) {
     provider = await ctx.db.get(conversation.providerId);
-  } else if (args.providerId) {
-    // Fallback to provided providerId if conversation doesn't have one
-    provider = await ctx.db.get(args.providerId);
-  } else {
-    // Last resort: get default provider
-    provider = await ctx.db
+  }
+
+  // 2. If no conversation provider, find an active provider that matches the original recipient email
+  if (!provider) {
+    const activeProvider = await ctx.db
       .query('emailProviders')
-      .withIndex('by_organizationId_and_isDefault', (q) =>
-        q.eq('organizationId', args.organizationId).eq('isDefault', true),
+      .withIndex('by_organizationId_and_status', (q) =>
+        q.eq('organizationId', args.organizationId).eq('status', 'active'),
       )
       .first();
+
+    if (activeProvider) {
+      const activeProviderEmail = getProviderEmail(activeProvider);
+
+      // Only use the active provider if its email matches the original recipient
+      if (originalRecipientEmail && activeProviderEmail) {
+        if (activeProviderEmail.toLowerCase() === originalRecipientEmail.toLowerCase()) {
+          provider = activeProvider;
+        } else {
+          throw new Error(
+            `Cannot send reply: The active email provider (${activeProviderEmail}) does not match ` +
+            `the original recipient email (${originalRecipientEmail}). ` +
+            `Please configure the correct email provider.`
+          );
+        }
+      } else {
+        // No original recipient email to compare, use the active provider
+        provider = activeProvider;
+      }
+    }
   }
 
   if (!provider) {
-    throw new Error('Email provider not found');
+    throw new Error(
+      `No email provider found. Please configure an email provider for this organization.`
+    );
   }
 
   // Extract sender email from provider
@@ -105,6 +148,7 @@ export async function sendMessageViaEmail(
   if (args.headers) messageMetadata.headers = args.headers;
   if (args.attachments) messageMetadata.attachments = args.attachments;
 
+  const now = Date.now();
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
@@ -113,6 +157,7 @@ export async function sendMessageViaEmail(
     direction: 'outbound',
     deliveryState: 'queued',
     content: args.content,
+    sentAt: now, // Set sentAt when message is created for UI display
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata: messageMetadata as any,
   });
@@ -172,7 +217,6 @@ export async function sendMessageViaEmail(
 
   // Update conversation with lastMessageAt and providerId if not already set
   // This ensures the conversation remembers which provider to use for future replies
-  const now = Date.now();
   const existingMetadata =
     (conversation.metadata as Record<string, unknown>) || {};
   await ctx.db.patch(args.conversationId, {
