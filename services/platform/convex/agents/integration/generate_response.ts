@@ -30,6 +30,11 @@ export type GenerateIntegrationResponseResult = GenerateResponseResult;
 export async function generateIntegrationResponse(
   args: GenerateIntegrationResponseArgs,
 ): Promise<GenerateIntegrationResponseResult> {
+  const model = process.env.OPENAI_FAST_MODEL;
+  if (!model) {
+    throw new Error('OPENAI_FAST_MODEL environment variable is not configured');
+  }
+
   const { integrationsInfo, additionalContext, ...baseArgs } = args;
 
   // Merge integrations info into additional context
@@ -42,7 +47,7 @@ export async function generateIntegrationResponse(
     {
       agentType: 'integration',
       createAgent: createIntegrationAgent,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model,
       provider: 'openai',
       debugTag: '[IntegrationAgent]',
     },

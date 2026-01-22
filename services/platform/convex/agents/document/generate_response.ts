@@ -28,11 +28,16 @@ export type GenerateDocumentResponseResult = GenerateResponseResult;
 export async function generateDocumentResponse(
   args: GenerateDocumentResponseArgs,
 ): Promise<GenerateDocumentResponseResult> {
+  const model = process.env.OPENAI_FAST_MODEL;
+  if (!model) {
+    throw new Error('OPENAI_FAST_MODEL environment variable is not configured');
+  }
+
   return generateAgentResponse(
     {
       agentType: 'document',
       createAgent: createDocumentAgent,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model,
       provider: 'openai',
       debugTag: '[DocumentAgent]',
     },

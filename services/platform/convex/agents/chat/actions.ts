@@ -28,11 +28,16 @@ export const generateResponse = internalAction({
   },
   returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
+    const model = process.env.OPENAI_MODEL;
+    if (!model) {
+      throw new Error('OPENAI_MODEL environment variable is not configured');
+    }
+
     return generateAgentResponse(
       {
         agentType: 'chat',
         createAgent: createChatAgent,
-        model: process.env.OPENAI_MODEL || '',
+        model,
         provider: 'openai',
         debugTag: '[ChatAgent]',
         enableStreaming: !!args.streamId,

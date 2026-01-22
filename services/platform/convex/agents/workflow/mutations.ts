@@ -26,13 +26,19 @@ const WORKFLOW_AGENT_TOOL_NAMES: ToolName[] = [
   'database_schema',
 ];
 
-const WORKFLOW_AGENT_CONFIG: SerializableAgentConfig = {
-  name: 'workflow-assistant',
-  instructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
-  convexToolNames: WORKFLOW_AGENT_TOOL_NAMES,
-  model: process.env.OPENAI_CODING_MODEL || '',
-  maxSteps: 30,
-};
+function getWorkflowAgentConfig(): SerializableAgentConfig {
+  const model = process.env.OPENAI_CODING_MODEL;
+  if (!model) {
+    throw new Error('OPENAI_CODING_MODEL environment variable is not configured');
+  }
+  return {
+    name: 'workflow-assistant',
+    instructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
+    convexToolNames: WORKFLOW_AGENT_TOOL_NAMES,
+    model,
+    maxSteps: 30,
+  };
+}
 
 export const chatWithWorkflowAgent = mutation({
   args: {
@@ -73,6 +79,8 @@ export const chatWithWorkflowAgent = mutation({
       );
     }
 
+    const agentConfig = getWorkflowAgentConfig();
+
     return startAgentChat({
       ctx,
       agentType: 'workflow',
@@ -81,8 +89,8 @@ export const chatWithWorkflowAgent = mutation({
       message: args.message,
       maxSteps: args.maxSteps,
       attachments: args.attachments,
-      agentConfig: WORKFLOW_AGENT_CONFIG,
-      model: process.env.OPENAI_CODING_MODEL || '',
+      agentConfig,
+      model: agentConfig.model || '',
       provider: 'openai',
       debugTag: '[WorkflowAgent]',
       enableStreaming: true,
