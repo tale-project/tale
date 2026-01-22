@@ -19,8 +19,8 @@ export interface HumanInputRequest {
  * Hook to fetch human input requests for a chat thread
  */
 export function useHumanInputRequests(threadId: string | undefined) {
+  // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
   const approvals = useQuery(
-    // @ts-expect-error - Deep api path causes TS2589, but runtime access is valid
     api.approvals.queries.getHumanInputRequestsForThread,
     threadId ? { threadId } : 'skip',
   );

@@ -10,7 +10,6 @@ type AnyMutation = FunctionReference<'mutation', 'public', any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyQuery = FunctionReference<'query', 'public', any, any>;
 
-// @ts-expect-error - Deep api path causes TS2589, but runtime access is valid
 const chatWithAgentMutation: AnyMutation = api.agents.chat.mutations.chatWithAgent;
 const getThreadMessagesStreamingQuery: AnyQuery = api.threads.queries.getThreadMessagesStreaming;
 
