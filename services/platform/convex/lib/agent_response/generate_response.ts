@@ -215,10 +215,16 @@ export async function generateAgentResponse(
       };
     } else {
       // Non-streaming mode (sub-agents)
-      // Extend context with parentThreadId for human input card linking
-      const subAgentContext = parentThreadId
-        ? { ...ctx, parentThreadId, organizationId }
-        : { ...ctx, organizationId };
+      // Extend context with all fields from contextWithOrg for consistency
+      const subAgentContext = {
+        ...ctx,
+        organizationId,
+        threadId,
+        userTeamIds: userTeamIds ?? [],
+        variables: {},
+        ...(parentThreadId ? { parentThreadId } : {}),
+        ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
+      };
 
       const generateResult = await agent.generateText(
         subAgentContext,
