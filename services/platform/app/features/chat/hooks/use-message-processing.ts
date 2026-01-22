@@ -3,6 +3,8 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import type { FileAttachment } from '../types';
 
+const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
+
 interface FilePart {
   type: 'file';
   mediaType: string;
@@ -78,7 +80,7 @@ export function useMessageProcessing(
           return m.order >= minUserOrder;
         }
         // Keep system messages that are human input responses
-        if (m.role === 'system' && m.text?.startsWith('User responded to question')) {
+        if (m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)) {
           return true;
         }
         return false;
@@ -93,7 +95,7 @@ export function useMessageProcessing(
             url: p.url,
           }));
 
-        const isHumanInputResponse = m.role === 'system' && m.text?.startsWith('User responded to question');
+        const isHumanInputResponse = m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
 
         return {
           id: m.id,
