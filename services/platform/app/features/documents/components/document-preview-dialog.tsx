@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
-import { Dialog, DialogClose } from '@/app/components/ui/dialog/dialog';
+import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { HStack } from '@/app/components/ui/layout/layout';
@@ -153,9 +153,11 @@ export function DocumentPreviewDialog({
               </Button>
             )}
             <Separator className="h-6" orientation="vertical" />
-            <DialogClose asChild>
-              <IconButton icon={X} aria-label={t('preview.closePreview')} />
-            </DialogClose>
+            <IconButton
+              icon={X}
+              aria-label={t('preview.closePreview')}
+              onClick={() => onOpenChange(false)}
+            />
           </HStack>
         </div>
       }
