@@ -41,6 +41,7 @@ export const getApprovalsForThreadInternal = internalQuery({
   args: {
     threadId: v.string(),
   },
+  returns: v.array(approvalItemValidator),
   handler: async (ctx, args) => {
     const approvals = [];
     for await (const approval of ctx.db
