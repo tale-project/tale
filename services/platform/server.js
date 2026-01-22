@@ -98,6 +98,11 @@ app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/auth') || req.path === '/health') {
     return next();
   }
+  // Proxy internal Convex action callbacks (from node runtime) to Convex backend
+  // These paths are used by ctx.runMutation/runQuery/runAction inside 'use node' actions
+  if (req.path.startsWith('/actions/')) {
+    return convexApiProxy(req, res, next);
+  }
   // Proxy requests with Convex authorization to Convex backend
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Convex ')) {
