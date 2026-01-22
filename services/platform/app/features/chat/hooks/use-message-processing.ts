@@ -3,6 +3,8 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { api } from '@/convex/_generated/api';
 import type { FileAttachment } from '../types';
 
+const HUMAN_INPUT_RESPONSE_PREFIX = 'User responded to question';
+
 interface FilePart {
   type: 'file';
   mediaType: string;
@@ -14,12 +16,13 @@ export interface ChatMessage {
   id: string;
   key: string;
   content: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   timestamp: Date;
   attachments?: FileAttachment[];
   fileParts?: FilePart[];
   _creationTime?: number;
   isStreaming?: boolean;
+  isHumanInputResponse?: boolean;
 }
 
 interface UseMessageProcessingResult {
@@ -45,6 +48,7 @@ export function useMessageProcessing(
     status: paginationStatus,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useUIMessages(
+    // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 20, stream: true },
@@ -71,9 +75,16 @@ export function useMessageProcessing(
 
     return uiMessages
       .filter((m) => {
-        if (m.role !== 'user' && m.role !== 'assistant') return false;
-        if (m.role === 'assistant' && m.order < minUserOrder) return false;
-        return true;
+        // Keep user and assistant messages
+        if (m.role === 'user') return true;
+        if (m.role === 'assistant') {
+          return m.order >= minUserOrder;
+        }
+        // Keep system messages that are human input responses
+        if (m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)) {
+          return true;
+        }
+        return false;
       })
       .map((m) => {
         const fileParts = ((m.parts || []) as { type: string; mediaType?: string; filename?: string; url?: string }[])
@@ -85,15 +96,18 @@ export function useMessageProcessing(
             url: p.url,
           }));
 
+        const isHumanInputResponse = m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
+
         return {
           id: m.id,
           key: m.key,
           content: m.text,
-          role: m.role as 'user' | 'assistant',
+          role: m.role as 'user' | 'assistant' | 'system',
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
           _creationTime: m._creationTime,
           isStreaming: m.status === 'streaming',
+          isHumanInputResponse,
         };
       });
   }, [uiMessages]);

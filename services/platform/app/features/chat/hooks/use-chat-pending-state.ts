@@ -12,9 +12,12 @@ interface UseChatPendingStateParams {
  * Hook to manage pending state clearing.
  * Clears pending when streaming starts or when a completed message appears.
  *
- * Handles the case where component remounts during navigation (e.g., first message
- * creates a new thread and navigates to /chat/[threadId]). In this case, isPending
- * is true (from context) but pendingUserCountRef is null (new component instance).
+ * Handles two scenarios:
+ * 1. Normal message sending: Uses fallback logic to clear when a completed message appears
+ * 2. Human input response: Only clears when streaming actually starts (no fallback)
+ *
+ * Also handles the case where component remounts during navigation (e.g., first message
+ * creates a new thread and navigates to /chat/[threadId]).
  */
 export function useChatPendingState({
   isPending,
@@ -23,45 +26,43 @@ export function useChatPendingState({
   uiMessages,
 }: UseChatPendingStateParams) {
   const pendingUserCountRef = useRef<number | null>(null);
+  const isHumanInputPendingRef = useRef(false);
 
-  // Set the pending count when isPending becomes true
-  const setPendingWithCount = (pending: boolean) => {
+  const setPendingWithCount = (pending: boolean, isHumanInputResponse = false) => {
     if (pending) {
       const currentAssistantCount =
         uiMessages?.filter((m) => m.role === 'assistant').length ?? 0;
       pendingUserCountRef.current = currentAssistantCount;
+      isHumanInputPendingRef.current = isHumanInputResponse;
     }
     setIsPending(pending);
   };
 
-  // Clear pending state when streaming starts OR when a completed message appears
   useEffect(() => {
     if (!isPending) {
       pendingUserCountRef.current = null;
+      isHumanInputPendingRef.current = false;
       return;
     }
 
-    // Clear when streaming actually starts
     if (streamingMessage) {
       setIsPending(false);
       pendingUserCountRef.current = null;
+      isHumanInputPendingRef.current = false;
+      return;
+    }
+
+    if (isHumanInputPendingRef.current) {
       return;
     }
 
     const assistantMessages =
       uiMessages?.filter((m) => m.role === 'assistant') ?? [];
 
-    // Handle component remount during navigation: isPending is true (from context)
-    // but pendingUserCountRef is null (new component instance after navigation).
-    // Initialize the ref so the fallback clearing logic can work.
     if (pendingUserCountRef.current === null) {
-      // Use -1 as baseline so any assistant message (count >= 0) triggers clearing
-      // This handles the case where we navigate to a new thread and the first
-      // assistant message arrives
       pendingUserCountRef.current = assistantMessages.length - 1;
     }
 
-    // Clear when we detect a NEW completed message
     if (assistantMessages.length > pendingUserCountRef.current) {
       const lastAssistantMessage = assistantMessages.at(-1);
       if (

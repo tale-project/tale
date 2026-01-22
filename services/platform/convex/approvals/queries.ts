@@ -33,6 +33,26 @@ export const getApprovalInternal = internalQuery({
   },
 });
 
+/**
+ * Get all approvals for a thread (internal use for context building).
+ * Returns all approvals regardless of status or type.
+ */
+export const getApprovalsForThreadInternal = internalQuery({
+  args: {
+    threadId: v.string(),
+  },
+  returns: v.array(approvalItemValidator),
+  handler: async (ctx, args) => {
+    const approvals = [];
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
+      approvals.push(approval);
+    }
+    return approvals;
+  },
+});
+
 // =============================================================================
 // PUBLIC QUERIES (for frontend via api.approvals.queries.*)
 // =============================================================================
@@ -129,6 +149,41 @@ export const getWorkflowCreationApprovalsForThread = query({
           .eq('threadId', args.threadId)
           .eq('status', 'pending')
           .eq('resourceType', 'workflow_creation'),
+      )) {
+      if (args.messageId && approval.messageId !== args.messageId) {
+        continue;
+      }
+      approvals.push(approval);
+    }
+
+    return approvals;
+  },
+});
+
+/**
+ * Get human input request approvals for a specific thread.
+ * Returns pending requests that need user response.
+ */
+export const getHumanInputRequestsForThread = query({
+  args: {
+    threadId: v.string(),
+    messageId: v.optional(v.string()),
+  },
+  returns: v.array(approvalItemValidator),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return [];
+    }
+
+    const approvals = [];
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_threadId_status_resourceType', (q) =>
+        q
+          .eq('threadId', args.threadId)
+          .eq('status', 'pending')
+          .eq('resourceType', 'human_input_request'),
       )) {
       if (args.messageId && approval.messageId !== args.messageId) {
         continue;

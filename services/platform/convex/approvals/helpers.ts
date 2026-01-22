@@ -362,6 +362,7 @@ export async function linkApprovalsToMessage(
   const resourceTypesToLink = [
     'integration_operation',
     'workflow_creation',
+    'human_input_request',
   ] as const;
 
   const approvalIds: Array<Id<'approvals'>> = [];

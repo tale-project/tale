@@ -19,6 +19,7 @@ import { useMessageProcessing } from '../hooks/use-message-processing';
 import { useMergedChatItems } from '../hooks/use-merged-chat-items';
 import { useIntegrationApprovals } from '../hooks/use-integration-approvals';
 import { useWorkflowCreationApprovals } from '../hooks/use-workflow-creation-approvals';
+import { useHumanInputRequests } from '../hooks/use-human-input-requests';
 import { useChatPendingState } from '../hooks/use-chat-pending-state';
 import { useSendMessage } from '../hooks/use-send-message';
 import { usePendingMessages } from '../hooks/use-pending-messages';
@@ -65,12 +66,14 @@ export function ChatInterface({
   const { approvals: integrationApprovals } = useIntegrationApprovals(threadId);
   const { approvals: workflowCreationApprovals } =
     useWorkflowCreationApprovals(threadId);
+  const { requests: humanInputRequests } = useHumanInputRequests(threadId);
 
-  // Merge messages with approvals
+  // Merge messages with approvals and human input requests
   const mergedChatItems = useMergedChatItems({
     messages,
     integrationApprovals,
     workflowCreationApprovals,
+    humanInputRequests,
   });
 
   // Pending state management - use setPendingWithCount to track assistant message count
@@ -177,6 +180,11 @@ export function ChatInterface({
     await sendMessage(message, attachments);
   };
 
+  const handleHumanInputResponseSubmitted = useCallback(() => {
+    setPendingWithCount(true, true);
+    shouldScrollToAIRef.current = true;
+  }, [setPendingWithCount]);
+
   // Determine what to show in content area
   // Show welcome only when idle (no threadId, no messages, no pending message, not loading)
   const showWelcome =
@@ -212,6 +220,7 @@ export function ChatInterface({
               streamingMessage={streamingMessage}
               hasActiveTools={hasActiveTools}
               aiResponseAreaRef={aiResponseAreaRef}
+              onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
             />
           )}
         </div>
