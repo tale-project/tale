@@ -52,8 +52,8 @@ export const createHumanInputRequest = internalMutation({
       requestedAt: Date.now(),
     };
 
-    // Create a unique resourceId for this request
-    const resourceId = `human_input:${args.threadId}:${Date.now()}`;
+    // Create a unique resourceId for this request with random suffix to prevent collisions
+    const resourceId = `human_input:${args.threadId}:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     const approvalId = await createApproval(ctx, {
       organizationId: args.organizationId,
