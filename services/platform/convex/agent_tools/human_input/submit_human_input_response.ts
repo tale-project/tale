@@ -12,6 +12,7 @@ import { components, internal } from '../../_generated/api';
 import { saveMessage } from '@convex-dev/agent';
 import { persistentStreaming } from '../../streaming/helpers';
 import { getUserTeamIds } from '../../lib/get_user_teams';
+import { getOrganizationMember } from '../../lib/rls';
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
 
 export const submitHumanInputResponseInternal = internalMutation({
@@ -92,6 +93,9 @@ export const submitHumanInputResponse = mutation({
     if (!threadId) {
       throw new Error('Human input request is not associated with a thread');
     }
+
+    // Verify user is a member of the organization
+    await getOrganizationMember(ctx, organizationId);
 
     const existingMetadata = (approval.metadata || {}) as HumanInputRequestMetadata;
     const responseValue = args.response;
