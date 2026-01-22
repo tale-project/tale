@@ -70,7 +70,8 @@ export function DocumentUploadDialog({
     });
   }, []);
 
-  const handleFileSelect = useCallback(() => {
+  const handleFileSelect = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
+    e?.stopPropagation();
     fileInputRef.current?.click();
   }, []);
 
@@ -167,7 +168,7 @@ export function DocumentUploadDialog({
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               isUploading && 'opacity-50 cursor-not-allowed',
             )}
-            onClick={!isUploading ? handleFileSelect : undefined}
+            onClick={!isUploading ? (e) => handleFileSelect(e) : undefined}
             onKeyDown={handleKeyDown}
           >
             <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />

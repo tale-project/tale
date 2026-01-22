@@ -80,11 +80,9 @@ export const EntityRowActions = React.memo(function EntityRowActions({
 
   const handleActionClick = useCallback(
     (action: EntityRowAction) => {
+      // Call action first, then close dropdown to prevent focus race conditions
+      action.onClick();
       setIsOpen(false);
-      // Small delay to allow dropdown animation to complete
-      requestAnimationFrame(() => {
-        action.onClick();
-      });
     },
     []
   );
@@ -100,6 +98,7 @@ export const EntityRowActions = React.memo(function EntityRowActions({
           icon={MoreVertical}
           aria-label={ariaLabel || tCommon('actions.openMenu')}
           className={triggerClassName}
+          onClick={(e) => e.stopPropagation()}
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className={contentWidth}>
@@ -107,7 +106,10 @@ export const EntityRowActions = React.memo(function EntityRowActions({
           <React.Fragment key={action.key}>
             {action.separator && <DropdownMenuSeparator />}
             <DropdownMenuItem
-              onClick={() => handleActionClick(action)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleActionClick(action);
+              }}
               disabled={action.disabled}
               className={cn(
                 action.destructive &&

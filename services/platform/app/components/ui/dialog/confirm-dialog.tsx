@@ -77,7 +77,10 @@ export function ConfirmDialog({
       <Button
         type="button"
         variant="outline"
-        onClick={handleClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleClose();
+        }}
         disabled={isLoading}
       >
         {cancelText ?? tCommon('actions.cancel')}
@@ -85,7 +88,10 @@ export function ConfirmDialog({
       <Button
         type="button"
         variant={variant === 'destructive' ? 'destructive' : 'default'}
-        onClick={onConfirm}
+        onClick={(e) => {
+          e.stopPropagation();
+          onConfirm();
+        }}
         disabled={isLoading}
         className={cn(confirmButtonVariants({ variant }))}
       >

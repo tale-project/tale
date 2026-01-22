@@ -47,6 +47,7 @@ function DialogCloseButton() {
     <DialogPrimitive.Close
       className="inline-flex items-center justify-center rounded-lg p-2 text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       aria-label={t('aria.close')}
+      onClick={(e) => e.stopPropagation()}
     >
       <X className="size-4" aria-hidden="true" />
     </DialogPrimitive.Close>
@@ -88,6 +89,8 @@ export interface DialogProps {
   customHeader?: React.ReactNode;
   /** Optional trigger element that opens the dialog */
   trigger?: React.ReactNode;
+  /** Whether to prevent focus restoration when dialog closes (default: false) */
+  preventCloseAutoFocus?: boolean;
 }
 
 /**
@@ -129,6 +132,7 @@ export function Dialog({
   icon,
   customHeader,
   trigger,
+  preventCloseAutoFocus = false,
 }: DialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -140,6 +144,7 @@ export function Dialog({
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
           {...(customHeader || !description ? { 'aria-describedby': undefined } : {})}
+          onCloseAutoFocus={preventCloseAutoFocus ? (e) => e.preventDefault() : undefined}
         >
           {!hideClose && !customHeader && (
             <div className="absolute right-4 top-4">
