@@ -11,4 +11,5 @@
  */
 
 export * from './types';
+export * from './validators';
 export { generateAgentResponse } from './generate_response';

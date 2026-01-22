@@ -11,6 +11,7 @@
 import { v } from 'convex/values';
 import { action, internalAction } from '../../_generated/server';
 import { authComponent } from '../../auth';
+import { agentResponseReturnsValidator } from '../../lib/agent_response';
 import { generateWorkflowResponse } from './generate_response';
 import { getGetWorkflowInternalRef } from '../../lib/function_refs';
 
@@ -24,18 +25,7 @@ export const generateResponse = internalAction({
     parentThreadId: v.optional(v.string()),
     delegationMode: v.optional(v.boolean()),
   },
-  returns: v.object({
-    text: v.string(),
-    usage: v.optional(
-      v.object({
-        inputTokens: v.optional(v.number()),
-        outputTokens: v.optional(v.number()),
-        totalTokens: v.optional(v.number()),
-      }),
-    ),
-    finishReason: v.optional(v.string()),
-    durationMs: v.number(),
-  }),
+  returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
     return generateWorkflowResponse({
       ctx,

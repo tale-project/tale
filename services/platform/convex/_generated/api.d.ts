@@ -288,6 +288,7 @@ import type * as lib_agent_completion_on_agent_complete from "../lib/agent_compl
 import type * as lib_agent_response_generate_response from "../lib/agent_response/generate_response.js";
 import type * as lib_agent_response_index from "../lib/agent_response/index.js";
 import type * as lib_agent_response_types from "../lib/agent_response/types.js";
+import type * as lib_agent_response_validators from "../lib/agent_response/validators.js";
 import type * as lib_attachments_build_multi_modal_content from "../lib/attachments/build_multi_modal_content.js";
 import type * as lib_attachments_format_markdown from "../lib/attachments/format_markdown.js";
 import type * as lib_attachments_index from "../lib/attachments/index.js";
@@ -1102,6 +1103,7 @@ declare const fullApi: ApiFromModules<{
   "lib/agent_response/generate_response": typeof lib_agent_response_generate_response;
   "lib/agent_response/index": typeof lib_agent_response_index;
   "lib/agent_response/types": typeof lib_agent_response_types;
+  "lib/agent_response/validators": typeof lib_agent_response_validators;
   "lib/attachments/build_multi_modal_content": typeof lib_attachments_build_multi_modal_content;
   "lib/attachments/format_markdown": typeof lib_attachments_format_markdown;
   "lib/attachments/index": typeof lib_attachments_index;

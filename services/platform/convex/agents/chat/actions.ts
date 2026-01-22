@@ -10,7 +10,7 @@
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
-import { generateAgentResponse } from '../../lib/agent_response';
+import { agentResponseReturnsValidator, generateAgentResponse } from '../../lib/agent_response';
 import { createChatAgent } from './agent';
 
 export const generateResponse = internalAction({
@@ -26,18 +26,7 @@ export const generateResponse = internalAction({
     maxSteps: v.optional(v.number()),
     userTeamIds: v.optional(v.array(v.string())),
   },
-  returns: v.object({
-    text: v.string(),
-    usage: v.optional(
-      v.object({
-        inputTokens: v.optional(v.number()),
-        outputTokens: v.optional(v.number()),
-        totalTokens: v.optional(v.number()),
-      }),
-    ),
-    finishReason: v.optional(v.string()),
-    durationMs: v.number(),
-  }),
+  returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
     return generateAgentResponse(
       {

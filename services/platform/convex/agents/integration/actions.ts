@@ -9,6 +9,7 @@
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
+import { agentResponseReturnsValidator } from '../../lib/agent_response';
 import { generateIntegrationResponse } from './generate_response';
 
 export const generateResponse = internalAction({
@@ -21,18 +22,7 @@ export const generateResponse = internalAction({
     parentThreadId: v.optional(v.string()),
     integrationsInfo: v.optional(v.string()),
   },
-  returns: v.object({
-    text: v.string(),
-    usage: v.optional(
-      v.object({
-        inputTokens: v.optional(v.number()),
-        outputTokens: v.optional(v.number()),
-        totalTokens: v.optional(v.number()),
-      }),
-    ),
-    finishReason: v.optional(v.string()),
-    durationMs: v.number(),
-  }),
+  returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
     return generateIntegrationResponse({
       ctx,
