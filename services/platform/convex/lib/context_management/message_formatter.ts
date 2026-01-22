@@ -58,9 +58,9 @@ export function formatToolCall(
   const inputStr = JSON.stringify(input, null, 2);
   const outputStr = JSON.stringify(output, null, 2);
 
-  return `<tool_call name="${toolName}" timestamp="${formatTimestamp(timestamp)}" status="${status}">
-input: ${inputStr}
-output: ${outputStr}
+  return `<tool_call name="${escapeXml(toolName)}" timestamp="${formatTimestamp(timestamp)}" status="${status}">
+input: ${escapeXml(inputStr)}
+output: ${escapeXml(outputStr)}
 </tool_call>`;
 }
 
@@ -82,14 +82,14 @@ export function formatHumanInputRequest(
   }
 
   if (options && options.length > 0) {
-    parts.push(`options: ${JSON.stringify(options)}`);
+    parts.push(`options: ${escapeXml(JSON.stringify(options))}`);
   }
 
   const timestampAttr = timestamp
     ? ` timestamp="${formatTimestamp(timestamp)}"`
     : '';
 
-  return `<request_human_input id="${id}" format="${format}"${timestampAttr}>
+  return `<request_human_input id="${escapeXml(id)}" format="${escapeXml(format)}"${timestampAttr}>
 ${parts.join('\n')}
 </request_human_input>`;
 }
@@ -135,7 +135,7 @@ ${escapeXml(summary)}
  */
 export function formatKnowledgeBase(content: string): string {
   return `<knowledge_base>
-${content}
+${escapeXml(content)}
 </knowledge_base>`;
 }
 
@@ -144,7 +144,7 @@ ${content}
  */
 export function formatIntegrations(info: string): string {
   return `<integrations>
-${info}
+${escapeXml(info)}
 </integrations>`;
 }
 
@@ -217,7 +217,7 @@ ${escapeXml(userInput)}
 
   if (toolCalls && toolCalls.length > 0) {
     parts.push(`<tool_calls>
-${toolCalls.map((tc) => `  <tool name="${tc.toolName}" status="${tc.status}" />`).join('\n')}
+${toolCalls.map((tc) => `  <tool name="${escapeXml(tc.toolName)}" status="${escapeXml(tc.status)}" />`).join('\n')}
 </tool_calls>`);
   }
 
