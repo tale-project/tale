@@ -162,14 +162,18 @@ export const executeStep = internalAction({
 });
 
 /**
- * Mark execution as completed
+ * Serialize output and mark execution as completed.
+ *
+ * This action handles large output by storing it in Convex storage
+ * before calling the completion mutation. This is necessary because
+ * mutations cannot use ctx.storage.store().
  */
-export const markExecutionCompleted = internalMutation({
+export const serializeAndCompleteExecution = internalAction({
   args: {
     executionId: v.id('wfExecutions'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    return await EngineHelpers.handleMarkExecutionCompleted(ctx, args);
+    return await EngineHelpers.handleSerializeAndCompleteExecution(ctx, args);
   },
 });

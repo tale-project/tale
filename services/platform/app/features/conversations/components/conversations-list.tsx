@@ -267,7 +267,7 @@ export function ConversationsList({
               {/* Header with title and timestamp */}
               <div className="flex items-start justify-between mb-1.5">
                 <h3 className="text-sm font-medium text-foreground truncate flex-1 tracking-tight">
-                  {conversation?.title || conversation.customer.name}
+                  {conversation?.title || conversation.customer?.name || 'Unknown'}
                 </h3>
                 <span className="text-xs text-muted-foreground ml-4 flex-shrink-0 tracking-tight font-medium">
                   {formatDateSmart(conversation.last_message_at || '')}

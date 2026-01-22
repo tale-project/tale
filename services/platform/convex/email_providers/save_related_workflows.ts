@@ -20,7 +20,7 @@ const debugLog = createDebugLog('DEBUG_EMAIL', '[Email]');
 
 interface SaveRelatedWorkflowsArgs {
   organizationId: string;
-  accountEmail: string; // The email address for this provider
+  accountEmail?: string; // Optional - not used by workflows, they query default provider dynamically
 }
 
 /**
@@ -31,7 +31,7 @@ export async function saveRelatedWorkflows(
   args: SaveRelatedWorkflowsArgs,
 ): Promise<Id<'wfDefinitions'>[]> {
   debugLog(
-    `Email Provider Workflows Saving workflows for ${args.accountEmail}...`,
+    `Email Provider Workflows Saving workflows for org ${args.organizationId}...`,
   );
 
   const workflowIds: Id<'wfDefinitions'>[] = [];
@@ -46,7 +46,7 @@ export async function saveRelatedWorkflows(
       def: emailSyncImap,
       schedule: '*/5 * * * *',
       timezone: 'UTC',
-      addAccountEmail: true,
+      addAccountEmail: false,
     },
     {
       def: conversationAutoReply,
@@ -101,7 +101,7 @@ export async function saveRelatedWorkflows(
               ...((baseConfig as { variables?: Record<string, unknown> })
                 .variables ?? {}),
               organizationId: args.organizationId,
-              ...(addAccountEmail ? { accountEmail: args.accountEmail } : {}),
+              ...(addAccountEmail && args.accountEmail ? { accountEmail: args.accountEmail } : {}),
             },
           },
         },

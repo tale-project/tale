@@ -12,12 +12,12 @@ interface ConversationFilters {
 
 const useConversationsDataBase = createEntityDataHook({
   queryFn: api.conversations.queries.getAllConversations,
-  searchFields: ['subject', 'externalMessageId'],
+  searchFields: ['title', 'description', 'subject', 'externalMessageId'],
   sortConfig: {
     string: ['priority', 'status'] as ConversationSortBy[],
     date: ['createdAt', 'lastMessageAt'] as ConversationSortBy[],
     number: [] as ConversationSortBy[],
-    fieldMap: { createdAt: '_creationTime' },
+    fieldMap: { createdAt: '_creationTime', lastMessageAt: 'last_message_at' },
   },
   defaultSort: { field: 'lastMessageAt' as ConversationSortBy, order: 'desc' as SortOrder },
 });

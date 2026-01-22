@@ -164,7 +164,12 @@ export const retrieveImapEmails = internalAction({
       parseHtml,
     });
 
-    await client.logout();
+    // Logout gracefully, ignore errors if connection was already closed
+    try {
+      await client.logout();
+    } catch (logoutError) {
+      debugLog('Logout failed (connection may have been closed):', logoutError);
+    }
 
     // Filter out the cursor UID from initial messages, keep all thread messages
     const filteredInitialMessages =

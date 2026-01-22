@@ -90,6 +90,7 @@ export function generateWarnings(
 export interface ProviderForTesting {
   vendor: string;
   authMethod: 'password' | 'oauth2';
+  sendMethod?: 'smtp' | 'api';
   passwordAuth?: {
     user: string;
     passEncrypted: string;
@@ -118,10 +119,15 @@ export interface ProviderForTesting {
 
 /**
  * Validate provider has required configuration for testing
+ * - IMAP is always required for receiving emails
+ * - SMTP is only required if sendMethod is 'smtp' (not 'api')
  */
 export function validateProviderForTesting(provider: ProviderForTesting): void {
-  if (!provider.smtpConfig || !provider.imapConfig) {
-    throw new Error('Provider missing SMTP or IMAP configuration');
+  if (!provider.imapConfig) {
+    throw new Error('Provider missing IMAP configuration');
+  }
+  if (provider.sendMethod !== 'api' && !provider.smtpConfig) {
+    throw new Error('Provider missing SMTP configuration');
   }
 }
 

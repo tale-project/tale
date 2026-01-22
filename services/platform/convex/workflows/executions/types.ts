@@ -32,6 +32,7 @@ export interface UpdateExecutionStatusArgs {
 export interface CompleteExecutionArgs {
   executionId: Doc<'wfExecutions'>['_id'];
   output: unknown;
+  outputStorageId?: Id<'_storage'>;
   variablesSerialized?: string;
   variablesStorageId?: Id<'_storage'>;
 }

@@ -225,6 +225,7 @@ import type * as email_providers_internal_mutations from "../email_providers/int
 import type * as email_providers_internal_queries from "../email_providers/internal_queries.js";
 import type * as email_providers_list_providers from "../email_providers/list_providers.js";
 import type * as email_providers_mutations from "../email_providers/mutations.js";
+import type * as email_providers_oauth2_callback from "../email_providers/oauth2_callback.js";
 import type * as email_providers_queries from "../email_providers/queries.js";
 import type * as email_providers_save_related_workflows from "../email_providers/save_related_workflows.js";
 import type * as email_providers_send_message_via_api from "../email_providers/send_message_via_api.js";
@@ -329,7 +330,6 @@ import type * as lib_function_refs_create_ref from "../lib/function_refs/create_
 import type * as lib_function_refs_index from "../lib/function_refs/index.js";
 import type * as lib_function_refs_integrations from "../lib/function_refs/integrations.js";
 import type * as lib_function_refs_members from "../lib/function_refs/members.js";
-import type * as lib_function_refs_rag from "../lib/function_refs/rag.js";
 import type * as lib_function_refs_streaming from "../lib/function_refs/streaming.js";
 import type * as lib_function_refs_wf_definitions from "../lib/function_refs/wf_definitions.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
@@ -650,8 +650,8 @@ import type * as workflow_engine_helpers_engine_execute_step_handler from "../wo
 import type * as workflow_engine_helpers_engine_execute_workflow_start from "../workflow_engine/helpers/engine/execute_workflow_start.js";
 import type * as workflow_engine_helpers_engine_index from "../workflow_engine/helpers/engine/index.js";
 import type * as workflow_engine_helpers_engine_load_database_workflow from "../workflow_engine/helpers/engine/load_database_workflow.js";
-import type * as workflow_engine_helpers_engine_mark_execution_completed_handler from "../workflow_engine/helpers/engine/mark_execution_completed_handler.js";
 import type * as workflow_engine_helpers_engine_on_workflow_complete from "../workflow_engine/helpers/engine/on_workflow_complete.js";
+import type * as workflow_engine_helpers_engine_serialize_and_complete_execution_handler from "../workflow_engine/helpers/engine/serialize_and_complete_execution_handler.js";
 import type * as workflow_engine_helpers_engine_start_workflow_handler from "../workflow_engine/helpers/engine/start_workflow_handler.js";
 import type * as workflow_engine_helpers_engine_workflow_data from "../workflow_engine/helpers/engine/workflow_data.js";
 import type * as workflow_engine_helpers_formatting_stringify from "../workflow_engine/helpers/formatting/stringify.js";
@@ -690,6 +690,7 @@ import type * as workflow_engine_helpers_scheduler_should_trigger_workflow from 
 import type * as workflow_engine_helpers_scheduler_trigger_workflow_by_id from "../workflow_engine/helpers/scheduler/trigger_workflow_by_id.js";
 import type * as workflow_engine_helpers_serialization_deserialize_variables from "../workflow_engine/helpers/serialization/deserialize_variables.js";
 import type * as workflow_engine_helpers_serialization_sanitize_depth from "../workflow_engine/helpers/serialization/sanitize_depth.js";
+import type * as workflow_engine_helpers_serialization_serialize_output from "../workflow_engine/helpers/serialization/serialize_output.js";
 import type * as workflow_engine_helpers_serialization_serialize_variables from "../workflow_engine/helpers/serialization/serialize_variables.js";
 import type * as workflow_engine_helpers_step_execution_build_steps_map from "../workflow_engine/helpers/step_execution/build_steps_map.js";
 import type * as workflow_engine_helpers_step_execution_decrypt_and_merge_secrets from "../workflow_engine/helpers/step_execution/decrypt_and_merge_secrets.js";
@@ -1044,6 +1045,7 @@ declare const fullApi: ApiFromModules<{
   "email_providers/internal_queries": typeof email_providers_internal_queries;
   "email_providers/list_providers": typeof email_providers_list_providers;
   "email_providers/mutations": typeof email_providers_mutations;
+  "email_providers/oauth2_callback": typeof email_providers_oauth2_callback;
   "email_providers/queries": typeof email_providers_queries;
   "email_providers/save_related_workflows": typeof email_providers_save_related_workflows;
   "email_providers/send_message_via_api": typeof email_providers_send_message_via_api;
@@ -1148,7 +1150,6 @@ declare const fullApi: ApiFromModules<{
   "lib/function_refs/index": typeof lib_function_refs_index;
   "lib/function_refs/integrations": typeof lib_function_refs_integrations;
   "lib/function_refs/members": typeof lib_function_refs_members;
-  "lib/function_refs/rag": typeof lib_function_refs_rag;
   "lib/function_refs/streaming": typeof lib_function_refs_streaming;
   "lib/function_refs/wf_definitions": typeof lib_function_refs_wf_definitions;
   "lib/get_or_throw": typeof lib_get_or_throw;
@@ -1469,8 +1470,8 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/engine/execute_workflow_start": typeof workflow_engine_helpers_engine_execute_workflow_start;
   "workflow_engine/helpers/engine/index": typeof workflow_engine_helpers_engine_index;
   "workflow_engine/helpers/engine/load_database_workflow": typeof workflow_engine_helpers_engine_load_database_workflow;
-  "workflow_engine/helpers/engine/mark_execution_completed_handler": typeof workflow_engine_helpers_engine_mark_execution_completed_handler;
   "workflow_engine/helpers/engine/on_workflow_complete": typeof workflow_engine_helpers_engine_on_workflow_complete;
+  "workflow_engine/helpers/engine/serialize_and_complete_execution_handler": typeof workflow_engine_helpers_engine_serialize_and_complete_execution_handler;
   "workflow_engine/helpers/engine/start_workflow_handler": typeof workflow_engine_helpers_engine_start_workflow_handler;
   "workflow_engine/helpers/engine/workflow_data": typeof workflow_engine_helpers_engine_workflow_data;
   "workflow_engine/helpers/formatting/stringify": typeof workflow_engine_helpers_formatting_stringify;
@@ -1509,6 +1510,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/scheduler/trigger_workflow_by_id": typeof workflow_engine_helpers_scheduler_trigger_workflow_by_id;
   "workflow_engine/helpers/serialization/deserialize_variables": typeof workflow_engine_helpers_serialization_deserialize_variables;
   "workflow_engine/helpers/serialization/sanitize_depth": typeof workflow_engine_helpers_serialization_sanitize_depth;
+  "workflow_engine/helpers/serialization/serialize_output": typeof workflow_engine_helpers_serialization_serialize_output;
   "workflow_engine/helpers/serialization/serialize_variables": typeof workflow_engine_helpers_serialization_serialize_variables;
   "workflow_engine/helpers/step_execution/build_steps_map": typeof workflow_engine_helpers_step_execution_build_steps_map;
   "workflow_engine/helpers/step_execution/decrypt_and_merge_secrets": typeof workflow_engine_helpers_step_execution_decrypt_and_merge_secrets;

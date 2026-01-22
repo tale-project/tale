@@ -39,11 +39,7 @@ export const createProvider = internalMutation({
 export const updateMetadata = internalMutation({
   args: {
     providerId: v.id('emailProviders'),
-    metadata: v.object({
-      redirectUri: v.optional(v.string()),
-      redirectOrigin: v.optional(v.string()),
-      redirectUpdatedAt: v.optional(v.number()),
-    }),
+    metadata: v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
   },
   handler: async (ctx, args) => {
     const provider = await ctx.db.get(args.providerId);
@@ -73,6 +69,7 @@ export const updateOAuth2Tokens = internalMutation({
     tokenExpiry: v.optional(v.number()),
     tokenType: v.string(),
     scope: v.optional(v.string()),
+    tokenUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const provider = await ctx.db.get(args.emailProviderId);
@@ -86,6 +83,7 @@ export const updateOAuth2Tokens = internalMutation({
         accessTokenEncrypted: args.accessTokenEncrypted,
         refreshTokenEncrypted: args.refreshTokenEncrypted ?? provider.oauth2Auth.refreshTokenEncrypted,
         tokenExpiry: args.tokenExpiry,
+        tokenUrl: args.tokenUrl ?? provider.oauth2Auth.tokenUrl,
       },
     });
 

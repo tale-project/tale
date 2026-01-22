@@ -9,6 +9,7 @@ import type { ConvexJsonValue } from '../../../lib/shared/schemas/utils/json-val
 
 type CompleteExecutionData = {
   output: ConvexJsonValue;
+  outputStorageId?: Id<'_storage'>;
   variables?: string;
   variablesStorageId?: Id<'_storage'>;
   status: 'completed';
@@ -22,11 +23,13 @@ export async function completeExecution(
 ): Promise<null> {
   // Get current execution to check for existing storage and clean up
   const execution = await ctx.db.get(args.executionId);
-  const oldStorageId = execution?.variablesStorageId;
+  const oldVariablesStorageId = execution?.variablesStorageId;
+  const oldOutputStorageId = execution?.outputStorageId;
 
   const updates: CompleteExecutionData = {
     status: 'completed',
     output: args.output as ConvexJsonValue,
+    outputStorageId: args.outputStorageId,
     completedAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -38,14 +41,21 @@ export async function completeExecution(
 
   await ctx.db.patch(args.executionId, updates);
 
-  // Clean up old storage in these cases:
-  // 1. Storage ID changed (new storage file created)
-  // 2. Transitioned from storage to inline (oldStorageId exists but new one doesn't)
-  if (oldStorageId) {
+  // Clean up old variables storage
+  if (oldVariablesStorageId) {
     if (!updates.variablesStorageId) {
-      await ctx.storage.delete(oldStorageId);
-    } else if (oldStorageId !== updates.variablesStorageId) {
-      await ctx.storage.delete(oldStorageId);
+      await ctx.storage.delete(oldVariablesStorageId);
+    } else if (oldVariablesStorageId !== updates.variablesStorageId) {
+      await ctx.storage.delete(oldVariablesStorageId);
+    }
+  }
+
+  // Clean up old output storage
+  if (oldOutputStorageId) {
+    if (!updates.outputStorageId) {
+      await ctx.storage.delete(oldOutputStorageId);
+    } else if (oldOutputStorageId !== updates.outputStorageId) {
+      await ctx.storage.delete(oldOutputStorageId);
     }
   }
 

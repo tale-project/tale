@@ -265,7 +265,7 @@ export function ConversationPanel({
     return (
       <CardContent
         ref={containerRef}
-        className="flex-[1_1_0] p-0 relative scrollbar-hide flex flex-col overflow-y-auto"
+        className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
       >
         {/* Skeleton Header */}
         <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
@@ -359,7 +359,7 @@ export function ConversationPanel({
   return (
     <CardContent
       ref={containerRef}
-      className="flex-[1_1_0] p-0 relative scrollbar-hide flex flex-col overflow-y-auto"
+      className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
     >
       <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
         <ConversationHeader

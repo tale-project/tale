@@ -72,7 +72,7 @@ export async function handleDynamicWorkflow(
   const executionId = args.executionId;
 
   if (stepDefinitions.length === 0) {
-    await step.runMutation(internal.workflow_engine.engine.markExecutionCompleted, {
+    await step.runAction(internal.workflow_engine.engine.serializeAndCompleteExecution, {
       executionId,
     });
     return;
@@ -172,7 +172,7 @@ export async function handleDynamicWorkflow(
     currentStepSlug = nextStepSlug;
   }
 
-  await step.runMutation(internal.workflow_engine.engine.markExecutionCompleted, {
+  await step.runAction(internal.workflow_engine.engine.serializeAndCompleteExecution, {
     executionId,
   });
 }
