@@ -10,6 +10,7 @@ import { internal } from '../_generated/api';
 import { sendMessageViaAPI } from './send_message_via_api';
 import { sendMessageViaSMTP } from './send_message_via_smtp';
 import { testNewProviderConnectionLogic } from './test_new_provider_connection_logic';
+import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
 import { encryptString } from '../lib/crypto/encrypt_string';
 import { decryptString } from '../lib/crypto/decrypt_string';
 import {
@@ -342,5 +343,29 @@ export const handleOAuth2Callback = internalAction({
     });
 
     return { success: true };
+  },
+});
+
+export const storeOAuth2TokensInternal = internalAction({
+  args: {
+    emailProviderId: v.id('emailProviders'),
+    accessToken: v.string(),
+    refreshToken: v.optional(v.string()),
+    tokenType: v.string(),
+    expiresIn: v.optional(v.number()),
+    scope: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    return await storeOAuth2TokensLogic(ctx, args, {
+      encryptString: async (plaintext: string): Promise<string> => {
+        return await encryptString(plaintext);
+      },
+      updateTokens: async (params) => {
+        await ctx.runMutation(
+          internal.email_providers.internal_mutations.updateOAuth2Tokens,
+          params,
+        );
+      },
+    });
   },
 });

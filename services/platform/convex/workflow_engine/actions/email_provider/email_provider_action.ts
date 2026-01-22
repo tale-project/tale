@@ -9,6 +9,7 @@ import type { ActionDefinition } from '../../helpers/nodes/action/types';
 import { api, internal } from '../../../_generated/api';
 import type { Doc } from '../../../_generated/dataModel';
 import { decryptAndRefreshOAuth2Token } from '../../../email_providers/helpers';
+import type { Id } from '../../../_generated/dataModel';
 
 import { createDebugLog } from '../../../lib/debug_log';
 
@@ -164,8 +165,15 @@ export const emailProviderAction: ActionDefinition<EmailProviderActionParams> =
               await ctx.runAction!(api.oauth2.refreshToken, params),
             async (params) =>
               await ctx.runAction!(
-                api.email_providers.actions.storeOAuth2Tokens,
-                params,
+                internal.email_providers.internal_actions.storeOAuth2TokensInternal,
+                params as {
+                  emailProviderId: Id<'emailProviders'>;
+                  accessToken: string;
+                  refreshToken?: string;
+                  tokenType: string;
+                  expiresIn?: number;
+                  scope?: string;
+                },
               ),
           );
 
