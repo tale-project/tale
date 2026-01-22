@@ -175,11 +175,8 @@ export const onErrorHook = internalAction({
   handler: async (ctx, args) => {
     const { threadId, errorName, errorMessage, errorStatus, errorType, errorCode } = args;
 
-    // Trigger summarization on error
-    await ctx.runAction(getAutoSummarizeRef(), { threadId });
-
-    // Log error details
-    console.error('[chat_agent] generateAgentResponse error', {
+    // Log error details first to ensure we capture them even if summarization fails
+    console.error('[RoutingAgent] generateAgentResponse error', {
       threadId,
       name: errorName,
       message: errorMessage,
@@ -187,6 +184,16 @@ export const onErrorHook = internalAction({
       type: errorType,
       code: errorCode,
     });
+
+    // Trigger summarization on error (wrapped to prevent masking the original error)
+    try {
+      await ctx.runAction(getAutoSummarizeRef(), { threadId });
+    } catch (summarizeError) {
+      console.error('[RoutingAgent] Summarization failed after error', {
+        threadId,
+        error: summarizeError instanceof Error ? summarizeError.message : String(summarizeError),
+      });
+    }
 
     return null;
   },
