@@ -25,13 +25,6 @@ export type GetApprovalsForThreadInternalRef = FunctionReference<
   }>
 >;
 
-export type MarkApprovalsAsProcessedRef = FunctionReference<
-  'mutation',
-  'internal',
-  { approvalIds: Array<Id<'approvals'>> },
-  void
->;
-
 export type LinkApprovalsToMessageRef = FunctionReference<
   'mutation',
   'internal',
@@ -41,10 +34,6 @@ export type LinkApprovalsToMessageRef = FunctionReference<
 
 export function getGetApprovalsForThreadInternalRef(): GetApprovalsForThreadInternalRef {
   return createRef<GetApprovalsForThreadInternalRef>('internal', ['approvals', 'queries', 'getApprovalsForThreadInternal']);
-}
-
-export function getMarkApprovalsAsProcessedRef(): MarkApprovalsAsProcessedRef {
-  return createRef<MarkApprovalsAsProcessedRef>('internal', ['approvals', 'mutations', 'markApprovalsAsProcessed']);
 }
 
 export function getLinkApprovalsToMessageRef(): LinkApprovalsToMessageRef {
