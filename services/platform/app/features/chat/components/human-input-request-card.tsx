@@ -135,6 +135,8 @@ function HumanInputRequestCardComponent({
               return (
                 <div
                   key={value}
+                  role="button"
+                  tabIndex={0}
                   className={cn(
                     'flex items-start space-x-3 p-3 rounded-lg border transition-all cursor-pointer',
                     isSelected
@@ -142,6 +144,12 @@ function HumanInputRequestCardComponent({
                       : 'border-border hover:border-primary/50 hover:bg-muted/30'
                   )}
                   onClick={() => setSelectedValue(value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedValue(value);
+                    }
+                  }}
                 >
                   <RadioGroupItem value={value} id={`option-${value}`} className="mt-0.5" />
                   <div className="flex-1">
