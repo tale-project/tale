@@ -16,7 +16,9 @@ import * as fmt from './message_formatter';
 import { estimateTokens } from './estimate_tokens';
 
 /**
- * Approval item from the approvals table
+ * Approval item from the approvals table.
+ * Note: Intentionally duplicated from shared/schemas/approvals.ts to avoid
+ * cross-module dependencies. Keep in sync with the shared schema.
  */
 interface ApprovalItem {
   _id: string;
