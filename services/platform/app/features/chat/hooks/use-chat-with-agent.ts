@@ -1,6 +1,24 @@
 import { useMutation } from 'convex/react';
 import { optimisticallySendMessage } from '@convex-dev/agent/react';
-import { api } from '@/convex/_generated/api';
+import type { FunctionReference } from 'convex/server';
+
+// Use require to avoid TS2589 "Type instantiation is excessively deep" error
+// when accessing deeply nested api paths
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyMutation = FunctionReference<'mutation', 'public', any, any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyQuery = FunctionReference<'query', 'public', any, any>;
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { api } = require('@/convex/_generated/api') as {
+  api: {
+    agents: { chat: { mutations: { chatWithAgent: AnyMutation } } };
+    threads: { queries: { getThreadMessagesStreaming: AnyQuery } };
+  };
+};
+
+const chatWithAgentMutation = api.agents.chat.mutations.chatWithAgent;
+const getThreadMessagesStreamingQuery = api.threads.queries.getThreadMessagesStreaming;
 
 /**
  * Hook to send a message to the chat agent with optimistic updates.
@@ -13,12 +31,12 @@ import { api } from '@/convex/_generated/api';
  * Note: Our mutation uses `message` instead of `prompt`, so we adapt the args.
  */
 export function useChatWithAgent() {
-  return useMutation(api.chat_agent.mutations.chatWithAgent).withOptimisticUpdate(
+  return useMutation(chatWithAgentMutation).withOptimisticUpdate(
     (store, args) => {
       // Type assertion needed due to SDK type compatibility issue
       // The streaming query return type doesn't exactly match what optimisticallySendMessage expects
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      optimisticallySendMessage(api.threads.queries.getThreadMessagesStreaming as any)(store, {
+      optimisticallySendMessage(getThreadMessagesStreamingQuery as any)(store, {
         threadId: args.threadId,
         prompt: args.message,
       });

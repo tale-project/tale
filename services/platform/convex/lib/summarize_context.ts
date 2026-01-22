@@ -15,7 +15,7 @@ import { openai } from './openai_provider';
 
 import { createDebugLog } from './debug_log';
 
-const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+const debugLog = createDebugLog('DEBUG_CONTEXT_SUMMARY', '[ContextSummary]');
 
 /**
  * Message structure for summarization - includes tool messages

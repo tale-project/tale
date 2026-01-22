@@ -86,6 +86,12 @@ export interface BuildStructuredContextParams {
   ragContext?: string;
   integrationsInfo?: string;
   maxMessages?: number;
+  /** Current task description (used by sub-agents or independent agent calls) */
+  taskDescription?: string;
+  /** Additional structured context as key-value pairs */
+  additionalContext?: Record<string, string>;
+  /** Parent thread ID (for sub-agent mode, indicates this is a delegated task) */
+  parentThreadId?: string;
 }
 
 /**
@@ -107,6 +113,9 @@ export async function buildStructuredContext(
     ragContext,
     integrationsInfo,
     maxMessages = 20,
+    taskDescription,
+    additionalContext,
+    parentThreadId,
   } = params;
 
   // 1. Query message history
@@ -127,6 +136,25 @@ export async function buildStructuredContext(
 
   // System info
   contextParts.push(fmt.formatSystemInfo(threadId, Date.now()));
+
+  // Parent thread reference (for sub-agent mode)
+  if (parentThreadId) {
+    contextParts.push(fmt.formatParentThread(parentThreadId));
+  }
+
+  // Task description (for sub-agents or independent agent calls)
+  if (taskDescription) {
+    contextParts.push(fmt.formatTaskDescription(taskDescription));
+  }
+
+  // Additional context (key-value pairs as XML sections)
+  if (additionalContext) {
+    for (const [key, value] of Object.entries(additionalContext)) {
+      if (value) {
+        contextParts.push(fmt.formatAdditionalContext(key, value));
+      }
+    }
+  }
 
   // Context summary
   if (contextSummary) {

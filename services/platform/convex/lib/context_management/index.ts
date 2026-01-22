@@ -2,53 +2,36 @@
  * Context Management Module
  *
  * Provides unified context management for all agents (main chat and sub-agents).
+ * All agents are treated as equal and independent entry points.
  *
  * Key features:
  * 1. Token estimation with CJK awareness
  * 2. Priority-based context trimming
  * 3. Smart history filtering
- * 4. Message reordering for optimal LLM understanding
- * 5. High-level context builder API
+ * 4. XML-formatted structured context
+ * 5. Full message history support
+ * 6. Summarization support for long conversations
  *
- * Usage for main chat agent:
+ * Usage (same for all agents):
  * ```typescript
- * import { AgentContextManager } from './lib/context_management';
+ * import { buildStructuredContext, AGENT_CONTEXT_CONFIGS } from './lib/context_management';
  *
- * const manager = new AgentContextManager({
- *   agentType: 'chat',
+ * const config = AGENT_CONTEXT_CONFIGS.workflow;
+ * const structuredContext = await buildStructuredContext({
+ *   ctx,
  *   threadId,
- *   enableSummarization: true,
- *   onSummarizationNeeded: async (ctx, tid) => {
- *     ctx.scheduler.runAfter(0, internal.chat_agent.actions.autoSummarizeIfNeeded, { threadId: tid });
- *   },
- * });
- *
- * manager
- *   .addSystemInfo()
- *   .addSummary(contextSummary)
- *   .addIntegrations(integrationsInfo)
- *   .addRagResults(ragContext);
- *
- * const setup = await manager.setup(ctx, { currentPromptTokens });
- * ```
- *
- * Usage for sub-agents:
- * ```typescript
- * import { createSubAgentContext } from './lib/context_management';
- *
- * const context = createSubAgentContext({
- *   agentType: 'web',
- *   threadId: subThreadId,
- *   taskDescription: 'Search for React 19 features',
- *   additionalContext: {
- *     search_query: 'React 19 new features',
- *   },
+ *   taskDescription: 'User request here',
+ *   additionalContext: { key: 'value' },
+ *   maxMessages: config.recentMessages,
  * });
  *
  * const result = await agent.generateText(ctx, { threadId }, {
- *   messages: context.systemMessages,
+ *   messages: structuredContext.messages,
  * }, {
- *   contextHandler: context.contextHandler,
+ *   contextOptions: {
+ *     recentMessages: 0,  // Disable SDK history - we control it
+ *     excludeToolMessages: false,
+ *   },
  * });
  * ```
  */
@@ -87,14 +70,6 @@ export {
   type TrimResult,
 } from './context_priority';
 
-// Context handler
-export {
-  createContextHandler,
-  type ContextHandler,
-  type ContextHandlerArgs,
-  type ContextHandlerOptions,
-} from './context_handler';
-
 // Context builder
 export {
   ContextBuilder,
@@ -104,11 +79,47 @@ export {
   type ContextBuilderOptions,
 } from './context_builder';
 
-// Agent context manager (high-level API)
+// Structured context builder (for XML-formatted context)
 export {
-  AgentContextManager,
-  createAgentContextManager,
-  createSubAgentContext,
-  type AgentContextManagerConfig,
-  type ContextSetupResult,
-} from './agent_context_manager';
+  buildStructuredContext,
+  type BuildStructuredContextParams,
+  type StructuredContextResult,
+} from './structured_context_builder';
+
+// Message formatters
+export {
+  formatUserMessage,
+  formatAssistantMessage,
+  formatToolCall,
+  formatHumanInputRequest,
+  formatHumanResponse,
+  formatSystemInfo,
+  formatContextSummary,
+  formatKnowledgeBase,
+  formatIntegrations,
+  formatTaskDescription,
+  formatAdditionalContext,
+  formatParentThread,
+  formatSystemMessage,
+  formatCurrentTurn,
+  type CurrentTurnToolCall,
+} from './message_formatter';
+
+// Context size estimation and proactive summarization
+export {
+  checkAndSummarizeIfNeeded,
+  type CheckAndSummarizeArgs,
+  type CheckAndSummarizeResult,
+} from './check_and_summarize';
+
+export {
+  estimateContextSize,
+  type ContextSizeEstimate,
+  type EstimateContextSizeArgs,
+} from './estimate_context_size';
+
+// Prioritized context building (used by routing agent)
+export { buildPrioritizedContexts } from './build_prioritized_contexts';
+
+// Thread summary loading
+export { loadContextSummary } from './load_context_summary';

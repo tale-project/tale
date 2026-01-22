@@ -13,7 +13,7 @@ import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { internal } from '../../_generated/api';
+import { getCreateHumanInputRequestRef } from '../../lib/function_refs';
 
 const optionSchema = z.object({
   label: z.string().describe('Display label for the option.'),
@@ -96,6 +96,7 @@ Call this tool with:
       success: boolean;
       requestId?: string;
       requestCreated?: boolean;
+      waitingForUser?: boolean;
       message: string;
     }> => {
       const { organizationId, threadId: currentThreadId, parentThreadId } = ctx;
@@ -146,8 +147,7 @@ Call this tool with:
 
       try {
         const requestId = await ctx.runMutation(
-          internal.agent_tools.human_input.create_human_input_request
-            .createHumanInputRequest,
+          getCreateHumanInputRequestRef(),
           {
             organizationId,
             threadId,

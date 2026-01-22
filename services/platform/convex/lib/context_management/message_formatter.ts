@@ -149,6 +149,35 @@ ${info}
 }
 
 /**
+ * Format task description block (used by agents when handling a specific task)
+ */
+export function formatTaskDescription(description: string): string {
+  return `<current_task>
+${escapeXml(description)}
+</current_task>`;
+}
+
+/**
+ * Format additional context block with dynamic tag name
+ * The key is sanitized to be a valid XML tag name
+ */
+export function formatAdditionalContext(key: string, value: string): string {
+  const tagName = key.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
+  return `<${tagName}>
+${escapeXml(value)}
+</${tagName}>`;
+}
+
+/**
+ * Format parent thread reference (for sub-agent context)
+ */
+export function formatParentThread(parentThreadId: string): string {
+  return `<parent_thread>
+${parentThreadId}
+</parent_thread>`;
+}
+
+/**
  * Format a system message (internal notification)
  */
 export function formatSystemMessage(content: string, timestamp: number): string {

@@ -1,28 +1,22 @@
 /**
  * Web Assistant Tool
  *
- * Delegates web-related tasks to the specialized Web Assistant Agent.
- * Isolates large web page content from the main chat agent's context.
- *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Delegates web-related tasks to the specialized Web Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createWebAgent } from '../../lib/create_web_agent';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import { getWebAgentGenerateResponseRef } from '../../lib/function_refs';
 
 export const webAssistantTool = {
   name: 'web_assistant' as const,
   tool: createTool({
-    description: `Delegate web-related tasks to the specialized Web Assistant Agent.
+    description: `Delegate web-related tasks to the specialized Web Agent.
 
 Use this tool for ANY web-related request, including:
 - Searching the web for information
@@ -30,7 +24,7 @@ Use this tool for ANY web-related request, including:
 - Extracting and summarizing web page content
 - Looking up real-world data (weather, prices, news, etc.)
 
-The Web Assistant is specialized in:
+The Web Agent is specialized in:
 - Web search using SearXNG meta search engine
 - URL content extraction with intelligent parsing
 - Handling the search → fetch → summarize workflow
@@ -79,7 +73,6 @@ EXAMPLES:
         };
       }
 
-      // Sub-thread creation requires a parent threadId to link to
       if (!threadId) {
         return {
           success: false,
@@ -89,10 +82,7 @@ EXAMPLES:
       }
 
       try {
-        const webAgent = createWebAgent();
-
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
+        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -102,9 +92,13 @@ EXAMPLES:
           },
         );
 
-        console.log('[web_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
+        console.log(
+          '[web_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
 
-        // Build structured prompt using the shared context management module
+        // Build additional context for the agent
         const additionalContext: Record<string, string> = {};
         if (args.url) {
           additionalContext.target_url = args.url;
@@ -113,58 +107,21 @@ EXAMPLES:
           additionalContext.search_query = args.searchQuery;
         }
 
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'web',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[web_assistant_tool] Calling webAgent.generateText', {
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with web agent configuration
-        const webConfig = AGENT_CONTEXT_CONFIGS.web;
-        const contextHandler = createContextHandler({
-          modelContextLimit: webConfig.modelContextLimit,
-          outputReserve: webConfig.outputReserve,
-          minRecentMessages: Math.min(4, webConfig.recentMessages),
-        });
-
-        // Extend context with parentThreadId for human input card linking
-        const contextWithParentThread = {
-          ...ctx,
-          parentThreadId: threadId,
-        };
-
-        const generationStartTime = Date.now();
-        const result = await webAgent.generateText(
-          contextWithParentThread,
-          { threadId: subThreadId, userId },
+        // Call the Web Agent via Convex API - all context management happens inside
+        const result = await ctx.runAction(
+          getWebAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: webConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext:
+              Object.keys(additionalContext).length > 0
+                ? additionalContext
+                : undefined,
+            parentThreadId: threadId,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
-
-        console.log('[web_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
 
         return {
           success: true,

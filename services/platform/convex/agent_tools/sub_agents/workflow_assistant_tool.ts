@@ -1,32 +1,29 @@
 /**
  * Workflow Assistant Tool
  *
- * Delegates ALL workflow-related tasks to the specialized Workflow Assistant Agent.
- * This is the single entry point for workflow operations from the Chat Agent.
+ * Delegates ALL workflow-related tasks to the specialized Workflow Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Requires admin/developer role for access.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createWorkflowAgent } from '../../lib/create_workflow_agent';
-import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import {
+  getGetMemberRoleInternalRef,
+  getWorkflowAgentGenerateResponseRef,
+} from '../../lib/function_refs';
 
-/** Roles that are allowed to use the workflow assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
 export const workflowAssistantTool = {
   name: 'workflow_assistant' as const,
   tool: createTool({
-    description: `Delegate ALL workflow-related tasks to the specialized Workflow Assistant Agent.
+    description: `Delegate ALL workflow-related tasks to the specialized Workflow Agent.
 
 Use this tool for ANY workflow-related request, including:
 - Listing existing workflows
@@ -37,13 +34,13 @@ Use this tool for ANY workflow-related request, including:
 - Creating workflows (will show approval card)
 - Browsing workflow examples/templates
 
-The Workflow Assistant is a specialized expert with:
+The Workflow Agent is a specialized expert with:
 - Deep knowledge of workflow syntax and best practices
 - Access to predefined workflow templates
 - Ability to create approval cards for workflow creation
 - Full workflow CRUD capabilities
 
-Simply pass the user's request - the Workflow Assistant will handle everything.`,
+Simply pass the user's request - the Workflow Agent will handle everything.`,
 
     args: z.object({
       userRequest: z
@@ -80,7 +77,6 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         };
       }
 
-      // Sub-thread creation requires a parent threadId to link to
       if (!threadId) {
         return {
           success: false,
@@ -89,15 +85,15 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
         };
       }
 
-      // Check user role - only admin, developer, and owner can use this tool
+      // Check user role - only admin and developer can use this tool
       if (userId) {
-        const userRole = await ctx.runQuery(internal.members.queries.getMemberRoleInternal, {
-          userId,
-          organizationId,
-        });
+        const userRole = await ctx.runQuery(
+          getGetMemberRoleInternalRef(),
+          { userId, organizationId },
+        );
 
         const normalizedRole = (userRole ?? 'member').toLowerCase();
-        if (!ALLOWED_ROLES.includes(normalizedRole as typeof ALLOWED_ROLES[number])) {
+        if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
           console.log('[workflow_assistant_tool] Access denied for role:', normalizedRole);
           return {
             success: false,
@@ -108,24 +104,7 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
       }
 
       try {
-        // Create the Workflow Agent in delegation mode (has all workflow tools)
-        const workflowAgent = createWorkflowAgent({
-          delegationMode: true,
-          withTools: true,
-        });
-
-        // Log agent configuration to verify maxSteps is set
-        console.log('[workflow_assistant_tool] Agent config:', {
-          name: workflowAgent.options.name,
-          hasTools: !!workflowAgent.options.tools,
-          toolCount: workflowAgent.options.tools
-            ? Object.keys(workflowAgent.options.tools).length
-            : 0,
-          maxSteps: (workflowAgent.options as Record<string, unknown>).maxSteps,
-        });
-
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
+        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -135,72 +114,35 @@ Simply pass the user's request - the Workflow Assistant will handle everything.`
           },
         );
 
-        console.log('[workflow_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
+        console.log(
+          '[workflow_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
         console.log('[workflow_assistant_tool] Parent thread for approvals:', threadId);
 
-        // Build structured prompt using the shared context management module
+        // Build additional context for the agent
         const additionalContext: Record<string, string> = {};
         if (args.workflowId) {
           additionalContext.target_workflow_id = args.workflowId;
         }
 
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'workflow',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[workflow_assistant_tool] Calling workflowAgent.generateText', {
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with workflow agent configuration
-        const workflowConfig = AGENT_CONTEXT_CONFIGS.workflow;
-        const contextHandler = createContextHandler({
-          modelContextLimit: workflowConfig.modelContextLimit,
-          outputReserve: workflowConfig.outputReserve,
-          minRecentMessages: Math.min(4, workflowConfig.recentMessages),
-        });
-
-        // Extend the context with parentThreadId so that tools (like create_workflow)
-        // can link approvals to the parent thread instead of the sub-thread
-        const contextWithParentThread = {
-          ...ctx,
-          parentThreadId: threadId,
-        };
-
-        // Use the new sub-thread for the generation, but pass the parent threadId
-        // in the context so that approvals are linked to the parent thread
-        // Note: maxSteps is configured in createWorkflowAgent (20 for delegation mode)
-        const generationStartTime = Date.now();
-        const result = await workflowAgent.generateText(
-          contextWithParentThread,
-          { threadId: subThreadId, userId },
+        // Call the Workflow Agent in delegation mode - all context management happens inside
+        const result = await ctx.runAction(
+          getWorkflowAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: workflowConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext:
+              Object.keys(additionalContext).length > 0
+                ? additionalContext
+                : undefined,
+            parentThreadId: threadId,
+            delegationMode: true,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
-
-        // Log summary (detailed step logging removed to reduce log volume)
-        console.log('[workflow_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
 
         // Check if an approval was created
         const approvalMatch = result.text.match(/APPROVAL_CREATED:(\w+)/);

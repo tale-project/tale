@@ -1,0 +1,68 @@
+/**
+ * Web Agent Mutations
+ *
+ * Public mutations for the Web Agent.
+ * Allows direct chat with the web agent from the frontend.
+ */
+
+import { v } from 'convex/values';
+import { mutation } from '../../_generated/server';
+import { authComponent } from '../../auth';
+import { startAgentChat } from '../../lib/agent_chat';
+import { WEB_AGENT_INSTRUCTIONS } from './agent';
+import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
+import type { ToolName } from '../../agent_tools/tool_registry';
+
+const WEB_AGENT_TOOL_NAMES: ToolName[] = ['web_read', 'request_human_input'];
+
+const WEB_AGENT_CONFIG: SerializableAgentConfig = {
+  name: 'web-assistant',
+  instructions: WEB_AGENT_INSTRUCTIONS,
+  convexToolNames: WEB_AGENT_TOOL_NAMES,
+  useFastModel: true,
+  maxSteps: 5,
+};
+
+export const chatWithWebAgent = mutation({
+  args: {
+    threadId: v.string(),
+    organizationId: v.string(),
+    message: v.string(),
+    maxSteps: v.optional(v.number()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.id('_storage'),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
+  },
+  returns: v.object({
+    messageAlreadyExists: v.boolean(),
+    streamId: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
+    return startAgentChat({
+      ctx,
+      agentType: 'web',
+      threadId: args.threadId,
+      organizationId: args.organizationId,
+      message: args.message,
+      maxSteps: args.maxSteps,
+      attachments: args.attachments,
+      agentConfig: WEB_AGENT_CONFIG,
+      model: process.env.OPENAI_FAST_MODEL || '',
+      provider: 'openai',
+      debugTag: '[WebAgent]',
+      enableStreaming: true,
+    });
+  },
+});

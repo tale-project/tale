@@ -11,7 +11,7 @@
 
 import { createDebugLog } from '../../lib/debug_log';
 
-const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[ChatAgent]');
+const debugLog = createDebugLog('DEBUG_RAG_QUERY', '[RAGQuery]');
 
 // Configuration constants
 const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
@@ -215,7 +215,7 @@ export async function queryRagContext(
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('[chat_agent] RAG service error', {
+        console.error('[rag_query] RAG service error', {
           status: response.status,
           error: errorText,
         });
@@ -252,11 +252,11 @@ export async function queryRagContext(
 
       // Handle timeout specifically
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.error('[chat_agent] RAG service request timeout', {
+        console.error('[rag_query] RAG service request timeout', {
           timeoutMs: RAG_REQUEST_TIMEOUT_MS,
         });
       } else {
-        console.error('[chat_agent] RAG service fetch error', {
+        console.error('[rag_query] RAG service fetch error', {
           error:
             fetchError instanceof Error ? fetchError.message : String(fetchError),
         });
@@ -264,7 +264,7 @@ export async function queryRagContext(
       return undefined; // Gracefully degrade on fetch error
     }
   } catch (error) {
-    console.error('[chat_agent] Failed to query RAG service', {
+    console.error('[rag_query] Failed to query RAG service', {
       error: error instanceof Error ? error.message : String(error),
     });
     return undefined; // Gracefully degrade on error

@@ -8,12 +8,18 @@
 
 import { internalMutation, mutation } from '../../_generated/server';
 import { v } from 'convex/values';
-import { components, internal } from '../../_generated/api';
+import { components } from '../../_generated/api';
 import { saveMessage } from '@convex-dev/agent';
 import { persistentStreaming } from '../../streaming/helpers';
 import { getUserTeamIds } from '../../lib/get_user_teams';
 import { getOrganizationMember } from '../../lib/rls';
+import { getRunAgentGenerationRef } from '../../lib/function_refs';
 import type { HumanInputRequestMetadata } from '../../../lib/shared/schemas/approvals';
+import {
+  CHAT_AGENT_CONFIG,
+  getChatAgentRuntimeConfig,
+  createChatHookHandles,
+} from '../../agents/chat/config';
 
 export const submitHumanInputResponseInternal = internalMutation({
   args: {
@@ -158,21 +164,28 @@ export const submitHumanInputResponse = mutation({
       ? await getUserTeamIds(ctx, thread.userId)
       : [];
 
-    // Schedule the agent to continue processing
-    await ctx.scheduler.runAfter(
-      0,
-      internal.chat_agent.actions.generateAgentResponse,
-      {
-        threadId,
-        organizationId,
-        maxSteps: 500,
-        promptMessageId,
-        messageText: responseMessage,
-        streamId,
-        userId: thread?.userId,
-        userTeamIds,
-      },
-    );
+    // Get runtime config and create FunctionHandles for hooks
+    const runtimeConfig = getChatAgentRuntimeConfig();
+    const hooks = await createChatHookHandles(ctx);
+
+    // Schedule the agent to continue processing using the generic action
+    await ctx.scheduler.runAfter(0, getRunAgentGenerationRef(), {
+      agentType: 'chat',
+      agentConfig: CHAT_AGENT_CONFIG,
+      model: runtimeConfig.model,
+      provider: runtimeConfig.provider,
+      debugTag: runtimeConfig.debugTag,
+      enableStreaming: runtimeConfig.enableStreaming,
+      hooks,
+      threadId,
+      organizationId,
+      taskDescription: responseMessage,
+      streamId,
+      promptMessageId,
+      maxSteps: 500,
+      userId: thread?.userId,
+      userTeamIds,
+    });
 
     return {
       success: true,

@@ -1,34 +1,31 @@
 /**
  * Integration Assistant Tool
  *
- * Delegates integration-related tasks to the specialized Integration Assistant Agent.
- * Isolates large database results from the main chat agent's context.
- * Requires admin/developer role for write operations.
+ * Delegates integration-related tasks to the specialized Integration Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Requires admin/developer role for access.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createIntegrationAgent } from '../../lib/create_integration_agent';
-import { internal } from '../../_generated/api';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import { formatIntegrationsForContext } from './helpers/format_integrations';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import {
+  getGetMemberRoleInternalRef,
+  getListIntegrationsInternalRef,
+  getIntegrationAgentGenerateResponseRef,
+} from '../../lib/function_refs';
 
-/** Roles that are allowed to use the integration assistant tool */
 const ALLOWED_ROLES = ['admin', 'developer'] as const;
 
 export const integrationAssistantTool = {
   name: 'integration_assistant' as const,
   tool: createTool({
-    description: `Delegate integration-related tasks to the specialized Integration Assistant Agent.
+    description: `Delegate integration-related tasks to the specialized Integration Agent.
 
 Use this tool for ANY integration-related request, including:
 - Discovering available integrations and their operations
@@ -36,7 +33,7 @@ Use this tool for ANY integration-related request, including:
 - Executing write operations (with approval workflow)
 - Managing approval workflows for data modifications
 
-The Integration Assistant is specialized in:
+The Integration Agent is specialized in:
 - Integration introspection (discovering available operations)
 - Executing read operations on external systems
 - Managing write operation approvals
@@ -91,7 +88,6 @@ EXAMPLES:
         };
       }
 
-      // Sub-thread creation and role check requires both threadId and userId
       if (!threadId || !userId) {
         return {
           success: false,
@@ -101,10 +97,10 @@ EXAMPLES:
       }
 
       // Check user role - only admin and developer can use this tool
-      const userRole = await ctx.runQuery(internal.members.queries.getMemberRoleInternal, {
-        userId,
-        organizationId,
-      });
+      const userRole = await ctx.runQuery(
+        getGetMemberRoleInternalRef(),
+        { userId, organizationId },
+      );
 
       const normalizedRole = (userRole ?? 'member').toLowerCase();
       if (!ALLOWED_ROLES.includes(normalizedRole as (typeof ALLOWED_ROLES)[number])) {
@@ -117,17 +113,14 @@ EXAMPLES:
       }
 
       try {
-        const integrationAgent = createIntegrationAgent();
-
         // Load available integrations for this organization
-        // This is critical - sub-agents need to know what integrations exist
-        const integrationsList = await ctx.runQuery(internal.integrations.queries.listInternal, {
-          organizationId,
-        });
+        const integrationsList = await ctx.runQuery(
+          getListIntegrationsInternalRef(),
+          { organizationId },
+        );
         const integrationsInfo = formatIntegrationsForContext(integrationsList);
 
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
+        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -137,86 +130,54 @@ EXAMPLES:
           },
         );
 
-        console.log('[integration_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
+        console.log(
+          '[integration_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
         console.log('[integration_assistant_tool] Parent thread for approvals:', threadId);
 
-        // Build structured prompt using the shared context management module
+        // Build additional context for the agent
         const additionalContext: Record<string, string> = {};
         if (args.integrationName) {
           additionalContext.target_integration = args.integrationName;
         }
         if (args.operation) {
-          additionalContext.requested_operation = args.operation;
-        }
-        if (integrationsInfo) {
-          additionalContext.available_integrations = integrationsInfo;
+          additionalContext.target_operation = args.operation;
         }
 
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'integration',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[integration_assistant_tool] Calling integrationAgent.generateText', {
-          integrationsCount: integrationsList.length,
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with integration agent configuration
-        const integrationConfig = AGENT_CONTEXT_CONFIGS.integration;
-        const contextHandler = createContextHandler({
-          modelContextLimit: integrationConfig.modelContextLimit,
-          outputReserve: integrationConfig.outputReserve,
-          minRecentMessages: Math.min(4, integrationConfig.recentMessages),
-        });
-
-        // Extend context with parentThreadId for approval card linking
-        const contextWithParentThread = {
-          ...ctx,
-          parentThreadId: threadId,
-        };
-
-        const generationStartTime = Date.now();
-        const result = await integrationAgent.generateText(
-          contextWithParentThread,
-          { threadId: subThreadId, userId },
+        // Call the Integration Agent via Convex API - all context management happens inside
+        const result = await ctx.runAction(
+          getIntegrationAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: integrationConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext:
+              Object.keys(additionalContext).length > 0
+                ? additionalContext
+                : undefined,
+            parentThreadId: threadId,
+            integrationsInfo,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
-
-        console.log('[integration_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
 
         // Check if an approval was created (look for approval patterns in response)
-        const approvalMatch = result.text.match(/approval[^\w]*(?:ID|id)[^\w]*[:\s]*["']?([a-zA-Z0-9]+)["']?/i);
-        const hasApproval = result.text.toLowerCase().includes('approval') &&
-                           (result.text.toLowerCase().includes('created') ||
-                            result.text.toLowerCase().includes('pending'));
+        const approvalMatch = result.text.match(
+          /approval[^\w]*(?:ID|id)[^\w]*[:\s]*["']?([a-zA-Z0-9]+)["']?/i,
+        );
+        const hasApproval =
+          result.text.toLowerCase().includes('approval') &&
+          (result.text.toLowerCase().includes('created') ||
+            result.text.toLowerCase().includes('pending'));
 
         // Check if a human input request was created (waiting for user selection)
-        const hasHumanInputRequest = result.text.toLowerCase().includes('input card') ||
-                                     result.text.toLowerCase().includes('waiting for') ||
-                                     result.text.toLowerCase().includes('select') ||
-                                     result.text.toLowerCase().includes('request_human_input');
+        const hasHumanInputRequest =
+          result.text.toLowerCase().includes('input card') ||
+          result.text.toLowerCase().includes('waiting for') ||
+          result.text.toLowerCase().includes('select') ||
+          result.text.toLowerCase().includes('request_human_input');
 
         // If waiting for human input, prepend a clear signal to the response
         let finalResponse = result.text;

@@ -1,0 +1,21 @@
+'use node';
+
+/**
+ * Summarization Actions
+ *
+ * Internal actions for shared summarization operations.
+ * All agents use these actions for automatic summarization.
+ */
+
+import { v } from 'convex/values';
+import { internalAction } from '../../_generated/server';
+import { autoSummarizeIfNeededModel } from './auto_summarize';
+
+export const autoSummarizeIfNeeded = internalAction({
+  args: {
+    threadId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await autoSummarizeIfNeededModel(ctx, args);
+  },
+});

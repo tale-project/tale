@@ -1,28 +1,22 @@
 /**
  * CRM Assistant Tool
  *
- * Delegates CRM-related tasks to the specialized CRM Assistant Agent.
- * Isolates potentially large customer/product data from the main chat agent's context.
- *
- * Uses the shared context management module for:
- * - Structured prompt building
- * - Smart history filtering via contextHandler
- * - Token-aware context management
+ * Delegates CRM-related tasks to the specialized CRM Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { createCrmAgent } from '../../lib/create_crm_agent';
 import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
-import { buildSubAgentPrompt } from './helpers/build_sub_agent_prompt';
-import { createContextHandler, AGENT_CONTEXT_CONFIGS } from '../../lib/context_management';
+import { getCrmAgentGenerateResponseRef } from '../../lib/function_refs';
 
 export const crmAssistantTool = {
   name: 'crm_assistant' as const,
   tool: createTool({
-    description: `Delegate CRM-related tasks to the specialized CRM Assistant Agent.
+    description: `Delegate CRM-related tasks to the specialized CRM Agent.
 
 Use this tool for ANY CRM data request, including:
 - Retrieving customer information (by ID, email, or listing)
@@ -31,7 +25,7 @@ Use this tool for ANY CRM data request, including:
 - Browsing the product catalog
 - Aggregating CRM data (counting, summarizing)
 
-The CRM Assistant is specialized in:
+The CRM Agent is specialized in:
 - Efficient data retrieval with field selection
 - Pagination handling for large datasets
 - Customer and product search operations
@@ -94,20 +88,16 @@ EXAMPLES:
         };
       }
 
-      // Sub-thread creation requires both threadId and userId
-      if (!threadId || !userId) {
+      if (!threadId) {
         return {
           success: false,
           response: '',
-          error: 'Both threadId and userId are required for crm_assistant',
+          error: 'threadId is required for crm_assistant to create sub-threads',
         };
       }
 
       try {
-        const crmAgent = createCrmAgent();
-
-        // Get or create a sub-thread for this parent thread + sub-agent combination
-        // Reusing the thread allows the sub-agent to maintain context across calls
+        // Get or create a sub-thread for this parent thread + agent combination
         const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
           ctx,
           {
@@ -117,91 +107,46 @@ EXAMPLES:
           },
         );
 
-        console.log('[crm_assistant_tool] Sub-thread:', subThreadId, isNew ? '(new)' : '(reused)');
+        console.log(
+          '[crm_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
 
-        // Build structured prompt using the shared context management module
+        // Build additional context for the agent
         const additionalContext: Record<string, string> = {};
         if (args.customerId) {
-          additionalContext.target_customer_id = args.customerId;
+          additionalContext.customer_id = args.customerId;
         }
         if (args.customerEmail) {
-          additionalContext.target_customer_email = args.customerEmail;
+          additionalContext.customer_email = args.customerEmail;
         }
         if (args.productId) {
-          additionalContext.target_product_id = args.productId;
+          additionalContext.product_id = args.productId;
         }
         if (args.operation) {
-          additionalContext.requested_operation = args.operation;
+          additionalContext.operation_hint = args.operation;
         }
 
-        const promptResult = buildSubAgentPrompt({
-          userRequest: args.userRequest,
-          agentType: 'crm',
-          threadId: subThreadId,
-          organizationId,
-          userId,
-          parentThreadId: threadId,
-          additionalContext,
-        });
-
-        console.log('[crm_assistant_tool] Calling crmAgent.generateText', {
-          estimatedTokens: promptResult.estimatedTokens,
-        });
-
-        // Create context handler with CRM agent configuration
-        const crmConfig = AGENT_CONTEXT_CONFIGS.crm;
-        const contextHandler = createContextHandler({
-          modelContextLimit: crmConfig.modelContextLimit,
-          outputReserve: crmConfig.outputReserve,
-          minRecentMessages: Math.min(4, crmConfig.recentMessages),
-        });
-
-        // Extend context with parentThreadId for human input card linking
-        const contextWithParentThread = {
-          ...ctx,
-          parentThreadId: threadId,
-        };
-
-        const generationStartTime = Date.now();
-        const result = await crmAgent.generateText(
-          contextWithParentThread,
-          { threadId: subThreadId, userId },
+        // Call the CRM Agent via Convex API - all context management happens inside
+        const result = await ctx.runAction(
+          getCrmAgentGenerateResponseRef(),
           {
-            prompt: promptResult.prompt,
-            messages: promptResult.systemMessages,
-          },
-          {
-            contextOptions: {
-              recentMessages: crmConfig.recentMessages,
-              excludeToolMessages: false,
-            },
-            contextHandler,
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            taskDescription: args.userRequest,
+            additionalContext:
+              Object.keys(additionalContext).length > 0
+                ? additionalContext
+                : undefined,
+            parentThreadId: threadId,
           },
         );
-        const generationDurationMs = Date.now() - generationStartTime;
-
-        console.log('[crm_assistant_tool] Result:', {
-          durationMs: generationDurationMs,
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-          stepsCount: result.steps?.length ?? 0,
-        });
-
-        // Check if a human input request was created (waiting for user selection)
-        const hasHumanInputRequest = result.text.toLowerCase().includes('input card') ||
-                                     result.text.toLowerCase().includes('waiting for') ||
-                                     result.text.toLowerCase().includes('select') ||
-                                     result.text.toLowerCase().includes('request_human_input');
-
-        // If waiting for human input, prepend a clear signal to the response
-        let finalResponse = result.text;
-        if (hasHumanInputRequest) {
-          finalResponse = `[HUMAN INPUT CARD CREATED - DO NOT FABRICATE OPTIONS]\n\n${result.text}`;
-        }
 
         return {
           success: true,
-          response: finalResponse,
+          response: result.text,
           usage: result.usage,
         };
       } catch (error) {
