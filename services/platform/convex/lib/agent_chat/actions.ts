@@ -9,7 +9,7 @@
  */
 
 import { v } from 'convex/values';
-import { makeFunctionReference } from 'convex/server';
+import type { FunctionHandle } from 'convex/server';
 import { Agent } from '@convex-dev/agent';
 import { internalAction } from '../../_generated/server';
 import { components } from '../../_generated/api';
@@ -128,6 +128,7 @@ export const runAgentGeneration = internalAction({
           debugTag,
           enableStreaming,
           hooks,
+          convexToolNames: agentConfig.convexToolNames,
         },
         {
           ctx,
@@ -158,11 +159,28 @@ export const runAgentGeneration = internalAction({
 
       return result;
     } catch (error) {
+      // Log full error details for debugging
+      const err = error as Record<string, unknown>;
+      console.error('[runAgentGeneration] Full error details:', {
+        name: err?.name,
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+        statusCode: err?.statusCode,
+        cause: err?.cause,
+        stack: err?.stack,
+        error: JSON.stringify(error, Object.getOwnPropertyNames(error as object), 2),
+      });
+
       // Classify and wrap error for retry decisions
       const classification = classifyError(error);
-      const err = error as Record<string, unknown>;
       throw new NonRetryableError(
-        `${classification.description}: ${err?.message || 'Unknown error'}`,
+        `${classification.description}: ${JSON.stringify({
+          message: err?.message,
+          code: err?.code,
+          status: err?.status,
+          cause: err?.cause,
+        })}`,
         error,
         classification.reason,
       );
@@ -183,9 +201,10 @@ function buildHooksFromConfig(hooksConfig: {
   const hooks: GenerateResponseHooks = {};
 
   if (hooksConfig.beforeContext) {
-    const ref = makeFunctionReference<'action'>(hooksConfig.beforeContext);
+    // Cast the FunctionHandle string back to a FunctionHandle type for ctx.runAction
+    const handle = hooksConfig.beforeContext as FunctionHandle<'action'>;
     hooks.beforeContext = async (ctx, args) => {
-      const result = await ctx.runAction(ref, {
+      const result = await ctx.runAction(handle, {
         threadId: args.threadId,
         userId: args.userId,
         taskDescription: args.taskDescription,
@@ -197,9 +216,9 @@ function buildHooksFromConfig(hooksConfig: {
   }
 
   if (hooksConfig.beforeGenerate) {
-    const ref = makeFunctionReference<'action'>(hooksConfig.beforeGenerate);
+    const handle = hooksConfig.beforeGenerate as FunctionHandle<'action'>;
     hooks.beforeGenerate = async (ctx, args, context, hookData) => {
-      const result = await ctx.runAction(ref, {
+      const result = await ctx.runAction(handle, {
         threadId: args.threadId,
         taskDescription: args.taskDescription,
         attachments: args.attachments,
@@ -211,9 +230,9 @@ function buildHooksFromConfig(hooksConfig: {
   }
 
   if (hooksConfig.afterGenerate) {
-    const ref = makeFunctionReference<'action'>(hooksConfig.afterGenerate);
+    const handle = hooksConfig.afterGenerate as FunctionHandle<'action'>;
     hooks.afterGenerate = async (ctx, args, result, _hookData) => {
-      await ctx.runAction(ref, {
+      await ctx.runAction(handle, {
         threadId: args.threadId,
         result: {
           text: result.text,
@@ -225,10 +244,10 @@ function buildHooksFromConfig(hooksConfig: {
   }
 
   if (hooksConfig.onError) {
-    const ref = makeFunctionReference<'action'>(hooksConfig.onError);
+    const handle = hooksConfig.onError as FunctionHandle<'action'>;
     hooks.onError = async (ctx, args, error) => {
       const err = error as Record<string, unknown>;
-      await ctx.runAction(ref, {
+      await ctx.runAction(handle, {
         threadId: args.threadId,
         errorName: err?.name as string | undefined,
         errorMessage: err?.message as string | undefined,

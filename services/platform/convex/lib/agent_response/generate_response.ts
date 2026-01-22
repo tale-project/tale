@@ -31,6 +31,7 @@ import {
   getCompleteStreamRef,
   getErrorStreamRef,
 } from '../function_refs';
+import { startRagPrefetch, type RagPrefetchCache } from '../rag_prefetch';
 import type {
   GenerateResponseConfig,
   GenerateResponseArgs,
@@ -56,7 +57,7 @@ export async function generateAgentResponse(
   config: GenerateResponseConfig,
   args: GenerateResponseArgs,
 ): Promise<GenerateResponseResult> {
-  const { agentType, createAgent, model, provider, debugTag, enableStreaming, hooks } = config;
+  const { agentType, createAgent, model, provider, debugTag, enableStreaming, hooks, convexToolNames } = config;
   const {
     ctx,
     threadId,
@@ -88,6 +89,24 @@ export async function generateAgentResponse(
     // Start stream if streamId provided
     if (streamId) {
       await ctx.runMutation(getStartStreamRef(), { streamId });
+    }
+
+    // Start RAG prefetch immediately (non-blocking) if:
+    // 1. userId is provided (needed for RAG search)
+    // 2. taskDescription exists (query to search)
+    // 3. rag_search tool is configured for this agent
+    // This must be started in the main action context, not in a hook (Promises can't be serialized)
+    let ragPrefetchCache: RagPrefetchCache | undefined;
+    const hasRagSearchTool = convexToolNames?.includes('rag_search') ?? false;
+    if (userId && taskDescription && hasRagSearchTool) {
+      ragPrefetchCache = startRagPrefetch({
+        ctx,
+        threadId,
+        userMessage: taskDescription,
+        userId,
+        userTeamIds: userTeamIds ?? [],
+      });
+      debugLog('RAG prefetch started', { threadId, userId });
     }
 
     // Call beforeContext hook if provided
@@ -138,7 +157,7 @@ export async function generateAgentResponse(
       threadId,
       userTeamIds: userTeamIds ?? [],
       variables: {},
-      ...(hookData?.ragPrefetchCache ? { ragPrefetchCache: hookData.ragPrefetchCache } : {}),
+      ...(ragPrefetchCache ? { ragPrefetchCache } : {}),
     };
 
     // Track time to first token for streaming
@@ -339,6 +358,17 @@ export async function generateAgentResponse(
 
     return responseResult;
   } catch (error) {
+    // Log the original error BEFORE calling any hooks
+    const err = error as Record<string, unknown>;
+    console.error('[generateAgentResponse] ORIGINAL ERROR:', {
+      name: err?.name,
+      message: err?.message,
+      code: err?.code,
+      status: err?.status,
+      cause: err?.cause,
+      stack: err?.stack,
+    });
+
     // Mark stream as errored
     if (streamId) {
       try {
@@ -348,9 +378,14 @@ export async function generateAgentResponse(
       }
     }
 
-    // Call onError hook if provided
+    // Call onError hook if provided - wrap in try/catch to not mask the original error
     if (hooks?.onError) {
-      await hooks.onError(ctx, args, error);
+      try {
+        await hooks.onError(ctx, args, error);
+      } catch (hookError) {
+        console.error('[generateAgentResponse] onError hook failed:', hookError);
+        // Still throw the original error, not the hook error
+      }
     }
 
     throw error;

@@ -1,24 +1,18 @@
 import { useMutation } from 'convex/react';
 import { optimisticallySendMessage } from '@convex-dev/agent/react';
 import type { FunctionReference } from 'convex/server';
+import { api } from '@/convex/_generated/api';
 
-// Use require to avoid TS2589 "Type instantiation is excessively deep" error
+// Explicit types to avoid TS2589 "Type instantiation is excessively deep" error
 // when accessing deeply nested api paths
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyMutation = FunctionReference<'mutation', 'public', any, any>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyQuery = FunctionReference<'query', 'public', any, any>;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { api } = require('@/convex/_generated/api') as {
-  api: {
-    agents: { chat: { mutations: { chatWithAgent: AnyMutation } } };
-    threads: { queries: { getThreadMessagesStreaming: AnyQuery } };
-  };
-};
-
-const chatWithAgentMutation = api.agents.chat.mutations.chatWithAgent;
-const getThreadMessagesStreamingQuery = api.threads.queries.getThreadMessagesStreaming;
+// @ts-expect-error - Deep api path causes TS2589, but runtime access is valid
+const chatWithAgentMutation: AnyMutation = api.agents.chat.mutations.chatWithAgent;
+const getThreadMessagesStreamingQuery: AnyQuery = api.threads.queries.getThreadMessagesStreaming;
 
 /**
  * Hook to send a message to the chat agent with optimistic updates.

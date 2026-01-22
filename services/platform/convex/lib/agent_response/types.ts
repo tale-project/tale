@@ -20,6 +20,8 @@ export interface GenerateResponseConfig {
   debugTag: string;
   enableStreaming?: boolean;
   hooks?: GenerateResponseHooks;
+  /** Tool names configured for this agent - used to determine if RAG prefetch should be enabled */
+  convexToolNames?: string[];
 }
 
 /**

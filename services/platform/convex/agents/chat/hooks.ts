@@ -27,12 +27,11 @@ import {
   OUTPUT_RESERVE,
 } from '../../lib/context_management';
 import { createDebugLog } from '../../lib/debug_log';
-import { startRagPrefetch } from '../../lib/rag_prefetch';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
 
 /**
- * Before context hook: Load summary, integrations, and start RAG prefetch.
+ * Before context hook: Load summary and integrations.
  */
 export const beforeContextHook = internalAction({
   args: {
@@ -45,22 +44,10 @@ export const beforeContextHook = internalAction({
   returns: v.object({
     contextSummary: v.optional(v.string()),
     integrationsInfo: v.optional(v.string()),
-    ragPrefetchCache: v.optional(v.any()),
     integrationsList: v.optional(v.array(v.any())),
   }),
   handler: async (ctx, args) => {
-    const { threadId, userId, taskDescription, organizationId, userTeamIds } = args;
-
-    // Start RAG prefetch immediately (non-blocking)
-    const ragPrefetchCache = userId && taskDescription
-      ? startRagPrefetch({
-          ctx,
-          threadId,
-          userMessage: taskDescription,
-          userId,
-          userTeamIds: userTeamIds ?? [],
-        })
-      : undefined;
+    const { threadId, organizationId } = args;
 
     // Load context summary and integrations in parallel
     const [contextSummary, integrationsList] = await Promise.all([
@@ -91,7 +78,6 @@ export const beforeContextHook = internalAction({
     return {
       contextSummary: contextSummary ?? undefined,
       integrationsInfo,
-      ragPrefetchCache,
       integrationsList: integrationsList ?? undefined,
     };
   },
