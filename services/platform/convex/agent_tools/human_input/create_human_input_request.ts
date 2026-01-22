@@ -35,6 +35,14 @@ export const createHumanInputRequest = internalMutation({
     messageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Validate options are provided for select formats
+    if (
+      (args.format === 'single_select' || args.format === 'multi_select') &&
+      (!args.options || args.options.length === 0)
+    ) {
+      throw new Error(`options are required for ${args.format} format`);
+    }
+
     const metadata: HumanInputRequestMetadata = {
       question: args.question,
       format: args.format,
