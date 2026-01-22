@@ -20,6 +20,7 @@ export const submitHumanInputResponseInternal = internalMutation({
     response: v.union(v.string(), v.array(v.string())),
     respondedBy: v.string(),
   },
+  returns: v.object({ success: v.boolean() }),
   handler: async (ctx, args) => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval) {
