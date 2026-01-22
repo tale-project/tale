@@ -82,8 +82,10 @@ export function ChatMessages({
           if (message.isHumanInputResponse && message.role === 'system') {
             // Parse the response from the message content
             // Format: "User responded to question \"<question>\": <response>"
-            const match = message.content.match(/^User responded to question "(.+?)": (.+)$/);
-            const response = match ? match[2] : message.content;
+            const match = message.content.match(
+              /^User responded to question "(.*?)": ([\s\S]+)$/
+            );
+            const response = match?.[2] ?? message.content;
 
             return (
               <div
