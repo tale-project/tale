@@ -9,6 +9,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { createConversation } from './create_conversation';
 import type { CreateConversationArgs } from './types';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export interface CreateConversationWithMessageArgs
   extends CreateConversationArgs {
@@ -110,6 +111,26 @@ export async function createConversationWithMessage(
       unread_count: args.initialMessage.isCustomer ? 1 : 0,
     },
   });
+
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      actor: { id: 'system', type: 'system' as const },
+    },
+    'add_message_to_conversation',
+    'data',
+    'conversationMessage',
+    String(messageId),
+    undefined,
+    undefined,
+    {
+      conversationId: String(conversationId),
+      direction,
+      isCustomer: args.initialMessage.isCustomer,
+      sender: args.initialMessage.sender,
+    },
+  );
 
   return {
     success: true,

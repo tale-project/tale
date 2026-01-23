@@ -4,6 +4,8 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
 
 export async function closeConversation(
   ctx: MutationCtx,
@@ -17,6 +19,8 @@ export async function closeConversation(
     throw new Error('Conversation not found');
   }
 
+  const previousStatus = conversation.status;
+
   const existingMetadata = conversation.metadata || {};
   const patchMetadata = {
     ...existingMetadata,
@@ -28,5 +32,23 @@ export async function closeConversation(
     status: 'closed',
     metadata: patchMetadata,
   });
+
+  const authUser = await getAuthenticatedUser(ctx);
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: conversation.organizationId,
+      actor: authUser
+        ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
+        : { id: 'system', type: 'system' as const },
+    },
+    'close_conversation',
+    'data',
+    'conversation',
+    String(args.conversationId),
+    conversation.subject,
+    { status: previousStatus },
+    { status: 'closed', resolvedBy: args.resolvedBy },
+  );
 }
 

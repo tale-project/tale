@@ -4,6 +4,8 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
 
 export async function addMessageToConversation(
   ctx: MutationCtx,
@@ -48,7 +50,7 @@ export async function addMessageToConversation(
       : 'sent';
 
   // Only set sentAt/deliveredAt if we have an actual timestamp
-  await ctx.db.insert('conversationMessages', {
+  const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
     providerId: args.providerId || parentConversation.providerId, // Use provided or inherit from parent conversation
@@ -93,6 +95,29 @@ export async function addMessageToConversation(
         (args.isCustomer ? 1 : 0),
     },
   });
+
+  const authUser = await getAuthenticatedUser(ctx);
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      actor: authUser
+        ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
+        : { id: 'system', type: 'system' as const },
+    },
+    'add_message_to_conversation',
+    'data',
+    'conversationMessage',
+    String(messageId),
+    undefined,
+    undefined,
+    {
+      conversationId: String(args.conversationId),
+      direction,
+      isCustomer: args.isCustomer,
+      sender: args.sender,
+    },
+  );
 
   // Maintain return type contract (conversation id)
   return args.conversationId;

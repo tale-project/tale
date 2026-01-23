@@ -5,6 +5,8 @@
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import type { BulkOperationResult } from './types';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
 
 export async function bulkReopenConversations(
   ctx: MutationCtx,
@@ -59,6 +61,33 @@ export async function bulkReopenConversations(
         `Failed to reopen ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
       );
     }
+  }
+
+  const firstValidConversation = conversations.find((c) => c !== null);
+  if (firstValidConversation) {
+    const authUser = await getAuthenticatedUser(ctx);
+    await AuditLogHelpers.logSuccess(
+      ctx,
+      {
+        organizationId: firstValidConversation.organizationId,
+        actor: authUser
+          ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
+          : { id: 'system', type: 'system' as const },
+      },
+      'bulk_reopen_conversations',
+      'data',
+      'conversation',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        conversationIds: conversationIds.map(String),
+        count: conversationIds.length,
+        successCount,
+        failedCount: conversationIds.length - successCount,
+      },
+    );
   }
 
   return {

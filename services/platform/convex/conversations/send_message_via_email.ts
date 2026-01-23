@@ -11,6 +11,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 
 interface UploadedAttachment {
   storageId: string;
@@ -270,6 +271,29 @@ export async function sendMessageViaEmail(
       metadata: approvalMetadata as any,
     });
   }
+
+  const authUser = await getAuthenticatedUser(ctx);
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      actor: authUser
+        ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
+        : { id: 'system', type: 'system' as const },
+    },
+    'send_message_via_email',
+    'data',
+    'conversationMessage',
+    String(messageId),
+    args.subject,
+    undefined,
+    {
+      conversationId: String(args.conversationId),
+      to: args.to,
+      subject: args.subject,
+      hasAttachments: !!args.attachments?.length,
+    },
+  );
 
   return messageId;
 }
