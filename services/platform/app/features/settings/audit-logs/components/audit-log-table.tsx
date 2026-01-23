@@ -17,10 +17,9 @@ import type { AuditLogItem } from '@/convex/audit_logs/types';
 
 interface AuditLogTableProps {
   logs: AuditLogItem[];
-  isLoading?: boolean;
 }
 
-export function AuditLogTable({ logs, isLoading }: AuditLogTableProps) {
+export function AuditLogTable({ logs }: AuditLogTableProps) {
   const { t } = useT('settings');
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
