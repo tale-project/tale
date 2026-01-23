@@ -116,11 +116,13 @@ export async function generateAgentResponse(
     }
 
     // Build structured context using the unified approach
+    // For non-streaming (sub-agents): don't include taskDescription in context
+    // because it will be passed via prompt parameter to avoid duplication
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
     const structuredContext = await buildStructuredContext({
       ctx,
       threadId,
-      taskDescription,
+      taskDescription: enableStreaming ? taskDescription : undefined,
       additionalContext,
       parentThreadId,
       maxMessages: agentConfig.recentMessages,
@@ -230,7 +232,12 @@ export async function generateAgentResponse(
         subAgentContext,
         { threadId, userId },
         {
-          messages: structuredContext.messages,
+          // Use system parameter for context - it's passed to LLM but NOT saved to database
+          // This prevents XML system messages from being stored as thread messages
+          system: structuredContext.contextText,
+          // Use prompt parameter for the task - this triggers the agent response
+          // and gets saved as the user message in the thread
+          prompt: taskDescription,
         },
         {
           contextOptions: {

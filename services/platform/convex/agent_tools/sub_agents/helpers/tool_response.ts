@@ -29,6 +29,36 @@ export function successResponse(response: string, usage?: ToolUsage): ToolRespon
 }
 
 export function handleToolError(toolName: string, error: unknown): ToolResponse {
-  console.error(`[${toolName}] Error:`, error);
-  return errorResponse(error instanceof Error ? error.message : 'Unknown error');
+  console.error(`[${toolName}] Error:`, {
+    error,
+    type: typeof error,
+    isError: error instanceof Error,
+    message: error instanceof Error ? error.message : undefined,
+    name: error instanceof Error ? error.name : undefined,
+  });
+
+  const errorMessage = extractErrorMessage(error, toolName);
+  return errorResponse(errorMessage);
+}
+
+function extractErrorMessage(error: unknown, toolName: string): string {
+  if (error instanceof Error) {
+    if (error.message && error.message.length > 0) {
+      return error.message;
+    }
+    if (error.name && error.name !== 'Error') {
+      return `${error.name} in ${toolName}`;
+    }
+    const errorWithCause = error as { cause?: { message?: string } };
+    if (errorWithCause.cause?.message) {
+      return errorWithCause.cause.message;
+    }
+  }
+
+  const str = String(error);
+  if (str && str !== '[object Object]' && str !== 'undefined') {
+    return str;
+  }
+
+  return `Unknown error in ${toolName}`;
 }

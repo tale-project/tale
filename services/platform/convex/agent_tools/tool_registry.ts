@@ -20,6 +20,7 @@ import { pdfTool } from './files/pdf_tool';
 import { imageTool } from './files/image_tool';
 import { pptxTool } from './files/pptx_tool';
 import { docxTool } from './files/docx_tool';
+import { txtTool } from './files/txt_tool';
 import { resourceCheckTool } from './files/resource_check_tool';
 import { contextSearchTool } from './threads/context_search_tool';
 import { integrationTool } from './integrations/integration_tool';
@@ -49,6 +50,7 @@ export const TOOL_NAMES = [
   'image',
   'pptx',
   'docx',
+  'txt',
   'resource_check',
   'workflow_read',
   'workflow_examples',
@@ -88,6 +90,7 @@ export const TOOL_REGISTRY = [
   imageTool,
   pptxTool,
   docxTool,
+  txtTool,
   resourceCheckTool,
   contextSearchTool,
   integrationTool,

@@ -11,6 +11,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import type { IntegrationExecutionResult } from './types';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const integrationArgs = z.object({
   integrationName: z.string().describe('Integration name (e.g., "protel", "stripe")'),
@@ -46,14 +47,15 @@ Write operations create approval cards. Use integration_batch for multiple paral
       ctx: ToolCtx,
       args,
     ): Promise<IntegrationExecutionResult> => {
-      // parentThreadId comes from extended context (set by integration_assistant_tool)
-      // This ensures approval cards are linked to the parent thread, not the sub-thread
-      const { organizationId, threadId: currentThreadId, messageId, parentThreadId } = ctx;
-      const threadId = parentThreadId ?? currentThreadId;
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
+
+      // Look up parent thread from thread summary (stable, database-backed)
+      // This ensures approvals from sub-agents link to the main chat thread
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       console.log('[integration_tool] Context:', {
         threadId,
-        parentThreadId,
+        currentThreadId,
         messageId,
       });
 

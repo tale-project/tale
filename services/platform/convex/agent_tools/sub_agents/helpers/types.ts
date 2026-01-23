@@ -19,3 +19,9 @@ export interface ThreadSummaryWithSubThreads {
   subThreads?: SubThreadsMap;
   [key: string]: unknown;
 }
+
+/** Summary structure for sub-threads (stores parent thread reference) */
+export interface SubThreadSummary {
+  subAgentType: SubAgentType;
+  parentThreadId: string;
+}

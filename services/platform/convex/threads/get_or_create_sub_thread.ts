@@ -17,6 +17,7 @@ import { MutationCtx } from '../_generated/server';
 import { components } from '../_generated/api';
 import type {
   SubAgentType,
+  SubThreadSummary,
   ThreadSummaryWithSubThreads,
 } from '../agent_tools/sub_agents/helpers/types';
 
@@ -90,12 +91,20 @@ export async function getOrCreateSubThread(
   }
 
   // 4. Create new sub-thread with parentThreadIds for relationship tracking
+  // Store parentThreadId in BOTH places:
+  // - parentThreadIds: for future use (when Agent SDK exposes this field publicly)
+  // - summary: for current use (accessible via public getThread API)
+  const subThreadSummary: SubThreadSummary = {
+    subAgentType,
+    parentThreadId,
+  };
   const newThread = await ctx.runMutation(
     components.agent.threads.createThread,
     {
       userId,
       title: `Sub-thread: ${subAgentType}`,
       parentThreadIds: [parentThreadId],
+      summary: JSON.stringify(subThreadSummary),
     },
   );
 

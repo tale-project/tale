@@ -11,6 +11,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import type { BatchOperationResult } from './types';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const batchOperationSchema = z.object({
   id: z.string().optional().describe('Optional ID for tracking in results (e.g., "query1", "query2")'),
@@ -57,7 +58,11 @@ Max 10 operations. Use 'id' field to identify results.`,
       ctx: ToolCtx,
       args,
     ): Promise<BatchOperationResult> => {
-      const { organizationId, threadId, messageId } = ctx;
+      const { organizationId, threadId: currentThreadId, messageId } = ctx;
+
+      // Look up parent thread from thread summary (stable, database-backed)
+      // This ensures approvals from sub-agents link to the main chat thread
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       console.log('[integration_batch_tool] Starting batch execution:', {
         integrationName: args.integrationName,

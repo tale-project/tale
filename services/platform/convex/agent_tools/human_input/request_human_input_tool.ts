@@ -14,6 +14,7 @@ import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { getCreateHumanInputRequestRef } from '../../lib/function_refs';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const optionSchema = z.object({
   label: z.string().describe('Display label for the option.'),
@@ -99,8 +100,11 @@ Call this tool with:
       waitingForUser?: boolean;
       message: string;
     }> => {
-      const { organizationId, threadId: currentThreadId, parentThreadId } = ctx;
-      const threadId = parentThreadId ?? currentThreadId;
+      const { organizationId, threadId: currentThreadId } = ctx;
+
+      // Look up parent thread from thread summary (stable, database-backed)
+      // This ensures approvals from sub-agents link to the main chat thread
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       if (!organizationId) {
         return {
