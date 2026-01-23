@@ -32,13 +32,15 @@ export const documentAssistantTool = {
     description: `Delegate document-related tasks to the specialized Document Agent.
 
 Use this tool for ANY document-related request, including:
-- Parsing uploaded PDF, Word, or PowerPoint files
+- Parsing uploaded PDF, Word, PowerPoint, or TXT files
 - Generating PDF documents from Markdown/HTML
 - Creating Excel files from structured data
 - Analyzing images using vision capabilities
+- Analyzing text/log files
 
 The Document Agent is specialized in:
 - Extracting text and structure from documents
+- Analyzing text files (TXT, LOG) with AI
 - Generating downloadable files (PDF, Excel)
 - Image analysis with vision model
 - Multi-step document workflows
@@ -47,6 +49,7 @@ Simply describe what you need done with the document.
 
 EXAMPLES:
 • Parse PDF: { userRequest: "Extract the content from this PDF", fileUrl: "https://...", fileName: "report.pdf" }
+• Analyze TXT: { userRequest: "Find all error messages in this log", fileId: "kg2bazp7...", fileName: "app.log" }
 • Generate PDF: { userRequest: "Create a PDF report with this data: ..." }
 • Analyze image: { userRequest: "What's in this image?", fileId: "kg2bazp7..." }
 • Create Excel: { userRequest: "Generate an Excel file with these columns: Name, Email, Status" }`,
@@ -58,7 +61,7 @@ EXAMPLES:
       fileId: z
         .string()
         .optional()
-        .describe('Convex storage ID for uploaded files (for image analysis)'),
+        .describe('Convex storage ID for uploaded files (for image analysis or text file analysis)'),
       fileUrl: z
         .string()
         .optional()

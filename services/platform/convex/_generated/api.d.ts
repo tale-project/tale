@@ -33,6 +33,7 @@ import type * as agent_tools_files_docx_tool from "../agent_tools/files/docx_too
 import type * as agent_tools_files_generate_excel_tool from "../agent_tools/files/generate_excel_tool.js";
 import type * as agent_tools_files_helpers_analyze_image from "../agent_tools/files/helpers/analyze_image.js";
 import type * as agent_tools_files_helpers_analyze_image_by_url from "../agent_tools/files/helpers/analyze_image_by_url.js";
+import type * as agent_tools_files_helpers_analyze_text from "../agent_tools/files/helpers/analyze_text.js";
 import type * as agent_tools_files_helpers_check_resource_accessible from "../agent_tools/files/helpers/check_resource_accessible.js";
 import type * as agent_tools_files_helpers_parse_file from "../agent_tools/files/helpers/parse_file.js";
 import type * as agent_tools_files_helpers_vision_agent from "../agent_tools/files/helpers/vision_agent.js";
@@ -41,6 +42,7 @@ import type * as agent_tools_files_internal_actions from "../agent_tools/files/i
 import type * as agent_tools_files_pdf_tool from "../agent_tools/files/pdf_tool.js";
 import type * as agent_tools_files_pptx_tool from "../agent_tools/files/pptx_tool.js";
 import type * as agent_tools_files_resource_check_tool from "../agent_tools/files/resource_check_tool.js";
+import type * as agent_tools_files_txt_tool from "../agent_tools/files/txt_tool.js";
 import type * as agent_tools_human_input_create_human_input_request from "../agent_tools/human_input/create_human_input_request.js";
 import type * as agent_tools_human_input_request_human_input_tool from "../agent_tools/human_input/request_human_input_tool.js";
 import type * as agent_tools_human_input_submit_human_input_response from "../agent_tools/human_input/submit_human_input_response.js";
@@ -511,6 +513,7 @@ import type * as threads_delete_chat_thread from "../threads/delete_chat_thread.
 import type * as threads_get_latest_thread_with_message_count from "../threads/get_latest_thread_with_message_count.js";
 import type * as threads_get_latest_tool_message from "../threads/get_latest_tool_message.js";
 import type * as threads_get_or_create_sub_thread from "../threads/get_or_create_sub_thread.js";
+import type * as threads_get_parent_thread_id from "../threads/get_parent_thread_id.js";
 import type * as threads_get_thread_messages from "../threads/get_thread_messages.js";
 import type * as threads_get_thread_messages_streaming from "../threads/get_thread_messages_streaming.js";
 import type * as threads_helpers from "../threads/helpers.js";
@@ -853,6 +856,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/generate_excel_tool": typeof agent_tools_files_generate_excel_tool;
   "agent_tools/files/helpers/analyze_image": typeof agent_tools_files_helpers_analyze_image;
   "agent_tools/files/helpers/analyze_image_by_url": typeof agent_tools_files_helpers_analyze_image_by_url;
+  "agent_tools/files/helpers/analyze_text": typeof agent_tools_files_helpers_analyze_text;
   "agent_tools/files/helpers/check_resource_accessible": typeof agent_tools_files_helpers_check_resource_accessible;
   "agent_tools/files/helpers/parse_file": typeof agent_tools_files_helpers_parse_file;
   "agent_tools/files/helpers/vision_agent": typeof agent_tools_files_helpers_vision_agent;
@@ -861,6 +865,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/files/pdf_tool": typeof agent_tools_files_pdf_tool;
   "agent_tools/files/pptx_tool": typeof agent_tools_files_pptx_tool;
   "agent_tools/files/resource_check_tool": typeof agent_tools_files_resource_check_tool;
+  "agent_tools/files/txt_tool": typeof agent_tools_files_txt_tool;
   "agent_tools/human_input/create_human_input_request": typeof agent_tools_human_input_create_human_input_request;
   "agent_tools/human_input/request_human_input_tool": typeof agent_tools_human_input_request_human_input_tool;
   "agent_tools/human_input/submit_human_input_response": typeof agent_tools_human_input_submit_human_input_response;
@@ -1331,6 +1336,7 @@ declare const fullApi: ApiFromModules<{
   "threads/get_latest_thread_with_message_count": typeof threads_get_latest_thread_with_message_count;
   "threads/get_latest_tool_message": typeof threads_get_latest_tool_message;
   "threads/get_or_create_sub_thread": typeof threads_get_or_create_sub_thread;
+  "threads/get_parent_thread_id": typeof threads_get_parent_thread_id;
   "threads/get_thread_messages": typeof threads_get_thread_messages;
   "threads/get_thread_messages_streaming": typeof threads_get_thread_messages_streaming;
   "threads/helpers": typeof threads_helpers;

@@ -25,6 +25,18 @@ import type { AgentType } from '../context_management/constants';
 import type { FileAttachment } from '../attachments';
 import type { SerializableAgentConfig, AgentHooksConfig } from './types';
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return kb < 10 ? `${kb.toFixed(1)} KB` : `${Math.round(kb)} KB`;
+  }
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+}
+
 export interface StartAgentChatArgs {
   ctx: MutationCtx;
   agentType: AgentType;
@@ -169,10 +181,22 @@ export async function startAgentChat(
 }
 
 /**
+ * Check if a file is a text file based on type or extension.
+ */
+function isTextFile(attachment: FileAttachment): boolean {
+  return (
+    attachment.fileType === 'text/plain' ||
+    attachment.fileName.toLowerCase().endsWith('.txt') ||
+    attachment.fileName.toLowerCase().endsWith('.log')
+  );
+}
+
+/**
  * Build message content with attachment markdown.
  *
- * Converts attachments to markdown format:
- * - Documents: 📎 [filename](url) (type, size)
+ * Converts attachments to markdown format (all include fileId):
+ * - Documents: 📎 [filename](url) (type, size) *(fileId: xxx)*
+ * - Text files: 📄 [filename](url) (size) *(fileId: xxx)*
  * - Images: ![filename](url) *(fileId: xxx)*
  */
 async function buildMessageWithAttachments(
@@ -180,18 +204,27 @@ async function buildMessageWithAttachments(
   message: string,
   attachments: FileAttachment[],
 ): Promise<string> {
-  // Separate images from documents
+  // Separate images, text files, and other documents
   const imageAttachments = attachments.filter((a) =>
     a.fileType.startsWith('image/'),
   );
+  const textFileAttachments = attachments.filter(
+    (a) => !a.fileType.startsWith('image/') && isTextFile(a),
+  );
   const documentAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/'),
+    (a) => !a.fileType.startsWith('image/') && !isTextFile(a),
   );
 
   // Fetch all URLs in parallel
-  const [documentUrls, imageUrls] = await Promise.all([
+  const [documentUrls, textFileUrls, imageUrls] = await Promise.all([
     Promise.all(
       documentAttachments.map(async (a) => ({
+        attachment: a,
+        url: await ctx.storage.getUrl(a.fileId),
+      })),
+    ),
+    Promise.all(
+      textFileAttachments.map(async (a) => ({
         attachment: a,
         url: await ctx.storage.getUrl(a.fileId),
       })),
@@ -206,25 +239,39 @@ async function buildMessageWithAttachments(
 
   let textContent = message;
 
-  // Add document references as markdown
+  // Add document references as markdown (PDF, DOCX, PPTX, etc.)
   if (documentUrls.length > 0) {
     const docMarkdown: string[] = [];
     for (const { attachment, url } of documentUrls) {
       if (url) {
-        const sizeKB = Math.round(attachment.fileSize / 1024);
-        const sizeDisplay =
-          sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB} KB`;
         docMarkdown.push(
-          `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${sizeDisplay})`,
+          `📎 [${attachment.fileName}](${url}) (${attachment.fileType}, ${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId})*`,
         );
       }
     }
     if (docMarkdown.length > 0) {
-      textContent = `${message}\n\n${docMarkdown.join('\n')}`;
+      textContent = `${message}\n\n${docMarkdown.join('\n\n')}`;
     }
   }
 
-  // Add image references as markdown
+  // Add text file references as markdown with fileId (TXT, LOG)
+  if (textFileUrls.length > 0) {
+    const textFileMarkdown: string[] = [];
+    for (const { attachment, url } of textFileUrls) {
+      if (url) {
+        textFileMarkdown.push(
+          `📄 [${attachment.fileName}](${url}) (${formatFileSize(attachment.fileSize)})\n*(fileId: ${attachment.fileId})*`,
+        );
+      }
+    }
+    if (textFileMarkdown.length > 0) {
+      textContent = textContent
+        ? `${textContent}\n\n${textFileMarkdown.join('\n\n')}`
+        : textFileMarkdown.join('\n\n');
+    }
+  }
+
+  // Add image references as markdown with fileId
   if (imageUrls.length > 0) {
     const imageMarkdown: string[] = [];
     for (const { attachment, url } of imageUrls) {

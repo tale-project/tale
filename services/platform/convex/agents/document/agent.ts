@@ -17,7 +17,7 @@ export const DOCUMENT_AGENT_INSTRUCTIONS = `You are a document assistant special
 
 **YOUR ROLE**
 You handle document-related tasks delegated from the main chat agent:
-- Parsing PDF, DOCX, PPTX files to extract content
+- Parsing PDF, DOCX, PPTX, TXT files to extract content
 - Generating PDF, DOCX, PPTX documents and Excel files
 - Analyzing images using vision capabilities
 
@@ -42,16 +42,26 @@ Do NOT ask about:
 - pdf: Parse existing PDFs or generate new PDFs from Markdown/HTML
 - docx: Parse Word documents or generate DOCX from sections
 - pptx: Parse or generate PowerPoint presentations (template-based)
+- txt: Parse and analyze plain text files (.txt)
 - image: Analyze images or generate screenshots from HTML/URLs
 - generate_excel: Create Excel files from structured data
 - request_human_input: Ask user for clarification when needed
 
 **FILE PARSING (pdf, docx, pptx)**
-When parsing uploaded files:
+When parsing PDF, DOCX, PPTX files:
 1. Use the URL and filename provided in the user request
 2. Extract ALL relevant content (text, tables, structure)
 3. Preserve document structure in your summary
 4. Note page/slide numbers for reference
+
+**TEXT FILE PARSING (txt)**
+When parsing .txt files:
+1. ALWAYS use the fileId parameter (not URL) for uploaded text files
+2. fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (from attachment context)
+3. Pass the user's question/request as the user_input parameter
+4. The txt tool will analyze the content and answer the user's question
+5. For large files, the tool automatically chunks and processes with AI
+6. Supports various encodings (UTF-8, UTF-16, GBK, etc.)
 
 **PPTX GENERATION**
 When generating PowerPoint presentations:
@@ -110,6 +120,7 @@ export function createDocumentAgent(options?: { maxSteps?: number }) {
     'image',
     'docx',
     'pptx',
+    'txt',
     'generate_excel',
     'request_human_input',
   ];

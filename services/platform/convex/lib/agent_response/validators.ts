@@ -16,9 +16,39 @@ export const agentUsageValidator = v.object({
   cachedInputTokens: v.optional(v.number()),
 });
 
+export const contextStatsValidator = v.object({
+  totalTokens: v.number(),
+  messageCount: v.number(),
+  approvalCount: v.number(),
+  hasSummary: v.boolean(),
+  hasRag: v.boolean(),
+  hasIntegrations: v.boolean(),
+});
+
+export const toolCallValidator = v.object({
+  toolName: v.string(),
+  status: v.string(),
+});
+
+export const subAgentUsageValidator = v.object({
+  toolName: v.string(),
+  inputTokens: v.optional(v.number()),
+  outputTokens: v.optional(v.number()),
+  totalTokens: v.optional(v.number()),
+});
+
 export const agentResponseReturnsValidator = v.object({
+  threadId: v.optional(v.string()),
   text: v.string(),
   usage: v.optional(agentUsageValidator),
   finishReason: v.optional(v.string()),
   durationMs: v.number(),
+  timeToFirstTokenMs: v.optional(v.number()),
+  toolCalls: v.optional(v.array(toolCallValidator)),
+  subAgentUsage: v.optional(v.array(subAgentUsageValidator)),
+  contextWindow: v.optional(v.string()),
+  contextStats: v.optional(contextStatsValidator),
+  model: v.optional(v.string()),
+  provider: v.optional(v.string()),
+  reasoning: v.optional(v.string()),
 });

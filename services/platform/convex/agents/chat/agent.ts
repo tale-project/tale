@@ -55,7 +55,7 @@ ROUTING RULES
 • Use this for: "What's the weather...", "Search for...", "Fetch this URL..."
 
 **document_assistant**:
-• File parsing (PDF, Word, PowerPoint) and generation
+• Document parsing, text file analysis, image analysis, file generation
 • Use this for: "Parse this PDF...", "Generate a report...", "Analyze this image..."
 
 **workflow_assistant**:
