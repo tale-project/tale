@@ -23,6 +23,7 @@ export interface GenerateWorkflowResponseArgs {
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   delegationMode?: boolean;
+  promptMessageId?: string;
 }
 
 export type GenerateWorkflowResponseResult = GenerateResponseResult;
