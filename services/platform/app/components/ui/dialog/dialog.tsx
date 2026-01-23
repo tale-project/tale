@@ -24,7 +24,6 @@ const dialogContentVariants = cva(
         lg: 'max-w-lg',
         xl: 'max-w-xl',
         wide: 'max-w-[1100px] w-[95vw]',
-        full: 'max-w-[95vw] w-[95vw] h-[90vh]',
       },
     },
     defaultVariants: {
@@ -143,8 +142,12 @@ export function Dialog({
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           className={cn(dialogContentVariants({ size }), className)}
-          {...(customHeader || !description ? { 'aria-describedby': undefined } : {})}
-          onCloseAutoFocus={preventCloseAutoFocus ? (e) => e.preventDefault() : undefined}
+          {...(customHeader || !description
+            ? { 'aria-describedby': undefined }
+            : {})}
+          onCloseAutoFocus={
+            preventCloseAutoFocus ? (e) => e.preventDefault() : undefined
+          }
         >
           {!hideClose && !customHeader && (
             <div className="absolute right-4 top-4">

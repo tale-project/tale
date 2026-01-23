@@ -9,11 +9,16 @@
  */
 
 import { v } from 'convex/values';
+import { saveMessage } from '@convex-dev/agent';
 import { action, internalAction } from '../../_generated/server';
 import { components } from '../../_generated/api';
-import { saveMessage } from '@convex-dev/agent';
 import { authComponent } from '../../auth';
 import { agentResponseReturnsValidator } from '../../lib/agent_response';
+import {
+  registerFilesWithAgent,
+  buildMultiModalContent,
+  type FileAttachment,
+} from '../../lib/attachments';
 import { generateWorkflowResponse } from './generate_response';
 import { getGetWorkflowInternalRef } from '../../lib/function_refs';
 
@@ -69,19 +74,9 @@ export const chatWithWorkflowAssistant = action({
       return { success: false, error: 'Unauthenticated' };
     }
 
-    const { threadId, organizationId, workflowId, message } = args;
+    const { threadId, organizationId, workflowId, message, attachments } = args;
 
     try {
-      // Save the user message to the thread first
-      const { messageId: promptMessageId } = await saveMessage(
-        ctx,
-        components.agent,
-        {
-          threadId,
-          message: { role: 'user', content: message },
-        },
-      );
-
       // Build additional context for the task
       const additionalContext: Record<string, string> = {};
       if (workflowId) {
@@ -94,7 +89,40 @@ export const chatWithWorkflowAssistant = action({
         }
       }
 
-      // Call the Workflow Agent with the saved message
+      let promptMessageId: string | undefined;
+
+      // Handle attachments: register files and save message with file parts
+      if (attachments && attachments.length > 0) {
+        const fileAttachments: FileAttachment[] = attachments.map((a) => ({
+          fileId: a.fileId as FileAttachment['fileId'],
+          fileName: a.fileName,
+          fileType: a.fileType,
+          fileSize: a.fileSize,
+        }));
+
+        const registeredFiles = await registerFilesWithAgent(
+          ctx,
+          fileAttachments,
+        );
+
+        const { contentParts } = buildMultiModalContent(
+          registeredFiles,
+          message,
+        );
+
+        const fileIds = registeredFiles.map((f) => f.agentFileId);
+
+        const { messageId } = await saveMessage(ctx, components.agent, {
+          threadId,
+          message: {
+            role: 'user',
+            content: contentParts,
+          },
+          metadata: fileIds.length > 0 ? { fileIds } : undefined,
+        });
+        promptMessageId = messageId;
+      }
+
       await generateWorkflowResponse({
         ctx,
         threadId,
