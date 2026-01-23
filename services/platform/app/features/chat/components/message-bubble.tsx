@@ -7,12 +7,13 @@ import {
   useRef,
   useState,
   useEffect,
+  useCallback,
   memo,
 } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { CopyIcon, CheckIcon } from 'lucide-react';
+import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
   TableBody,
@@ -326,6 +327,130 @@ function CodeBlock({
   );
 }
 
+// Zoom constants for image preview
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.25;
+
+// Reusable image preview dialog with zoom functionality
+interface ImagePreviewDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  src: string;
+  alt: string;
+}
+
+export const ImagePreviewDialog = memo(function ImagePreviewDialog({
+  isOpen,
+  onOpenChange,
+  src,
+  alt,
+}: ImagePreviewDialogProps) {
+  const { t } = useT('chat');
+  const [zoom, setZoom] = useState(1);
+
+  const handleClose = useCallback(
+    (open: boolean) => {
+      onOpenChange(open);
+      if (!open) {
+        setZoom(1);
+      }
+    },
+    [onOpenChange],
+  );
+
+  const handleZoomIn = useCallback(() => {
+    setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setZoom(1);
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    if (e.deltaY < 0) {
+      setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+    } else {
+      setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+    }
+  }, []);
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={handleClose}
+      title={t('imagePreview')}
+      size="wide"
+      hideClose
+      className="p-0 border-0 ring-0 bg-black/95 flex flex-col"
+      customHeader={
+        <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
+          <span className="text-white/80 text-sm truncate max-w-[60%]">
+            {alt}
+          </span>
+          <div className="flex items-center gap-1 bg-black/50 rounded-lg p-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleZoomOut}
+              disabled={zoom <= MIN_ZOOM}
+              className="size-8 text-white hover:bg-white/20 disabled:opacity-50"
+              aria-label={t('imageViewer.zoomOut')}
+            >
+              <ZoomOut className="size-4" />
+            </Button>
+            <span className="text-white text-sm min-w-[3rem] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleZoomIn}
+              disabled={zoom >= MAX_ZOOM}
+              className="size-8 text-white hover:bg-white/20 disabled:opacity-50"
+              aria-label={t('imageViewer.zoomIn')}
+            >
+              <ZoomIn className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleResetZoom}
+              disabled={zoom === 1}
+              className="size-8 text-white hover:bg-white/20 disabled:opacity-50"
+              aria-label={t('imageViewer.resetZoom')}
+            >
+              <RotateCcw className="size-4" />
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div
+        className="flex-1 flex items-center justify-center overflow-auto p-8 pt-16"
+        onWheel={handleWheel}
+      >
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: 'center center',
+            transition: 'transform 0.15s ease-out',
+          }}
+          className="max-h-full max-w-full object-contain"
+          draggable={false}
+        />
+      </div>
+    </Dialog>
+  );
+});
+
 // Memoized image component for markdown - prevents flicker during streaming
 const MarkdownImage = memo(function MarkdownImage(
   props: React.ImgHTMLAttributes<HTMLImageElement>,
@@ -362,22 +487,12 @@ const MarkdownImage = memo(function MarkdownImage(
           className="max-w-[24rem] max-h-[24rem] w-auto object-contain rounded-lg"
         />
       </span>
-      <Dialog
-        open={isOpen}
+      <ImagePreviewDialog
+        isOpen={isOpen}
         onOpenChange={setIsOpen}
-        title={t('imagePreview')}
-        hideClose
-        className="max-w-fit p-0 border-0 ring-0 bg-background/50 backdrop-blur-sm"
-        customHeader={<span className="sr-only">{t('imagePreview')}</span>}
-      >
-        <Image
-          src={imageSrc}
-          alt={altText}
-          width={1920}
-          height={1080}
-          className="max-h-[80dvh] w-auto object-contain rounded-lg"
-        />
-      </Dialog>
+        src={imageSrc}
+        alt={altText}
+      />
     </>
   );
 });
