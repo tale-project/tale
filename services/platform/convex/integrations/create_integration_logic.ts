@@ -125,23 +125,27 @@ export async function createIntegrationLogic(
 
   debugLog(`Integration Create Saved ${workflowIds.length} related workflows`);
 
-  await ctx.runMutation(internal.audit_logs.mutations.createAuditLog, {
-    organizationId: args.organizationId,
-    actorId: 'system',
-    actorType: 'system' as AuditLogActorType,
-    action: 'create_integration',
-    category: 'integration' as AuditLogCategory,
-    resourceType: 'integration',
-    resourceId: String(integrationId),
-    resourceName: args.name,
-    newState: {
-      name: args.name,
-      title: args.title,
-      type: args.type ?? 'rest_api',
-      authMethod: args.authMethod,
-    },
-    status: 'success' as AuditLogStatus,
-  });
+  try {
+    await ctx.runMutation(internal.audit_logs.mutations.createAuditLog, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorType: 'system' as AuditLogActorType,
+      action: 'create_integration',
+      category: 'integration' as AuditLogCategory,
+      resourceType: 'integration',
+      resourceId: String(integrationId),
+      resourceName: args.name,
+      newState: {
+        name: args.name,
+        title: args.title,
+        type: args.type ?? 'rest_api',
+        authMethod: args.authMethod,
+      },
+      status: 'success' as AuditLogStatus,
+    });
+  } catch (error) {
+    debugLog(`Failed to create audit log for integration ${integrationId}:`, error);
+  }
 
   return integrationId;
 }
