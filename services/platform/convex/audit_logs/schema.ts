@@ -60,4 +60,5 @@ export const auditLogsTable = defineTable({
   .index('by_organizationId_and_resourceType', ['organizationId', 'resourceType'])
   .index('by_org_category_timestamp', ['organizationId', 'category', 'timestamp'])
   .index('by_org_resourceType_timestamp', ['organizationId', 'resourceType', 'timestamp'])
-  .index('by_resourceType_and_resourceId', ['resourceType', 'resourceId']);
+  .index('by_resourceType_and_resourceId', ['resourceType', 'resourceId'])
+  .index('by_timestamp', ['timestamp']);

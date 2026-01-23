@@ -42,6 +42,10 @@ export const archiveOldLogs = internalMutation({
     olderThanTimestamp: v.number(),
     batchSize: v.optional(v.number()),
   },
+  returns: v.object({
+    deletedCount: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const batchSize = args.batchSize ?? 100;
     let deletedCount = 0;
@@ -73,12 +77,17 @@ const BATCH_SIZE = 500;
 
 export const runRetentionCleanup = internalMutation({
   args: {},
+  returns: v.object({
+    deletedCount: v.number(),
+    hasMore: v.boolean(),
+  }),
   handler: async (ctx) => {
     const cutoffTimestamp = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
     let totalDeleted = 0;
 
     for await (const log of ctx.db
       .query('auditLogs')
+      .withIndex('by_timestamp')
       .order('asc')) {
       if (log.timestamp >= cutoffTimestamp) {
         break;
