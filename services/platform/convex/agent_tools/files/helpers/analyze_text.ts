@@ -54,7 +54,7 @@ const SUPPORTED_ENCODINGS = [
 ];
 
 export interface AnalyzeTextParams {
-  fileId: Id<'_storage'>;
+  fileId: string;
   filename: string;
   userInput: string;
 }
@@ -252,7 +252,8 @@ export async function analyzeTextContent(
 
   try {
     // Get the text file blob from storage (like analyze_image.ts)
-    const textBlob = await ctx.storage.get(fileId);
+    // Cast to Id<'_storage'> here - the public API accepts string for serialization boundaries
+    const textBlob = await ctx.storage.get(fileId as Id<'_storage'>);
     if (!textBlob) {
       throw new Error(`Text file not found in storage: ${fileId}`);
     }

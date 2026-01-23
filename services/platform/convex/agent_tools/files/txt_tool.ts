@@ -8,7 +8,6 @@ import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import type { Id } from '../../_generated/dataModel';
 import { createDebugLog } from '../../lib/debug_log';
 import { analyzeTextContent } from './helpers/analyze_text';
 
@@ -93,7 +92,7 @@ Returns: { success, result, char_count, line_count, encoding, chunked }
 
       try {
         const result = await analyzeTextContent(ctx, {
-          fileId: fileId as Id<'_storage'>,
+          fileId,
           filename,
           userInput: user_input,
         });
