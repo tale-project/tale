@@ -21,6 +21,8 @@ export function AutomationsTableSkeleton({
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
+      showFilters
+      noFirstColumnAvatar
       actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
       infiniteScroll={infiniteScroll}
     />

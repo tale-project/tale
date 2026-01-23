@@ -1,4 +1,9 @@
-import { createFileRoute, Outlet, useLocation, Link, useNavigate } from '@tanstack/react-router';
+import {
+  createFileRoute,
+  Outlet,
+  useLocation,
+  Link,
+} from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { lazy, Suspense, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
@@ -22,14 +27,17 @@ import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import { AutomationNavigation } from '@/app/features/automations/components/automation-navigation';
 import { useUpdateAutomation } from '@/app/features/automations/hooks/use-update-automation';
+import { useAutomationVersionNavigation } from '@/app/features/automations/hooks/use-automation-version-navigation';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 const AutomationSteps = lazy(() =>
-  import('@/app/features/automations/components/automation-steps').then((mod) => ({
-    default: mod.AutomationSteps,
-  })),
+  import('@/app/features/automations/components/automation-steps').then(
+    (mod) => ({
+      default: mod.AutomationSteps,
+    }),
+  ),
 );
 
 const searchSchema = z.object({
@@ -74,10 +82,13 @@ function AutomationDetailLayout() {
   const { id: organizationId, amId } = Route.useParams();
   const automationId = amId as Id<'wfDefinitions'>;
   const location = useLocation();
-  const navigate = useNavigate();
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const { user } = useAuth();
+  const { navigateToVersion } = useAutomationVersionNavigation(
+    organizationId,
+    amId,
+  );
 
   const [editMode, setEditMode] = useState(false);
   const isSubmittingRef = useRef(false);
@@ -87,9 +98,12 @@ function AutomationDetailLayout() {
   const automation = useQuery(api.wf_definitions.queries.getWorkflowPublic, {
     wfDefinitionId: automationId,
   });
-  const steps = useQuery(api.wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic, {
-    wfDefinitionId: automationId,
-  });
+  const steps = useQuery(
+    api.wf_step_defs.get_workflow_steps_public.getWorkflowStepsPublic,
+    {
+      wfDefinitionId: automationId,
+    },
+  );
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
   });
@@ -103,14 +117,6 @@ function AutomationDetailLayout() {
         }
       : 'skip',
   );
-
-  const handleVersionChange = (versionId: string) => {
-    navigate({
-      to: '/dashboard/$id/automations/$amId',
-      params: { id: organizationId, amId: versionId },
-      search: { panel: 'ai-chat' },
-    });
-  };
 
   const handleSubmitAutomationName = async () => {
     if (isSubmittingRef.current) return;
@@ -148,7 +154,7 @@ function AutomationDetailLayout() {
   return (
     <>
       <StickyHeader>
-        <AdaptiveHeaderRoot standalone={false} showBorder className="gap-2">
+        <AdaptiveHeaderRoot standalone={false} className="gap-2">
           <h1 className="text-base font-semibold truncate">
             <Link
               to="/dashboard/$id/automations"
@@ -227,7 +233,7 @@ function AutomationDetailLayout() {
                 {versions.map((version: Doc<'wfDefinitions'>) => (
                   <DropdownMenuItem
                     key={version._id}
-                    onClick={() => handleVersionChange(version._id)}
+                    onClick={() => navigateToVersion(version._id)}
                   >
                     <span>{version.version}</span>
                     <span className="text-xs text-muted-foreground ml-1">

@@ -10,11 +10,14 @@ export function ExecutionsTableSkeleton() {
 
   return (
     <DataTableSkeleton
+      className="py-6 px-4"
       columns={columns}
       stickyLayout={stickyLayout}
       searchPlaceholder={searchPlaceholder}
       noFirstColumnAvatar
       infiniteScroll={infiniteScroll}
+      showFilters
+      showDateRange
     />
   );
 }

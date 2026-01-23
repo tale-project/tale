@@ -6,15 +6,15 @@ import {
   Bot,
   Send,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
-  Trash2,
   Paperclip,
   X,
   LoaderCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { stripWorkflowContext } from '@/lib/utils/message-helpers';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -150,16 +150,95 @@ function ThinkingAnimation({ steps }: { steps: string[] }) {
   );
 }
 
+const USER_MESSAGE_TRUNCATE_LENGTH = 120;
+const ASSISTANT_MESSAGE_TRUNCATE_LENGTH = 250;
+
+function CollapsibleMessage({
+  content,
+  role,
+  isMarkdown = false,
+  viewMoreLabel,
+  viewLessLabel,
+  isLastMessage = false,
+}: {
+  content: string;
+  role: 'user' | 'assistant';
+  isMarkdown?: boolean;
+  viewMoreLabel: string;
+  viewLessLabel: string;
+  isLastMessage?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(isLastMessage);
+  const truncateLength =
+    role === 'user'
+      ? USER_MESSAGE_TRUNCATE_LENGTH
+      : ASSISTANT_MESSAGE_TRUNCATE_LENGTH;
+  const shouldTruncate = content.length > truncateLength;
+
+  useEffect(() => {
+    if (isLastMessage) {
+      setIsExpanded(true);
+    }
+  }, [isLastMessage]);
+  const displayContent =
+    shouldTruncate && !isExpanded
+      ? content.slice(0, truncateLength) + '...'
+      : content;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {isMarkdown ? (
+        <div className="text-xs prose prose-sm dark:prose-invert max-w-none prose-p:my-0.5 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-pre:text-[10px] prose-headings:my-1 prose-headings:text-xs [&_li]:mb-0.5 [&_ul]:my-1 [&_ul]:pl-3 [&_ul]:list-disc [&_ol]:mb-0.5 [&_ol]:mt-0.5 [&_ol]:pl-3 [&_ol]:list-decimal [&_code]:bg-muted-foreground/10 [&_code]:text-[10px] [&_code]:text-muted-foreground [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono [&_code]:break-words [&_code]:whitespace-normal [&_code]:inline-block [&_code]:max-w-full [&_pre_code]:overflow-auto [&_pre_code]:block [&_pre_code]:whitespace-pre [&_pre_code]:break-normal [&_p]:mb-0.5 [&_p]:mt-0.5 [&_p]:break-words [&_p]:leading-relaxed [&_h3]:mt-1 [&_h3]:text-xs">
+          <Bot className="size-3.5 text-muted-foreground mb-1.5" />
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {displayContent}
+          </ReactMarkdown>
+        </div>
+      ) : (
+        <p className="text-xs whitespace-pre-wrap leading-relaxed">
+          {displayContent}
+        </p>
+      )}
+      {shouldTruncate && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={cn(
+            'text-[10px] font-medium flex items-center gap-0.5 self-start transition-colors ml-auto',
+            role === 'user'
+              ? 'text-primary-foreground/70 hover:text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {isExpanded ? (
+            <>
+              {viewLessLabel}
+              <ChevronUp className="size-3" />
+            </>
+          ) : (
+            <>
+              {viewMoreLabel}
+              <ChevronDown className="size-3" />
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface AutomationAssistantProps {
   automationId?: Id<'wfDefinitions'>;
   organizationId: string;
   onClearChat?: () => void;
+  onClearChatStateChange?: (canClear: boolean, clearFn: () => void) => void;
 }
 
 export function AutomationAssistant({
   automationId,
   organizationId,
   onClearChat,
+  onClearChatStateChange,
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -196,7 +275,7 @@ export function AutomationAssistant({
   const { results: uiMessages } = useUIMessages(
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 10, stream: true },
+    { initialNumItems: 100, stream: true },
   ) as unknown as { results: UIMessage[] | undefined };
 
   // Load threadId from workflow metadata when workflow is loaded
@@ -255,21 +334,51 @@ export function AutomationAssistant({
       .join('|');
   }, [transformedMessages]);
 
-  // Sync messages from thread - only update when content actually changes
+  // Track optimistic pending user message (not yet confirmed by backend)
+  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(
+    null,
+  );
+
+  // Sync messages from thread - clear pending message once real messages arrive
   useEffect(() => {
     if (transformedMessages.length > 0) {
       setMessages(transformedMessages);
+      // Clear pending message once real messages include a user message
+      if (
+        pendingUserMessage &&
+        transformedMessages.some((m) => m.role === 'user')
+      ) {
+        setPendingUserMessage(null);
+      }
     }
-  }, [messagesKey]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally using messagesKey for stable comparison
+  }, [messagesKey, pendingUserMessage]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally using messagesKey for stable comparison
+
+  // Combine confirmed messages with pending optimistic message for display
+  const displayMessages = useMemo(() => {
+    if (!pendingUserMessage) return messages;
+    // Show pending message if no real messages exist yet
+    if (messages.length === 0) {
+      return [pendingUserMessage];
+    }
+    // Show pending message at the end if not yet confirmed
+    if (
+      !messages.some(
+        (m) => m.role === 'user' && m.content === pendingUserMessage.content,
+      )
+    ) {
+      return [...messages, pendingUserMessage];
+    }
+    return messages;
+  }, [messages, pendingUserMessage]);
 
   // Scroll to bottom when new messages arrive using throttled scroll
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (displayMessages.length === 0) return;
 
     if (containerRef.current) {
       throttledScrollToBottom(containerRef.current, 'auto');
     }
-  }, [messages.length, throttledScrollToBottom]);
+  }, [displayMessages.length, throttledScrollToBottom]);
 
   // Cleanup throttled scroll on unmount
   useEffect(() => {
@@ -450,6 +559,15 @@ export function AutomationAssistant({
     const attachmentsToSend =
       attachments.length > 0 ? [...attachments] : undefined;
 
+    // Create optimistic user message for immediate display
+    const optimisticMessage: Message = {
+      id: `pending-${Date.now()}`,
+      role: 'user',
+      content: messageContent,
+      timestamp: new Date(),
+    };
+    setPendingUserMessage(optimisticMessage);
+
     // Clear input and attachments immediately for better UX
     setInputValue('');
     // Clean up preview URLs before clearing
@@ -476,6 +594,15 @@ export function AutomationAssistant({
           chatType: 'workflow_assistant',
         });
         setThreadId(currentThreadId);
+
+        // Persist threadId to workflow metadata so it survives page navigation
+        if (automationId && user?.userId) {
+          await updateWorkflowMetadata({
+            wfDefinitionId: automationId,
+            metadata: { ...workflow?.metadata, threadId: currentThreadId },
+            updatedBy: user.userId,
+          });
+        }
       }
 
       // Prepare attachments for the agent
@@ -494,7 +621,7 @@ export function AutomationAssistant({
         threadId: currentThreadId!,
         organizationId,
         workflowId: automationId,
-        message: messageContent || 'Please analyze the attached files.',
+        message: messageContent || t('assistant.analyzeAttachments'),
         attachments: mutationAttachments,
       });
     } catch (error) {
@@ -518,7 +645,7 @@ export function AutomationAssistant({
     }
   };
 
-  const handleClearChat = async () => {
+  const handleClearChat = useCallback(async () => {
     if (!user?.userId) {
       console.error('User not authenticated');
       return;
@@ -555,45 +682,65 @@ export function AutomationAssistant({
       setMessages([]);
       setInputValue('');
     }
-  };
+  }, [
+    user?.userId,
+    threadId,
+    automationId,
+    workflow?.metadata,
+    deleteChatThread,
+    updateWorkflowMetadata,
+    onClearChat,
+  ]);
+
+  // Report clear chat state to parent
+  useEffect(() => {
+    const canClear = displayMessages.length > 0 && !!threadId;
+    onClearChatStateChange?.(canClear, handleClearChat);
+  }, [
+    displayMessages.length,
+    threadId,
+    handleClearChat,
+    onClearChatStateChange,
+  ]);
 
   return (
     <div
       ref={containerRef}
       className="flex-1 flex flex-col overflow-y-auto relative"
     >
-      {/* Header with clear button */}
-      {messages.length > 0 && threadId && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleClearChat}
-          className="h-8 w-8 absolute top-3.5 right-2 z-10"
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      )}
-
       {/* Chat messages */}
       <div className="flex-1 flex flex-col p-2 space-y-2.5">
-        {messages.length === 0 ? (
+        {displayMessages.length === 0 ? (
           <div className="flex flex-col items-start justify-start h-full py-4">
             <div className="flex gap-2 items-start">
               <div className="p-1.5 rounded-lg bg-muted shrink-0 h-fit">
                 <Bot className="size-3.5 text-muted-foreground" />
               </div>
               <div className="rounded-lg px-3 py-2 bg-muted text-foreground max-w-[85%]">
-                <p className="text-xs">
-                  {workflow?.status === 'draft'
-                    ? t('assistant.welcomeDraft')
-                    : t('assistant.welcomeActive')}
-                </p>
+                {workflow === undefined ? (
+                  <div className="flex items-center gap-2">
+                    <LoaderCircle className="size-3 animate-spin text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      {t('assistant.loading')}
+                    </p>
+                  </div>
+                ) : workflow === null ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t('assistant.notFound')}
+                  </p>
+                ) : (
+                  <p className="text-xs">
+                    {workflow.status === 'draft'
+                      ? t('assistant.welcomeDraft')
+                      : t('assistant.welcomeActive')}
+                  </p>
+                )}
               </div>
             </div>
           </div>
         ) : (
           <>
-            {messages.map((message) => (
+            {displayMessages.map((message, index) => (
               <div
                 key={message.id}
                 className={cn(
@@ -649,24 +796,20 @@ export function AutomationAssistant({
                   {message.content && (
                     <div
                       className={cn(
-                        'rounded-lg px-3 py-2',
+                        'rounded-lg px-2.5 py-2',
                         message.role === 'user'
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {message.role === 'assistant' ? (
-                        <div className="text-xs prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-pre:my-1 prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-2 prose-pre:overflow-x-auto prose-headings:my-2 [&_li]:mb-1 [&_ul]:my-2 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:mb-1 [&_ol]:mt-1 [&_ol]:pl-4 [&_ol]:list-decimal [&_ol]:list-decimal-leading-zero [&_code]:bg-muted-foreground/10 [&_code]:text-[10px] [&_code]:text-muted-foreground [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:font-mono [&_code]:break-words [&_code]:whitespace-normal [&_code]:inline-block [&_code]:max-w-full [&_pre_code]:overflow-auto [&_pre_code]:block [&_pre_code]:whitespace-pre [&_pre_code]:break-normal [&_p]:mb-1 [&_p]:mt-1 [&_p]:break-words [&_h3]:mt-2">
-                          <Bot className="size-4 text-muted-foreground mb-2" />
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="text-xs whitespace-pre-wrap">
-                          {message.content}
-                        </p>
-                      )}
+                      <CollapsibleMessage
+                        content={message.content}
+                        role={message.role}
+                        isMarkdown={message.role === 'assistant'}
+                        viewMoreLabel={t('assistant.viewMore')}
+                        viewLessLabel={t('assistant.viewLess')}
+                        isLastMessage={index === displayMessages.length - 1}
+                      />
                     </div>
                   )}
                 </div>
@@ -771,18 +914,18 @@ export function AutomationAssistant({
             </div>
           )}
 
-          <div className="transition-all duration-300 ease-in-out overflow-y-auto h-[3rem]">
+          <div className="transition-all duration-300 ease-in-out overflow-y-auto h-[5rem]">
             <Textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={t('assistant.messagePlaceholder')}
-              className="resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm min-h-[2.5rem]"
+              className="resize-none border-0 outline-none bg-transparent p-2 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
               disabled={isLoading}
             />
           </div>
-          <div className="flex items-center justify-between py-2 px-1">
+          <div className="flex items-center justify-between px-1">
             {/* Attachment button */}
             <button
               type="button"

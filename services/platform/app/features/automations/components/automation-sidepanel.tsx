@@ -10,6 +10,8 @@ import {
   Pickaxe,
   Sparkles,
   TestTubeDiagonal,
+  Workflow,
+  Trash2,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -18,7 +20,7 @@ import {
   TooltipContent,
 } from '@/app/components/ui/overlays/tooltip';
 import { cn } from '@/lib/utils/cn';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { AutomationTester } from './automation-tester';
 import { AutomationAssistant } from './automation-assistant';
@@ -82,9 +84,24 @@ export function AutomationSidePanel({
   organizationId,
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const [width, setWidth] = useState(384); // 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
+  const [canClearChat, setCanClearChat] = useState(false);
+  const clearChatRef = useRef<(() => void) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const handleClearChatStateChange = useCallback(
+    (canClear: boolean, clearFn: () => void) => {
+      setCanClearChat(canClear);
+      clearChatRef.current = clearFn;
+    },
+    [],
+  );
+
+  const handleClearChat = useCallback(() => {
+    clearChatRef.current?.();
+  }, []);
 
   const MIN_WIDTH = 280; // ~70 in tailwind
   const MAX_WIDTH = 600; // ~150 in tailwind
@@ -197,15 +214,28 @@ export function AutomationSidePanel({
               </div>
             </>
           ) : null}
-          {/* View automation button - visible on mobile */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="md:hidden shrink-0"
-            onClick={onClose}
-          >
-            {t('sidePanel.viewAutomation')}
-          </Button>
+          {/* Mobile action buttons */}
+          <div className="flex items-center gap-1 md:hidden shrink-0">
+            {showAIChat && canClearChat && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={handleClearChat}
+                aria-label={tCommon('actions.delete')}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            )}
+            <Button
+              size="icon"
+              className="size-8"
+              onClick={onClose}
+              aria-label={t('sidePanel.viewAutomation')}
+            >
+              <Workflow className="size-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -219,6 +249,7 @@ export function AutomationSidePanel({
         <AutomationAssistant
           automationId={automationId}
           organizationId={organizationId}
+          onClearChatStateChange={handleClearChatStateChange}
         />
       ) : step ? (
         <div className="flex-1 overflow-y-auto p-3">
