@@ -31,8 +31,8 @@ export async function getParentThreadId(
   }
 
   try {
-    const summary = JSON.parse(thread.summary) as SubThreadSummary;
-    return summary.parentThreadId ?? null;
+    const summary = JSON.parse(thread.summary) as Partial<SubThreadSummary>;
+    return typeof summary.parentThreadId === 'string' ? summary.parentThreadId : null;
   } catch {
     return null;
   }
