@@ -1,4 +1,5 @@
-import { createFileRoute, notFound } from '@tanstack/react-router';
+import { createFileRoute, notFound, useLocation } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { z } from 'zod';
 import { ApprovalsClient } from '@/app/features/approvals/components/approvals-client';
 
@@ -21,12 +22,21 @@ export const Route = createFileRoute('/dashboard/$id/approvals/$status')({
 });
 
 function ApprovalsStatusPage() {
-  const { id: organizationId, status } = Route.useParams();
+  const location = useLocation();
   const { search } = Route.useSearch();
+
+  const { organizationId, status } = useMemo(() => {
+    const pathParts = location.pathname.split('/');
+    const approvalsIndex = pathParts.indexOf('approvals');
+    return {
+      organizationId: pathParts[2],
+      status: pathParts[approvalsIndex + 1] as ApprovalStatus,
+    };
+  }, [location.pathname]);
 
   return (
     <ApprovalsClient
-      key={`${status}-${search}`}
+      key={`${organizationId}-${status}-${search}`}
       status={status as ApprovalStatus}
       organizationId={organizationId}
       search={search}
