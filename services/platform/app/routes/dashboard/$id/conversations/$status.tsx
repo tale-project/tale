@@ -1,4 +1,5 @@
-import { createFileRoute, notFound } from '@tanstack/react-router';
+import { createFileRoute, notFound, useLocation } from '@tanstack/react-router';
+import { useMemo } from 'react';
 import { z } from 'zod';
 import { ConversationsClient } from '@/app/features/conversations/components/conversations-client';
 import type { Doc } from '@/convex/_generated/dataModel';
@@ -24,11 +25,21 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 });
 
 function ConversationsStatusPage() {
-  const { id: organizationId, status } = Route.useParams();
+  const location = useLocation();
   const { category, priority, search, page = '1' } = Route.useSearch();
+
+  const { organizationId, status } = useMemo(() => {
+    const pathParts = location.pathname.split('/');
+    const conversationsIndex = pathParts.indexOf('conversations');
+    return {
+      organizationId: pathParts[2],
+      status: pathParts[conversationsIndex + 1] as ConversationStatus,
+    };
+  }, [location.pathname]);
 
   return (
     <ConversationsClient
+      key={`${organizationId}-${status}`}
       status={status as Doc<'conversations'>['status']}
       organizationId={organizationId}
       page={parseInt(page)}
