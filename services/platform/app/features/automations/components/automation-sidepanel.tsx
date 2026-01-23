@@ -214,6 +214,20 @@ export function AutomationSidePanel({
               </div>
             </>
           ) : null}
+          {/* Desktop action buttons */}
+          {showAIChat && canClearChat && (
+            <div className="hidden md:flex items-center shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={handleClearChat}
+                aria-label={tCommon('actions.delete')}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          )}
           {/* Mobile action buttons */}
           <div className="flex items-center gap-1 md:hidden shrink-0">
             {showAIChat && canClearChat && (

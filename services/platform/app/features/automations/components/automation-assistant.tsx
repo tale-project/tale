@@ -32,11 +32,36 @@ import { toast } from '@/app/hooks/use-toast';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { Image } from '@/app/components/ui/data-display/image';
+import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
 import { useT } from '@/lib/i18n/client';
 
 interface FileAttachment extends BaseFileAttachment {
   previewUrl?: string;
+}
+
+// Module-level guard to prevent duplicate sends (survives component remounts)
+const recentSends = new Map<string, number>();
+const DUPLICATE_WINDOW_MS = 5000;
+
+function canSendMessage(content: string, threadId: string | null): boolean {
+  const key = `${threadId || 'new'}:${content.trim().toLowerCase()}`;
+  const lastSent = recentSends.get(key);
+  const now = Date.now();
+
+  if (lastSent && now - lastSent < DUPLICATE_WINDOW_MS) {
+    console.warn('[AutomationAssistant] Blocked duplicate send:', key);
+    return false;
+  }
+
+  recentSends.set(key, now);
+  // Clean old entries
+  for (const [k, time] of recentSends) {
+    if (now - time > DUPLICATE_WINDOW_MS) {
+      recentSends.delete(k);
+    }
+  }
+  return true;
 }
 
 // File part from UIMessage.parts
@@ -54,6 +79,7 @@ export interface Message {
   timestamp: Date;
   automationContext?: string; // Optional automation context for first user message
   fileParts?: FilePart[]; // File parts from server messages
+  clientMessageId?: string; // Client-side correlation ID for optimistic message deduplication
 }
 
 function AutomationDetailsCollapse({
@@ -250,9 +276,15 @@ export function AutomationAssistant({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isSendingRef = useRef(false);
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
+  const [previewImage, setPreviewImage] = useState<{
+    isOpen: boolean;
+    src: string;
+    alt: string;
+  } | null>(null);
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
@@ -323,6 +355,8 @@ export function AutomationAssistant({
           content: m.role === 'user' ? stripWorkflowContext(m.text) : m.text,
           timestamp: new Date(m._creationTime),
           fileParts: fileParts.length > 0 ? fileParts : undefined,
+          automationContext: undefined,
+          clientMessageId: undefined,
         };
       });
   }, [uiMessages]);
@@ -343,33 +377,53 @@ export function AutomationAssistant({
   useEffect(() => {
     if (transformedMessages.length > 0) {
       setMessages(transformedMessages);
-      // Clear pending message once real messages include a user message
-      if (
-        pendingUserMessage &&
-        transformedMessages.some((m) => m.role === 'user')
-      ) {
-        setPendingUserMessage(null);
+      // Clear pending message once server confirms it
+      // Match by timestamp proximity OR normalized content equality
+      if (pendingUserMessage) {
+        const pendingTimestamp = pendingUserMessage.timestamp.getTime();
+        const toleranceMs = 60000;
+        const pendingContent = pendingUserMessage.content.trim().toLowerCase();
+        const hasMatchingServerMessage = transformedMessages.some(
+          (m) =>
+            m.role === 'user' &&
+            (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
+              m.content.trim().toLowerCase() === pendingContent),
+        );
+        if (hasMatchingServerMessage) {
+          setPendingUserMessage(null);
+        }
       }
     }
-  }, [messagesKey, pendingUserMessage]); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally using messagesKey for stable comparison
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when messagesKey changes; pendingUserMessage is read but not a trigger to avoid update loops
+  }, [messagesKey]);
 
   // Combine confirmed messages with pending optimistic message for display
+  // Use transformedMessages directly to avoid timing lag with messages state
   const displayMessages = useMemo(() => {
-    if (!pendingUserMessage) return messages;
-    // Show pending message if no real messages exist yet
-    if (messages.length === 0) {
+    const serverMessages =
+      transformedMessages.length > 0 ? transformedMessages : messages;
+
+    if (!pendingUserMessage) return serverMessages;
+    if (serverMessages.length === 0) {
       return [pendingUserMessage];
     }
-    // Show pending message at the end if not yet confirmed
-    if (
-      !messages.some(
-        (m) => m.role === 'user' && m.content === pendingUserMessage.content,
-      )
-    ) {
-      return [...messages, pendingUserMessage];
+    // Match by timestamp proximity OR normalized content equality
+    // This handles both server content normalization and timing edge cases
+    const pendingTimestamp = pendingUserMessage.timestamp.getTime();
+    const toleranceMs = 60000;
+    const pendingContent = pendingUserMessage.content.trim().toLowerCase();
+
+    const hasMatchingServerMessage = serverMessages.some(
+      (m) =>
+        m.role === 'user' &&
+        (Math.abs(m.timestamp.getTime() - pendingTimestamp) < toleranceMs ||
+          m.content.trim().toLowerCase() === pendingContent),
+    );
+    if (!hasMatchingServerMessage) {
+      return [...serverMessages, pendingUserMessage];
     }
-    return messages;
-  }, [messages, pendingUserMessage]);
+    return serverMessages;
+  }, [transformedMessages, messages, pendingUserMessage]);
 
   // Scroll to bottom when new messages arrive using throttled scroll
   useEffect(() => {
@@ -546,6 +600,7 @@ export function AutomationAssistant({
   };
 
   const handleSendMessage = async () => {
+    if (isSendingRef.current) return;
     if (
       (!inputValue.trim() && attachments.length === 0) ||
       isLoading ||
@@ -555,16 +610,25 @@ export function AutomationAssistant({
 
     const messageContent = inputValue.trim();
 
+    // Module-level duplicate prevention (survives component remounts)
+    if (!canSendMessage(messageContent, threadId)) {
+      return;
+    }
+
+    isSendingRef.current = true;
+
     // Capture attachments before clearing
     const attachmentsToSend =
       attachments.length > 0 ? [...attachments] : undefined;
 
     // Create optimistic user message for immediate display
+    const clientMessageId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const optimisticMessage: Message = {
       id: `pending-${Date.now()}`,
       role: 'user',
       content: messageContent,
       timestamp: new Date(),
+      clientMessageId,
     };
     setPendingUserMessage(optimisticMessage);
 
@@ -634,6 +698,7 @@ export function AutomationAssistant({
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
+      isSendingRef.current = false;
       setIsLoading(false);
     }
   };
@@ -760,9 +825,18 @@ export function AutomationAssistant({
                     <div className="flex flex-wrap gap-1">
                       {message.fileParts.map((part, index) =>
                         part.mediaType.startsWith('image/') ? (
-                          <div
+                          <button
                             key={index}
-                            className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden"
+                            type="button"
+                            onClick={() =>
+                              setPreviewImage({
+                                isOpen: true,
+                                src: part.url,
+                                alt:
+                                  part.filename || t('assistant.fallbackImage'),
+                              })
+                            }
+                            className="size-11 rounded-lg bg-muted bg-center bg-cover bg-no-repeat overflow-hidden cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           >
                             <Image
                               src={part.url}
@@ -773,7 +847,7 @@ export function AutomationAssistant({
                               width={44}
                               height={44}
                             />
-                          </div>
+                          </button>
                         ) : (
                           <a
                             key={index}
@@ -950,6 +1024,18 @@ export function AutomationAssistant({
           </div>
         </div>
       </div>
+
+      {/* Image preview dialog */}
+      {previewImage && (
+        <ImagePreviewDialog
+          isOpen={previewImage.isOpen}
+          onOpenChange={(open) => {
+            if (!open) setPreviewImage(null);
+          }}
+          src={previewImage.src}
+          alt={previewImage.alt}
+        />
+      )}
     </div>
   );
 }

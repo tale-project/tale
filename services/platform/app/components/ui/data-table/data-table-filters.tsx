@@ -157,7 +157,7 @@ export function DataTableFilters({
             >
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
               <Input
-                placeholder={search.placeholder ?? 'Search...'}
+                placeholder={search.placeholder ?? t('search.placeholder')}
                 value={search.value}
                 onChange={(e) => search.onChange(e.target.value)}
                 className="pl-10"
@@ -217,28 +217,33 @@ export function DataTableFilters({
                         filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
                       }
                     >
-                      {filter.options.map((option) => (
-                        <label
-                          key={option.value}
-                          className="flex items-center gap-2 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={filter.selectedValues.includes(
-                              option.value,
-                            )}
-                            onCheckedChange={(checked) =>
-                              handleFilterChange(
-                                filter,
+                      {filter.options.map((option) => {
+                        const checkboxId = `filter-${filter.key}-${option.value}`;
+                        return (
+                          <label
+                            key={option.value}
+                            htmlFor={checkboxId}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={filter.selectedValues.includes(
                                 option.value,
-                                !!checked,
-                              )
-                            }
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {option.label}
-                          </span>
-                        </label>
-                      ))}
+                              )}
+                              onCheckedChange={(checked) =>
+                                handleFilterChange(
+                                  filter,
+                                  option.value,
+                                  !!checked,
+                                )
+                              }
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              {option.label}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </FilterSection>
                 ))}
