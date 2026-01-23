@@ -13,16 +13,23 @@ export function useAutomationVersionNavigation(
 
   const navigateToVersion = (versionId: string) => {
     const basePath = `/dashboard/${organizationId}/automations/${currentAutomationId}`;
-    const subPage = location.pathname.startsWith(basePath)
-      ? location.pathname.slice(basePath.length)
-      : '';
+    const pathname = location.pathname;
 
-    if (subPage === '/executions') {
+    const isBasePathMatch =
+      pathname === basePath ||
+      (pathname.startsWith(basePath) && pathname[basePath.length] === '/');
+
+    const subPage = isBasePathMatch ? pathname.slice(basePath.length) : '';
+
+    const isExecutionsPage = subPage.startsWith('/executions');
+    const isConfigurationPage = subPage.startsWith('/configuration');
+
+    if (isExecutionsPage) {
       navigate({
         to: '/dashboard/$id/automations/$amId/executions',
         params: { id: organizationId, amId: versionId },
       });
-    } else if (subPage === '/configuration') {
+    } else if (isConfigurationPage) {
       navigate({
         to: '/dashboard/$id/automations/$amId/configuration',
         params: { id: organizationId, amId: versionId },
