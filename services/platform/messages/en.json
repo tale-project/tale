@@ -775,10 +775,34 @@
       "disabled": "Disabled"
     },
     "logs": {
+      "auditLogs": "Audit logs",
       "activityLogs": "Activity logs",
       "errorLogs": "Error logs",
       "activityDescription": "View system activity and audit logs.",
-      "errorDescription": "View system errors and warnings."
+      "errorDescription": "View system errors and warnings.",
+      "audit": {
+        "tableCaption": "Audit logs data table",
+        "emptyTitle": "No audit logs",
+        "emptyDescription": "Audit logs will appear here as actions are performed in your organization.",
+        "detailTitle": "Audit log details",
+        "columns": {
+          "timestamp": "Time",
+          "action": "Action",
+          "actor": "User",
+          "actorType": "Actor type",
+          "actorRole": "Role",
+          "resource": "Resource",
+          "resourceId": "Resource ID",
+          "target": "Target",
+          "category": "Category",
+          "status": "Status",
+          "error": "Error",
+          "changedFields": "Changed fields",
+          "previousState": "Previous state",
+          "newState": "New state",
+          "metadata": "Metadata"
+        }
+      }
     }
   },
   "automations": {
