@@ -144,7 +144,7 @@ export function TabNavigation({
     <nav
       ref={navRef}
       className={cn(
-        'relative border-b border-border px-4 min-h-11 flex flex-nowrap items-center gap-4 shrink-0',
+        'relative border-b border-border px-4 min-h-12 flex flex-nowrap items-center gap-4 shrink-0',
         standalone && 'bg-background z-10',
         className,
       )}

@@ -46,13 +46,17 @@ export function useMessageProcessing(
     results: uiMessages,
     loadMore,
     status: paginationStatus,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } = useUIMessages(
     // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
-    { initialNumItems: 20, stream: true },
-  ) as unknown as { results: UIMessage[] | undefined; loadMore: (numItems: number) => void; status: string };
+    { initialNumItems: 100, stream: true },
+  ) as unknown as {
+    results: UIMessage[] | undefined;
+    loadMore: (numItems: number) => void;
+    status: string;
+  };
 
   const isLoadingMore = paginationStatus === 'LoadingMore';
 
@@ -81,13 +85,23 @@ export function useMessageProcessing(
           return m.order >= minUserOrder;
         }
         // Keep system messages that are human input responses
-        if (m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)) {
+        if (
+          m.role === 'system' &&
+          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX)
+        ) {
           return true;
         }
         return false;
       })
       .map((m) => {
-        const fileParts = ((m.parts || []) as { type: string; mediaType?: string; filename?: string; url?: string }[])
+        const fileParts = (
+          (m.parts || []) as {
+            type: string;
+            mediaType?: string;
+            filename?: string;
+            url?: string;
+          }[]
+        )
           .filter((p): p is FilePart => p.type === 'file')
           .map((p: FilePart) => ({
             type: 'file' as const,
@@ -96,7 +110,9 @@ export function useMessageProcessing(
             url: p.url,
           }));
 
-        const isHumanInputResponse = m.role === 'system' && m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
+        const isHumanInputResponse =
+          m.role === 'system' &&
+          m.text?.startsWith(HUMAN_INPUT_RESPONSE_PREFIX);
 
         return {
           id: m.id,
@@ -120,13 +136,14 @@ export function useMessageProcessing(
   // Check for active tools in streaming message
   const hasActiveTools = useMemo(() => {
     if (!streamingMessage?.parts) return false;
-    return streamingMessage.parts.some((part: { type: string; state?: string }) => {
-      if (!part.type.startsWith('tool-')) return false;
-      return (
-        part.state === 'input-streaming' ||
-        part.state === 'input-available'
-      );
-    });
+    return streamingMessage.parts.some(
+      (part: { type: string; state?: string }) => {
+        if (!part.type.startsWith('tool-')) return false;
+        return (
+          part.state === 'input-streaming' || part.state === 'input-available'
+        );
+      },
+    );
   }, [streamingMessage?.parts]);
 
   return {

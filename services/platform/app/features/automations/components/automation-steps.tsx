@@ -85,12 +85,14 @@ function AutomationStepsInner({
 
   // Memoize URL state definitions to prevent infinite re-renders
   // The definitions object must be stable to avoid triggering useUrlState recalculation
+  // IMPORTANT: Default must be static (null) to prevent sidebar flickering when automation data loads.
+  // The panel state is controlled via URL params - navigation tabs already include ?panel=ai-chat.
   const urlStateDefinitions = useMemo(
     () => ({
-      panel: { default: isDraft ? 'ai-chat' : null },
+      panel: { default: null },
       step: { default: null },
     }),
-    [isDraft],
+    [],
   );
 
   // URL-based state for side panel mode and selected step
@@ -1131,8 +1133,8 @@ function AutomationStepsInner({
 
             {/* Draft Banner */}
             {showDraftBanner && isDraft && (
-              <Panel position="top-center" className="mt-4 mx-4">
-                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-blue-200 bg-blue-50 px-4 py-3 shadow-sm max-w-xl">
+              <Panel position="top-center" className="mt-4 mx-4 w-full px-8">
+                <div className="flex items-center gap-2.5 rounded-lg ring-1 ring-blue-200 bg-blue-50 px-4 py-3 shadow-sm max-w-xl mx-auto">
                   <Info className="size-5 shrink-0 text-blue-600" />
                   <p className="text-sm text-blue-600">
                     {t('steps.banners.draftNotPublished')}
@@ -1140,7 +1142,7 @@ function AutomationStepsInner({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6 shrink-0"
+                    className="text-blue-600 hover:bg-blue-100 hover:text-blue-700 size-6 shrink-0 p-1 ml-auto"
                     onClick={() => setShowDraftBanner(false)}
                   >
                     <X className="size-4" />

@@ -4,7 +4,7 @@
 
 ## General
 
-- USE turbo for running scripts: `turbo run <script> --filter=<workspace>` (e.g., `turbo run lint --filter=platform`).
+- USE npm workspaces for running scripts: `npm run <script> --workspace=@tale/<workspace>` (e.g., `npm run lint --workspace=@tale/platform`).
 - ALWAYS optimize your code for MAX performance.
 - ALWAYS ensure that you follow the existing design.
 - ALL pages should be optimized for accessibility (Level AA).

@@ -10,6 +10,8 @@
 
 import { v } from 'convex/values';
 import { action, internalAction } from '../../_generated/server';
+import { components } from '../../_generated/api';
+import { saveMessage } from '@convex-dev/agent';
 import { authComponent } from '../../auth';
 import { agentResponseReturnsValidator } from '../../lib/agent_response';
 import { generateWorkflowResponse } from './generate_response';
@@ -70,20 +72,29 @@ export const chatWithWorkflowAssistant = action({
     const { threadId, organizationId, workflowId, message } = args;
 
     try {
+      // Save the user message to the thread first
+      const { messageId: promptMessageId } = await saveMessage(
+        ctx,
+        components.agent,
+        {
+          threadId,
+          message: { role: 'user', content: message },
+        },
+      );
+
       // Build additional context for the task
       const additionalContext: Record<string, string> = {};
       if (workflowId) {
-        const workflow = await ctx.runQuery(
-          getGetWorkflowInternalRef(),
-          { wfDefinitionId: workflowId },
-        );
+        const workflow = await ctx.runQuery(getGetWorkflowInternalRef(), {
+          wfDefinitionId: workflowId,
+        });
         if (workflow) {
           additionalContext.target_workflow_id = String(workflowId);
           additionalContext.target_workflow_name = workflow.name;
         }
       }
 
-      // Call the Workflow Agent - all context management happens inside
+      // Call the Workflow Agent with the saved message
       await generateWorkflowResponse({
         ctx,
         threadId,
@@ -91,8 +102,11 @@ export const chatWithWorkflowAssistant = action({
         organizationId,
         taskDescription: message,
         additionalContext:
-          Object.keys(additionalContext).length > 0 ? additionalContext : undefined,
+          Object.keys(additionalContext).length > 0
+            ? additionalContext
+            : undefined,
         delegationMode: false,
+        promptMessageId,
       });
 
       return { success: true };

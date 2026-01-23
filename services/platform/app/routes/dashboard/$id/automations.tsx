@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { LayoutErrorBoundary } from '@/app/components/error-boundaries/boundaries/layout-error-boundary';
 import {
   AdaptiveHeaderRoot,
@@ -15,13 +15,20 @@ function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('automations');
 
+  const isSpecificAutomation = useMatch({
+    from: '/dashboard/$id/automations/$amId',
+    shouldThrow: false,
+  });
+
   return (
     <>
-      <StickyHeader>
-        <AdaptiveHeaderRoot standalone={false}>
-          <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
-        </AdaptiveHeaderRoot>
-      </StickyHeader>
+      {!isSpecificAutomation && (
+        <StickyHeader>
+          <AdaptiveHeaderRoot standalone={false}>
+            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          </AdaptiveHeaderRoot>
+        </StickyHeader>
+      )}
       <LayoutErrorBoundary organizationId={organizationId}>
         <Outlet />
       </LayoutErrorBoundary>

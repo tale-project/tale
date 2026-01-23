@@ -18,13 +18,12 @@ import { useT } from '@/lib/i18n/client';
 
 type Member = {
   _id: string;
-  _creationTime?: number;
+  createdAt: number;
   organizationId: string;
-  userId?: string;
+  userId: string;
   email?: string;
   role?: string;
   displayName?: string;
-  createdAt?: number;
 };
 
 type MemberContext = {
@@ -177,11 +176,15 @@ export function OrganizationSettingsClient({
         <MemberTable
           members={members || []}
           sortOrder={sortOrder}
-          memberContext={memberContext ? {
-            member: memberContext.member || null,
-            role: memberContext.role || null,
-            isAdmin: memberContext.isAdmin || false,
-          } : undefined}
+          memberContext={
+            memberContext
+              ? {
+                  member: memberContext.member || null,
+                  role: memberContext.role || null,
+                  isAdmin: memberContext.isAdmin || false,
+                }
+              : undefined
+          }
           onSortChange={(newSortOrder) => {
             setSortOrder(newSortOrder);
           }}

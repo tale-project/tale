@@ -20,7 +20,10 @@ import { useT } from '@/lib/i18n/client';
 import { SuspenseBoundary } from '@/app/components/error-boundaries/core/suspense-boundary';
 
 const DatePickerWithRange = lazyComponent(
-  () => import('@/app/components/ui/forms/date-range-picker').then((mod) => ({ default: mod.DatePickerWithRange })),
+  () =>
+    import('@/app/components/ui/forms/date-range-picker').then((mod) => ({
+      default: mod.DatePickerWithRange,
+    })),
   {
     loading: () => <Skeleton className="h-9 w-[24rem]" />,
   },
@@ -81,7 +84,7 @@ export interface DataTableFiltersProps {
 
 /**
  * Composable filter bar for DataTable.
- * 
+ *
  * Includes:
  * - Search input with debouncing (handled by parent)
  * - Multi-select filter dropdowns
@@ -98,7 +101,9 @@ export function DataTableFilters({
 }: DataTableFiltersProps) {
   const { t } = useT('common');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({});
 
   const totalActiveFilters = filters.reduce(
     (acc, filter) => acc + filter.selectedValues.length,
@@ -106,7 +111,10 @@ export function DataTableFilters({
   );
 
   const hasDateRange = dateRange?.from || dateRange?.to;
-  const hasActiveFilters = totalActiveFilters > 0 || (search?.value && search.value.length > 0) || hasDateRange;
+  const hasActiveFilters =
+    totalActiveFilters > 0 ||
+    (search?.value && search.value.length > 0) ||
+    hasDateRange;
 
   const handleFilterChange = (
     filter: FilterConfig,
@@ -132,77 +140,112 @@ export function DataTableFilters({
   };
 
   return (
-    <div className={cn('flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4', className)}>
-      <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-        {search && (
-          <div className={cn('relative flex-1 sm:flex-none', search.className ?? 'w-full sm:w-[18.75rem]')}>
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-            <Input
-              placeholder={search.placeholder ?? 'Search...'}
-              value={search.value}
-              onChange={(e) => search.onChange(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        )}
+    <div
+      className={cn(
+        'flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4',
+        className,
+      )}
+    >
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {search && (
+            <div
+              className={cn(
+                'relative flex-1 sm:flex-none',
+                search.className ?? 'w-full sm:w-[18.75rem]',
+              )}
+            >
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
+              <Input
+                placeholder={search.placeholder ?? 'Search...'}
+                value={search.value}
+                onChange={(e) => search.onChange(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          )}
 
-        {filters.length > 0 && (
-          <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen} modal={false}>
-            <PopoverTrigger asChild>
-              <div>
-                <FilterButton hasActiveFilters={totalActiveFilters > 0} isLoading={isLoading} />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="space-y-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-              <div className="flex items-center justify-between p-2">
-                <h4 className="text-sm font-semibold text-foreground">{t('labels.filters')}</h4>
-                {totalActiveFilters > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    className="text-xs text-primary hover:text-primary/80 font-medium"
+          {filters.length > 0 && (
+            <Popover
+              open={isFilterOpen}
+              onOpenChange={setIsFilterOpen}
+              modal={false}
+            >
+              <PopoverTrigger asChild>
+                <div>
+                  <FilterButton
+                    hasActiveFilters={totalActiveFilters > 0}
+                    isLoading={isLoading}
+                  />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent
+                className="space-y-0"
+                align="start"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                <div className="flex items-center justify-between p-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('labels.filters')}
+                  </h4>
+                  {totalActiveFilters > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearAll}
+                      className="text-xs text-primary hover:text-primary/80 font-medium"
+                    >
+                      {t('actions.clearAll')}
+                    </button>
+                  )}
+                </div>
+
+                {filters.map((filter) => (
+                  <FilterSection
+                    key={filter.key}
+                    title={filter.title}
+                    isExpanded={expandedSections[filter.key] ?? false}
+                    onToggle={() =>
+                      setExpandedSections((prev) => ({
+                        ...prev,
+                        [filter.key]: !prev[filter.key],
+                      }))
+                    }
+                    active={filter.selectedValues.length > 0}
                   >
-                    {t('actions.clearAll')}
-                  </button>
-                )}
-              </div>
-
-              {filters.map((filter) => (
-                <FilterSection
-                  key={filter.key}
-                  title={filter.title}
-                  isExpanded={expandedSections[filter.key] ?? false}
-                  onToggle={() =>
-                    setExpandedSections((prev) => ({
-                      ...prev,
-                      [filter.key]: !prev[filter.key],
-                    }))
-                  }
-                  active={filter.selectedValues.length > 0}
-                >
-                  <div className={filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'}>
-                    {filter.options.map((option) => (
-                      <label
-                        key={option.value}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={filter.selectedValues.includes(option.value)}
-                          onCheckedChange={(checked) =>
-                            handleFilterChange(filter, option.value, !!checked)
-                          }
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {option.label}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </FilterSection>
-              ))}
-            </PopoverContent>
-          </Popover>
-        )}
+                    <div
+                      className={
+                        filter.grid ? 'grid grid-cols-2 gap-2' : 'space-y-2'
+                      }
+                    >
+                      {filter.options.map((option) => (
+                        <label
+                          key={option.value}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={filter.selectedValues.includes(
+                              option.value,
+                            )}
+                            onCheckedChange={(checked) =>
+                              handleFilterChange(
+                                filter,
+                                option.value,
+                                !!checked,
+                              )
+                            }
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {option.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </FilterSection>
+                ))}
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
 
         {dateRange && (
           <SuspenseBoundary
@@ -224,7 +267,11 @@ export function DataTableFilters({
       </div>
 
       {hasActiveFilters && onClearAll && (
-        <Button variant="ghost" onClick={handleClearAll} className="gap-2">
+        <Button
+          variant="ghost"
+          onClick={handleClearAll}
+          className="hidden sm:flex gap-2"
+        >
           <X className="size-4" />
           {t('actions.clearAll')}
         </Button>
@@ -232,4 +279,3 @@ export function DataTableFilters({
     </div>
   );
 }
-
