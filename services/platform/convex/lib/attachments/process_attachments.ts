@@ -223,7 +223,7 @@ export async function processAttachments(
     if (textFileInfoList.length > 0) {
       const textFileInfo = textFileInfoList
         .map((txt) => {
-          const sizeKB = Math.round(txt.fileSize / 1024);
+          const sizeKB = Math.max(1, Math.round(txt.fileSize / 1024));
           const sizeDisplay =
             sizeKB >= 1024
               ? `${(sizeKB / 1024).toFixed(1)} MB`
