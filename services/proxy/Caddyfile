@@ -95,7 +95,12 @@
 		header_up X-Forwarded-Proto {scheme}
 	}
 
-	encode gzip zstd
+	# Encode responses, but skip WebSocket endpoints
+	@notWebSocket {
+		not path /api/*/sync
+		not path /ws_api/*
+	}
+	encode @notWebSocket gzip zstd
 
 	# Maintenance page when no healthy backends available
 	# During blue-green deployments, there's a brief window (~8-10s) when

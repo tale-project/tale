@@ -18,4 +18,12 @@ crons.cron(
   {},
 );
 
+// Audit log retention - clean up logs older than 90 days, runs daily at 3 AM UTC
+crons.cron(
+  'audit log retention cleanup (daily)',
+  '0 3 * * *',
+  internal.audit_logs.mutations.runRetentionCleanup,
+  {},
+);
+
 export default crons;
