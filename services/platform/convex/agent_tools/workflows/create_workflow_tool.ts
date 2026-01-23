@@ -12,6 +12,7 @@ import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
 import { internal } from '../../_generated/api';
 import { validateWorkflowDefinition } from '../../workflow_engine/helpers/validation/validate_workflow_definition';
+import { getApprovalThreadId } from '../../threads/get_parent_thread_id';
 
 const workflowConfigSchema = z.object({
   name: z
@@ -105,10 +106,11 @@ Reference: generalCustomerStatusAssessment, productRecommendationEmail`,
       validationErrors?: string[];
       validationWarnings?: string[];
     }> => {
-      // parentThreadId comes from extended context (when running as sub-agent)
-      // This ensures approvals are linked to the parent conversation thread
-      const { organizationId, threadId: currentThreadId, parentThreadId } = ctx;
-      const threadId = parentThreadId ?? currentThreadId;
+      const { organizationId, threadId: currentThreadId } = ctx;
+
+      // Look up parent thread from thread summary (stable, database-backed)
+      // This ensures approvals from sub-agents link to the main chat thread
+      const threadId = await getApprovalThreadId(ctx, currentThreadId);
 
       if (!organizationId) {
         return {

@@ -29,11 +29,21 @@ export interface ImageInfo {
 }
 
 /**
+ * Text file info for the txt tool's parse operation
+ */
+export interface TextFileInfo {
+  fileName: string;
+  fileId: Id<'_storage'>;
+  fileSize: number;
+}
+
+/**
  * Result of processing attachments
  */
 export interface ProcessedAttachments {
   parsedDocuments: ParsedDocument[];
   imageInfoList: ImageInfo[];
+  textFileInfoList: TextFileInfo[];
   promptContent: Array<{ role: 'user'; content: MessageContentPart[] }> | undefined;
 }
 
@@ -76,6 +86,7 @@ export async function processAttachments(
     return {
       parsedDocuments: [],
       imageInfoList: [],
+      textFileInfoList: [],
       promptContent: undefined,
     };
   }
@@ -85,12 +96,21 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  // Separate images from documents
+  // Helper to check if a file is a text file
+  const isTextFile = (attachment: FileAttachment) =>
+    attachment.fileType.startsWith('text/plain') ||
+    attachment.fileName.toLowerCase().endsWith('.txt') ||
+    attachment.fileName.toLowerCase().endsWith('.log');
+
+  // Separate images, text files, and other documents
   const imageAttachments = attachments.filter((a) =>
     a.fileType.startsWith('image/'),
   );
+  const textFileAttachments = attachments.filter(
+    (a) => !a.fileType.startsWith('image/') && isTextFile(a),
+  );
   const documentAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/'),
+    (a) => !a.fileType.startsWith('image/') && !isTextFile(a),
   );
 
   // Parse document files to extract their text content (in parallel)
@@ -147,8 +167,15 @@ export async function processAttachments(
     (r): r is ImageInfo => r.fileId !== undefined,
   );
 
+  // Get text file info for the txt tool's parse operation
+  const textFileInfoList: TextFileInfo[] = textFileAttachments.map((attachment) => ({
+    fileName: attachment.fileName,
+    fileId: attachment.fileId,
+    fileSize: attachment.fileSize,
+  }));
+
   // Register files with the agent component for tracking (documents only)
-  // Images are handled via the image_analyze tool, not inline
+  // Images and text files are handled via their respective tools, not inline
   await registerFilesWithAgent(ctx, documentAttachments);
 
   // Build prompt content if we have any processed attachments
@@ -158,7 +185,8 @@ export async function processAttachments(
 
   if (
     parsedDocuments.length > 0 ||
-    imageInfoList.length > 0
+    imageInfoList.length > 0 ||
+    textFileInfoList.length > 0
   ) {
     const text = userText || 'Please analyze the attached files.';
     const contentParts: MessageContentPart[] = [{ type: 'text', text }];
@@ -191,12 +219,31 @@ export async function processAttachments(
       });
     }
 
+    // Add text file information for the document_assistant
+    if (textFileInfoList.length > 0) {
+      const textFileInfo = textFileInfoList
+        .map((txt) => {
+          const sizeKB = Math.max(1, Math.round(txt.fileSize / 1024));
+          const sizeDisplay =
+            sizeKB >= 1024
+              ? `${(sizeKB / 1024).toFixed(1)} MB`
+              : `${sizeKB} KB`;
+          return `- **${txt.fileName}** (${sizeDisplay}): fileId="${txt.fileId}"`;
+        })
+        .join('\n');
+      contentParts.push({
+        type: 'text',
+        text: `\n\n---\n**Attached Text Files** (use \`document_assistant\` with fileId and fileName to analyze):\n${textFileInfo}\n---\n`,
+      });
+    }
+
     promptContent = [{ role: 'user', content: contentParts }];
   }
 
   return {
     parsedDocuments,
     imageInfoList,
+    textFileInfoList,
     promptContent,
   };
 }
