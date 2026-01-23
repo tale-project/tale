@@ -317,6 +317,7 @@ export async function generateAgentResponse(
         provider,
         usage: responseResult.usage,
         durationMs,
+        timeToFirstTokenMs,
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
