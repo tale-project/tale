@@ -1387,6 +1387,11 @@
       "attachment": "Attachment",
       "imageAttachment": "Image attachment"
     },
+    "imageViewer": {
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom"
+    },
     "toolStatus": {
       "ragSearch": "Searching knowledge base",
       "contextSearch": "Searching for related topics"

@@ -3,12 +3,33 @@
  */
 
 /**
+ * Strip internal prompt markers from user messages.
+ * These markers are added for the AI but should not be displayed to users.
+ */
+function stripInternalMarkers(content: string): string {
+  // Strip [IMAGES] markers and everything after them
+  const imagesMarker =
+    /\n\n\[IMAGES\] The user has (attached|also attached) the following images:[\s\S]*$/;
+  content = content.replace(imagesMarker, '');
+
+  // Strip [ATTACHMENTS] markers and everything after them
+  const attachmentsMarker =
+    /\n\n\[ATTACHMENTS\] The user has attached the following files\. Use the appropriate tool to read them:[\s\S]*$/;
+  content = content.replace(attachmentsMarker, '');
+
+  return content.trim();
+}
+
+/**
  * Strip workflow context that was appended to user messages by the assistant agent.
  *
  * The workflow context follows this pattern:
  * - Starts with "\n\n**Current Workflow Context:**"
  * - Contains workflow metadata and step details in toon format
  * - Ends with a closing code fence "```"
+ *
+ * Also strips internal prompt markers like [IMAGES] and [ATTACHMENTS] that are
+ * meant for the AI model but should not be displayed to users.
  *
  * @param content - The message content potentially containing workflow context
  * @returns The cleaned message content without workflow context
@@ -19,13 +40,16 @@
  * // Returns: "Hello"
  */
 export function stripWorkflowContext(content: string): string {
+  // First strip internal markers ([IMAGES], [ATTACHMENTS])
+  content = stripInternalMarkers(content);
+
   // Define the marker that indicates the start of workflow context
   const contextMarker = '\n\n**Current Workflow Context:**';
 
   // Find where the workflow context starts
   const contextStart = content.indexOf(contextMarker);
 
-  // If no context marker found, return original content
+  // If no context marker found, return the content (already cleaned of internal markers)
   if (contextStart === -1) {
     return content;
   }
@@ -42,7 +66,6 @@ export function stripWorkflowContext(content: string): string {
     return content.substring(0, contextStart).trim();
   }
 
-  // If pattern doesn't match, return original content
+  // If pattern doesn't match, return content (already cleaned of internal markers)
   return content;
 }
-
