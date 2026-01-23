@@ -491,5 +491,26 @@ export async function rlsRules(
         return authorizeRls(membership?.role, 'websites', 'write');
       },
     },
+
+    // Audit Logs - organization-scoped, allow inserts for org members
+    auditLogs: {
+      read: async (_, log) => {
+        if (!user) return false;
+        if (!userOrgIds.has(log.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === log.organizationId,
+        );
+        return authorizeRls(membership?.role, 'auditLogs', 'read');
+      },
+      modify: async () => false, // Audit logs are immutable
+      insert: async ({ user: ruleUser }, log) => {
+        if (!ruleUser) return false;
+        if (!userOrgIds.has(log.organizationId)) return false;
+        const membership = userOrganizations.find(
+          (m) => m.organizationId === log.organizationId,
+        );
+        return authorizeRls(membership?.role, 'auditLogs', 'write');
+      },
+    },
   } satisfies Rules<RLSRuleContext, DataModel>;
 }

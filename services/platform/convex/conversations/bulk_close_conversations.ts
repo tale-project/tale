@@ -5,6 +5,8 @@
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import type { BulkOperationResult } from './types';
+import * as AuditLogHelpers from '../audit_logs/helpers';
+import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
 
 export async function bulkCloseConversations(
   ctx: MutationCtx,
@@ -65,6 +67,33 @@ export async function bulkCloseConversations(
         `Failed to close ${patches[i].id}: ${result.reason instanceof Error ? result.reason.message : 'Unknown error'}`,
       );
     }
+  }
+
+  const firstValidConversation = conversations.find((c) => c !== null);
+  if (firstValidConversation) {
+    const authUser = await getAuthenticatedUser(ctx);
+    await AuditLogHelpers.logSuccess(
+      ctx,
+      {
+        organizationId: firstValidConversation.organizationId,
+        actor: authUser
+          ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
+          : { id: 'system', type: 'system' as const },
+      },
+      'bulk_close_conversations',
+      'data',
+      'conversation',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        conversationIds: args.conversationIds.map(String),
+        count: args.conversationIds.length,
+        successCount,
+        failedCount: args.conversationIds.length - successCount,
+      },
+    );
   }
 
   return {

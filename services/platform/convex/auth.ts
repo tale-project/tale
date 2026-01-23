@@ -36,6 +36,7 @@ const platformResourceStatements = {
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
   workflowProcessingRecords: ['read', 'write'],
+  auditLogs: ['read', 'write'],
 } as const;
 
 const platformStatements = {
@@ -65,6 +66,7 @@ const admin = ac.newRole({
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
+  auditLogs: ['read', 'write'],
 });
 
 const developer = ac.newRole({
@@ -85,6 +87,7 @@ const developer = ac.newRole({
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
+  auditLogs: ['read', 'write'],
 });
 
 const editor = ac.newRole({
@@ -106,6 +109,7 @@ const editor = ac.newRole({
   toneOfVoice: ['read', 'write'],
   exampleMessages: ['read', 'write'],
   websites: ['read', 'write'],
+  auditLogs: ['read', 'write'],
   // No access to: settings, automations (frontend menu restricted)
 });
 
@@ -127,6 +131,7 @@ const member = ac.newRole({
   toneOfVoice: ['read'],
   exampleMessages: ['read'],
   websites: ['read'],
+  auditLogs: ['read'],
   // No access to: settings, automations (frontend menu restricted)
 });
 
@@ -148,6 +153,7 @@ const disabled = ac.newRole({
   toneOfVoice: [],
   exampleMessages: [],
   websites: [],
+  auditLogs: [],
 });
 
 export const platformRoles = {

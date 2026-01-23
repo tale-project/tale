@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export async function updateConversationMessage(
   ctx: MutationCtx,
@@ -21,6 +22,9 @@ export async function updateConversationMessage(
   if (!message) {
     throw new Error('Conversation message not found');
   }
+
+  const previousState: Record<string, unknown> = {};
+  if (args.deliveryState !== undefined) previousState.deliveryState = message.deliveryState;
 
   // Build update object with only provided fields
   const updateData: Record<string, unknown> = {};
@@ -43,5 +47,23 @@ export async function updateConversationMessage(
   }
 
   await ctx.db.patch(args.messageId, updateData);
+
+  const newState: Record<string, unknown> = {};
+  if (args.deliveryState !== undefined) newState.deliveryState = args.deliveryState;
+
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: message.organizationId,
+      actor: { id: 'system', type: 'system' as const },
+    },
+    'update_conversation_message',
+    'data',
+    'conversationMessage',
+    String(args.messageId),
+    undefined,
+    previousState,
+    newState,
+  );
 }
 

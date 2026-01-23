@@ -9,6 +9,7 @@ import type {
 } from './types';
 import type { Doc, Id } from '../_generated/dataModel';
 import { set, merge } from 'lodash';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export async function updateConversations(
   ctx: MutationCtx,
@@ -108,6 +109,31 @@ export async function updateConversations(
   await Promise.all(patches.map(({ id, patch }) => ctx.db.patch(id, patch)));
 
   const updatedIds = patches.map(({ id }) => id);
+
+  if (updatedIds.length > 0) {
+    const organizationId = args.organizationId || conversationsToUpdate[0]?.organizationId;
+    if (organizationId) {
+      await AuditLogHelpers.logSuccess(
+        ctx,
+        {
+          organizationId,
+          actor: { id: 'system', type: 'system' as const },
+        },
+        'update_conversations',
+        'data',
+        'conversation',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          conversationIds: updatedIds.map(String),
+          count: updatedIds.length,
+          updates: args.updates,
+        },
+      );
+    }
+  }
 
   return {
     success: true,

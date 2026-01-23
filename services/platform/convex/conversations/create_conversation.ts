@@ -4,6 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { CreateConversationArgs } from './types';
+import * as AuditLogHelpers from '../audit_logs/helpers';
 
 export async function createConversation(
   ctx: MutationCtx,
@@ -23,6 +24,26 @@ export async function createConversation(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata: args.metadata as any,
   });
+
+  await AuditLogHelpers.logSuccess(
+    ctx,
+    {
+      organizationId: args.organizationId,
+      actor: { id: 'system', type: 'system' as const },
+    },
+    'create_conversation',
+    'data',
+    'conversation',
+    String(conversationId),
+    args.subject,
+    undefined,
+    {
+      channel: args.channel,
+      direction: args.direction,
+      status: args.status ?? 'open',
+      priority: args.priority ?? 'medium',
+    },
+  );
 
   return {
     success: true,
