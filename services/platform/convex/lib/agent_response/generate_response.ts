@@ -22,7 +22,10 @@ import {
   estimateTokens,
 } from '../context_management';
 import { onAgentComplete } from '../agent_completion';
-import { formatCurrentTurn, type CurrentTurnToolCall } from '../context_management/message_formatter';
+import {
+  formatCurrentTurn,
+  type CurrentTurnToolCall,
+} from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import {
   getLinkApprovalsToMessageRef,
@@ -57,7 +60,16 @@ export async function generateAgentResponse(
   config: GenerateResponseConfig,
   args: GenerateResponseArgs,
 ): Promise<GenerateResponseResult> {
-  const { agentType, createAgent, model, provider, debugTag, enableStreaming, hooks, convexToolNames } = config;
+  const {
+    agentType,
+    createAgent,
+    model,
+    provider,
+    debugTag,
+    enableStreaming,
+    hooks,
+    convexToolNames,
+  } = config;
   const {
     ctx,
     threadId,
@@ -73,7 +85,10 @@ export async function generateAgentResponse(
     userTeamIds,
   } = args;
 
-  const debugLog = createDebugLog(`DEBUG_${agentType.toUpperCase()}_AGENT`, debugTag);
+  const debugLog = createDebugLog(
+    `DEBUG_${agentType.toUpperCase()}_AGENT`,
+    debugTag,
+  );
   const startTime = Date.now();
 
   try {
@@ -82,7 +97,9 @@ export async function generateAgentResponse(
       userId,
       organizationId,
       hasParentThread: !!parentThreadId,
-      additionalContextKeys: additionalContext ? Object.keys(additionalContext) : [],
+      additionalContextKeys: additionalContext
+        ? Object.keys(additionalContext)
+        : [],
       enableStreaming,
     });
 
@@ -140,7 +157,12 @@ export async function generateAgentResponse(
     let promptContent = structuredContext.messages;
     let systemContextMessages = structuredContext.messages;
     if (hooks?.beforeGenerate) {
-      const beforeResult = await hooks.beforeGenerate(ctx, args, structuredContext, hookData);
+      const beforeResult = await hooks.beforeGenerate(
+        ctx,
+        args,
+        structuredContext,
+        hookData,
+      );
       if (beforeResult.promptContent) {
         promptContent = beforeResult.promptContent;
       }
@@ -200,7 +222,13 @@ export async function generateAgentResponse(
       );
 
       // Wait for stream to complete
-      const [streamText, streamSteps, streamUsage, streamFinishReason, streamResponse] = await Promise.all([
+      const [
+        streamText,
+        streamSteps,
+        streamUsage,
+        streamFinishReason,
+        streamResponse,
+      ] = await Promise.all([
         streamResult.text,
         streamResult.steps,
         streamResult.usage,
@@ -236,8 +264,11 @@ export async function generateAgentResponse(
           // This prevents XML system messages from being stored as thread messages
           system: structuredContext.contextText,
           // Use prompt parameter for the task - this triggers the agent response
-          // and gets saved as the user message in the thread
+          // and gets saved as the user message in the thread (unless promptMessageId is provided)
           prompt: taskDescription,
+          // If promptMessageId is provided, the message was already saved (e.g., with attachments)
+          // This prevents double-saving the user message
+          ...(promptMessageId ? { promptMessageId } : {}),
         },
         {
           contextOptions: {
@@ -256,7 +287,9 @@ export async function generateAgentResponse(
     }
 
     const durationMs = Date.now() - startTime;
-    const timeToFirstTokenMs = firstTokenTime ? firstTokenTime - startTime : undefined;
+    const timeToFirstTokenMs = firstTokenTime
+      ? firstTokenTime - startTime
+      : undefined;
 
     debugLog('Response generated', {
       durationMs,
@@ -267,13 +300,16 @@ export async function generateAgentResponse(
     });
 
     // Extract tool calls from steps
-    const { toolCalls, subAgentUsage } = extractToolCallsFromSteps(result.steps ?? []);
+    const { toolCalls, subAgentUsage } = extractToolCallsFromSteps(
+      result.steps ?? [],
+    );
 
     // Build complete context window for metadata
     const currentTurnFormatted = formatCurrentTurn({
       userInput: taskDescription,
       assistantOutput: result.text || '',
-      toolCalls: toolCalls.length > 0 ? toolCalls as CurrentTurnToolCall[] : undefined,
+      toolCalls:
+        toolCalls.length > 0 ? (toolCalls as CurrentTurnToolCall[]) : undefined,
       timestamp: Date.now(),
     });
     const completeContextWindow =
@@ -333,31 +369,40 @@ export async function generateAgentResponse(
         });
 
         const latestAssistantMessage = messagesResult.page.find(
-          (m: MessageDoc) => m.message?.role === 'assistant'
+          (m: MessageDoc) => m.message?.role === 'assistant',
         );
 
         if (latestAssistantMessage) {
           const currentOrder = latestAssistantMessage.order;
           const messagesInSameOrder = messagesResult.page.filter(
-            (m: MessageDoc) => m.order === currentOrder && m.message?.role !== 'user'
+            (m: MessageDoc) =>
+              m.order === currentOrder && m.message?.role !== 'user',
           );
 
-          messagesInSameOrder.sort((a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder);
-          const firstMessageInOrder = messagesInSameOrder[0] || latestAssistantMessage;
+          messagesInSameOrder.sort(
+            (a: MessageDoc, b: MessageDoc) => a.stepOrder - b.stepOrder,
+          );
+          const firstMessageInOrder =
+            messagesInSameOrder[0] || latestAssistantMessage;
 
           const linkedCount = await ctx.runMutation(
             getLinkApprovalsToMessageRef(),
             {
               threadId,
               messageId: firstMessageInOrder._id,
-            }
+            },
           );
           if (linkedCount > 0) {
-            debugLog(`Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`);
+            debugLog(
+              `Linked ${linkedCount} pending approvals to message ${firstMessageInOrder._id}`,
+            );
           }
         }
       } catch (error) {
-        console.error('[generateAgentResponse] Failed to link approvals to message:', error);
+        console.error(
+          '[generateAgentResponse] Failed to link approvals to message:',
+          error,
+        );
       }
     }
 
@@ -388,7 +433,10 @@ export async function generateAgentResponse(
       try {
         await ctx.runMutation(getErrorStreamRef(), { streamId });
       } catch (streamError) {
-        console.error('[generateAgentResponse] Failed to mark stream as errored:', streamError);
+        console.error(
+          '[generateAgentResponse] Failed to mark stream as errored:',
+          streamError,
+        );
       }
     }
 
@@ -397,7 +445,10 @@ export async function generateAgentResponse(
       try {
         await hooks.onError(ctx, args, error);
       } catch (hookError) {
-        console.error('[generateAgentResponse] onError hook failed:', hookError);
+        console.error(
+          '[generateAgentResponse] onError hook failed:',
+          hookError,
+        );
         // Still throw the original error, not the hook error
       }
     }
@@ -427,7 +478,13 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     }>;
   };
 
-  const subAgentToolNames = ['workflow_assistant', 'web_assistant', 'document_assistant', 'integration_assistant', 'crm_assistant'];
+  const subAgentToolNames = [
+    'workflow_assistant',
+    'web_assistant',
+    'document_assistant',
+    'integration_assistant',
+    'crm_assistant',
+  ];
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
@@ -442,9 +499,15 @@ function extractToolCallsFromSteps(steps: unknown[]): {
 
     // Extract tool call statuses
     for (const toolCall of stepToolCalls) {
-      const matchingResult = stepToolResults.find(r => r.toolName === toolCall.toolName);
-      const directSuccess = (matchingResult?.result as { success?: boolean } | undefined)?.success;
-      const outputSuccess = (matchingResult?.output as { success?: boolean } | undefined)?.success;
+      const matchingResult = stepToolResults.find(
+        (r) => r.toolName === toolCall.toolName,
+      );
+      const directSuccess = (
+        matchingResult?.result as { success?: boolean } | undefined
+      )?.success;
+      const outputSuccess = (
+        matchingResult?.output as { success?: boolean } | undefined
+      )?.success;
       const isSuccess = directSuccess ?? outputSuccess ?? true;
       toolCalls.push({
         toolName: toolCall.toolName,
@@ -455,11 +518,22 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     // Extract sub-agent usage
     for (const toolResult of stepToolResults) {
       if (subAgentToolNames.includes(toolResult.toolName)) {
-        type UsageData = { inputTokens?: number; outputTokens?: number; totalTokens?: number };
-        const directResult = toolResult.result as { usage?: UsageData } | undefined;
-        const outputDirect = toolResult.output as unknown as { usage?: UsageData } | undefined;
-        const outputValue = (toolResult.output as { value?: { usage?: UsageData } } | undefined)?.value;
-        const toolUsage = directResult?.usage ?? outputDirect?.usage ?? outputValue?.usage;
+        type UsageData = {
+          inputTokens?: number;
+          outputTokens?: number;
+          totalTokens?: number;
+        };
+        const directResult = toolResult.result as
+          | { usage?: UsageData }
+          | undefined;
+        const outputDirect = toolResult.output as unknown as
+          | { usage?: UsageData }
+          | undefined;
+        const outputValue = (
+          toolResult.output as { value?: { usage?: UsageData } } | undefined
+        )?.value;
+        const toolUsage =
+          directResult?.usage ?? outputDirect?.usage ?? outputValue?.usage;
         if (toolUsage) {
           subAgentUsage.push({
             toolName: toolResult.toolName,
