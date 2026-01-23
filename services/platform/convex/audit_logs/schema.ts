@@ -2,29 +2,38 @@ import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
+export const AUDIT_LOG_ACTOR_TYPES = ['user', 'system', 'api', 'workflow'] as const;
+export const AUDIT_LOG_CATEGORIES = [
+  'auth',
+  'member',
+  'data',
+  'integration',
+  'workflow',
+  'security',
+  'admin',
+] as const;
+export const AUDIT_LOG_STATUSES = ['success', 'failure', 'denied'] as const;
+
+const actorTypeValidator = v.union(
+  ...AUDIT_LOG_ACTOR_TYPES.map((t) => v.literal(t)),
+);
+const categoryValidator = v.union(
+  ...AUDIT_LOG_CATEGORIES.map((c) => v.literal(c)),
+);
+const statusValidator = v.union(
+  ...AUDIT_LOG_STATUSES.map((s) => v.literal(s)),
+);
+
 export const auditLogsTable = defineTable({
   organizationId: v.string(),
 
   actorId: v.string(),
   actorEmail: v.optional(v.string()),
   actorRole: v.optional(v.string()),
-  actorType: v.union(
-    v.literal('user'),
-    v.literal('system'),
-    v.literal('api'),
-    v.literal('workflow'),
-  ),
+  actorType: actorTypeValidator,
 
   action: v.string(),
-  category: v.union(
-    v.literal('auth'),
-    v.literal('member'),
-    v.literal('data'),
-    v.literal('integration'),
-    v.literal('workflow'),
-    v.literal('security'),
-    v.literal('admin'),
-  ),
+  category: categoryValidator,
 
   resourceType: v.string(),
   resourceId: v.optional(v.string()),
@@ -40,11 +49,7 @@ export const auditLogsTable = defineTable({
   requestId: v.optional(v.string()),
 
   timestamp: v.number(),
-  status: v.union(
-    v.literal('success'),
-    v.literal('failure'),
-    v.literal('denied'),
-  ),
+  status: statusValidator,
   errorMessage: v.optional(v.string()),
   metadata: v.optional(jsonRecordValidator),
 })

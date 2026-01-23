@@ -1,24 +1,18 @@
 import { z } from 'zod/v4';
+import {
+  AUDIT_LOG_ACTOR_TYPES,
+  AUDIT_LOG_CATEGORIES,
+  AUDIT_LOG_STATUSES,
+} from '../../../convex/audit_logs/schema';
 import { jsonRecordSchema } from './utils/json-value';
 
-export const auditLogActorTypeLiterals = ['user', 'system', 'api', 'workflow'] as const;
-export const auditLogActorTypeSchema = z.enum(auditLogActorTypeLiterals);
+export const auditLogActorTypeSchema = z.enum(AUDIT_LOG_ACTOR_TYPES);
 export type AuditLogActorType = z.infer<typeof auditLogActorTypeSchema>;
 
-export const auditLogCategoryLiterals = [
-  'auth',
-  'member',
-  'data',
-  'integration',
-  'workflow',
-  'security',
-  'admin',
-] as const;
-export const auditLogCategorySchema = z.enum(auditLogCategoryLiterals);
+export const auditLogCategorySchema = z.enum(AUDIT_LOG_CATEGORIES);
 export type AuditLogCategory = z.infer<typeof auditLogCategorySchema>;
 
-export const auditLogStatusLiterals = ['success', 'failure', 'denied'] as const;
-export const auditLogStatusSchema = z.enum(auditLogStatusLiterals);
+export const auditLogStatusSchema = z.enum(AUDIT_LOG_STATUSES);
 export type AuditLogStatus = z.infer<typeof auditLogStatusSchema>;
 
 export const auditLogItemSchema = z.object({

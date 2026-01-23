@@ -1,15 +1,20 @@
 import { v } from 'convex/values';
-import { zodToConvex } from 'convex-helpers/server/zod4';
-import {
-  auditLogActorTypeSchema,
-  auditLogCategorySchema,
-  auditLogStatusSchema,
-} from '../../lib/shared/schemas/audit_logs';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+import {
+  AUDIT_LOG_ACTOR_TYPES,
+  AUDIT_LOG_CATEGORIES,
+  AUDIT_LOG_STATUSES,
+} from './schema';
 
-export const auditLogActorTypeValidator = zodToConvex(auditLogActorTypeSchema);
-export const auditLogCategoryValidator = zodToConvex(auditLogCategorySchema);
-export const auditLogStatusValidator = zodToConvex(auditLogStatusSchema);
+export const auditLogActorTypeValidator = v.union(
+  ...AUDIT_LOG_ACTOR_TYPES.map((t) => v.literal(t)),
+);
+export const auditLogCategoryValidator = v.union(
+  ...AUDIT_LOG_CATEGORIES.map((c) => v.literal(c)),
+);
+export const auditLogStatusValidator = v.union(
+  ...AUDIT_LOG_STATUSES.map((s) => v.literal(s)),
+);
 
 export const auditLogItemValidator = v.object({
   _id: v.string(),
