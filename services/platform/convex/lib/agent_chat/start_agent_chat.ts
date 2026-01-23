@@ -34,7 +34,15 @@ function formatFileSize(bytes: number): string {
     return kb < 10 ? `${kb.toFixed(1)} KB` : `${Math.round(kb)} KB`;
   }
   const mb = kb / 1024;
-  return `${mb.toFixed(1)} MB`;
+  if (mb < 1024) {
+    return `${mb.toFixed(1)} MB`;
+  }
+  const gb = mb / 1024;
+  if (gb < 1024) {
+    return `${gb.toFixed(1)} GB`;
+  }
+  const tb = gb / 1024;
+  return `${tb.toFixed(1)} TB`;
 }
 
 export interface StartAgentChatArgs {
