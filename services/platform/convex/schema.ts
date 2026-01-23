@@ -1,51 +1,53 @@
 import { defineSchema } from 'convex/server';
 
-import { customersTable } from './customers/schema';
-import { productsTable } from './products/schema';
-import { vendorsTable } from './vendors/schema';
-import { documentsTable } from './documents/schema';
+import { approvalsTable } from './approvals/schema';
+import { auditLogsTable } from './audit_logs/schema';
 import {
   conversationsTable,
   conversationMessagesTable,
 } from './conversations/schema';
-import { integrationsTable } from './integrations/schema';
+import { customersTable } from './customers/schema';
+import { documentsTable } from './documents/schema';
 import { emailProvidersTable } from './email_providers/schema';
+import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
+import { productsTable } from './products/schema';
+import { messageMetadataTable } from './streaming/schema';
+import {
+  toneOfVoiceTable,
+  exampleMessagesTable,
+} from './tone_of_voice/schema';
+import { vendorsTable } from './vendors/schema';
+import {
+  websitesTable,
+  websitePagesTable,
+} from './websites/schema';
 import {
   wfDefinitionsTable,
   wfStepDefsTable,
   wfExecutionsTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
-import { approvalsTable } from './approvals/schema';
-import {
-  toneOfVoiceTable,
-  exampleMessagesTable,
-} from './tone_of_voice/schema';
-import {
-  websitesTable,
-  websitePagesTable,
-} from './websites/schema';
-import { messageMetadataTable } from './streaming/schema';
 
 export default defineSchema({
-  documents: documentsTable,
-  products: productsTable,
-  customers: customersTable,
-  vendors: vendorsTable,
-  integrations: integrationsTable,
-  emailProviders: emailProvidersTable,
-  onedriveSyncConfigs: onedriveSyncConfigsTable,
-  conversations: conversationsTable,
-  conversationMessages: conversationMessagesTable,
-  wfDefinitions: wfDefinitionsTable,
-  wfStepDefs: wfStepDefsTable,
-  wfExecutions: wfExecutionsTable,
   approvals: approvalsTable,
-  toneOfVoice: toneOfVoiceTable,
+  auditLogs: auditLogsTable,
+  conversationMessages: conversationMessagesTable,
+  conversations: conversationsTable,
+  customers: customersTable,
+  documents: documentsTable,
+  emailProviders: emailProvidersTable,
   exampleMessages: exampleMessagesTable,
-  websites: websitesTable,
-  websitePages: websitePagesTable,
-  workflowProcessingRecords: workflowProcessingRecordsTable,
+  integrations: integrationsTable,
   messageMetadata: messageMetadataTable,
+  onedriveSyncConfigs: onedriveSyncConfigsTable,
+  products: productsTable,
+  toneOfVoice: toneOfVoiceTable,
+  vendors: vendorsTable,
+  websitePages: websitePagesTable,
+  websites: websitesTable,
+  wfDefinitions: wfDefinitionsTable,
+  wfExecutions: wfExecutionsTable,
+  wfStepDefs: wfStepDefsTable,
+  workflowProcessingRecords: workflowProcessingRecordsTable,
 });
