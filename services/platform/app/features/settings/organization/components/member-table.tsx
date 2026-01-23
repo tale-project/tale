@@ -13,13 +13,12 @@ import { useT } from '@/lib/i18n/client';
 
 type Member = {
   _id: string;
-  _creationTime?: number;
+  createdAt: number;
   organizationId: string;
-  identityId?: string;
+  userId: string;
   email?: string;
   role?: string;
   displayName?: string;
-  metadata?: Record<string, unknown>;
 };
 
 interface MemberTableProps {
@@ -109,7 +108,7 @@ export function MemberTable({
         ),
         cell: ({ row }) => (
           <TableTimestampCell
-            timestamp={row.original._creationTime}
+            timestamp={row.original.createdAt}
             preset="relative"
           />
         ),

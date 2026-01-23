@@ -9,6 +9,10 @@
  * - A single AI response with N tool calls = N*2+2 MessageDocs but only 2 UIMessages
  * - This means `numItems` refers to MessageDocs, and the actual UIMessage count varies
  * - usePaginatedQuery in the frontend accumulates results across pages correctly
+ * - IMPORTANT: Each conversation turn creates ~5 MessageDocs (user, system, tool-call,
+ *   tool-result, assistant-text). Set initialNumItems high enough to avoid pagination
+ *   cutting off messages mid-turn, which causes "tool result without preceding tool call"
+ *   warnings and missing user messages.
  */
 
 import { QueryCtx } from '../_generated/server';

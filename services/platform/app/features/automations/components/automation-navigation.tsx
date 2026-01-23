@@ -5,6 +5,7 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { usePublishAutomationDraft } from '../hooks/use-publish-automation-draft';
 import { useCreateDraftFromActive } from '../hooks/use-create-draft-from-active';
+import { useAutomationVersionNavigation } from '../hooks/use-automation-version-navigation';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
   TabNavigation,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 interface AutomationNavigationProps {
   organizationId: string;
@@ -46,6 +48,10 @@ export function AutomationNavigation({
   const { t: tCommon } = useT('common');
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { navigateToVersion } = useAutomationVersionNavigation(
+    organizationId,
+    automationId ?? '',
+  );
   const { user } = useAuth();
   const [isPublishing, setIsPublishing] = useState(false);
   const [isCreatingDraft, setIsCreatingDraft] = useState(false);
@@ -171,14 +177,6 @@ export function AutomationNavigation({
     }
   };
 
-  const handleVersionChange = (versionId: string) => {
-    navigate({
-      to: '/dashboard/$id/automations/$amId',
-      params: { id: organizationId, amId: versionId },
-      search: { panel: 'ai-chat' },
-    });
-  };
-
   return (
     <TabNavigation
       items={navigationItems}
@@ -186,7 +184,7 @@ export function AutomationNavigation({
       standalone={false}
       ariaLabel={tCommon('aria.automationsNavigation')}
     >
-      <div className="flex items-center gap-4 ml-auto">
+      <div className="flex items-center gap-2 ml-auto">
         {/* Version select - hidden on mobile (shown in first header row instead) */}
         {automation && versions && versions.length > 0 && (
           <DropdownMenu>
@@ -200,11 +198,12 @@ export function AutomationNavigation({
                 <ChevronDown className="ml-1 size-3" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuContent align="end" className="w-40 space-y-1">
               {versions.map((version: Doc<'wfDefinitions'>) => (
                 <DropdownMenuItem
                   key={version._id}
-                  onClick={() => handleVersionChange(version._id)}
+                  onClick={() => navigateToVersion(version._id)}
+                  className={cn(version._id === automationId && 'bg-accent/50')}
                 >
                   <span>{version.version}</span>
                   <span className="text-xs text-muted-foreground ml-1">

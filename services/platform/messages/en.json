@@ -1062,6 +1062,8 @@
       "automationDetails": "Automation details",
       "fallbackImage": "Image",
       "fallbackFile": "File",
+      "loading": "Loading...",
+      "notFound": "Automation not found.",
       "welcomeDraft": "Hi! I'm your automation assistant. I can help you create and edit this automation. Just describe what you want to automate, and I'll build it for you!",
       "welcomeActive": "Hi! I'm your automation assistant. I can help you understand and discuss this automation. What would you like to know?",
       "errorMessage": "I'm sorry, I encountered an error. Please try again or check the console for details.",
@@ -1078,7 +1080,10 @@
         "successDescription": "{fileName} uploaded successfully",
         "failed": "Upload failed",
         "failedDescription": "Failed to upload {fileName}"
-      }
+      },
+      "viewMore": "View more",
+      "viewLess": "View less",
+      "analyzeAttachments": "Please analyze the attached files."
     },
     "tester": {
       "inputLabel": "Test input (JSON)",
