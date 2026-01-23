@@ -84,6 +84,19 @@ export function redactSensitiveFields(
   return redacted;
 }
 
+function stableStringify(value: unknown): string {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const sorted = Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = (value as Record<string, unknown>)[key];
+        return acc;
+      }, {} as Record<string, unknown>);
+    return JSON.stringify(sorted);
+  }
+  return JSON.stringify(value);
+}
+
 export function computeChangedFields(
   previousState: Record<string, unknown> | undefined,
   newState: Record<string, unknown> | undefined,
@@ -110,7 +123,7 @@ export function computeChangedFields(
     const prevValue = previousState[key];
     const newValue = newState[key];
 
-    if (JSON.stringify(prevValue) !== JSON.stringify(newValue)) {
+    if (stableStringify(prevValue) !== stableStringify(newValue)) {
       changedFields.push(key);
     }
   }
@@ -308,8 +321,17 @@ export async function listAuditLogs(
   }
 
   const logs: AuditLogItem[] = [];
+  const startCursor = args.cursor;
+  let foundCursor = !startCursor;
 
   for await (const log of query.order('desc')) {
+    if (!foundCursor) {
+      if (String(log._id) === startCursor) {
+        foundCursor = true;
+      }
+      continue;
+    }
+
     if (filter.endDate && log.timestamp > filter.endDate) {
       continue;
     }
