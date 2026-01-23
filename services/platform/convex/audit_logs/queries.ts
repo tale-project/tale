@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { query } from '../_generated/server';
 import { authComponent } from '../auth';
+import { getOrganizationMember } from '../lib/rls';
 import * as AuditLogHelpers from './helpers';
 import {
   auditLogFilterValidator,
@@ -24,6 +25,12 @@ export const listAuditLogs = query({
       throw new Error('Unauthenticated');
     }
 
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
+
     return await AuditLogHelpers.listAuditLogs(ctx, {
       organizationId: args.organizationId,
       filter: args.filter,
@@ -46,6 +53,12 @@ export const getResourceAuditTrail = query({
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     return await AuditLogHelpers.getResourceAuditTrail(ctx, {
       organizationId: args.organizationId,
@@ -82,6 +95,12 @@ export const getActivitySummary = query({
     if (!authUser) {
       throw new Error('Unauthenticated');
     }
+
+    await getOrganizationMember(ctx, args.organizationId, {
+      userId: String(authUser._id),
+      email: authUser.email,
+      name: authUser.name,
+    });
 
     return await AuditLogHelpers.getActivitySummary(ctx, {
       organizationId: args.organizationId,
