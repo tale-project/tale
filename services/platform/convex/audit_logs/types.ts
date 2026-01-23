@@ -1,5 +1,4 @@
 import type { Infer } from 'convex/values';
-import type { Id } from '../_generated/dataModel';
 import {
   auditLogActorTypeValidator,
   auditLogCategoryValidator,
@@ -85,7 +84,8 @@ export interface AuditContext {
 
 export interface ArchiveAuditLogsArgs {
   organizationId: string;
-  olderThanDays: number;
+  olderThanTimestamp: number;
+  batchSize?: number;
 }
 
 export interface ExportAuditLogsArgs {
