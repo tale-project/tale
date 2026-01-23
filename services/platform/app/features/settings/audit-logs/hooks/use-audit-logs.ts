@@ -2,11 +2,15 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import type { AuditLogFilter } from '@/convex/audit_logs/types';
 
-export function useAuditLogs(organizationId: string, filter?: AuditLogFilter) {
+export function useAuditLogs(
+  organizationId: string,
+  filter?: AuditLogFilter,
+  limit = 50,
+) {
   return useQuery(api.audit_logs.queries.listAuditLogs, {
     organizationId,
     filter,
-    limit: 50,
+    limit,
   });
 }
 
