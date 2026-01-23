@@ -67,8 +67,8 @@ export const getActivitySummary = query({
     successCount: v.number(),
     failureCount: v.number(),
     deniedCount: v.number(),
-    byCategory: v.any(),
-    byResourceType: v.any(),
+    byCategory: v.record(v.string(), v.number()),
+    byResourceType: v.record(v.string(), v.number()),
     topActors: v.array(
       v.object({
         actorId: v.string(),

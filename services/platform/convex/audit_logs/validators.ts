@@ -17,7 +17,7 @@ export const auditLogStatusValidator = v.union(
 );
 
 export const auditLogItemValidator = v.object({
-  _id: v.string(),
+  _id: v.id('auditLogs'),
   _creationTime: v.number(),
   organizationId: v.string(),
 
