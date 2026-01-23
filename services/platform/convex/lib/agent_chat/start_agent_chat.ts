@@ -193,7 +193,7 @@ export async function startAgentChat(
  */
 function isTextFile(attachment: FileAttachment): boolean {
   return (
-    attachment.fileType === 'text/plain' ||
+    attachment.fileType.startsWith('text/plain') ||
     attachment.fileName.toLowerCase().endsWith('.txt') ||
     attachment.fileName.toLowerCase().endsWith('.log')
   );

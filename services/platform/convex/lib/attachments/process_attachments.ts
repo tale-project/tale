@@ -98,7 +98,7 @@ export async function processAttachments(
 
   // Helper to check if a file is a text file
   const isTextFile = (attachment: FileAttachment) =>
-    attachment.fileType === 'text/plain' ||
+    attachment.fileType.startsWith('text/plain') ||
     attachment.fileName.toLowerCase().endsWith('.txt') ||
     attachment.fileName.toLowerCase().endsWith('.log');
 
