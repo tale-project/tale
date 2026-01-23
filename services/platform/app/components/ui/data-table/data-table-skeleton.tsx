@@ -51,6 +51,10 @@ export interface DataTableSkeletonProps {
   stickyLayout?: boolean;
   /** Enable infinite scroll skeleton (for cursor-based pagination) */
   infiniteScroll?: boolean;
+  /** Show filter button skeleton */
+  showFilters?: boolean;
+  /** Show date range picker skeleton */
+  showDateRange?: boolean;
 }
 
 /** Extract skeleton column info from TanStack Table column definitions */
@@ -95,6 +99,8 @@ export function DataTableSkeleton({
   noFirstColumnAvatar = false,
   stickyLayout = false,
   infiniteScroll = false,
+  showFilters = false,
+  showDateRange = false,
 }: DataTableSkeletonProps) {
   const normalizedColumns = normalizeColumns(columns);
 
@@ -171,16 +177,19 @@ export function DataTableSkeleton({
   );
 
   // Build header content with search skeleton and action menu
-  const hasHeader = searchPlaceholder || actionMenu;
+  const hasHeader =
+    searchPlaceholder || showFilters || showDateRange || actionMenu;
   const headerContent = hasHeader ? (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      {searchPlaceholder ? (
-        <HStack gap={3}>
-          <Skeleton className="h-9 w-[18.75rem]" />
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
+        <HStack gap={3} className="w-full sm:w-auto">
+          {searchPlaceholder && (
+            <Skeleton className="h-9 flex-1 sm:flex-none sm:w-[18.75rem]" />
+          )}
+          {showFilters && <Skeleton className="h-9 w-9 rounded-md shrink-0" />}
         </HStack>
-      ) : (
-        <div />
-      )}
+        {showDateRange && <Skeleton className="h-9 w-[15rem]" />}
+      </div>
       {actionMenu}
     </div>
   ) : null;
