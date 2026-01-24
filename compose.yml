@@ -170,6 +170,9 @@ services:
       args:
         VERSION: ${VERSION:-dev}
 
+    # Container name
+    container_name: tale-graph-db
+
     # Port mapping: host:container
     # Access FalkorDB at localhost:6379 (Redis protocol)
     # Access FalkorDB Browser UI at localhost:6380 (mapped from internal 3000)
