@@ -505,12 +505,9 @@ cmd_deploy() {
   log_step "Ensuring stateful services (db, proxy, graph-db) are running..."
 
   if [ "$update_stateful" = "true" ]; then
-    # Force update stateful services - pull new images and recreate containers
-    log_info "Pulling latest images for stateful services..."
-    docker compose -f "${PROJECT_ROOT}/compose.yml" pull db proxy graph-db
-
+    # Force update stateful services - recreate with pre-pulled images
     log_info "Recreating stateful services with new images..."
-    docker compose -f "${PROJECT_ROOT}/compose.yml" up -d --force-recreate db proxy graph-db
+    PULL_POLICY=never docker compose -f "${PROJECT_ROOT}/compose.yml" up -d --force-recreate db proxy graph-db
   else
     # Default behavior: preserve existing healthy services
     # Check if proxy is already healthy - avoid recreating it to preserve TLS state
@@ -526,9 +523,9 @@ cmd_deploy() {
 
     if [ "$proxy_healthy" = "true" ]; then
       # Only start db and graph-db, leave proxy alone
-      docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
+      PULL_POLICY=never docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db graph-db
     else
-      docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
+      PULL_POLICY=never docker compose -f "${PROJECT_ROOT}/compose.yml" up -d db proxy graph-db
     fi
   fi
 
