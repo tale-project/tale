@@ -20,20 +20,6 @@ function DashboardLayout() {
     api.members.queries.getCurrentMemberContext,
     isAuthLoading || !isAuthenticated ? 'skip' : { organizationId },
   );
-  const organization = useQuery(
-    api.organizations.queries.getOrganization,
-    isAuthLoading || !isAuthenticated ? 'skip' : { id: organizationId },
-  );
-
-  // Block on auth and organization validation (security)
-  // memberContext can load async - only needed for role-based UI
-  if (isAuthLoading || !organization) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <AdaptiveHeaderProvider>
@@ -54,7 +40,7 @@ function DashboardLayout() {
         </div>
 
         <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
-          <Outlet />
+          {isAuthLoading ? null : <Outlet />}
         </div>
       </div>
     </AdaptiveHeaderProvider>
