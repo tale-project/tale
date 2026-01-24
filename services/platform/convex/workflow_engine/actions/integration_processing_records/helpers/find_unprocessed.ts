@@ -26,7 +26,7 @@ import { createIntegrationTableName } from './create_integration_table_name';
 import { extractRecordId } from './extract_record_id';
 import { getNestedValue } from './get_nested_value';
 import { buildFetchParams, extractNextResumePoint, type ResumePoint } from './build_fetch_params';
-import { BACKOFF_NEVER_REPROCESS } from '../../../../model/workflow_processing_records/constants';
+import { BACKOFF_NEVER_REPROCESS } from '../../../../workflows/processing_records/constants';
 
 /**
  * Sort records by cursor field in ascending order
