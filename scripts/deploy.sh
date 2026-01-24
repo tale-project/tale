@@ -308,6 +308,8 @@ cleanup_color() {
 # ============================================================================
 
 # Pull all images for a version
+# Always removes local image first to force fresh pull from registry
+# This ensures we always get the latest version, avoiding CDN cache issues
 pull_images() {
   local image_tag="$1"
   local failed_images=()
@@ -315,8 +317,13 @@ pull_images() {
   log_step "Pulling Tale images (version: ${image_tag})..."
 
   for image in $ALL_IMAGES; do
+    local full_image="${GHCR_REGISTRY}/${image}:${image_tag}"
     echo -n "  Pulling ${image}:${image_tag}... "
-    if docker pull "${GHCR_REGISTRY}/${image}:${image_tag}" --quiet >/dev/null 2>&1; then
+
+    # Remove local image first to force fresh pull (avoids cache issues)
+    docker rmi "$full_image" >/dev/null 2>&1 || true
+
+    if docker pull "$full_image" --quiet >/dev/null 2>&1; then
       echo -e "${GREEN}OK${NC}"
     else
       echo -e "${YELLOW}SKIP${NC} (image not found)"
