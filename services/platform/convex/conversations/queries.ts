@@ -317,29 +317,39 @@ export const getConversationWithMessages = queryWithRLS({
 });
 
 /**
- * Get all conversations for an organization without pagination or filtering.
- * Filtering, sorting, and pagination are performed client-side using TanStack DB Collections.
+ * List conversations with cursor pagination.
  * Returns fully transformed conversations with customer info and messages.
  */
-export const getAllConversations = queryWithRLS({
+export const listConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
+    paginationOpts: cursorPaginationOptsValidator,
   },
-  returns: v.array(conversationItemValidator),
+  returns: v.object({
+    page: v.array(conversationItemValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
-    const conversations = [];
-    for await (const conversation of ctx.db
+    const result = await ctx.db
       .query('conversations')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )) {
-      const transformed = await ConversationsHelpers.transformConversation(
-        ctx,
-        conversation,
-        { includeAllMessages: false },
-      );
-      conversations.push(transformed);
-    }
-    return conversations;
+      )
+      .paginate(args.paginationOpts);
+
+    const transformedPage = await Promise.all(
+      result.page.map((conversation) =>
+        ConversationsHelpers.transformConversation(ctx, conversation, {
+          includeAllMessages: false,
+        }),
+      ),
+    );
+
+    return {
+      page: transformedPage,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    };
   },
 });

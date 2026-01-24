@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useState, useRef, useEffect, type ReactNode } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -28,6 +28,8 @@ import {
 import { cn } from '@/lib/utils/cn';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
+import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { HStack, Stack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
@@ -72,6 +74,8 @@ export interface DataTableProps<TData> {
     onLoadMore: () => void;
     /** Whether more items are currently loading */
     isLoadingMore?: boolean;
+    /** Whether initial data is loading (prevents empty state flash) */
+    isInitialLoading?: boolean;
   };
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
@@ -191,6 +195,28 @@ export function DataTable<TData>({
     },
   );
 
+  // Track previous row count for animation on load more
+  const prevRowCountRef = useRef(0);
+  const [animatingRows, setAnimatingRows] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const currentCount = data.length;
+    if (currentCount > prevRowCountRef.current && prevRowCountRef.current > 0) {
+      // New rows were added, mark them for animation
+      const newRowIds = new Set(
+        data.slice(prevRowCountRef.current).map((row) => getRowId?.(row) ?? ''),
+      );
+      setAnimatingRows(newRowIds);
+      // Clear animation flags after animation completes
+      const timer = setTimeout(() => {
+        setAnimatingRows(new Set());
+      }, 300);
+      prevRowCountRef.current = currentCount;
+      return () => clearTimeout(timer);
+    }
+    prevRowCountRef.current = currentCount;
+  }, [data, getRowId]);
+
   // Use controlled or internal state
   const sorting = onSortingChange ? initialSorting : internalSorting;
   const rowSelection = controlledRowSelection ?? internalRowSelection;
@@ -260,8 +286,9 @@ export function DataTable<TData>({
     dateRange?.from ||
     dateRange?.to;
 
-  // Show empty state when no data
-  if (data.length === 0 && emptyState) {
+  // Show empty state when no data (but not during initial load)
+  const isInitialLoading = infiniteScroll?.isInitialLoading;
+  if (data.length === 0 && emptyState && !isInitialLoading) {
     return (
       <div
         className={cn(
@@ -319,7 +346,38 @@ export function DataTable<TData>({
         ))}
       </TableHeader>
       <TableBody>
-        {rows.length === 0 && hasActiveFilters ? (
+        {isInitialLoading ? (
+          // Show skeleton rows during initial loading (matching DataTableSkeleton style)
+          Array.from({ length: 10 }).map((_, rowIndex) => (
+            <TableRow key={`skeleton-${rowIndex}`}>
+              {enableExpanding && <TableCell className="w-[3rem]" />}
+              {columns.map((col, colIndex) => {
+                const isFirstColumn = colIndex === 0;
+                const isActionColumn =
+                  (col.meta as { isAction?: boolean } | undefined)?.isAction ===
+                  true;
+
+                const cellContent = isActionColumn ? (
+                  <HStack justify="end">
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                  </HStack>
+                ) : isFirstColumn ? (
+                  <HStack gap={3}>
+                    <Skeleton className="size-8 rounded-md shrink-0" />
+                    <Stack gap={1} className="flex-1">
+                      <Skeleton className="h-3.5 w-full max-w-48" />
+                      <Skeleton className="h-3 w-2/3 max-w-24" />
+                    </Stack>
+                  </HStack>
+                ) : (
+                  <Skeleton className="h-3.5 w-full max-w-[80%]" />
+                );
+
+                return <TableCell key={colIndex}>{cellContent}</TableCell>;
+              })}
+            </TableRow>
+          ))
+        ) : rows.length === 0 && hasActiveFilters ? (
           <TableRow>
             <TableCell
               colSpan={columns.length + (enableExpanding ? 1 : 0)}
@@ -335,6 +393,7 @@ export function DataTable<TData>({
               typeof rowClassName === 'function'
                 ? rowClassName(row)
                 : rowClassName;
+            const isNewRow = animatingRows.has(row.id);
 
             return (
               <Fragment key={row.id}>
@@ -343,6 +402,7 @@ export function DataTable<TData>({
                     'group',
                     index === rows.length - 1 ? 'border-b-0' : '',
                     clickableRows || onRowClick ? 'cursor-pointer' : '',
+                    isNewRow && 'animate-row-enter',
                     rowClassNameValue,
                   )}
                   data-state={row.getIsSelected() ? 'selected' : undefined}

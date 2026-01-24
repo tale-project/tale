@@ -18,15 +18,15 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/websites')({
 
 function WebsitesPage() {
   const { id: organizationId } = Route.useParams();
-  const websites = useQuery(api.websites.queries.getAllWebsites, {
+  const hasWebsites = useQuery(api.websites.queries.hasWebsites, {
     organizationId,
   });
 
-  if (websites === undefined) {
+  if (hasWebsites === undefined) {
     return <WebsitesTableSkeleton organizationId={organizationId} />;
   }
 
-  if (websites.length === 0) {
+  if (hasWebsites === false) {
     return <WebsitesEmptyState organizationId={organizationId} />;
   }
 

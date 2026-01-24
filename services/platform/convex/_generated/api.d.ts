@@ -508,6 +508,7 @@ import type * as products_update_product from "../products/update_product.js";
 import type * as products_update_products from "../products/update_products.js";
 import type * as products_upsert_product_translation from "../products/upsert_product_translation.js";
 import type * as products_validators from "../products/validators.js";
+import type * as seed_test_data from "../seed_test_data.js";
 import type * as streaming_helpers from "../streaming/helpers.js";
 import type * as streaming_http_actions from "../streaming/http_actions.js";
 import type * as streaming_mutations from "../streaming/mutations.js";
@@ -1336,6 +1337,7 @@ declare const fullApi: ApiFromModules<{
   "products/update_products": typeof products_update_products;
   "products/upsert_product_translation": typeof products_upsert_product_translation;
   "products/validators": typeof products_validators;
+  seed_test_data: typeof seed_test_data;
   "streaming/helpers": typeof streaming_helpers;
   "streaming/http_actions": typeof streaming_http_actions;
   "streaming/mutations": typeof streaming_mutations;

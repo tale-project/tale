@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, usePaginatedQuery } from 'convex/react';
 import { Input } from '@/app/components/ui/forms/input';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Search, Loader2Icon } from 'lucide-react';
@@ -20,7 +20,7 @@ import { useBulkReopenConversations } from '../hooks/use-bulk-reopen-conversatio
 import { useAddMessage } from '../hooks/use-add-message';
 import type { Conversation } from '../types';
 import { useT } from '@/lib/i18n/client';
-import { useConversationsData } from '@/app/hooks/use-conversations-data';
+import { filterByTextSearch, filterByFields, sortByDate } from '@/lib/utils/client-utils';
 
 interface ConversationsClientProps {
   status?: Conversation['status'];
@@ -134,6 +134,8 @@ function ConversationsClientSkeleton() {
   );
 }
 
+const PAGE_SIZE = 25;
+
 export function ConversationsClient({
   status,
   organizationId,
@@ -155,16 +157,47 @@ export function ConversationsClient({
   const { t: tConversations } = useT('conversations');
   const { t: tCommon } = useT('common');
 
-  // Fetch conversations with CSR hook (instant client-side filtering)
-  const { data: allConversations, isLoading: conversationsLoading } =
-    useConversationsData({
-      organizationId,
-      status: status ? [status] : undefined,
-      priority: initialPriority ? [initialPriority] : undefined,
-      search: searchQuery || initialSearch,
-      sortBy: 'lastMessageAt',
-      sortOrder: 'desc',
+  // Fetch conversations with cursor-based pagination
+  const { results, status: paginationStatus, loadMore, isLoading } = usePaginatedQuery(
+    api.conversations.queries.listConversations,
+    { organizationId },
+    { initialNumItems: PAGE_SIZE },
+  );
+
+  // Client-side filtering
+  const filteredConversations = useMemo(() => {
+    if (!results) return [];
+
+    let data = [...results] as ConversationItem[];
+
+    // Filter by status
+    if (status) {
+      data = data.filter((c) => c.status === status);
+    }
+
+    // Filter by priority
+    if (initialPriority) {
+      data = data.filter((c) => c.priority === initialPriority);
+    }
+
+    // Filter by search
+    const searchTerm = searchQuery || initialSearch;
+    if (searchTerm) {
+      data = filterByTextSearch(data, searchTerm, [
+        'title',
+        'description',
+        'subject',
+        'externalMessageId',
+      ]);
+    }
+
+    // Sort by lastMessageAt descending
+    return data.sort((a, b) => {
+      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : a._creationTime;
+      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : b._creationTime;
+      return bTime - aTime;
     });
+  }, [results, status, initialPriority, searchQuery, initialSearch]);
 
   // Fetch email providers
   const emailProviders = useQuery(api.email_providers.queries.list, {
@@ -186,13 +219,28 @@ export function ConversationsClient({
     isSending: false,
   });
 
+  // Load more when needed (if filtered results are less than available)
+  useMemo(() => {
+    if (
+      paginationStatus === 'CanLoadMore' &&
+      filteredConversations.length < PAGE_SIZE &&
+      !isLoading
+    ) {
+      loadMore(PAGE_SIZE);
+    }
+  }, [paginationStatus, filteredConversations.length, isLoading, loadMore]);
+
   // Show skeleton while loading
-  if (conversationsLoading || emailProviders === undefined) {
+  if (isLoading && !results) {
     return <ConversationsClientSkeleton />;
   }
 
-  // Use all conversations (already filtered/sorted by hook)
-  const conversations = allConversations as unknown as ConversationItem[];
+  if (emailProviders === undefined) {
+    return <ConversationsClientSkeleton />;
+  }
+
+  // Use filtered conversations
+  const conversations = filteredConversations;
   const hasEmailProviders = (emailProviders?.length ?? 0) > 0;
 
   // Show empty state when there are no conversations and no email providers configured

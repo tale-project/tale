@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { usePaginatedQuery } from 'convex/react';
 import { Users } from 'lucide-react';
+import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { CustomersActionMenu } from './customers-action-menu';
 import { useCustomersTableConfig } from '../hooks/use-customers-table-config';
 import { useT } from '@/lib/i18n/client';
-import { useCustomersData } from '@/app/hooks/use-customers-data';
+import {
+  filterByTextSearch,
+  filterByFields,
+} from '@/lib/utils/client-utils';
 
 export interface CustomersTableProps {
   organizationId: string;
@@ -18,7 +23,7 @@ export function CustomersTable({ organizationId }: CustomersTableProps) {
   const { t: tCustomers } = useT('customers');
   const { t: tGlobal } = useT('global');
 
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } =
+  const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useCustomersTableConfig();
 
   const [search, setSearch] = useState('');
@@ -27,25 +32,54 @@ export function CustomersTable({ organizationId }: CustomersTableProps) {
   const [localeFilter, setLocaleFilter] = useState<string[]>([]);
   const [displayCount, setDisplayCount] = useState(pageSize);
 
-  const { data: customers, filteredCount } = useCustomersData({
-    organizationId,
-    search: search || undefined,
-    status: statusFilter.length > 0 ? statusFilter : [],
-    source: sourceFilter.length > 0 ? sourceFilter : [],
-    locale: localeFilter.length > 0 ? localeFilter : [],
-    sortBy: defaultSort as 'name' | 'email' | '_creationTime' | 'status',
-    sortOrder: defaultSortDesc ? 'desc' : 'asc',
-  });
-
-  const displayedCustomers = useMemo(
-    () => customers.slice(0, displayCount),
-    [customers, displayCount],
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.customers.queries.listCustomers,
+    { organizationId },
+    { initialNumItems: pageSize },
   );
 
-  const hasMore = displayCount < filteredCount;
+  const processed = useMemo(() => {
+    if (!results) return [];
 
-  const loadMore = () => {
-    setDisplayCount((prev) => Math.min(prev + pageSize, filteredCount));
+    let data = [...results];
+
+    if (search) {
+      data = filterByTextSearch(data, search, ['name', 'email', 'externalId']);
+    }
+
+    const activeFilters: Array<{ field: keyof (typeof data)[0]; values: Set<string> }> = [];
+    if (statusFilter.length > 0) {
+      activeFilters.push({ field: 'status', values: new Set(statusFilter) });
+    }
+    if (sourceFilter.length > 0) {
+      activeFilters.push({ field: 'source', values: new Set(sourceFilter) });
+    }
+    if (localeFilter.length > 0) {
+      activeFilters.push({ field: 'locale', values: new Set(localeFilter) });
+    }
+
+    if (activeFilters.length > 0) {
+      data = filterByFields(data, activeFilters);
+    }
+
+    return data;
+  }, [results, search, statusFilter, sourceFilter, localeFilter]);
+
+  const displayedCustomers = useMemo(
+    () => processed.slice(0, displayCount),
+    [processed, displayCount],
+  );
+
+  const hasMore =
+    displayCount < processed.length ||
+    status === 'CanLoadMore' ||
+    status === 'LoadingMore';
+
+  const handleLoadMore = () => {
+    if (displayCount >= processed.length && status === 'CanLoadMore') {
+      loadMore(pageSize);
+    }
+    setDisplayCount((prev) => prev + pageSize);
   };
 
   const filterConfigs = useMemo(
@@ -135,8 +169,9 @@ export function CustomersTable({ organizationId }: CustomersTableProps) {
       }}
       infiniteScroll={{
         hasMore,
-        onLoadMore: loadMore,
-        isLoadingMore: false,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: status === 'LoadingMore',
+        isInitialLoading: status === 'LoadingFirstPage',
       }}
     />
   );

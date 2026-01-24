@@ -121,20 +121,18 @@ export const getCustomerByEmail = queryWithRLS({
   },
 });
 
-export const getAllCustomers = queryWithRLS({
+export const listCustomers = queryWithRLS({
   args: {
     organizationId: v.string(),
+    paginationOpts: cursorPaginationOptsValidator,
   },
-  returns: v.array(customerValidator),
   handler: async (ctx, args) => {
-    const customers = [];
-    for await (const customer of ctx.db
+    return await ctx.db
       .query('customers')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )) {
-      customers.push(customer);
-    }
-    return customers;
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
   },
 });
