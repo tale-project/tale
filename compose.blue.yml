@@ -2,10 +2,10 @@
 # This file defines SEPARATE blue services that won't conflict with green
 #
 # Usage:
-#   docker compose -f compose.blue.yml up -d platform-blue rag-blue ...
+#   VERSION=1.0.0 docker compose -f compose.blue.yml up -d platform-blue rag-blue ...
 #
-# For production (pull pre-built images):
-#   PULL_POLICY=always VERSION=v1.0.0 docker compose -f compose.blue.yml up -d ...
+# Note: This file is for production deployments only. It pulls pre-built images
+# from GHCR and does NOT support local builds. For local development, use compose.yml.
 #
 # Key difference from previous approach:
 # - Services are named platform-blue, rag-blue, etc. (not platform, rag)
@@ -16,13 +16,7 @@ services:
   # Blue Platform
   # ============================================================================
   platform-blue:
-    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/platform/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    image: ghcr.io/tale-project/tale/tale-platform:${VERSION:?VERSION is required}
 
     container_name: tale-platform-blue
 
@@ -66,13 +60,7 @@ services:
   # Blue RAG
   # ============================================================================
   rag-blue:
-    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/rag/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    image: ghcr.io/tale-project/tale/tale-rag:${VERSION:?VERSION is required}
 
     container_name: tale-rag-blue
 
@@ -113,13 +101,7 @@ services:
   # Blue Crawler
   # ============================================================================
   crawler-blue:
-    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/crawler/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    image: ghcr.io/tale-project/tale/tale-crawler:${VERSION:?VERSION is required}
 
     container_name: tale-crawler-blue
 
@@ -151,13 +133,7 @@ services:
   # Blue Search
   # ============================================================================
   search-blue:
-    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: .
-      dockerfile: services/search/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
+    image: ghcr.io/tale-project/tale/tale-search:${VERSION:?VERSION is required}
 
     container_name: tale-search-blue
 

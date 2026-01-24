@@ -326,34 +326,48 @@ pull_images() {
     if docker pull "$full_image" --quiet >/dev/null 2>&1; then
       echo -e "${GREEN}OK${NC}"
     else
-      echo -e "${YELLOW}SKIP${NC} (image not found)"
+      echo -e "${RED}FAILED${NC}"
       failed_images+=("$image")
     fi
   done
 
   if [ ${#failed_images[@]} -gt 0 ]; then
-    log_warning "Failed to pull images: ${failed_images[*]}"
-    log_warning "Deployment may fail if these services are required"
+    log_error "Failed to pull images: ${failed_images[*]}"
+    log_error "Ensure the version '${image_tag}' exists in GHCR"
+    echo ""
+    echo "  Check available versions at:"
+    echo "  https://github.com/tale-project/tale/pkgs/container/tale%2Ftale-platform"
+    echo ""
+    return 1
   fi
-  log_success "Images pulled successfully"
+  log_success "All images pulled successfully"
 }
 
-# Verify GHCR authentication by pulling platform image
+# Verify GHCR authentication and image existence
 verify_ghcr_auth() {
   local image_tag="$1"
 
-  log_step "Checking GHCR authentication..."
-  local pull_error
-  if ! pull_error=$(docker pull "${GHCR_REGISTRY}/tale-platform:${image_tag}" 2>&1); then
-    log_error "Failed to pull image: ${pull_error}"
-    log_error "Please ensure you're logged into GHCR and the version exists:"
+  log_step "Verifying GHCR access and image version..."
+  local inspect_error
+  if ! inspect_error=$(docker manifest inspect "${GHCR_REGISTRY}/tale-platform:${image_tag}" 2>&1); then
+    log_error "Cannot access image: ${GHCR_REGISTRY}/tale-platform:${image_tag}"
     echo ""
-    echo "  docker login ghcr.io -u <github-username>"
+    if echo "$inspect_error" | grep -qi "unauthorized\|denied\|authentication"; then
+      log_error "Authentication failed. Please login to GHCR:"
+      echo ""
+      echo "  docker login ghcr.io -u <github-username>"
+      echo ""
+      echo "You'll need a Personal Access Token with 'read:packages' scope."
+    else
+      log_error "Image version '${image_tag}' not found in registry."
+      echo ""
+      echo "  Check available versions at:"
+      echo "  https://github.com/tale-project/tale/pkgs/container/tale%2Ftale-platform"
+    fi
     echo ""
-    echo "You'll need a Personal Access Token with 'read:packages' scope."
     return 1
   fi
-  log_success "GHCR authentication verified"
+  log_success "GHCR access verified, version '${image_tag}' exists"
 }
 
 # Verify deployed version via health endpoint
@@ -446,7 +460,9 @@ cmd_deploy() {
   if ! verify_ghcr_auth "$image_tag"; then
     return 1
   fi
-  pull_images "$image_tag"
+  if ! pull_images "$image_tag"; then
+    return 1
+  fi
 
   # Export VERSION for compose files
   export VERSION="$image_tag"
