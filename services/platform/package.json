@@ -154,7 +154,7 @@
     "storybook": "8.6.15",
     "tree-kill": "1.2.2",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-tsconfig-paths": "6.0.4",
+    "vite-tsconfig-paths": "6.0.5",
     "vitest-axe": "1.0.0-pre.5",
     "workbox-cacheable-response": "^7.4.0",
     "workbox-expiration": "^7.4.0",
