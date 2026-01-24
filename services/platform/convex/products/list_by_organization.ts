@@ -25,6 +25,7 @@ export async function listByOrganization(
     .withIndex('by_organizationId', (q) =>
       q.eq('organizationId', args.organizationId),
     )
+    .order('desc')
     .paginate(args.paginationOpts);
 
   return {

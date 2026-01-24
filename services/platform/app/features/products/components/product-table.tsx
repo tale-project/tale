@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { usePaginatedQuery } from 'convex/react';
 import { Package } from 'lucide-react';
+import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { ProductsActionMenu } from './products-action-menu';
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
 import { useT } from '@/lib/i18n/client';
-import { useProductsData } from '@/app/hooks/use-products-data';
+import {
+  filterByTextSearch,
+  filterByFields,
+} from '@/lib/utils/client-utils';
 
 export interface ProductTableProps {
   organizationId: string;
@@ -17,30 +22,52 @@ export function ProductTable({ organizationId }: ProductTableProps) {
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } =
+  const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useProductsTableConfig();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [displayCount, setDisplayCount] = useState(pageSize);
 
-  const { data: products, filteredCount } = useProductsData({
-    organizationId,
-    search: search || undefined,
-    status: statusFilter.length > 0 ? statusFilter : [],
-    sortBy: defaultSort as 'name' | 'createdAt' | 'lastUpdated' | 'stock' | 'price',
-    sortOrder: defaultSortDesc ? 'desc' : 'asc',
-  });
-
-  const displayedProducts = useMemo(
-    () => products.slice(0, displayCount),
-    [products, displayCount],
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.products.queries.listProducts,
+    { organizationId },
+    { initialNumItems: pageSize },
   );
 
-  const hasMore = displayCount < filteredCount;
+  const processed = useMemo(() => {
+    if (!results) return [];
 
-  const loadMore = () => {
-    setDisplayCount((prev) => Math.min(prev + pageSize, filteredCount));
+    let data = [...results];
+
+    if (search) {
+      data = filterByTextSearch(data, search, ['name', 'description', 'category']);
+    }
+
+    if (statusFilter.length > 0) {
+      data = filterByFields(data, [
+        { field: 'status', values: new Set(statusFilter) },
+      ]);
+    }
+
+    return data;
+  }, [results, search, statusFilter]);
+
+  const displayedProducts = useMemo(
+    () => processed.slice(0, displayCount),
+    [processed, displayCount],
+  );
+
+  const hasMore =
+    displayCount < processed.length ||
+    status === 'CanLoadMore' ||
+    status === 'LoadingMore';
+
+  const handleLoadMore = () => {
+    if (displayCount >= processed.length && status === 'CanLoadMore') {
+      loadMore(pageSize);
+    }
+    setDisplayCount((prev) => prev + pageSize);
   };
 
   const filterConfigs = useMemo(
@@ -94,8 +121,9 @@ export function ProductTable({ organizationId }: ProductTableProps) {
       }}
       infiniteScroll={{
         hasMore,
-        onLoadMore: loadMore,
-        isLoadingMore: false,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: status === 'LoadingMore',
+        isInitialLoading: status === 'LoadingFirstPage',
       }}
     />
   );

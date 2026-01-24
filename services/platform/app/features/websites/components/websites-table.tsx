@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { usePaginatedQuery } from 'convex/react';
 import { Globe } from 'lucide-react';
+import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { WebsitesActionMenu } from './websites-action-menu';
 import { useWebsitesTableConfig } from '../hooks/use-websites-table-config';
 import { useT } from '@/lib/i18n/client';
-import { useWebsitesData } from '@/app/hooks/use-websites-data';
+import {
+  filterByTextSearch,
+  filterByFields,
+} from '@/lib/utils/client-utils';
 
 export interface WebsitesTableProps {
   organizationId: string;
@@ -17,30 +22,52 @@ export function WebsitesTable({ organizationId }: WebsitesTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
 
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } =
+  const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useWebsitesTableConfig();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [displayCount, setDisplayCount] = useState(pageSize);
 
-  const { data: websites, filteredCount } = useWebsitesData({
-    organizationId,
-    search: search || undefined,
-    status: statusFilter.length > 0 ? statusFilter : [],
-    sortBy: defaultSort as 'domain' | 'title' | '_creationTime' | 'lastScannedAt',
-    sortOrder: defaultSortDesc ? 'desc' : 'asc',
-  });
-
-  const displayedWebsites = useMemo(
-    () => websites.slice(0, displayCount),
-    [websites, displayCount],
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.websites.queries.listWebsites,
+    { organizationId },
+    { initialNumItems: pageSize },
   );
 
-  const hasMore = displayCount < filteredCount;
+  const processed = useMemo(() => {
+    if (!results) return [];
 
-  const loadMore = () => {
-    setDisplayCount((prev) => Math.min(prev + pageSize, filteredCount));
+    let data = [...results];
+
+    if (search) {
+      data = filterByTextSearch(data, search, ['domain', 'title', 'description']);
+    }
+
+    if (statusFilter.length > 0) {
+      data = filterByFields(data, [
+        { field: 'status', values: new Set(statusFilter) },
+      ]);
+    }
+
+    return data;
+  }, [results, search, statusFilter]);
+
+  const displayedWebsites = useMemo(
+    () => processed.slice(0, displayCount),
+    [processed, displayCount],
+  );
+
+  const hasMore =
+    displayCount < processed.length ||
+    status === 'CanLoadMore' ||
+    status === 'LoadingMore';
+
+  const handleLoadMore = () => {
+    if (displayCount >= processed.length && status === 'CanLoadMore') {
+      loadMore(pageSize);
+    }
+    setDisplayCount((prev) => prev + pageSize);
   };
 
   const filterConfigs = useMemo(
@@ -93,8 +120,9 @@ export function WebsitesTable({ organizationId }: WebsitesTableProps) {
       }}
       infiniteScroll={{
         hasMore,
-        onLoadMore: loadMore,
-        isLoadingMore: false,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: status === 'LoadingMore',
+        isInitialLoading: status === 'LoadingFirstPage',
       }}
     />
   );

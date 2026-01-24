@@ -3,6 +3,7 @@ import { z } from 'zod/v4';
 export const cursorPaginationOptsSchema = z.object({
 	numItems: z.number(),
 	cursor: z.union([z.string(), z.null()]),
+	id: z.number(),
 });
 export type CursorPaginationOpts = z.infer<typeof cursorPaginationOptsSchema>;
 

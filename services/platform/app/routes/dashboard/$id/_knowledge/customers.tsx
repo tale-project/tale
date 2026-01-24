@@ -20,13 +20,13 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/customers')({
 
 function CustomersPage() {
   const { id: organizationId } = Route.useParams();
-  const customers = useQuery(api.customers.queries.getAllCustomers, { organizationId });
+  const hasCustomers = useQuery(api.customers.queries.hasCustomers, { organizationId });
 
-  if (customers === undefined) {
+  if (hasCustomers === undefined) {
     return <CustomersTableSkeleton organizationId={organizationId} />;
   }
 
-  if (customers.length === 0) {
+  if (hasCustomers === false) {
     return <CustomersEmptyState organizationId={organizationId} />;
   }
 

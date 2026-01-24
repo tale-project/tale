@@ -95,20 +95,12 @@ export const getProduct = queryWithRLS({
   },
 });
 
-export const getAllProducts = queryWithRLS({
+export const listProducts = queryWithRLS({
   args: {
     organizationId: v.string(),
+    paginationOpts: cursorPaginationOptsValidator,
   },
-  returns: v.array(productDocValidator),
   handler: async (ctx, args) => {
-    const products = [];
-    for await (const product of ctx.db
-      .query('products')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      products.push(product);
-    }
-    return products;
+    return await ProductsHelpers.listByOrganization(ctx, args);
   },
 });

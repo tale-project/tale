@@ -6,9 +6,11 @@
 
 import { v } from 'convex/values';
 import { internalQuery, query } from '../_generated/server';
+import type { Doc } from '../_generated/dataModel';
 import * as WebsitesHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { websiteValidator } from './validators';
 
 /**
@@ -90,17 +92,19 @@ export const hasWebsites = query({
 });
 
 /**
- * Get all websites for an organization.
+ * List websites with cursor pagination.
  */
-export const getAllWebsites = query({
+export const listWebsites = query({
   args: {
     organizationId: v.string(),
+    paginationOpts: cursorPaginationOptsValidator,
   },
-  returns: v.array(websiteValidator),
   handler: async (ctx, args) => {
+    const emptyResult = { page: [] as Doc<'websites'>[], isDone: true as const, continueCursor: '' };
+
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
-      return [];
+      return emptyResult;
     }
 
     // Verify user has access to this organization
@@ -111,17 +115,15 @@ export const getAllWebsites = query({
         name: authUser.name,
       });
     } catch {
-      return [];
+      return emptyResult;
     }
 
-    const websites = [];
-    for await (const website of ctx.db
+    return await ctx.db
       .query('websites')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )) {
-      websites.push(website);
-    }
-    return websites;
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
   },
 });

@@ -1,6 +1,32 @@
 import { v } from 'convex/values';
 import { queryWithRLS } from '../lib/rls';
-import type { Doc } from '../_generated/dataModel';
+import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { dataSourceValidator } from '../lib/validators/common';
+import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
+
+const vendorDocValidator = v.object({
+  _id: v.id('vendors'),
+  _creationTime: v.number(),
+  organizationId: v.string(),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  externalId: v.optional(v.union(v.string(), v.number())),
+  source: dataSourceValidator,
+  locale: v.optional(v.string()),
+  address: v.optional(
+    v.object({
+      street: v.optional(v.string()),
+      city: v.optional(v.string()),
+      state: v.optional(v.string()),
+      country: v.optional(v.string()),
+      postalCode: v.optional(v.string()),
+    }),
+  ),
+  tags: v.optional(v.array(v.string())),
+  metadata: v.optional(jsonRecordValidator),
+  notes: v.optional(v.string()),
+});
 
 export const hasVendors = queryWithRLS({
   args: {
@@ -27,19 +53,18 @@ export const getVendor = queryWithRLS({
   },
 });
 
-export const getAllVendors = queryWithRLS({
+export const listVendors = queryWithRLS({
   args: {
     organizationId: v.string(),
+    paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const vendors: Doc<'vendors'>[] = [];
-    for await (const vendor of ctx.db
+    return await ctx.db
       .query('vendors')
       .withIndex('by_organizationId', (q) =>
         q.eq('organizationId', args.organizationId),
-      )) {
-      vendors.push(vendor);
-    }
-    return vendors;
+      )
+      .order('desc')
+      .paginate(args.paginationOpts);
   },
 });

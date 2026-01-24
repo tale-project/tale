@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { usePaginatedQuery } from 'convex/react';
 import { Store } from 'lucide-react';
+import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { VendorsActionMenu } from './vendors-action-menu';
 import { useVendorsTableConfig } from '../hooks/use-vendors-table-config';
 import { useT } from '@/lib/i18n/client';
-import { useVendorsData } from '@/app/hooks/use-vendors-data';
+import {
+  filterByTextSearch,
+  filterByFields,
+} from '@/lib/utils/client-utils';
 
 export interface VendorsTableProps {
   organizationId: string;
@@ -17,7 +22,7 @@ export function VendorsTable({ organizationId }: VendorsTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tGlobal } = useT('global');
 
-  const { columns, searchPlaceholder, stickyLayout, pageSize, defaultSort, defaultSortDesc } =
+  const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useVendorsTableConfig();
 
   const [search, setSearch] = useState('');
@@ -25,24 +30,51 @@ export function VendorsTable({ organizationId }: VendorsTableProps) {
   const [localeFilter, setLocaleFilter] = useState<string[]>([]);
   const [displayCount, setDisplayCount] = useState(pageSize);
 
-  const { data: vendors, filteredCount } = useVendorsData({
-    organizationId,
-    search: search || undefined,
-    source: sourceFilter.length > 0 ? sourceFilter : [],
-    locale: localeFilter.length > 0 ? localeFilter : [],
-    sortBy: defaultSort as 'name' | 'email' | '_creationTime',
-    sortOrder: defaultSortDesc ? 'desc' : 'asc',
-  });
-
-  const displayedVendors = useMemo(
-    () => vendors.slice(0, displayCount),
-    [vendors, displayCount],
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.vendors.queries.listVendors,
+    { organizationId },
+    { initialNumItems: pageSize },
   );
 
-  const hasMore = displayCount < filteredCount;
+  const processed = useMemo(() => {
+    if (!results) return [];
 
-  const loadMore = () => {
-    setDisplayCount((prev) => Math.min(prev + pageSize, filteredCount));
+    let data = [...results];
+
+    if (search) {
+      data = filterByTextSearch(data, search, ['name', 'email', 'externalId']);
+    }
+
+    const activeFilters: Array<{ field: keyof (typeof data)[0]; values: Set<string> }> = [];
+    if (sourceFilter.length > 0) {
+      activeFilters.push({ field: 'source', values: new Set(sourceFilter) });
+    }
+    if (localeFilter.length > 0) {
+      activeFilters.push({ field: 'locale', values: new Set(localeFilter) });
+    }
+
+    if (activeFilters.length > 0) {
+      data = filterByFields(data, activeFilters);
+    }
+
+    return data;
+  }, [results, search, sourceFilter, localeFilter]);
+
+  const displayedVendors = useMemo(
+    () => processed.slice(0, displayCount),
+    [processed, displayCount],
+  );
+
+  const hasMore =
+    displayCount < processed.length ||
+    status === 'CanLoadMore' ||
+    status === 'LoadingMore';
+
+  const handleLoadMore = () => {
+    if (displayCount >= processed.length && status === 'CanLoadMore') {
+      loadMore(pageSize);
+    }
+    setDisplayCount((prev) => prev + pageSize);
   };
 
   const filterConfigs = useMemo(
@@ -116,8 +148,9 @@ export function VendorsTable({ organizationId }: VendorsTableProps) {
       }}
       infiniteScroll={{
         hasMore,
-        onLoadMore: loadMore,
-        isLoadingMore: false,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: status === 'LoadingMore',
+        isInitialLoading: status === 'LoadingFirstPage',
       }}
     />
   );
