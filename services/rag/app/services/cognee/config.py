@@ -122,6 +122,9 @@ def _pre_configure_database_env() -> None:
     os.environ["GRAPH_DATABASE_PROVIDER"] = "falkor"
     os.environ["GRAPH_DATABASE_URL"] = falkordb_url
     os.environ["GRAPH_DATABASE_PORT"] = falkordb_port
+    # Default graph name required by FalkorDB (empty string causes error).
+    # For multi-tenancy, cognee overrides this with dataset-specific names.
+    os.environ["GRAPH_DATABASE_NAME"] = os.environ.get("GRAPH_DATABASE_NAME", "tale_default")
     os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "falkor_graph_local"
 
     os.environ["VECTOR_DB_PROVIDER"] = "falkor"
