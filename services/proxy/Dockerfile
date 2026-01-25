@@ -13,8 +13,10 @@ FROM caddy:2.11-alpine
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set version environment variable
-ENV TALE_VERSION=${VERSION}
+# Set environment variables with sensible defaults
+ENV TALE_VERSION=${VERSION} \
+    HOST=tale.local \
+    TLS_MODE=selfsigned
 
 # Copy Caddyfile
 COPY services/proxy/Caddyfile /etc/caddy/Caddyfile

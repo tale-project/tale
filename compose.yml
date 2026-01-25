@@ -243,13 +243,6 @@ services:
     env_file:
       - .env
 
-    # Environment variables
-    environment:
-      # Chunk size for document processing
-      # Smaller chunks (512) reduce LLM output size for knowledge graph extraction
-      - RAG_CHUNK_SIZE=512
-      - RAG_CHUNK_OVERLAP=50
-
     # Restart policy
     # Automatically restart the container if it crashes
     restart: unless-stopped
@@ -321,13 +314,6 @@ services:
     # Create a .env file in the project root with your configuration
     env_file:
       - .env
-
-    # Environment variables
-    environment:
-      # CA cert path for self-signed mode - entrypoint script checks if file exists
-      # With Let's Encrypt, this file doesn't exist and is safely ignored
-      # The entrypoint will set NODE_EXTRA_CA_CERTS only if the file exists
-      - CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt
 
     # Restart policy
     # Automatically restart the container if it crashes

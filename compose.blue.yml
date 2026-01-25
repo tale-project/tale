@@ -30,11 +30,6 @@ services:
     env_file:
       - .env
 
-    environment:
-      # CA cert paths - entrypoint script checks if files exist before using them
-      # With Let's Encrypt, these files don't exist and are safely ignored
-      - CADDY_CA_CERT_PATH=/caddy-data/caddy/pki/authorities/local/root.crt
-
     restart: unless-stopped
 
     healthcheck:
@@ -69,12 +64,6 @@ services:
 
     env_file:
       - .env
-
-    environment:
-      - RAG_CHUNK_SIZE=512
-      - RAG_CHUNK_OVERLAP=50
-      # Disable cognee multi-user access control mode
-      - ENABLE_BACKEND_ACCESS_CONTROL=false
 
     restart: unless-stopped
 
