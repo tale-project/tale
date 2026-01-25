@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery } from 'convex/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/app/components/ui/primitives/button';
@@ -33,6 +34,7 @@ type LogInFormData = {
 
 function LogInPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { redirectTo } = useSearch({ from: '/_auth/log-in' });
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
@@ -103,6 +105,7 @@ function LogInPage() {
         variant: 'success',
       });
 
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
       navigate({ to: redirectTo || '/dashboard' });
     } catch (error) {
       console.error('Log in error:', error);
