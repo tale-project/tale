@@ -80,6 +80,12 @@ ENV TALE_VERSION=${VERSION} \
     # but single worker with FastAPI async handles most workloads efficiently.
     RAG_WORKERS=1 \
     RAG_LOG_LEVEL=info \
+    # Chunk size for document processing
+    # Smaller chunks (512) reduce LLM output size for knowledge graph extraction
+    RAG_CHUNK_SIZE=512 \
+    RAG_CHUNK_OVERLAP=50 \
+    # Disable cognee multi-user access control mode
+    ENABLE_BACKEND_ACCESS_CONTROL=false \
     # Cognee data directory
     RAG_COGNEE_DATA_DIR=/app/data \
     # Default database URL for local development (connects to tale-db container)

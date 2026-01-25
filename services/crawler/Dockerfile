@@ -65,8 +65,18 @@ COPY services/crawler/app ./app
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set version environment variable
-ENV TALE_VERSION=${VERSION}
+# Set environment variables with CRAWLER_ prefix defaults
+ENV TALE_VERSION=${VERSION} \
+    CRAWLER_HOST=0.0.0.0 \
+    CRAWLER_PORT=8002 \
+    CRAWLER_WORKERS=1 \
+    CRAWLER_LOG_LEVEL=info \
+    CRAWLER_ALLOWED_ORIGINS="*" \
+    CRAWLER_MAX_CONCURRENT_CRAWLS=5 \
+    CRAWLER_DEFAULT_MAX_PAGES=100 \
+    CRAWLER_DEFAULT_WORD_COUNT_THRESHOLD=100 \
+    CRAWLER_DEFAULT_CONCURRENCY=20 \
+    CRAWLER_REQUEST_TIMEOUT_SECONDS=300
 
 # Expose port
 EXPOSE 8002
