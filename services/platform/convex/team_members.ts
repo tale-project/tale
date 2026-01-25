@@ -138,12 +138,44 @@ export const removeMember = mutation({
       name: authUser.name,
     });
 
+    const memberToRemove = await ctx.runQuery(
+      components.betterAuth.adapter.findOne,
+      {
+        model: 'teamMember',
+        where: [{ field: '_id', value: args.teamMemberId, operator: 'eq' }],
+      },
+    );
+
+    if (!memberToRemove) {
+      throw new Error('Team member not found');
+    }
+
+    const teamId = memberToRemove.teamId as string;
+
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {
         model: 'teamMember',
         where: [{ field: '_id', value: args.teamMemberId, operator: 'eq' }],
       },
     });
+
+    const remainingMembers = await ctx.runQuery(
+      components.betterAuth.adapter.findMany,
+      {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 1 },
+        where: [{ field: 'teamId', operator: 'eq', value: teamId }],
+      },
+    );
+
+    if (!remainingMembers || remainingMembers.page.length === 0) {
+      await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
+        input: {
+          model: 'team',
+          where: [{ field: '_id', value: teamId, operator: 'eq' }],
+        },
+      });
+    }
 
     return { success: true };
   },

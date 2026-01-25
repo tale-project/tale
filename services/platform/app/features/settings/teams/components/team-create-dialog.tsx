@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useMutation } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useToast } from '@/app/hooks/use-toast';
@@ -30,6 +32,7 @@ export function TeamCreateDialog({
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
+  const addMember = useMutation(api.team_members.addMember);
 
   const nameRequiredError = tSettings('teams.teamNameRequired');
   const schema = useMemo(
@@ -62,6 +65,23 @@ export function TeamCreateDialog({
       if (result.error) {
         throw new Error(result.error.message || 'Failed to create team');
       }
+
+      const teamId = result.data?.id;
+      if (!teamId) {
+        throw new Error('Team ID not returned');
+      }
+
+      const session = await authClient.getSession();
+      const userId = session.data?.user?.id;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
+
+      await addMember({
+        teamId,
+        userId,
+        organizationId,
+      });
 
       toast({
         title: tSettings('teams.teamCreated'),
