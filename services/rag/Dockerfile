@@ -94,6 +94,7 @@ ENV TALE_VERSION=${VERSION} \
     GRAPH_DATABASE_PROVIDER=falkor \
     GRAPH_DATABASE_URL=graph-db \
     GRAPH_DATABASE_PORT=6379 \
+    GRAPH_DATABASE_NAME=tale_default \
     GRAPH_DATASET_DATABASE_HANDLER=falkor_graph_local \
     VECTOR_DB_PROVIDER=falkor \
     VECTOR_DB_URL=graph-db \
