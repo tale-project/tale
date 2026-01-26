@@ -49,6 +49,7 @@ import { memo, useMemo, type ComponentType } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 
 // ============================================================================
 // TYPES
@@ -94,7 +95,7 @@ const StableMarkdown = memo(
     return (
       <Markdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeRaw, rehypeSanitize]}
         components={components}
       >
         {content}
@@ -212,7 +213,7 @@ const StreamingMarkdown = memo(
         <div className="streaming-text-layout-reference" aria-hidden="true">
           <Markdown
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
+            rehypePlugins={[rehypeRaw, rehypeSanitize]}
             components={components}
           >
             {content}
@@ -223,7 +224,7 @@ const StreamingMarkdown = memo(
         <div className="streaming-text-reveal">
           <Markdown
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeRaw]}
+            rehypePlugins={[rehypeRaw, rehypeSanitize]}
             components={componentsWithCursor}
           >
             {revealedContent}
