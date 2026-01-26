@@ -87,10 +87,12 @@ async def _process_pdf_document(
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Collect results and aggregate vision_used flag
+    # Gracefully handle page-level failures to avoid entire PDF failing
     vision_used = False
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            raise result
+            logger.warning(f"Page {i + 1} processing failed, skipping: {result}")
+            continue
         page_text, page_vision_used = result
         if page_vision_used:
             vision_used = True
@@ -166,8 +168,8 @@ async def _ocr_page(
             return await vision_client.ocr_image(image_bytes)
 
         except Exception as e:
-            logger.error(f"Failed to OCR page: {e}")
-            raise
+            logger.warning(f"Failed to OCR page, returning empty text: {e}")
+            return ""
 
 
 async def _extract_image_descriptions(
@@ -213,11 +215,17 @@ async def _extract_image_descriptions(
             )
             continue
 
-        # Get image description
+        # Get image description with error handling to continue on failures
         async with semaphore:
-            description = await vision_client.describe_image(image_bytes)
-            if description:
-                descriptions.append(description)
+            try:
+                description = await vision_client.describe_image(image_bytes)
+                if description:
+                    descriptions.append(description)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to describe image {img_index} on page {page.number + 1}: {e}"
+                )
+                continue
 
     return descriptions
 
