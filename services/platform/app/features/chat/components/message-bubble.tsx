@@ -13,6 +13,7 @@ import {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
@@ -565,9 +566,7 @@ function MessageBubbleComponent({
   const isAssistantStreaming =
     message.role === 'assistant' && message.isStreaming;
 
-  // Note: We don't sanitize markdown content before passing to react-markdown
-  // react-markdown safely parses markdown without XSS risks
-  // DOMPurify would encode special chars like > as &gt; breaking code blocks
+  // rehype-raw allows raw HTML in markdown, rehype-sanitize removes dangerous elements
 
   // Sanitize markdown tables to fix malformed syntax (e.g., double pipes ||)
   const sanitizedContent = message.content
@@ -660,7 +659,7 @@ function MessageBubbleComponent({
               <div className={markdownWrapperStyles}>
                 <Markdown
                   remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
+                  rehypePlugins={[rehypeRaw, rehypeSanitize]}
                   components={markdownComponents}
                 >
                   {sanitizedContent}
