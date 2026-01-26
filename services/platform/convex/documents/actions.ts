@@ -8,7 +8,6 @@
 
 import { v } from 'convex/values';
 import { internalAction, action } from '../_generated/server';
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { internal } from '../_generated/api';
@@ -320,6 +319,46 @@ export const checkRagJobStatus = internalAction({
         getPollingInterval(args.attempt),
         internal.documents.actions.checkRagJobStatus,
         { documentId: args.documentId, attempt: args.attempt + 1 },
+      );
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Delete document from RAG service (internal action)
+ *
+ * Called after a document is deleted from the database to clean up
+ * the corresponding data in the RAG service.
+ */
+export const deleteDocumentFromRag = internalAction({
+  args: {
+    documentId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+
+    try {
+      const response = await fetch(
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(60000),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(
+          `[deleteDocumentFromRag] Failed to delete document ${args.documentId} from RAG: ${response.status} ${errorText}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[deleteDocumentFromRag] Error deleting document ${args.documentId} from RAG:`,
+        error,
       );
     }
 

@@ -12,6 +12,7 @@ import { createDocument } from './create_document';
 import { deleteDocument as deleteDocumentHelper } from './delete_document';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { internal } from '../_generated/api';
 
 const sourceProviderValidator = v.union(v.literal('onedrive'), v.literal('upload'));
 
@@ -134,6 +135,12 @@ export const deleteDocument = mutation({
     });
 
     await deleteDocumentHelper(ctx, args.documentId);
+
+    // Schedule RAG cleanup (async, best-effort)
+    await ctx.scheduler.runAfter(0, internal.documents.actions.deleteDocumentFromRag, {
+      documentId: args.documentId,
+    });
+
     return null;
   },
 });
