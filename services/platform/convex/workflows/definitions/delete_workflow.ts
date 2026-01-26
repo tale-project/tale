@@ -1,5 +1,8 @@
 /**
  * Delete workflow
+ *
+ * Uses scheduled mutations to delete executions in batches across separate
+ * mutation contexts, avoiding Convex's 16MB bytes-read limit.
  */
 
 import type { MutationCtx } from '../../_generated/server';
@@ -7,6 +10,8 @@ import type { Id } from '../../_generated/dataModel';
 import type { WorkflowId } from '@convex-dev/workflow';
 import { internal } from '../../_generated/api';
 import { workflowManager } from '../../workflow_engine/engine';
+
+const EXECUTION_BATCH_SIZE = 100;
 
 export async function deleteWorkflow(
   ctx: MutationCtx,
@@ -19,93 +24,90 @@ export async function deleteWorkflow(
 
   const rootVersionId = workflow.rootVersionId;
 
-  // If this is the root version (rootVersionId points to this document), delete the whole family.
+  // Collect all version IDs to delete (this is a small list of just IDs)
+  const versionIds: Array<Id<'wfDefinitions'>> = [];
+
   if (rootVersionId && rootVersionId === workflow._id) {
+    // Root version: collect all versions in the family
     for await (const version of ctx.db
       .query('wfDefinitions')
       .withIndex('by_rootVersionId', (q) =>
         q.eq('rootVersionId', rootVersionId),
       )) {
-      await cancelAndDeleteExecutionsForDefinition(ctx, version._id);
-      await deleteStepsForDefinition(ctx, version._id);
-      await ctx.db.delete(version._id);
+      versionIds.push(version._id);
     }
-
-    return null;
+  } else {
+    // Single workflow deletion
+    versionIds.push(wfDefinitionId);
   }
 
-  // Backwards-compatible behavior: if this is not a root version (or predates rootVersionId),
-  // delete only this workflow and its steps (and all executions for this definition).
-  await cancelAndDeleteExecutionsForDefinition(ctx, wfDefinitionId);
-  await deleteStepsForDefinition(ctx, wfDefinitionId);
-  await ctx.db.delete(wfDefinitionId);
+  // Schedule the first batch of execution deletions
+  await ctx.scheduler.runAfter(
+    0,
+    internal.wf_definitions.mutations.batchDeleteWorkflowExecutions,
+    {
+      wfDefinitionIds: versionIds,
+      currentIndex: 0,
+    },
+  );
+
   return null;
 }
 
-async function cancelAndDeleteExecutionsForDefinition(
+export async function cancelAndDeleteExecutionsBatch(
   ctx: MutationCtx,
   wfDefinitionId: Id<'wfDefinitions'>,
-): Promise<void> {
-  const executionsByDefinition = ctx.db
+): Promise<{ hasMore: boolean }> {
+  let processedCount = 0;
+
+  for await (const execution of ctx.db
     .query('wfExecutions')
-    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId));
+    .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
+    if (execution.componentWorkflowId) {
+      const componentWorkflowId =
+        execution.componentWorkflowId as unknown as WorkflowId;
+      const isInProgress =
+        execution.status !== 'completed' && execution.status !== 'failed';
 
-  // Collect all executions first, then process in parallel
-  const executions: Array<{
-    id: Id<'wfExecutions'>;
-    componentWorkflowId: unknown;
-    isInProgress: boolean;
-  }> = [];
+      if (isInProgress) {
+        // Cancel any in-progress underlying component workflow.
+        await workflowManager.cancel(ctx, componentWorkflowId);
 
-  for await (const execution of executionsByDefinition) {
-    executions.push({
-      id: execution._id,
-      componentWorkflowId: execution.componentWorkflowId,
-      isInProgress:
-        execution.status !== 'completed' && execution.status !== 'failed',
-    });
+        // Schedule cleanup after a short delay to avoid racing with the
+        // workflow engine's own cancellation/onComplete logic, which still
+        // expects the journal entry to exist for a brief period.
+        await ctx.scheduler.runAfter(
+          10_000,
+          internal.workflow_engine.engine.cleanupComponentWorkflow,
+          {
+            workflowId: componentWorkflowId,
+          },
+        );
+      } else {
+        // For completed/failed workflows, it's safe to fully remove the
+        // underlying component workflow so its journal/state is removed from
+        // the workflow component tables.
+        await workflowManager.cleanup(ctx, componentWorkflowId);
+      }
+    }
+
+    // Delete the execution record regardless of status.
+    await ctx.db.delete(execution._id);
+    processedCount++;
+
+    if (processedCount >= EXECUTION_BATCH_SIZE) {
+      return { hasMore: true };
+    }
   }
 
-  // Process all executions in parallel
-  await Promise.all(
-    executions.map(async (execution) => {
-      if (execution.componentWorkflowId) {
-        const componentWorkflowId =
-          execution.componentWorkflowId as unknown as WorkflowId;
-
-        if (execution.isInProgress) {
-          // Cancel any in-progress underlying component workflow.
-          await workflowManager.cancel(ctx, componentWorkflowId);
-
-          // Schedule cleanup after a short delay to avoid racing with the
-          // workflow engine's own cancellation/onComplete logic, which still
-          // expects the journal entry to exist for a brief period.
-          await ctx.scheduler.runAfter(
-            10_000,
-            internal.workflow_engine.engine.cleanupComponentWorkflow,
-            {
-              workflowId: componentWorkflowId,
-            },
-          );
-        } else {
-          // For completed/failed workflows, it's safe to fully remove the
-          // underlying component workflow so its journal/state is removed from
-          // the workflow component tables.
-          await workflowManager.cleanup(ctx, componentWorkflowId);
-        }
-      }
-
-      // Delete the execution record regardless of status.
-      await ctx.db.delete(execution.id);
-    }),
-  );
+  return { hasMore: false };
 }
 
-async function deleteStepsForDefinition(
+export async function deleteStepsAndDefinition(
   ctx: MutationCtx,
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<void> {
-  // Collect all step IDs first
+  // Collect all step IDs first (steps are typically few and small)
   const stepIds: Array<Id<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
@@ -115,4 +117,7 @@ async function deleteStepsForDefinition(
 
   // Delete all steps in parallel
   await Promise.all(stepIds.map((id) => ctx.db.delete(id)));
+
+  // Delete the workflow definition
+  await ctx.db.delete(wfDefinitionId);
 }

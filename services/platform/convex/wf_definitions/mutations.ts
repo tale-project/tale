@@ -1,9 +1,14 @@
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
+import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
 import { createWorkflowWithSteps as createWorkflowWithStepsHelper } from '../workflows/definitions/create_workflow_with_steps';
 import { createDraftFromActive } from '../workflows/definitions/create_draft_from_active';
-import { deleteWorkflow } from '../workflows/definitions/delete_workflow';
+import {
+  deleteWorkflow,
+  cancelAndDeleteExecutionsBatch,
+  deleteStepsAndDefinition,
+} from '../workflows/definitions/delete_workflow';
 import { duplicateWorkflow } from '../workflows/definitions/duplicate_workflow';
 import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
@@ -162,5 +167,53 @@ export const saveWorkflowWithSteps = internalMutation({
   },
   handler: async (ctx, args) => {
     return await saveWorkflowWithStepsHelper(ctx, args);
+  },
+});
+
+export const batchDeleteWorkflowExecutions = internalMutation({
+  args: {
+    wfDefinitionIds: v.array(v.id('wfDefinitions')),
+    currentIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { wfDefinitionIds, currentIndex } = args;
+
+    if (currentIndex >= wfDefinitionIds.length) {
+      return;
+    }
+
+    const currentDefinitionId = wfDefinitionIds[currentIndex];
+    if (!currentDefinitionId) {
+      return;
+    }
+
+    const result = await cancelAndDeleteExecutionsBatch(ctx, currentDefinitionId);
+
+    if (result.hasMore) {
+      // More executions to delete for this definition, schedule another batch
+      await ctx.scheduler.runAfter(
+        0,
+        internal.wf_definitions.mutations.batchDeleteWorkflowExecutions,
+        {
+          wfDefinitionIds,
+          currentIndex,
+        },
+      );
+    } else {
+      // All executions deleted for this definition, delete steps and definition
+      await deleteStepsAndDefinition(ctx, currentDefinitionId);
+
+      // Move to next definition
+      if (currentIndex + 1 < wfDefinitionIds.length) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.wf_definitions.mutations.batchDeleteWorkflowExecutions,
+          {
+            wfDefinitionIds,
+            currentIndex: currentIndex + 1,
+          },
+        );
+      }
+    }
   },
 });
