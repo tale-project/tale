@@ -246,6 +246,18 @@ export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchC
 
     // 3. Use team IDs directly - RAG service converts them to datasets internally
     const teamIds = options.userTeamIds;
+    if (teamIds.length === 0) {
+      debugLog('RAG prefetch skipped: no team IDs', {
+        threadId: options.threadId,
+      });
+      return {
+        success: false,
+        query: expandedQuery,
+        results: [],
+        total_results: 0,
+        processing_time_ms: 0,
+      };
+    }
 
     debugLog('RAG prefetch executing', {
       expandedQueryLength: expandedQuery.length,
