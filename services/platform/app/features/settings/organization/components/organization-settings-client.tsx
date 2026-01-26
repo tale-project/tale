@@ -27,8 +27,12 @@ type Member = {
 };
 
 type MemberContext = {
-  member?: Member | null;
+  memberId?: string;
+  organizationId?: string;
+  userId?: string;
   role?: string | null;
+  createdAt?: number;
+  displayName?: string;
   isAdmin?: boolean;
   canManageMembers?: boolean;
   canChangePassword?: boolean;
@@ -179,9 +183,20 @@ export function OrganizationSettingsClient({
           memberContext={
             memberContext
               ? {
-                  member: memberContext.member || null,
+                  member: memberContext.memberId
+                    ? {
+                        _id: memberContext.memberId,
+                        createdAt: memberContext.createdAt ?? 0,
+                        organizationId: memberContext.organizationId ?? '',
+                        userId: memberContext.userId ?? '',
+                        role: memberContext.role ?? undefined,
+                        displayName: memberContext.displayName,
+                      }
+                    : null,
                   role: memberContext.role || null,
                   isAdmin: memberContext.isAdmin || false,
+                  canManageMembers:
+                    memberContext.canManageMembers ?? memberContext.isAdmin ?? false,
                 }
               : undefined
           }

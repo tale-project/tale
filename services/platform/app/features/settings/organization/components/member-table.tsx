@@ -21,14 +21,17 @@ type Member = {
   displayName?: string;
 };
 
+interface MemberContext {
+  member: Member | null;
+  role: string | null;
+  isAdmin: boolean;
+  canManageMembers?: boolean;
+}
+
 interface MemberTableProps {
   members: Member[];
   sortOrder: 'asc' | 'desc';
-  memberContext?: {
-    member: Member | null;
-    role: string | null;
-    isAdmin: boolean;
-  } | null;
+  memberContext?: MemberContext | null;
   onSortChange: (sortOrder: 'asc' | 'desc') => void;
 }
 
