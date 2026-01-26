@@ -2,7 +2,8 @@
  * Delete workflow
  *
  * Uses scheduled mutations to delete executions in batches across separate
- * mutation contexts, avoiding Convex's 16MB bytes-read limit.
+ * mutation contexts. Cleanup of component workflows is done asynchronously
+ * to avoid hitting Convex's 4096 read operations limit.
  */
 
 import type { MutationCtx } from '../../_generated/server';
@@ -59,6 +60,7 @@ export async function cancelAndDeleteExecutionsBatch(
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<{ hasMore: boolean }> {
   let processedCount = 0;
+  const componentWorkflowIdsToCleanup: string[] = [];
 
   for await (const execution of ctx.db
     .query('wfExecutions')
@@ -72,35 +74,39 @@ export async function cancelAndDeleteExecutionsBatch(
       if (isInProgress) {
         // Cancel any in-progress underlying component workflow.
         await workflowManager.cancel(ctx, componentWorkflowId);
-
-        // Schedule cleanup after a short delay to avoid racing with the
-        // workflow engine's own cancellation/onComplete logic, which still
-        // expects the journal entry to exist for a brief period.
-        await ctx.scheduler.runAfter(
-          10_000,
-          internal.workflow_engine.engine.cleanupComponentWorkflow,
-          {
-            workflowId: componentWorkflowId,
-          },
-        );
-      } else {
-        // For completed/failed workflows, it's safe to fully remove the
-        // underlying component workflow so its journal/state is removed from
-        // the workflow component tables.
-        await workflowManager.cleanup(ctx, componentWorkflowId);
       }
+
+      // Collect for async cleanup (avoid inline cleanup() to stay under read limit)
+      componentWorkflowIdsToCleanup.push(execution.componentWorkflowId);
     }
 
-    // Delete the execution record regardless of status.
     await ctx.db.delete(execution._id);
     processedCount++;
 
     if (processedCount >= EXECUTION_BATCH_SIZE) {
+      await scheduleCleanupBatch(ctx, componentWorkflowIdsToCleanup);
       return { hasMore: true };
     }
   }
 
+  if (componentWorkflowIdsToCleanup.length > 0) {
+    await scheduleCleanupBatch(ctx, componentWorkflowIdsToCleanup);
+  }
+
   return { hasMore: false };
+}
+
+async function scheduleCleanupBatch(
+  ctx: MutationCtx,
+  componentWorkflowIds: string[],
+): Promise<void> {
+  for (const id of componentWorkflowIds) {
+    await ctx.scheduler.runAfter(
+      10_000,
+      internal.workflow_engine.engine.cleanupComponentWorkflow,
+      { workflowId: id as unknown as WorkflowId },
+    );
+  }
 }
 
 export async function deleteStepsAndDefinition(
