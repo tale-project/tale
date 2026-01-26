@@ -192,6 +192,9 @@ def sanitize_team_id(team_id: str) -> str:
 
     Returns:
         Sanitized team_id safe for use in dataset names and emails
+
+    Raises:
+        ValueError: If team_id sanitizes to empty string (prevents dataset collisions)
     """
     if not team_id:
         return team_id
@@ -207,6 +210,9 @@ def sanitize_team_id(team_id: str) -> str:
 
     # Remove leading/trailing underscores
     result = result.strip("_")
+
+    if not result:
+        raise ValueError(f"team_id '{team_id}' sanitized to empty string")
 
     return result
 

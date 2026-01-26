@@ -50,9 +50,13 @@ def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str
     for tid in team_ids.split(","):
         tid = tid.strip()
         if tid:
-            sanitized = sanitize_team_id(tid)
-            if sanitized:
-                result.append(sanitized)
+            try:
+                sanitized = sanitize_team_id(tid)
+                if sanitized:
+                    result.append(sanitized)
+            except ValueError:
+                # Skip team IDs that sanitize to empty (invalid characters only)
+                continue
 
     if not result:
         if required:

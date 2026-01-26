@@ -31,8 +31,15 @@ def _validate_and_sanitize_tenant_ids(
 
     from app.services.cognee.utils import sanitize_team_id
 
-    sanitized_ids = [sanitize_team_id(tid) for tid in team_ids]
-    sanitized_ids = [tid for tid in sanitized_ids if tid]
+    sanitized_ids: list[str] = []
+    for tid in team_ids:
+        try:
+            sanitized = sanitize_team_id(tid)
+            if sanitized:
+                sanitized_ids.append(sanitized)
+        except ValueError:
+            # Skip team IDs that sanitize to empty (invalid characters only)
+            continue
 
     if not sanitized_ids:
         raise ValueError("At least one valid team_id is required after sanitization")
