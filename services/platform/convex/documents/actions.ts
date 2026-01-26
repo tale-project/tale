@@ -366,6 +366,61 @@ export const deleteDocumentFromRag = internalAction({
   },
 });
 
+/**
+ * Reindex document in RAG service with new team assignments (internal action)
+ *
+ * Called when a document's teamTags are updated. This action:
+ * 1. Deletes the document from RAG (removes from all previous team datasets)
+ * 2. Re-uploads the document with new team_ids
+ */
+export const reindexDocumentRag = internalAction({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+
+    // Step 1: Delete document from RAG
+    try {
+      const deleteResponse = await fetch(
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(60000),
+        },
+      );
+
+      if (!deleteResponse.ok) {
+        const errorText = await deleteResponse.text();
+        console.warn(
+          `[reindexDocumentRag] Failed to delete document ${args.documentId} from RAG: ${deleteResponse.status} ${errorText}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[reindexDocumentRag] Error deleting document ${args.documentId} from RAG:`,
+        error,
+      );
+    }
+
+    // Step 2: Re-upload document with new team_ids
+    const result = (await ragAction.execute(
+      ctx,
+      { operation: 'upload_document', recordId: args.documentId },
+      {},
+    )) as { success: boolean; jobId?: string };
+
+    if (!result.success) {
+      console.error(
+        `[reindexDocumentRag] Failed to re-upload document ${args.documentId} to RAG`,
+      );
+    }
+
+    return null;
+  },
+});
+
 // =============================================================================
 // PUBLIC ACTIONS (for frontend via api.documents.actions.*)
 // =============================================================================
