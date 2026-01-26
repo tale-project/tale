@@ -467,7 +467,7 @@ class CogneeService:
                         extract_text_from_document(content),
                         timeout=vision_timeout,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     vision_elapsed = time.time() - vision_start_time
                     raise TimeoutError(
                         f"Vision pre-processing timed out after {vision_elapsed:.1f}s "
