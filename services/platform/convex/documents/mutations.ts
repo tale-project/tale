@@ -138,7 +138,7 @@ export const deleteDocument = mutation({
 
     // Schedule RAG cleanup (async, best-effort)
     await ctx.scheduler.runAfter(0, internal.documents.actions.deleteDocumentFromRag, {
-      documentId: args.documentId,
+      documentId: String(args.documentId),
     });
 
     return null;
