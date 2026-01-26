@@ -23,6 +23,48 @@ from ..utils import cleanup_memory
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
 
 
+def _parse_team_ids(team_ids: str | None, *, required: bool = False) -> list[str] | None:
+    """Parse and sanitize comma-separated team IDs.
+
+    Args:
+        team_ids: Comma-separated team ID string
+        required: If True, raises HTTPException when no valid IDs
+
+    Returns:
+        List of sanitized team IDs, or None if input is None/empty
+
+    Raises:
+        HTTPException: If required=True and no valid IDs after sanitization
+    """
+    if not team_ids:
+        if required:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one valid team_id is required",
+            )
+        return None
+
+    from app.services.cognee.utils import sanitize_team_id
+
+    result: list[str] = []
+    for tid in team_ids.split(","):
+        tid = tid.strip()
+        if tid:
+            sanitized = sanitize_team_id(tid)
+            if sanitized:
+                result.append(sanitized)
+
+    if not result:
+        if required:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one valid team_id is required",
+            )
+        return None
+
+    return result
+
+
 async def _persist_text_content(content: str) -> str:
     """Persist text content to a file for cognee."""
     ingest_dir = os.path.join(settings.cognee_data_dir, "ingest")
@@ -181,22 +223,7 @@ async def upload_document(
     """
     from pathlib import Path
 
-    from app.services.cognee.utils import sanitize_team_id
-
-    # Parse and sanitize team_ids
-    team_id_list: list[str] = []
-    for tid in team_ids.split(","):
-        tid = tid.strip()
-        if tid:
-            sanitized = sanitize_team_id(tid)
-            if sanitized:
-                team_id_list.append(sanitized)
-
-    if not team_id_list:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one valid team_id is required",
-        )
+    team_id_list = _parse_team_ids(team_ids, required=True)
 
     SUPPORTED_EXTENSIONS = {
         ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
@@ -412,17 +439,7 @@ async def delete_document(
         team_ids: Comma-separated team IDs for multi-tenant authorization (required for
                   documents added with team isolation)
     """
-    from app.services.cognee.utils import sanitize_team_id
-
-    team_id_list: list[str] | None = None
-    if team_ids:
-        team_id_list = []
-        for tid in team_ids.split(","):
-            tid = tid.strip()
-            if tid:
-                sanitized = sanitize_team_id(tid)
-                if sanitized:
-                    team_id_list.append(sanitized)
+    team_id_list = _parse_team_ids(team_ids, required=False)
 
     try:
         result = await cognee_service.delete_document(
