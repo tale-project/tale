@@ -38,7 +38,7 @@ async def search(request: QueryRequest):
             similarity_threshold=request.similarity_threshold,
             _filters=request.filters,
             user_id=request.user_id,
-            datasets=request.datasets,
+            team_ids=request.team_ids,
         )
 
         processing_time = (time.time() - start_time) * 1000
@@ -80,7 +80,7 @@ async def generate(request: GenerateRequest):
             temperature=request.temperature,
             max_tokens=request.max_tokens,
             user_id=request.user_id,
-            datasets=request.datasets,
+            team_ids=request.team_ids,
         )
 
         sources = [

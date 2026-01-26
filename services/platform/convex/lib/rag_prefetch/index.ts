@@ -11,10 +11,6 @@
 import type { ActionCtx } from '../../_generated/server';
 import { components } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
-import {
-  DEFAULT_DATASET_NAME,
-  teamIdToDatasetName,
-} from '../get_user_teams';
 import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[RagPrefetch]');
@@ -164,7 +160,7 @@ async function getRecentMessagesForPrefetch(
  */
 async function fetchRagResults(options: {
   query: string;
-  datasets: string[];
+  teamIds: string[];
   userId: string;
   top_k: number;
   similarity_threshold?: number;
@@ -178,7 +174,7 @@ async function fetchRagResults(options: {
     similarity_threshold: options.similarity_threshold ?? DEFAULT_SIMILARITY_THRESHOLD,
     include_metadata: true,
     user_id: options.userId,
-    datasets: options.datasets,
+    team_ids: options.teamIds,
   };
 
   const controller = new AbortController();
@@ -248,16 +244,25 @@ export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchC
       recentMessages,
     );
 
-    // 3. Build datasets list
-    const datasets = [
-      DEFAULT_DATASET_NAME,
-      ...options.userTeamIds.map(teamIdToDatasetName),
-    ];
+    // 3. Use team IDs directly - RAG service converts them to datasets internally
+    const teamIds = options.userTeamIds;
+    if (teamIds.length === 0) {
+      debugLog('RAG prefetch skipped: no team IDs', {
+        threadId: options.threadId,
+      });
+      return {
+        success: false,
+        query: expandedQuery,
+        results: [],
+        total_results: 0,
+        processing_time_ms: 0,
+      };
+    }
 
     debugLog('RAG prefetch executing', {
       expandedQueryLength: expandedQuery.length,
       hasContextExpansion: expandedQuery !== options.userMessage,
-      datasets,
+      teamIds,
       top_k,
     });
 
@@ -265,7 +270,7 @@ export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchC
     try {
       const result = await fetchRagResults({
         query: expandedQuery,
-        datasets,
+        teamIds,
         userId: options.userId,
         top_k,
       });

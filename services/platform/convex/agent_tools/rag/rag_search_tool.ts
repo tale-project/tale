@@ -9,10 +9,7 @@ import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import {
-  DEFAULT_DATASET_NAME,
-  teamIdToDatasetName,
-} from '../../lib/get_user_teams';
+import { TEAM_DATASET_PREFIX } from '../../lib/get_user_teams';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
@@ -149,16 +146,19 @@ Returns the most relevant document chunks based on semantic similarity to your q
 
       payload.user_id = userId;
 
-      // Build searchable datasets from user's team IDs
-      // Always include the default org-level dataset + team-specific datasets
-      const teamDatasets = (userTeamIds ?? []).map(teamIdToDatasetName);
-      const datasets = [DEFAULT_DATASET_NAME, ...teamDatasets];
+      // Pass team IDs directly - RAG service converts them to datasets internally
+      const teamIds = userTeamIds ?? [];
+      if (teamIds.length === 0) {
+        throw new Error(
+          'rag_search requires at least one team ID. ' +
+          'Ensure userTeamIds is provided in ToolCtx.'
+        );
+      }
 
-      payload.datasets = datasets;
-      debugLog('tool:rag_search datasets resolved', {
+      payload.team_ids = teamIds;
+      debugLog('tool:rag_search team_ids resolved', {
         userId,
-        userTeamIds,
-        datasets,
+        userTeamIds: teamIds,
       });
 
       try {

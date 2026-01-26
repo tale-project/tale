@@ -61,6 +61,16 @@ def _pre_configure_llm_env() -> None:
     os.environ.setdefault("EMBEDDING_API_KEY", api_key)
     os.environ.setdefault("EMBEDDING_ENDPOINT", base_url)
 
+    # Configure BAML for structured outputs BEFORE cognee import.
+    # BAML works better than instructor with models that don't support tool calling.
+    # Must be set here because cognee reads this at import time (line 153).
+    os.environ.setdefault("STRUCTURED_OUTPUT_FRAMEWORK", "baml")
+    os.environ.setdefault("BAML_LLM_PROVIDER", "openai")
+    os.environ.setdefault("BAML_LLM_MODEL", model)
+    os.environ.setdefault("BAML_LLM_ENDPOINT", base_url)
+    os.environ.setdefault("BAML_LLM_API_KEY", api_key)
+    os.environ.setdefault("BAML_LLM_TEMPERATURE", "1.0")
+
     # Set embedding dimensions
     try:
         embedding_dimensions = settings.get_embedding_dimensions()
@@ -132,6 +142,10 @@ def _pre_configure_database_env() -> None:
     os.environ["VECTOR_DB_PORT"] = falkordb_port
     os.environ["VECTOR_DATASET_DATABASE_HANDLER"] = "falkor_vector_local"
 
+    # Enable backend access control for multi-tenant isolation.
+    # Must be set BEFORE cognee import to ensure proper initialization.
+    os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "true"
+
     logger.debug(
         "Pre-configured database environment: PostgreSQL {}@{}:{}/{}, FalkorDB {}:{}",
         parsed.username,
@@ -195,15 +209,14 @@ def patch_tiktoken() -> None:
 
 
 def configure_litellm_drop_params() -> None:
-    """Configure LiteLLM to drop unsupported parameters.
+    """Configure LiteLLM global settings.
 
-    Some OpenAI-compatible API providers (like OpenRouter) don't support all
-    OpenAI parameters such as 'encoding_format' for embeddings. This setting
-    tells LiteLLM to silently drop unsupported parameters instead of raising
-    an exception.
-
-    This is particularly important for embedding calls where 'encoding_format'
-    causes 400 errors on non-OpenAI providers.
+    Settings configured:
+    1. drop_params: Drop unsupported parameters instead of raising errors
+       (fixes compatibility with OpenRouter and other providers)
+    2. modify_params: Modify embedding parameters for OpenRouter compatibility
+    3. request_timeout: Set per-request timeout to prevent infinite hangs
+       (cognee's cognify can get stuck if LLM API is slow or unresponsive)
     """
     try:
         import litellm
@@ -216,9 +229,14 @@ def configure_litellm_drop_params() -> None:
         # with certain values that LiteLLM sends by default
         litellm.modify_params = True
 
-        logger.info("LiteLLM configured to drop unsupported parameters (drop_params=True, modify_params=True)")
+        # Set per-request timeout to prevent infinite hangs
+        # Each LLM call (summarization, entity extraction, etc.) should complete
+        # within 5 minutes. If it doesn't, timeout and let retry logic handle it.
+        litellm.request_timeout = 300
+
+        logger.info("LiteLLM configured: drop_params=True, modify_params=True, request_timeout=300s")
     except ImportError:
-        logger.debug("litellm not available, skipping drop_params configuration")
+        logger.debug("litellm not available, skipping configuration")
 
 
 def _patch_litellm_aembedding() -> None:
@@ -706,6 +724,45 @@ def _patch_falkordb_adapter_create_data_point_query() -> None:
         logger.warning(f"Failed to patch FalkorDB adapter create_data_point_query: {e}")
 
 
+def _patch_falkordb_adapter_graph_name() -> None:
+    """Patch FalkorDB adapter to ensure graph_name is never empty.
+
+    FalkorDB's select_graph() raises TypeError when graph_name is empty string.
+    This can happen when the adapter is instantiated before the dataset name
+    is properly set, or when Cognee doesn't pass the dataset name correctly.
+
+    This patch ensures self.graph_name falls back to the default from env var
+    when it's empty or None.
+    """
+    try:
+        from cognee_community_hybrid_adapter_falkor.falkor_adapter import FalkorDBAdapter
+
+        if getattr(FalkorDBAdapter, "_tale_graph_name_patch_applied", False):
+            return
+
+        _original_init = FalkorDBAdapter.__init__
+
+        def _patched_init(self: Any, *args: Any, **kwargs: Any) -> None:
+            _original_init(self, *args, **kwargs)
+            # Ensure graph_name is never empty
+            if not self.graph_name:
+                default_name = os.environ.get("GRAPH_DATABASE_NAME", "tale_default")
+                logger.warning(
+                    f"FalkorDB adapter instantiated with empty graph_name, "
+                    f"using default: {default_name}"
+                )
+                self.graph_name = default_name
+
+        FalkorDBAdapter.__init__ = _patched_init
+        FalkorDBAdapter._tale_graph_name_patch_applied = True
+        logger.info("Patched FalkorDB adapter __init__ to ensure graph_name is not empty")
+
+    except ImportError as e:
+        logger.debug(f"FalkorDB adapter not available, skipping graph_name patch: {e}")
+    except Exception as e:
+        logger.warning(f"Failed to patch FalkorDB adapter graph_name: {e}")
+
+
 def _patch_falkordb_adapter_add_nodes() -> None:
     """Patch FalkorDB adapter add_nodes to fix vector index bug.
 
@@ -903,31 +960,16 @@ def setup_cognee_environment() -> None:
     # Default cognee value is 8191 which is too large for most RAG use cases
     os.environ.setdefault("EMBEDDING_MAX_COMPLETION_TOKENS", str(settings.chunk_size))
 
-    # Configure BAML for structured outputs (knowledge graph extraction)
-    # Use BAML_LLM_MODEL to specify a different model for extraction if needed.
-    # This is useful when the main model is a "thinking" model that causes JSON truncation.
-    # IMPORTANT: BAML sends requests directly to BAML_LLM_ENDPOINT (OpenRouter),
-    # so it needs the ORIGINAL model name WITHOUT 'openai/' prefix.
-    # (The 'openai/' prefix is only for LiteLLM's internal routing)
-    baml_model = os.environ.get("BAML_LLM_MODEL") or model  # Use original model, not cognee_llm_model
-    os.environ.setdefault("STRUCTURED_OUTPUT_FRAMEWORK", "baml")
-    os.environ.setdefault("BAML_LLM_PROVIDER", provider)
-    os.environ["BAML_LLM_MODEL"] = baml_model  # Use direct assignment to respect env override
-    os.environ.setdefault("BAML_LLM_ENDPOINT", base_url)
-    os.environ.setdefault("BAML_LLM_API_KEY", openai_api_key)
-    os.environ.setdefault("BAML_LLM_TEMPERATURE", "1.0")
-
     # Export OPENAI_* for libraries that look at these env vars
     os.environ.setdefault("OPENAI_API_KEY", openai_api_key)
     os.environ.setdefault("OPENAI_BASE_URL", base_url)
 
     logger.info(
-        "LLM configured - Provider: {}, Model: {}, Embedding: {} (dim={}), BAML: {}, chunk_size: {}",
+        "LLM configured - Provider: {}, Model: {}, Embedding: {} (dim={}), chunk_size: {}",
         provider,
         cognee_llm_model,
         cognee_embedding_model,
         embedding_dimensions,
-        baml_model,
         settings.chunk_size,
     )
 
@@ -1002,6 +1044,9 @@ def _setup_vector_and_graph_config() -> None:
     os.environ["GRAPH_DATABASE_PROVIDER"] = "falkor"
     os.environ["GRAPH_DATABASE_URL"] = falkordb_url
     os.environ["GRAPH_DATABASE_PORT"] = falkordb_port
+    # Default graph name required by FalkorDB (empty string causes TypeError).
+    # For multi-tenancy, cognee overrides this with dataset-specific names.
+    os.environ["GRAPH_DATABASE_NAME"] = os.environ.get("GRAPH_DATABASE_NAME", "tale_default")
     # Set the dataset handler for multi-user access control mode
     os.environ["GRAPH_DATASET_DATABASE_HANDLER"] = "falkor_graph_local"
 
@@ -1032,9 +1077,11 @@ def _setup_feature_flags() -> None:
         "true" if settings.enable_query_logging else "false"
     )
 
-    # FalkorDB handles multi-tenancy natively via separate graphs per dataset.
-    # No need for file-based isolation (ENABLE_BACKEND_ACCESS_CONTROL) since
-    # FalkorDB is a centralized client-server database, not embedded files.
+    # Enable Cognee's backend access control for multi-tenant isolation.
+    # FalkorDB is listed as a supported "Hybrid Database" in Cognee's documentation
+    # (https://docs.cognee.ai/core-concepts/permissions-system/datasets).
+    # This enables tenant_id population in the data table.
+    os.environ["ENABLE_BACKEND_ACCESS_CONTROL"] = "true"
 
     # Set cognee data directory (still needed for temp files and document processing)
     os.environ["COGNEE_DATA_DIR"] = settings.cognee_data_dir
@@ -1084,6 +1131,7 @@ def initialize_cognee() -> bool:
     _patch_falkordb_adapter_add_node()
     _patch_falkordb_adapter_stringify_properties()
     _patch_falkordb_adapter_create_data_point_query()
+    _patch_falkordb_adapter_graph_name()
     _patch_falkordb_adapter_add_nodes()
     setup_cognee_environment()
     configure_cognee_base_config()

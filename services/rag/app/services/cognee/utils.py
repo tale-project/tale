@@ -5,6 +5,7 @@ cognee.add() and cognee.search() into consistent dictionary formats.
 """
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -146,4 +147,90 @@ def normalize_search_results(raw_results: list[Any]) -> list[dict[str, Any]]:
         List of normalized result dictionaries
     """
     return [normalize_search_result(r) for r in raw_results]
+
+
+# Dataset name prefix for team-level isolation
+TEAM_DATASET_PREFIX = "tale_team_"
+
+# Characters not allowed in Cognee dataset names (from check_dataset_name.py)
+DATASET_INVALID_CHARS = frozenset({" ", "."})
+
+# Characters allowed in team_id (safe for both dataset names and email local parts)
+# Alphanumeric, underscore, hyphen are safe everywhere
+TEAM_ID_ALLOWED_PATTERN = r"^[a-zA-Z0-9_-]+$"
+
+_TEAM_ID_PATTERN = re.compile(TEAM_ID_ALLOWED_PATTERN)
+
+
+def validate_team_id(team_id: str) -> bool:
+    """Validate that a team_id is safe for use in Cognee dataset names and emails.
+
+    Cognee dataset names cannot contain spaces or dots. Additionally, we restrict
+    team_ids to alphanumeric characters, underscores, and hyphens for safety.
+
+    Args:
+        team_id: The team identifier to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not team_id:
+        return False
+    return bool(_TEAM_ID_PATTERN.match(team_id))
+
+
+def sanitize_team_id(team_id: str) -> str:
+    """Sanitize a team_id by replacing invalid characters.
+
+    Converts the team_id to a safe format for Cognee:
+    - Spaces are replaced with underscores
+    - Dots are replaced with underscores
+    - Other special characters are removed
+
+    Args:
+        team_id: The team identifier to sanitize
+
+    Returns:
+        Sanitized team_id safe for use in dataset names and emails
+
+    Raises:
+        ValueError: If team_id sanitizes to empty string (prevents dataset collisions)
+    """
+    if not team_id:
+        return team_id
+
+    # Replace common problematic characters
+    result = team_id.replace(" ", "_").replace(".", "_")
+
+    # Remove any remaining characters that aren't alphanumeric, underscore, or hyphen
+    result = re.sub(r"[^a-zA-Z0-9_-]", "", result)
+
+    # Collapse multiple underscores
+    result = re.sub(r"_+", "_", result)
+
+    # Remove leading/trailing underscores
+    result = result.strip("_")
+
+    if not result:
+        raise ValueError(f"team_id '{team_id}' sanitized to empty string")
+
+    return result
+
+
+def extract_team_id_from_dataset(dataset_name: str | None) -> str | None:
+    """Extract team ID from a dataset name.
+
+    Dataset names follow the format:
+    - 'tale_team_{teamId}' for team-level datasets
+    - 'tale_documents' for organization-level datasets
+
+    Args:
+        dataset_name: The dataset name (e.g., 'tale_team_abc123' or 'tale_documents')
+
+    Returns:
+        team_id if dataset is team-scoped, None otherwise
+    """
+    if dataset_name and dataset_name.startswith(TEAM_DATASET_PREFIX):
+        return dataset_name[len(TEAM_DATASET_PREFIX):]
+    return None
 

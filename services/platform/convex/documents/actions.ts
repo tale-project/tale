@@ -8,7 +8,6 @@
 
 import { v } from 'convex/values';
 import { internalAction, action } from '../_generated/server';
-import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { internal } from '../_generated/api';
@@ -320,6 +319,101 @@ export const checkRagJobStatus = internalAction({
         getPollingInterval(args.attempt),
         internal.documents.actions.checkRagJobStatus,
         { documentId: args.documentId, attempt: args.attempt + 1 },
+      );
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Delete document from RAG service (internal action)
+ *
+ * Called after a document is deleted from the database to clean up
+ * the corresponding data in the RAG service.
+ */
+export const deleteDocumentFromRag = internalAction({
+  args: {
+    documentId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+
+    try {
+      const response = await fetch(
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(60000),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(
+          `[deleteDocumentFromRag] Failed to delete document ${args.documentId} from RAG: ${response.status} ${errorText}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[deleteDocumentFromRag] Error deleting document ${args.documentId} from RAG:`,
+        error,
+      );
+    }
+
+    return null;
+  },
+});
+
+/**
+ * Reindex document in RAG service with new team assignments (internal action)
+ *
+ * Called when a document's teamTags are updated. This action:
+ * 1. Deletes the document from RAG (removes from all previous team datasets)
+ * 2. Re-uploads the document with new team_ids
+ */
+export const reindexDocumentRag = internalAction({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ragUrl = process.env.RAG_URL || 'http://localhost:8001';
+
+    // Step 1: Delete document from RAG
+    try {
+      const deleteResponse = await fetch(
+        `${ragUrl}/api/v1/documents/${encodeURIComponent(args.documentId)}?mode=hard`,
+        {
+          method: 'DELETE',
+          signal: AbortSignal.timeout(60000),
+        },
+      );
+
+      if (!deleteResponse.ok) {
+        const errorText = await deleteResponse.text();
+        console.warn(
+          `[reindexDocumentRag] Failed to delete document ${args.documentId} from RAG: ${deleteResponse.status} ${errorText}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[reindexDocumentRag] Error deleting document ${args.documentId} from RAG:`,
+        error,
+      );
+    }
+
+    // Step 2: Re-upload document with new team_ids
+    const result = (await ragAction.execute(
+      ctx,
+      { operation: 'upload_document', recordId: args.documentId },
+      {},
+    )) as { success: boolean; jobId?: string };
+
+    if (!result.success) {
+      console.error(
+        `[reindexDocumentRag] Failed to re-upload document ${args.documentId} to RAG`,
       );
     }
 

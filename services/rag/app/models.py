@@ -5,6 +5,47 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+
+def _validate_and_sanitize_tenant_ids(
+    user_id: str | None,
+    team_ids: list[str] | None,
+) -> list[str] | None:
+    """Validate tenant IDs and sanitize team_ids.
+
+    Args:
+        user_id: Optional user ID for private documents
+        team_ids: Optional list of team IDs for shared documents
+
+    Returns:
+        Sanitized team_ids list, or None if not provided
+
+    Raises:
+        ValueError: If neither user_id nor team_ids is provided,
+                   or if all team_ids sanitize to empty strings
+    """
+    if not user_id and not team_ids:
+        raise ValueError("At least one of user_id or team_ids must be provided")
+
+    if not team_ids:
+        return None
+
+    from app.services.cognee.utils import sanitize_team_id
+
+    sanitized_ids: list[str] = []
+    for tid in team_ids:
+        try:
+            sanitized = sanitize_team_id(tid)
+            if sanitized:
+                sanitized_ids.append(sanitized)
+        except ValueError:
+            # Skip team IDs that sanitize to empty (invalid characters only)
+            continue
+
+    if not sanitized_ids:
+        raise ValueError("At least one valid team_id is required after sanitization")
+
+    return sanitized_ids
+
 # ============================================================================
 # Health & Status Models
 # ============================================================================
@@ -56,22 +97,27 @@ class DocumentAddRequest(BaseModel):
         description="Optional custom document ID",
     )
     # Multi-tenancy support
+    # user_id and team_ids are mutually exclusive for upload:
+    # - user_id provided → private document (team_ids ignored)
+    # - team_ids only → shared team document
     user_id: str | None = Field(
         default=None,
-        description="User ID for multi-tenant isolation. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
-                    "documents are stored in the user's isolated dataset.",
+        description="User ID for private document storage. If provided, document is stored "
+                    "in user's private dataset (team_ids is ignored). At least one of user_id "
+                    "or team_ids must be provided.",
     )
-    dataset_name: str | None = Field(
+    team_ids: list[str] | None = Field(
         default=None,
-        description="Dataset name for organizing documents. When specified with user_id, "
-                    "creates a user-scoped dataset. Format: 'tale_team_{teamId}' for team datasets.",
+        description="Team IDs for shared document storage. Document will be added to each "
+                    "team's dataset (tale_team_{team_id}). Ignored if user_id is provided.",
     )
 
     @model_validator(mode="after")
-    def validate_tenant_scope(self):
-        """Ensure dataset_name is only used with user_id for proper tenant scoping."""
-        if self.dataset_name and not self.user_id:
-            raise ValueError("dataset_name requires user_id for tenant scoping")
+    def validate_and_sanitize(self):
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
@@ -244,22 +290,25 @@ class QueryRequest(BaseModel):
         description="Optional filters for metadata"
     )
     # Multi-tenancy support
+    # Search can include both user's private dataset and team datasets
     user_id: str | None = Field(
         default=None,
-        description="User ID for multi-tenant search. When ENABLE_BACKEND_ACCESS_CONTROL is true, "
-                    "search is restricted to datasets accessible by this user.",
+        description="User ID for searching user's private documents. If provided, user's "
+                    "private dataset (tale_user_{uuid}) is included in search.",
     )
-    datasets: list[str] | None = Field(
+    team_ids: list[str] | None = Field(
         default=None,
-        description="List of dataset names to search within. When not specified, searches all "
-                    "datasets accessible by the user. Format: ['tale_team_{teamId}', ...]",
+        description="Team IDs for searching shared team documents. Each team's dataset "
+                    "(tale_team_{team_id}) is included in search. At least one of user_id "
+                    "or team_ids must be provided.",
     )
 
     @model_validator(mode="after")
-    def validate_tenant_scope(self):
-        """Ensure datasets is only used with user_id for proper tenant scoping."""
-        if self.datasets and not self.user_id:
-            raise ValueError("datasets requires user_id for tenant scoping")
+    def validate_and_sanitize(self):
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
@@ -310,22 +359,23 @@ class GenerateRequest(BaseModel):
         description="Maximum tokens to generate (overrides default)"
     )
     # Multi-tenancy support
+    # Generate can include both user's private dataset and team datasets
     user_id: str | None = Field(
         default=None,
-        description="User ID for multi-tenant generation. Context is retrieved from "
-                    "datasets accessible by this user.",
+        description="User ID for retrieving user's private documents as context.",
     )
-    datasets: list[str] | None = Field(
+    team_ids: list[str] | None = Field(
         default=None,
-        description="List of dataset names to retrieve context from. "
-                    "Format: ['tale_team_{teamId}', ...]",
+        description="Team IDs to retrieve context from. At least one of user_id "
+                    "or team_ids must be provided.",
     )
 
     @model_validator(mode="after")
-    def validate_tenant_scope(self):
-        """Ensure datasets is only used with user_id for proper tenant scoping."""
-        if self.datasets and not self.user_id:
-            raise ValueError("datasets requires user_id for tenant scoping")
+    def validate_and_sanitize(self):
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
