@@ -6,13 +6,12 @@ re-processing).
 
 Cache strategy:
 - Uses SHA-256 hash of image bytes as cache key
-- In-memory LRU cache for fast access
+- In-memory LRU cache for fast access (O(1) operations via OrderedDict)
 - Separate caches for OCR and image description results
 """
 
 import hashlib
-from functools import lru_cache
-from typing import Callable
+from collections import OrderedDict
 
 from loguru import logger
 
@@ -26,26 +25,6 @@ def compute_image_hash(image_bytes: bytes) -> str:
     return hashlib.sha256(image_bytes).hexdigest()
 
 
-# Use separate caches for OCR and description to avoid key collisions
-# and allow different cache sizes based on usage patterns.
-
-@lru_cache(maxsize=OCR_CACHE_SIZE)
-def _get_cached_ocr(image_hash: str) -> str | None:
-    """Internal cache lookup for OCR results.
-
-    Returns None for cache miss (never stored), empty string for cached empty result.
-    """
-    # This function is used as a marker - actual caching happens via the decorator
-    # When called with a new hash, it returns None (cache miss)
-    return None
-
-
-@lru_cache(maxsize=DESCRIPTION_CACHE_SIZE)
-def _get_cached_description(image_hash: str) -> str | None:
-    """Internal cache lookup for description results."""
-    return None
-
-
 # Track cache hits/misses for monitoring
 _cache_stats = {
     "ocr_hits": 0,
@@ -56,31 +35,23 @@ _cache_stats = {
 
 
 class VisionCache:
-    """Cache for Vision API results."""
+    """Cache for Vision API results.
+
+    Uses OrderedDict for O(1) LRU operations via move_to_end() and popitem().
+    """
 
     def __init__(self) -> None:
-        # Manual cache storage since lru_cache doesn't support setting values
-        self._ocr_cache: dict[str, str] = {}
-        self._description_cache: dict[str, str] = {}
-        self._ocr_access_order: list[str] = []
-        self._description_access_order: list[str] = []
+        self._ocr_cache: OrderedDict[str, str] = OrderedDict()
+        self._description_cache: OrderedDict[str, str] = OrderedDict()
 
     def _evict_if_needed(
         self,
-        cache: dict[str, str],
-        access_order: list[str],
+        cache: OrderedDict[str, str],
         max_size: int,
     ) -> None:
-        """Evict oldest entries if cache exceeds max size."""
-        while len(cache) >= max_size and access_order:
-            oldest_key = access_order.pop(0)
-            cache.pop(oldest_key, None)
-
-    def _update_access_order(self, access_order: list[str], key: str) -> None:
-        """Update access order for LRU tracking."""
-        if key in access_order:
-            access_order.remove(key)
-        access_order.append(key)
+        """Evict oldest entries if cache exceeds max size (O(1) per eviction)."""
+        while len(cache) >= max_size:
+            cache.popitem(last=False)
 
     def get_ocr(self, image_bytes: bytes) -> tuple[str | None, str]:
         """Get cached OCR result.
@@ -95,7 +66,7 @@ class VisionCache:
 
         if image_hash in self._ocr_cache:
             _cache_stats["ocr_hits"] += 1
-            self._update_access_order(self._ocr_access_order, image_hash)
+            self._ocr_cache.move_to_end(image_hash)
             logger.debug(f"Vision cache HIT (OCR): {image_hash[:16]}...")
             return self._ocr_cache[image_hash], image_hash
 
@@ -109,11 +80,9 @@ class VisionCache:
             image_hash: Pre-computed image hash
             result: OCR result to cache
         """
-        self._evict_if_needed(
-            self._ocr_cache, self._ocr_access_order, OCR_CACHE_SIZE
-        )
+        self._evict_if_needed(self._ocr_cache, OCR_CACHE_SIZE)
         self._ocr_cache[image_hash] = result
-        self._update_access_order(self._ocr_access_order, image_hash)
+        self._ocr_cache.move_to_end(image_hash)
         logger.debug(f"Vision cache SET (OCR): {image_hash[:16]}...")
 
     def get_description(self, image_bytes: bytes) -> tuple[str | None, str]:
@@ -129,7 +98,7 @@ class VisionCache:
 
         if image_hash in self._description_cache:
             _cache_stats["description_hits"] += 1
-            self._update_access_order(self._description_access_order, image_hash)
+            self._description_cache.move_to_end(image_hash)
             logger.debug(f"Vision cache HIT (description): {image_hash[:16]}...")
             return self._description_cache[image_hash], image_hash
 
@@ -143,13 +112,9 @@ class VisionCache:
             image_hash: Pre-computed image hash
             result: Description result to cache
         """
-        self._evict_if_needed(
-            self._description_cache,
-            self._description_access_order,
-            DESCRIPTION_CACHE_SIZE,
-        )
+        self._evict_if_needed(self._description_cache, DESCRIPTION_CACHE_SIZE)
         self._description_cache[image_hash] = result
-        self._update_access_order(self._description_access_order, image_hash)
+        self._description_cache.move_to_end(image_hash)
         logger.debug(f"Vision cache SET (description): {image_hash[:16]}...")
 
     def get_stats(self) -> dict[str, int]:
@@ -164,8 +129,6 @@ class VisionCache:
         """Clear all caches."""
         self._ocr_cache.clear()
         self._description_cache.clear()
-        self._ocr_access_order.clear()
-        self._description_access_order.clear()
         logger.info("Vision cache cleared")
 
 
