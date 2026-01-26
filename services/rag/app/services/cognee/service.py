@@ -302,8 +302,6 @@ class CogneeService:
             Whether deletion was successful
         """
         try:
-            from sqlalchemy import delete as sql_delete
-
             db_engine = get_relational_engine()
             async with db_engine.get_async_session() as session:
                 await session.execute(
