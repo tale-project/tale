@@ -122,18 +122,34 @@ async def get_or_create_team_context(team_id: str) -> Any:
                 return user
 
             # User doesn't exist, create new one
-            user = await create_user(
-                email=service_email,
-                password=f"internal_service_{team_id}",
-                is_superuser=False,
-            )
-            logger.info(f"Created new service user for team_id={team_id}: {user.id}")
+            # Handle cross-process race: another worker may have created the user
+            try:
+                user = await create_user(
+                    email=service_email,
+                    password=f"internal_service_{team_id}",
+                    is_superuser=False,
+                )
+                logger.info(f"Created new service user for team_id={team_id}: {user.id}")
+            except Exception:
+                # Race condition: user was created by another process
+                user = await _get_user_by_email(service_email)
+                if user is None:
+                    raise
+                logger.debug(f"Service user created by concurrent process for team_id={team_id}")
 
             # Create tenant for the new user
+            # Handle cross-process race: another worker may have created the tenant
             from cognee.modules.users.tenants.methods import create_tenant
 
-            await create_tenant(tenant_name, user.id)
-            logger.info(f"Created tenant '{tenant_name}' for team_id={team_id}")
+            try:
+                await create_tenant(tenant_name, user.id)
+                logger.info(f"Created tenant '{tenant_name}' for team_id={team_id}")
+            except Exception:
+                # Race condition: tenant may have been created by another process
+                user = await get_user(user.id)
+                if not user.tenant_id:
+                    raise
+                logger.debug(f"Tenant created by concurrent process for team_id={team_id}")
 
             # Refresh user to get updated tenant_id
             user = await get_user(user.id)
@@ -225,16 +241,33 @@ async def get_or_create_user_for_context(user_id: str | UUID) -> Any | None:
             return existing_user
 
         # User doesn't exist, create new one
-        user = await create_user(
-            email=email,
-            password=f"internal_user_{deterministic_uuid}",
-            is_superuser=False,
-        )
-        logger.info(f"Created new user for user_id={original_user_id}: {user.id}")
+        # Handle cross-process race: another worker may have created the user
+        try:
+            user = await create_user(
+                email=email,
+                password=f"internal_user_{deterministic_uuid}",
+                is_superuser=False,
+            )
+            logger.info(f"Created new user for user_id={original_user_id}: {user.id}")
+        except Exception:
+            # Race condition: user was created by another process
+            user = await _get_user_by_email(email)
+            if user is None:
+                raise
+            logger.debug(f"User created by concurrent process for user_id={original_user_id}")
+            return user
 
         # Create tenant for the new user
-        await create_tenant(tenant_name, user.id)
-        logger.info(f"Created tenant '{tenant_name}' for user_id={original_user_id}")
+        # Handle cross-process race: another worker may have created the tenant
+        try:
+            await create_tenant(tenant_name, user.id)
+            logger.info(f"Created tenant '{tenant_name}' for user_id={original_user_id}")
+        except Exception:
+            # Race condition: tenant may have been created by another process
+            user = await get_user(user.id)
+            if not user.tenant_id:
+                raise
+            logger.debug(f"Tenant created by concurrent process for user_id={original_user_id}")
 
         # Refresh user to get updated tenant_id
         user = await get_user(user.id)
