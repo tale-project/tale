@@ -140,7 +140,7 @@ class VisionClient:
 
             return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"Vision API OCR request timed out after {settings.vision_request_timeout}s"
             )
@@ -214,7 +214,7 @@ class VisionClient:
 
             return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"Vision API describe_image request timed out after {settings.vision_request_timeout}s"
             )
