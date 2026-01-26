@@ -87,23 +87,17 @@ async def _process_pdf_document(
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Collect results and aggregate vision_used flag
+    # Gracefully handle page-level failures to avoid entire PDF failing
     vision_used = False
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            logger.error(f"Failed to process page {i + 1}: {result}")
-            # Try to get at least the direct text on error
-            try:
-                fallback_text = doc[i].get_text("text").strip()
-                if fallback_text:
-                    pages_text.append(f"--- Page {i + 1} ---\n{fallback_text}")
-            except Exception:
-                pages_text.append(f"--- Page {i + 1} ---\n[Error processing page]")
-        else:
-            page_text, page_vision_used = result
-            if page_vision_used:
-                vision_used = True
-            if page_text:
-                pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
+            logger.warning(f"Page {i + 1} processing failed, skipping: {result}")
+            continue
+        page_text, page_vision_used = result
+        if page_vision_used:
+            vision_used = True
+        if page_text:
+            pages_text.append(f"--- Page {i + 1} ---\n{page_text}")
 
     combined_text = "\n\n".join(pages_text)
     logger.info(
@@ -174,7 +168,7 @@ async def _ocr_page(
             return await vision_client.ocr_image(image_bytes)
 
         except Exception as e:
-            logger.error(f"Failed to OCR page: {e}")
+            logger.warning(f"Failed to OCR page, returning empty text: {e}")
             return ""
 
 
@@ -193,51 +187,45 @@ async def _extract_image_descriptions(
     """
     descriptions: list[str] = []
 
-    try:
-        image_list = page.get_images(full=True)
+    image_list = page.get_images(full=True)
 
-        if not image_list:
-            return descriptions
+    if not image_list:
+        return descriptions
 
-        doc = page.parent
+    doc = page.parent
 
-        for img_index, img_info in enumerate(image_list):
-            xref = img_info[0]
+    for img_index, img_info in enumerate(image_list):
+        xref = img_info[0]
 
+        # Extract image bytes
+        base_image = doc.extract_image(xref)
+        if not base_image:
+            continue
+
+        image_bytes = base_image.get("image")
+        if not image_bytes:
+            continue
+
+        # Check image size
+        width = base_image.get("width", 0)
+        height = base_image.get("height", 0)
+        if width * height < MIN_IMAGE_SIZE:
+            logger.debug(
+                f"Skipping small image ({width}x{height}) on page {page.number + 1}"
+            )
+            continue
+
+        # Get image description with error handling to continue on failures
+        async with semaphore:
             try:
-                # Extract image bytes
-                base_image = doc.extract_image(xref)
-                if not base_image:
-                    continue
-
-                image_bytes = base_image.get("image")
-                if not image_bytes:
-                    continue
-
-                # Check image size
-                width = base_image.get("width", 0)
-                height = base_image.get("height", 0)
-                if width * height < MIN_IMAGE_SIZE:
-                    logger.debug(
-                        f"Skipping small image ({width}x{height}) on page {page.number + 1}"
-                    )
-                    continue
-
-                # Get image description
-                async with semaphore:
-                    description = await vision_client.describe_image(image_bytes)
-                    if description:
-                        descriptions.append(description)
-
+                description = await vision_client.describe_image(image_bytes)
+                if description:
+                    descriptions.append(description)
             except Exception as e:
                 logger.warning(
-                    f"Failed to extract/describe image {img_index} "
-                    f"on page {page.number + 1}: {e}"
+                    f"Failed to describe image {img_index} on page {page.number + 1}: {e}"
                 )
                 continue
-
-    except Exception as e:
-        logger.error(f"Failed to extract images from page {page.number + 1}: {e}")
 
     return descriptions
 

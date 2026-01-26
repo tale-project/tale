@@ -9,8 +9,8 @@ export interface UploadFileDirectArgs {
   timeoutMs?: number;
   /** User ID for multi-tenant isolation */
   userId?: string;
-  /** Dataset name for organizing documents (e.g., 'tale_team_{teamId}') */
-  datasetName?: string;
+  /** Team IDs for team-level isolation (will be converted to dataset internally) */
+  teamIds?: string[];
 }
 
 /**
@@ -40,7 +40,7 @@ export async function uploadFileDirect({
   metadata,
   timeoutMs = 30000,
   userId,
-  datasetName,
+  teamIds,
 }: UploadFileDirectArgs): Promise<RagUploadResult> {
   const startTime = Date.now();
 
@@ -89,8 +89,8 @@ export async function uploadFileDirect({
   if (userId) {
     formData.append('user_id', userId);
   }
-  if (datasetName) {
-    formData.append('dataset_name', datasetName);
+  if (teamIds && teamIds.length > 0) {
+    formData.append('team_ids', teamIds.join(','));
   }
 
   // Step 3: Upload to RAG service
@@ -105,7 +105,7 @@ export async function uploadFileDirect({
     hasMetadata: !!metadata,
     hasDocumentId: !!recordIdFromMetadata,
     hasUserId: !!userId,
-    datasetName,
+    teamIds,
   });
 
   const controller = new AbortController();

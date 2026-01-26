@@ -64,33 +64,23 @@ async def extract_text_from_image_bytes(
 
     Returns:
         Tuple of (extracted_text, was_processed_with_vision)
+
+    Raises:
+        TimeoutError: If Vision API request times out
+        Exception: If Vision API request fails
     """
     logger.info(f"Processing image from bytes: {filename}")
 
-    # First, try OCR to extract any text
-    try:
-        ocr_text = await vision_client.ocr_image(image_bytes)
+    ocr_text = await vision_client.ocr_image(image_bytes)
 
-        # If we got meaningful text, return it
-        if ocr_text and len(ocr_text.strip()) > MIN_OCR_TEXT_LENGTH:
-            logger.info(f"Image OCR successful: {len(ocr_text)} chars extracted")
-            return ocr_text, True
+    if ocr_text and len(ocr_text.strip()) > MIN_OCR_TEXT_LENGTH:
+        logger.info(f"Image OCR successful: {len(ocr_text)} chars extracted")
+        return ocr_text, True
 
-    except Exception as e:
-        logger.warning(f"Image OCR failed, falling back to description: {e}")
+    description = await vision_client.describe_image(image_bytes)
+    if description:
+        result = f"[Image: {description}]"
+        logger.info(f"Generated image description: {len(description)} chars")
+        return result, True
 
-    # No text found, generate a description
-    try:
-        description = await vision_client.describe_image(image_bytes)
-        if description:
-            result = f"[Image: {description}]"
-            logger.info(f"Generated image description: {len(description)} chars")
-            return result, True
-
-    except Exception as e:
-        logger.error(f"Failed to describe image: {e}")
-        # Fall through to return empty result for graceful degradation
-
-    # Fallback - return empty with vision flag
-    logger.warning(f"Both OCR and description failed for image: {filename}")
     return "", True

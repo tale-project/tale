@@ -3,8 +3,11 @@
 This module provides a wrapper around the OpenAI Vision API for:
 - OCR: Extracting text from scanned/image-based PDF pages
 - Image description: Generating descriptions of photos, charts, diagrams
+
+Results are cached based on image content hash to avoid redundant API calls.
 """
 
+import asyncio
 import base64
 import imghdr
 
@@ -12,6 +15,7 @@ from loguru import logger
 from openai import AsyncOpenAI
 
 from ...config import settings
+from .cache import vision_cache
 
 
 def _detect_mime_type(image_bytes: bytes) -> str:
@@ -78,6 +82,11 @@ class VisionClient:
         Returns:
             Extracted text from the image
         """
+        # Check cache first
+        cached_result, image_hash = vision_cache.get_ocr(image_bytes)
+        if cached_result is not None:
+            return cached_result
+
         client = self._get_client()
         vision_model = settings.get_vision_model()
         extraction_prompt = prompt or settings.vision_extraction_prompt or OCR_PROMPT
@@ -89,38 +98,52 @@ class VisionClient:
         logger.debug(f"Sending OCR request to {vision_model}")
 
         try:
-            response = await client.chat.completions.create(
-                model=vision_model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": extraction_prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_b64}",
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model=vision_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": extraction_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:{mime_type};base64,{image_b64}",
+                                    },
                                 },
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=4096,
+                            ],
+                        }
+                    ],
+                    max_tokens=4096,
+                ),
+                timeout=settings.vision_request_timeout,
             )
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for OCR")
+                vision_cache.set_ocr(image_hash, "")
                 return ""
 
             result = response.choices[0].message.content or ""
 
             # Handle "no text found" responses
             if result.strip().lower() in ["[no text found]", "no text found", ""]:
+                vision_cache.set_ocr(image_hash, "")
                 return ""
 
             logger.debug(f"OCR extracted {len(result)} characters")
+            vision_cache.set_ocr(image_hash, result)
+
+            # Rate limiting: delay between API calls to avoid throttling
+            await asyncio.sleep(1)
+
             return result
 
+        except TimeoutError:
+            raise TimeoutError(
+                f"Vision API OCR request timed out after {settings.vision_request_timeout}s"
+            )
         except Exception as e:
             logger.error(f"Vision API OCR request failed: {e}")
             raise
@@ -139,6 +162,11 @@ class VisionClient:
         Returns:
             Description of the image content
         """
+        # Check cache first
+        cached_result, image_hash = vision_cache.get_description(image_bytes)
+        if cached_result is not None:
+            return cached_result
+
         client = self._get_client()
         vision_model = settings.get_vision_model()
         description_prompt = prompt or DESCRIBE_PROMPT
@@ -150,33 +178,46 @@ class VisionClient:
         logger.debug(f"Sending image description request to {vision_model}")
 
         try:
-            response = await client.chat.completions.create(
-                model=vision_model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": description_prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{image_b64}",
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model=vision_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": description_prompt},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:{mime_type};base64,{image_b64}",
+                                    },
                                 },
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=100,
+                            ],
+                        }
+                    ],
+                    max_tokens=100,
+                ),
+                timeout=settings.vision_request_timeout,
             )
 
             if not response.choices:
                 logger.warning("Vision API returned empty choices for description")
+                vision_cache.set_description(image_hash, "")
                 return ""
 
-            result = response.choices[0].message.content or ""
+            result = (response.choices[0].message.content or "").strip()
             logger.debug(f"Generated image description: {len(result)} characters")
-            return result.strip()
+            vision_cache.set_description(image_hash, result)
 
+            # Rate limiting: delay between API calls to avoid throttling
+            await asyncio.sleep(1)
+
+            return result
+
+        except TimeoutError:
+            raise TimeoutError(
+                f"Vision API describe_image request timed out after {settings.vision_request_timeout}s"
+            )
         except Exception as e:
             logger.error(f"Vision API description request failed: {e}")
             raise

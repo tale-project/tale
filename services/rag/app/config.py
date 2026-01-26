@@ -66,12 +66,16 @@ class Settings(BaseSettings):
     # ========================================================================
     # Vision model for OCR and image description (OpenAI-compatible)
     openai_vision_model: str | None = None
-    # Maximum concurrent Vision API calls per PDF
-    vision_max_concurrent_pages: int = 5
+    # Maximum concurrent Vision API calls per PDF (1 = sequential with rate limiting)
+    vision_max_concurrent_pages: int = 1
     # DPI for rendering PDF pages as images for OCR
     vision_pdf_dpi: int = 150
     # Custom prompt for text extraction (optional)
     vision_extraction_prompt: str | None = None
+    # Timeout for individual Vision API requests (OCR/describe) in seconds
+    vision_request_timeout: int = 180
+    # Timeout for entire Vision pre-processing step in seconds (0 = use 30% of ingestion_timeout)
+    vision_preprocessing_timeout: int = 0
 
     # ========================================================================
     # Knowledge Graph Extraction Configuration

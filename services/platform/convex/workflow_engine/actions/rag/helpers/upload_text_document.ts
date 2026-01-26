@@ -9,8 +9,8 @@ export interface UploadTextDocumentArgs {
   timeoutMs?: number;
   /** User ID for multi-tenant isolation */
   userId?: string;
-  /** Dataset name for organizing documents (e.g., 'tale_team_{teamId}') */
-  datasetName?: string;
+  /** Team IDs for team-level isolation (will be converted to dataset internally) */
+  teamIds?: string[];
 }
 
 /**
@@ -23,7 +23,7 @@ export async function uploadTextDocument({
   recordId,
   timeoutMs = 30000,
   userId,
-  datasetName,
+  teamIds,
 }: UploadTextDocumentArgs): Promise<RagUploadResult> {
   const startTime = Date.now();
   const url = `${ragServiceUrl}/api/v1/documents`;
@@ -43,8 +43,8 @@ export async function uploadTextDocument({
   if (userId) {
     payload.user_id = userId;
   }
-  if (datasetName) {
-    payload.dataset_name = datasetName;
+  if (teamIds && teamIds.length > 0) {
+    payload.team_ids = teamIds;
   }
 
   const controller = new AbortController();

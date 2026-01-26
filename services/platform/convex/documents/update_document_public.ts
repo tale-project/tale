@@ -8,8 +8,18 @@ import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
+import { internal } from '../_generated/api';
 
 const sourceProviderValidator = v.union(v.literal('onedrive'), v.literal('upload'));
+
+function arraysEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((val, i) => val === sortedB[i]);
+}
 
 export const updateDocument = mutation({
   args: {
@@ -43,9 +53,26 @@ export const updateDocument = mutation({
       name: authUser.name,
     });
 
-    return await updateDocumentHelper(ctx, {
+    // Store old teamTags for comparison
+    const oldTeamTags = document.teamTags;
+    const wasIndexed = document.ragInfo?.status === 'completed';
+
+    await updateDocumentHelper(ctx, {
       ...args,
       userId: String(authUser._id),
     });
+
+    // If teamTags changed and document was indexed, trigger RAG reindex
+    if (
+      args.teamTags !== undefined &&
+      wasIndexed &&
+      !arraysEqual(oldTeamTags, args.teamTags)
+    ) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.actions.reindexDocumentRag,
+        { documentId: args.documentId },
+      );
+    }
   },
 });

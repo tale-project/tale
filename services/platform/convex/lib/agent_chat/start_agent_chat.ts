@@ -116,10 +116,12 @@ export async function startAgentChat(
     : '';
 
   // Get thread to retrieve userId, then get user's team IDs for RAG search
+  // Include org-level ID to access public documents (documents without team tags)
   const thread = await ctx.runQuery(components.agent.threads.getThread, { threadId });
-  const userTeamIds = thread?.userId
+  const teamIds = thread?.userId
     ? await getUserTeamIds(ctx, thread.userId)
     : [];
+  const userTeamIds = [`org_${organizationId}`, ...teamIds];
 
   // Load recent non-tool messages for deduplication
   const existingMessages: AgentListMessagesResult = await listMessages(ctx, components.agent, {

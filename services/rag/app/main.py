@@ -14,6 +14,7 @@ from .config import settings
 from .models import ErrorResponse
 from .routers import documents_router, health_router, jobs_router, search_router
 from .services.cognee import cognee_service
+from .services.cognee.tenant_manager import ensure_cognee_user_tables
 from .utils import cleanup_memory
 
 # Configure logging
@@ -58,6 +59,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Failed to initialize cognee")
         # Continue anyway - some endpoints may still work
+
+    # Ensure Cognee user/tenant tables exist (required for multi-tenant mode)
+    try:
+        await ensure_cognee_user_tables()
+    except Exception:
+        logger.exception("Failed to initialize Cognee user tables")
 
     # Initialize job store database table
     try:
