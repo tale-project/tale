@@ -50,7 +50,7 @@ export function useServiceWorker() {
 
   const applyUpdate = useCallback(() => {
     if (state.registration?.waiting) {
-      skipWaiting();
+      skipWaiting(state.registration.waiting);
       window.location.reload();
     }
   }, [state.registration]);

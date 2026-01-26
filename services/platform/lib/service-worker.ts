@@ -77,15 +77,8 @@ export async function checkForServiceWorkerUpdate(): Promise<boolean> {
   }
 }
 
-export function skipWaiting(): void {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-    return;
-  }
-
-  const registration = navigator.serviceWorker.controller;
-  if (!registration) return;
-
-  registration.postMessage({ type: 'SKIP_WAITING' });
+export function skipWaiting(waitingWorker: ServiceWorker): void {
+  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
 }
 
 interface SyncRegistration extends ServiceWorkerRegistration {
