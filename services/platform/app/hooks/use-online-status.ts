@@ -1,9 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useConvexConnectionState } from 'convex/react';
 
 function subscribe(callback: () => void) {
   window.addEventListener('online', callback);
   window.addEventListener('offline', callback);
-
   return () => {
     window.removeEventListener('online', callback);
     window.removeEventListener('offline', callback);
@@ -18,13 +18,20 @@ function getServerSnapshot() {
   return true;
 }
 
-export function useOnlineStatus() {
+function useBrowserOnlineStatus() {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+export function useOnlineStatus() {
+  const browserOnline = useBrowserOnlineStatus();
+  const convexState = useConvexConnectionState();
+
+  return browserOnline || convexState.isWebSocketConnected;
 }
 
 export function useOnlineStatusWithCallback(
   onOnline?: () => void,
-  onOffline?: () => void
+  onOffline?: () => void,
 ) {
   const isOnline = useOnlineStatus();
   const [wasOffline, setWasOffline] = useState(false);
