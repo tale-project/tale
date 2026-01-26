@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import { useRemoveMember } from '../hooks/use-remove-member';
@@ -26,12 +27,14 @@ export function DeleteMemberDialog({
 }: DeleteMemberDialogProps) {
   const { t } = useT('settings');
   const { t: tDialogs } = useT('dialogs');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const removeMember = useRemoveMember();
 
   if (!member) return null;
 
   const handleConfirm = async () => {
+    setIsDeleting(true);
     try {
       await removeMember({
         memberId: member._id,
@@ -47,6 +50,8 @@ export function DeleteMemberDialog({
         title: t('organization.memberRemoveFailed'),
         variant: 'destructive',
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -57,6 +62,7 @@ export function DeleteMemberDialog({
       title={t('organization.removeMember')}
       description={tDialogs('confirmRemoveMember', { name: member.displayName || member.email || tDialogs('thisMember') })}
       deleteText={t('organization.removeMember')}
+      isDeleting={isDeleting}
       onDelete={handleConfirm}
       warning={member.role === 'admin' ? t('organization.adminSecurityWarning') : undefined}
     />
