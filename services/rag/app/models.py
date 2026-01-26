@@ -5,6 +5,40 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+
+def _validate_and_sanitize_tenant_ids(
+    user_id: str | None,
+    team_ids: list[str] | None,
+) -> list[str] | None:
+    """Validate tenant IDs and sanitize team_ids.
+
+    Args:
+        user_id: Optional user ID for private documents
+        team_ids: Optional list of team IDs for shared documents
+
+    Returns:
+        Sanitized team_ids list, or None if not provided
+
+    Raises:
+        ValueError: If neither user_id nor team_ids is provided,
+                   or if all team_ids sanitize to empty strings
+    """
+    if not user_id and not team_ids:
+        raise ValueError("At least one of user_id or team_ids must be provided")
+
+    if not team_ids:
+        return None
+
+    from app.services.cognee.utils import sanitize_team_id
+
+    sanitized_ids = [sanitize_team_id(tid) for tid in team_ids]
+    sanitized_ids = [tid for tid in sanitized_ids if tid]
+
+    if not sanitized_ids:
+        raise ValueError("At least one valid team_id is required after sanitization")
+
+    return sanitized_ids
+
 # ============================================================================
 # Health & Status Models
 # ============================================================================
@@ -73,29 +107,10 @@ class DocumentAddRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_and_sanitize(self):
-        """Validate that at least one of user_id or team_ids is provided,
-        and sanitize team_ids if present.
-
-        Team IDs are sanitized:
-        - Spaces and dots are replaced with underscores
-        - Only alphanumeric, underscore, and hyphen characters are allowed
-        """
-        # At least one of user_id or team_ids must be provided
-        if not self.user_id and not self.team_ids:
-            raise ValueError("At least one of user_id or team_ids must be provided")
-
-        # Sanitize team_ids if provided
-        if self.team_ids:
-            from app.services.cognee.utils import sanitize_team_id
-
-            sanitized_ids = [sanitize_team_id(tid) for tid in self.team_ids]
-            sanitized_ids = [tid for tid in sanitized_ids if tid]
-
-            if not sanitized_ids:
-                raise ValueError("At least one valid team_id is required after sanitization")
-
-            object.__setattr__(self, "team_ids", sanitized_ids)
-
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
@@ -283,23 +298,10 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_and_sanitize(self):
-        """Validate that at least one of user_id or team_ids is provided,
-        and sanitize team_ids if present."""
-        # At least one of user_id or team_ids must be provided
-        if not self.user_id and not self.team_ids:
-            raise ValueError("At least one of user_id or team_ids must be provided")
-
-        # Sanitize team_ids if provided
-        if self.team_ids:
-            from app.services.cognee.utils import sanitize_team_id
-
-            sanitized_ids = [sanitize_team_id(tid) for tid in self.team_ids]
-            sanitized_ids = [tid for tid in sanitized_ids if tid]
-
-            if not sanitized_ids:
-                raise ValueError("At least one valid team_id is required after sanitization")
-
-            object.__setattr__(self, "team_ids", sanitized_ids)
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
@@ -363,23 +365,10 @@ class GenerateRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_and_sanitize(self):
-        """Validate that at least one of user_id or team_ids is provided,
-        and sanitize team_ids if present."""
-        # At least one of user_id or team_ids must be provided
-        if not self.user_id and not self.team_ids:
-            raise ValueError("At least one of user_id or team_ids must be provided")
-
-        # Sanitize team_ids if provided
-        if self.team_ids:
-            from app.services.cognee.utils import sanitize_team_id
-
-            sanitized_ids = [sanitize_team_id(tid) for tid in self.team_ids]
-            sanitized_ids = [tid for tid in sanitized_ids if tid]
-
-            if not sanitized_ids:
-                raise ValueError("At least one valid team_id is required after sanitization")
-
-            object.__setattr__(self, "team_ids", sanitized_ids)
+        """Validate and sanitize tenant IDs."""
+        sanitized = _validate_and_sanitize_tenant_ids(self.user_id, self.team_ids)
+        if sanitized is not None:
+            object.__setattr__(self, "team_ids", sanitized)
         return self
 
 
