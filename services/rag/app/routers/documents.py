@@ -42,7 +42,7 @@ async def _ingest_single_document(
     metadata: dict[str, Any] | None,
     document_id: str | None,
     user_id: str | None = None,
-    dataset_name: str | None = None,
+    team_ids: list[str] | None = None,
 ) -> DocumentAddResponse:
     """Ingest a single text document."""
     # Persist text content to file so cognee can operate on a path
@@ -55,15 +55,18 @@ async def _ingest_single_document(
             metadata=metadata,
             document_id=document_id,
             user_id=user_id,
-            dataset_name=dataset_name,
+            team_ids=team_ids,
         )
 
         success = result.get("success", False)
+        skipped = result.get("skipped", False)
         return DocumentAddResponse(
             success=success,
             document_id=result.get("document_id", document_id or "unknown"),
             chunks_created=result.get("chunks_created", 0),
             message="Document added successfully" if success else "Document ingestion failed",
+            skipped=skipped,
+            skip_reason=result.get("skip_reason"),
         )
     finally:
         # Clean up the temporary file after ingestion
@@ -97,7 +100,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         metadata: dict[str, Any] | None,
         document_id: str,
         user_id: str | None = None,
-        dataset_name: str | None = None,
+        team_ids: list[str] | None = None,
     ) -> None:
         try:
             await job_store.mark_running(job_id=document_id)
@@ -106,7 +109,11 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
                 metadata=metadata,
                 document_id=document_id,
                 user_id=user_id,
-                dataset_name=dataset_name,
+                team_ids=team_ids,
+            )
+            logger.info(
+                "_ingest_single_document() returned, calling mark_completed",
+                extra={"document_id": document_id},
             )
             await job_store.mark_completed(
                 job_id=document_id,
@@ -114,6 +121,14 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
                 chunks_created=response.chunks_created,
                 skipped=response.skipped,
                 skip_reason=response.skip_reason,
+            )
+            logger.info(
+                "Background text ingestion completed",
+                extra={
+                    "document_id": document_id,
+                    "chunks_created": response.chunks_created,
+                    "skipped": response.skipped,
+                },
             )
         except Exception as exc:  # pragma: no cover - best-effort logging
             await job_store.mark_failed(job_id=document_id, error=str(exc))
@@ -131,7 +146,7 @@ async def add_document(request: DocumentAddRequest, background_tasks: Background
         request.metadata,
         doc_id,
         request.user_id,
-        request.dataset_name,
+        request.team_ids,
     )
 
     # Return immediately with queued status so upstream callers (e.g. Convex
@@ -152,7 +167,7 @@ async def upload_document(
     metadata: str | None = Form(None, description="Optional metadata as JSON string"),
     document_id: str | None = Form(None, description="Optional custom document ID"),
     user_id: str | None = Form(None, description="User ID for multi-tenant isolation"),
-    dataset_name: str | None = Form(None, description="Dataset name for organizing documents"),
+    team_ids: str = Form(..., description="Comma-separated team IDs (required, e.g., 'team1,team2')"),
     background_tasks: BackgroundTasks = None,
 ):
     """Upload a file to the knowledge base.
@@ -160,8 +175,28 @@ async def upload_document(
     The uploaded file is validated and written to disk during the request,
     but heavy ingestion work is delegated to a background task so callers
     (including Convex workflows) don't block on cognee processing.
+
+    For documents belonging to multiple teams, pass comma-separated team IDs.
+    The document will be added to ALL specified teams' datasets.
     """
     from pathlib import Path
+
+    from app.services.cognee.utils import sanitize_team_id
+
+    # Parse and sanitize team_ids
+    team_id_list: list[str] = []
+    for tid in team_ids.split(","):
+        tid = tid.strip()
+        if tid:
+            sanitized = sanitize_team_id(tid)
+            if sanitized:
+                team_id_list.append(sanitized)
+
+    if not team_id_list:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one valid team_id is required",
+        )
 
     SUPPORTED_EXTENSIONS = {
         ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
@@ -250,7 +285,7 @@ async def upload_document(
             metadata_dict: dict[str, Any],
             doc_id_inner: str,
             user_id_inner: str | None = None,
-            dataset_name_inner: str | None = None,
+            team_ids_inner: list[str] | None = None,
         ) -> None:
             try:
                 await job_store.mark_running(job_id=doc_id_inner)
@@ -259,7 +294,14 @@ async def upload_document(
                     metadata=metadata_dict,
                     document_id=doc_id_inner,
                     user_id=user_id_inner,
-                    dataset_name=dataset_name_inner,
+                    team_ids=team_ids_inner,
+                )
+                logger.info(
+                    "add_document() returned, calling mark_completed",
+                    extra={
+                        "document_id": doc_id_inner,
+                        "result_keys": list(result.keys()) if result else [],
+                    },
                 )
                 await job_store.mark_completed(
                     job_id=doc_id_inner,
@@ -315,11 +357,11 @@ async def upload_document(
                 parsed_metadata,
                 doc_id,
                 user_id,
-                dataset_name,
+                team_id_list,
             )
         else:
             # Fallback for contexts without BackgroundTasks (should be rare)
-            await _background_ingest_file(tmp_path, parsed_metadata, doc_id, user_id, dataset_name)
+            await _background_ingest_file(tmp_path, parsed_metadata, doc_id, user_id, team_id_list)
 
         return DocumentAddResponse(
             success=True,
@@ -353,7 +395,11 @@ async def upload_document(
 
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
-async def delete_document(document_id: str, mode: str = "hard"):
+async def delete_document(
+    document_id: str,
+    mode: str = "hard",
+    team_ids: str | None = None,
+):
     """Delete a document from the knowledge base by ID.
 
     This endpoint finds documents in Cognee that were tagged with the given
@@ -363,9 +409,25 @@ async def delete_document(document_id: str, mode: str = "hard"):
     Args:
         document_id: The document ID (should match the ID used when uploading)
         mode: "soft" or "hard" - "hard" (default) also deletes degree-one entity nodes
+        team_ids: Comma-separated team IDs for multi-tenant authorization (required for
+                  documents added with team isolation)
     """
+    from app.services.cognee.utils import sanitize_team_id
+
+    team_id_list: list[str] | None = None
+    if team_ids:
+        team_id_list = []
+        for tid in team_ids.split(","):
+            tid = tid.strip()
+            if tid:
+                sanitized = sanitize_team_id(tid)
+                if sanitized:
+                    team_id_list.append(sanitized)
+
     try:
-        result = await cognee_service.delete_document(document_id, mode=mode)
+        result = await cognee_service.delete_document(
+            document_id, mode=mode, team_ids=team_id_list
+        )
 
         return DocumentDeleteResponse(
             success=result["success"],

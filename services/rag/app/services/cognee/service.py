@@ -15,8 +15,11 @@ from uuid import uuid4
 import aiofiles
 import cognee
 from cognee import SearchType
+from cognee.infrastructure.databases.relational import get_relational_engine
+from cognee.modules.data.models import Data, Dataset, DatasetData
 from loguru import logger
 from openai import AsyncOpenAI
+from sqlalchemy import String, cast, delete as sql_delete, select
 from tenacity import (
     AsyncRetrying,
     before_sleep_log,
@@ -32,7 +35,13 @@ from .cleanup import (
     cleanup_missing_local_files_data,
     migrate_vector_dimensions,
 )
-from .utils import compute_file_hash, normalize_add_result, normalize_search_results
+from .tenant_manager import get_or_create_team_context, get_or_create_user_for_context
+from .utils import (
+    compute_file_hash,
+    extract_team_id_from_dataset,
+    normalize_add_result,
+    normalize_search_results,
+)
 
 # Standard logging adapter for tenacity (it doesn't support loguru directly)
 _std_logger = logging.getLogger(__name__)
@@ -246,6 +255,20 @@ class CogneeService:
             password=parsed.password or "",
         )
         try:
+            # Ensure column exists (lazy migration - handles case where data table
+            # was created after startup migration ran)
+            column_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'data' AND column_name = 'original_content_hash'
+                )
+            """)
+            if not column_exists:
+                await conn.execute("""
+                    ALTER TABLE data ADD COLUMN original_content_hash VARCHAR
+                """)
+                logger.info("Added 'original_content_hash' column to data table (lazy migration)")
+
             # Use raw SQL to update the column (bypasses SQLAlchemy model validation)
             # node_set is JSON, use simple LIKE pattern without quotes
             result = await conn.execute(
@@ -261,38 +284,48 @@ class CogneeService:
         finally:
             await conn.close()
 
-    async def _delete_data_entry(
+    async def _delete_sql_data_entry(
         self,
         data_id: Any,
         dataset_id: Any,
-        mode: str = "hard"
     ) -> bool:
-        """Delete a single Data record and its associated data.
+        """Delete a single Data record from SQL database only.
+
+        This is used for cleanup during document re-indexing (add_document).
+        For full deletion including graph/vector data, use delete_document instead.
 
         Args:
             data_id: Cognee Data record UUID
             dataset_id: Dataset UUID
-            mode: Delete mode ("soft" or "hard")
 
         Returns:
             Whether deletion was successful
         """
         try:
-            from cognee.api.v1.delete import delete as cognee_delete
+            from sqlalchemy import delete as sql_delete
 
-            await cognee_delete(
-                data_id=data_id,
-                dataset_id=dataset_id,
-                mode=mode,
-            )
-            logger.info(f"Deleted data entry: {data_id} from dataset: {dataset_id}")
+            db_engine = get_relational_engine()
+            async with db_engine.get_async_session() as session:
+                await session.execute(
+                    sql_delete(DatasetData).where(
+                        DatasetData.data_id == data_id,
+                        DatasetData.dataset_id == dataset_id,
+                    )
+                )
+                remaining = (
+                    await session.execute(
+                        select(DatasetData).where(DatasetData.data_id == data_id)
+                    )
+                ).scalars().first()
+                if not remaining:
+                    await session.execute(
+                        sql_delete(Data).where(Data.id == data_id)
+                    )
+                await session.commit()
+            logger.info(f"Deleted SQL data entry: {data_id} from dataset: {dataset_id}")
             return True
         except Exception as e:
-            error_str = str(e)
-            if "404" in error_str or "not found" in error_str.lower():
-                logger.debug(f"Data entry {data_id} not found in graph (already deleted or never indexed)")
-                return True
-            logger.error(f"Failed to delete data entry {data_id}: {e}")
+            logger.error(f"Failed to delete SQL data entry {data_id}: {e}")
             return False
 
     async def add_document(
@@ -301,7 +334,7 @@ class CogneeService:
         metadata: dict[str, Any] | None = None,
         document_id: str | None = None,
         user_id: str | None = None,
-        dataset_name: str | None = None,
+        team_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Add a document to the knowledge base.
 
@@ -309,10 +342,11 @@ class CogneeService:
             content: Path to the document file to ingest
             metadata: Optional metadata (reserved for future use)
             document_id: Optional custom document ID (used for tagging and later deletion)
-            user_id: Reserved for future user-level permission support. Currently not used;
-                     multi-tenancy is handled via dataset_name.
-            dataset_name: Dataset name for multi-tenant isolation.
-                          Format: 'tale_team_{teamId}' for team datasets, or 'tale_documents' for default.
+            user_id: Optional user ID for user-level isolation. If provided, operations
+                     are scoped to this user's context. Takes priority over team-level isolation.
+            team_ids: List of team IDs to add the document to (required). The document will
+                      be added to each team's dataset (tale_team_{team_id}), allowing members
+                      of all specified teams to search for this document.
 
         Returns:
             Dictionary with operation results
@@ -327,9 +361,31 @@ class CogneeService:
             start_time = time.time()
             timeout_seconds = settings.ingestion_timeout_seconds
 
-            # Use the provided dataset_name for multi-tenant isolation,
-            # or fall back to the default shared dataset.
-            effective_dataset_name = dataset_name or DEFAULT_COGNEE_DATASET_NAME
+            # Determine target datasets
+            # Upload: user_id and team_ids are mutually exclusive
+            # user_id takes priority (private document)
+            target_datasets: list[str] = []
+            if user_id:
+                # Private document: user-specific dataset
+                from .tenant_manager import string_to_uuid
+                user_dataset = f"tale_user_{str(string_to_uuid(user_id))[:16]}"
+                target_datasets.append(user_dataset)
+                logger.info(f"Using user dataset '{user_dataset}' for private document (user_id={user_id})")
+            elif team_ids and len(team_ids) > 0:
+                # Shared document: team datasets
+                from .utils import sanitize_team_id
+                for tid in team_ids:
+                    sanitized_tid = sanitize_team_id(tid)
+                    if sanitized_tid:
+                        target_datasets.append(f"tale_team_{sanitized_tid}")
+
+            if not target_datasets:
+                # Fallback for backwards compatibility (shouldn't happen with required team_ids)
+                target_datasets = [DEFAULT_COGNEE_DATASET_NAME]
+                logger.warning("No valid team_ids provided, using default dataset")
+
+            # For backwards compatibility, use first dataset as "effective"
+            effective_dataset_name = target_datasets[0] if target_datasets else DEFAULT_COGNEE_DATASET_NAME
 
             # Compute content hash for deduplication (hash of original uploaded file)
             new_content_hash: str | None = None
@@ -343,11 +399,13 @@ class CogneeService:
                 existing_entries = await self.get_document_datasets(document_id)
                 for entry in existing_entries:
                     if entry["dataset_name"] != effective_dataset_name:
-                        # Different dataset: delete old record (team assignment changed)
-                        success = await self._delete_data_entry(
+                        # Different dataset: delete old SQL record (team assignment changed)
+                        # Note: We only delete SQL here; graph/vector will be orphaned but
+                        # overwritten when new document is indexed. For full cleanup use
+                        # delete_document API.
+                        success = await self._delete_sql_data_entry(
                             entry["data_id"],
                             entry["dataset_id"],
-                            mode="hard"
                         )
                         if success:
                             cleaned_datasets.append(entry["dataset_name"])
@@ -372,11 +430,11 @@ class CogneeService:
                                 "skipped": True,
                                 "skip_reason": "content_unchanged",
                             }
-                        # Content changed or no existing hash: delete old record first
-                        success = await self._delete_data_entry(
+                        # Content changed or no existing hash: delete old SQL record first
+                        # Graph/vector data will be overwritten by cognify
+                        success = await self._delete_sql_data_entry(
                             entry["data_id"],
                             entry["dataset_id"],
-                            mode="hard"
                         )
                         if success:
                             logger.info(
@@ -399,7 +457,25 @@ class CogneeService:
             file_to_ingest = content
             if Path(content).exists() and is_vision_supported(content):
                 logger.info(f"Pre-processing with Vision API: {content}")
-                extracted_text, was_processed = await extract_text_from_document(content)
+
+                # Calculate Vision pre-processing timeout
+                vision_timeout = settings.vision_preprocessing_timeout
+                if vision_timeout <= 0:
+                    vision_timeout = min(timeout_seconds * 0.3, 1800)  # 30% of total, max 30 min
+
+                vision_start_time = time.time()
+                try:
+                    extracted_text, was_processed = await asyncio.wait_for(
+                        extract_text_from_document(content),
+                        timeout=vision_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    vision_elapsed = time.time() - vision_start_time
+                    raise TimeoutError(
+                        f"Vision pre-processing timed out after {vision_elapsed:.1f}s "
+                        f"(limit: {settings.vision_request_timeout}s per request) "
+                        f"for document {document_id or 'unknown'}"
+                    )
 
                 if extracted_text and was_processed:
                     # Save extracted text to a temp file for cognee
@@ -419,85 +495,134 @@ class CogneeService:
                         f"saved to {vision_temp_file}"
                     )
 
-            # Wrap cognee.add() with timeout
-            # Multi-tenancy is handled via dataset_name filtering, not Cognee's user system.
-            # We use logical isolation (dataset names like "tale_team_xxx") instead of
-            # Cognee's ENABLE_BACKEND_ACCESS_CONTROL which requires specific backends.
-            try:
-                add_kwargs: dict[str, Any] = {
-                    "dataset_name": effective_dataset_name,
-                    "node_set": node_set,
-                }
+            # Add document to each target dataset
+            # For multi-team uploads, the document is added to each team's dataset
+            total_chunks_created = 0
+            result = None
+            added_datasets: list[str] = []
 
-                result = await asyncio.wait_for(
-                    cognee.add(file_to_ingest, **add_kwargs),
-                    timeout=timeout_seconds,
+            for current_dataset in target_datasets:
+                logger.info(
+                    f"Adding document to dataset '{current_dataset}' "
+                    f"({target_datasets.index(current_dataset) + 1}/{len(target_datasets)})"
                 )
-            except TimeoutError:
-                elapsed = time.time() - start_time
-                error_msg = (
-                    f"cognee.add() timed out after {elapsed:.1f}s "
-                    f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
+
+                # Get user context for multi-tenant isolation.
+                # Dataset type determines user context:
+                # - tale_team_* datasets use team service user (shared access)
+                # - tale_user_* datasets use individual user (private access)
+                cognee_user = None
+                team_id = extract_team_id_from_dataset(current_dataset)
+                if team_id:
+                    # Team dataset: use team service user for shared access
+                    cognee_user = await get_or_create_team_context(team_id)
+                    logger.info(f"Using team service user for team_id={team_id}")
+                elif user_id:
+                    # User dataset: use individual user for private access
+                    cognee_user = await get_or_create_user_for_context(user_id)
+                    if cognee_user:
+                        logger.info(f"Using user context for user_id={user_id}")
+                    else:
+                        logger.warning(f"Failed to create/get user for user_id={user_id}, proceeding without isolation")
+
+                # Wrap cognee.add() with timeout
+                try:
+                    add_kwargs: dict[str, Any] = {
+                        "dataset_name": current_dataset,
+                        "node_set": node_set,
+                    }
+                    if cognee_user:
+                        add_kwargs["user"] = cognee_user
+
+                    result = await asyncio.wait_for(
+                        cognee.add(file_to_ingest, **add_kwargs),
+                        timeout=timeout_seconds,
+                    )
+                except TimeoutError:
+                    elapsed = time.time() - start_time
+                    error_msg = (
+                        f"cognee.add() timed out after {elapsed:.1f}s "
+                        f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'} "
+                        f"in dataset {current_dataset}"
+                    )
+                    logger.error(error_msg)
+                    raise TimeoutError(error_msg)
+
+                logger.info(f"cognee.add() completed for {document_id or 'unknown'} in dataset {current_dataset}")
+
+                # Process the document with incremental loading to only process new/updated data.
+                # This avoids reprocessing the entire dataset on each call.
+                # Wrap cognee.cognify() with timeout (remaining time from original timeout)
+                elapsed_so_far = time.time() - start_time
+                remaining_timeout = max(60, timeout_seconds - elapsed_so_far)  # At least 60s for cognify
+
+                logger.info(
+                    f"Starting cognee.cognify() for {document_id or 'unknown'} in dataset {current_dataset} "
+                    f"(remaining timeout: {remaining_timeout:.0f}s)"
                 )
-                logger.error(error_msg)
-                raise TimeoutError(error_msg)
 
-            logger.info(f"cognee.add() completed for {document_id or 'unknown'}")
+                # Retry cognee.cognify() on transient errors (network issues, API errors, etc.)
+                # Cognee's incremental_loading=True ensures already-processed items are skipped,
+                # so retrying is safe and efficient - only failed items will be reprocessed.
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(3),
+                    wait=wait_exponential(multiplier=1, min=2, max=30),
+                    before_sleep=before_sleep_log(_std_logger, logging.WARNING),
+                    reraise=True,
+                ):
+                    with attempt:
+                        try:
+                            # Build cognify kwargs
+                            cognify_kwargs: dict[str, Any] = {
+                                "datasets": [current_dataset],
+                                "incremental_loading": True,
+                                # Explicitly set chunk_size to override cognee's default (8191)
+                                # Smaller chunks improve retrieval precision for RAG
+                                "chunk_size": settings.chunk_size,
+                            }
 
-            # Process the document with incremental loading to only process new/updated data.
-            # This avoids reprocessing the entire dataset on each call.
-            # Wrap cognee.cognify() with timeout (remaining time from original timeout)
-            elapsed_so_far = time.time() - start_time
-            remaining_timeout = max(60, timeout_seconds - elapsed_so_far)  # At least 60s for cognify
+                            # Add custom prompt for English identifier enforcement
+                            # This helps FalkorDB compatibility (Cypher parser requires ASCII)
+                            custom_prompt = settings.graph_extraction_prompt or DEFAULT_GRAPH_EXTRACTION_PROMPT
+                            cognify_kwargs["custom_prompt"] = custom_prompt
 
+                            # Pass user context for multi-tenant isolation
+                            if cognee_user:
+                                cognify_kwargs["user"] = cognee_user
+
+                            logger.info(f"Calling cognee.cognify with chunk_size={cognify_kwargs.get('chunk_size')}, user={cognee_user.id if cognee_user else None}")
+                            await asyncio.wait_for(
+                                cognee.cognify(**cognify_kwargs),
+                                timeout=remaining_timeout,
+                            )
+                            cognify_elapsed = time.time() - start_time
+                            logger.info(
+                                f"cognee.cognify() returned for {document_id or 'unknown'} "
+                                f"in dataset {current_dataset} after {cognify_elapsed:.2f}s"
+                            )
+                        except TimeoutError:
+                            elapsed = time.time() - start_time
+                            error_msg = (
+                                f"cognee.cognify() timed out after {elapsed:.1f}s "
+                                f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'} "
+                                f"in dataset {current_dataset}"
+                            )
+                            logger.error(error_msg)
+                            raise TimeoutError(error_msg)
+
+                # Track chunks created for this dataset
+                _, dataset_chunks = normalize_add_result(result, document_id)
+                total_chunks_created += dataset_chunks
+                added_datasets.append(current_dataset)
+
+            # End of loop over target_datasets
+            processing_time = (time.time() - start_time) * 1000
             logger.info(
-                f"Starting cognee.cognify() for {document_id or 'unknown'} "
-                f"(remaining timeout: {remaining_timeout:.0f}s)"
+                f"Document added to {len(added_datasets)} dataset(s) in {processing_time:.2f}ms: "
+                f"{added_datasets}"
             )
 
-            # Retry cognee.cognify() on transient errors (network issues, API errors, etc.)
-            # Cognee's incremental_loading=True ensures already-processed items are skipped,
-            # so retrying is safe and efficient - only failed items will be reprocessed.
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(3),
-                wait=wait_exponential(multiplier=1, min=2, max=30),
-                before_sleep=before_sleep_log(_std_logger, logging.WARNING),
-                reraise=True,
-            ):
-                with attempt:
-                    try:
-                        # Build cognify kwargs
-                        cognify_kwargs: dict[str, Any] = {
-                            "datasets": [effective_dataset_name],
-                            "incremental_loading": True,
-                            # Explicitly set chunk_size to override cognee's default (8191)
-                            # Smaller chunks improve retrieval precision for RAG
-                            "chunk_size": settings.chunk_size,
-                        }
-
-                        # Add custom prompt for English identifier enforcement
-                        # This helps FalkorDB compatibility (Cypher parser requires ASCII)
-                        custom_prompt = settings.graph_extraction_prompt or DEFAULT_GRAPH_EXTRACTION_PROMPT
-                        cognify_kwargs["custom_prompt"] = custom_prompt
-
-                        logger.info(f"Calling cognee.cognify with chunk_size={cognify_kwargs.get('chunk_size')}")
-                        await asyncio.wait_for(
-                            cognee.cognify(**cognify_kwargs),
-                            timeout=remaining_timeout,
-                        )
-                    except TimeoutError:
-                        elapsed = time.time() - start_time
-                        error_msg = (
-                            f"cognee.cognify() timed out after {elapsed:.1f}s "
-                            f"(limit: {timeout_seconds}s) for document {document_id or 'unknown'}"
-                        )
-                        logger.error(error_msg)
-                        raise TimeoutError(error_msg)
-
-            processing_time = (time.time() - start_time) * 1000
-            logger.info(f"Document added in {processing_time:.2f}ms")
-
-            doc_id, chunks_created = normalize_add_result(result, document_id)
+            doc_id, _ = normalize_add_result(result, document_id)
 
             # Save original content hash for future deduplication
             if document_id and new_content_hash:
@@ -509,7 +634,7 @@ class CogneeService:
             return {
                 "success": True,
                 "document_id": doc_id,
-                "chunks_created": chunks_created,
+                "chunks_created": total_chunks_created,
                 "processing_time_ms": processing_time,
                 "cleaned_datasets": cleaned_datasets,
             }
@@ -547,7 +672,7 @@ class CogneeService:
         similarity_threshold: float | None = None,
         _filters: dict[str, Any] | None = None,
         user_id: str | None = None,
-        datasets: list[str] | None = None,
+        team_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search the knowledge base.
 
@@ -558,10 +683,11 @@ class CogneeService:
             top_k: Number of results to return
             similarity_threshold: Minimum similarity score
             _filters: Optional metadata filters (reserved for future use)
-            user_id: Reserved for future user-level permission support. Currently not used;
-                     multi-tenancy is handled via datasets parameter.
-            datasets: List of dataset names to search within for multi-tenant isolation.
-                      Format: ['tale_documents', 'tale_team_xxx', ...]
+            user_id: Optional user ID for user-level isolation. If provided, search
+                     is scoped to this user's context. Takes priority over team-level isolation.
+            team_ids: List of team IDs to search within (required). Each team_id is converted
+                      to dataset name format: tale_team_{team_id}. When user_id is not provided,
+                      team service users are used for team-level isolation.
 
         Returns:
             List of search results
@@ -572,18 +698,36 @@ class CogneeService:
         try:
             start_time = time.time()
 
+            # Build datasets to search
+            # Search: include BOTH team datasets AND user's private dataset
+            datasets: list[str] = []
+            if team_ids and len(team_ids) > 0:
+                from .utils import sanitize_team_id
+                for tid in team_ids:
+                    sanitized_tid = sanitize_team_id(tid)
+                    if sanitized_tid:
+                        datasets.append(f"tale_team_{sanitized_tid}")
+
+            if user_id:
+                # Also include user's private dataset
+                from .tenant_manager import string_to_uuid
+                user_dataset = f"tale_user_{str(string_to_uuid(user_id))[:16]}"
+                datasets.append(user_dataset)
+                logger.info(f"Including user private dataset '{user_dataset}' in search")
+
+            if not datasets:
+                logger.warning("No valid team_ids or user_id provided for search, returning empty results")
+                return []
+
             # Map API search type to Cognee search type
             cognee_search_type = _map_api_search_type_to_cognee(search_type)
 
             logger.info(
                 f"Searching with type={cognee_search_type.value}, query='{query[:50]}...', "
-                f"datasets={datasets}"
+                f"team_ids={team_ids}, datasets={datasets}"
             )
 
             # Build base search kwargs
-            # Multi-tenancy is handled via dataset filtering, not Cognee's user system.
-            # We use logical isolation (dataset names like "tale_team_xxx") instead of
-            # Cognee's ENABLE_BACKEND_ACCESS_CONTROL which requires specific backends.
             effective_top_k = top_k or settings.top_k
 
             # Use custom system prompt for GRAPH_COMPLETION to generate detailed answers
@@ -600,17 +744,32 @@ class CogneeService:
             raw_results: list[Any] = []
 
             if datasets:
-                import asyncio
-
                 async def search_dataset(ds: str) -> tuple[str, list[Any] | Exception]:
                     try:
-                        results = await cognee.search(
-                            query,
-                            query_type=cognee_search_type,
-                            top_k=effective_top_k,
-                            datasets=[ds],
-                            system_prompt=system_prompt,
-                        )
+                        # Determine user context based on dataset type
+                        # - tale_team_* datasets use team service user (shared access)
+                        # - tale_user_* datasets use individual user (private access)
+                        search_user = None
+                        team_id = extract_team_id_from_dataset(ds)
+                        if team_id:
+                            # Team dataset: use team service user for shared access
+                            search_user = await get_or_create_team_context(team_id)
+                            logger.debug(f"Searching team dataset '{ds}' with team service user")
+                        elif user_id:
+                            # User dataset: use individual user for private access
+                            search_user = await get_or_create_user_for_context(user_id)
+                            logger.debug(f"Searching user dataset '{ds}' with user context")
+
+                        search_kwargs: dict[str, Any] = {
+                            "query_type": cognee_search_type,
+                            "top_k": effective_top_k,
+                            "datasets": [ds],
+                            "system_prompt": system_prompt,
+                        }
+                        if search_user:
+                            search_kwargs["user"] = search_user
+
+                        results = await cognee.search(query, **search_kwargs)
                         return (ds, results or [])
                     except Exception as e:
                         return (ds, e)
@@ -660,12 +819,15 @@ class CogneeService:
                         logger.debug(f"Dataset '{dataset}' returned {chunks_extracted} chunks")
             else:
                 # No datasets specified - search globally
-                global_results = await cognee.search(
-                    query,
-                    query_type=cognee_search_type,
-                    top_k=effective_top_k,
-                    system_prompt=system_prompt,
-                )
+                global_search_kwargs: dict[str, Any] = {
+                    "query_type": cognee_search_type,
+                    "top_k": effective_top_k,
+                    "system_prompt": system_prompt,
+                }
+                if explicit_user:
+                    global_search_kwargs["user"] = explicit_user
+
+                global_results = await cognee.search(query, **global_search_kwargs)
                 # Extract actual chunks from cognee's nested structure
                 for item in global_results or []:
                     if isinstance(item, dict) and "search_result" in item:
@@ -751,7 +913,7 @@ class CogneeService:
         temperature: float | None = None,
         max_tokens: int | None = None,
         user_id: str | None = None,
-        datasets: list[str] | None = None,
+        team_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG.
 
@@ -761,9 +923,8 @@ class CogneeService:
             system_prompt: Optional system prompt
             temperature: LLM temperature
             max_tokens: Maximum tokens to generate
-            user_id: Reserved for future user-level permission support. Currently not used;
-                     multi-tenancy is handled via datasets parameter.
-            datasets: List of dataset names to retrieve context from for multi-tenant isolation.
+            user_id: Optional user ID for user-level isolation. Takes priority over team-level.
+            team_ids: List of team IDs to retrieve context from (required).
 
         Returns:
             Dictionary with generated response and sources
@@ -774,9 +935,9 @@ class CogneeService:
         try:
             start_time = time.time()
 
-            # Search for relevant context with multi-tenant dataset filtering
+            # Search for relevant context with multi-tenant team filtering
             search_results = await self.search(
-                query, top_k=top_k, user_id=user_id, datasets=datasets
+                query, top_k=top_k, user_id=user_id, team_ids=team_ids
             )
 
             # Build context from search results
@@ -869,46 +1030,65 @@ class CogneeService:
 
 
 
-    async def delete_document(self, document_id: str, mode: str = "hard") -> dict[str, Any]:
+    async def delete_document(
+        self,
+        document_id: str,
+        mode: str = "hard",
+        team_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Delete a document from the knowledge base by document ID.
 
-        This method finds documents in Cognee that were tagged with the given
-        document_id in their node_set, then deletes them along with their
-        associated knowledge graph nodes and vector embeddings.
+        Why we don't use cognee.delete API directly:
+        --------------------------------------------
+        cognee's delete API (cognee.api.v1.delete.delete) has a bug when used with
+        the FalkorDB community adapter (cognee-community-hybrid-adapter-falkor).
+
+        The bug is in the following call chain:
+        1. cognee.delete(data_id, dataset_id, mode, user) receives Data.id (UUID)
+        2. It calls delete_single_document(str(data_point.id), ...) passing UUID as string
+        3. delete_single_document calls graph_db.get_document_subgraph(data_id)
+        4. FalkorDB adapter's get_document_subgraph(content_hash) expects content_hash
+           and searches for: d.id CONTAINS 'text_{content_hash}'
+
+        The mismatch: cognee passes UUID (e.g., "04b89322-9d1c-5054-aeab-438a0b035504")
+        but FalkorDB adapter expects content_hash (e.g., "eb029b1a...") to search for
+        nodes with names like "text_eb029b1a...".
+
+        Result: get_document_subgraph returns empty -> DocumentSubgraphNotFoundError (404)
+
+        Our workaround:
+        ---------------
+        We call the FalkorDB adapter directly with the correct content_hash from the
+        Data record, bypassing cognee's buggy delete flow while still using cognee's
+        underlying infrastructure (Data model, FalkorDB adapter, vector engine).
+
+        This approach:
+        - Uses cognee's Data model to find records by document_id (node_set)
+        - Uses cognee's FalkorDB adapter methods (get_document_subgraph, delete_node)
+        - Uses cognee's vector engine for vector cleanup
+        - Maintains compatibility with cognee's data structures
+
+        When cognee fixes this bug (passing content_hash instead of data_id to
+        delete_single_document), we can switch back to using cognee.delete directly.
 
         Args:
             document_id: ID of the document to delete (must match the ID used when adding)
-            mode: "soft" or "hard" - "hard" (default) also deletes degree-one entity nodes
+            mode: "soft" or "hard" - "hard" (default) deletes degree-one entity nodes too
+            team_ids: Team IDs for authorization (only deletes from matching teams)
 
         Returns:
-            Dictionary with operation results including:
-            - success: Whether deletion was successful
-            - deleted_count: Number of documents deleted
-            - deleted_data_ids: List of Cognee Data IDs that were deleted
-            - message: Status message
+            Dictionary with operation results
         """
         if not self.initialized:
             await self.initialize()
 
         try:
             start_time = time.time()
-
-            # Import Cognee internals for data lookup
-            from cognee.api.v1.delete import delete as cognee_delete
-            from cognee.infrastructure.databases.relational import get_relational_engine
-            from cognee.modules.data.models import Data, DatasetData
-            from sqlalchemy import String, cast, select
-
             logger.info(f"Looking for documents with node_set containing: {document_id}")
 
-            # Find Data records with matching node_set
+            # Step 1: Find Data records by document_id (stored in node_set)
             db_engine = get_relational_engine()
             async with db_engine.get_async_session() as session:
-                # Use database-level filtering to find documents with matching node_set
-                # node_set is stored as a JSON array string, so we use LIKE for text search
-                # This is more efficient than loading all records into memory
-                # Filter at database level - node_set contains the document_id in the JSON array
-                # The document_id appears as a quoted string in the JSON array: ["document_id"]
                 result = await session.execute(
                     select(Data).where(
                         cast(Data.node_set, String).contains(document_id)
@@ -918,9 +1098,7 @@ class CogneeService:
 
                 if not matching_data:
                     processing_time = (time.time() - start_time) * 1000
-                    logger.info(
-                        f"No documents found with node_set containing '{document_id}'"
-                    )
+                    logger.info(f"No documents found with node_set containing '{document_id}'")
                     return {
                         "success": True,
                         "message": f"No documents found with ID '{document_id}'",
@@ -929,42 +1107,187 @@ class CogneeService:
                         "processing_time_ms": processing_time,
                     }
 
-                logger.info(
-                    f"Found {len(matching_data)} document(s) with node_set containing '{document_id}'"
-                )
+                logger.info(f"Found {len(matching_data)} document(s) to delete")
 
-                # Get the dataset for these documents
-                deleted_data_ids = []
+                # Step 2: For each Data record, delete graph, vector, and SQL data
+                deleted_data_ids: list[str] = []
+                deleted_graph_nodes: list[str] = []
+
                 for data in matching_data:
-                    # Find the dataset this data belongs to
+                    # Get dataset link to check team authorization
                     dataset_link = (
                         await session.execute(
                             select(DatasetData).where(DatasetData.data_id == data.id)
                         )
                     ).scalars().first()
 
-                    if dataset_link:
-                        dataset_id = dataset_link.dataset_id
+                    if not dataset_link:
+                        logger.warning(f"No dataset link for {data.id}, skipping")
+                        continue
 
-                        try:
-                            # Use Cognee's delete function
-                            await cognee_delete(
-                                data_id=data.id,
-                                dataset_id=dataset_id,
-                                mode=mode,
-                            )
-                            deleted_data_ids.append(str(data.id))
-                            logger.info(f"Deleted document: {data.id}")
-                        except Exception as e:
-                            logger.error(f"Failed to delete document {data.id}: {e}")
-                    else:
-                        logger.warning(
-                            f"Document {data.id} has no dataset link, skipping"
+                    dataset_id = dataset_link.dataset_id
+
+                    # Get dataset record to check team authorization
+                    dataset_record = (
+                        await session.execute(
+                            select(Dataset).where(Dataset.id == dataset_id)
                         )
+                    ).scalars().first()
+
+                    if dataset_record and dataset_record.name:
+                        team_id = extract_team_id_from_dataset(dataset_record.name)
+                        if team_id and team_ids and team_id not in team_ids:
+                            logger.warning(f"Skipping {data.id}: team '{team_id}' not authorized")
+                            continue
+
+                    # Step 3: Delete from graph using direct FalkorDB queries
+                    #
+                    # Why we can't use FalkorDBAdapter.get_document_subgraph():
+                    # 1. The adapter has a bug - it searches d.id CONTAINS 'text_{hash}'
+                    #    but TextDocument.id is a UUID, not a string with 'text_' prefix
+                    #    (the 'text_' prefix is in TextDocument.name, not id)
+                    # 2. Documents are stored in per-tenant graphs with UUID names,
+                    #    not in the default 'tale_default' graph
+                    #
+                    # Our solution: Use direct FalkorDB queries to:
+                    # 1. Search all graphs for TextDocument where id = Data.id
+                    # 2. Find all related nodes via relationships
+                    # 3. Delete all found nodes
+                    #
+                    # Note: TextDocument.id equals Data.id (confirmed by inspection)
+                    data_id_str = str(data.id)
+                    try:
+                        from falkordb.falkordb import FalkorDB as FalkorDBClient
+
+                        falkordb_url = os.environ.get("GRAPH_DATABASE_URL", "graph-db")
+                        falkordb_port = int(os.environ.get("GRAPH_DATABASE_PORT", "6379"))
+
+                        # Connect to FalkorDB
+                        db = FalkorDBClient(host=falkordb_url, port=falkordb_port)
+                        graphs = db.list_graphs()
+
+                        # Search each graph for the document
+                        for graph_name in graphs:
+                            try:
+                                graph = db.select_graph(graph_name)
+
+                                # Find TextDocument with matching id
+                                result = graph.query(
+                                    "MATCH (d:TextDocument) WHERE d.id = $data_id RETURN d.id",
+                                    {"data_id": data_id_str}
+                                )
+
+                                if not result.result_set:
+                                    continue
+
+                                logger.info(f"Found document {data_id_str} in graph {graph_name}")
+
+                                # Step 3a: Get DocumentChunk IDs for vector deletion
+                                # We need to collect chunk IDs before deleting graph nodes
+                                # because we need them to delete from vector collections
+                                result = graph.query(
+                                    "MATCH (d:TextDocument {id: $data_id})<-[:IS_PART_OF]-(c:DocumentChunk) "
+                                    "RETURN c.id",
+                                    {"data_id": data_id_str}
+                                )
+                                chunk_ids = [row[0] for row in result.result_set] if result.result_set else []
+                                logger.debug(f"Found {len(chunk_ids)} DocumentChunks to delete")
+
+                                # Step 3b: Delete from vector collections
+                                # Note: FalkorDB's hybrid adapter stores vectors as node properties
+                                # (e.g., DocumentChunk.text_vector), so vectors are automatically
+                                # deleted when we delete the graph nodes. No separate vector deletion
+                                # is needed. This is different from other vector DBs like PGVector or
+                                # LanceDB which store vectors in separate collections.
+
+                                # Step 3c: Delete related DocumentChunks from graph
+                                result = graph.query(
+                                    "MATCH (d:TextDocument {id: $data_id})<-[:IS_PART_OF]-(c:DocumentChunk) "
+                                    "DETACH DELETE c RETURN count(c)",
+                                    {"data_id": data_id_str}
+                                )
+                                chunks_deleted = result.result_set[0][0] if result.result_set else 0
+                                logger.debug(f"Deleted {chunks_deleted} DocumentChunks from graph")
+
+                                # Delete the TextDocument
+                                graph.query(
+                                    "MATCH (d:TextDocument {id: $data_id}) DETACH DELETE d",
+                                    {"data_id": data_id_str}
+                                )
+                                deleted_graph_nodes.append(data_id_str)
+                                logger.debug(f"Deleted TextDocument {data_id_str}")
+
+                                # Delete NodeSet (our document_id marker)
+                                result = graph.query(
+                                    "MATCH (ns:NodeSet) WHERE ns.name = $doc_id "
+                                    "DETACH DELETE ns RETURN count(ns)",
+                                    {"doc_id": document_id}
+                                )
+
+                                # If hard mode, delete orphaned entities (degree-one nodes)
+                                # FalkorDB doesn't support size((e)--()) syntax, use OPTIONAL MATCH instead
+                                if mode == "hard":
+                                    result = graph.query(
+                                        "MATCH (e:Entity) "
+                                        "OPTIONAL MATCH (e)-[r]-() "
+                                        "WITH e, count(r) as degree "
+                                        "WHERE degree <= 1 "
+                                        "DETACH DELETE e "
+                                        "RETURN count(e)"
+                                    )
+                                    entities_deleted = result.result_set[0][0] if result.result_set else 0
+                                    if entities_deleted:
+                                        logger.debug(f"Deleted {entities_deleted} orphaned entities")
+
+                                    result = graph.query(
+                                        "MATCH (et:EntityType) "
+                                        "OPTIONAL MATCH (et)-[r]-() "
+                                        "WITH et, count(r) as degree "
+                                        "WHERE degree = 0 "
+                                        "DETACH DELETE et "
+                                        "RETURN count(et)"
+                                    )
+
+                                logger.info(f"Deleted document subgraph from graph {graph_name}")
+                                break  # Found and deleted, no need to check other graphs
+
+                            except Exception as graph_query_err:
+                                logger.debug(f"Error querying graph {graph_name}: {graph_query_err}")
+                                continue
+
+                    except Exception as graph_err:
+                        logger.warning(f"Graph deletion failed for {data.id}: {graph_err}")
+                        # Continue to delete SQL records even if graph deletion fails
+
+                    # Step 5: Delete SQL records (DatasetData, Data)
+                    await session.execute(
+                        sql_delete(DatasetData).where(
+                            DatasetData.data_id == data.id,
+                            DatasetData.dataset_id == dataset_id,
+                        )
+                    )
+
+                    # Check if data is in other datasets before deleting
+                    remaining = (
+                        await session.execute(
+                            select(DatasetData).where(DatasetData.data_id == data.id)
+                        )
+                    ).scalars().first()
+
+                    if not remaining:
+                        await session.execute(
+                            sql_delete(Data).where(Data.id == data.id)
+                        )
+
+                    deleted_data_ids.append(str(data.id))
+                    logger.info(f"Deleted document: {data.id} (content_hash={data.content_hash})")
+
+                await session.commit()
 
             processing_time = (time.time() - start_time) * 1000
             logger.info(
-                f"Deleted {len(deleted_data_ids)} document(s) in {processing_time:.2f}ms"
+                f"Deleted {len(deleted_data_ids)} document(s), "
+                f"{len(deleted_graph_nodes)} graph nodes in {processing_time:.2f}ms"
             )
 
             return {
@@ -972,22 +1295,12 @@ class CogneeService:
                 "message": f"Deleted {len(deleted_data_ids)} document(s) with ID '{document_id}'",
                 "deleted_count": len(deleted_data_ids),
                 "deleted_data_ids": deleted_data_ids,
+                "deleted_graph_nodes": len(deleted_graph_nodes),
                 "processing_time_ms": processing_time,
             }
 
-        except ImportError as e:
-            logger.error(f"Cognee deletion modules not available: {e}")
-            return {
-                "success": False,
-                "message": f"Cognee deletion modules not available: {e}",
-                "deleted_count": 0,
-                "deleted_data_ids": [],
-                "processing_time_ms": None,
-            }
         except Exception as e:
             error_str = str(e)
-            # Handle case where data table doesn't exist yet (fresh database)
-            # This is normal on first run before any documents are indexed
             if "UndefinedTableError" in error_str or "relation \"data\" does not exist" in error_str:
                 logger.info(
                     f"Data table does not exist yet, no documents to delete for '{document_id}'"

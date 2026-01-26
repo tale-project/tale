@@ -138,8 +138,8 @@ Current question: ${currentQuery}`;
 export interface RagContextOptions {
   /** User ID for multi-tenant search */
   userId?: string;
-  /** List of dataset names to search within */
-  datasets?: string[];
+  /** Team IDs for team-level isolation (required, at least one) */
+  teamIds?: string[];
 }
 
 /**
@@ -198,8 +198,8 @@ export async function queryRagContext(
       if (options?.userId) {
         requestPayload.user_id = options.userId;
       }
-      if (options?.datasets && options.datasets.length > 0) {
-        requestPayload.datasets = options.datasets;
+      if (options?.teamIds && options.teamIds.length > 0) {
+        requestPayload.team_ids = options.teamIds;
       }
 
       const response = await fetch(url, {
