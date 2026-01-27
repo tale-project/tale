@@ -1,4 +1,5 @@
-import { getContainerHealth, isContainerRunning } from "./container";
+import { getContainerHealth } from "./get-container-health";
+import { isContainerRunning } from "./is-container-running";
 import * as logger from "../utils/logger";
 
 export interface HealthCheckOptions {

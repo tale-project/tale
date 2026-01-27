@@ -1,4 +1,4 @@
-import { docker } from "./exec";
+import { docker } from "./docker";
 import * as logger from "../utils/logger";
 
 async function networkExists(networkName: string): Promise<boolean> {

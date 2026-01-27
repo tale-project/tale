@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { program } from "commander";
-import { loadEnv } from "./utils/env";
+import { loadEnv } from "./utils/load-env";
 import * as logger from "./utils/logger";
 import { cleanup } from "./commands/cleanup";
 import { deploy } from "./commands/deploy";

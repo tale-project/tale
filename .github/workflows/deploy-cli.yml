@@ -40,18 +40,22 @@ jobs:
         working-directory: tools/deploy
         run: bun run build:linux
 
+      - name: Rename binary
+        working-directory: tools/deploy
+        run: mv dist/tale-deploy-linux dist/tale-deploy
+
       - name: Verify binary
         working-directory: tools/deploy
         run: |
-          chmod +x dist/tale-deploy-linux
-          ./dist/tale-deploy-linux --version
-          ./dist/tale-deploy-linux --help
+          chmod +x dist/tale-deploy
+          ./dist/tale-deploy --version
+          ./dist/tale-deploy --help
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tale-deploy-linux
-          path: tools/deploy/dist/tale-deploy-linux
+          name: tale-deploy
+          path: tools/deploy/dist/tale-deploy
           retention-days: 30
 
       - name: Upload to release
@@ -60,7 +64,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            tools/deploy/dist/tale-deploy-linux \
+            tools/deploy/dist/tale-deploy \
             --clobber
 
       - name: Upload to latest release
@@ -68,12 +72,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get the latest release tag
           LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || echo "")
           if [ -n "$LATEST_TAG" ]; then
             echo "Uploading to release: $LATEST_TAG"
             gh release upload "$LATEST_TAG" \
-              tools/deploy/dist/tale-deploy-linux \
+              tools/deploy/dist/tale-deploy \
               --clobber || echo "Failed to upload to release, skipping"
           else
             echo "No releases found, skipping upload"

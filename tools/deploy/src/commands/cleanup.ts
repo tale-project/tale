@@ -1,12 +1,11 @@
 import { ROTATABLE_SERVICES } from "../compose/types";
-import {
-  isContainerRunning,
-  removeContainer,
-  stopContainer,
-} from "../docker/container";
-import { getCurrentColor, getOppositeColor } from "../state/deployment";
-import { withLock } from "../state/lock";
-import type { DeploymentEnv } from "../utils/env";
+import { isContainerRunning } from "../docker/is-container-running";
+import { removeContainer } from "../docker/remove-container";
+import { stopContainer } from "../docker/stop-container";
+import { getCurrentColor } from "../state/get-current-color";
+import { getOppositeColor } from "../state/get-opposite-color";
+import { withLock } from "../state/with-lock";
+import type { DeploymentEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
 
 interface CleanupOptions {
