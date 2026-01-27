@@ -284,6 +284,175 @@ class CogneeService:
         finally:
             await conn.close()
 
+    async def _delete_graph_data_for_document(
+        self,
+        data_id: str,
+        document_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Delete all graph nodes associated with a document.
+
+        Searches all FalkorDB graphs and deletes:
+        - TextDocument node with matching data_id
+        - All DocumentChunk nodes linked to the TextDocument
+        - NodeSet marker node (if document_id provided)
+
+        Args:
+            data_id: The Data record UUID as string (equals TextDocument.id)
+            document_id: Optional external document ID for NodeSet cleanup
+
+        Returns:
+            Dict with:
+            - success: bool
+            - chunks_deleted: int
+            - graph_name: str | None (which graph contained the document)
+            - error: str | None
+        """
+        result: dict[str, Any] = {
+            "success": False,
+            "chunks_deleted": 0,
+            "graph_name": None,
+            "error": None,
+        }
+
+        try:
+            from falkordb.falkordb import FalkorDB as FalkorDBClient
+
+            falkordb_url = os.environ.get("GRAPH_DATABASE_URL", "graph-db")
+            falkordb_port = int(os.environ.get("GRAPH_DATABASE_PORT", "6379"))
+
+            db = FalkorDBClient(host=falkordb_url, port=falkordb_port)
+            graphs = db.list_graphs()
+
+            for graph_name in graphs:
+                try:
+                    graph = db.select_graph(graph_name)
+
+                    # Find TextDocument with matching id
+                    query_result = graph.query(
+                        "MATCH (d:TextDocument) WHERE d.id = $data_id RETURN d.id",
+                        {"data_id": data_id},
+                    )
+
+                    if not query_result.result_set:
+                        continue  # Document not in this graph, check next
+
+                    logger.info(f"Found document {data_id} in graph {graph_name}")
+
+                    # Delete DocumentChunks
+                    query_result = graph.query(
+                        "MATCH (d:TextDocument {id: $data_id})<-[:IS_PART_OF]-(c:DocumentChunk) "
+                        "DETACH DELETE c RETURN count(c)",
+                        {"data_id": data_id},
+                    )
+                    result["chunks_deleted"] = (
+                        query_result.result_set[0][0] if query_result.result_set else 0
+                    )
+                    logger.debug(f"Deleted {result['chunks_deleted']} DocumentChunks from graph")
+
+                    # Delete TextDocument
+                    graph.query(
+                        "MATCH (d:TextDocument {id: $data_id}) DETACH DELETE d",
+                        {"data_id": data_id},
+                    )
+                    logger.debug(f"Deleted TextDocument {data_id}")
+
+                    # Delete NodeSet (if document_id provided)
+                    if document_id:
+                        graph.query(
+                            "MATCH (ns:NodeSet) WHERE ns.name = $doc_id DETACH DELETE ns",
+                            {"doc_id": document_id},
+                        )
+
+                    result["success"] = True
+                    result["graph_name"] = graph_name
+                    logger.info(f"Deleted document subgraph from {graph_name}")
+                    break  # Found and deleted, no need to check other graphs
+
+                except Exception as graph_query_err:
+                    error_str = str(graph_query_err).lower()
+                    if "connection" in error_str or "timeout" in error_str:
+                        # Connection error - need to report
+                        result["error"] = f"Graph DB connection error: {graph_query_err}"
+                        logger.error(f"Graph DB connection error: {graph_query_err}")
+                        return result
+                    else:
+                        # Other errors (e.g., graph doesn't exist) - continue to next graph
+                        logger.debug(f"Graph {graph_name} query error: {graph_query_err}")
+                        continue
+
+            # If we iterated all graphs without finding the document, that's OK
+            # (document may never have been cognified)
+            if not result["success"] and not result["error"]:
+                result["success"] = True
+                logger.debug(
+                    f"Document {data_id} not found in any graph (may never have been cognified)"
+                )
+
+        except Exception as e:
+            result["error"] = str(e)
+            logger.error(f"Failed to delete graph data for {data_id}: {e}")
+
+        return result
+
+    async def _delete_complete_data_entry(
+        self,
+        data_id: Any,
+        dataset_id: Any,
+        document_id: str | None = None,
+        fail_on_graph_error: bool = False,
+    ) -> dict[str, Any]:
+        """Delete a Data record and all associated graph data.
+
+        This performs complete deletion across all storage layers:
+        1. Graph data (TextDocument, DocumentChunk, NodeSet nodes)
+        2. SQL data (DatasetData, Data tables)
+
+        Vector data is stored as node properties in FalkorDB, so it's
+        automatically deleted when graph nodes are deleted.
+
+        Args:
+            data_id: Cognee Data record UUID
+            dataset_id: Dataset UUID
+            document_id: Optional external document ID for NodeSet cleanup
+            fail_on_graph_error: If True, abort if graph deletion fails
+
+        Returns:
+            Dict with:
+            - success: bool
+            - graph_deleted: bool
+            - sql_deleted: bool
+            - chunks_deleted: int
+            - error: str | None
+        """
+        result: dict[str, Any] = {
+            "success": False,
+            "graph_deleted": False,
+            "sql_deleted": False,
+            "chunks_deleted": 0,
+            "error": None,
+        }
+
+        # 1. First delete graph data (TextDocument, DocumentChunk, NodeSet)
+        graph_result = await self._delete_graph_data_for_document(str(data_id), document_id)
+        result["graph_deleted"] = graph_result["success"]
+        result["chunks_deleted"] = graph_result.get("chunks_deleted", 0)
+
+        if not graph_result["success"] and fail_on_graph_error:
+            result["error"] = f"Graph deletion failed: {graph_result.get('error')}"
+            return result
+
+        if not graph_result["success"]:
+            logger.warning(
+                f"Graph deletion incomplete for {data_id}: {graph_result.get('error')}"
+            )
+
+        # 2. Then delete SQL data (DatasetData, Data)
+        sql_success = await self._delete_sql_data_entry(data_id, dataset_id)
+        result["sql_deleted"] = sql_success
+        result["success"] = sql_success
+
+        return result
+
     async def _delete_sql_data_entry(
         self,
         data_id: Any,
@@ -397,18 +566,22 @@ class CogneeService:
                 existing_entries = await self.get_document_datasets(document_id)
                 for entry in existing_entries:
                     if entry["dataset_name"] != effective_dataset_name:
-                        # Different dataset: delete old SQL record (team assignment changed)
-                        # Note: We only delete SQL here; graph/vector will be orphaned but
-                        # overwritten when new document is indexed. For full cleanup use
-                        # delete_document API.
-                        success = await self._delete_sql_data_entry(
-                            entry["data_id"],
-                            entry["dataset_id"],
+                        # Different dataset: delete old data completely (team assignment changed)
+                        # This includes both graph and SQL data to prevent orphaned nodes
+                        delete_result = await self._delete_complete_data_entry(
+                            data_id=entry["data_id"],
+                            dataset_id=entry["dataset_id"],
+                            document_id=document_id,
+                            fail_on_graph_error=False,
                         )
-                        if success:
+                        if delete_result["sql_deleted"]:
                             cleaned_datasets.append(entry["dataset_name"])
                             logger.info(
                                 f"Cleaned up document '{document_id}' from old dataset: {entry['dataset_name']}"
+                            )
+                        if not delete_result["graph_deleted"]:
+                            logger.warning(
+                                f"Partial cleanup for '{document_id}': graph data may be orphaned"
                             )
                     else:
                         # Same dataset: check content hash for deduplication
@@ -428,17 +601,23 @@ class CogneeService:
                                 "skipped": True,
                                 "skip_reason": "content_unchanged",
                             }
-                        # Content changed or no existing hash: delete old SQL record first
-                        # Graph/vector data will be overwritten by cognify
-                        success = await self._delete_sql_data_entry(
-                            entry["data_id"],
-                            entry["dataset_id"],
+                        # Content changed or no existing hash: delete old data completely
+                        # This includes both graph and SQL data to prevent orphaned nodes
+                        delete_result = await self._delete_complete_data_entry(
+                            data_id=entry["data_id"],
+                            dataset_id=entry["dataset_id"],
+                            document_id=document_id,
+                            fail_on_graph_error=False,
                         )
-                        if success:
+                        if delete_result["sql_deleted"]:
                             logger.info(
                                 f"Deleted old version of document '{document_id}' for re-indexing "
                                 f"(old hash: {existing_hash[:16] if existing_hash else 'none'}..., "
                                 f"new hash: {new_content_hash[:16] if new_content_hash else 'none'}...)"
+                            )
+                        if not delete_result["graph_deleted"]:
+                            logger.warning(
+                                f"Partial cleanup for '{document_id}': graph data may be orphaned"
                             )
 
             # Use node_set to tag the document with our document_id for later deletion
@@ -1250,12 +1429,24 @@ class CogneeService:
                                 break  # Found and deleted, no need to check other graphs
 
                             except Exception as graph_query_err:
-                                logger.debug(f"Error querying graph {graph_name}: {graph_query_err}")
-                                continue
+                                error_str = str(graph_query_err).lower()
+                                if "connection" in error_str or "timeout" in error_str:
+                                    # Connection error - should not continue with SQL deletion
+                                    logger.error(f"Graph DB unavailable for {graph_name}: {graph_query_err}")
+                                    raise RuntimeError(
+                                        f"Graph deletion failed due to connection error: {graph_query_err}"
+                                    )
+                                else:
+                                    # Other errors (e.g., graph doesn't exist) - safe to continue
+                                    logger.debug(f"Graph {graph_name} query error: {graph_query_err}")
+                                    continue
 
+                    except RuntimeError:
+                        # Re-raise RuntimeError from connection errors
+                        raise
                     except Exception as graph_err:
                         logger.warning(f"Graph deletion failed for {data.id}: {graph_err}")
-                        # Continue to delete SQL records even if graph deletion fails
+                        # Continue to delete SQL records only for non-critical errors
 
                     # Step 5: Delete SQL records (DatasetData, Data)
                     await session.execute(
