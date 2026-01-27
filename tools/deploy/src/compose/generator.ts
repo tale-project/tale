@@ -57,17 +57,14 @@ export function generateColorCompose(
     },
     volumes: {
       "platform-convex-data": {
-        driver: "local",
         external: true,
         name: `${projectName}_platform-convex-data`,
       },
       "caddy-data": {
-        driver: "local",
         external: true,
         name: `${projectName}_caddy-data`,
       },
       "rag-data": {
-        driver: "local",
         external: true,
         name: `${projectName}_rag-data`,
       },

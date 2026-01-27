@@ -18,12 +18,10 @@ export function createCrawlerService(
       start_period: "40s",
     },
     logging: DEFAULT_LOGGING,
-    networks: [
-      {
-        internal: {
-          aliases: [`crawler-${color}`, "crawler"],
-        },
+    networks: {
+      internal: {
+        aliases: [`crawler-${color}`, "crawler"],
       },
-    ],
+    },
   };
 }

@@ -22,12 +22,10 @@ export function createPlatformService(
       start_period: "120s",
     },
     logging: DEFAULT_LOGGING,
-    networks: [
-      {
-        internal: {
-          aliases: [`platform-${color}`, "platform"],
-        },
+    networks: {
+      internal: {
+        aliases: [`platform-${color}`, "platform"],
       },
-    ],
+    },
   };
 }

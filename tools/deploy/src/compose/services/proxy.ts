@@ -27,12 +27,10 @@ export function createProxyService(
       start_period: "10s",
     },
     logging: DEFAULT_LOGGING,
-    networks: [
-      {
-        internal: {
-          aliases: [hostAlias],
-        },
+    networks: {
+      internal: {
+        aliases: [hostAlias],
       },
-    ],
+    },
   };
 }
