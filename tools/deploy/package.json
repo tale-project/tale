@@ -1,0 +1,19 @@
+{
+  "name": "@tale/deploy",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build --compile --outfile=dist/tale-deploy src/index.ts",
+    "build:linux": "bun build --compile --target=bun-linux-x64 --outfile=dist/tale-deploy-linux src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,50 @@
+import { ROTATABLE_SERVICES } from "../compose/types";
+import {
+  isContainerRunning,
+  removeContainer,
+  stopContainer,
+} from "../docker/client";
+import { getCurrentColor, getOppositeColor } from "../state/deployment";
+import { withLock } from "../state/lock";
+import type { DeploymentEnv } from "../utils/env";
+import * as logger from "../utils/logger";
+
+interface CleanupOptions {
+  env: DeploymentEnv;
+}
+
+export async function cleanupCommand(options: CleanupOptions): Promise<void> {
+  const { env } = options;
+
+  await withLock(env.DEPLOY_DIR, "cleanup", async () => {
+    logger.header("Cleaning Up Inactive Containers");
+
+    const currentColor = await getCurrentColor(env.DEPLOY_DIR);
+    if (!currentColor) {
+      logger.info("No active deployment, nothing to clean up");
+      return;
+    }
+
+    const inactiveColor = getOppositeColor(currentColor);
+    logger.info(`Active color: ${currentColor}`);
+    logger.info(`Cleaning up: ${inactiveColor}`);
+
+    let cleaned = 0;
+    for (const service of ROTATABLE_SERVICES) {
+      const containerName = `${env.PROJECT_NAME}-${service}-${inactiveColor}`;
+      const running = await isContainerRunning(containerName);
+
+      if (running) {
+        await stopContainer(containerName);
+        await removeContainer(containerName);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      logger.success(`Cleaned up ${cleaned} inactive container(s)`);
+    } else {
+      logger.info("No inactive containers to clean up");
+    }
+  });
+}
