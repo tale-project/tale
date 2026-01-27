@@ -2,7 +2,7 @@
 
 Configuration is loaded from environment variables with the RAG_ prefix.
 LLM settings prefer generic OPENAI_* env vars (OPENAI_API_KEY, OPENAI_BASE_URL,
-OPENAI_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
+OPENAI_FAST_MODEL, OPENAI_EMBEDDING_MODEL) with RAG_* overrides available.
 """
 
 import os
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
         Required environment variables:
         - OPENAI_API_KEY: API key for OpenAI-compatible provider
         - OPENAI_BASE_URL: Base URL for the API endpoint
-        - OPENAI_MODEL: LLM model name
+        - OPENAI_FAST_MODEL: LLM model name (fast model for RAG)
         - OPENAI_EMBEDDING_MODEL: Embedding model name
 
         Raises:
@@ -149,11 +149,11 @@ class Settings(BaseSettings):
                 "No default base URL is provided."
             )
 
-        # Model: use OPENAI_MODEL (required)
-        model = os.environ.get("OPENAI_MODEL")
+        # Model: use OPENAI_FAST_MODEL (required)
+        model = os.environ.get("OPENAI_FAST_MODEL")
         if not model:
             raise ValueError(
-                "OPENAI_MODEL must be set in environment. "
+                "OPENAI_FAST_MODEL must be set in environment. "
                 "No default model is provided."
             )
 
