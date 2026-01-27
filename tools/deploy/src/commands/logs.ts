@@ -4,8 +4,8 @@ import {
   type ServiceName,
   STATEFUL_SERVICES,
 } from "../compose/types";
-import { isContainerRunning } from "../docker/container";
-import { getCurrentColor } from "../state/deployment";
+import { isContainerRunning } from "../docker/is-container-running";
+import { getCurrentColor } from "../state/get-current-color";
 import * as logger from "../utils/logger";
 
 interface LogsOptions {

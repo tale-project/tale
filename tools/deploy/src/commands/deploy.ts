@@ -1,7 +1,5 @@
-import {
-  generateColorCompose,
-  generateStatefulCompose,
-} from "../compose/generator";
+import { generateColorCompose } from "../compose/generators/generate-color-compose";
+import { generateStatefulCompose } from "../compose/generators/generate-stateful-compose";
 import {
   type RotatableService,
   type ServiceName,
@@ -11,20 +9,20 @@ import {
   isRotatableService,
   isStatefulService,
 } from "../compose/types";
-import { getContainerVersion, removeContainer, stopContainer } from "../docker/container";
-import { dockerCompose } from "../docker/exec";
-import { ensureNetwork } from "../docker/network";
+import { dockerCompose } from "../docker/docker-compose";
+import { ensureNetwork } from "../docker/ensure-network";
+import { ensureVolumes } from "../docker/ensure-volumes";
+import { getContainerVersion } from "../docker/get-container-version";
 import { pullImage } from "../docker/pull-image";
-import { ensureVolumes } from "../docker/volume";
+import { removeContainer } from "../docker/remove-container";
+import { stopContainer } from "../docker/stop-container";
 import { waitForHealthy } from "../docker/wait-for-healthy";
-import {
-  getCurrentColor,
-  getNextColor,
-  setCurrentColor,
-  setPreviousVersion,
-} from "../state/deployment";
-import { withLock } from "../state/lock";
-import type { DeploymentEnv } from "../utils/env";
+import { getCurrentColor } from "../state/get-current-color";
+import { getNextColor } from "../state/get-next-color";
+import { setCurrentColor } from "../state/set-current-color";
+import { setPreviousVersion } from "../state/set-previous-version";
+import { withLock } from "../state/with-lock";
+import type { DeploymentEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
 
 interface DeployOptions {

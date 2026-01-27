@@ -1,13 +1,15 @@
 import {
-  getContainerHealth,
-  getContainerVersion,
-  isContainerRunning,
-  listContainers,
-} from "../docker/container";
-import { getDeploymentState, type DeploymentColor } from "../state/deployment";
-import { getLockInfo } from "../state/lock";
+  type DeploymentColor,
+  ROTATABLE_SERVICES,
+  STATEFUL_SERVICES,
+} from "../compose/types";
+import { getContainerHealth } from "../docker/get-container-health";
+import { getContainerVersion } from "../docker/get-container-version";
+import { isContainerRunning } from "../docker/is-container-running";
+import { listContainers } from "../docker/list-containers";
+import { getDeploymentState } from "../state/get-deployment-state";
+import { getLockInfo } from "../state/get-lock-info";
 import * as logger from "../utils/logger";
-import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
 
 type ServiceStatus = "healthy" | "starting" | "unhealthy" | "stopped";
 

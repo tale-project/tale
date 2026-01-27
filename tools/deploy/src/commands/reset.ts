@@ -3,10 +3,12 @@ import {
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
 } from "../compose/types";
-import { isContainerRunning, removeContainer, stopContainer } from "../docker/container";
-import { docker } from "../docker/exec";
-import { withLock } from "../state/lock";
-import type { DeploymentEnv } from "../utils/env";
+import { docker } from "../docker/docker";
+import { isContainerRunning } from "../docker/is-container-running";
+import { removeContainer } from "../docker/remove-container";
+import { stopContainer } from "../docker/stop-container";
+import { withLock } from "../state/with-lock";
+import type { DeploymentEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
 
 interface ResetOptions {
