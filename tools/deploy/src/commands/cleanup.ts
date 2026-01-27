@@ -3,7 +3,7 @@ import {
   isContainerRunning,
   removeContainer,
   stopContainer,
-} from "../docker/client";
+} from "../docker/container";
 import { getCurrentColor, getOppositeColor } from "../state/deployment";
 import { withLock } from "../state/lock";
 import type { DeploymentEnv } from "../utils/env";
@@ -13,7 +13,7 @@ interface CleanupOptions {
   env: DeploymentEnv;
 }
 
-export async function cleanupCommand(options: CleanupOptions): Promise<void> {
+export async function cleanup(options: CleanupOptions): Promise<void> {
   const { env } = options;
 
   await withLock(env.DEPLOY_DIR, "cleanup", async () => {

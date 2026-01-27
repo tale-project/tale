@@ -2,12 +2,12 @@
 import { program } from "commander";
 import { loadEnv } from "./utils/env";
 import * as logger from "./utils/logger";
-import { cleanupCommand } from "./commands/cleanup";
-import { deployCommand } from "./commands/deploy";
-import { logsCommand } from "./commands/logs";
-import { resetCommand } from "./commands/reset";
-import { rollbackCommand } from "./commands/rollback";
-import { statusCommand } from "./commands/status";
+import { cleanup } from "./commands/cleanup";
+import { deploy } from "./commands/deploy";
+import { logs } from "./commands/logs";
+import { reset } from "./commands/reset";
+import { rollback } from "./commands/rollback";
+import { status } from "./commands/status";
 import { type ServiceName, ALL_SERVICES, isValidService } from "./compose/types";
 
 const VERSION = "1.0.0";
@@ -45,7 +45,7 @@ program
         services = serviceList as ServiceName[];
       }
 
-      await deployCommand({
+      await deploy({
         version: version.replace(/^v/, ""),
         updateStateful: options.all,
         env,
@@ -70,7 +70,7 @@ program
   .action(async (options) => {
     try {
       const env = loadEnv(options.dir);
-      await rollbackCommand({ env, version: options.version });
+      await rollback({ env, version: options.version });
     } catch (err) {
       logger.error(err instanceof Error ? err.message : String(err));
       process.exit(1);
@@ -84,7 +84,7 @@ program
   .action(async (options) => {
     try {
       const env = loadEnv(options.dir);
-      await statusCommand({
+      await status({
         deployDir: env.DEPLOY_DIR,
         projectName: env.PROJECT_NAME,
       });
@@ -101,7 +101,7 @@ program
   .action(async (options) => {
     try {
       const env = loadEnv(options.dir);
-      await cleanupCommand({ env });
+      await cleanup({ env });
     } catch (err) {
       logger.error(err instanceof Error ? err.message : String(err));
       process.exit(1);
@@ -118,7 +118,7 @@ program
   .action(async (options) => {
     try {
       const env = loadEnv(options.dir);
-      await resetCommand({
+      await reset({
         env,
         force: options.force,
         includeStateful: options.all,
@@ -142,7 +142,7 @@ program
   .action(async (service: string, options) => {
     try {
       const env = loadEnv(options.dir);
-      await logsCommand({
+      await logs({
         service,
         color: options.color,
         follow: options.follow,

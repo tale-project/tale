@@ -11,16 +11,12 @@ import {
   isRotatableService,
   isStatefulService,
 } from "../compose/types";
-import {
-  dockerCompose,
-  ensureNetwork,
-  ensureVolumes,
-  getContainerVersion,
-  pullImage,
-  removeContainer,
-  stopContainer,
-} from "../docker/client";
-import { waitForHealthy } from "../docker/health";
+import { getContainerVersion, removeContainer, stopContainer } from "../docker/container";
+import { dockerCompose } from "../docker/exec";
+import { ensureNetwork } from "../docker/network";
+import { pullImage } from "../docker/pull-image";
+import { ensureVolumes } from "../docker/volume";
+import { waitForHealthy } from "../docker/wait-for-healthy";
 import {
   getCurrentColor,
   getNextColor,
@@ -40,7 +36,7 @@ interface DeployOptions {
   services?: ServiceName[];
 }
 
-export async function deployCommand(options: DeployOptions): Promise<void> {
+export async function deploy(options: DeployOptions): Promise<void> {
   const { version, updateStateful, env, hostAlias, dryRun, services } = options;
 
   await withLock(env.DEPLOY_DIR, `deploy ${version}`, async () => {

@@ -3,12 +3,8 @@ import {
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
 } from "../compose/types";
-import {
-  docker,
-  isContainerRunning,
-  removeContainer,
-  stopContainer,
-} from "../docker/client";
+import { isContainerRunning, removeContainer, stopContainer } from "../docker/container";
+import { docker } from "../docker/exec";
 import { withLock } from "../state/lock";
 import type { DeploymentEnv } from "../utils/env";
 import * as logger from "../utils/logger";
@@ -20,7 +16,7 @@ interface ResetOptions {
   dryRun: boolean;
 }
 
-export async function resetCommand(options: ResetOptions): Promise<void> {
+export async function reset(options: ResetOptions): Promise<void> {
   const { env, force, includeStateful, dryRun } = options;
 
   if (!force) {
