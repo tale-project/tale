@@ -1,0 +1,80 @@
+name: Build Deploy CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to attach binary to (e.g., v1.0.0)'
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/deploy/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: tools/deploy
+        run: bun install
+
+      - name: Type check
+        working-directory: tools/deploy
+        run: bun run typecheck
+
+      - name: Build for Linux x64
+        working-directory: tools/deploy
+        run: bun run build:linux
+
+      - name: Verify binary
+        working-directory: tools/deploy
+        run: |
+          chmod +x dist/tale-deploy-linux
+          ./dist/tale-deploy-linux --version
+          ./dist/tale-deploy-linux --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-deploy-linux
+          path: tools/deploy/dist/tale-deploy-linux
+          retention-days: 30
+
+      - name: Upload to release
+        if: ${{ github.event.inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.inputs.release_tag }} \
+            tools/deploy/dist/tale-deploy-linux \
+            --clobber
+
+      - name: Upload to latest release
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest release tag
+          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            echo "Uploading to release: $LATEST_TAG"
+            gh release upload "$LATEST_TAG" \
+              tools/deploy/dist/tale-deploy-linux \
+              --clobber || echo "Failed to upload to release, skipping"
+          else
+            echo "No releases found, skipping upload"
+          fi
