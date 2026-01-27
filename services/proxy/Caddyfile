@@ -16,9 +16,9 @@
 # Production:  https://yourdomain.com (TLS_MODE=letsencrypt)
 #
 # Blue-Green Deployment:
-# - Both platform-blue:3000 and platform-green:3000 are listed as upstreams
-# - Caddy automatically routes to healthy backends based on health checks
-# - During deployment, traffic seamlessly switches to the healthy version
+# - Routes to "platform" DNS alias (resolves to whichever color is running)
+# - Only one platform instance can be healthy at a time (DB constraint)
+# - Shows loading page during the brief transition window
 
 # Global options
 {
@@ -161,10 +161,10 @@
 	}
 	encode @notWebSocket gzip zstd
 
-	# Maintenance page when no healthy backends available
-	# During blue-green deployments, there's a brief window (~8-10s) when
-	# the old backend loses its database lease and the new one isn't ready yet.
-	# This shows a friendly loading page instead of a raw 503 error.
+	# Loading page when platform is unavailable
+	# During deployments, there's a brief window when the old platform loses
+	# its DB connection and the new one isn't ready yet.
+	# Shows a friendly loading page instead of a raw 502/503 error.
 	handle_errors 502 503 504 {
 		root * /var/www
 		rewrite * /maintenance.html

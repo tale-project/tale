@@ -47,7 +47,20 @@ export interface ServiceConfig {
 
 export const ROTATABLE_SERVICES = ["platform", "rag", "crawler", "search"] as const;
 export const STATEFUL_SERVICES = ["db", "graph-db", "proxy"] as const;
+export const ALL_SERVICES = [...ROTATABLE_SERVICES, ...STATEFUL_SERVICES] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
 export type ServiceName = RotatableService | StatefulService;
+
+export function isValidService(name: string): name is ServiceName {
+  return (ALL_SERVICES as readonly string[]).includes(name);
+}
+
+export function isRotatableService(name: string): name is RotatableService {
+  return (ROTATABLE_SERVICES as readonly string[]).includes(name);
+}
+
+export function isStatefulService(name: string): name is StatefulService {
+  return (STATEFUL_SERVICES as readonly string[]).includes(name);
+}
