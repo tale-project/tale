@@ -5,6 +5,8 @@ import {
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
 import {
   dockerCompose,
+  ensureNetwork,
+  ensureVolumes,
   getContainerVersion,
   pullImage,
   removeContainer,
@@ -108,6 +110,18 @@ export async function deployCommand(options: DeployOptions): Promise<void> {
         await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
         logger.info(`Previous version saved: ${currentPlatformVersion}`);
       }
+    }
+
+    // Ensure required volumes and network exist for color services
+    logger.step("Ensuring volumes and network exist...");
+    const requiredVolumes = ["platform-convex-data", "caddy-data", "rag-data"];
+    const volumesCreated = await ensureVolumes(env.PROJECT_NAME, requiredVolumes);
+    if (!volumesCreated) {
+      throw new Error("Failed to create required volumes");
+    }
+    const networkCreated = await ensureNetwork(env.PROJECT_NAME, "internal");
+    if (!networkCreated) {
+      throw new Error("Failed to create required network");
     }
 
     // Deploy new color

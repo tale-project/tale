@@ -19,12 +19,10 @@ export function createRagService(
       start_period: "40s",
     },
     logging: DEFAULT_LOGGING,
-    networks: [
-      {
-        internal: {
-          aliases: [`rag-${color}`, "rag"],
-        },
+    networks: {
+      internal: {
+        aliases: [`rag-${color}`, "rag"],
       },
-    ],
+    },
   };
 }

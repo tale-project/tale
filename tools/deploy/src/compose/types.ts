@@ -28,12 +28,12 @@ export interface ComposeService {
   };
   depends_on?: string[] | Record<string, { condition: string }>;
   logging?: LoggingConfig;
-  networks?: (string | Record<string, { aliases: string[] }>)[];
+  networks?: string[] | Record<string, { aliases?: string[] }>;
 }
 
 export interface ComposeConfig {
   services: Record<string, ComposeService>;
-  volumes?: Record<string, { driver: string; external?: boolean; name?: string }>;
+  volumes?: Record<string, { driver?: string; external?: boolean; name?: string }>;
   networks?: Record<string, { driver?: string; external?: boolean; name?: string }>;
 }
 

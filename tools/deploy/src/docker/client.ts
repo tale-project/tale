@@ -45,9 +45,10 @@ export async function dockerCompose(
   args: string[],
   options: { projectName?: string; cwd?: string } = {}
 ): Promise<ExecResult> {
-  const { projectName = "tale", cwd } = options;
+  const { projectName = "tale", cwd = process.cwd() } = options;
 
-  const tempFile = `/tmp/tale-deploy-compose-${Date.now()}.yml`;
+  // Write compose file to cwd so env_file paths resolve correctly
+  const tempFile = `${cwd}/.tale-deploy-compose-${Date.now()}.yml`;
   await Bun.write(tempFile, composeContent);
 
   try {
@@ -155,4 +156,61 @@ export async function listContainers(
     const [name, status, image] = line.split("\t");
     return { name, status, image };
   });
+}
+
+export async function volumeExists(volumeName: string): Promise<boolean> {
+  const result = await docker("volume", "inspect", volumeName);
+  return result.success;
+}
+
+export async function createVolume(volumeName: string): Promise<boolean> {
+  const exists = await volumeExists(volumeName);
+  if (exists) {
+    logger.debug(`Volume ${volumeName} already exists`);
+    return true;
+  }
+
+  logger.info(`Creating volume: ${volumeName}`);
+  const result = await docker("volume", "create", volumeName);
+  return result.success;
+}
+
+export async function ensureVolumes(
+  projectName: string,
+  volumeNames: string[]
+): Promise<boolean> {
+  for (const name of volumeNames) {
+    const fullName = `${projectName}_${name}`;
+    const success = await createVolume(fullName);
+    if (!success) {
+      logger.error(`Failed to create volume: ${fullName}`);
+      return false;
+    }
+  }
+  return true;
+}
+
+export async function networkExists(networkName: string): Promise<boolean> {
+  const result = await docker("network", "inspect", networkName);
+  return result.success;
+}
+
+export async function createNetwork(networkName: string): Promise<boolean> {
+  const exists = await networkExists(networkName);
+  if (exists) {
+    logger.debug(`Network ${networkName} already exists`);
+    return true;
+  }
+
+  logger.info(`Creating network: ${networkName}`);
+  const result = await docker("network", "create", networkName);
+  return result.success;
+}
+
+export async function ensureNetwork(
+  projectName: string,
+  networkName: string
+): Promise<boolean> {
+  const fullName = `${projectName}_${networkName}`;
+  return createNetwork(fullName);
 }

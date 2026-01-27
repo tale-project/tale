@@ -26,12 +26,10 @@ export function createSearchService(
       start_period: "30s",
     },
     logging: DEFAULT_LOGGING,
-    networks: [
-      {
-        internal: {
-          aliases: [`search-${color}`, "search"],
-        },
+    networks: {
+      internal: {
+        aliases: [`search-${color}`, "search"],
       },
-    ],
+    },
   };
 }
