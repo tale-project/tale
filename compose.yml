@@ -1,3 +1,15 @@
+# =============================================================================
+# LOCAL DEVELOPMENT ONLY
+# =============================================================================
+# This compose file is for LOCAL DEVELOPMENT only. It exposes ports that should
+# NEVER be exposed in production (5432, 6379, 8001-8003).
+#
+# For PRODUCTION deployments, use the tale-deploy CLI:
+#   tale-deploy deploy <version>
+#
+# The CLI generates secure compose configs inline with only ports 80/443 exposed.
+# =============================================================================
+#
 # Docker Compose configuration for Tale Services
 # This file defines the services needed to run the Tale platform
 #
@@ -6,9 +18,7 @@
 #     - Builds images locally from Dockerfiles
 #     - Uses PULL_POLICY=build (default)
 #
-#   Production: PULL_POLICY=always VERSION=v1.0.0 docker compose up
-#     - Pulls pre-built images from GHCR
-#     - Specify version with VERSION environment variable
+#   Production: Use tale-deploy CLI instead (see above)
 #
 # Environment variables:
 #   PULL_POLICY: 'build' (default) or 'always'
