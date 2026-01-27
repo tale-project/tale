@@ -4,7 +4,7 @@ import {
   type ServiceName,
   STATEFUL_SERVICES,
 } from "../compose/types";
-import { isContainerRunning } from "../docker/client";
+import { isContainerRunning } from "../docker/container";
 import { getCurrentColor } from "../state/deployment";
 import * as logger from "../utils/logger";
 
@@ -33,7 +33,7 @@ function isRotatableService(
   );
 }
 
-export async function logsCommand(options: LogsOptions): Promise<void> {
+export async function logs(options: LogsOptions): Promise<void> {
   const { service, color, follow, since, tail, deployDir, projectName } =
     options;
 

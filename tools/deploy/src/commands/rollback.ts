@@ -1,12 +1,9 @@
 import { generateColorCompose } from "../compose/generator";
 import { ROTATABLE_SERVICES } from "../compose/types";
-import {
-  dockerCompose,
-  pullImage,
-  removeContainer,
-  stopContainer,
-} from "../docker/client";
-import { waitForHealthy } from "../docker/health";
+import { removeContainer, stopContainer } from "../docker/container";
+import { dockerCompose } from "../docker/exec";
+import { pullImage } from "../docker/pull-image";
+import { waitForHealthy } from "../docker/wait-for-healthy";
 import {
   getCurrentColor,
   getOppositeColor,
@@ -22,7 +19,7 @@ interface RollbackOptions {
   version?: string;
 }
 
-export async function rollbackCommand(options: RollbackOptions): Promise<void> {
+export async function rollback(options: RollbackOptions): Promise<void> {
   const { env, version: targetVersion } = options;
 
   await withLock(env.DEPLOY_DIR, "rollback", async () => {

@@ -3,7 +3,7 @@ import {
   getContainerVersion,
   isContainerRunning,
   listContainers,
-} from "../docker/client";
+} from "../docker/container";
 import { getDeploymentState, type DeploymentColor } from "../state/deployment";
 import { getLockInfo } from "../state/lock";
 import * as logger from "../utils/logger";
@@ -39,7 +39,7 @@ interface StatusOptions {
   projectName: string;
 }
 
-export async function statusCommand(options: StatusOptions): Promise<void> {
+export async function status(options: StatusOptions): Promise<void> {
   const { deployDir, projectName } = options;
 
   logger.header("Tale Deployment Status");
