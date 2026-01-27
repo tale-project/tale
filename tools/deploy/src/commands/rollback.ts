@@ -19,10 +19,11 @@ import * as logger from "../utils/logger";
 
 interface RollbackOptions {
   env: DeploymentEnv;
+  version?: string;
 }
 
 export async function rollbackCommand(options: RollbackOptions): Promise<void> {
-  const { env } = options;
+  const { env, version: targetVersion } = options;
 
   await withLock(env.DEPLOY_DIR, "rollback", async () => {
     logger.header("Rolling Back Deployment");
@@ -34,19 +35,28 @@ export async function rollbackCommand(options: RollbackOptions): Promise<void> {
       throw new Error("No active deployment");
     }
 
-    const previousVersion = await getPreviousVersion(env.DEPLOY_DIR);
-    if (!previousVersion) {
-      logger.error("No previous version found to rollback to");
-      throw new Error("No previous version");
+    // Determine rollback version: use provided version or fall back to previous
+    let rollbackVersion: string;
+    if (targetVersion) {
+      rollbackVersion = targetVersion.replace(/^v/, "");
+      logger.info(`Using specified version: ${rollbackVersion}`);
+    } else {
+      const previousVersion = await getPreviousVersion(env.DEPLOY_DIR);
+      if (!previousVersion) {
+        logger.error("No previous version found to rollback to");
+        logger.info("Use --version <version> to specify a version explicitly");
+        throw new Error("No previous version");
+      }
+      rollbackVersion = previousVersion;
     }
 
     const rollbackColor = getOppositeColor(currentColor);
 
     logger.info(`Current color: ${currentColor}`);
-    logger.info(`Rolling back to: ${rollbackColor} (version ${previousVersion})`);
+    logger.info(`Rolling back to: ${rollbackColor} (version ${rollbackVersion})`);
 
     const serviceConfig = {
-      version: previousVersion,
+      version: rollbackVersion,
       registry: env.GHCR_REGISTRY,
       projectName: env.PROJECT_NAME,
     };
@@ -54,7 +64,7 @@ export async function rollbackCommand(options: RollbackOptions): Promise<void> {
     // Pull previous version images
     logger.step("Pulling previous version images...");
     for (const service of ROTATABLE_SERVICES) {
-      const image = `${env.GHCR_REGISTRY}/tale-${service}:${previousVersion}`;
+      const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
       const success = await pullImage(image);
       if (!success) {
         throw new Error(`Failed to pull image: ${image}`);
@@ -62,7 +72,7 @@ export async function rollbackCommand(options: RollbackOptions): Promise<void> {
     }
 
     // Deploy rollback color
-    logger.step(`Deploying ${rollbackColor} services with version ${previousVersion}...`);
+    logger.step(`Deploying ${rollbackColor} services with version ${rollbackVersion}...`);
     const colorCompose = generateColorCompose(
       serviceConfig,
       rollbackColor,
@@ -71,7 +81,7 @@ export async function rollbackCommand(options: RollbackOptions): Promise<void> {
 
     const deployResult = await dockerCompose(
       colorCompose,
-      ["up", "-d", "--remove-orphans"],
+      ["up", "-d"],
       { projectName: `${env.PROJECT_NAME}-${rollbackColor}`, cwd: env.DEPLOY_DIR }
     );
 
@@ -109,6 +119,6 @@ export async function rollbackCommand(options: RollbackOptions): Promise<void> {
       await removeContainer(containerName);
     }
 
-    logger.success(`Rollback complete! Version ${previousVersion} is now live on ${rollbackColor}`);
+    logger.success(`Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`);
   });
 }
