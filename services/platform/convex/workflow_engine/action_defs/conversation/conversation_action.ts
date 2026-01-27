@@ -58,9 +58,35 @@ const priorityValidator = v.union(
   v.literal('urgent'),
 );
 
+// DraftMessage validator for creating outbound messages with approval
+const draftMessageValidator = v.object({
+  priority: priorityValidator,
+  description: v.optional(v.string()),
+  dueDate: v.optional(v.number()),
+  content: v.string(),
+  subject: v.optional(v.string()),
+  recipients: v.array(v.string()),
+  ccRecipients: v.optional(v.array(v.string())),
+  bccRecipients: v.optional(v.array(v.string())),
+  metadata: v.optional(jsonRecordValidator),
+});
+
 // Type for conversation operation params (discriminated union)
 // Note: This type is maintained separately from the parametersValidator for clarity.
 // The TypeScript type provides IDE support, while the validator provides runtime validation.
+// DraftMessage type for TypeScript support
+type DraftMessage = {
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  description?: string;
+  dueDate?: number;
+  content: string;
+  subject?: string;
+  recipients: Array<string>;
+  ccRecipients?: Array<string>;
+  bccRecipients?: Array<string>;
+  metadata?: Record<string, unknown>;
+};
+
 type ConversationActionParams =
   | {
       operation: 'create';
@@ -72,6 +98,7 @@ type ConversationActionParams =
       channel?: string;
       direction?: 'inbound' | 'outbound';
       metadata?: Record<string, unknown>;
+      draftMessage?: DraftMessage;
     }
   | {
       operation: 'get_by_id';
@@ -120,19 +147,25 @@ export const conversationAction: ActionDefinition<ConversationActionParams> = {
   title: 'Conversation Operation',
   description: `Execute conversation-specific operations (create, get_by_id, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email). organizationId is automatically read from workflow context variables.
 
-FOR EMAIL WORKFLOWS:
-When creating outbound email conversations, include these fields in the metadata object:
-- emailSubject: Subject line (required)
-- emailBody: HTML or Markdown body content (required)
-- customerEmail: Recipient email address (required)
-- emailPreview: Preview text for inbox (optional)
-- emailCc: CC recipients (optional)
-- emailBcc: BCC recipients (optional)
+FOR OUTBOUND MESSAGES WITH APPROVAL:
+Use the 'draftMessage' parameter when creating conversations to automatically create a pending approval.
+When draftMessage is provided:
+- direction is automatically set to 'outbound'
+- A pending approval is created with resourceType: 'conversations'
 
-Then create an approval with resourceType: 'conversations' to trigger sending when approved.
+draftMessage fields:
+- content: Message body (required) - email body, SMS text, etc.
+- subject: Subject line (optional) - for email
+- recipients: Array of recipients (required) - email addresses, phone numbers, etc.
+- ccRecipients: CC recipients (optional) - for email
+- bccRecipients: BCC recipients (optional) - for email
+- priority: 'low' | 'medium' | 'high' | 'urgent' (required)
+- description: Approval description (optional)
+- metadata: Additional channel-specific data (optional)
+
 See 'product_recommendation_email' predefined workflow for complete example.`,
   parametersValidator: v.union(
-    // create: Create a new conversation
+    // create: Create a new conversation (with optional draftMessage for automatic approval)
     v.object({
       operation: v.literal('create'),
       customerId: v.optional(v.id('customers')),
@@ -143,6 +176,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
       channel: v.optional(v.string()),
       direction: v.optional(directionValidator),
       metadata: v.optional(jsonRecordValidator),
+      draftMessage: v.optional(draftMessageValidator),
     }),
     // get_by_id: Get a conversation by ID
     v.object({
@@ -214,6 +248,7 @@ See 'product_recommendation_email' predefined workflow for complete example.`,
           channel: params.channel,
           direction: params.direction,
           metadata: params.metadata,
+          draftMessage: params.draftMessage,
         });
       }
 

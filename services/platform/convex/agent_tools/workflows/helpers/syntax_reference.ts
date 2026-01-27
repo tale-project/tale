@@ -68,14 +68,13 @@ Process customers/products/conversations one at a time. Each execution handles O
 \`\`\`
 
 ### Pattern 2: Email Sending
-Create conversation with email metadata, then create approval. Email sends when approved.
+Create conversation with draftMessage to automatically create approval. Email sends when approved.
 
-**Structure:** ... → create_conversation → create_approval → record_processed → noop
+**Structure:** ... → create_conversation (with draftMessage) → record_processed → noop
 
-**Key Steps:**
+**Key Step:**
 \`\`\`json
-{ "stepSlug": "create_conversation", "stepType": "action", "config": { "type": "conversation", "parameters": { "operation": "create", "customerId": "{{customerId}}", "subject": "{{emailSubject}}", "channel": "email", "direction": "outbound", "metadata": { "emailSubject": "{{emailSubject}}", "emailBody": "{{emailBody}}", "emailPreview": "{{preview}}", "customerEmail": "{{customerEmail}}" } } }, "nextSteps": { "success": "create_approval" } },
-{ "stepSlug": "create_approval", "stepType": "action", "config": { "type": "approval", "parameters": { "operation": "create_approval", "resourceType": "conversations", "resourceId": "{{steps.create_conversation.output.data._id}}", "priority": "medium", "description": "Review email before sending" } }, "nextSteps": { "success": "record_processed" } }
+{ "stepSlug": "create_conversation", "stepType": "action", "config": { "type": "conversation", "parameters": { "operation": "create", "customerId": "{{customerId}}", "subject": "{{emailSubject}}", "channel": "email", "draftMessage": { "priority": "medium", "description": "Review email before sending", "content": "{{emailBody}}", "subject": "{{emailSubject}}", "recipients": ["{{customerEmail}}"], "metadata": { "customerName": "{{customerName}}" } } } }, "nextSteps": { "success": "record_processed" } }
 \`\`\`
 
 ### Pattern 3: LLM Analysis + Action
@@ -204,10 +203,34 @@ Operations: create, query, filter, update
 Operations: create, get_by_id, query, filter, update, hydrate_fields
 
 ### conversation
-Operations: create, query_messages, update, create_from_email
+Operations: create, get_by_id, query_messages, query_latest_message_by_delivery_state, update, create_from_email, create_from_sent_email
+
+**create with draftMessage (recommended for outbound messages):**
+\`\`\`json
+{
+  "type": "conversation",
+  "parameters": {
+    "operation": "create",
+    "channel": "email",
+    "subject": "{{emailSubject}}",
+    "draftMessage": {
+      "priority": "medium",
+      "description": "Review before sending",
+      "content": "{{emailBody}}",
+      "subject": "{{emailSubject}}",
+      "recipients": ["{{customerEmail}}"],
+      "ccRecipients": ["{{ccEmail}}"],
+      "metadata": { "customerName": "{{customerName}}" }
+    }
+  }
+}
+\`\`\`
+- direction is auto-set to 'outbound' when draftMessage is provided
+- Creates conversation + pending approval in one step
+- Works for any channel (email, sms, whatsapp)
 
 ### approval
-Operation: create_approval
+Operation: create_approval (use only when you need separate approval step)
 \`\`\`json
 {
   "type": "approval",
@@ -285,9 +308,9 @@ NextSteps: { loop: 'loop_body_step', done: 'after_loop_step', error?: 'error_han
 
   email: `## EMAIL SENDING PATTERN
 
-Workflows DO NOT have a direct "send_email" action. Use the conversation + approval pattern:
+Workflows DO NOT have a direct "send_email" action. Use conversation with draftMessage:
 
-### Step 1: Create Conversation with Email Metadata
+### Recommended: Single Step with draftMessage
 \`\`\`json
 {
   "stepType": "action",
@@ -298,48 +321,44 @@ Workflows DO NOT have a direct "send_email" action. Use the conversation + appro
       "customerId": "{{customerId}}",
       "subject": "{{emailSubject}}",
       "channel": "email",
-      "direction": "outbound",
-      "metadata": {
-        "emailSubject": "{{emailSubject}}",
-        "emailBody": "{{emailBody}}",
-        "emailPreview": "{{emailPreview}}",
-        "customerEmail": "{{customerEmail}}"
+      "draftMessage": {
+        "priority": "medium",
+        "description": "Review email before sending",
+        "content": "{{emailBody}}",
+        "subject": "{{emailSubject}}",
+        "recipients": ["{{customerEmail}}"],
+        "ccRecipients": ["{{ccEmail}}"],
+        "bccRecipients": ["{{bccEmail}}"],
+        "metadata": {
+          "customerName": "{{customerName}}",
+          "customerId": "{{customerId}}"
+        }
       }
     }
   }
 }
 \`\`\`
 
-### Step 2: Create Approval for Email Review
-\`\`\`json
-{
-  "stepType": "action",
-  "config": {
-    "type": "approval",
-    "parameters": {
-      "operation": "create_approval",
-      "resourceType": "conversations",
-      "resourceId": "{{steps.create_conversation.output.data._id}}",
-      "priority": "medium",
-      "description": "Review email before sending"
-    }
-  }
-}
-\`\`\`
-
 ### How It Works
+- draftMessage automatically creates a pending approval
+- direction is auto-set to 'outbound'
 - Approval appears in dashboard for human review
 - When approved, system automatically sends the email
 - Conversation tracks the email thread for replies
 
-### Required Metadata Fields
-- emailSubject: Email subject line
-- emailBody: HTML or Markdown email body
-- customerEmail: Recipient email address
+### draftMessage Fields
+**Required:**
+- content: Email body (HTML or Markdown)
+- recipients: Array of recipient email addresses
+- priority: 'low' | 'medium' | 'high' | 'urgent'
 
-### Optional Metadata Fields
-- emailPreview: Preview text for inbox
-- emailCc, emailBcc: CC/BCC recipients
+**Optional:**
+- subject: Email subject line
+- ccRecipients: CC recipient addresses
+- bccRecipients: BCC recipient addresses
+- description: Approval description
+- dueDate: Approval due date (timestamp)
+- metadata: Additional data (customerName, etc.)
 
 **Reference:** Use workflow_examples(operation='get_syntax_reference', category='common_patterns') for the email sending pattern`,
 

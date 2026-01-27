@@ -314,17 +314,17 @@ export function ConversationPanel({
   // All messages from the database have valid delivery states, no filtering needed
   const displayMessages = messages;
 
-  // Create pending message from approval if it exists (emailBody only)
+  // Create pending message from approval if it exists
   const pendingMessage =
     conversation.pendingApproval?.metadata &&
     typeof conversation.pendingApproval.metadata === 'object' &&
-    'emailBody' in conversation.pendingApproval.metadata
+    'content' in conversation.pendingApproval.metadata
       ? {
           id: conversation.pendingApproval._id,
           content:
             // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Convex metadata uses v.any()
-            (conversation.pendingApproval.metadata as { emailBody: string })
-              .emailBody,
+            (conversation.pendingApproval.metadata as { content: string })
+              .content,
         }
       : undefined;
 
