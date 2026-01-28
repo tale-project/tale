@@ -142,12 +142,27 @@ program
   .action(async (service: string, options) => {
     try {
       const env = loadEnv(options.dir);
+
+      if (options.color && options.color !== "blue" && options.color !== "green") {
+        logger.error(`Invalid color: ${options.color}. Must be "blue" or "green".`);
+        process.exit(1);
+      }
+
+      let tail: number | undefined;
+      if (options.tail) {
+        tail = parseInt(options.tail, 10);
+        if (Number.isNaN(tail)) {
+          logger.error(`Invalid --tail value: ${options.tail}. Must be a number.`);
+          process.exit(1);
+        }
+      }
+
       await logs({
         service,
         color: options.color,
         follow: options.follow,
         since: options.since,
-        tail: options.tail ? parseInt(options.tail, 10) : undefined,
+        tail,
         deployDir: env.DEPLOY_DIR,
         projectName: env.PROJECT_NAME,
       });
