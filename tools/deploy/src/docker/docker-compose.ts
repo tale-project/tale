@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { type ExecResult, exec } from "./exec";
 
 export async function dockerCompose(
@@ -8,7 +9,7 @@ export async function dockerCompose(
   const { projectName = "tale", cwd = process.cwd() } = options;
 
   // Write compose file to cwd so env_file paths resolve correctly
-  const tempFile = `${cwd}/.tale-deploy-compose-${Date.now()}.yml`;
+  const tempFile = join(cwd, `.tale-deploy-compose-${Date.now()}.yml`);
   await Bun.write(tempFile, composeContent);
 
   try {

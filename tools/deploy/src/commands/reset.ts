@@ -1,4 +1,5 @@
 import { unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
 import type { DeploymentColor } from "../compose/types";
 import { docker } from "../docker/docker";
@@ -59,8 +60,8 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Clean up state files
     logger.step(`${prefix}Cleaning up state files...`);
     const stateFiles = [
-      `${env.DEPLOY_DIR}/.deployment-color`,
-      `${env.DEPLOY_DIR}/.deployment-previous-version`,
+      join(env.DEPLOY_DIR, ".deployment-color"),
+      join(env.DEPLOY_DIR, ".deployment-previous-version"),
     ];
 
     for (const file of stateFiles) {
