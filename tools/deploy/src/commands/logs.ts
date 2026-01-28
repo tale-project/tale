@@ -1,9 +1,5 @@
-import {
-  type DeploymentColor,
-  ROTATABLE_SERVICES,
-  type ServiceName,
-  STATEFUL_SERVICES,
-} from "../compose/types";
+import type { DeploymentColor } from "../compose/types";
+import { isRotatableService, isValidService } from "../compose/types";
 import { isContainerRunning } from "../docker/is-container-running";
 import { getCurrentColor } from "../state/get-current-color";
 import * as logger from "../utils/logger";
@@ -18,30 +14,14 @@ interface LogsOptions {
   projectName: string;
 }
 
-function isValidService(service: string): service is ServiceName {
-  return (
-    ROTATABLE_SERVICES.includes(service as (typeof ROTATABLE_SERVICES)[number]) ||
-    STATEFUL_SERVICES.includes(service as (typeof STATEFUL_SERVICES)[number])
-  );
-}
-
-function isRotatableService(
-  service: string
-): service is (typeof ROTATABLE_SERVICES)[number] {
-  return ROTATABLE_SERVICES.includes(
-    service as (typeof ROTATABLE_SERVICES)[number]
-  );
-}
-
 export async function logs(options: LogsOptions): Promise<void> {
   const { service, color, follow, since, tail, deployDir, projectName } =
     options;
 
   // Validate service name
   if (!isValidService(service)) {
-    const allServices = [...ROTATABLE_SERVICES, ...STATEFUL_SERVICES];
     logger.error(`Invalid service: ${service}`);
-    logger.info(`Available services: ${allServices.join(", ")}`);
+    logger.info(`Available services: platform, rag, crawler, search, db, graph-db, proxy`);
     throw new Error("Invalid service name");
   }
 
@@ -110,5 +90,8 @@ export async function logs(options: LogsOptions): Promise<void> {
     stderr: "inherit",
   });
 
-  await proc.exited;
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`docker logs exited with code ${exitCode}`);
+  }
 }
