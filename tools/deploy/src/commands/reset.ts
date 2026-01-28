@@ -1,12 +1,8 @@
-import {
-  type DeploymentColor,
-  ROTATABLE_SERVICES,
-  STATEFUL_SERVICES,
-} from "../compose/types";
+import { unlink } from "node:fs/promises";
+import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
+import type { DeploymentColor } from "../compose/types";
 import { docker } from "../docker/docker";
-import { isContainerRunning } from "../docker/is-container-running";
 import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
 import { withLock } from "../state/with-lock";
 import type { DeploymentEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
@@ -40,12 +36,8 @@ export async function reset(options: ResetOptions): Promise<void> {
       for (const service of ROTATABLE_SERVICES) {
         const containerName = `${env.PROJECT_NAME}-${service}-${color}`;
         if (dryRun) {
-          logger.info(`${prefix}Would stop/remove: ${containerName}`);
+          logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
-          const running = await isContainerRunning(containerName);
-          if (running) {
-            await stopContainer(containerName);
-          }
           await removeContainer(containerName);
         }
       }
@@ -57,12 +49,8 @@ export async function reset(options: ResetOptions): Promise<void> {
       for (const service of STATEFUL_SERVICES) {
         const containerName = `${env.PROJECT_NAME}-${service}`;
         if (dryRun) {
-          logger.info(`${prefix}Would stop/remove: ${containerName}`);
+          logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
-          const running = await isContainerRunning(containerName);
-          if (running) {
-            await stopContainer(containerName);
-          }
           await removeContainer(containerName);
         }
       }
@@ -80,13 +68,12 @@ export async function reset(options: ResetOptions): Promise<void> {
         logger.info(`${prefix}Would remove: ${file}`);
       } else {
         try {
-          const bunFile = Bun.file(file);
-          if (await bunFile.exists()) {
-            await import("node:fs/promises").then((fs) => fs.unlink(file));
-            logger.info(`Removed ${file}`);
+          await unlink(file);
+          logger.info(`Removed ${file}`);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+            logger.warn(`Failed to remove ${file}: ${err}`);
           }
-        } catch {
-          // Ignore errors
         }
       }
     }
