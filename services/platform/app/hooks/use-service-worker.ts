@@ -49,8 +49,18 @@ export function useServiceWorker() {
   }, []);
 
   const applyUpdate = useCallback(() => {
+    const handleControllerChange = () => {
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      handleControllerChange
+    );
+
     if (state.registration?.waiting) {
       skipWaiting(state.registration.waiting);
+    } else {
       window.location.reload();
     }
   }, [state.registration]);
