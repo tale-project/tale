@@ -34,8 +34,14 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
       const running = await isContainerRunning(containerName);
 
       if (running) {
-        await stopContainer(containerName);
-        await removeContainer(containerName);
+        const stopped = await stopContainer(containerName);
+        if (!stopped) {
+          logger.warn(`Failed to stop ${containerName}`);
+        }
+        const removed = await removeContainer(containerName);
+        if (!removed) {
+          logger.warn(`Failed to remove ${containerName}`);
+        }
         cleaned++;
       }
     }
