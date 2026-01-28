@@ -93,6 +93,8 @@
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto {scheme}
+		# Remove WebSocket compression extension to prevent "Invalid frame header" errors
+		header_up -Sec-WebSocket-Extensions
 	}
 
 	# Encode responses, but skip WebSocket endpoints
