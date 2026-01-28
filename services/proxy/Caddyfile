@@ -94,6 +94,14 @@
 		reverse_proxy platform:6791
 	}
 
+	# Redirect dashboard routes at root to /convex-dashboard prefix
+	# Dashboard "Go to Reference" opens new tabs without the prefix
+	@convexDashboardRedirect {
+		path /data /data/* /functions /functions/* /logs /logs/* /history /history/* /settings /settings/* /files /files/* /schedules /schedules/*
+		query component=*
+	}
+	redir @convexDashboardRedirect /convex-dashboard{uri} temporary
+
 	# HTTP: Convex Dashboard UI (/convex-dashboard* -> platform:6791)
 	handle /convex-dashboard* {
 		reverse_proxy platform:6791
