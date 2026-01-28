@@ -15,6 +15,9 @@ async function createNetwork(networkName: string): Promise<boolean> {
 
   logger.info(`Creating network: ${networkName}`);
   const result = await docker("network", "create", networkName);
+  if (!result.success) {
+    logger.error(`Failed to create network: ${networkName}`);
+  }
   return result.success;
 }
 
