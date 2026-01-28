@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { getLockFilePath } from "./get-lock-file-path";
 
 export interface LockInfo {
@@ -7,16 +6,23 @@ export interface LockInfo {
   command: string;
 }
 
+function isLockInfo(value: unknown): value is LockInfo {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as LockInfo).pid === "number" &&
+    typeof (value as LockInfo).startedAt === "string" &&
+    typeof (value as LockInfo).command === "string"
+  );
+}
+
 export async function getLockInfo(deployDir: string): Promise<LockInfo | null> {
   const lockPath = getLockFilePath(deployDir);
 
-  if (!existsSync(lockPath)) {
-    return null;
-  }
-
   try {
     const content = await Bun.file(lockPath).text();
-    return JSON.parse(content) as LockInfo;
+    const parsed: unknown = JSON.parse(content);
+    return isLockInfo(parsed) ? parsed : null;
   } catch {
     return null;
   }

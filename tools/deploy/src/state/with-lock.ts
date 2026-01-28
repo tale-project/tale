@@ -1,3 +1,4 @@
+import * as logger from "../utils/logger";
 import { acquireLock } from "./acquire-lock";
 import { releaseLock } from "./release-lock";
 
@@ -14,6 +15,10 @@ export async function withLock<T>(
   try {
     return await fn();
   } finally {
-    await releaseLock(deployDir);
+    try {
+      await releaseLock(deployDir);
+    } catch (releaseErr) {
+      logger.warn(`Failed to release lock: ${releaseErr}`);
+    }
   }
 }
