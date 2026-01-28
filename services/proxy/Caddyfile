@@ -54,34 +54,78 @@
 	request_header -Sec-WebSocket-Extensions
 
 	# Health check endpoint for the proxy itself
-	# Returns 200 OK if Caddy is running and able to serve requests
-	# Usage: curl -k https://tale.local/health
 	handle /health {
 		respond "OK" 200
 	}
 
-	# Upstream backend
-	reverse_proxy {
-		to platform:3000
+	# ============================================================================
+	# Direct Convex Proxies (bypass Express for better WebSocket stability)
+	# ============================================================================
 
-		# Active health checking - Caddy probes these endpoints
+	# WebSocket: Main app Convex sync (/ws_api/* -> platform:3210)
+	handle /ws_api/* {
+		uri strip_prefix /ws_api
+		reverse_proxy platform:3210
+	}
+
+	# WebSocket: Dashboard Convex sync (/api/:version/sync -> platform:3210)
+	handle /api/*/sync {
+		reverse_proxy platform:3210
+	}
+
+	# HTTP: Convex site proxy for actions (/http_api/* -> platform:3211)
+	handle /http_api/* {
+		uri strip_prefix /http_api
+		reverse_proxy platform:3211
+	}
+
+	# HTTP: better-auth (/api/auth/* -> platform:3211)
+	handle /api/auth/* {
+		reverse_proxy platform:3211
+	}
+
+	# HTTP: Convex Dashboard UI (/convex-dashboard/* -> platform:6791)
+	handle /convex-dashboard/* {
+		reverse_proxy platform:6791
+	}
+
+	# HTTP: Convex internal action callbacks (/api/actions/* -> platform:3210)
+	handle /api/actions/* {
+		reverse_proxy platform:3210
+	}
+
+	# HTTP: Convex API with admin auth header (Dashboard API calls)
+	@convexAdminApi {
+		path /api/*
+		not path /api/auth/*
+		not path /api/*/sync
+		not path /api/health
+		not path /api/actions/*
+		header Authorization Convex*
+	}
+	handle @convexAdminApi {
+		reverse_proxy platform:3210
+	}
+
+	# ============================================================================
+	# Express Server (static files + HTML env injection only)
+	# ============================================================================
+
+	# Default: Express server for static files and index.html with env injection
+	reverse_proxy platform:3000 {
+		# Active health checking
 		health_uri /api/health
 		health_interval 2s
 		health_timeout 2s
 		health_status 200
-
-		# CRITICAL for zero-downtime: backends must pass health checks before receiving traffic
-		# health_passes: require 2 consecutive successful checks before marking healthy
-		# This prevents routing to backends that just started but aren't ready yet
 		health_passes 2
 
 		# Passive health checking (circuit breaker)
-		# Mark backend unhealthy after consecutive failures
 		fail_duration 10s
 		max_fails 2
 		unhealthy_status 500 502 503 504
 
-		# Retry on failure - try other healthy backends
+		# Retry on failure
 		lb_try_duration 5s
 		lb_try_interval 250ms
 
