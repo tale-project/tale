@@ -151,7 +151,8 @@ const server = app.listen(port, '0.0.0.0', () => {
 // This handles WebSocket upgrade requests for /api/:version/sync
 server.on('upgrade', (req, socket, head) => {
   const url = req.url;
-  console.log(`[WebSocket Upgrade] ${url}`);
+  const wsExtensions = req.headers['sec-websocket-extensions'];
+  console.log(`[WebSocket Upgrade] ${url} | Extensions: ${wsExtensions || 'NONE'}`);
 
   if (url.startsWith('/ws_api')) {
     // Main app's Convex WebSocket connection
