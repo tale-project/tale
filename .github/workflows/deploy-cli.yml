@@ -36,26 +36,36 @@ jobs:
         working-directory: tools/deploy
         run: bun run typecheck
 
-      - name: Build for Linux x64
+      - name: Build all platforms
         working-directory: tools/deploy
-        run: bun run build:linux
+        run: bun run build
 
-      - name: Rename binary
-        working-directory: tools/deploy
-        run: mv dist/tale-deploy-linux dist/tale-deploy
-
-      - name: Verify binary
+      - name: Verify Linux binary
         working-directory: tools/deploy
         run: |
-          chmod +x dist/tale-deploy
-          ./dist/tale-deploy --version
-          ./dist/tale-deploy --help
+          chmod +x dist/tale-deploy-linux
+          ./dist/tale-deploy-linux --version
+          ./dist/tale-deploy-linux --help
 
-      - name: Upload artifact
+      - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tale-deploy
-          path: tools/deploy/dist/tale-deploy
+          name: tale-deploy-linux
+          path: tools/deploy/dist/tale-deploy-linux
+          retention-days: 30
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-deploy-mac
+          path: tools/deploy/dist/tale-deploy-mac
+          retention-days: 30
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-deploy-windows
+          path: tools/deploy/dist/tale-deploy-windows.exe
           retention-days: 30
 
       - name: Upload to release
@@ -64,7 +74,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            tools/deploy/dist/tale-deploy \
+            tools/deploy/dist/tale-deploy-linux \
+            tools/deploy/dist/tale-deploy-mac \
+            tools/deploy/dist/tale-deploy-windows.exe \
             --clobber
 
       - name: Upload to latest release
@@ -76,7 +88,9 @@ jobs:
           if [ -n "$LATEST_TAG" ]; then
             echo "Uploading to release: $LATEST_TAG"
             gh release upload "$LATEST_TAG" \
-              tools/deploy/dist/tale-deploy \
+              tools/deploy/dist/tale-deploy-linux \
+              tools/deploy/dist/tale-deploy-mac \
+              tools/deploy/dist/tale-deploy-windows.exe \
               --clobber || echo "Failed to upload to release, skipping"
           else
             echo "No releases found, skipping upload"
