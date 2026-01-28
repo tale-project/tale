@@ -7,7 +7,7 @@ export function createRagService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-rag:${config.version}`,
-    container_name: `tale-rag-${color}`,
+    container_name: `${config.projectName}-rag-${color}`,
     volumes: ["rag-data:/app/data"],
     env_file: [".env"],
     restart: "unless-stopped",
@@ -21,7 +21,7 @@ export function createRagService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`rag-${color}`, "rag"],
+        aliases: [`rag-${color}`],
       },
     },
   };

@@ -7,7 +7,7 @@ export function createPlatformService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-platform:${config.version}`,
-    container_name: `tale-platform-${color}`,
+    container_name: `${config.projectName}-platform-${color}`,
     volumes: ["platform-convex-data:/app/convex-data", "caddy-data:/caddy-data:ro"],
     env_file: [".env"],
     restart: "unless-stopped",
@@ -24,7 +24,7 @@ export function createPlatformService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`platform-${color}`, "platform"],
+        aliases: [`platform-${color}`],
       },
     },
   };
