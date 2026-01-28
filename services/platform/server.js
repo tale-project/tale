@@ -33,8 +33,9 @@ const convexWsProxy = createProxyMiddleware({
   pathRewrite: { '^/ws_api': '' },
   on: {
     proxyReqWs: (proxyReq) => {
-      // Remove WebSocket compression extension to prevent "Invalid frame header" errors
+      const hadExtensions = proxyReq.getHeader('Sec-WebSocket-Extensions');
       proxyReq.removeHeader('Sec-WebSocket-Extensions');
+      console.log(`[convexWsProxy] proxyReqWs called | Had Extensions: ${hadExtensions || 'NONE'}`);
     },
   },
 });
@@ -85,9 +86,9 @@ const convexSyncProxy = createProxyMiddleware({
   ws: true,
   on: {
     proxyReqWs: (proxyReq) => {
-      // Remove WebSocket compression extension to prevent "Invalid frame header" errors
-      // The proxy doesn't properly handle permessage-deflate compression negotiation
+      const hadExtensions = proxyReq.getHeader('Sec-WebSocket-Extensions');
       proxyReq.removeHeader('Sec-WebSocket-Extensions');
+      console.log(`[convexSyncProxy] proxyReqWs called | Had Extensions: ${hadExtensions || 'NONE'}`);
     },
     error: (err) => {
       console.error('[ConvexSyncProxy Error]', err.message);
