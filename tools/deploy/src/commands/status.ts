@@ -11,10 +11,11 @@ import { getDeploymentState } from "../state/get-deployment-state";
 import { getLockInfo } from "../state/get-lock-info";
 import * as logger from "../utils/logger";
 
-type ServiceStatus = "healthy" | "starting" | "unhealthy" | "stopped";
+type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped";
 
 const STATUS_COLORS: Record<ServiceStatus, string> = {
   healthy: "\x1b[32m",
+  running: "\x1b[32m",
   starting: "\x1b[33m",
   unhealthy: "\x1b[31m",
   stopped: "\x1b[31m",
@@ -33,12 +34,24 @@ function getServiceStatus(
   if (health === "starting") {
     return "starting";
   }
-  return "unhealthy";
+  if (health === "unhealthy") {
+    return "unhealthy";
+  }
+  return "running";
 }
 
 interface StatusOptions {
   deployDir: string;
   projectName: string;
+}
+
+async function getContainerStatus(containerName: string) {
+  const [running, health, version] = await Promise.all([
+    isContainerRunning(containerName),
+    getContainerHealth(containerName),
+    getContainerVersion(containerName),
+  ]);
+  return { running, health, version };
 }
 
 export async function status(options: StatusOptions): Promise<void> {
@@ -63,18 +76,20 @@ export async function status(options: StatusOptions): Promise<void> {
   }
   logger.blank();
 
-  // Check stateful services
+  // Check stateful services in parallel
   logger.step("Stateful Services:");
-  for (const service of STATEFUL_SERVICES) {
-    const containerName = `${projectName}-${service}`;
-    const running = await isContainerRunning(containerName);
-    const health = await getContainerHealth(containerName);
-    const version = await getContainerVersion(containerName);
-    const status = getServiceStatus(running, health);
+  const statefulResults = await Promise.all(
+    STATEFUL_SERVICES.map(async (service) => {
+      const containerName = `${projectName}-${service}`;
+      const info = await getContainerStatus(containerName);
+      return { service, ...info };
+    })
+  );
+  for (const { service, running, health, version } of statefulResults) {
+    const serviceStatus = getServiceStatus(running, health);
     const versionStr = version ? ` (${version})` : "";
-
     console.log(
-      `  ${service.padEnd(12)} ${STATUS_COLORS[status]}${status}\x1b[0m${versionStr}`
+      `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`
     );
   }
   logger.blank();
@@ -85,20 +100,22 @@ export async function status(options: StatusOptions): Promise<void> {
     const colorLabel = isActive ? `${color} (active)` : color;
     logger.step(`${colorLabel.charAt(0).toUpperCase() + colorLabel.slice(1)} Services:`);
 
-    let hasServices = false;
-    for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${projectName}-${service}-${color}`;
-      const running = await isContainerRunning(containerName);
+    const rotatableResults = await Promise.all(
+      ROTATABLE_SERVICES.map(async (service) => {
+        const containerName = `${projectName}-${service}-${color}`;
+        const info = await getContainerStatus(containerName);
+        return { service, ...info };
+      })
+    );
 
+    let hasServices = false;
+    for (const { service, running, health, version } of rotatableResults) {
       if (running) {
         hasServices = true;
-        const health = await getContainerHealth(containerName);
-        const version = await getContainerVersion(containerName);
-        const status = getServiceStatus(running, health);
+        const serviceStatus = getServiceStatus(running, health);
         const versionStr = version ? ` (${version})` : "";
-
         console.log(
-          `  ${service.padEnd(12)} ${STATUS_COLORS[status]}${status}\x1b[0m${versionStr}`
+          `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`
         );
       }
     }
