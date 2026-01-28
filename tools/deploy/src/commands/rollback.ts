@@ -57,14 +57,17 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       projectName: env.PROJECT_NAME,
     };
 
-    // Pull previous version images
+    // Pull previous version images concurrently
     logger.step("Pulling previous version images...");
-    for (const service of ROTATABLE_SERVICES) {
-      const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-      const success = await pullImage(image);
-      if (!success) {
-        throw new Error(`Failed to pull image: ${image}`);
-      }
+    const pullResults = await Promise.all(
+      ROTATABLE_SERVICES.map((service) => {
+        const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
+        return pullImage(image).then((success) => ({ image, success }));
+      })
+    );
+    const failedPull = pullResults.find((r) => !r.success);
+    if (failedPull) {
+      throw new Error(`Failed to pull image: ${failedPull.image}`);
     }
 
     // Deploy rollback color
@@ -111,8 +114,14 @@ export async function rollback(options: RollbackOptions): Promise<void> {
     logger.step(`Stopping ${currentColor} services...`);
     for (const service of ROTATABLE_SERVICES) {
       const containerName = `${env.PROJECT_NAME}-${service}-${currentColor}`;
-      await stopContainer(containerName);
-      await removeContainer(containerName);
+      const stopped = await stopContainer(containerName);
+      if (!stopped) {
+        logger.warn(`Failed to stop ${containerName}`);
+      }
+      const removed = await removeContainer(containerName);
+      if (!removed) {
+        logger.warn(`Failed to remove ${containerName}`);
+      }
     }
 
     logger.success(`Rollback complete! Version ${rollbackVersion} is now live on ${rollbackColor}`);
