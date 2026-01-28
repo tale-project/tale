@@ -31,6 +31,12 @@ const convexWsProxy = createProxyMiddleware({
   changeOrigin: true,
   ws: true,
   pathRewrite: { '^/ws_api': '' },
+  on: {
+    proxyReqWs: (proxyReq) => {
+      // Remove WebSocket compression extension to prevent "Invalid frame header" errors
+      proxyReq.removeHeader('Sec-WebSocket-Extensions');
+    },
+  },
 });
 app.use('/ws_api', convexWsProxy);
 
@@ -78,6 +84,11 @@ const convexSyncProxy = createProxyMiddleware({
   changeOrigin: true,
   ws: true,
   on: {
+    proxyReqWs: (proxyReq) => {
+      // Remove WebSocket compression extension to prevent "Invalid frame header" errors
+      // The proxy doesn't properly handle permessage-deflate compression negotiation
+      proxyReq.removeHeader('Sec-WebSocket-Extensions');
+    },
     error: (err) => {
       console.error('[ConvexSyncProxy Error]', err.message);
     },
