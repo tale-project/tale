@@ -48,6 +48,11 @@
 		level INFO
 	}
 
+	# Remove WebSocket compression extension header before proxying
+	# This prevents "Invalid frame header" errors caused by permessage-deflate
+	# compression negotiation issues between browser, Caddy, and backend
+	request_header -Sec-WebSocket-Extensions
+
 	# Health check endpoint for the proxy itself
 	# Returns 200 OK if Caddy is running and able to serve requests
 	# Usage: curl -k https://tale.local/health
@@ -55,17 +60,9 @@
 		respond "OK" 200
 	}
 
-	# Blue-Green Upstream Pool
-	# Both backends are listed; Caddy routes to healthy ones based on health checks
-	# For local development without blue-green, "platform:3000" works as fallback
+	# Upstream backend
 	reverse_proxy {
-		# Upstream backends - order matters for lb_policy first
-		# Blue is preferred when both are healthy (listed first)
-		to platform-blue:3000 platform-green:3000 platform:3000
-
-		# Load balancing policy: use first healthy backend
-		# This ensures deterministic behavior during deployments
-		lb_policy first
+		to platform:3000
 
 		# Active health checking - Caddy probes these endpoints
 		health_uri /api/health
@@ -93,8 +90,6 @@
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Forwarded-Proto {scheme}
-		# Remove WebSocket compression extension to prevent "Invalid frame header" errors
-		header_up -Sec-WebSocket-Extensions
 	}
 
 	# Encode responses, but skip WebSocket endpoints
