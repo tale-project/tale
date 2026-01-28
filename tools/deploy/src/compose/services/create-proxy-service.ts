@@ -7,7 +7,7 @@ export function createProxyService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-proxy:${config.version}`,
-    container_name: "tale-proxy",
+    container_name: `${config.projectName}-proxy`,
     ports: ["80:80", "443:443"],
     volumes: ["caddy-data:/data", "caddy-config:/config"],
     env_file: [".env"],

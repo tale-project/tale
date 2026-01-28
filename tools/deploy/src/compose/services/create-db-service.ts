@@ -4,7 +4,7 @@ import { DEFAULT_LOGGING } from "../types";
 export function createDbService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-db:${config.version}`,
-    container_name: "tale-db",
+    container_name: `${config.projectName}-db`,
     volumes: [
       "db-data:/var/lib/postgresql/data",
       "db-backup:/var/lib/postgresql/backup",

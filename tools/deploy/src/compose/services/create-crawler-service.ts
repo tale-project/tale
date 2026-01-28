@@ -7,7 +7,7 @@ export function createCrawlerService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-crawler:${config.version}`,
-    container_name: `tale-crawler-${color}`,
+    container_name: `${config.projectName}-crawler-${color}`,
     env_file: [".env"],
     restart: "unless-stopped",
     healthcheck: {
@@ -20,7 +20,7 @@ export function createCrawlerService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`crawler-${color}`, "crawler"],
+        aliases: [`crawler-${color}`],
       },
     },
   };

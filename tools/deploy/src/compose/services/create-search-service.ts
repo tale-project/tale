@@ -7,7 +7,7 @@ export function createSearchService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-search:${config.version}`,
-    container_name: `tale-search-${color}`,
+    container_name: `${config.projectName}-search-${color}`,
     env_file: [".env"],
     restart: "unless-stopped",
     healthcheck: {
@@ -28,7 +28,7 @@ export function createSearchService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`search-${color}`, "search"],
+        aliases: [`search-${color}`],
       },
     },
   };
