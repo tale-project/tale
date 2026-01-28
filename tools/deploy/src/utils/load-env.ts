@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as logger from "./logger";
 
 export interface DeploymentEnv {
@@ -40,7 +41,7 @@ function parseEnvFile(filePath: string): void {
 }
 
 export function loadEnv(deployDir: string): DeploymentEnv {
-  const envPath = `${deployDir}/.env`;
+  const envPath = join(deployDir, ".env");
 
   if (existsSync(envPath)) {
     parseEnvFile(envPath);
