@@ -84,8 +84,18 @@
 		reverse_proxy platform:3211
 	}
 
-	# HTTP: Convex Dashboard UI (/convex-dashboard/* -> platform:6791)
-	handle /convex-dashboard/* {
+	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
+	# Dashboard HTML references these at root but they're served under /convex-dashboard/
+	@convexDashboardAssets {
+		path /convex-logo-only.svg /convex-light.svg /apple-touch-icon.png
+	}
+	handle @convexDashboardAssets {
+		uri replace / /convex-dashboard/ 1
+		reverse_proxy platform:6791
+	}
+
+	# HTTP: Convex Dashboard UI (/convex-dashboard* -> platform:6791)
+	handle /convex-dashboard* {
 		reverse_proxy platform:6791
 	}
 
