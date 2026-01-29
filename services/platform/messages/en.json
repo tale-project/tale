@@ -161,7 +161,9 @@
       "forAssistance": "for assistance.",
       "tryAgain": "Try again",
       "organizationNotFound": "Organization ID not found",
-      "invalidOrganizationId": "Invalid organization ID"
+      "invalidOrganizationId": "Invalid organization ID",
+      "sessionExpired": "Session expired",
+      "pleaseLogInAgain": "Your session has expired. Please log in again to continue."
     },
     "keyboardShortcuts": {
       "ctrlEnter": "Ctrl+Enter",
