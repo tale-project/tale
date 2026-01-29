@@ -67,6 +67,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
     const prefix = dryRun ? "[DRY-RUN] " : "";
     logger.header(`${prefix}Deploying Tale ${version}`);
 
+    // Check if this is a first-time deployment
+    const currentColor = await getCurrentColor(env.DEPLOY_DIR);
+    const isFirstDeploy = currentColor === null;
+
     // Determine which services to deploy
     let rotatableToUpdate: RotatableService[];
     let statefulToUpdate: StatefulService[];
@@ -76,9 +80,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
       rotatableToUpdate = services.filter(isRotatableService);
       statefulToUpdate = services.filter(isStatefulService);
     } else {
-      // Default: all rotatable services, stateful only if --all
+      // Default: all rotatable services
+      // Stateful services: always on first deploy, otherwise only if --all
       rotatableToUpdate = [...ROTATABLE_SERVICES];
-      statefulToUpdate = updateStateful ? [...STATEFUL_SERVICES] : [];
+      const includeStateful = isFirstDeploy || updateStateful;
+      statefulToUpdate = includeStateful ? [...STATEFUL_SERVICES] : [];
+
+      if (isFirstDeploy) {
+        logger.notice("First deployment detected - including infrastructure services");
+      }
     }
 
     if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
@@ -165,7 +175,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
     if (rotatableToUpdate.length > 0) {
       if (inPlaceUpdate) {
         // In-place update: update services in current color without switching
-        const currentColor = await getCurrentColor(env.DEPLOY_DIR);
         if (!currentColor) {
           logger.error("No active deployment found");
           logger.info("Run a full deploy first (without --services)");
@@ -211,7 +220,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       } else {
         // Full blue-green deployment
-        const currentColor = await getCurrentColor(env.DEPLOY_DIR);
         const nextColor = getNextColor(currentColor);
 
         logger.info(`Current color: ${currentColor ?? "none"}`);
