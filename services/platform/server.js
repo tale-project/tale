@@ -15,6 +15,10 @@ function getEnvConfig() {
   return {
     SITE_URL: process.env.SITE_URL,
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_TRACES_SAMPLE_RATE: parseFloat(
+      process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
+    ),
   };
 }
 
@@ -26,7 +30,10 @@ app.get('/api/health', (_req, res) => {
 
 app.get('{*path}', (_req, res) => {
   if (!indexHtmlTemplate) {
-    indexHtmlTemplate = readFileSync(join(__dirname, 'dist', 'index.html'), 'utf-8');
+    indexHtmlTemplate = readFileSync(
+      join(__dirname, 'dist', 'index.html'),
+      'utf-8',
+    );
   }
 
   const envConfig = getEnvConfig();
