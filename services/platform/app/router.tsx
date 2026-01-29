@@ -4,6 +4,7 @@ import { ConvexQueryClient } from '@convex-dev/react-query';
 import * as Sentry from '@sentry/tanstackstart-react';
 import { routeTree } from './routeTree.gen';
 import { getEnv } from '@/lib/env';
+import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/global-error-display';
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -34,6 +35,9 @@ export function createRouter() {
     },
     defaultPreload: 'intent',
     scrollRestoration: true,
+    defaultErrorComponent: ({ error, reset }) => (
+      <GlobalErrorDisplay error={error} reset={reset} />
+    ),
   });
 
   const sentryDsn = getEnv('SENTRY_DSN');
