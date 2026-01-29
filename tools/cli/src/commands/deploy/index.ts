@@ -5,6 +5,7 @@ import {
   isValidService,
 } from "../../lib/compose/types";
 import { ensureConfig } from "../../lib/config/ensure-config";
+import { ensureEnv } from "../../lib/config/ensure-env";
 import { getDefaultDeployDir } from "../../lib/config/get-default-deploy-dir";
 import { selectVersion } from "../../lib/registry/select-version";
 import { loadEnv } from "../../utils/load-env";
@@ -44,6 +45,10 @@ export function createDeployCommand(): Command {
     .action(async (versionArg: string | undefined, options) => {
       try {
         const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const envSetupSuccess = await ensureEnv({ deployDir });
+        if (!envSetupSuccess) {
+          process.exit(1);
+        }
         const env = loadEnv(deployDir);
 
         let version = versionArg?.replace(/^v/, "");
@@ -96,6 +101,10 @@ export function createDeployCommand(): Command {
     .action(async (options) => {
       try {
         const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const envSetupSuccess = await ensureEnv({ deployDir });
+        if (!envSetupSuccess) {
+          process.exit(1);
+        }
         const env = loadEnv(deployDir);
         await rollback({ env, version: options.version });
       } catch (err) {

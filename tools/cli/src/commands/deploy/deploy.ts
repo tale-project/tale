@@ -194,9 +194,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
             logger.info(`${prefix}Would update: ${env.PROJECT_NAME}-${service}-${currentColor}`);
           }
         } else {
+          const coloredServices = rotatableToUpdate.map((s) => `${s}-${currentColor}`);
           const deployResult = await dockerCompose(
             colorCompose,
-            ["up", "-d", ...rotatableToUpdate],
+            ["up", "-d", ...coloredServices],
             { projectName: `${env.PROJECT_NAME}-${currentColor}`, cwd: env.DEPLOY_DIR }
           );
 
@@ -254,9 +255,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
         } else {
+          const coloredServices = rotatableToUpdate.map((s) => `${s}-${nextColor}`);
           const deployResult = await dockerCompose(
             colorCompose,
-            ["up", "-d", ...rotatableToUpdate],
+            ["up", "-d", ...coloredServices],
             { projectName: `${env.PROJECT_NAME}-${nextColor}`, cwd: env.DEPLOY_DIR }
           );
 
