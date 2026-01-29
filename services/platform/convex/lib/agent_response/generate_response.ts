@@ -284,6 +284,64 @@ export async function generateAgentResponse(
         usage: generateResult.usage,
         finishReason: generateResult.finishReason,
       };
+
+      // If text is empty but we have tool results, retry without tools
+      // This handles cases where the LLM stopped after tool calls without generating text
+      // (e.g., DeepSeek returning finishReason: "stop" with tool calls)
+      if (!result.text && result.steps && result.steps.length > 0) {
+        debugLog('Empty text with tool results, retrying without tools', {
+          stepsCount: result.steps.length,
+          finishReason: result.finishReason,
+        });
+
+        // Rebuild context to include the just-saved tool results
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          taskDescription: undefined, // Already saved to thread
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          contextSummary: hookData?.contextSummary,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        debugLog('Rebuilt context for retry', {
+          estimatedTokens: retryContext.stats.totalTokens,
+          messageCount: retryContext.stats.messageCount,
+        });
+
+        // Create agent without tools for the retry
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retryResult = await retryAgent.generateText(
+          subAgentContext,
+          { threadId, userId },
+          {
+            system: retryContext.contextText,
+            prompt: 'Based on the conversation and tool results above, provide a summary response.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+            },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: [...(result.steps || []), ...retryResult.steps],
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+        };
+
+        debugLog('Retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
     }
 
     const durationMs = Date.now() - startTime;
@@ -547,6 +605,25 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   }
 
   return { toolCalls, subAgentUsage };
+}
+
+/**
+ * Merge usage stats from two LLM calls.
+ * Used when retrying with empty text.
+ */
+function mergeUsage(
+  usage1?: GenerateResponseResult['usage'],
+  usage2?: GenerateResponseResult['usage'],
+): GenerateResponseResult['usage'] {
+  if (!usage1) return usage2;
+  if (!usage2) return usage1;
+  return {
+    inputTokens: (usage1.inputTokens ?? 0) + (usage2.inputTokens ?? 0),
+    outputTokens: (usage1.outputTokens ?? 0) + (usage2.outputTokens ?? 0),
+    totalTokens: (usage1.totalTokens ?? 0) + (usage2.totalTokens ?? 0),
+    reasoningTokens: (usage1.reasoningTokens ?? 0) + (usage2.reasoningTokens ?? 0),
+    cachedInputTokens: (usage1.cachedInputTokens ?? 0) + (usage2.cachedInputTokens ?? 0),
+  };
 }
 
 function capitalize(str: string): string {
