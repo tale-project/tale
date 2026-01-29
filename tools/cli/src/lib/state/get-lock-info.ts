@@ -7,13 +7,17 @@ export interface LockInfo {
 }
 
 function isLockInfo(value: unknown): value is LockInfo {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as LockInfo).pid === "number" &&
-    typeof (value as LockInfo).startedAt === "string" &&
-    typeof (value as LockInfo).command === "string"
-  );
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    typeof (value as LockInfo).pid !== "number" ||
+    typeof (value as LockInfo).startedAt !== "string" ||
+    typeof (value as LockInfo).command !== "string"
+  ) {
+    return false;
+  }
+  const pid = (value as LockInfo).pid;
+  return Number.isInteger(pid) && pid > 0;
 }
 
 export async function getLockInfo(deployDir: string): Promise<LockInfo | null> {

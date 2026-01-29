@@ -1,13 +1,12 @@
 #!/usr/bin/env bun
 import { program } from "commander";
 import { createDeployCommand } from "./commands/deploy";
-
-const VERSION = "1.0.0";
+import pkg from "../package.json";
 
 program
   .name("tale")
   .description("Tale CLI - deployment and management tools")
-  .version(VERSION);
+  .version(pkg.version);
 
 program.addCommand(createDeployCommand());
 

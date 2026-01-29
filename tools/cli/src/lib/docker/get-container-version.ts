@@ -10,8 +10,11 @@ export async function getContainerVersion(
     containerName
   );
 
+  if (!result.success) {
+    return null;
+  }
   const version = result.stdout.trim();
-  if (!result.success || !version || version === "<no value>") {
+  if (!version || version === "<no value>") {
     return null;
   }
 

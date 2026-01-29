@@ -7,8 +7,7 @@ import { createSearchService } from "../services/create-search-service";
 
 export function generateColorCompose(
   config: ServiceConfig,
-  color: DeploymentColor,
-  projectName: string
+  color: DeploymentColor
 ): string {
   const compose: ComposeConfig = {
     services: {
@@ -20,21 +19,21 @@ export function generateColorCompose(
     volumes: {
       "platform-convex-data": {
         external: true,
-        name: `${projectName}_platform-convex-data`,
+        name: `${config.projectName}_platform-convex-data`,
       },
       "caddy-data": {
         external: true,
-        name: `${projectName}_caddy-data`,
+        name: `${config.projectName}_caddy-data`,
       },
       "rag-data": {
         external: true,
-        name: `${projectName}_rag-data`,
+        name: `${config.projectName}_rag-data`,
       },
     },
     networks: {
       internal: {
         external: true,
-        name: `${projectName}_internal`,
+        name: `${config.projectName}_internal`,
       },
     },
   };

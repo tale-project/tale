@@ -1,3 +1,4 @@
+import { unlink, writeFile } from "node:fs/promises";
 import * as logger from "../../utils/logger";
 import { getLockFilePath } from "./get-lock-file-path";
 import { type LockInfo, getLockInfo } from "./get-lock-info";
@@ -30,6 +31,11 @@ export async function acquireLock(
       return false;
     }
     logger.warn(`Removing stale lock from PID ${existingLock.pid}`);
+    try {
+      await unlink(lockPath);
+    } catch {
+      // Ignore if file doesn't exist
+    }
   }
 
   const lockInfo: LockInfo = {
@@ -38,7 +44,15 @@ export async function acquireLock(
     command,
   };
 
-  await Bun.write(lockPath, JSON.stringify(lockInfo, null, 2));
-  logger.debug(`Acquired deployment lock (PID: ${process.pid})`);
-  return true;
+  try {
+    await writeFile(lockPath, JSON.stringify(lockInfo, null, 2), { flag: "wx" });
+    logger.debug(`Acquired deployment lock (PID: ${process.pid})`);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+      logger.error("Deployment already in progress (lock file already exists)");
+      return false;
+    }
+    throw err;
+  }
 }
