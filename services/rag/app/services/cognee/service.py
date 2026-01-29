@@ -1519,6 +1519,7 @@ class CogneeService:
             dict with jobs_deleted count
         """
         from ..job_store_db import clear_all_jobs, close_pool, init_job_store
+        from .tenant_manager import ensure_cognee_user_tables
 
         try:
             logger.info("Starting knowledge base reset...")
@@ -1538,7 +1539,11 @@ class CogneeService:
             await init_job_store()
             logger.info("Re-initialized job store")
 
-            # Step 5: Direct cleanup of graph database
+            # Step 5: Re-initialize Cognee user/tenant tables (principals, users, etc.)
+            await ensure_cognee_user_tables()
+            logger.info("Re-initialized Cognee user tables")
+
+            # Step 6: Direct cleanup of graph database
             await self._cleanup_graph_database()
 
             # Reset initialized state so service re-initializes on next use
