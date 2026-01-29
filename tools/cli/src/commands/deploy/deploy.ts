@@ -25,6 +25,32 @@ import { withLock } from "../../lib/state/with-lock";
 import type { DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
+const REQUIRED_VOLUMES = ["platform-convex-data", "caddy-data", "rag-data"];
+
+async function ensureInfrastructure(
+  projectName: string,
+  prefix: string,
+  dryRun: boolean
+): Promise<void> {
+  logger.step(`${prefix}Ensuring volumes and network exist...`);
+  if (dryRun) {
+    for (const vol of REQUIRED_VOLUMES) {
+      logger.info(`${prefix}Would ensure volume: ${projectName}_${vol}`);
+    }
+    logger.info(`${prefix}Would ensure network: ${projectName}_internal`);
+    return;
+  }
+
+  const volumesCreated = await ensureVolumes(projectName, REQUIRED_VOLUMES);
+  if (!volumesCreated) {
+    throw new Error("Failed to create required volumes");
+  }
+  const networkCreated = await ensureNetwork(projectName, "internal");
+  if (!networkCreated) {
+    throw new Error("Failed to create required network");
+  }
+}
+
 interface DeployOptions {
   version: string;
   updateStateful: boolean;
@@ -148,19 +174,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         logger.info(`Updating in current color: ${currentColor}`);
 
-        // Ensure required volumes and network exist
-        logger.step(`${prefix}Ensuring volumes and network exist...`);
-        const requiredVolumes = ["platform-convex-data", "caddy-data", "rag-data"];
-        if (!dryRun) {
-          const volumesCreated = await ensureVolumes(env.PROJECT_NAME, requiredVolumes);
-          if (!volumesCreated) {
-            throw new Error("Failed to create required volumes");
-          }
-          const networkCreated = await ensureNetwork(env.PROJECT_NAME, "internal");
-          if (!networkCreated) {
-            throw new Error("Failed to create required network");
-          }
-        }
+        await ensureInfrastructure(env.PROJECT_NAME, prefix, dryRun);
 
         // Update services in current color
         logger.step(`${prefix}Updating ${currentColor} services...`);
@@ -218,24 +232,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           }
         }
 
-        // Ensure required volumes and network exist
-        logger.step(`${prefix}Ensuring volumes and network exist...`);
-        const requiredVolumes = ["platform-convex-data", "caddy-data", "rag-data"];
-        if (dryRun) {
-          for (const vol of requiredVolumes) {
-            logger.info(`${prefix}Would ensure volume: ${env.PROJECT_NAME}_${vol}`);
-          }
-          logger.info(`${prefix}Would ensure network: ${env.PROJECT_NAME}_internal`);
-        } else {
-          const volumesCreated = await ensureVolumes(env.PROJECT_NAME, requiredVolumes);
-          if (!volumesCreated) {
-            throw new Error("Failed to create required volumes");
-          }
-          const networkCreated = await ensureNetwork(env.PROJECT_NAME, "internal");
-          if (!networkCreated) {
-            throw new Error("Failed to create required network");
-          }
-        }
+        await ensureInfrastructure(env.PROJECT_NAME, prefix, dryRun);
 
         // Deploy new color
         logger.step(`${prefix}Deploying ${nextColor} services...`);
@@ -290,12 +287,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
             logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);
             await Bun.sleep(env.DRAIN_TIMEOUT * 1000);
 
-            // Stop and remove old color containers
+            // Stop and remove old color containers (non-fatal - traffic already switched)
             logger.step(`Stopping ${currentColor} services...`);
             for (const service of rotatableToUpdate) {
               const containerName = `${env.PROJECT_NAME}-${service}-${currentColor}`;
-              await stopContainer(containerName);
-              await removeContainer(containerName);
+              const stopped = await stopContainer(containerName);
+              if (!stopped) {
+                logger.warn(`Failed to stop ${containerName}, continuing...`);
+              }
+              const removed = await removeContainer(containerName);
+              if (!removed) {
+                logger.warn(`Failed to remove ${containerName}, continuing...`);
+              }
             }
           }
         }
