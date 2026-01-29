@@ -474,12 +474,11 @@ async def reset_knowledge_base():
     knowledge graph data, and job history. Use with caution.
     """
     try:
-        await cognee_service.reset()
-        jobs_deleted = await job_store.clear_all_jobs()
+        result = await cognee_service.reset()
         return {
             "success": True,
             "message": "Knowledge base reset successfully. All data has been deleted.",
-            "jobs_deleted": jobs_deleted,
+            "jobs_deleted": result.get("jobs_deleted", 0),
         }
     except Exception as e:
         logger.error(f"Failed to reset knowledge base: {e}")

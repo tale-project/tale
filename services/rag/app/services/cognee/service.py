@@ -1504,7 +1504,7 @@ class CogneeService:
             logger.error(f"Failed to delete document: {e}")
             raise
 
-    async def reset(self) -> None:
+    async def reset(self) -> dict:
         """Reset the knowledge base (delete all data).
 
         This clears all documents, embeddings, knowledge graph data, and system metadata.
@@ -1514,21 +1514,39 @@ class CogneeService:
         dropped and recreated to ensure a clean slate. This is safe because:
         - tale_rag is isolated from other services (Convex uses tale_platform)
         - The database name is hardcoded to prevent accidental deletion of wrong database
+
+        Returns:
+            dict with jobs_deleted count
         """
+        from ..job_store_db import clear_all_jobs, close_pool, init_job_store
+
         try:
             logger.info("Starting knowledge base reset...")
 
-            # Step 1: Drop and recreate the dedicated RAG database
-            # This is the most reliable way to ensure a clean slate
+            # Step 1: Clear jobs BEFORE dropping database (while connections still work)
+            jobs_deleted = await clear_all_jobs()
+            logger.info(f"Cleared {jobs_deleted} job records")
+
+            # Step 2: Close the job store connection pool (dispose stale connections)
+            await close_pool()
+            logger.info("Closed job store connection pool")
+
+            # Step 3: Drop and recreate the dedicated RAG database
             await self._reset_rag_database()
 
-            # Step 2: Direct cleanup of graph database
+            # Step 4: Re-initialize job store (creates new pool + rag_jobs table)
+            await init_job_store()
+            logger.info("Re-initialized job store")
+
+            # Step 5: Direct cleanup of graph database
             await self._cleanup_graph_database()
 
             # Reset initialized state so service re-initializes on next use
             self.initialized = False
 
             logger.info("Knowledge base reset successfully")
+
+            return {"jobs_deleted": jobs_deleted}
 
         except Exception as e:
             logger.error(f"Failed to reset knowledge base: {e}")
