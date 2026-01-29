@@ -178,11 +178,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         // Update services in current color
         logger.step(`${prefix}Updating ${currentColor} services...`);
-        const colorCompose = generateColorCompose(
-          serviceConfig,
-          currentColor,
-          env.PROJECT_NAME
-        );
+        const colorCompose = generateColorCompose(serviceConfig, currentColor);
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
@@ -236,11 +232,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         // Deploy new color
         logger.step(`${prefix}Deploying ${nextColor} services...`);
-        const colorCompose = generateColorCompose(
-          serviceConfig,
-          nextColor,
-          env.PROJECT_NAME
-        );
+        const colorCompose = generateColorCompose(serviceConfig, nextColor);
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {

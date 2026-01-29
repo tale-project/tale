@@ -1,12 +1,14 @@
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
+const isTTY = process.stdout.isTTY && !process.env.NO_COLOR;
 
-const RED = "\x1b[31m";
-const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
-const BLUE = "\x1b[34m";
-const CYAN = "\x1b[36m";
+const RESET = isTTY ? "\x1b[0m" : "";
+const BOLD = isTTY ? "\x1b[1m" : "";
+const DIM = isTTY ? "\x1b[2m" : "";
+
+const RED = isTTY ? "\x1b[31m" : "";
+const GREEN = isTTY ? "\x1b[32m" : "";
+const YELLOW = isTTY ? "\x1b[33m" : "";
+const BLUE = isTTY ? "\x1b[34m" : "";
+const CYAN = isTTY ? "\x1b[36m" : "";
 
 function timestamp() {
   return new Date().toISOString().substring(11, 19);

@@ -80,11 +80,7 @@ export async function rollback(options: RollbackOptions): Promise<void> {
 
     // Deploy rollback color
     logger.step(`Deploying ${rollbackColor} services with version ${rollbackVersion}...`);
-    const colorCompose = generateColorCompose(
-      serviceConfig,
-      rollbackColor,
-      env.PROJECT_NAME
-    );
+    const colorCompose = generateColorCompose(serviceConfig, rollbackColor);
 
     const deployResult = await dockerCompose(
       colorCompose,

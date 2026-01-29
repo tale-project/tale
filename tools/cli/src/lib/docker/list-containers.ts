@@ -17,7 +17,7 @@ export async function listContainers(
     .split("\n")
     .filter((line) => line.trim())
     .map((line) => {
-      const [name, status, image] = line.split("\t");
+      const [name, status, image] = line.split("\t").map((s) => s.trim());
       return { name, status, image };
     });
 }
