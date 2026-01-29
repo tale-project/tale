@@ -1,5 +1,5 @@
-import { generateColorCompose } from "../compose/generators/generate-color-compose";
-import { generateStatefulCompose } from "../compose/generators/generate-stateful-compose";
+import { generateColorCompose } from "../../lib/compose/generators/generate-color-compose";
+import { generateStatefulCompose } from "../../lib/compose/generators/generate-stateful-compose";
 import {
   type RotatableService,
   type ServiceName,
@@ -8,22 +8,22 @@ import {
   STATEFUL_SERVICES,
   isRotatableService,
   isStatefulService,
-} from "../compose/types";
-import { dockerCompose } from "../docker/docker-compose";
-import { ensureNetwork } from "../docker/ensure-network";
-import { ensureVolumes } from "../docker/ensure-volumes";
-import { getContainerVersion } from "../docker/get-container-version";
-import { pullImage } from "../docker/pull-image";
-import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
-import { waitForHealthy } from "../docker/wait-for-healthy";
-import { getCurrentColor } from "../state/get-current-color";
-import { getNextColor } from "../state/get-next-color";
-import { setCurrentColor } from "../state/set-current-color";
-import { setPreviousVersion } from "../state/set-previous-version";
-import { withLock } from "../state/with-lock";
-import type { DeploymentEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
+} from "../../lib/compose/types";
+import { dockerCompose } from "../../lib/docker/docker-compose";
+import { ensureNetwork } from "../../lib/docker/ensure-network";
+import { ensureVolumes } from "../../lib/docker/ensure-volumes";
+import { getContainerVersion } from "../../lib/docker/get-container-version";
+import { pullImage } from "../../lib/docker/pull-image";
+import { removeContainer } from "../../lib/docker/remove-container";
+import { stopContainer } from "../../lib/docker/stop-container";
+import { waitForHealthy } from "../../lib/docker/wait-for-healthy";
+import { getCurrentColor } from "../../lib/state/get-current-color";
+import { getNextColor } from "../../lib/state/get-next-color";
+import { setCurrentColor } from "../../lib/state/set-current-color";
+import { setPreviousVersion } from "../../lib/state/set-previous-version";
+import { withLock } from "../../lib/state/with-lock";
+import type { DeploymentEnv } from "../../utils/load-env";
+import * as logger from "../../utils/logger";
 
 interface DeployOptions {
   version: string;

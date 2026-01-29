@@ -2,14 +2,14 @@ import {
   type DeploymentColor,
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
-} from "../compose/types";
-import { getContainerHealth } from "../docker/get-container-health";
-import { getContainerVersion } from "../docker/get-container-version";
-import { isContainerRunning } from "../docker/is-container-running";
-import { listContainers } from "../docker/list-containers";
-import { getDeploymentState } from "../state/get-deployment-state";
-import { getLockInfo } from "../state/get-lock-info";
-import * as logger from "../utils/logger";
+} from "../../lib/compose/types";
+import { getContainerHealth } from "../../lib/docker/get-container-health";
+import { getContainerVersion } from "../../lib/docker/get-container-version";
+import { isContainerRunning } from "../../lib/docker/is-container-running";
+import { listContainers } from "../../lib/docker/list-containers";
+import { getDeploymentState } from "../../lib/state/get-deployment-state";
+import { getLockInfo } from "../../lib/state/get-lock-info";
+import * as logger from "../../utils/logger";
 
 type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped";
 

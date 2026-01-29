@@ -10,7 +10,8 @@
     "services/graph-db",
     "services/db",
     "services/proxy",
-    "services/search"
+    "services/search",
+    "tools/cli"
   ],
   "scripts": {
     "dev": "turbo run dev",

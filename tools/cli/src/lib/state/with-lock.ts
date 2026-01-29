@@ -1,4 +1,4 @@
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 import { acquireLock } from "./acquire-lock";
 import { releaseLock } from "./release-lock";
 

@@ -1,5 +1,5 @@
 import { docker } from "./docker";
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 
 export async function pullImage(image: string): Promise<boolean> {
   logger.info(`Pulling image: ${image}`);

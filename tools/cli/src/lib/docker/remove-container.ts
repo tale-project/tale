@@ -1,5 +1,5 @@
 import { docker } from "./docker";
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 
 export async function removeContainer(containerName: string): Promise<boolean> {
   logger.info(`Removing container: ${containerName}`);
