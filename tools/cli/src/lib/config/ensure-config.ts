@@ -1,6 +1,9 @@
+import { existsSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import * as logger from "../../utils/logger";
+import { ensureEnv } from "./ensure-env";
 import { getConfig } from "./get-config";
 import { getConfigFilePath } from "./get-config-file-path";
 import { setConfig } from "./set-config";
@@ -106,6 +109,11 @@ async function runFirstRunSetup(): Promise<string> {
       deployDir = recommendedDir;
   }
 
+  if (!existsSync(deployDir)) {
+    await mkdir(deployDir, { recursive: true });
+    logger.info(`Created deployment directory: ${deployDir}`);
+  }
+
   const config: GlobalConfig = {
     deployDir,
     configVersion: CURRENT_CONFIG_VERSION,
@@ -117,6 +125,12 @@ async function runFirstRunSetup(): Promise<string> {
   logger.success("Configuration saved!");
   logger.info(`Deployment directory: ${deployDir}`);
   logger.info(`Config file: ${getConfigFilePath()}`);
+
+  const envSetupSuccess = await ensureEnv({ deployDir });
+  if (!envSetupSuccess) {
+    process.exit(1);
+  }
+
   logger.blank();
 
   return deployDir;
