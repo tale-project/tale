@@ -3,6 +3,7 @@ import { type Plugin } from 'vite';
 interface EnvConfig {
   SITE_URL: string;
   MICROSOFT_AUTH_ENABLED: boolean;
+  SENTRY_DSN?: string;
 }
 
 function getEnvConfig(): EnvConfig {
@@ -12,6 +13,7 @@ function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
     MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
+    SENTRY_DSN: process.env.SENTRY_DSN,
   };
 }
 

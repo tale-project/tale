@@ -15,6 +15,7 @@ function getEnvConfig() {
   return {
     SITE_URL: process.env.SITE_URL,
     MICROSOFT_AUTH_ENABLED: !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID,
+    SENTRY_DSN: process.env.SENTRY_DSN,
   };
 }
 

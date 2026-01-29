@@ -1,6 +1,7 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { QueryClient } from '@tanstack/react-query';
 import { ConvexQueryClient } from '@convex-dev/react-query';
+import * as Sentry from '@sentry/tanstackstart-react';
 import { routeTree } from './routeTree.gen';
 import { getEnv } from '@/lib/env';
 
@@ -34,6 +35,17 @@ export function createRouter() {
     defaultPreload: 'intent',
     scrollRestoration: true,
   });
+
+  const sentryDsn = getEnv('SENTRY_DSN');
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+      tracesSampleRate: 1.0,
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+    });
+  }
 
   return router;
 }
