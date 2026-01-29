@@ -29,7 +29,12 @@ export const listThreadsQuery = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return [];
+    }
     if (!authUser) {
       return [];
     }
@@ -77,7 +82,17 @@ export const getThreadMessagesStreamingQuery = query({
     ),
   },
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: '',
+        streams: { value: null },
+      };
+    }
     if (!authUser) {
       return {
         page: [],
