@@ -3,6 +3,8 @@ import { type Plugin } from 'vite';
 interface EnvConfig {
   SITE_URL: string;
   MICROSOFT_AUTH_ENABLED: boolean;
+  POSTHOG_KEY?: string;
+  POSTHOG_HOST?: string;
 }
 
 function getEnvConfig(): EnvConfig {
@@ -12,6 +14,8 @@ function getEnvConfig(): EnvConfig {
   return {
     SITE_URL: process.env.SITE_URL,
     MICROSOFT_AUTH_ENABLED: process.env.MICROSOFT_AUTH_ENABLED === 'true',
+    POSTHOG_KEY: process.env.POSTHOG_KEY,
+    POSTHOG_HOST: process.env.POSTHOG_HOST,
   };
 }
 
