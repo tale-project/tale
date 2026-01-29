@@ -1,6 +1,7 @@
 import { generateColorCompose } from "../../lib/compose/generators/generate-color-compose";
 import { ROTATABLE_SERVICES } from "../../lib/compose/types";
 import { dockerCompose } from "../../lib/docker/docker-compose";
+import { getContainerVersion } from "../../lib/docker/get-container-version";
 import { pullImage } from "../../lib/docker/pull-image";
 import { removeContainer } from "../../lib/docker/remove-container";
 import { stopContainer } from "../../lib/docker/stop-container";
@@ -9,6 +10,7 @@ import { getCurrentColor } from "../../lib/state/get-current-color";
 import { getOppositeColor } from "../../lib/state/get-opposite-color";
 import { getPreviousVersion } from "../../lib/state/get-previous-version";
 import { setCurrentColor } from "../../lib/state/set-current-color";
+import { setPreviousVersion } from "../../lib/state/set-previous-version";
 import { withLock } from "../../lib/state/with-lock";
 import type { DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
@@ -48,7 +50,13 @@ export async function rollback(options: RollbackOptions): Promise<void> {
 
     const rollbackColor = getOppositeColor(currentColor);
 
+    // Get current version before rollback (for version history)
+    const currentVersion = await getContainerVersion(
+      `${env.PROJECT_NAME}-platform-${currentColor}`
+    );
+
     logger.info(`Current color: ${currentColor}`);
+    logger.info(`Current version: ${currentVersion ?? "unknown"}`);
     logger.info(`Rolling back to: ${rollbackColor} (version ${rollbackVersion})`);
 
     const serviceConfig = {
@@ -102,9 +110,13 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       }
     }
 
-    // Switch traffic
+    // Switch traffic and update version history
     logger.step(`Switching traffic to ${rollbackColor}...`);
     await setCurrentColor(env.DEPLOY_DIR, rollbackColor);
+    if (currentVersion) {
+      await setPreviousVersion(env.DEPLOY_DIR, currentVersion);
+      logger.info(`Version history updated: previous=${currentVersion}`);
+    }
 
     // Drain current color
     logger.step(`Draining ${currentColor} services (${env.DRAIN_TIMEOUT}s)...`);
