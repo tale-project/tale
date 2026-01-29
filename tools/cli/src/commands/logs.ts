@@ -3,7 +3,7 @@ import { ensureConfig } from "../lib/config/ensure-config";
 import { getDefaultDeployDir } from "../lib/config/get-default-deploy-dir";
 import { loadEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
-import { logs } from "./deploy/logs";
+import { logs } from "../lib/actions/logs";
 
 function getDirOptionDescription(): string {
   const defaultDir = getDefaultDeployDir();

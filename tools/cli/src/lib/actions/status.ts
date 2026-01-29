@@ -2,16 +2,17 @@ import {
   type DeploymentColor,
   ROTATABLE_SERVICES,
   STATEFUL_SERVICES,
-} from "../../lib/compose/types";
-import { getContainerHealth } from "../../lib/docker/get-container-health";
-import { getContainerVersion } from "../../lib/docker/get-container-version";
-import { isContainerRunning } from "../../lib/docker/is-container-running";
-import { listContainers } from "../../lib/docker/list-containers";
-import { getDeploymentState } from "../../lib/state/get-deployment-state";
-import { getLockInfo } from "../../lib/state/get-lock-info";
+} from "../compose/types";
+import { containerExists } from "../docker/container-exists";
+import { getContainerHealth } from "../docker/get-container-health";
+import { getContainerVersion } from "../docker/get-container-version";
+import { isContainerRunning } from "../docker/is-container-running";
+import { listContainers } from "../docker/list-containers";
+import { getDeploymentState } from "../state/get-deployment-state";
+import { getLockInfo } from "../state/get-lock-info";
 import * as logger from "../../utils/logger";
 
-type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped";
+type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped" | "not deployed";
 
 const STATUS_COLORS: Record<ServiceStatus, string> = {
   healthy: "\x1b[32m",
@@ -19,12 +20,17 @@ const STATUS_COLORS: Record<ServiceStatus, string> = {
   starting: "\x1b[33m",
   unhealthy: "\x1b[31m",
   stopped: "\x1b[31m",
+  "not deployed": "\x1b[90m",
 };
 
 function getServiceStatus(
+  exists: boolean,
   running: boolean,
   health: "healthy" | "unhealthy" | "starting" | "none"
 ): ServiceStatus {
+  if (!exists) {
+    return "not deployed";
+  }
   if (!running) {
     return "stopped";
   }
@@ -46,12 +52,13 @@ interface StatusOptions {
 }
 
 async function getContainerStatus(containerName: string) {
-  const [running, health, version] = await Promise.all([
+  const [exists, running, health, version] = await Promise.all([
+    containerExists(containerName),
     isContainerRunning(containerName),
     getContainerHealth(containerName),
     getContainerVersion(containerName),
   ]);
-  return { running, health, version };
+  return { exists, running, health, version };
 }
 
 export async function status(options: StatusOptions): Promise<void> {
@@ -85,8 +92,8 @@ export async function status(options: StatusOptions): Promise<void> {
       return { service, ...info };
     })
   );
-  for (const { service, running, health, version } of statefulResults) {
-    const serviceStatus = getServiceStatus(running, health);
+  for (const { service, exists, running, health, version } of statefulResults) {
+    const serviceStatus = getServiceStatus(exists, running, health);
     const versionStr = version ? ` (${version})` : "";
     console.log(
       `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`
@@ -109,10 +116,10 @@ export async function status(options: StatusOptions): Promise<void> {
     );
 
     let hasServices = false;
-    for (const { service, running, health, version } of rotatableResults) {
-      if (running) {
+    for (const { service, exists, running, health, version } of rotatableResults) {
+      if (exists) {
         hasServices = true;
-        const serviceStatus = getServiceStatus(running, health);
+        const serviceStatus = getServiceStatus(exists, running, health);
         const versionStr = version ? ` (${version})` : "";
         console.log(
           `  ${service.padEnd(12)} ${STATUS_COLORS[serviceStatus]}${serviceStatus}\x1b[0m${versionStr}`

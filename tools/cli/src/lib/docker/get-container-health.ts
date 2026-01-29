@@ -4,6 +4,7 @@ export async function getContainerHealth(
   containerName: string
 ): Promise<"healthy" | "unhealthy" | "starting" | "none"> {
   const result = await docker(
+    "container",
     "inspect",
     "--format",
     "{{.State.Health.Status}}",

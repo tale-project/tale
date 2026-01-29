@@ -10,12 +10,7 @@ import { getDefaultDeployDir } from "../../lib/config/get-default-deploy-dir";
 import { selectVersion } from "../../lib/registry/select-version";
 import { loadEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
-import { cleanup } from "./cleanup";
-import { deploy } from "./deploy";
-import { logs } from "./logs";
-import { reset } from "./reset";
-import { rollback } from "./rollback";
-import { status } from "./status";
+import { deploy } from "../../lib/actions/deploy";
 
 const DEFAULT_HOST_ALIAS = process.env.HOST ?? "tale.local";
 
@@ -27,8 +22,8 @@ function getDirOptionDescription(): string {
 }
 
 export function createDeployCommand(): Command {
-  const deployCmd = new Command("deploy")
-    .description("Deployment management commands")
+  return new Command("deploy")
+    .description("Deploy a version to the environment")
     .argument("[version]", "Version to deploy (e.g., v1.0.0 or 1.0.0)")
     .option(
       "-a, --all",
@@ -89,143 +84,4 @@ export function createDeployCommand(): Command {
         process.exit(1);
       }
     });
-
-  deployCmd
-    .command("rollback")
-    .description("Rollback to the previous version or a specific version")
-    .option(
-      "-v, --version <version>",
-      "Specific version to rollback to (e.g., v1.0.0)"
-    )
-    .option("-d, --dir <path>", getDirOptionDescription())
-    .action(async (options) => {
-      try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
-        const envSetupSuccess = await ensureEnv({ deployDir });
-        if (!envSetupSuccess) {
-          process.exit(1);
-        }
-        const env = loadEnv(deployDir);
-        await rollback({ env, version: options.version });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  deployCmd
-    .command("status")
-    .description("Show current deployment status")
-    .option("-d, --dir <path>", getDirOptionDescription())
-    .action(async (options) => {
-      try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
-        const env = loadEnv(deployDir);
-        await status({
-          deployDir: env.DEPLOY_DIR,
-          projectName: env.PROJECT_NAME,
-        });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  deployCmd
-    .command("cleanup")
-    .description("Remove inactive (non-current) color containers")
-    .option("-d, --dir <path>", getDirOptionDescription())
-    .action(async (options) => {
-      try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
-        const env = loadEnv(deployDir);
-        await cleanup({ env });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  deployCmd
-    .command("reset")
-    .description("Remove ALL blue-green containers (requires --force)")
-    .option("--force", "Confirm reset", false)
-    .option(
-      "-a, --all",
-      "Also remove infrastructure (db, graph-db, proxy)",
-      false
-    )
-    .option("--dry-run", "Preview reset without making changes", false)
-    .option("-d, --dir <path>", getDirOptionDescription())
-    .action(async (options) => {
-      try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
-        const env = loadEnv(deployDir);
-        await reset({
-          env,
-          force: options.force,
-          includeStateful: options.all,
-          dryRun: options.dryRun,
-        });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  deployCmd
-    .command("logs")
-    .description("View logs from a service")
-    .argument(
-      "<service>",
-      "Service name (platform, rag, crawler, search, db, graph-db, proxy)"
-    )
-    .option("-c, --color <color>", "Deployment color (blue or green)")
-    .option("-f, --follow", "Follow log output", false)
-    .option("--since <duration>", "Show logs since duration (e.g., 1h, 30m)")
-    .option("-n, --tail <lines>", "Number of lines to show from end")
-    .option("-d, --dir <path>", getDirOptionDescription())
-    .action(async (service: string, options) => {
-      try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
-        const env = loadEnv(deployDir);
-
-        if (
-          options.color &&
-          options.color !== "blue" &&
-          options.color !== "green"
-        ) {
-          logger.error(
-            `Invalid color: ${options.color}. Must be "blue" or "green".`
-          );
-          process.exit(1);
-        }
-
-        let tail: number | undefined;
-        if (options.tail) {
-          tail = parseInt(options.tail, 10);
-          if (Number.isNaN(tail) || tail < 0) {
-            logger.error(
-              `Invalid --tail value: ${options.tail}. Must be a non-negative number.`
-            );
-            process.exit(1);
-          }
-        }
-
-        await logs({
-          service,
-          color: options.color,
-          follow: options.follow,
-          since: options.since,
-          tail,
-          deployDir: env.DEPLOY_DIR,
-          projectName: env.PROJECT_NAME,
-        });
-      } catch (err) {
-        logger.error(err instanceof Error ? err.message : String(err));
-        process.exit(1);
-      }
-    });
-
-  return deployCmd;
 }

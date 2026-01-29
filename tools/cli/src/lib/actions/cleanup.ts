@@ -1,10 +1,10 @@
-import { ROTATABLE_SERVICES } from "../../lib/compose/types";
-import { containerExists } from "../../lib/docker/container-exists";
-import { removeContainer } from "../../lib/docker/remove-container";
-import { stopContainer } from "../../lib/docker/stop-container";
-import { getCurrentColor } from "../../lib/state/get-current-color";
-import { getOppositeColor } from "../../lib/state/get-opposite-color";
-import { withLock } from "../../lib/state/with-lock";
+import { ROTATABLE_SERVICES } from "../compose/types";
+import { containerExists } from "../docker/container-exists";
+import { removeContainer } from "../docker/remove-container";
+import { stopContainer } from "../docker/stop-container";
+import { getCurrentColor } from "../state/get-current-color";
+import { getOppositeColor } from "../state/get-opposite-color";
+import { withLock } from "../state/with-lock";
 import type { DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 

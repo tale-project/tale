@@ -1,10 +1,11 @@
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../../lib/compose/types";
-import type { DeploymentColor } from "../../lib/compose/types";
-import { docker } from "../../lib/docker/docker";
-import { removeContainer } from "../../lib/docker/remove-container";
-import { withLock } from "../../lib/state/with-lock";
+import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
+import type { DeploymentColor } from "../compose/types";
+import { docker } from "../docker/docker";
+import { removeContainer } from "../docker/remove-container";
+import { withLock } from "../state/with-lock";
+import { confirm } from "../../utils/confirm";
 import type { DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
@@ -18,13 +19,17 @@ interface ResetOptions {
 export async function reset(options: ResetOptions): Promise<void> {
   const { env, force, includeStateful, dryRun } = options;
 
+  logger.warn("This will remove ALL blue-green containers");
+  if (includeStateful) {
+    logger.warn("Including stateful services: db, graph-db, proxy");
+  }
+
   if (!force) {
-    logger.error("Reset requires --force flag to confirm");
-    logger.info("This will remove ALL blue-green containers");
-    if (includeStateful) {
-      logger.warn("--include-stateful will also remove db, graph-db, and proxy");
+    const confirmed = await confirm("Are you sure you want to reset?");
+    if (!confirmed) {
+      logger.info("Reset cancelled");
+      return;
     }
-    throw new Error("Reset requires --force confirmation");
   }
 
   await withLock(env.DEPLOY_DIR, "reset", async () => {
@@ -94,7 +99,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     }
     if (!includeStateful) {
       logger.info("Stateful services (db, graph-db, proxy) were preserved");
-      logger.info("Use --include-stateful to remove them as well");
+      logger.info("Use --all to remove them as well");
     }
   });
 }
