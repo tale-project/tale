@@ -1,5 +1,5 @@
 import type { HealthCheckOptions } from "./wait-for-healthy";
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 
 export async function checkHttpHealth(
   url: string,

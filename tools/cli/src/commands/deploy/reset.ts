@@ -1,12 +1,12 @@
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../compose/types";
-import type { DeploymentColor } from "../compose/types";
-import { docker } from "../docker/docker";
-import { removeContainer } from "../docker/remove-container";
-import { withLock } from "../state/with-lock";
-import type { DeploymentEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
+import { ROTATABLE_SERVICES, STATEFUL_SERVICES } from "../../lib/compose/types";
+import type { DeploymentColor } from "../../lib/compose/types";
+import { docker } from "../../lib/docker/docker";
+import { removeContainer } from "../../lib/docker/remove-container";
+import { withLock } from "../../lib/state/with-lock";
+import type { DeploymentEnv } from "../../utils/load-env";
+import * as logger from "../../utils/logger";
 
 interface ResetOptions {
   env: DeploymentEnv;

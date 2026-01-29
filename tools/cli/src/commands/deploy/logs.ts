@@ -1,8 +1,8 @@
-import type { DeploymentColor } from "../compose/types";
-import { isRotatableService, isValidService } from "../compose/types";
-import { isContainerRunning } from "../docker/is-container-running";
-import { getCurrentColor } from "../state/get-current-color";
-import * as logger from "../utils/logger";
+import type { DeploymentColor } from "../../lib/compose/types";
+import { isRotatableService, isValidService } from "../../lib/compose/types";
+import { isContainerRunning } from "../../lib/docker/is-container-running";
+import { getCurrentColor } from "../../lib/state/get-current-color";
+import * as logger from "../../utils/logger";
 
 interface LogsOptions {
   service: string;

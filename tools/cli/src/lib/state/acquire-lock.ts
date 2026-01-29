@@ -1,4 +1,4 @@
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 import { getLockFilePath } from "./get-lock-file-path";
 import { type LockInfo, getLockInfo } from "./get-lock-info";
 

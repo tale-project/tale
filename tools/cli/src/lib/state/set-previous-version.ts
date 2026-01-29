@@ -1,4 +1,4 @@
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 import { getPreviousVersionFilePath } from "./get-previous-version-file-path";
 
 export async function setPreviousVersion(

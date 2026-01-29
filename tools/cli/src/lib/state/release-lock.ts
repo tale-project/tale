@@ -1,5 +1,5 @@
 import { unlink } from "node:fs/promises";
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 import { getLockFilePath } from "./get-lock-file-path";
 import { getLockInfo } from "./get-lock-info";
 

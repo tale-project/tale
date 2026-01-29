@@ -1,5 +1,5 @@
 import { docker } from "./docker";
-import * as logger from "../utils/logger";
+import * as logger from "../../utils/logger";
 
 async function networkExists(networkName: string): Promise<boolean> {
   const result = await docker("network", "inspect", networkName);

@@ -1,17 +1,17 @@
-import { generateColorCompose } from "../compose/generators/generate-color-compose";
-import { ROTATABLE_SERVICES } from "../compose/types";
-import { dockerCompose } from "../docker/docker-compose";
-import { pullImage } from "../docker/pull-image";
-import { removeContainer } from "../docker/remove-container";
-import { stopContainer } from "../docker/stop-container";
-import { waitForHealthy } from "../docker/wait-for-healthy";
-import { getCurrentColor } from "../state/get-current-color";
-import { getOppositeColor } from "../state/get-opposite-color";
-import { getPreviousVersion } from "../state/get-previous-version";
-import { setCurrentColor } from "../state/set-current-color";
-import { withLock } from "../state/with-lock";
-import type { DeploymentEnv } from "../utils/load-env";
-import * as logger from "../utils/logger";
+import { generateColorCompose } from "../../lib/compose/generators/generate-color-compose";
+import { ROTATABLE_SERVICES } from "../../lib/compose/types";
+import { dockerCompose } from "../../lib/docker/docker-compose";
+import { pullImage } from "../../lib/docker/pull-image";
+import { removeContainer } from "../../lib/docker/remove-container";
+import { stopContainer } from "../../lib/docker/stop-container";
+import { waitForHealthy } from "../../lib/docker/wait-for-healthy";
+import { getCurrentColor } from "../../lib/state/get-current-color";
+import { getOppositeColor } from "../../lib/state/get-opposite-color";
+import { getPreviousVersion } from "../../lib/state/get-previous-version";
+import { setCurrentColor } from "../../lib/state/set-current-color";
+import { withLock } from "../../lib/state/with-lock";
+import type { DeploymentEnv } from "../../utils/load-env";
+import * as logger from "../../utils/logger";
 
 interface RollbackOptions {
   env: DeploymentEnv;
