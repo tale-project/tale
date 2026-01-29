@@ -6,7 +6,7 @@ async function networkExists(networkName: string): Promise<boolean> {
   return result.success;
 }
 
-async function createNetwork(networkName: string): Promise<boolean> {
+async function createNetwork(networkName: string, projectName: string): Promise<boolean> {
   const exists = await networkExists(networkName);
   if (exists) {
     logger.debug(`Network ${networkName} already exists`);
@@ -14,7 +14,13 @@ async function createNetwork(networkName: string): Promise<boolean> {
   }
 
   logger.info(`Creating network: ${networkName}`);
-  const result = await docker("network", "create", networkName);
+  const result = await docker(
+    "network",
+    "create",
+    "--label",
+    `project=${projectName}`,
+    networkName
+  );
   if (!result.success) {
     logger.error(`Failed to create network: ${networkName}`);
   }
@@ -26,5 +32,5 @@ export async function ensureNetwork(
   networkName: string
 ): Promise<boolean> {
   const fullName = `${projectName}_${networkName}`;
-  return createNetwork(fullName);
+  return createNetwork(fullName, projectName);
 }

@@ -1,6 +1,6 @@
 import type { DeploymentColor } from "../../lib/compose/types";
-import { isRotatableService, isValidService } from "../../lib/compose/types";
-import { isContainerRunning } from "../../lib/docker/is-container-running";
+import { ALL_SERVICES, isRotatableService, isValidService } from "../../lib/compose/types";
+import { containerExists } from "../../lib/docker/container-exists";
 import { getCurrentColor } from "../../lib/state/get-current-color";
 import * as logger from "../../utils/logger";
 
@@ -21,7 +21,7 @@ export async function logs(options: LogsOptions): Promise<void> {
   // Validate service name
   if (!isValidService(service)) {
     logger.error(`Invalid service: ${service}`);
-    logger.info(`Available services: platform, rag, crawler, search, db, graph-db, proxy`);
+    logger.info(`Available services: ${ALL_SERVICES.join(", ")}`);
     throw new Error("Invalid service name");
   }
 
@@ -57,11 +57,11 @@ export async function logs(options: LogsOptions): Promise<void> {
     containerName = `${projectName}-${service}`;
   }
 
-  // Check if container is running
-  const running = await isContainerRunning(containerName);
-  if (!running) {
-    logger.error(`Container ${containerName} is not running`);
-    throw new Error("Container not running");
+  // Check if container exists (docker logs works for both running and stopped containers)
+  const exists = await containerExists(containerName);
+  if (!exists) {
+    logger.error(`Container ${containerName} does not exist`);
+    throw new Error("Container not found");
   }
 
   // Build docker logs command

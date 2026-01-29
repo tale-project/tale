@@ -144,8 +144,8 @@ export function createDeployCommand(): Command {
         let tail: number | undefined;
         if (options.tail) {
           tail = parseInt(options.tail, 10);
-          if (Number.isNaN(tail)) {
-            logger.error(`Invalid --tail value: ${options.tail}. Must be a number.`);
+          if (Number.isNaN(tail) || tail < 0) {
+            logger.error(`Invalid --tail value: ${options.tail}. Must be a non-negative number.`);
             process.exit(1);
           }
         }

@@ -79,12 +79,12 @@ export async function reset(options: ResetOptions): Promise<void> {
       }
     }
 
-    // Prune unused networks and volumes (optional)
-    logger.step(`${prefix}Pruning unused Docker resources...`);
+    // Prune unused networks for this project only
+    logger.step(`${prefix}Pruning unused Docker networks...`);
     if (!dryRun) {
-      await docker("network", "prune", "-f");
+      await docker("network", "prune", "-f", "--filter", `label=project=${env.PROJECT_NAME}`);
     } else {
-      logger.info(`${prefix}Would prune unused Docker networks`);
+      logger.info(`${prefix}Would prune unused Docker networks for project ${env.PROJECT_NAME}`);
     }
 
     if (dryRun) {
