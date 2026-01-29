@@ -40,6 +40,12 @@ export function step(message: string) {
   console.log(`${DIM}[${timestamp()}]${RESET} ${CYAN}STEP${RESET}  ${message}`);
 }
 
+export function notice(message: string) {
+  console.log(
+    `${DIM}[${timestamp()}]${RESET} ${YELLOW}${BOLD}NOTE${RESET}  ${YELLOW}${message}${RESET}`
+  );
+}
+
 export function debug(message: string) {
   if (process.env.DEBUG) {
     console.log(`${DIM}[${timestamp()}] DEBUG ${message}${RESET}`);

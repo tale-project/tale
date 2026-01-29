@@ -1,4 +1,4 @@
-import { unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import * as logger from "../../utils/logger";
 import { getLockFilePath } from "./get-lock-file-path";
 import { type LockInfo, getLockInfo } from "./get-lock-info";
@@ -45,6 +45,7 @@ export async function acquireLock(
   };
 
   try {
+    await mkdir(deployDir, { recursive: true });
     await writeFile(lockPath, JSON.stringify(lockInfo, null, 2), { flag: "wx" });
     logger.debug(`Acquired deployment lock (PID: ${process.pid})`);
     return true;
