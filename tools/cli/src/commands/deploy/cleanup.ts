@@ -1,5 +1,5 @@
 import { ROTATABLE_SERVICES } from "../../lib/compose/types";
-import { isContainerRunning } from "../../lib/docker/is-container-running";
+import { containerExists } from "../../lib/docker/container-exists";
 import { removeContainer } from "../../lib/docker/remove-container";
 import { stopContainer } from "../../lib/docker/stop-container";
 import { getCurrentColor } from "../../lib/state/get-current-color";
@@ -31,18 +31,16 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
     let cleaned = 0;
     for (const service of ROTATABLE_SERVICES) {
       const containerName = `${env.PROJECT_NAME}-${service}-${inactiveColor}`;
-      const running = await isContainerRunning(containerName);
+      const exists = await containerExists(containerName);
 
-      if (running) {
-        const stopped = await stopContainer(containerName);
-        if (!stopped) {
-          logger.warn(`Failed to stop ${containerName}`);
-        }
+      if (exists) {
+        await stopContainer(containerName);
         const removed = await removeContainer(containerName);
-        if (!removed) {
+        if (removed) {
+          cleaned++;
+        } else {
           logger.warn(`Failed to remove ${containerName}`);
         }
-        cleaned++;
       }
     }
 
