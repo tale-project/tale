@@ -85,10 +85,7 @@ class PdfService(BaseConverterService):
                 # Inject CSS into existing HTML robustly
                 html = self._inject_css(html, extra_css)
 
-            await page.set_content(html, wait_until="load")
-
-            # Wait for Twemoji to parse and render all emojis
-            await self._wait_for_twemoji(page)
+            await page.set_content(html, wait_until="domcontentloaded")
 
             pdf_bytes = await page.pdf(
                 format=format,

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Uses Noto fonts for multi-language support:
 # - Noto Sans: Latin (English, German, French, Spanish), Cyrillic (Russian)
 # - Noto Sans CJK: Chinese, Japanese, Korean
-# - Twemoji: Color emoji support via SVG images (loaded from CDN)
+# - Noto Color Emoji: Native emoji support (installed in Docker image)
 # - DejaVu Sans: Fallback with broad Unicode coverage
 DEFAULT_HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -27,8 +27,6 @@ DEFAULT_HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Twemoji for color emoji support in PDF -->
-    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <style>
         * {{ box-sizing: border-box; }}
         body {{
@@ -76,13 +74,6 @@ DEFAULT_HTML_TEMPLATE = """
         }}
         th {{ background: #f5f5f5; font-weight: 600; }}
         img {{ max-width: 100%; height: auto; }}
-        /* Twemoji emoji styling */
-        img.emoji {{
-            height: 1.2em;
-            width: 1.2em;
-            margin: 0 .05em 0 .1em;
-            vertical-align: -0.15em;
-        }}
         a {{ color: #0066cc; }}
         hr {{ border: none; border-top: 1px solid #eee; margin: 2em 0; }}
         ul, ol {{ padding-left: 2em; }}
@@ -92,25 +83,9 @@ DEFAULT_HTML_TEMPLATE = """
 </head>
 <body>
     {content}
-    <script>
-        // Parse emojis and replace with Twemoji images
-        if (typeof twemoji !== 'undefined') {{
-            twemoji.parse(document.body, {{
-                folder: 'svg',
-                ext: '.svg'
-            }});
-        }}
-    </script>
 </body>
 </html>
 """
-
-# JavaScript function to check if Twemoji has finished parsing
-TWEMOJI_WAIT_SCRIPT = (
-    "() => typeof twemoji === 'undefined' || "
-    "document.querySelectorAll('img.emoji').length > 0 || "
-    "!document.body.textContent.match(/[\\u{1F300}-\\u{1F9FF}]/u)"
-)
 
 
 class BaseConverterService:
@@ -169,12 +144,6 @@ class BaseConverterService:
     def _wrap_html(self, content: str, extra_head: str = "") -> str:
         """Wrap content in HTML template."""
         return DEFAULT_HTML_TEMPLATE.format(content=content, extra_head=extra_head)
-
-    async def _wait_for_twemoji(self, page: Page, timeout: int = 5000) -> None:
-        """Wait for Twemoji to parse and render all emojis."""
-        await page.wait_for_function(TWEMOJI_WAIT_SCRIPT, timeout=timeout)
-        # Small delay to ensure all emoji images are loaded
-        await asyncio.sleep(0.3)
 
     async def markdown_to_html(self, markdown: str) -> str:
         """Convert markdown to HTML using Python-Markdown."""
