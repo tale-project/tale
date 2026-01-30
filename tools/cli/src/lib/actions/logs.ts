@@ -91,7 +91,8 @@ export async function logs(options: LogsOptions): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  if (exitCode !== 0) {
+  // 130 = SIGINT (Ctrl+C), 143 = SIGTERM - expected when user stops following
+  if (exitCode !== 0 && exitCode !== 130 && exitCode !== 143) {
     throw new Error(`docker logs exited with code ${exitCode}`);
   }
 }
