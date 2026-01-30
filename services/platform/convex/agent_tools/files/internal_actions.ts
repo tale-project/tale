@@ -12,11 +12,11 @@ import { analyzeImage as analyzeImageHelper, type AnalyzeImageResult } from './h
 
 /**
  * Internal action for parsing files (PDF, DOCX, PPTX).
- * Wrapped for caching - same URL/filename should return same result.
+ * Wrapped for caching - same fileId/filename should return same result.
  */
 export const parseFileUncached = internalAction({
   args: {
-    url: v.string(),
+    fileId: v.string(),
     filename: v.string(),
     toolName: v.string(),
   },
@@ -37,8 +37,8 @@ export const parseFileUncached = internalAction({
     ),
     error: v.optional(v.string()),
   }),
-  handler: async (_ctx, args): Promise<ParseFileResult> => {
-    return await parseFileHelper(args.url, args.filename, args.toolName);
+  handler: async (ctx, args): Promise<ParseFileResult> => {
+    return await parseFileHelper(ctx, args.fileId, args.filename, args.toolName);
   },
 });
 
