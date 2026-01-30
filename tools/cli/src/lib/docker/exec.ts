@@ -10,9 +10,9 @@ export interface ExecResult {
 export async function exec(
   command: string,
   args: string[],
-  options: { cwd?: string; silent?: boolean } = {}
+  options: { cwd?: string; silent?: boolean; timeout?: number } = {}
 ): Promise<ExecResult> {
-  const { cwd, silent = false } = options;
+  const { cwd, silent = false, timeout } = options;
 
   if (!silent) {
     logger.debug(`Executing: ${command} ${args.join(" ")}`);
@@ -24,10 +24,22 @@ export async function exec(
     stderr: "pipe",
   });
 
+  const exitPromise = timeout
+    ? Promise.race([
+        proc.exited,
+        new Promise<number>((_, reject) =>
+          setTimeout(() => {
+            proc.kill();
+            reject(new Error(`Command timed out after ${timeout}s`));
+          }, timeout * 1000)
+        ),
+      ])
+    : proc.exited;
+
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
-    proc.exited,
+    exitPromise,
   ]);
 
   return {
