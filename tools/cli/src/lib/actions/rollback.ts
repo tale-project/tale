@@ -65,17 +65,14 @@ export async function rollback(options: RollbackOptions): Promise<void> {
       projectName: env.PROJECT_NAME,
     };
 
-    // Pull previous version images concurrently
+    // Pull previous version images sequentially for clearer progress and failure attribution
     logger.step("Pulling previous version images...");
-    const pullResults = await Promise.all(
-      ROTATABLE_SERVICES.map((service) => {
-        const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
-        return pullImage(image).then((success) => ({ image, success }));
-      })
-    );
-    const failedPull = pullResults.find((r) => !r.success);
-    if (failedPull) {
-      throw new Error(`Failed to pull image: ${failedPull.image}`);
+    for (const service of ROTATABLE_SERVICES) {
+      const image = `${env.GHCR_REGISTRY}/tale-${service}:${rollbackVersion}`;
+      const success = await pullImage(image);
+      if (!success) {
+        throw new Error(`Failed to pull image: ${image}`);
+      }
     }
 
     // Deploy rollback color
