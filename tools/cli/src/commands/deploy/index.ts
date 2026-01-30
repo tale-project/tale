@@ -12,8 +12,6 @@ import { loadEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 import { deploy } from "../../lib/actions/deploy";
 
-const DEFAULT_HOST_ALIAS = process.env.HOST ?? "tale.local";
-
 function getDirOptionDescription(): string {
   const defaultDir = getDefaultDeployDir();
   return defaultDir
@@ -36,7 +34,7 @@ export function createDeployCommand(): Command {
     )
     .option("--dry-run", "Preview deployment without making changes", false)
     .option("-d, --dir <path>", getDirOptionDescription())
-    .option("--host <hostname>", "Host alias for proxy", DEFAULT_HOST_ALIAS)
+    .option("--host <hostname>", "Host alias for proxy")
     .action(async (versionArg: string | undefined, options) => {
       try {
         const deployDir = await ensureConfig({ explicitDir: options.dir });
@@ -71,11 +69,12 @@ export function createDeployCommand(): Command {
           services = serviceList as ServiceName[];
         }
 
+        const hostAlias = options.host ?? process.env.HOST ?? "tale.local";
         await deploy({
           version,
           updateStateful: options.all,
           env,
-          hostAlias: options.host,
+          hostAlias,
           dryRun: options.dryRun,
           services,
         });
