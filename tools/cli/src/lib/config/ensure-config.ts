@@ -23,6 +23,10 @@ export async function ensureConfig(
   options: EnsureConfigOptions = {}
 ): Promise<string> {
   if (options.explicitDir) {
+    if (!existsSync(options.explicitDir)) {
+      await mkdir(options.explicitDir, { recursive: true });
+      logger.info(`Created deployment directory: ${options.explicitDir}`);
+    }
     return options.explicitDir;
   }
 
