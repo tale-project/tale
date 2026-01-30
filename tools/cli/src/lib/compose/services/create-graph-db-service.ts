@@ -13,6 +13,7 @@ export function createGraphDbService(config: ServiceConfig): ComposeService {
       interval: "10s",
       timeout: "5s",
       retries: 3,
+      start_period: "30s",
     },
     logging: DEFAULT_LOGGING,
     networks: ["internal"],
