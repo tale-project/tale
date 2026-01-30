@@ -155,3 +155,5 @@ Remove ALL blue-green containers.
 4. Switch traffic (update state file)
 5. Drain old color
 6. Remove old containers
+
+After successful deployment, the new version is live and the previous color's containers are cleaned up.
