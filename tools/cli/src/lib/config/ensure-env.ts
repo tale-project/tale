@@ -7,10 +7,10 @@ import * as logger from "../../utils/logger";
 
 function checkDbVolumeExists(projectName: string): boolean {
   try {
-    const result = execSync(
-      `docker volume inspect ${projectName}_db-data 2>/dev/null`,
-      { encoding: "utf-8" }
-    );
+    const result = execSync(`docker volume inspect ${projectName}_db-data`, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
     return result.includes(projectName);
   } catch {
     return false;
