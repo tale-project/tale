@@ -1,0 +1,113 @@
+name: Build Tale CLI
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to attach binary to (e.g., v1.0.0)'
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - 'tools/cli/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: tools/cli
+        run: bun install
+
+      - name: Type check
+        working-directory: tools/cli
+        run: bun run typecheck
+
+      - name: Build Linux binary
+        working-directory: tools/cli
+        run: |
+          bun run build:linux
+          mv dist/tale dist/tale-linux
+
+      - name: Build macOS binary
+        working-directory: tools/cli
+        run: |
+          bun run build:mac
+          mv dist/tale dist/tale-mac
+
+      - name: Build Windows binary
+        working-directory: tools/cli
+        run: |
+          bun run build:windows
+          mv dist/tale.exe dist/tale-windows.exe
+
+      - name: Verify Linux binary
+        working-directory: tools/cli/dist
+        run: |
+          chmod +x tale-linux
+          ./tale-linux --version
+          ./tale-linux --help
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-linux
+          path: tools/cli/dist/tale-linux
+          retention-days: 30
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-mac
+          path: tools/cli/dist/tale-mac
+          retention-days: 30
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tale-windows
+          path: tools/cli/dist/tale-windows.exe
+          retention-days: 30
+
+      - name: Upload to release
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.inputs.release_tag }} \
+            tools/cli/dist/tale-linux \
+            tools/cli/dist/tale-mac \
+            tools/cli/dist/tale-windows.exe \
+            --clobber
+
+      - name: Upload to latest release
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || echo "")
+          if [ -n "$LATEST_TAG" ]; then
+            echo "Uploading to release: $LATEST_TAG"
+            gh release upload "$LATEST_TAG" \
+              tools/cli/dist/tale-linux \
+              tools/cli/dist/tale-mac \
+              tools/cli/dist/tale-windows.exe \
+              --clobber || echo "Failed to upload to release, skipping"
+          else
+            echo "No releases found, skipping upload"
+          fi
