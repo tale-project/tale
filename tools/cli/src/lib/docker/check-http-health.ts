@@ -5,9 +5,10 @@ export async function checkHttpHealth(
   url: string,
   options: HealthCheckOptions
 ): Promise<boolean> {
-  const { timeout, interval = 2000 } = options;
+  const { timeout, interval = 2000, requestTimeoutMs } = options;
   const startTime = Date.now();
   const timeoutMs = timeout * 1000;
+  const effectiveRequestTimeout = requestTimeoutMs ?? Math.min(5000, timeoutMs);
 
   logger.info(`Checking HTTP health: ${url} (timeout: ${timeout}s)`);
 
@@ -15,7 +16,7 @@ export async function checkHttpHealth(
     try {
       const response = await fetch(url, {
         method: "GET",
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(effectiveRequestTimeout),
       });
 
       if (response.ok) {

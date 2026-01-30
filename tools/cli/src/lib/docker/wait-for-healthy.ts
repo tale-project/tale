@@ -5,6 +5,7 @@ import * as logger from "../../utils/logger";
 export interface HealthCheckOptions {
   timeout: number;
   interval?: number;
+  requestTimeoutMs?: number;
 }
 
 export async function waitForHealthy(
