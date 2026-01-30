@@ -46,8 +46,7 @@ async function promptForLogin(): Promise<boolean> {
   logger.info("When prompted for password, paste your Personal Access Token.");
   logger.blank();
 
-  const { confirm: confirmDone } = await import("@inquirer/prompts");
-  const done = await confirmDone({
+  const done = await confirm({
     message: "Press Enter after you have logged in...",
     default: true,
   });
@@ -63,7 +62,7 @@ function formatVersionChoice(version: VersionInfo): { name: string; value: strin
   // For "latest", use the semantic version alias if available
   let value = version.tag;
   if (version.tag === "latest") {
-    const semanticAlias = version.aliases.find((a) => /^\d+\.\d+\.\d+/.test(a));
+    const semanticAlias = version.aliases.find((a) => /^v?\d+\.\d+\.\d+/.test(a));
     if (semanticAlias) {
       value = semanticAlias;
     }
