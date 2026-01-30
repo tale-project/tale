@@ -2,7 +2,7 @@
 # LOCAL DEVELOPMENT ONLY
 # =============================================================================
 # This compose file is for LOCAL DEVELOPMENT only. It exposes ports that should
-# NEVER be exposed in production (5432, 6379, 8001-8003).
+# NEVER be exposed in production (5432, 6379-6380, 8001-8003).
 #
 # For PRODUCTION deployments, use the Tale CLI:
 #   tale deploy <version>
