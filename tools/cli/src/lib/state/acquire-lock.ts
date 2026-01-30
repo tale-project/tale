@@ -33,8 +33,8 @@ export async function acquireLock(
     logger.warn(`Removing stale lock from PID ${existingLock.pid}`);
     try {
       await unlink(lockPath);
-    } catch {
-      // Ignore if file doesn't exist
+    } catch (err) {
+      logger.debug(`Could not remove stale lock: ${err}`);
     }
   }
 
