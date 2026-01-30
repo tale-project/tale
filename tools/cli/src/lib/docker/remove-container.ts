@@ -6,7 +6,10 @@ export async function removeContainer(containerName: string): Promise<boolean> {
   const result = await docker("rm", "-f", containerName);
   if (!result.success) {
     const error = result.stderr?.trim();
-    if (error && !error.includes("No such container")) {
+    if (error?.includes("No such container")) {
+      return true;
+    }
+    if (error) {
       logger.warn(`Failed to remove ${containerName}: ${error}`);
     }
   }
