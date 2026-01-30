@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { ensureConfig } from "../lib/config/ensure-config";
+import { ensureEnv } from "../lib/config/ensure-env";
 import { getDefaultDeployDir } from "../lib/config/get-default-deploy-dir";
 import { loadEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
@@ -26,6 +27,10 @@ export function createResetCommand(): Command {
     .action(async (options) => {
       try {
         const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const envSetupSuccess = await ensureEnv({ deployDir });
+        if (!envSetupSuccess) {
+          process.exit(1);
+        }
         const env = loadEnv(deployDir);
         await reset({
           env,
