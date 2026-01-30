@@ -115,10 +115,12 @@ const docxArgs = z.object({
       "For 'generate': Content sections. Each section can be a heading, paragraph, bullets, numbered list, table, quote, or code block.",
     ),
   // For parse operation
-  url: z
+  fileId: z
     .string()
     .optional()
-    .describe("For 'parse': URL of the DOCX file to parse"),
+    .describe(
+      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+    ),
   filename: z
     .string()
     .optional()
@@ -145,14 +147,14 @@ OPERATIONS:
 3. parse - Extract text content from an existing DOCX file
    USE THIS when a user uploads a DOCX and you need to read its content.
    Parameters:
-   - url: URL of the DOCX file (from Convex storage or accessible HTTP URL)
+   - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
    - filename: Original filename (e.g., "document.docx")
    Returns: { success, full_text, paragraph_count, metadata }
 
 EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "report", "sections": [...] }
-• Parse: { "operation": "parse", "url": "https://storage.convex.cloud/...", "filename": "document.docx" }
+• Parse: { "operation": "parse", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "document.docx" }
 
 CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
 `,
@@ -222,14 +224,16 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
       // Handle parse operation
       if (operation === 'parse') {
-        if (!args.url) {
-          throw new Error("Missing required 'url' for parse operation");
+        if (!args.fileId) {
+          throw new Error(
+            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
+          );
         }
         if (!args.filename) {
           throw new Error("Missing required 'filename' for parse operation");
         }
 
-        const result = await parseFile(args.url, args.filename, 'docx');
+        const result = await parseFile(ctx, args.fileId, args.filename, 'docx');
         return { operation: 'parse', ...result };
       }
 

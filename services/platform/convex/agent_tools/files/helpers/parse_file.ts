@@ -1,12 +1,13 @@
 /**
  * Shared file parsing helper for PDF, DOCX, and PPTX tools.
- * Downloads a file from URL and sends it to the crawler service for text extraction.
+ * Gets file from Convex storage and sends it to the crawler service for text extraction.
+ * Uses ctx.storage.get() for direct Convex storage access (like image_tool and txt_tool).
  */
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from '../../crawler/helpers/get_crawler_service_url';
-import { parseFileCache } from '../../../lib/action_cache';
 import type { ActionCtx } from '../../../_generated/server';
+import type { Id } from '../../../_generated/dataModel';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
@@ -46,34 +47,40 @@ function getParseEndpoint(filename: string): string {
 }
 
 /**
- * Parse a file by downloading it from a URL and sending it to the crawler service.
- * @param url - URL of the file to download
+ * Parse a file by getting it from Convex storage and sending it to the crawler service.
+ * @param ctx - Action context for storage access
+ * @param fileId - Convex storage ID of the file
  * @param filename - Original filename with extension
  * @param toolName - Name of the calling tool (for logging)
  * @returns ParseFileResult with extracted text and metadata
  */
 export async function parseFile(
-  url: string,
+  ctx: ActionCtx,
+  fileId: string,
   filename: string,
   toolName: string,
 ): Promise<ParseFileResult> {
   debugLog(`tool:${toolName} parse start`, {
+    fileId,
     filename,
-    url: url.substring(0, 100) + '...',
   });
 
   try {
+    // Get the file blob from Convex storage (like image_tool and txt_tool)
+    const fileBlob = await ctx.storage.get(fileId as Id<'_storage'>);
+    if (!fileBlob) {
+      throw new Error(`File not found in storage: ${fileId}`);
+    }
+
+    debugLog(`tool:${toolName} parse got blob`, {
+      filename,
+      size: fileBlob.size,
+      type: fileBlob.type,
+    });
+
     const crawlerUrl = getCrawlerServiceUrl();
     const endpointPath = getParseEndpoint(filename);
     const apiUrl = `${crawlerUrl}${endpointPath}`;
-
-    // Download the file from the URL
-    const fileResponse = await fetch(url);
-    if (!fileResponse.ok) {
-      throw new Error(`Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`);
-    }
-
-    const fileBlob = await fileResponse.blob();
 
     // Create FormData and upload to crawler service
     const formData = new FormData();
@@ -122,22 +129,4 @@ export async function parseFile(
       error: message,
     };
   }
-}
-
-/**
- * Cached version of parseFile.
- * Use this when calling from actions to benefit from caching.
- * @param ctx - Action context
- * @param url - URL of the file to download
- * @param filename - Original filename with extension
- * @param toolName - Name of the calling tool (for logging)
- * @returns ParseFileResult with extracted text and metadata
- */
-export async function parseFileCached(
-  ctx: ActionCtx,
-  url: string,
-  filename: string,
-  toolName: string,
-): Promise<ParseFileResult> {
-  return await parseFileCache.fetch(ctx, { url, filename, toolName });
 }

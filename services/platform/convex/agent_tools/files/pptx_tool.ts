@@ -79,10 +79,12 @@ const pptxArgs = z.object({
     .optional()
     .describe("For 'generate': Optional additional branding overrides"),
   // For parse operation
-  url: z
+  fileId: z
     .string()
     .optional()
-    .describe("For 'parse': URL of the PPTX file to parse"),
+    .describe(
+      "For 'parse': **REQUIRED** - Convex storage ID (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+    ),
   filename: z
     .string()
     .optional()
@@ -143,14 +145,14 @@ OPERATIONS:
 3. parse - Extract text content from an existing PPTX file
    USE THIS when a user uploads a PPTX and you need to read its content.
    Parameters:
-   - url: URL of the PPTX file (from Convex storage or accessible HTTP URL)
+   - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
    - filename: Original filename (e.g., "presentation.pptx")
    Returns: { success, full_text, slide_count, metadata }
 
 EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "Report", "slidesContent": [...] }
-• Parse: { "operation": "parse", "url": "https://storage.convex.cloud/...", "filename": "presentation.pptx" }
+• Parse: { "operation": "parse", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "presentation.pptx" }
 
 SLIDE CONTENT EXAMPLES:
 - Title slide: { "title": "Welcome", "subtitle": "Introduction" }
@@ -223,14 +225,16 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
 
       // Handle parse operation
       if (args.operation === 'parse') {
-        if (!args.url) {
-          throw new Error("Missing required 'url' for parse operation");
+        if (!args.fileId) {
+          throw new Error(
+            "Missing required 'fileId' for parse operation. Get the fileId from the file attachment context.",
+          );
         }
         if (!args.filename) {
           throw new Error("Missing required 'filename' for parse operation");
         }
 
-        const result = await parseFile(args.url, args.filename, 'pptx');
+        const result = await parseFile(ctx, args.fileId, args.filename, 'pptx');
         return { operation: 'parse', ...result };
       }
 

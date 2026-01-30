@@ -117,10 +117,12 @@ export async function processAttachments(
   const parseResults = await Promise.all(
     documentAttachments.map(async (attachment) => {
       try {
-        const url = await ctx.storage.getUrl(attachment.fileId);
-        if (!url) return null;
-
-        const parseResult = await parseFile(url, attachment.fileName, toolName);
+        const parseResult = await parseFile(
+          ctx,
+          attachment.fileId as string,
+          attachment.fileName,
+          toolName,
+        );
         return { attachment, parseResult };
       } catch (error) {
         debugLog('Error parsing document', {
