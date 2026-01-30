@@ -1,4 +1,5 @@
-import { unlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
@@ -45,6 +46,15 @@ export function createConfigCommand(): Command {
         let deployDir = path;
         if (deployDir.startsWith("~")) {
           deployDir = join(homedir(), deployDir.slice(1));
+        }
+
+        try {
+          await access(deployDir, constants.R_OK | constants.W_OK);
+        } catch {
+          logger.warn(
+            `Directory ${deployDir} does not exist or is not accessible`
+          );
+          logger.warn("It will be created during deployment if needed");
         }
 
         const config = await getConfig();
