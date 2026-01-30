@@ -9,7 +9,8 @@ export async function confirm(message: string): Promise<boolean> {
   return new Promise((resolve) => {
     rl.question(`${message} (y/N): `, (answer) => {
       rl.close();
-      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+      const normalized = answer.trim().toLowerCase();
+      resolve(normalized === "y" || normalized === "yes");
     });
   });
 }
