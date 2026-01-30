@@ -183,6 +183,17 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         logger.info(`Updating in current color: ${currentColor}`);
 
+        // Save current version as previous (for rollback)
+        if (!dryRun) {
+          const currentPlatformVersion = await getContainerVersion(
+            `${env.PROJECT_NAME}-platform-${currentColor}`
+          );
+          if (currentPlatformVersion) {
+            await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);
+            logger.info(`Previous version saved: ${currentPlatformVersion}`);
+          }
+        }
+
         await ensureInfrastructure(env.PROJECT_NAME, prefix, dryRun);
 
         // Update services in current color
