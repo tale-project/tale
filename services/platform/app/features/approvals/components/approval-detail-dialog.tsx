@@ -112,7 +112,7 @@ export function ApprovalDetailDialog({
         size="md"
         onOpenChange={onOpenChange}
         title={t('detail.title')}
-        className="w-full max-h-[90vh] overflow-hidden p-0 gap-0 flex flex-col"
+        className="w-full max-h-[90vh] overflow-hidden p-0 sm:p-0 gap-0 flex flex-col"
         footer={footer}
         footerClassName="p-4 border-t border-border bg-background"
         customHeader={

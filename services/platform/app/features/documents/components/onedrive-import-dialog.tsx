@@ -3,7 +3,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Button } from '@/app/components/ui/primitives/button';
-import { RadioGroup, RadioGroupItem } from '@/app/components/ui/forms/radio-group';
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/app/components/ui/forms/radio-group';
 import { Input } from '@/app/components/ui/forms/input';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
@@ -146,7 +149,9 @@ function OneDriveFileTable({
       },
       {
         id: 'modified',
-        header: () => <div className="text-right">{tTables('headers.modified')}</div>,
+        header: () => (
+          <div className="text-right">{tTables('headers.modified')}</div>
+        ),
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
             {row.original.lastModified
@@ -157,7 +162,9 @@ function OneDriveFileTable({
       },
       {
         id: 'size',
-        header: () => <div className="text-right">{tTables('headers.size')}</div>,
+        header: () => (
+          <div className="text-right">{tTables('headers.size')}</div>
+        ),
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right whitespace-nowrap">
             {row.original.size ? formatFileSize(row.original.size) : ''}
@@ -196,11 +203,7 @@ function OneDriveFileTable({
   // Show skeleton while loading
   if (isLoading) {
     return (
-      <DataTableSkeleton
-        columns={columns}
-        rows={5}
-        showPagination={false}
-      />
+      <DataTableSkeleton columns={columns} rows={5} showPagination={false} />
     );
   }
 
@@ -237,9 +240,9 @@ export function OneDriveImportDialog({
 
   // File picker state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedItems, setSelectedItems] = useState<Map<string, OneDriveSelectedItem>>(
-    new Map(),
-  );
+  const [selectedItems, setSelectedItems] = useState<
+    Map<string, OneDriveSelectedItem>
+  >(new Map());
   const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(
     undefined,
   );
@@ -468,8 +471,14 @@ export function OneDriveImportDialog({
                         if (parsedData.success) {
                           toast({
                             variant: 'success',
-                            title: importType === 'one-time' ? t('onedrive.importCompleted') : t('onedrive.syncCompleted'),
-                            description: importType === 'one-time' ? t('onedrive.filesImported') : t('onedrive.filesSynced'),
+                            title:
+                              importType === 'one-time'
+                                ? t('onedrive.importCompleted')
+                                : t('onedrive.syncCompleted'),
+                            description:
+                              importType === 'one-time'
+                                ? t('onedrive.filesImported')
+                                : t('onedrive.filesSynced'),
                           });
 
                           // Clear selection after successful operation
@@ -477,7 +486,10 @@ export function OneDriveImportDialog({
                           onSuccess?.();
                         } else {
                           toast({
-                            title: importType === 'one-time' ? t('onedrive.importFailed') : t('onedrive.syncFailed'),
+                            title:
+                              importType === 'one-time'
+                                ? t('onedrive.importFailed')
+                                : t('onedrive.syncFailed'),
                             description:
                               parsedData.error || tCommon('errors.generic'),
                             variant: 'destructive',
@@ -542,8 +554,14 @@ export function OneDriveImportDialog({
           // Check if the error is due to abort
           if (error.name === 'AbortError') {
             toast({
-              title: importType === 'one-time' ? t('onedrive.importCancelled') : t('onedrive.syncCancelled'),
-              description: importType === 'one-time' ? t('onedrive.importCancelledDescription') : t('onedrive.syncCancelledDescription'),
+              title:
+                importType === 'one-time'
+                  ? t('onedrive.importCancelled')
+                  : t('onedrive.syncCancelled'),
+              description:
+                importType === 'one-time'
+                  ? t('onedrive.importCancelledDescription')
+                  : t('onedrive.syncCancelledDescription'),
               variant: 'default',
             });
             reject(
@@ -553,8 +571,13 @@ export function OneDriveImportDialog({
             );
           } else {
             toast({
-              title: importType === 'one-time' ? t('onedrive.importFailed') : t('onedrive.syncFailed'),
-              description: t('onedrive.failedToStart', { type: camelCase(importType) }),
+              title:
+                importType === 'one-time'
+                  ? t('onedrive.importFailed')
+                  : t('onedrive.syncFailed'),
+              description: t('onedrive.failedToStart', {
+                type: camelCase(importType),
+              }),
               variant: 'destructive',
             });
             reject(error);
@@ -590,7 +613,9 @@ export function OneDriveImportDialog({
 
     if (isSelected) {
       // Find the item details and store with path
-      const item = (itemsData || []).find((i: OneDriveApiItem) => i.id === itemId);
+      const item = (itemsData || []).find(
+        (i: OneDriveApiItem) => i.id === itemId,
+      );
       if (item) {
         newSelectedItems.set(itemId, {
           id: item.id,
@@ -687,12 +712,14 @@ export function OneDriveImportDialog({
       setSyncAbortController(abortController);
 
       // Convert selected items to OneDriveApiItem format for collectAllFiles
-      const driveItems: OneDriveApiItem[] = selectedItemsArray.map((item: OneDriveSelectedItem) => ({
-        id: item.id,
-        name: item.name,
-        size: item.size ?? 0,
-        isFolder: item.type === 'folder',
-      }));
+      const driveItems: OneDriveApiItem[] = selectedItemsArray.map(
+        (item: OneDriveSelectedItem) => ({
+          id: item.id,
+          name: item.name,
+          size: item.size ?? 0,
+          isFolder: item.type === 'folder',
+        }),
+      );
 
       // Create Set of directly selected item IDs
       const directlySelectedIds = new Set(
@@ -718,14 +745,19 @@ export function OneDriveImportDialog({
 
       // Show toast notification as backup
       toast({
-        title: importType === 'one-time' ? t('onedrive.importStarted') : t('onedrive.syncStarted'),
-        description: importType === 'one-time'
-          ? t('onedrive.importingItems', { count: selectedItemsArray.length })
-          : t('onedrive.syncingItems', { count: selectedItemsArray.length }),
+        title:
+          importType === 'one-time'
+            ? t('onedrive.importStarted')
+            : t('onedrive.syncStarted'),
+        description:
+          importType === 'one-time'
+            ? t('onedrive.importingItems', { count: selectedItemsArray.length })
+            : t('onedrive.syncingItems', { count: selectedItemsArray.length }),
       });
 
       // Start import/sync with streaming
-      const teamTags = selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
+      const teamTags =
+        selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
       await startSyncWithStream(
         allFiles.map((file) => ({
           id: file.id,
@@ -747,7 +779,10 @@ export function OneDriveImportDialog({
         error instanceof Error ? error.message : tCommon('errors.generic');
 
       toast({
-        title: importType === 'one-time' ? t('onedrive.importFailed') : t('onedrive.syncFailed'),
+        title:
+          importType === 'one-time'
+            ? t('onedrive.importFailed')
+            : t('onedrive.syncFailed'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -776,9 +811,13 @@ export function OneDriveImportDialog({
         onOpenChange={props.onOpenChange ?? noop}
         title={t('onedrive.selectFiles')}
         hideClose
-        className="max-w-5xl p-0"
+        className="max-w-5xl p-0 sm:p-0"
         customHeader={
-          <HStack align="start" justify="between" className="border-b border-border px-6 py-6">
+          <HStack
+            align="start"
+            justify="between"
+            className="border-b border-border px-6 py-6"
+          >
             <Stack gap={1}>
               <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
                 {t('onedrive.selectFiles')}
@@ -795,10 +834,7 @@ export function OneDriveImportDialog({
           {folderPath.length > 1 && (
             <HStack gap={2} className="text-sm text-muted-foreground">
               {folderPath.map((folder, index) => (
-                <HStack
-                  key={folder.id || 'root'}
-                  gap={2}
-                >
+                <HStack key={folder.id || 'root'} gap={2}>
                   <button
                     type="button"
                     onClick={() => handleBreadcrumbClick(index)}
@@ -868,8 +904,14 @@ export function OneDriveImportDialog({
               setSyncAbortController(null);
               setIsSyncing(false);
               toast({
-                title: importType === 'one-time' ? t('onedrive.importCancelled') : t('onedrive.syncCancelled'),
-                description: importType === 'one-time' ? t('onedrive.importCancelledDescription') : t('onedrive.syncCancelledDescription'),
+                title:
+                  importType === 'one-time'
+                    ? t('onedrive.importCancelled')
+                    : t('onedrive.syncCancelled'),
+                description:
+                  importType === 'one-time'
+                    ? t('onedrive.importCancelledDescription')
+                    : t('onedrive.syncCancelledDescription'),
                 variant: 'default',
               });
             } else {
@@ -888,20 +930,21 @@ export function OneDriveImportDialog({
             tCommon('actions.back')
           )}
         </Button>
-        <Button
-          onClick={handleImport}
-          className="flex-1"
-          disabled={isSyncing}
-        >
+        <Button onClick={handleImport} className="flex-1" disabled={isSyncing}>
           {isSyncing ? (
             <>
               <Loader2 className="size-4 mr-2 animate-spin" />
-              {importType === 'one-time' ? t('onedrive.importing') : t('onedrive.syncing')}
+              {importType === 'one-time'
+                ? t('onedrive.importing')
+                : t('onedrive.syncing')}
             </>
           ) : (
             <>
               <Database className="size-4 mr-2" />
-              {t('onedrive.importItem', { type: camelCase(importType), count: selectedItems.size })}
+              {t('onedrive.importItem', {
+                type: camelCase(importType),
+                count: selectedItems.size,
+              })}
             </>
           )}
         </Button>
@@ -913,10 +956,12 @@ export function OneDriveImportDialog({
         open={props.open ?? false}
         onOpenChange={props.onOpenChange ?? noop}
         title={t('onedrive.importSettings')}
-        description={t('onedrive.settingsDescription', { count: selectedItems.size })}
+        description={t('onedrive.settingsDescription', {
+          count: selectedItems.size,
+        })}
         size="md"
         hideClose
-        className="p-0"
+        className="p-0 sm:p-0"
         customHeader={
           <div className="border-b border-border flex items-start justify-between px-6 py-5">
             <div className="space-y-1">
@@ -924,7 +969,9 @@ export function OneDriveImportDialog({
                 {t('onedrive.importSettings')}
               </h2>
               <p className="text-sm text-muted-foreground">
-                {t('onedrive.settingsDescription', { count: selectedItems.size })}
+                {t('onedrive.settingsDescription', {
+                  count: selectedItems.size,
+                })}
               </p>
             </div>
           </div>

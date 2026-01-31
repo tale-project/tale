@@ -22,14 +22,14 @@ const selectContentVariants = cva(
     defaultVariants: {
       position: 'popper',
     },
-  }
+  },
 );
 
 const selectViewportVariants = cva('p-1', {
   variants: {
     position: {
       popper:
-        'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]',
+        'h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)',
       'item-aligned': '',
     },
   },
@@ -44,8 +44,10 @@ interface SelectOption {
   disabled?: boolean;
 }
 
-interface SelectProps
-  extends Omit<ComponentPropsWithoutRef<typeof SelectPrimitive.Root>, 'children'> {
+interface SelectProps extends Omit<
+  ComponentPropsWithoutRef<typeof SelectPrimitive.Root>,
+  'children'
+> {
   /** Array of options to display */
   options: SelectOption[];
   /** Label displayed above the select */
@@ -97,7 +99,7 @@ export const Select = forwardRef<
           className={cn(
             'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-lg border border-transparent bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 ring-1 ring-border focus-visible:ring-primary transition-[border-color,box-shadow] duration-150',
             error && 'border-destructive focus-visible:ring-destructive',
-            className
+            className,
           )}
           aria-invalid={error}
         >
@@ -115,7 +117,9 @@ export const Select = forwardRef<
             <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1">
               <ChevronUp className="size-4" aria-hidden="true" />
             </SelectPrimitive.ScrollUpButton>
-            <SelectPrimitive.Viewport className={selectViewportVariants({ position })}>
+            <SelectPrimitive.Viewport
+              className={selectViewportVariants({ position })}
+            >
               {options.map((option) => (
                 <SelectPrimitive.Item
                   key={option.value}
@@ -128,7 +132,9 @@ export const Select = forwardRef<
                       <Check className="size-4" aria-hidden="true" />
                     </SelectPrimitive.ItemIndicator>
                   </span>
-                  <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemText>
+                    {option.label}
+                  </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
               ))}
             </SelectPrimitive.Viewport>
@@ -155,4 +161,3 @@ export const Select = forwardRef<
   },
 );
 Select.displayName = 'Select';
-

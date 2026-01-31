@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { Button } from '@/app/components/ui/primitives/button';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useChatLayout } from '../context/chat-layout-context';
 import type { FileAttachment } from '../types';
 
@@ -194,63 +195,62 @@ export function ChatInterface({
     threadId || messages.length > 0 || pendingMessage || isPending;
 
   return (
-    <div className="relative flex flex-col h-full flex-1 min-h-0">
+    <div
+      ref={containerRef}
+      className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto"
+    >
       <div
-        ref={containerRef}
-        className="flex flex-col h-full flex-1 min-h-0 overflow-y-auto"
+        ref={contentRef}
+        className={cn(
+          'flex-1 overflow-y-visible p-4 sm:p-8',
+          showWelcome && 'flex flex-col items-center justify-end',
+        )}
       >
-        <div
-          ref={contentRef}
-          className={cn(
-            'flex-1 overflow-y-visible p-4 sm:p-8',
-            showWelcome && 'flex flex-col items-center justify-end',
-          )}
-        >
-          {showWelcome && <WelcomeView isPending={isPending} />}
+        {showWelcome && <WelcomeView isPending={isPending} />}
 
-          {showMessages && (
-            <ChatMessages
-              items={mergedChatItems}
-              threadId={threadId}
-              organizationId={organizationId}
-              canLoadMore={canLoadMore}
-              isLoadingMore={isLoadingMore}
-              loadMore={loadMore}
-              isPending={isPending}
-              streamingMessage={streamingMessage}
-              hasActiveTools={hasActiveTools}
-              aiResponseAreaRef={aiResponseAreaRef}
-              onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
-            />
-          )}
-        </div>
+        {showMessages && (
+          <ChatMessages
+            items={mergedChatItems}
+            threadId={threadId}
+            organizationId={organizationId}
+            canLoadMore={canLoadMore}
+            isLoadingMore={isLoadingMore}
+            loadMore={loadMore}
+            isPending={isPending}
+            streamingMessage={streamingMessage}
+            hasActiveTools={hasActiveTools}
+            aiResponseAreaRef={aiResponseAreaRef}
+            onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
+          />
+        )}
+      </div>
 
-        <div className="sticky bottom-0 z-50">
-          {/* Scroll to bottom button */}
-          <div className="max-w-(--chat-max-width) mx-auto w-full relative">
-            <AnimatePresence>
-              {showScrollButton && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="absolute -top-10 right-2 sm:right-0 z-10"
+      <div className="sticky bottom-0 z-50">
+        {/* Scroll to bottom button */}
+        <div className="max-w-(--chat-max-width) mx-auto w-full relative">
+          <AnimatePresence>
+            {showScrollButton && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                className="absolute -top-10 right-2 sm:right-0 z-10"
+              >
+                <Button
+                  onClick={scrollToBottom}
+                  size="icon"
+                  variant="secondary"
+                  className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
+                  aria-label={t('aria.scrollToBottom')}
                 >
-                  <Button
-                    onClick={scrollToBottom}
-                    size="icon"
-                    variant="secondary"
-                    className="rounded-full shadow-lg backdrop-blur-sm bg-opacity-60"
-                    aria-label={t('aria.scrollToBottom')}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+        <FileUpload.Root>
           <ChatInput
             key={threadId || 'new-chat'}
             className="max-w-(--chat-max-width) mx-auto w-full"
@@ -259,7 +259,7 @@ export function ChatInterface({
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
           />
-        </div>
+        </FileUpload.Root>
       </div>
     </div>
   );

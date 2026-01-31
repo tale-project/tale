@@ -134,7 +134,7 @@ export function MobileNavigation({
             <SheetDescription>{t('actions.openMenu')}</SheetDescription>
           </VisuallyHidden.Root>
           <NavigationMenu className="flex flex-col bg-background h-full max-w-none w-full">
-            <div className="flex-shrink-0 h-[var(--nav-size)] px-4 py-2 border-b border-border flex items-center">
+            <div className="flex-shrink-0 h-(--nav-size) px-4 py-2 border-b border-border flex items-center">
               <Link
                 to="/dashboard/$id/chat"
                 params={{ id: organizationId }}
@@ -156,7 +156,7 @@ export function MobileNavigation({
                 ))}
               </NavigationMenuList>
             </div>
-            <div className="flex-shrink-0 h-[var(--nav-size)] px-4 py-2 border-t border-border flex items-center">
+            <div className="flex-shrink-0 h-(--nav-size) px-4 py-2 border-t border-border flex items-center">
               <UserButton
                 label={tNav('settings')}
                 onNavigate={() => setIsOpen(false)}

@@ -1,5 +1,9 @@
 import { Textarea } from '@/app/components/ui/forms/textarea';
-import { Tabs, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from '@/app/components/ui/navigation/tabs';
 import { Input } from '@/app/components/ui/forms/input';
 import { useFormContext } from 'react-hook-form';
 import { Form } from '@/app/components/ui/forms/form';
@@ -28,7 +32,12 @@ export function VendorImportForm({
 }: VendorImportFormProps) {
   const { t } = useT('vendors');
   const { t: tCommon } = useT('common');
-  const { setValue, watch, register, formState: { errors } } = useFormContext();
+  const {
+    setValue,
+    watch,
+    register,
+    formState: { errors },
+  } = useFormContext();
   const dataSource: DataSource = mode
     ? mode === 'manual'
       ? 'manual_import'
@@ -94,8 +103,12 @@ export function VendorImportForm({
           className="w-full"
         >
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="manual_import">{t('importForm.manualEntry')}</TabsTrigger>
-            <TabsTrigger value="file_upload">{t('importForm.upload')}</TabsTrigger>
+            <TabsTrigger value="manual_import">
+              {t('importForm.manualEntry')}
+            </TabsTrigger>
+            <TabsTrigger value="file_upload">
+              {t('importForm.upload')}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       )}
@@ -125,8 +138,8 @@ export function VendorImportForm({
             className={cn(
               'bg-background box-border content-stretch flex flex-col gap-[16px] h-[160px] items-center justify-center px-[16px] py-[12px] relative rounded-[12px] shrink-0 w-full cursor-pointer transition-colors group',
               isDragOver
-                ? 'bg-blue-50/50'
-                : 'hover:bg-blue-100/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                ? 'bg-info'
+                : 'hover:bg-info/50 focus:outline-none focus:ring-2 focus:ring-info-foreground focus:ring-offset-2',
             )}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -139,8 +152,8 @@ export function VendorImportForm({
               className={cn(
                 'absolute border border-dashed border-border inset-0 pointer-events-none rounded-xl',
                 isDragOver
-                  ? 'border-blue-300'
-                  : 'group-hover:border-blue-300',
+                  ? 'border-info-foreground'
+                  : 'group-hover:border-info-foreground',
               )}
             />
             <div className="overflow-clip relative shrink-0 size-[40px]">
@@ -168,7 +181,9 @@ export function VendorImportForm({
                 </div>
               </div>
               <div className="min-w-full relative shrink-0 text-[14px] text-center text-muted-foreground">
-                <p className="leading-[1.5]">{tCommon('upload.supportedFormats')}</p>
+                <p className="leading-[1.5]">
+                  {tCommon('upload.supportedFormats')}
+                </p>
               </div>
             </div>
             <Input
@@ -185,7 +200,9 @@ export function VendorImportForm({
             </ul>
           </Description>
           {errors.file?.message && (
-            <p className="text-sm text-destructive">{errors.file.message as string}</p>
+            <p className="text-sm text-destructive">
+              {errors.file.message as string}
+            </p>
           )}
           {fileValue && (
             <VStack gap={2} className="border border-border p-3 rounded-xl">

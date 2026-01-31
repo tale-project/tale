@@ -17,6 +17,10 @@ export function AutomationsListNavigation({
 
   const navigationItems: TabNavigationItem[] = [];
 
+  if (navigationItems.length === 0) {
+    return null;
+  }
+
   return (
     <TabNavigation
       items={navigationItems}
