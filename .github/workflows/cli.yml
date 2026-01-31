@@ -78,21 +78,21 @@ jobs:
           ./tale_${{ steps.version.outputs.version }}_linux --help
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tale_${{ steps.version.outputs.version }}_linux
           path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux
           retention-days: 30
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tale_${{ steps.version.outputs.version }}_macos
           path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos
           retention-days: 30
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tale_${{ steps.version.outputs.version }}_windows
           path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe
