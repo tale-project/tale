@@ -39,50 +39,63 @@ jobs:
         working-directory: tools/cli
         run: bun run typecheck
 
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            VERSION="${{ github.event.inputs.release_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="dev"
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build Linux binary
         working-directory: tools/cli
         run: |
           bun run build:linux
-          mv dist/tale dist/tale-linux
+          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_linux
 
       - name: Build macOS binary
         working-directory: tools/cli
         run: |
           bun run build:mac
-          mv dist/tale dist/tale-mac
+          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_macos
 
       - name: Build Windows binary
         working-directory: tools/cli
         run: |
           bun run build:windows
-          mv dist/tale.exe dist/tale-windows.exe
+          mv dist/tale.exe dist/tale_${{ steps.version.outputs.version }}_windows.exe
 
       - name: Verify Linux binary
         working-directory: tools/cli/dist
         run: |
-          chmod +x tale-linux
-          ./tale-linux --version
-          ./tale-linux --help
+          chmod +x tale_${{ steps.version.outputs.version }}_linux
+          ./tale_${{ steps.version.outputs.version }}_linux --version
+          ./tale_${{ steps.version.outputs.version }}_linux --help
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tale-linux
-          path: tools/cli/dist/tale-linux
+          name: tale_${{ steps.version.outputs.version }}_linux
+          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux
           retention-days: 30
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tale-mac
-          path: tools/cli/dist/tale-mac
+          name: tale_${{ steps.version.outputs.version }}_macos
+          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos
           retention-days: 30
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tale-windows
-          path: tools/cli/dist/tale-windows.exe
+          name: tale_${{ steps.version.outputs.version }}_windows
+          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe
           retention-days: 30
 
       - name: Upload to release
@@ -91,9 +104,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            tools/cli/dist/tale-linux \
-            tools/cli/dist/tale-mac \
-            tools/cli/dist/tale-windows.exe \
+            tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
+            tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
+            tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
             --clobber
 
       - name: Upload to latest release
@@ -105,9 +118,9 @@ jobs:
           if [ -n "$LATEST_TAG" ]; then
             echo "Uploading to release: $LATEST_TAG"
             gh release upload "$LATEST_TAG" \
-              tools/cli/dist/tale-linux \
-              tools/cli/dist/tale-mac \
-              tools/cli/dist/tale-windows.exe \
+              tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
+              tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
+              tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
               --clobber || echo "Failed to upload to release, skipping"
           else
             echo "No releases found, skipping upload"
