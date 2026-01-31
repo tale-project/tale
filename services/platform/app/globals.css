@@ -40,6 +40,9 @@
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
 
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
@@ -109,6 +112,8 @@
   --success-foreground: 0 0% 98%;
   --warning: 38 92% 50%;
   --warning-foreground: 0 0% 98%;
+  --info: 214 95% 93%;
+  --info-foreground: 214 100% 45%;
   --border: 240 5.9% 90%;
   --input: 240 5.9% 90%;
   --ring: 240 10% 3.9%;
@@ -143,6 +148,8 @@
   --success-foreground: 0 0% 98%;
   --warning: 38 92% 50%;
   --warning-foreground: 0 0% 98%;
+  --info: 214 35% 18%;
+  --info-foreground: 214 80% 65%;
   --border: 240 3.7% 15.9%;
   --input: 240 3.7% 15.9%;
   --ring: 240 4.9% 83.9%;
@@ -153,14 +160,15 @@
   --chart-5: 340 75% 55%;
 }
 
-/* Base styles */
-* {
-  @apply border-border;
-}
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-body {
-  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
-  @apply bg-background text-foreground;
+  body {
+    font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+    @apply bg-background text-foreground;
+  }
 }
 
 @layer utilities {

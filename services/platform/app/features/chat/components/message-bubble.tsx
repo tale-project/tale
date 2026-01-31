@@ -308,7 +308,7 @@ function CodeBlock({
       <pre
         ref={preRef}
         {...props}
-        className="max-w-[var(--chat-max-width)] overflow-x-auto"
+        className="max-w-(--chat-max-width) overflow-x-auto"
       >
         {children}
       </pre>
@@ -349,6 +349,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
 }: ImagePreviewDialogProps) {
   const { t } = useT('chat');
   const [zoom, setZoom] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleClose = useCallback(
     (open: boolean) => {
@@ -372,13 +373,21 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
     setZoom(1);
   }, []);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
-    } else {
-      setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
-    }
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        setZoom((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
+      } else {
+        setZoom((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
   return (
@@ -388,7 +397,7 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       title={t('imagePreview')}
       size="wide"
       hideClose
-      className="p-0 border-0 ring-0 bg-black/95 flex flex-col"
+      className="p-0 sm:p-0 border-0 ring-0 bg-black/95 flex flex-col"
       customHeader={
         <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
           <span className="text-white/80 text-sm truncate max-w-[60%]">
@@ -433,8 +442,8 @@ export const ImagePreviewDialog = memo(function ImagePreviewDialog({
       }
     >
       <div
+        ref={containerRef}
         className="flex-1 flex items-center justify-center overflow-auto p-8 pt-16"
-        onWheel={handleWheel}
       >
         <img
           src={src}

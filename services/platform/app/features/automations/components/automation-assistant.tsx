@@ -22,23 +22,17 @@ import { useChatWithWorkflowAssistant } from '../hooks/use-chat-with-workflow-as
 import { useUpdateAutomationMetadata } from '../hooks/use-update-automation-metadata';
 import { useCreateThread } from '@/app/features/chat/hooks/use-create-thread';
 import { useDeleteThread } from '@/app/features/chat/hooks/use-delete-thread';
-import { useGenerateUploadUrl } from '@/app/features/chat/hooks/use-generate-upload-url';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useThrottledScroll } from '@/app/hooks/use-throttled-scroll';
-import { toast } from '@/app/hooks/use-toast';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { Image } from '@/app/components/ui/data-display/image';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
-import type { FileAttachment as BaseFileAttachment } from '@/convex/lib/attachments/types';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useT } from '@/lib/i18n/client';
-
-interface FileAttachment extends BaseFileAttachment {
-  previewUrl?: string;
-}
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
 const recentSends = new Map<string, number>();
@@ -260,7 +254,7 @@ interface AutomationAssistantProps {
   onClearChatStateChange?: (canClear: boolean, clearFn: () => void) => void;
 }
 
-export function AutomationAssistant({
+function AutomationAssistantContent({
   automationId,
   organizationId,
   onClearChat,
@@ -268,6 +262,14 @@ export function AutomationAssistant({
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+
+  const {
+    attachments,
+    uploadingFiles,
+    uploadFiles,
+    removeAttachment,
+    clearAttachments,
+  } = FileUpload.useContext();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -277,9 +279,6 @@ export function AutomationAssistant({
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isSendingRef = useRef(false);
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
   const [previewImage, setPreviewImage] = useState<{
     isOpen: boolean;
     src: string;
@@ -288,8 +287,6 @@ export function AutomationAssistant({
   const { throttledScrollToBottom, cleanup } = useThrottledScroll({
     delay: 16,
   });
-
-  const generateUploadUrl = useGenerateUploadUrl();
 
   // Connect to workflow assistant agent
   const chatWithWorkflowAssistant = useChatWithWorkflowAssistant();
@@ -439,105 +436,6 @@ export function AutomationAssistant({
     return cleanup;
   }, [cleanup]);
 
-  // File upload functions
-  const uploadFiles = async (files: FileList) => {
-    const fileArray = Array.from(files);
-    const maxFileSize = 10 * 1024 * 1024; // 10MB limit
-    const allowedTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'application/pdf',
-      'text/plain',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-powerpoint',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    ];
-
-    // Validate files
-    const invalidFiles = fileArray.filter(
-      (file) => file.size > maxFileSize || !allowedTypes.includes(file.type),
-    );
-
-    if (invalidFiles.length > 0) {
-      toast({
-        title: t('assistant.upload.invalidFiles'),
-        description: t('assistant.upload.invalidFilesDescription'),
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Upload each file
-    const uploadPromises = fileArray.map(async (file) => {
-      const fileId = `${file.name}-${Date.now()}`;
-      setUploadingFiles((prev) => [...prev, fileId]);
-
-      try {
-        // Get upload URL from Convex
-        const uploadUrl = await generateUploadUrl();
-
-        // Upload file to Convex storage
-        const result = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
-
-        if (!result.ok) {
-          throw new Error('Upload failed');
-        }
-
-        const { storageId } = await result.json();
-
-        // Create attachment object
-        const attachment: FileAttachment = {
-          fileId: storageId,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          previewUrl: file.type.startsWith('image/')
-            ? URL.createObjectURL(file)
-            : undefined,
-        };
-
-        setAttachments((prev) => [...prev, attachment]);
-
-        toast({
-          title: t('assistant.upload.success'),
-          description: t('assistant.upload.successDescription', {
-            fileName: file.name,
-          }),
-        });
-      } catch (error) {
-        console.error('Upload error:', error);
-        toast({
-          title: t('assistant.upload.failed'),
-          description: t('assistant.upload.failedDescription', {
-            fileName: file.name,
-          }),
-          variant: 'destructive',
-        });
-      } finally {
-        setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
-      }
-    });
-
-    await Promise.all(uploadPromises);
-  };
-
-  const removeAttachment = (fileId: Id<'_storage'>) => {
-    setAttachments((prev) => {
-      const attachment = prev.find((att) => att.fileId === fileId);
-      if (attachment?.previewUrl) {
-        URL.revokeObjectURL(attachment.previewUrl);
-      }
-      return prev.filter((att) => att.fileId !== fileId);
-    });
-  };
-
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -577,30 +475,6 @@ export function AutomationAssistant({
     }
   };
 
-  // Drag and drop handlers
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      uploadFiles(files);
-    }
-  };
-
   const handleSendMessage = async () => {
     if (isSendingRef.current) return;
     if (
@@ -619,9 +493,10 @@ export function AutomationAssistant({
 
     isSendingRef.current = true;
 
-    // Capture attachments before clearing
+    // Capture and clear attachments in one operation
+    const clearedAttachments = clearAttachments();
     const attachmentsToSend =
-      attachments.length > 0 ? [...attachments] : undefined;
+      clearedAttachments.length > 0 ? clearedAttachments : undefined;
 
     // Create optimistic user message for immediate display
     const clientMessageId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -634,15 +509,8 @@ export function AutomationAssistant({
     };
     setPendingUserMessage(optimisticMessage);
 
-    // Clear input and attachments immediately for better UX
+    // Clear input immediately for better UX
     setInputValue('');
-    // Clean up preview URLs before clearing
-    attachments.forEach((att) => {
-      if (att.previewUrl) {
-        URL.revokeObjectURL(att.previewUrl);
-      }
-    });
-    setAttachments([]);
     setIsLoading(true);
 
     try {
@@ -916,21 +784,12 @@ export function AutomationAssistant({
       />
 
       {/* Chat input */}
-      <div
-        className={cn(
-          'border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50',
-          isDragOver && 'ring-2 ring-primary ring-offset-2',
-        )}
-        role="region"
-        aria-label={tCommon('aria.dropFilesHere')}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <FileUpload.DropZone className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50">
+        <FileUpload.Overlay className="rounded-t-2xl" />
         <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
           {/* Attachment previews */}
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
-            <div className="flex flex-wrap gap-2 p-2 border-b border-border">
+            <div className="flex flex-wrap gap-2 p-1">
               {/* Uploading files indicator */}
               {uploadingFiles.map((fileId) => (
                 <div
@@ -952,7 +811,7 @@ export function AutomationAssistant({
                     <img
                       src={attachment.previewUrl}
                       alt={attachment.fileName}
-                      className="w-12 h-12 object-cover rounded-lg border border-border"
+                      className="size-8 object-cover rounded-lg border border-border"
                     />
                     <button
                       type="button"
@@ -1025,7 +884,7 @@ export function AutomationAssistant({
             </Button>
           </div>
         </div>
-      </div>
+      </FileUpload.DropZone>
 
       {/* Image preview dialog */}
       {previewImage && (
@@ -1039,5 +898,13 @@ export function AutomationAssistant({
         />
       )}
     </div>
+  );
+}
+
+export function AutomationAssistant(props: AutomationAssistantProps) {
+  return (
+    <FileUpload.Root>
+      <AutomationAssistantContent {...props} />
+    </FileUpload.Root>
   );
 }

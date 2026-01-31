@@ -59,7 +59,9 @@ export function PaginatedMarkdownTable({
   // Count columns in header to normalize rows
   let headerColumnCount = 0;
   if (thead) {
-    const theadProps = (thead as ReactElement).props as { children?: ReactNode };
+    const theadProps = (thead as ReactElement).props as {
+      children?: ReactNode;
+    };
     Children.forEach(theadProps.children, (headerRow) => {
       if (isValidElement(headerRow)) {
         const rowProps = headerRow.props as { children?: ReactNode };
@@ -69,7 +71,10 @@ export function PaginatedMarkdownTable({
   }
 
   // Helper function to normalize a row to have the expected number of columns
-  const normalizeRow = (row: ReactElement, expectedColumns: number): ReactElement => {
+  const normalizeRow = (
+    row: ReactElement,
+    expectedColumns: number,
+  ): ReactElement => {
     const rowProps = row.props as { children?: ReactNode };
     const cells = Children.toArray(rowProps.children);
     const currentCount = cells.length;
@@ -81,16 +86,17 @@ export function PaginatedMarkdownTable({
     // Add empty cells to match expected column count
     const emptyCells = Array.from(
       { length: expectedColumns - currentCount },
-      (_, i) => createElement(TableCell, { key: `empty-${i}` }, '-')
+      (_, i) => createElement(TableCell, { key: `empty-${i}` }, '-'),
     );
 
     return cloneElement(row, {}, [...cells, ...emptyCells]);
   };
 
   // Normalize all rows to have consistent column counts
-  const normalizedRows = headerColumnCount > 0
-    ? tbodyRows.map((row) => normalizeRow(row, headerColumnCount))
-    : tbodyRows;
+  const normalizedRows =
+    headerColumnCount > 0
+      ? tbodyRows.map((row) => normalizeRow(row, headerColumnCount))
+      : tbodyRows;
 
   const totalRows = normalizedRows.length;
   const totalPages = Math.ceil(totalRows / pageSize);
@@ -126,7 +132,7 @@ export function PaginatedMarkdownTable({
   );
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border my-4 max-w-[var(--chat-max-width)]">
+    <div className="overflow-hidden rounded-lg border border-border my-4 max-w-(--chat-max-width)">
       <div className="overflow-x-auto">
         <table className="w-full caption-bottom text-sm">
           {thead}

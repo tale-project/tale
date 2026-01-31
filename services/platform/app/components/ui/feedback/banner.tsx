@@ -13,10 +13,10 @@ const bannerVariants = cva(
   {
     variants: {
       variant: {
-        info: 'bg-blue-50 border-blue-200',
-        warning: 'bg-yellow-50 border-yellow-200',
-        success: 'bg-green-50 border-green-200',
-        error: 'bg-red-50 border-red-200',
+        info: 'bg-info border-info-foreground/30',
+        warning: 'bg-warning/10 border-warning/30',
+        success: 'bg-success/10 border-success/30',
+        error: 'bg-destructive/10 border-destructive/30',
       },
     },
     defaultVariants: {
@@ -28,10 +28,10 @@ const bannerVariants = cva(
 const bannerTextVariants = cva('grow text-sm leading-normal', {
   variants: {
     variant: {
-      info: 'text-blue-600',
-      warning: 'text-yellow-700',
-      success: 'text-green-700',
-      error: 'text-red-700',
+      info: 'text-info-foreground',
+      warning: 'text-warning',
+      success: 'text-success',
+      error: 'text-destructive',
     },
   },
   defaultVariants: {
@@ -42,10 +42,10 @@ const bannerTextVariants = cva('grow text-sm leading-normal', {
 const bannerIconVariants = cva('shrink-0 size-5', {
   variants: {
     variant: {
-      info: 'text-blue-600',
-      warning: 'text-yellow-700',
-      success: 'text-green-700',
-      error: 'text-red-700',
+      info: 'text-info-foreground',
+      warning: 'text-warning',
+      success: 'text-success',
+      error: 'text-destructive',
     },
   },
   defaultVariants: {
@@ -58,10 +58,10 @@ const bannerCloseVariants = cva(
   {
     variants: {
       variant: {
-        info: 'text-blue-600',
-        warning: 'text-yellow-700',
-        success: 'text-green-700',
-        error: 'text-red-700',
+        info: 'text-info-foreground',
+        warning: 'text-warning',
+        success: 'text-success',
+        error: 'text-destructive',
       },
     },
     defaultVariants: {
@@ -71,8 +71,9 @@ const bannerCloseVariants = cva(
 );
 
 export interface BannerProps
-  extends Omit<ComponentPropsWithoutRef<'div'>, 'children'>,
-  VariantProps<typeof bannerVariants> {
+  extends
+    Omit<ComponentPropsWithoutRef<'div'>, 'children'>,
+    VariantProps<typeof bannerVariants> {
   readonly variant?: 'info' | 'warning' | 'success' | 'error';
   readonly message: string;
   readonly icon?: FC<{ className?: string }>;

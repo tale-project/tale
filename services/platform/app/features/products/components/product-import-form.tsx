@@ -90,8 +90,8 @@ export function ProductImportForm({
           className={cn(
             'bg-background box-border content-stretch flex flex-col gap-[16px] h-[160px] items-center justify-center px-[16px] py-[12px] relative rounded-[12px] shrink-0 w-full cursor-pointer transition-colors group',
             isDragOver
-              ? 'bg-blue-50/50'
-              : 'hover:bg-blue-100/20 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+              ? 'bg-info'
+              : 'hover:bg-info/50 focus:outline-none focus:ring-2 focus:ring-info-foreground focus:ring-offset-2',
           )}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -103,7 +103,9 @@ export function ProductImportForm({
             aria-hidden="true"
             className={cn(
               'absolute border border-dashed border-border inset-0 pointer-events-none rounded-xl',
-              isDragOver ? 'border-blue-300' : 'group-hover:border-blue-300',
+              isDragOver
+                ? 'border-info-foreground'
+                : 'group-hover:border-info-foreground',
             )}
           />
           <div className="overflow-clip relative shrink-0 size-[40px]">

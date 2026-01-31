@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils/cn';
 const statusIndicatorVariants = cva('flex items-center space-x-2 text-sm', {
   variants: {
     variant: {
-      success: 'text-green-600',
-      warning: 'text-amber-600',
-      error: 'text-red-600',
-      info: 'text-blue-600',
-      neutral: 'text-gray-600',
+      success: 'text-success',
+      warning: 'text-warning',
+      error: 'text-destructive',
+      info: 'text-info-foreground',
+      neutral: 'text-muted-foreground',
     },
   },
   defaultVariants: {
@@ -22,11 +22,11 @@ const statusIndicatorVariants = cva('flex items-center space-x-2 text-sm', {
 const statusDotVariants = cva('rounded-full', {
   variants: {
     variant: {
-      success: 'bg-green-500',
-      warning: 'bg-amber-500',
-      error: 'bg-red-500',
-      info: 'bg-blue-500',
-      neutral: 'bg-gray-400',
+      success: 'bg-success',
+      warning: 'bg-warning',
+      error: 'bg-destructive',
+      info: 'bg-info-foreground',
+      neutral: 'bg-muted-foreground',
     },
     size: {
       sm: 'w-1.5 h-1.5',
@@ -45,7 +45,8 @@ type _StatusVariant = NonNullable<
 >;
 
 interface StatusIndicatorProps
-  extends HTMLAttributes<HTMLDivElement>,
+  extends
+    HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof statusIndicatorVariants>,
     Pick<VariantProps<typeof statusDotVariants>, 'size'> {
   /** Whether to animate the indicator (pulse effect) */
@@ -64,12 +65,12 @@ export const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
       <div
         className={cn(
           statusDotVariants({ variant, size }),
-          pulse && 'animate-pulse'
+          pulse && 'animate-pulse',
         )}
         aria-hidden="true"
       />
       {children && <span>{children}</span>}
     </div>
-  )
+  ),
 );
 StatusIndicator.displayName = 'StatusIndicator';

@@ -66,14 +66,19 @@ export function DocumentPreviewDialog({
 
   const isLoading = data === undefined;
   const isError = data?.success === false;
-  const queryError = isError && 'error' in data ? new Error(data.error || t('preview.unknownError')) : null;
+  const queryError =
+    isError && 'error' in data
+      ? new Error(data.error || t('preview.unknownError'))
+      : null;
   const doc = data?.success && 'item' in data ? data.item : undefined;
 
   // Determine display name
   const displayName =
     fileName ||
     doc?.name ||
-    (storagePath ? extractNameFromStoragePath(storagePath) : t('preview.document'));
+    (storagePath
+      ? extractNameFromStoragePath(storagePath)
+      : t('preview.document'));
 
   const handleDownload = async () => {
     if (!doc?.url) return;
@@ -101,7 +106,9 @@ export function DocumentPreviewDialog({
 
       toast({
         title: t('preview.downloadComplete'),
-        description: t('preview.downloadedSuccessfully', { filename: displayName }),
+        description: t('preview.downloadedSuccessfully', {
+          filename: displayName,
+        }),
         variant: 'success',
       });
     } catch (error) {
@@ -122,7 +129,7 @@ export function DocumentPreviewDialog({
       title={displayName}
       size="wide"
       hideClose
-      className="h-[85vh] p-0 overflow-hidden flex flex-col"
+      className="h-[85vh] p-0 sm:p-0 overflow-hidden flex flex-col"
       customHeader={
         <div className="flex flex-row items-center justify-between p-5 border-b max-h-[4.5rem]">
           <HStack gap={3} className="min-w-0">
@@ -165,7 +172,9 @@ export function DocumentPreviewDialog({
       {/* Body */}
       {isLoading && (
         <div className="flex-1 grid place-items-center p-6">
-          <div className="text-sm text-muted-foreground">{t('preview.loading')}</div>
+          <div className="text-sm text-muted-foreground">
+            {t('preview.loading')}
+          </div>
         </div>
       )}
       {isError && (

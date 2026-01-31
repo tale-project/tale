@@ -55,7 +55,7 @@ export function ErrorDisplayCompact({
   }, [error, organizationId, logError]);
 
   return (
-    <Center className="flex-col px-4 py-16">
+    <Center className="flex-col px-4 py-16 min-h-200">
       <Stack gap={4} className="w-full text-center max-w-md">
         {/* Error icon */}
         <Center>
@@ -80,14 +80,22 @@ export function ErrorDisplayCompact({
 
         {/* Action button */}
         <HStack gap={2} className="justify-center">
-          <Button onClick={reset} className="flex-1" aria-label={t('errors.tryAgain')}>
+          <Button
+            onClick={reset}
+            className="flex-1"
+            aria-label={t('errors.tryAgain')}
+          >
             <RefreshCw className="size-4 mr-2" />
             {t('errors.tryAgain')}
           </Button>
         </HStack>
 
         {/* Support message */}
-        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+        <p
+          className="text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
           {t('errors.persistsProblem')}{' '}
           <a
             href={

@@ -99,7 +99,7 @@ export function ChatSearchDialog({
       onOpenChange={onOpenChange}
       title={t('searchChat.title')}
       hideClose
-      className="p-0 overflow-hidden gap-0"
+      className="p-0 sm:p-0 overflow-hidden gap-0"
       customHeader={
         <div className="px-3 py-4 border-b border-border relative flex items-center">
           <Input
