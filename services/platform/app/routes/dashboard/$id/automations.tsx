@@ -6,6 +6,7 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { StickyHeader } from '@/app/components/layout/sticky-header';
 import { useT } from '@/lib/i18n/client';
+import { AutomationsListNavigation } from '@/app/features/automations/components/automations-list-navigation';
 
 export const Route = createFileRoute('/dashboard/$id/automations')({
   component: AutomationsLayout,
@@ -27,6 +28,7 @@ function AutomationsLayout() {
           <AdaptiveHeaderRoot standalone={false}>
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
+          <AutomationsListNavigation organizationId={organizationId} />
         </StickyHeader>
       )}
       <LayoutErrorBoundary organizationId={organizationId}>
