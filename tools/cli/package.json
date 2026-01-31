@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.3.2",
-    "commander": "^13.1.0",
+    "commander": "^14.0.0",
     "yaml": "^2.7.0"
   },
   "devDependencies": {
