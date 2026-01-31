@@ -6,7 +6,7 @@ ARG VERSION=dev
 
 # Use official TimescaleDB image as base
 # TimescaleDB is PostgreSQL with time-series extensions
-FROM timescale/timescaledb:2.24.0-pg16
+FROM timescale/timescaledb:2.25.0-pg16
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
