@@ -23,7 +23,7 @@ const Table = forwardRef<HTMLTableElement, TableProps>(
     }
 
     return (
-      <div className="relative w-full overflow-auto rounded-xl border border-border">
+      <div className="relative w-full overflow-auto">
         {table}
       </div>
     );

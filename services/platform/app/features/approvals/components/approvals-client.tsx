@@ -74,9 +74,7 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
         ];
 
   return (
-    <div className="px-4 py-6">
-      <DataTableSkeleton rows={8} columns={columns} showHeader />
-    </div>
+    <DataTableSkeleton rows={8} columns={columns} showHeader stickyLayout />
   );
 }
 
@@ -232,7 +230,9 @@ export function ApprovalsClient({
   const getApprovalDetail = useCallback(
     (approvalId: string): ApprovalDetail | null => {
       if (!approvals) return null;
-      const approval = approvals.find((a: ApprovalItem) => a._id === approvalId);
+      const approval = approvals.find(
+        (a: ApprovalItem) => a._id === approvalId,
+      );
       if (!approval) return null;
 
       const metadata = (approval.metadata || {}) as Record<string, unknown>;
@@ -259,35 +259,37 @@ export function ApprovalsClient({
         return { id, name, image, relationshipType, reasoning, confidence };
       });
 
-      const previousPurchases = safeGetArray(
-        metadata,
-        'eventProducts',
-        [],
-      ).map((product, index: number) => {
-        const id = safeGetString(product, 'id', `prev-${index}`);
-        const productName =
-          safeGetString(product, 'productName', '') ||
-          safeGetString(product, 'name', '') ||
-          safeGetString(product, 'product_name', '');
-        const image =
-          safeGetString(product, 'image', '') ||
-          safeGetString(product, 'imageUrl', '') ||
-          safeGetString(product, 'image_url', '') ||
-          '/assets/placeholder-image.png';
-        const purchaseDate = safeGetString(product, 'purchaseDate', undefined);
-        const statusValue = safeGetString(product, 'status', undefined);
-        const purchaseStatus: 'active' | 'cancelled' | undefined =
-          statusValue === 'active' || statusValue === 'cancelled'
-            ? statusValue
-            : undefined;
-        return {
-          id,
-          productName,
-          image,
-          purchaseDate,
-          status: purchaseStatus,
-        };
-      });
+      const previousPurchases = safeGetArray(metadata, 'eventProducts', []).map(
+        (product, index: number) => {
+          const id = safeGetString(product, 'id', `prev-${index}`);
+          const productName =
+            safeGetString(product, 'productName', '') ||
+            safeGetString(product, 'name', '') ||
+            safeGetString(product, 'product_name', '');
+          const image =
+            safeGetString(product, 'image', '') ||
+            safeGetString(product, 'imageUrl', '') ||
+            safeGetString(product, 'image_url', '') ||
+            '/assets/placeholder-image.png';
+          const purchaseDate = safeGetString(
+            product,
+            'purchaseDate',
+            undefined,
+          );
+          const statusValue = safeGetString(product, 'status', undefined);
+          const purchaseStatus: 'active' | 'cancelled' | undefined =
+            statusValue === 'active' || statusValue === 'cancelled'
+              ? statusValue
+              : undefined;
+          return {
+            id,
+            productName,
+            image,
+            purchaseDate,
+            status: purchaseStatus,
+          };
+        },
+      );
 
       const metaConfidence = (() => {
         const raw =
@@ -551,7 +553,9 @@ export function ApprovalsClient({
     {
       id: 'actions',
       header: () => (
-        <span className="text-center w-full block">{t('columns.approved')}</span>
+        <span className="text-center w-full block">
+          {t('columns.approved')}
+        </span>
       ),
       size: 100,
       cell: ({ row }) => (
@@ -744,6 +748,7 @@ export function ApprovalsClient({
         columns={columns}
         data={approvals}
         getRowId={(row) => row._id}
+        stickyLayout
         onRowClick={(row) => handleApprovalRowClick(row.original._id)}
         rowClassName="cursor-pointer"
       />
