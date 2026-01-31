@@ -87,6 +87,8 @@ export function ChatInput({
       'text/plain',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     ];
 
     // Validate files
@@ -280,7 +282,7 @@ export function ChatInput({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx,.txt"
+        accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
         onChange={handleFileInputChange}
         style={{ display: 'none' }}
       />
