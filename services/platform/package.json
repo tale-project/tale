@@ -92,7 +92,7 @@
     "mustache": "4.2.0",
     "mysql2": "3.16.2",
     "nodemailer": "7.0.13",
-    "pg": "8.17.2",
+    "pg": "8.18.0",
     "react": "19.2.4",
     "react-datepicker": "9.1.0",
     "react-day-picker": "9.13.0",
