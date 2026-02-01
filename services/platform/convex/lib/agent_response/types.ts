@@ -129,6 +129,8 @@ export interface GenerateResponseResult {
   toolCalls?: Array<{ toolName: string; status: string }>;
   subAgentUsage?: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;

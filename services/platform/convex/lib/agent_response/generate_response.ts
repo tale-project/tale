@@ -522,6 +522,8 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   toolCalls: Array<{ toolName: string; status: string }>;
   subAgentUsage: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -546,6 +548,8 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -576,28 +580,30 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     // Extract sub-agent usage
     for (const toolResult of stepToolResults) {
       if (subAgentToolNames.includes(toolResult.toolName)) {
-        type UsageData = {
-          inputTokens?: number;
-          outputTokens?: number;
-          totalTokens?: number;
+        type SubAgentResultData = {
+          model?: string;
+          provider?: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+          };
         };
-        const directResult = toolResult.result as
-          | { usage?: UsageData }
-          | undefined;
-        const outputDirect = toolResult.output as unknown as
-          | { usage?: UsageData }
-          | undefined;
+        const directResult = toolResult.result as SubAgentResultData | undefined;
+        const outputDirect = toolResult.output as unknown as SubAgentResultData | undefined;
         const outputValue = (
-          toolResult.output as { value?: { usage?: UsageData } } | undefined
+          toolResult.output as { value?: SubAgentResultData } | undefined
         )?.value;
-        const toolUsage =
-          directResult?.usage ?? outputDirect?.usage ?? outputValue?.usage;
-        if (toolUsage) {
+        const subAgentData = directResult ?? outputDirect ?? outputValue;
+        const toolUsage = subAgentData?.usage;
+        if (toolUsage || subAgentData?.model) {
           subAgentUsage.push({
             toolName: toolResult.toolName,
-            inputTokens: toolUsage.inputTokens,
-            outputTokens: toolUsage.outputTokens,
-            totalTokens: toolUsage.totalTokens,
+            model: subAgentData?.model,
+            provider: subAgentData?.provider,
+            inputTokens: toolUsage?.inputTokens,
+            outputTokens: toolUsage?.outputTokens,
+            totalTokens: toolUsage?.totalTokens,
           });
         }
       }

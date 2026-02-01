@@ -1414,6 +1414,7 @@
       "performance": "Performance",
       "duration": "Duration",
       "timeToFirstToken": "Time to first token",
+      "subAgentCalls": "Sub-agent calls",
       "noMetadata": "Token usage and model information are not available for this message."
     },
     "loadOlderMessages": "Load older messages",

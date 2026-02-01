@@ -93,7 +93,7 @@ EXAMPLES:
           parentThreadId: threadId,
         });
 
-        return successResponse(result.text, result.usage);
+        return successResponse(result.text, result.usage, result.model, result.provider);
       } catch (error) {
         return handleToolError('web_assistant_tool', error);
       }

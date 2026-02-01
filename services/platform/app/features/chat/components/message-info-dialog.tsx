@@ -6,18 +6,17 @@ import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n/client';
+import type { MessageMetadata } from '../hooks/use-message-metadata';
 
-interface MessageMetadata {
-  model: string;
-  provider: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  reasoningTokens?: number;
-  cachedInputTokens?: number;
-  reasoning?: string;
-  durationMs?: number;
-  timeToFirstTokenMs?: number;
+function formatAgentName(toolName: string): string {
+  const nameMap: Record<string, string> = {
+    web_assistant: 'Web',
+    document_assistant: 'Document',
+    crm_assistant: 'CRM',
+    integration_assistant: 'Integration',
+    workflow_assistant: 'Workflow',
+  };
+  return nameMap[toolName] ?? toolName;
 }
 
 interface MessageInfoDialogProps {
@@ -148,6 +147,38 @@ export function MessageInfoDialog({
                     </Stack>
                   )}
                 </Grid>
+              </Field>
+            )}
+
+            {metadata.subAgentUsage && metadata.subAgentUsage.length > 0 && (
+              <Field label={t('messageInfo.subAgentCalls')}>
+                <Stack gap={2}>
+                  {metadata.subAgentUsage.map((usage, index) => (
+                    <div
+                      key={`${usage.toolName}-${index}`}
+                      className="text-sm bg-muted px-3 py-2 rounded"
+                    >
+                      <div className="font-medium mb-1">
+                        {formatAgentName(usage.toolName)}
+                        {usage.model && (
+                          <span className="font-normal text-muted-foreground ml-2">
+                            {usage.model}
+                            {usage.provider && ` (${usage.provider})`}
+                          </span>
+                        )}
+                      </div>
+                      {usage.totalTokens !== undefined && (
+                        <div className="text-xs text-muted-foreground">
+                          {t('messageInfo.input')}: {formatNumber(usage.inputTokens ?? 0, locale)}
+                          {' · '}
+                          {t('messageInfo.output')}: {formatNumber(usage.outputTokens ?? 0, locale)}
+                          {' · '}
+                          {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </Stack>
               </Field>
             )}
 

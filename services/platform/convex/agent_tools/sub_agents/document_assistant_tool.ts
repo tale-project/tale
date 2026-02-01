@@ -109,7 +109,7 @@ EXAMPLES:
           },
         );
 
-        return successResponse(result.text, result.usage);
+        return successResponse(result.text, result.usage, result.model, result.provider);
       } catch (error) {
         return handleToolError('document_assistant_tool', error);
       }
