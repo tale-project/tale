@@ -39,6 +39,8 @@ interface ChatCompleteResult {
   timeToFirstTokenMs?: number;
   subAgentUsage?: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
