@@ -8,7 +8,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createIntegrationAgent } from './agent';
+import { createIntegrationAgent, INTEGRATION_AGENT_INSTRUCTIONS } from './agent';
 import {
   generateAgentResponse,
   type GenerateResponseResult,
@@ -50,6 +50,7 @@ export async function generateIntegrationResponse(
       model,
       provider: 'openai',
       debugTag: '[IntegrationAgent]',
+      instructions: INTEGRATION_AGENT_INSTRUCTIONS,
     },
     {
       ...baseArgs,

@@ -3,7 +3,8 @@ import { z } from 'zod/v4';
 export const cursorPaginationOptsSchema = z.object({
 	numItems: z.number(),
 	cursor: z.union([z.string(), z.null()]),
-	id: z.number(),
+	/** Optional request correlation ID for tracking pagination requests */
+	id: z.number().optional(),
 });
 export type CursorPaginationOpts = z.infer<typeof cursorPaginationOptsSchema>;
 

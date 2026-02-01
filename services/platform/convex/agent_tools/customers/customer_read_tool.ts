@@ -6,6 +6,7 @@
  * - operation = 'get_by_id': fetch a single customer by customerId
  * - operation = 'get_by_email': fetch a single customer by email within the organization
  * - operation = 'list': list customers for the current organization with pagination
+ * - operation = 'count': count total customers for the organization
  */
 
 import { z } from 'zod/v4';
@@ -17,18 +18,20 @@ import type {
   CustomerReadGetByIdResult,
   CustomerReadGetByEmailResult,
   CustomerReadListResult,
+  CustomerReadCountResult,
 } from './helpers/types';
 import { readCustomerById } from './helpers/read_customer_by_id';
 import { readCustomerByEmail } from './helpers/read_customer_by_email';
 import { readCustomerList } from './helpers/read_customer_list';
+import { countCustomers } from './helpers/count_customers';
 
 // Use a flat object schema instead of discriminatedUnion to ensure OpenAI-compatible JSON Schema
 // (discriminatedUnion produces anyOf/oneOf which some providers reject as "type: None")
 const customerReadArgs = z.object({
   operation: z
-    .enum(['get_by_id', 'get_by_email', 'list'])
+    .enum(['get_by_id', 'get_by_email', 'list', 'count'])
     .describe(
-      "Operation to perform: 'get_by_id' (fetch by ID), 'get_by_email' (fetch by email), or 'list' (paginate all)",
+      "Operation to perform: 'get_by_id' (fetch by ID), 'get_by_email' (fetch by email), 'list' (paginate all), or 'count' (count total customers)",
     ),
   // For get_by_id operation
   customerId: z
@@ -81,6 +84,8 @@ OPERATIONS:
 • 'get_by_id': Fetch a single customer by their Convex ID. Use when you have a specific customer ID.
 • 'get_by_email': Fetch a single customer by their email address within the organization.
 • 'list': Paginate through all customers for the organization. Use for browsing, searching, or bulk operations.
+• 'count': Count total customers for the organization.
+  NOTE: If data volume is too large (cannot be counted within 3 pagination requests), returns a message indicating the data is too large to count.
 
 AVAILABLE FIELDS (select only what you need):
 System fields:
@@ -106,6 +111,7 @@ BEST PRACTICES:
 • Use 'list' with pagination (cursor) for large customer bases instead of fetching all at once.
 • Default numItems is 200; reduce if selecting many fields or heavy fields.
 • If hasMore is true, continue calling with the returned cursor to fetch all customers.
+• Use 'count' to get total customer count. If data is too large, the response will indicate this.
 • If you need customer information not found in standard fields, check the 'metadata' field - it may contain additional custom attributes imported from external systems.`,
     args: customerReadArgs,
     handler: async (
@@ -115,6 +121,7 @@ BEST PRACTICES:
       | CustomerReadGetByIdResult
       | CustomerReadGetByEmailResult
       | CustomerReadListResult
+      | CustomerReadCountResult
     > => {
       if (args.operation === 'get_by_id') {
         if (!args.customerId) {
@@ -138,6 +145,10 @@ BEST PRACTICES:
           email: args.email,
           fields: args.fields,
         });
+      }
+
+      if (args.operation === 'count') {
+        return countCustomers(ctx);
       }
 
       // operation === 'list'

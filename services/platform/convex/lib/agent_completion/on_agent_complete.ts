@@ -36,6 +36,15 @@ export interface AgentResponseResult {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
+  toolCalls?: Array<{ toolName: string; status: string }>;
+  subAgentUsage?: Array<{
+    toolName: string;
+    model?: string;
+    provider?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  }>;
   contextWindow?: string;
   contextStats?: {
     totalTokens: number;
@@ -117,6 +126,7 @@ export async function onAgentComplete(
             reasoning: result.reasoning,
             durationMs: result.durationMs,
             timeToFirstTokenMs: result.timeToFirstTokenMs,
+            subAgentUsage: result.subAgentUsage,
             contextWindow: result.contextWindow,
             contextStats: result.contextStats,
           });

@@ -1,36 +1,77 @@
 /**
  * Message Formatter for Structured Context Window
  *
- * Formats conversation messages, tool calls, and human interactions
- * as XML-like structured tags for clear context organization.
+ * Uses HTML <details> elements for collapsible sections.
+ * This format is understood by LLMs and renders natively in browsers.
  */
 
 /**
- * Escape XML special characters in content
+ * Format compact timestamp (YYYY-MM-DD HH:MM:SS UTC)
  */
-function escapeXml(text: string): string {
-  return text
+function shortTime(timestamp: number): string {
+  const iso = new Date(timestamp).toISOString();
+  return iso.slice(0, 10) + ' ' + iso.slice(11, 19) + 'Z';
+}
+
+/**
+ * Escape HTML special characters to prevent structure breakage and XSS
+ */
+function escapeHtml(value: string): string {
+  return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/'/g, '&#39;');
 }
 
 /**
- * Format ISO timestamp
+ * Wrap content in a collapsible <details> section.
+ * Used for all context window sections for unified formatting.
  */
-function formatTimestamp(timestamp: number): string {
-  return new Date(timestamp).toISOString();
+export function wrapInDetails(
+  summary: string,
+  content: string,
+  open = false,
+): string {
+  const openAttr = open ? ' open' : '';
+  return `<details${openAttr}>
+<summary>${escapeHtml(summary)}</summary>
+
+${escapeHtml(content)}
+
+</details>`;
+}
+
+/**
+ * Safely stringify a value, handling circular refs, BigInt, and other edge cases
+ */
+function safeStringify(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(
+      value,
+      (_, v) => (typeof v === 'bigint' ? v.toString() : v),
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Summarize output (truncate long values)
+ */
+function summarize(output: unknown, max = 200): string {
+  if (output === null || output === undefined) return '-';
+  const str = safeStringify(output);
+  return str.length > max ? str.slice(0, max) + '...' : str;
 }
 
 /**
  * Format a user message
  */
 export function formatUserMessage(content: string, timestamp: number): string {
-  return `<user timestamp="${formatTimestamp(timestamp)}">
-${escapeXml(content)}
-</user>`;
+  return `User[${shortTime(timestamp)}]: ${content}`;
 }
 
 /**
@@ -40,32 +81,40 @@ export function formatAssistantMessage(
   content: string,
   timestamp: number,
 ): string {
-  return `<assistant timestamp="${formatTimestamp(timestamp)}">
-${escapeXml(content)}
-</assistant>`;
+  return `Assistant[${shortTime(timestamp)}]: ${content}`;
 }
 
 /**
- * Format a tool call with its input and output
+ * Format a tool call with its input and output (legacy)
+ * Uses log-style format to prevent AI from mimicking this as an action instruction
  */
 export function formatToolCall(
   toolName: string,
-  input: unknown,
+  _input: unknown,
   output: unknown,
-  timestamp: number,
+  _timestamp: number,
   status: 'success' | 'error' = 'success',
 ): string {
-  const inputStr = JSON.stringify(input, null, 2);
-  const outputStr = JSON.stringify(output, null, 2);
-
-  return `<tool_call name="${escapeXml(toolName)}" timestamp="${formatTimestamp(timestamp)}" status="${status}">
-input: ${escapeXml(inputStr)}
-output: ${escapeXml(outputStr)}
-</tool_call>`;
+  const s = status === 'success' ? '✓' : '✗';
+  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
 }
 
 /**
- * Format a human input request (from AI to user)
+ * Format a tool call summary
+ * Uses log-style format to prevent AI from mimicking this as an action instruction
+ */
+export function formatToolCallSummary(
+  toolName: string,
+  output: unknown,
+  _timestamp: number,
+  status: 'success' | 'error' = 'success',
+): string {
+  const s = status === 'success' ? '✓' : '✗';
+  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
+}
+
+/**
+ * Format a human input request
  */
 export function formatHumanInputRequest(
   id: string,
@@ -75,27 +124,13 @@ export function formatHumanInputRequest(
   options?: Array<{ label: string; description?: string; value?: string }>,
   timestamp?: number,
 ): string {
-  const parts: string[] = [`question: ${escapeXml(question)}`];
-
-  if (context) {
-    parts.push(`context: ${escapeXml(context)}`);
-  }
-
-  if (options && options.length > 0) {
-    parts.push(`options: ${escapeXml(JSON.stringify(options))}`);
-  }
-
-  const timestampAttr = timestamp
-    ? ` timestamp="${formatTimestamp(timestamp)}"`
-    : '';
-
-  return `<request_human_input id="${escapeXml(id)}" format="${escapeXml(format)}"${timestampAttr}>
-${parts.join('\n')}
-</request_human_input>`;
+  const t = timestamp ? `[${shortTime(timestamp)}]` : '';
+  const opts = options?.length ? ` Options: ${options.map((o) => o.label).join(', ')}` : '';
+  return `HumanInput${t} (${format}): ${question}${opts}`;
 }
 
 /**
- * Format a human response (user's answer to AI's question)
+ * Format a human response
  */
 export function formatHumanResponse(
   id: string,
@@ -103,87 +138,86 @@ export function formatHumanResponse(
   user: string,
   timestamp: number,
 ): string {
-  const responseStr =
-    typeof response === 'string' ? response : JSON.stringify(response);
-
-  return `<human_response id="${id}" user="${escapeXml(user)}" timestamp="${formatTimestamp(timestamp)}">
-response: ${escapeXml(responseStr)}
-</human_response>`;
+  const r = typeof response === 'string' ? response : response.join(', ');
+  return `HumanResponse[${shortTime(timestamp)}] by ${user}: ${r}`;
 }
 
 /**
- * Format system information block
+ * Format system info (collapsible)
  */
 export function formatSystemInfo(threadId: string, timestamp: number): string {
-  return `<system>
-thread_id: ${threadId}
-time: ${formatTimestamp(timestamp)}
-</system>`;
+  const content = `thread=${threadId} time=${shortTime(timestamp)}`;
+  return wrapInDetails('⚙️ System', content);
 }
 
 /**
- * Format context summary block
+ * Format context summary (collapsible)
  */
 export function formatContextSummary(summary: string): string {
-  return `<context_summary>
-${escapeXml(summary)}
-</context_summary>`;
+  return wrapInDetails('📝 Summary', summary);
 }
 
 /**
- * Format knowledge base (RAG) context block
+ * Format knowledge base (collapsible)
  */
 export function formatKnowledgeBase(content: string): string {
-  return `<knowledge_base>
-${escapeXml(content)}
-</knowledge_base>`;
+  return wrapInDetails('📚 Knowledge', content);
 }
 
 /**
- * Format integrations info block
+ * Format integrations info (collapsible)
  */
 export function formatIntegrations(info: string): string {
-  return `<integrations>
-${escapeXml(info)}
-</integrations>`;
+  return wrapInDetails('🔌 Integrations', info);
 }
 
 /**
- * Format task description block (used by agents when handling a specific task)
+ * Format task description (just prefixed user message for sub-agents)
  */
 export function formatTaskDescription(description: string): string {
-  return `<current_task>
-${escapeXml(description)}
-</current_task>`;
+  return `User: ${description}`;
 }
 
 /**
- * Format additional context block with dynamic tag name
- * The key is sanitized to be a valid XML tag name
+ * Format additional context (collapsible)
  */
 export function formatAdditionalContext(key: string, value: string): string {
-  const tagName = key.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
-  return `<${tagName}>
-${escapeXml(value)}
-</${tagName}>`;
+  return wrapInDetails(`📎 ${key}`, value);
 }
 
 /**
- * Format parent thread reference (for sub-agent context)
+ * Format parent thread reference (collapsible)
  */
 export function formatParentThread(parentThreadId: string): string {
-  return `<parent_thread>
-${parentThreadId}
-</parent_thread>`;
+  return wrapInDetails('🔗 Parent', parentThreadId);
 }
 
 /**
- * Format a system message (internal notification)
+ * Format conversation history section (collapsible)
+ */
+export function formatHistorySection(historyContent: string): string {
+  return wrapInDetails('💬 History', historyContent);
+}
+
+/**
+ * Format current user request section (expanded by default, distinct from history)
+ */
+export function formatCurrentRequestSection(content: string): string {
+  return wrapInDetails('📩 Current Request', content, true);
+}
+
+/**
+ * Format AI response section (expanded by default)
+ */
+export function formatCurrentTurnSection(content: string): string {
+  return wrapInDetails('✨ AI Response', content, true);
+}
+
+/**
+ * Format a system message
  */
 export function formatSystemMessage(content: string, timestamp: number): string {
-  return `<system_message timestamp="${formatTimestamp(timestamp)}">
-${escapeXml(content)}
-</system_message>`;
+  return `System[${shortTime(timestamp)}]: ${content}`;
 }
 
 /**
@@ -195,39 +229,22 @@ export interface CurrentTurnToolCall {
 }
 
 /**
- * Format the current turn (user input + AI output + tool calls)
- * This is appended to the context window after generation completes
+ * Format the current turn (tool calls and assistant output only)
+ * User input is already in message history, so we don't duplicate it here.
  */
 export function formatCurrentTurn(params: {
-  userInput: string;
   assistantOutput: string;
   toolCalls?: CurrentTurnToolCall[];
   timestamp: number;
 }): string {
-  const { userInput, assistantOutput, toolCalls, timestamp } = params;
+  const { assistantOutput, toolCalls, timestamp } = params;
   const parts: string[] = [];
+  const t = shortTime(timestamp);
 
-  parts.push(`<current_turn timestamp="${formatTimestamp(timestamp)}">`);
-
-  if (userInput) {
-    parts.push(`<user_input>
-${escapeXml(userInput)}
-</user_input>`);
+  if (toolCalls?.length) {
+    parts.push(`Tools: ${toolCalls.map((tc) => `${tc.toolName}(${tc.status})`).join(', ')}`);
   }
-
-  if (toolCalls && toolCalls.length > 0) {
-    parts.push(`<tool_calls>
-${toolCalls.map((tc) => `  <tool name="${escapeXml(tc.toolName)}" status="${escapeXml(tc.status)}" />`).join('\n')}
-</tool_calls>`);
-  }
-
-  if (assistantOutput) {
-    parts.push(`<assistant_output>
-${escapeXml(assistantOutput)}
-</assistant_output>`);
-  }
-
-  parts.push('</current_turn>');
+  if (assistantOutput) parts.push(`Assistant[${t}]: ${assistantOutput}`);
 
   return parts.join('\n');
 }

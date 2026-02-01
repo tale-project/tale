@@ -7,7 +7,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createWebAgent } from './agent';
+import { createWebAgent, WEB_AGENT_INSTRUCTIONS } from './agent';
 import {
   generateAgentResponse,
   type GenerateResponseResult,
@@ -35,6 +35,7 @@ export async function generateWebResponse(
       model: process.env.OPENAI_FAST_MODEL || '',
       provider: 'openai',
       debugTag: '[WebAgent]',
+      instructions: WEB_AGENT_INSTRUCTIONS,
     },
     args,
   );

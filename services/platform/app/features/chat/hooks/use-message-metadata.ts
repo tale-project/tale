@@ -5,6 +5,24 @@
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 
+export interface SubAgentUsage {
+  toolName: string;
+  model?: string;
+  provider?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+export interface ContextStats {
+  totalTokens: number;
+  messageCount: number;
+  approvalCount: number;
+  hasSummary: boolean;
+  hasRag: boolean;
+  hasIntegrations: boolean;
+}
+
 export interface MessageMetadata {
   model: string;
   provider: string;
@@ -16,6 +34,9 @@ export interface MessageMetadata {
   reasoning?: string;
   durationMs?: number;
   timeToFirstTokenMs?: number;
+  subAgentUsage?: SubAgentUsage[];
+  contextWindow?: string;
+  contextStats?: ContextStats;
 }
 
 export function useMessageMetadata(messageId: string | null) {
@@ -37,6 +58,9 @@ export function useMessageMetadata(messageId: string | null) {
           reasoning: metadata.reasoning,
           durationMs: metadata.durationMs,
           timeToFirstTokenMs: metadata.timeToFirstTokenMs,
+          subAgentUsage: metadata.subAgentUsage,
+          contextWindow: metadata.contextWindow,
+          contextStats: metadata.contextStats,
         }
       : undefined,
     isLoading: metadata === undefined && messageId !== null,

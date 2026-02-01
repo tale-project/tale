@@ -1,23 +1,91 @@
 'use client';
 
+import { useState } from 'react';
+import Markdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n/client';
+import type { MessageMetadata } from '../hooks/use-message-metadata';
 
-interface MessageMetadata {
-  model: string;
-  provider: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  totalTokens?: number;
-  reasoningTokens?: number;
-  cachedInputTokens?: number;
-  reasoning?: string;
-  durationMs?: number;
-  timeToFirstTokenMs?: number;
+function formatAgentName(toolName: string): string {
+  const nameMap: Record<string, string> = {
+    web_assistant: 'Web',
+    document_assistant: 'Document',
+    crm_assistant: 'CRM',
+    integration_assistant: 'Integration',
+    workflow_assistant: 'Workflow',
+  };
+  return nameMap[toolName] ?? toolName;
+}
+
+interface ContextWindowTokenProps {
+  contextWindow: string;
+  contextStats?: MessageMetadata['contextStats'];
+  t: (key: string) => string;
+  locale: string;
+}
+
+function ContextWindowToken({
+  contextWindow,
+  contextStats,
+  t,
+  locale,
+}: ContextWindowTokenProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const tokenCount = contextStats?.totalTokens ?? 0;
+
+  return (
+    <>
+      <Stack gap={0}>
+        <div className="text-xs text-muted-foreground">
+          {t('messageInfo.contextWindow')}
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsDialogOpen(true)}
+          className="font-medium text-left cursor-pointer hover:underline"
+        >
+          {formatNumber(tokenCount, locale)}
+        </button>
+      </Stack>
+
+      <ViewDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        title={t('messageInfo.contextWindow')}
+        description={t('messageInfo.contextWindowDescription')}
+        className="sm:max-w-[800px] max-h-[80vh]"
+      >
+        <div className="context-window-content overflow-auto max-h-[60vh] [&_details]:border [&_details]:border-border [&_details]:rounded-md [&_details]:mb-2 [&_details]:overflow-hidden [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:cursor-pointer [&_details_summary]:font-medium [&_details_summary]:bg-muted [&_details_summary]:list-none [&_details[open]_summary]:border-b [&_details[open]_summary]:border-border [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details>*:not(summary)]:overflow-x-auto">
+          <Markdown
+            rehypePlugins={[
+              rehypeRaw,
+              [
+                rehypeSanitize,
+                {
+                  ...defaultSchema,
+                  tagNames: [
+                    ...(defaultSchema.tagNames ?? []),
+                    'details',
+                    'summary',
+                  ],
+                },
+              ],
+            ]}
+            remarkPlugins={[remarkGfm]}
+          >
+            {contextWindow}
+          </Markdown>
+        </div>
+      </ViewDialog>
+    </>
+  );
 }
 
 interface MessageInfoDialogProps {
@@ -65,9 +133,22 @@ export function MessageInfoDialog({
               </div>
             </Field>
 
-            {metadata.totalTokens !== undefined && (
+            {(metadata.contextWindow ||
+              metadata.totalTokens !== undefined ||
+              metadata.inputTokens !== undefined ||
+              metadata.outputTokens !== undefined ||
+              (metadata.reasoningTokens ?? 0) > 0 ||
+              (metadata.cachedInputTokens ?? 0) > 0) && (
               <Field label={t('messageInfo.tokenUsage')}>
                 <Grid cols={2} gap={2} className="text-sm">
+                  {metadata.contextWindow && (
+                    <ContextWindowToken
+                      contextWindow={metadata.contextWindow}
+                      contextStats={metadata.contextStats}
+                      t={t}
+                      locale={locale}
+                    />
+                  )}
                   {metadata.inputTokens !== undefined && (
                     <Stack gap={0}>
                       <div className="text-xs text-muted-foreground">
@@ -148,6 +229,38 @@ export function MessageInfoDialog({
                     </Stack>
                   )}
                 </Grid>
+              </Field>
+            )}
+
+            {metadata.subAgentUsage && metadata.subAgentUsage.length > 0 && (
+              <Field label={t('messageInfo.subAgentCalls')}>
+                <Stack gap={2}>
+                  {metadata.subAgentUsage.map((usage, index) => (
+                    <div
+                      key={`${usage.toolName}-${index}`}
+                      className="text-sm bg-muted px-3 py-2 rounded"
+                    >
+                      <div className="font-medium mb-1">
+                        {formatAgentName(usage.toolName)}
+                        {usage.model && (
+                          <span className="font-normal text-muted-foreground ml-2">
+                            {usage.model}
+                            {usage.provider && ` (${usage.provider})`}
+                          </span>
+                        )}
+                      </div>
+                      {usage.totalTokens !== undefined && (
+                        <div className="text-xs text-muted-foreground">
+                          {t('messageInfo.input')}: {formatNumber(usage.inputTokens ?? 0, locale)}
+                          {' · '}
+                          {t('messageInfo.output')}: {formatNumber(usage.outputTokens ?? 0, locale)}
+                          {' · '}
+                          {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </Stack>
               </Field>
             )}
 
