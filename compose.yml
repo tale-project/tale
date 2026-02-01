@@ -160,6 +160,61 @@ services:
       - internal
 
   # ============================================================================
+  # Tale Operator (Browser-Use)
+  # ============================================================================
+  # AI-powered browser automation service
+  # - Uses real browser to bypass anti-bot detection
+  # - Supports Google, Bing, DuckDuckGo search
+  # - Requires OpenAI-compatible LLM API
+  operator:
+    # Image from GHCR (used when PULL_POLICY=always)
+    image: ghcr.io/tale-project/tale/tale-operator:${VERSION:-latest}
+    # Pull policy: 'build' for local dev, 'always' for production
+    pull_policy: ${PULL_POLICY:-build}
+    # Build configuration (used when PULL_POLICY=build)
+    build:
+      context: .
+      dockerfile: services/operator/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+
+    # Port mapping: host:container (for development)
+    # Access Operator API at localhost:8004
+    ports:
+      - '8004:8004'
+
+    # Environment file
+    env_file:
+      - .env
+
+    # Environment variables (override .env for testing)
+    environment:
+      # Use non-headless mode with Xvfb for better anti-detection
+      - OPERATOR_HEADLESS=false
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check - longer start period for Playwright initialization
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8004/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+    # Logging configuration
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+    # Networks
+    networks:
+      - internal
+
+  # ============================================================================
   # Tale Graph DB (FalkorDB)
   # ============================================================================
   # Redis-based graph database optimized for GraphRAG
