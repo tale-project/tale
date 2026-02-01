@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Browser configuration (OPERATOR_ prefix)
     headless: bool = Field(default=True, validation_alias="OPERATOR_HEADLESS")
     timeout: int = Field(default=30, validation_alias="OPERATOR_TIMEOUT")
-    max_steps: int = Field(default=10, validation_alias="OPERATOR_MAX_STEPS")
+    max_steps: int = Field(default=30, validation_alias="OPERATOR_MAX_STEPS")
 
     # LLM configuration (from OPENAI_* env vars - no prefix)
     openai_base_url: str = ""

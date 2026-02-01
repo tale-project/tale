@@ -6,8 +6,6 @@ from loguru import logger
 from app.models import (
     AnswerRequest,
     AnswerResponse,
-    SearchRequest,
-    SearchResponse,
     TaskRequest,
     TaskResponse,
 )
@@ -26,10 +24,7 @@ async def answer(request: AnswerRequest) -> AnswerResponse:
     """
     try:
         service = get_browser_service()
-        answer_text, sources = await service.answer(
-            question=request.question,
-            language=request.language,
-        )
+        answer_text, sources = await service.answer(question=request.question)
 
         return AnswerResponse(
             success=bool(answer_text),
@@ -51,111 +46,6 @@ async def answer(request: AnswerRequest) -> AnswerResponse:
         return AnswerResponse(
             success=False,
             question=request.question,
-            error=str(e),
-        )
-
-
-@router.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest) -> SearchResponse:
-    """
-    Perform a web search using AI-powered browser automation.
-
-    This endpoint uses a real browser controlled by AI to search the web,
-    bypassing anti-bot detection that blocks traditional scraping.
-
-    Uses dual-model architecture:
-    - Agent LLM (OPENAI_MODEL) for browser control decisions
-    - Vision LLM (OPENAI_VISION_MODEL) for content extraction from screenshots
-    """
-    try:
-        service = get_browser_service()
-        results, rich_data, captcha_detected = await service.search(
-            query=request.query,
-            engine=request.engine,
-            num_results=request.num_results,
-            language=request.language,
-        )
-
-        return SearchResponse(
-            success=len(results) > 0,
-            query=request.query,
-            engine=request.engine,
-            results=results,
-            total_results=len(results),
-            captcha_detected=captcha_detected,
-            rich_data=rich_data,
-            error="CAPTCHA detected" if captcha_detected and not results else None,
-        )
-
-    except TimeoutError:
-        logger.error(f"Search timeout for: {request.query}")
-        return SearchResponse(
-            success=False,
-            query=request.query,
-            engine=request.engine,
-            results=[],
-            total_results=0,
-            error="Search timed out",
-        )
-
-    except Exception as e:
-        logger.exception(f"Search failed: {e}")
-        return SearchResponse(
-            success=False,
-            query=request.query,
-            engine=request.engine,
-            results=[],
-            total_results=0,
-            error=str(e),
-        )
-
-
-@router.post("/search-with-fallback", response_model=SearchResponse)
-async def search_with_fallback(request: SearchRequest) -> SearchResponse:
-    """
-    Perform a web search with automatic engine fallback.
-
-    Tries search engines in order: Google -> Bing -> DuckDuckGo
-    If CAPTCHA is detected on one engine, automatically tries the next.
-    """
-    try:
-        service = get_browser_service()
-        results, rich_data, engine_used, captcha_detected = await service.search_with_fallback(
-            query=request.query,
-            num_results=request.num_results,
-            language=request.language,
-        )
-
-        return SearchResponse(
-            success=len(results) > 0,
-            query=request.query,
-            engine=engine_used,
-            results=results,
-            total_results=len(results),
-            captcha_detected=captcha_detected,
-            rich_data=rich_data,
-            error="All search engines blocked by CAPTCHA" if captcha_detected and not results else None,
-        )
-
-    except TimeoutError:
-        logger.error(f"Search timeout for: {request.query}")
-        return SearchResponse(
-            success=False,
-            query=request.query,
-            engine=request.engine,
-            results=[],
-            total_results=0,
-            error="Search timed out",
-        )
-
-    except Exception as e:
-        logger.exception(f"Search failed: {e}")
-        return SearchResponse(
-            success=False,
-            query=request.query,
-            engine=request.engine,
-            results=[],
-            total_results=0,
             error=str(e),
         )
 

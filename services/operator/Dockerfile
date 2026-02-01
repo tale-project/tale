@@ -96,7 +96,7 @@ ENV TALE_VERSION=${VERSION} \
     OPERATOR_ALLOWED_ORIGINS="*" \
     OPERATOR_HEADLESS=true \
     OPERATOR_TIMEOUT=30 \
-    OPERATOR_MAX_STEPS=10 \
+    OPERATOR_MAX_STEPS=30 \
     HOME=/home/pwuser
 
 # Switch to non-root user

@@ -97,7 +97,7 @@ AGENT_TOOLS = [
 ]
 
 
-AGENT_SYSTEM_PROMPT = """You are a browser automation agent. Your task is to perform web searches and extract results.
+AGENT_SYSTEM_PROMPT = """You are a powerful browser automation agent. Your goal is to help users complete tasks by browsing the web intelligently.
 
 Available tools:
 - browser_navigate(url): Navigate to a URL
@@ -107,23 +107,33 @@ Available tools:
 - browser_wait_for(text, time): Wait for text or time
 - done(success, message): Signal task completion
 
-Strategy for web search:
-1. Use browser_navigate to go to the search engine URL with the query
-2. Use browser_take_screenshot to capture the search results
-3. If CAPTCHA is detected (you will be told), navigate to a different search engine:
-   - Google blocked -> https://www.bing.com/search?q={query}
-   - Bing blocked -> https://duckduckgo.com/?q={query}
-4. Call done() when you have successfully captured results or exhausted all options
+Core strategies:
 
-Search engine URL formats:
-- Google: https://www.google.com/search?q={query}&hl={language}
-- Bing: https://www.bing.com/search?q={query}
-- DuckDuckGo: https://duckduckgo.com/?q={query}
+1. **Web Search**: Start with Google, fallback to Bing/DuckDuckGo if blocked
+   - Google: https://www.google.com/search?q={query}
+   - Bing: https://www.bing.com/search?q={query}
+   - DuckDuckGo: https://duckduckgo.com/?q={query}
 
-Important:
-- Always URL-encode the query (replace spaces with +)
-- Take a screenshot after navigation to extract results
-- If all search engines are blocked, call done(success=false, message="All search engines blocked")
+2. **Navigate to specific sites**: Go directly to relevant websites
+   - For shopping: visit e-commerce sites (taobao, jd, guazi, etc.)
+   - For information: visit authoritative sources
+
+3. **Interact with chatbots**: If you see a chat widget or customer service bot:
+   - Click to open the chat window
+   - Type the user's question
+   - Wait for and capture the response
+   - This can provide more specific answers than search results
+
+4. **Fill forms**: If relevant, fill out inquiry forms to get quotes or information
+
+5. **Click through results**: Don't just stay on search results - click into promising links to get detailed information
+
+Best practices:
+- Take screenshots after each navigation to capture content
+- Be proactive - explore multiple sources to gather comprehensive information
+- If one approach fails, try alternatives
+- Interact with page elements (buttons, links, chat widgets) when useful
+- Call done() when you have gathered enough information or exhausted options
 """
 
 
@@ -319,15 +329,60 @@ Instructions:
 
 Answer:"""
 
+        return await self._call_llm(prompt)
+
+    async def synthesize_task_result(
+        self,
+        task: str,
+        page_contents: list[str],
+        urls_visited: list[str],
+    ) -> str:
+        """
+        Synthesize a useful result from task execution.
+
+        Args:
+            task: The original task description
+            page_contents: List of page contents collected during execution
+            urls_visited: List of URLs visited
+
+        Returns:
+            Synthesized result string
+        """
+        combined_content = "\n\n---\n\n".join(page_contents[-3:])  # Last 3 pages
+
+        prompt = f"""You completed a browser automation task. Based on the collected information, provide a helpful summary for the user.
+
+Original Task: {task}
+
+URLs Visited:
+{chr(10).join(f"- {url}" for url in urls_visited[-5:])}
+
+Page Contents:
+{combined_content[:12000]}
+
+Instructions:
+1. Summarize the key information found that's relevant to the user's task
+2. If the task was to find something specific, provide that information clearly
+3. If there are actionable recommendations, list them
+4. Be concise but comprehensive
+5. Respond in the same language as the task
+6. Focus on what would be most useful to the user
+
+Summary:"""
+
+        return await self._call_llm(prompt, max_tokens=2048)
+
+    async def _call_llm(self, prompt: str, max_tokens: int = 1024) -> str:
+        """Call the LLM with a prompt."""
         url = f"{settings.llm_base_url}/chat/completions" if settings.llm_base_url else "https://api.openai.com/v1/chat/completions"
 
         payload = {
             "model": settings.llm_model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1024,
+            "max_tokens": max_tokens,
         }
 
-        logger.info(f"Synthesizing answer using {settings.llm_model}")
+        logger.info(f"Calling LLM {settings.llm_model}")
 
         response = await self._client.post(
             url,
