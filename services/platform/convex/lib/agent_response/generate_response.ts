@@ -729,7 +729,13 @@ function extractToolCallsFromSteps(steps: unknown[]): {
         const outputValue = (
           toolResult.output as { value?: SubAgentResultData } | undefined
         )?.value;
-        const subAgentData = directResult ?? outputDirect ?? outputValue;
+        const hasRelevantData = (d: SubAgentResultData | undefined) =>
+          d?.model !== undefined || d?.usage !== undefined;
+        const subAgentData = hasRelevantData(directResult)
+          ? directResult
+          : hasRelevantData(outputDirect)
+            ? outputDirect
+            : outputValue;
         const toolUsage = subAgentData?.usage;
         if (toolUsage || subAgentData?.model) {
           subAgentUsage.push({
