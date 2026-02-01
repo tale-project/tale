@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "loguru>=0.7.0",
+    "litellm[proxy]>=1.55.0",
 ]
 
 [build-system]

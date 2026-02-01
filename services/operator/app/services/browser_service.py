@@ -1,24 +1,18 @@
-"""Browser automation service using Playwright MCP + dual model architecture."""
+"""Browser automation service using Claude Code CLI with Playwright MCP."""
 
-import base64
+import asyncio
+import json
 from typing import Any
-from urllib.parse import quote_plus
 
 from loguru import logger
 
 from app.config import settings
-from app.lib.agent_client import AgentClient
-from app.lib.mcp_client import MCPClient
-from app.lib.vision_client import VisionClient
 
 
 class BrowserService:
-    """Service for AI-powered browser automation using MCP + dual model."""
+    """Service for AI-powered browser automation using Claude Code + Playwright MCP."""
 
     def __init__(self):
-        self._mcp_client: MCPClient | None = None
-        self._agent_client: AgentClient | None = None
-        self._vision_client: VisionClient | None = None
         self._initialized = False
 
     @property
@@ -26,154 +20,170 @@ class BrowserService:
         return self._initialized
 
     async def initialize(self) -> None:
-        """Initialize the service components."""
+        """Initialize the service (verify Claude Code is available)."""
         if self._initialized:
             return
 
         try:
             logger.info("Initializing browser service...")
 
-            self._mcp_client = MCPClient()
-            self._agent_client = AgentClient()
-            self._vision_client = VisionClient()
+            # Verify Claude Code is available
+            proc = await asyncio.create_subprocess_exec(
+                "claude", "--version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
 
-            await self._mcp_client.initialize()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Claude Code not available: {stderr.decode()}")
+
+            version = stdout.decode().strip()
+            logger.info(f"Claude Code version: {version}")
 
             self._initialized = True
-            logger.info("Browser service initialized")
+            logger.info("Browser service initialized with Claude Code")
+
         except Exception as e:
             logger.error(f"Failed to initialize browser service: {e}")
             raise
 
     async def cleanup(self) -> None:
         """Cleanup service resources."""
-        if self._mcp_client:
-            try:
-                await self._mcp_client.cleanup()
-            except Exception as e:
-                logger.error(f"Error cleaning up MCP client: {e}")
-
-        if self._agent_client:
-            try:
-                await self._agent_client.close()
-            except Exception as e:
-                logger.error(f"Error closing agent client: {e}")
-
-        if self._vision_client:
-            try:
-                await self._vision_client.close()
-            except Exception as e:
-                logger.error(f"Error closing vision client: {e}")
-
         self._initialized = False
         logger.info("Browser service cleaned up")
 
-    def _build_search_url(self, query: str) -> str:
-        """Build Google search URL."""
-        encoded_query = quote_plus(query)
-        return f"https://www.google.com/search?q={encoded_query}"
+    async def _run_claude(
+        self,
+        prompt: str,
+        max_turns: int | None = None,
+        system_prompt: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Run Claude Code CLI with given prompt.
+
+        Args:
+            prompt: The task/question for Claude
+            max_turns: Maximum agentic turns (defaults to settings.max_steps)
+            system_prompt: Optional system prompt to append
+
+        Returns:
+            Dict with success status and result
+        """
+        if max_turns is None:
+            max_turns = settings.max_steps
+
+        cmd = [
+            "claude",
+            "-p", prompt,  # Print mode (non-interactive)
+            "--output-format", "json",
+            "--max-turns", str(max_turns),
+        ]
+
+        if system_prompt:
+            cmd.extend(["--append-system-prompt", system_prompt])
+
+        logger.info(f"Running Claude Code: {' '.join(cmd[:4])}...")
+        logger.debug(f"Full prompt: {prompt[:200]}...")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env={
+                    **dict(__import__("os").environ),
+                    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000",
+                    "ANTHROPIC_API_KEY": settings.litellm_master_key,
+                },
+            )
+
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=settings.timeout * max_turns,  # Scale timeout with turns
+            )
+
+            stdout_text = stdout.decode()
+            stderr_text = stderr.decode()
+
+            if stderr_text:
+                logger.debug(f"Claude Code stderr: {stderr_text}")
+
+            # Parse JSON output
+            try:
+                result = json.loads(stdout_text)
+                return {
+                    "success": result.get("is_error", False) is False,
+                    "result": result.get("result", stdout_text),
+                    "cost": result.get("cost_usd"),
+                    "turns": result.get("num_turns"),
+                }
+            except json.JSONDecodeError:
+                # Fallback to plain text if not JSON
+                return {
+                    "success": proc.returncode == 0,
+                    "result": stdout_text,
+                }
+
+        except asyncio.TimeoutError:
+            logger.error("Claude Code execution timed out")
+            return {
+                "success": False,
+                "result": "Task timed out",
+            }
+        except Exception as e:
+            logger.error(f"Claude Code execution failed: {e}")
+            return {
+                "success": False,
+                "result": str(e),
+            }
 
     async def run_task(self, task: str, timeout: int = 60) -> Any:
         """
-        Run a generic browser task and synthesize useful results.
+        Run a generic browser task using Claude Code + Playwright MCP.
 
         Args:
             task: Natural language task description
-            timeout: Task timeout in seconds (for future use)
+            timeout: Task timeout in seconds (used as base for calculation)
 
         Returns:
-            Task result with success status and synthesized message
+            Task result with success status and message
         """
         if not self._initialized:
             await self.initialize()
 
-        page_contents: list[str] = []
-        urls_visited: list[str] = []
+        system_prompt = """You have access to Playwright MCP for browser automation.
 
-        async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
-            """Execute a tool call and collect page content."""
-            nonlocal page_contents, urls_visited
+Available browser tools:
+- mcp__playwright__browser_navigate: Navigate to URLs
+- mcp__playwright__browser_snapshot: Get page accessibility snapshot
+- mcp__playwright__browser_click: Click elements
+- mcp__playwright__browser_type: Type text into inputs
+- mcp__playwright__browser_wait_for: Wait for conditions
+- mcp__playwright__browser_take_screenshot: Take screenshots
 
-            if name == "browser_navigate":
-                url = arguments.get("url", "")
-                try:
-                    result = await self._mcp_client.navigate(url)
-                    urls_visited.append(url)
-                    content_items = result.get("content", [])
-                    for item in content_items:
-                        if item.get("type") == "text":
-                            text_content = item.get("text", "")
-                            if "### Snapshot" in text_content:
-                                page_contents.append(text_content.split("### Snapshot")[1])
-                            else:
-                                page_contents.append(text_content)
-                            break
-                    return f"Navigated to {url}"
-                except Exception as e:
-                    return f"Navigation failed: {e}"
+Strategies:
+1. For web search: Use Google, Bing, or DuckDuckGo
+2. For specific sites: Navigate directly to relevant websites
+3. Click through results to get detailed information
+4. Interact with chatbots/forms when helpful
+5. Take snapshots to understand page content
 
-            elif name == "browser_take_screenshot":
-                try:
-                    result = await self._mcp_client.take_screenshot()
-                    for content_item in result.get("content", []):
-                        if content_item.get("type") == "text":
-                            text_content = content_item.get("text", "")
-                            if "### Snapshot" in text_content:
-                                snapshot_part = text_content.split("### Snapshot")[1]
-                                if snapshot_part:
-                                    page_contents.append(snapshot_part)
-                            break
-                    return "Screenshot captured"
-                except Exception as e:
-                    return f"Screenshot failed: {e}"
+Always provide a helpful summary of what you found."""
 
-            elif name == "browser_click":
-                ref = arguments.get("ref", "")
-                element = arguments.get("element", "")
-                await self._mcp_client.click(ref, element)
-                return f"Clicked: {element or ref}"
+        result = await self._run_claude(
+            prompt=task,
+            system_prompt=system_prompt,
+        )
 
-            elif name == "browser_type":
-                ref = arguments.get("ref", "")
-                text = arguments.get("text", "")
-                submit = arguments.get("submit", False)
-                await self._mcp_client.type_text(ref, text, submit)
-                return f"Typed: {text}"
-
-            elif name == "browser_wait_for":
-                text = arguments.get("text")
-                time_val = arguments.get("time")
-                await self._mcp_client.wait_for(text=text, time=time_val)
-                return "Wait completed"
-
-            else:
-                return f"Unknown tool: {name}"
-
-        try:
-            success, agent_message = await self._agent_client.run_agent_loop(
-                task=task,
-                execute_tool=execute_tool,
-                max_steps=settings.max_steps,
-            )
-
-            if page_contents:
-                message = await self._agent_client.synthesize_task_result(
-                    task=task,
-                    page_contents=page_contents,
-                    urls_visited=urls_visited,
-                )
-            else:
-                message = agent_message
-
-            return {"success": success, "message": message}
-
-        except Exception as e:
-            logger.error(f"Task failed: {e}")
-            raise
+        return {
+            "success": result["success"],
+            "message": result["result"],
+        }
 
     async def answer(self, question: str) -> tuple[str, list[str]]:
         """
-        Answer a question by searching the web and synthesizing results.
+        Answer a question by searching the web using Claude Code + Playwright.
 
         Args:
             question: The question to answer
@@ -184,101 +194,36 @@ class BrowserService:
         if not self._initialized:
             await self.initialize()
 
-        page_content = ""
-        sources: list[dict[str, str]] = []
+        prompt = f"""Answer this question by searching the web: "{question}"
 
-        async def execute_tool(name: str, arguments: dict[str, Any]) -> str:
-            """Execute a tool call and capture page content."""
-            nonlocal page_content, sources
+Steps:
+1. Navigate to Google and search for relevant information
+2. Take a snapshot to see the search results
+3. Click on promising results to get detailed information
+4. Synthesize the information into a clear, direct answer
 
-            if name == "browser_navigate":
-                url = arguments.get("url", "")
-                try:
-                    result = await self._mcp_client.navigate(url)
-                    content_items = result.get("content", [])
-                    for item in content_items:
-                        if item.get("type") == "text":
-                            text_content = item.get("text", "")
-                            if "### Snapshot" in text_content:
-                                page_content = text_content.split("### Snapshot")[1]
-                            else:
-                                page_content = text_content
-                            break
-                    return f"Navigated to {url}"
-                except Exception as e:
-                    return f"Navigation failed: {e}"
+Provide a concise, factual answer based on what you find.
+Respond in the same language as the question.
+Do NOT include URLs in your answer - just the information."""
 
-            elif name == "browser_take_screenshot":
-                try:
-                    result = await self._mcp_client.take_screenshot()
-                    for content_item in result.get("content", []):
-                        if content_item.get("type") == "text":
-                            text_content = content_item.get("text", "")
-                            if "### Snapshot" in text_content:
-                                snapshot_part = text_content.split("### Snapshot")[1]
-                                if snapshot_part:
-                                    page_content = snapshot_part
-                            break
+        result = await self._run_claude(
+            prompt=prompt,
+            max_turns=10,  # Limit turns for answer queries
+        )
 
-                    screenshot_data = ""
-                    for content_item in result.get("content", []):
-                        if content_item.get("type") == "image":
-                            screenshot_data = content_item.get("data", "")
-                            break
+        # Extract answer from result
+        answer = result.get("result", "")
+        if isinstance(answer, dict):
+            answer = answer.get("result", str(answer))
 
-                    if screenshot_data:
-                        screenshot_bytes = base64.b64decode(screenshot_data)
-                        extraction = await self._vision_client.extract_from_screenshot(screenshot_bytes)
-                        for item in extraction.results[:5]:
-                            sources.append({
-                                "title": item.get("title", ""),
-                                "url": item.get("url", ""),
-                            })
+        # Sources would need to be extracted from Claude's response
+        # For now, return empty list as Claude handles source attribution internally
+        sources: list[str] = []
 
-                    return "Screenshot captured and content extracted"
-                except Exception as e:
-                    logger.error(f"Screenshot failed: {e}")
-                    return f"Screenshot failed: {e}"
+        if not result["success"]:
+            return "I couldn't find enough information to answer your question.", []
 
-            elif name == "browser_wait_for":
-                time_val = arguments.get("time")
-                await self._mcp_client.wait_for(time=time_val)
-                return "Wait completed"
-
-            else:
-                return f"Unknown tool: {name}"
-
-        search_url = self._build_search_url(question)
-        task = f"""Search for information to answer: "{question}"
-
-1. Navigate to: {search_url}
-2. Wait briefly for the page to load
-3. Take a screenshot to capture the search results
-
-Call done() when you have captured the search results."""
-
-        try:
-            success, message = await self._agent_client.run_agent_loop(
-                task=task,
-                execute_tool=execute_tool,
-                max_steps=5,
-            )
-
-            if not page_content:
-                return "I couldn't find enough information to answer your question.", []
-
-            answer = await self._agent_client.synthesize_answer(
-                question=question,
-                page_content=page_content,
-                sources=sources,
-            )
-
-            source_urls = [s["url"] for s in sources if s.get("url")]
-            return answer, source_urls
-
-        except Exception as e:
-            logger.error(f"Answer failed: {e}")
-            raise
+        return answer, sources
 
 
 _browser_service: BrowserService | None = None

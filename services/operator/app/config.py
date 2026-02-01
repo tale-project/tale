@@ -23,11 +23,17 @@ class Settings(BaseSettings):
     timeout: int = Field(default=30, validation_alias="OPERATOR_TIMEOUT")
     max_steps: int = Field(default=30, validation_alias="OPERATOR_MAX_STEPS")
 
-    # LLM configuration (from OPENAI_* env vars - no prefix)
+    # LLM configuration (from OPENAI_* env vars - used by LiteLLM proxy)
     openai_base_url: str = ""
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     openai_vision_model: str = ""
+
+    # LiteLLM proxy configuration
+    litellm_master_key: str = Field(
+        default="sk-litellm-operator",
+        validation_alias="LITELLM_MASTER_KEY"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

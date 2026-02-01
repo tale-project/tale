@@ -53,8 +53,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright MCP Server globally
-RUN npm install -g @playwright/mcp
+# Install Playwright MCP Server and Claude Code CLI globally
+RUN npm install -g @playwright/mcp @anthropic-ai/claude-code
 
 # Create non-root user for running Chrome (required for sandbox)
 RUN groupadd -r pwuser \
@@ -77,12 +77,17 @@ RUN uv pip install --system .
 # Copy application code
 COPY services/operator/app ./app
 
+# Copy LiteLLM config
+COPY services/operator/litellm_config.yaml ./litellm_config.yaml
+
 # Copy entrypoint script
 COPY services/operator/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Set ownership for app directory
-RUN chown -R pwuser:pwuser /app
+# Set ownership for app directory and create Claude Code config dir
+RUN chown -R pwuser:pwuser /app \
+    && mkdir -p /home/pwuser/.claude \
+    && chown -R pwuser:pwuser /home/pwuser/.claude
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
