@@ -44,11 +44,26 @@ ${escapeHtml(content)}
 }
 
 /**
+ * Safely stringify a value, handling circular refs, BigInt, and other edge cases
+ */
+function safeStringify(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(
+      value,
+      (_, v) => (typeof v === 'bigint' ? v.toString() : v),
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+/**
  * Summarize output (truncate long values)
  */
 function summarize(output: unknown, max = 200): string {
   if (output === null || output === undefined) return '-';
-  const str = typeof output === 'string' ? output : JSON.stringify(output);
+  const str = safeStringify(output);
   return str.length > max ? str.slice(0, max) + '...' : str;
 }
 
