@@ -19,6 +19,13 @@ export type CustomerReadListResult = {
   };
 };
 
+export type CustomerReadCountResult = {
+  operation: 'count';
+  count: number | null;
+  message: string;
+  isComplete: boolean;
+};
+
 // Default field selections for each operation
 export const defaultGetFields: string[] = [
   '_id',
