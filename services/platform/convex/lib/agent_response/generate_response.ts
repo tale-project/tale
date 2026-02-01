@@ -24,6 +24,8 @@ import {
 import { onAgentComplete } from '../agent_completion';
 import {
   formatCurrentTurn,
+  formatCurrentTurnSection,
+  wrapInDetails,
   type CurrentTurnToolCall,
 } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
@@ -69,6 +71,7 @@ export async function generateAgentResponse(
     enableStreaming,
     hooks,
     convexToolNames,
+    instructions,
   } = config;
   const {
     ctx,
@@ -123,13 +126,14 @@ export async function generateAgentResponse(
         userId,
         userTeamIds: userTeamIds ?? [],
       });
-      debugLog('RAG prefetch started', { threadId, userId });
+      debugLog('RAG prefetch started', { threadId, userId, elapsedMs: Date.now() - startTime });
     }
 
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
       hookData = await hooks.beforeContext(ctx, args);
+      debugLog('beforeContext hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
 
     // Build structured context using the unified approach
@@ -151,6 +155,7 @@ export async function generateAgentResponse(
     debugLog('Context built', {
       estimatedTokens: structuredContext.stats.totalTokens,
       messageCount: structuredContext.stats.messageCount,
+      elapsedMs: Date.now() - startTime,
     });
 
     // Call beforeGenerate hook if provided
@@ -169,6 +174,7 @@ export async function generateAgentResponse(
       if (beforeResult.systemContextMessages) {
         systemContextMessages = beforeResult.systemContextMessages;
       }
+      debugLog('beforeGenerate hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
 
     // Create agent instance
@@ -195,6 +201,14 @@ export async function generateAgentResponse(
       finishReason?: string;
       response?: { modelId?: string };
     };
+
+    debugLog('PRE_LLM_CALL', {
+      threadId,
+      model,
+      enableStreaming,
+      elapsedMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
 
     if (enableStreaming) {
       // Streaming mode (chat agent)
@@ -236,6 +250,8 @@ export async function generateAgentResponse(
         streamResult.response,
       ]);
 
+      debugLog('Stream completed', { threadId, elapsedMs: Date.now() - startTime });
+
       result = {
         text: streamText,
         steps: streamSteps,
@@ -243,6 +259,61 @@ export async function generateAgentResponse(
         finishReason: streamFinishReason,
         response: streamResponse,
       };
+
+      // Retry if streaming returned empty text (handles thinking models that consume all tokens for reasoning)
+      if (!result.text?.trim()) {
+        debugLog('Streaming empty text response, retrying', {
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+
+        // Rebuild context to include any messages saved during the original streaming
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          taskDescription: undefined,
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          contextSummary: hookData?.contextSummary,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        debugLog('Rebuilt context for streaming empty text retry', {
+          estimatedTokens: retryContext.stats.totalTokens,
+          messageCount: retryContext.stats.messageCount,
+        });
+
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retryResult = await retryAgent.generateText(
+          contextWithOrg,
+          { threadId, userId },
+          {
+            system: retryContext.contextText,
+            prompt: 'Please provide a response based on the conversation above.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+            },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: result.steps,
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+        };
+
+        debugLog('Streaming empty text retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
     } else {
       // Non-streaming mode (sub-agents)
       // Extend context with all fields from contextWithOrg for consistency
@@ -278,17 +349,20 @@ export async function generateAgentResponse(
         },
       );
 
+      debugLog('Generate completed', { threadId, elapsedMs: Date.now() - startTime });
+
       result = {
         text: generateResult.text,
         steps: generateResult.steps,
         usage: generateResult.usage,
         finishReason: generateResult.finishReason,
+        response: generateResult.response,
       };
 
       // If text is empty but we have tool results, retry without tools
       // This handles cases where the LLM stopped after tool calls without generating text
       // (e.g., DeepSeek returning finishReason: "stop" with tool calls)
-      if (!result.text && result.steps && result.steps.length > 0) {
+      if (!result.text?.trim() && result.steps && result.steps.length > 0) {
         debugLog('Empty text with tool results, retrying without tools', {
           stepsCount: result.steps.length,
           finishReason: result.finishReason,
@@ -342,6 +416,61 @@ export async function generateAgentResponse(
           finishReason: result.finishReason,
         });
       }
+
+      // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
+      if (!result.text?.trim()) {
+        debugLog('Empty text response, retrying', {
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+
+        // Rebuild context to include any messages saved during the original generation
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          taskDescription: undefined,
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          contextSummary: hookData?.contextSummary,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        debugLog('Rebuilt context for empty text retry', {
+          estimatedTokens: retryContext.stats.totalTokens,
+          messageCount: retryContext.stats.messageCount,
+        });
+
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retryResult = await retryAgent.generateText(
+          subAgentContext,
+          { threadId, userId },
+          {
+            system: retryContext.contextText,
+            prompt: 'Please provide a response based on the conversation above.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+            },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: result.steps,
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+        };
+
+        debugLog('Empty text retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
     }
 
     const durationMs = Date.now() - startTime;
@@ -362,20 +491,24 @@ export async function generateAgentResponse(
       result.steps ?? [],
     );
 
-    // Build complete context window for metadata
+    // Build complete context window for metadata (uses <details> for collapsible display)
     const currentTurnFormatted = formatCurrentTurn({
-      userInput: taskDescription,
       assistantOutput: result.text || '',
       toolCalls:
         toolCalls.length > 0 ? (toolCalls as CurrentTurnToolCall[]) : undefined,
       timestamp: Date.now(),
     });
-    const completeContextWindow =
-      structuredContext.contextText + '\n\n' + currentTurnFormatted;
+    const contextWindowParts = [];
+    if (instructions) {
+      contextWindowParts.push(wrapInDetails('📋 System Prompt', instructions));
+    }
+    contextWindowParts.push(structuredContext.contextText);
+    contextWindowParts.push(formatCurrentTurnSection(currentTurnFormatted));
+    const completeContextWindow = contextWindowParts.join('\n\n');
     const currentTurnTokens = estimateTokens(currentTurnFormatted);
 
-    // Get actual model from response or fall back to config
-    const actualModel = result.response?.modelId || model;
+    // Get actual model from response (no fallback to config)
+    const actualModel = result.response?.modelId;
 
     const responseResult: GenerateResponseResult = {
       threadId,
@@ -412,6 +545,8 @@ export async function generateAgentResponse(
         usage: responseResult.usage,
         durationMs,
         timeToFirstTokenMs,
+        toolCalls: responseResult.toolCalls,
+        subAgentUsage: responseResult.subAgentUsage,
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
@@ -522,6 +657,8 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   toolCalls: Array<{ toolName: string; status: string }>;
   subAgentUsage: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -546,6 +683,8 @@ function extractToolCallsFromSteps(steps: unknown[]): {
   const toolCalls: Array<{ toolName: string; status: string }> = [];
   const subAgentUsage: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
@@ -576,28 +715,36 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     // Extract sub-agent usage
     for (const toolResult of stepToolResults) {
       if (subAgentToolNames.includes(toolResult.toolName)) {
-        type UsageData = {
-          inputTokens?: number;
-          outputTokens?: number;
-          totalTokens?: number;
+        type SubAgentResultData = {
+          model?: string;
+          provider?: string;
+          usage?: {
+            inputTokens?: number;
+            outputTokens?: number;
+            totalTokens?: number;
+          };
         };
-        const directResult = toolResult.result as
-          | { usage?: UsageData }
-          | undefined;
-        const outputDirect = toolResult.output as unknown as
-          | { usage?: UsageData }
-          | undefined;
+        const directResult = toolResult.result as SubAgentResultData | undefined;
+        const outputDirect = toolResult.output as unknown as SubAgentResultData | undefined;
         const outputValue = (
-          toolResult.output as { value?: { usage?: UsageData } } | undefined
+          toolResult.output as { value?: SubAgentResultData } | undefined
         )?.value;
-        const toolUsage =
-          directResult?.usage ?? outputDirect?.usage ?? outputValue?.usage;
-        if (toolUsage) {
+        const hasRelevantData = (d: SubAgentResultData | undefined) =>
+          d?.model !== undefined || d?.usage !== undefined;
+        const subAgentData = hasRelevantData(directResult)
+          ? directResult
+          : hasRelevantData(outputDirect)
+            ? outputDirect
+            : outputValue;
+        const toolUsage = subAgentData?.usage;
+        if (toolUsage || subAgentData?.model) {
           subAgentUsage.push({
             toolName: toolResult.toolName,
-            inputTokens: toolUsage.inputTokens,
-            outputTokens: toolUsage.outputTokens,
-            totalTokens: toolUsage.totalTokens,
+            model: subAgentData?.model,
+            provider: subAgentData?.provider,
+            inputTokens: toolUsage?.inputTokens,
+            outputTokens: toolUsage?.outputTokens,
+            totalTokens: toolUsage?.totalTokens,
           });
         }
       }

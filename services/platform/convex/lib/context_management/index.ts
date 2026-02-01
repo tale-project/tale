@@ -8,7 +8,7 @@
  * 1. Token estimation with CJK awareness
  * 2. Priority-based context trimming
  * 3. Smart history filtering
- * 4. XML-formatted structured context
+ * 4. Collapsible HTML <details> structured context
  * 5. Full message history support
  * 6. Summarization support for long conversations
  *
@@ -79,7 +79,7 @@ export {
   type ContextBuilderOptions,
 } from './context_builder';
 
-// Structured context builder (for XML-formatted context)
+// Structured context builder (for collapsible <details> formatted context)
 export {
   buildStructuredContext,
   type BuildStructuredContextParams,
@@ -88,6 +88,7 @@ export {
 
 // Message formatters
 export {
+  wrapInDetails,
   formatUserMessage,
   formatAssistantMessage,
   formatToolCall,
@@ -100,6 +101,9 @@ export {
   formatTaskDescription,
   formatAdditionalContext,
   formatParentThread,
+  formatHistorySection,
+  formatCurrentRequestSection,
+  formatCurrentTurnSection,
   formatSystemMessage,
   formatCurrentTurn,
   type CurrentTurnToolCall,

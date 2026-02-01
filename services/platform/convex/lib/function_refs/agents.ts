@@ -23,6 +23,8 @@ type GenerateResponseResult = {
   };
   finishReason?: string;
   durationMs: number;
+  model?: string;
+  provider?: string;
 };
 
 type GenerateResponseRef = FunctionReference<

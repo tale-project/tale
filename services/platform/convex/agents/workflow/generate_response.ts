@@ -13,6 +13,7 @@ import {
   generateAgentResponse,
   type GenerateResponseResult,
 } from '../../lib/agent_response';
+import { WORKFLOW_AGENT_CORE_INSTRUCTIONS } from '../../workflow_engine/instructions/core_instructions';
 
 export interface GenerateWorkflowResponseArgs {
   ctx: ActionCtx;
@@ -41,6 +42,7 @@ export async function generateWorkflowResponse(
       model: process.env.OPENAI_CODING_MODEL || '',
       provider: 'openai',
       debugTag: '[WorkflowAgent]',
+      instructions: WORKFLOW_AGENT_CORE_INSTRUCTIONS,
     },
     baseArgs,
   );

@@ -21,9 +21,12 @@ import {
 import { persistentStreaming } from '../../streaming/helpers';
 import { getUserTeamIds } from '../get_user_teams';
 import { getRunAgentGenerationRef } from '../function_refs';
+import { createDebugLog } from '../debug_log';
 import type { AgentType } from '../context_management/constants';
 import type { FileAttachment } from '../attachments';
 import type { SerializableAgentConfig, AgentHooksConfig } from './types';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[startAgentChat]');
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
@@ -167,6 +170,10 @@ export async function startAgentChat(
       : undefined;
 
   // Schedule the generic agent action with full configuration
+  debugLog('SCHEDULE_ACTION', {
+    threadId,
+    timestamp: new Date().toISOString(),
+  });
   await ctx.scheduler.runAfter(0, getRunAgentGenerationRef(), {
     agentType,
     agentConfig,

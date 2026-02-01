@@ -30,7 +30,7 @@ export * from '../../../lib/shared/schemas/pagination';
 export interface CursorPaginationOptions {
   numItems: number;
   cursor: string | null;
-  id: number;
+  id?: number;
 }
 
 /**

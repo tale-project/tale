@@ -14,6 +14,13 @@ export type ProductReadListResult = {
   };
 };
 
+export type ProductReadCountResult = {
+  operation: 'count';
+  count: number | null;
+  message: string;
+  isComplete: boolean;
+};
+
 // Default field selections for each operation
 export const defaultGetFields: string[] = [
   '_id',

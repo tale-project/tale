@@ -7,7 +7,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createCrmAgent } from './agent';
+import { createCrmAgent, CRM_AGENT_INSTRUCTIONS } from './agent';
 import {
   generateAgentResponse,
   type GenerateResponseResult,
@@ -35,6 +35,7 @@ export async function generateCrmResponse(
       model: process.env.OPENAI_FAST_MODEL || '',
       provider: 'openai',
       debugTag: '[CrmAgent]',
+      instructions: CRM_AGENT_INSTRUCTIONS,
     },
     args,
   );

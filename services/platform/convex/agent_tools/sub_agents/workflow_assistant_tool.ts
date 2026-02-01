@@ -118,6 +118,8 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
           usage: result.usage,
+          model: result.model,
+          provider: result.provider,
         };
       } catch (error) {
         return handleToolError('workflow_assistant_tool', error);

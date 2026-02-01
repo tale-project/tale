@@ -32,6 +32,8 @@ export const toolCallValidator = v.object({
 
 export const subAgentUsageValidator = v.object({
   toolName: v.string(),
+  model: v.optional(v.string()),
+  provider: v.optional(v.string()),
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),

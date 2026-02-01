@@ -157,6 +157,8 @@ EXAMPLES:
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
           usage: result.usage,
+          model: result.model,
+          provider: result.provider,
         };
       } catch (error) {
         return handleToolError('integration_assistant_tool', error);

@@ -33,6 +33,8 @@ export const saveMessageMetadata = mutation({
       v.array(
         v.object({
           toolName: v.string(),
+          model: v.optional(v.string()),
+          provider: v.optional(v.string()),
           inputTokens: v.optional(v.number()),
           outputTokens: v.optional(v.number()),
           totalTokens: v.optional(v.number()),

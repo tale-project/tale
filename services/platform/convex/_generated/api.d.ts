@@ -22,6 +22,7 @@ import type * as agent_tools_crawler_internal_actions from "../agent_tools/crawl
 import type * as agent_tools_crawler_web_read_tool from "../agent_tools/crawler/web_read_tool.js";
 import type * as agent_tools_create_json_output_tool from "../agent_tools/create_json_output_tool.js";
 import type * as agent_tools_customers_customer_read_tool from "../agent_tools/customers/customer_read_tool.js";
+import type * as agent_tools_customers_helpers_count_customers from "../agent_tools/customers/helpers/count_customers.js";
 import type * as agent_tools_customers_helpers_read_customer_by_email from "../agent_tools/customers/helpers/read_customer_by_email.js";
 import type * as agent_tools_customers_helpers_read_customer_by_id from "../agent_tools/customers/helpers/read_customer_by_id.js";
 import type * as agent_tools_customers_helpers_read_customer_list from "../agent_tools/customers/helpers/read_customer_list.js";
@@ -56,6 +57,7 @@ import type * as agent_tools_integrations_integration_tool from "../agent_tools/
 import type * as agent_tools_integrations_types from "../agent_tools/integrations/types.js";
 import type * as agent_tools_integrations_verify_approval_tool from "../agent_tools/integrations/verify_approval_tool.js";
 import type * as agent_tools_load_convex_tools_as_object from "../agent_tools/load_convex_tools_as_object.js";
+import type * as agent_tools_products_helpers_count_products from "../agent_tools/products/helpers/count_products.js";
 import type * as agent_tools_products_helpers_read_product_by_id from "../agent_tools/products/helpers/read_product_by_id.js";
 import type * as agent_tools_products_helpers_read_product_list from "../agent_tools/products/helpers/read_product_list.js";
 import type * as agent_tools_products_helpers_types from "../agent_tools/products/helpers/types.js";
@@ -850,6 +852,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/crawler/web_read_tool": typeof agent_tools_crawler_web_read_tool;
   "agent_tools/create_json_output_tool": typeof agent_tools_create_json_output_tool;
   "agent_tools/customers/customer_read_tool": typeof agent_tools_customers_customer_read_tool;
+  "agent_tools/customers/helpers/count_customers": typeof agent_tools_customers_helpers_count_customers;
   "agent_tools/customers/helpers/read_customer_by_email": typeof agent_tools_customers_helpers_read_customer_by_email;
   "agent_tools/customers/helpers/read_customer_by_id": typeof agent_tools_customers_helpers_read_customer_by_id;
   "agent_tools/customers/helpers/read_customer_list": typeof agent_tools_customers_helpers_read_customer_list;
@@ -884,6 +887,7 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/integrations/types": typeof agent_tools_integrations_types;
   "agent_tools/integrations/verify_approval_tool": typeof agent_tools_integrations_verify_approval_tool;
   "agent_tools/load_convex_tools_as_object": typeof agent_tools_load_convex_tools_as_object;
+  "agent_tools/products/helpers/count_products": typeof agent_tools_products_helpers_count_products;
   "agent_tools/products/helpers/read_product_by_id": typeof agent_tools_products_helpers_read_product_by_id;
   "agent_tools/products/helpers/read_product_list": typeof agent_tools_products_helpers_read_product_list;
   "agent_tools/products/helpers/types": typeof agent_tools_products_helpers_types;

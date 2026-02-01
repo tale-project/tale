@@ -22,6 +22,8 @@ export interface GenerateResponseConfig {
   hooks?: GenerateResponseHooks;
   /** Tool names configured for this agent - used to determine if RAG prefetch should be enabled */
   convexToolNames?: string[];
+  /** Agent instructions for context window display (not sent to LLM, already in agent config) */
+  instructions?: string;
 }
 
 /**
@@ -129,6 +131,8 @@ export interface GenerateResponseResult {
   toolCalls?: Array<{ toolName: string; status: string }>;
   subAgentUsage?: Array<{
     toolName: string;
+    model?: string;
+    provider?: string;
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;

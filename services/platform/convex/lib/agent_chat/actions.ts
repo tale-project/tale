@@ -16,9 +16,12 @@ import { components } from '../../_generated/api';
 import { generateAgentResponse } from '../agent_response';
 import { createAgentConfig } from '../create_agent_config';
 import { classifyError, NonRetryableError } from '../error_classification';
+import { createDebugLog } from '../debug_log';
 import type { AgentType } from '../context_management/constants';
 import type { GenerateResponseHooks, BeforeContextResult, BeforeGenerateResult } from '../agent_response/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
+
+const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[runAgentGeneration]');
 
 const serializableAgentConfigValidator = v.object({
   name: v.string(),
@@ -72,6 +75,12 @@ export const runAgentGeneration = internalAction({
     userTeamIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    const actionStartTime = Date.now();
+    debugLog('ACTION_START', {
+      threadId: args.threadId,
+      timestamp: new Date(actionStartTime).toISOString(),
+    });
+
     const {
       agentType: agentTypeStr,
       agentConfig,
@@ -129,6 +138,7 @@ export const runAgentGeneration = internalAction({
           enableStreaming,
           hooks,
           convexToolNames: agentConfig.convexToolNames,
+          instructions: agentConfig.instructions,
         },
         {
           ctx,
