@@ -1,13 +1,13 @@
 """
 Tale Operator Service
 
-AI-powered browser automation service using Claude Code + Playwright MCP.
+AI-powered browser automation service using OpenCode + Playwright MCP.
 Provides REST API for web search and browser task automation.
 
 Architecture:
-- Claude Code CLI: Handles agent loop and tool execution
-- LiteLLM Proxy: Translates Anthropic API to OpenAI-compatible format
+- OpenCode CLI: Open-source AI coding agent with native MCP support
 - Playwright MCP: Browser automation via Model Context Protocol
+- Vision MCP: Image analysis using vision-capable LLMs
 """
 
 from collections.abc import AsyncGenerator
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
     logger.info(f"Headless mode: {settings.headless}")
-    logger.info(f"LLM model: {settings.openai_model} (via LiteLLM proxy)")
+    logger.info(f"LLM model: {settings.openai_model} (via OpenCode)")
 
     # Initialize browser service (lazy - will init on first request)
     try:
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 # Create FastAPI application
 app = FastAPI(
     title="Tale Operator API",
-    description="AI-powered browser automation service using Claude Code + Playwright MCP",
+    description="AI-powered browser automation service using OpenCode + Playwright MCP",
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",

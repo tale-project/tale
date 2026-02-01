@@ -10,59 +10,67 @@ if [ "${OPERATOR_HEADLESS}" = "false" ]; then
     echo "Xvfb started on display :99"
 fi
 
-# Start LiteLLM proxy in background
-echo "Starting LiteLLM proxy on port 4000..."
-export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-litellm-operator}"
+# Configure OpenCode
+# OpenCode directly supports OpenAI-compatible APIs without needing a proxy
+echo "Configuring OpenCode..."
 
-litellm --config /app/litellm_config.yaml --port 4000 --host 127.0.0.1 > /tmp/litellm.log 2>&1 &
-LITELLM_PID=$!
+# Set up Vision model config (falls back to main model config if not set)
+VISION_BASE_URL="${OPENAI_VISION_BASE_URL:-${OPENAI_BASE_URL}}"
+VISION_API_KEY="${OPENAI_VISION_API_KEY:-${OPENAI_API_KEY}}"
+VISION_MODEL="${OPENAI_VISION_MODEL:-gpt-4o}"
 
-# Wait for LiteLLM to be ready
-echo "Waiting for LiteLLM proxy to start..."
-for i in {1..30}; do
-    if curl -s http://127.0.0.1:4000/health > /dev/null 2>&1; then
-        echo "LiteLLM proxy is ready"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo "Warning: LiteLLM proxy health check timed out, continuing anyway..."
-        echo "LiteLLM logs:"
-        cat /tmp/litellm.log || true
-    fi
-    sleep 1
-done
+# Create OpenCode config directory
+mkdir -p ~/.config/opencode ~/.local/share/opencode
 
-# Configure Claude Code to use LiteLLM proxy
-export ANTHROPIC_BASE_URL="http://127.0.0.1:4000"
-export ANTHROPIC_API_KEY="${LITELLM_MASTER_KEY}"
-
-# Configure Claude Code settings and MCP servers
-mkdir -p ~/.claude
-
-# Accept terms and configure basic settings
-cat > ~/.claude/settings.json << 'SETTINGS'
+# Generate OpenCode configuration at runtime
+# Uses @ai-sdk/openai-compatible for any OpenAI-compatible API
+cat > ~/.config/opencode/opencode.json << EOF
 {
-  "hasAcknowledgedTerms": true,
-  "permissions": {
-    "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "mcp__playwright(*)"],
-    "deny": []
-  }
-}
-SETTINGS
-
-# Configure MCP servers (Playwright) in ~/.claude.json
-cat > ~/.claude.json << 'MCPCONFIG'
-{
-  "mcpServers": {
+  "\$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "custom": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Custom Provider",
+      "options": {
+        "baseURL": "${OPENAI_BASE_URL}",
+        "apiKey": "{env:OPENAI_API_KEY}"
+      },
+      "models": {
+        "${OPENAI_MODEL}": {
+          "name": "${OPENAI_MODEL}",
+          "limit": {
+            "context": 200000,
+            "output": 65536
+          }
+        }
+      }
+    }
+  },
+  "mcp": {
     "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest", "--headless"]
+      "type": "local",
+      "command": ["npx", "@playwright/mcp@latest", "--headless"],
+      "enabled": true
+    },
+    "vision": {
+      "type": "local",
+      "command": ["python", "-m", "app.mcp.vision_server"],
+      "enabled": true,
+      "environment": {
+        "OPENAI_VISION_BASE_URL": "${VISION_BASE_URL}",
+        "OPENAI_VISION_API_KEY": "${VISION_API_KEY}",
+        "OPENAI_VISION_MODEL": "${VISION_MODEL}"
+      }
     }
   }
 }
-MCPCONFIG
+EOF
 
-echo "Claude Code configured with Playwright MCP"
+echo "OpenCode configured with:"
+echo "  - Provider: custom (${OPENAI_BASE_URL})"
+echo "  - Model: ${OPENAI_MODEL}"
+echo "  - MCP: Playwright + Vision"
+echo "  - Vision model: ${VISION_MODEL}"
 
 # Execute the main command
 exec "$@"

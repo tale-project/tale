@@ -2,8 +2,6 @@
 Request and response models for the Operator service.
 """
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -15,33 +13,30 @@ class HealthResponse(BaseModel):
     browser_initialized: bool
 
 
-class AnswerRequest(BaseModel):
-    """Request for answering a question using web search."""
+class ChatRequest(BaseModel):
+    """Chat request - send a message to OpenCode with Playwright MCP."""
 
-    question: str = Field(..., description="The question to answer")
-
-
-class AnswerResponse(BaseModel):
-    """Response with synthesized answer from web search."""
-
-    success: bool
-    question: str
-    answer: str | None = None
-    sources: list[str] = Field(default_factory=list, description="URLs of sources used")
-    error: str | None = None
+    message: str = Field(..., description="The message/task for OpenCode")
+    max_turns: int = Field(default=10, ge=1, le=50, description="Maximum agentic turns")
 
 
-class TaskRequest(BaseModel):
-    """Generic browser task request."""
+class TokenUsage(BaseModel):
+    """Token usage statistics."""
 
-    task: str = Field(..., description="Natural language task description")
-    timeout: int = Field(default=60, ge=10, le=300, description="Task timeout in seconds")
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
-class TaskResponse(BaseModel):
-    """Generic browser task response."""
+class ChatResponse(BaseModel):
+    """Chat response from OpenCode."""
 
     success: bool
-    task: str
-    result: Any = None
+    message: str
+    response: str | None = None
     error: str | None = None
+    duration_seconds: float | None = Field(None, description="Execution time in seconds")
+    token_usage: TokenUsage | None = Field(None, description="Token consumption statistics")
+    cost_usd: float | None = None
+    turns: int | None = None

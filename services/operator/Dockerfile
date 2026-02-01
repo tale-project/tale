@@ -1,5 +1,5 @@
 # Operator Service Dockerfile
-# AI-powered browser automation service using Playwright MCP + dual model architecture
+# AI-powered browser automation service using OpenCode + Playwright MCP
 # Based on crawler service pattern for Playwright/Chromium support
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
@@ -53,8 +53,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright MCP Server and Claude Code CLI globally
-RUN npm install -g @playwright/mcp @anthropic-ai/claude-code
+# Install Playwright MCP Server and OpenCode CLI globally
+RUN npm install -g @playwright/mcp opencode-ai@latest
 
 # Create non-root user for running Chrome (required for sandbox)
 RUN groupadd -r pwuser \
@@ -77,17 +77,14 @@ RUN uv pip install --system .
 # Copy application code
 COPY services/operator/app ./app
 
-# Copy LiteLLM config
-COPY services/operator/litellm_config.yaml ./litellm_config.yaml
-
 # Copy entrypoint script
 COPY services/operator/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Set ownership for app directory and create Claude Code config dir
+# Set ownership for app directory and create OpenCode config dir
 RUN chown -R pwuser:pwuser /app \
-    && mkdir -p /home/pwuser/.claude \
-    && chown -R pwuser:pwuser /home/pwuser/.claude
+    && mkdir -p /home/pwuser/.config/opencode /home/pwuser/.local/share/opencode \
+    && chown -R pwuser:pwuser /home/pwuser/.config /home/pwuser/.local
 
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev

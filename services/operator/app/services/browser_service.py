@@ -1,7 +1,9 @@
-"""Browser automation service using Claude Code CLI with Playwright MCP."""
+"""Browser automation service using OpenCode CLI with Playwright MCP."""
 
 import asyncio
 import json
+import os
+import time
 from typing import Any
 
 from loguru import logger
@@ -9,8 +11,47 @@ from loguru import logger
 from app.config import settings
 
 
+SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to Playwright MCP and Vision MCP.
+
+## Browser Tools (Playwright MCP)
+- playwright_browser_navigate: Navigate to URLs
+- playwright_browser_snapshot: Get page accessibility snapshot (use this to see page content)
+- playwright_browser_click: Click elements by ref
+- playwright_browser_type: Type text into inputs
+- playwright_browser_fill_form: Fill multiple form fields
+- playwright_browser_select_option: Select dropdown options
+- playwright_browser_wait_for: Wait for text or conditions
+- playwright_browser_take_screenshot: Take screenshots (saves to file)
+- playwright_browser_press_key: Press keyboard keys
+- playwright_browser_tabs: Manage browser tabs
+
+## Vision Tools (Vision MCP)
+- vision_analyze_image: Analyze images/screenshots using a vision-capable LLM
+  - Use this when you need to understand visual content that browser_snapshot cannot capture
+  - First take a screenshot with browser_take_screenshot, then analyze it with analyze_image
+  - Useful for: reading text in images, understanding visual layouts, analyzing charts/graphs
+
+## Guidelines
+
+1. **Web Search**: For questions requiring current information, navigate to Google/Bing/DuckDuckGo and search.
+
+2. **Page Interaction**: Always use browser_snapshot first to understand page structure before clicking or typing.
+
+3. **Visual Analysis**: When you need to understand visual content (images, charts, complex layouts):
+   - Take a screenshot: browser_take_screenshot (note the filename)
+   - Analyze it: analyze_image with the screenshot path and a specific prompt
+
+4. **Autonomous Mode**: You are in autonomous mode. Do NOT ask for user confirmation. Make reasonable assumptions and proceed with the task.
+
+5. **Language**: Respond in the same language as the user's message.
+
+6. **Concise Responses**: Provide direct, factual answers. Synthesize information from multiple sources when helpful.
+
+7. **Error Handling**: If a page fails to load or an action fails, try alternative approaches (different search terms, different websites, etc.)."""
+
+
 class BrowserService:
-    """Service for AI-powered browser automation using Claude Code + Playwright MCP."""
+    """Service for AI-powered browser automation using OpenCode + Playwright MCP."""
 
     def __init__(self):
         self._initialized = False
@@ -20,29 +61,28 @@ class BrowserService:
         return self._initialized
 
     async def initialize(self) -> None:
-        """Initialize the service (verify Claude Code is available)."""
+        """Initialize the service (verify OpenCode is available)."""
         if self._initialized:
             return
 
         try:
             logger.info("Initializing browser service...")
 
-            # Verify Claude Code is available
             proc = await asyncio.create_subprocess_exec(
-                "claude", "--version",
+                "opencode", "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await proc.communicate()
 
             if proc.returncode != 0:
-                raise RuntimeError(f"Claude Code not available: {stderr.decode()}")
+                raise RuntimeError(f"OpenCode not available: {stderr.decode()}")
 
             version = stdout.decode().strip()
-            logger.info(f"Claude Code version: {version}")
+            logger.info(f"OpenCode version: {version}")
 
             self._initialized = True
-            logger.info("Browser service initialized with Claude Code")
+            logger.info("Browser service initialized with OpenCode")
 
         except Exception as e:
             logger.error(f"Failed to initialize browser service: {e}")
@@ -53,177 +93,161 @@ class BrowserService:
         self._initialized = False
         logger.info("Browser service cleaned up")
 
-    async def _run_claude(
-        self,
-        prompt: str,
-        max_turns: int | None = None,
-        system_prompt: str | None = None,
-    ) -> dict[str, Any]:
+    async def chat(self, message: str, max_turns: int = 10) -> dict[str, Any]:
         """
-        Run Claude Code CLI with given prompt.
+        Send a message to OpenCode with Playwright MCP.
 
         Args:
-            prompt: The task/question for Claude
-            max_turns: Maximum agentic turns (defaults to settings.max_steps)
-            system_prompt: Optional system prompt to append
+            message: The user's message/task
+            max_turns: Maximum agentic turns
 
         Returns:
-            Dict with success status and result
+            Dict with success status, response, cost, and turns
         """
-        if max_turns is None:
-            max_turns = settings.max_steps
+        if not self._initialized:
+            await self.initialize()
+
+        full_prompt = f"{SYSTEM_PROMPT}\n\n---\n\nUser request: {message}"
 
         cmd = [
-            "claude",
-            "-p", prompt,  # Print mode (non-interactive)
-            "--output-format", "json",
-            "--max-turns", str(max_turns),
+            "opencode", "run",
+            "--model", f"custom/{settings.openai_model}",
+            "--format", "json",
+            full_prompt,
         ]
 
-        if system_prompt:
-            cmd.extend(["--append-system-prompt", system_prompt])
+        logger.info(f"Running OpenCode with message: {message[:100]}...")
 
-        logger.info(f"Running Claude Code: {' '.join(cmd[:4])}...")
-        logger.debug(f"Full prompt: {prompt[:200]}...")
+        workspace_dir = "/tmp/opencode-workspace"
+        os.makedirs(workspace_dir, exist_ok=True)
+
+        start_time = time.perf_counter()
 
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=workspace_dir,
                 env={
-                    **dict(__import__("os").environ),
-                    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000",
-                    "ANTHROPIC_API_KEY": settings.litellm_master_key,
+                    **os.environ,
+                    "OPENAI_API_KEY": settings.openai_api_key,
                 },
             )
 
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
-                timeout=settings.timeout * max_turns,  # Scale timeout with turns
+                timeout=settings.timeout * max_turns,
             )
+
+            duration = time.perf_counter() - start_time
 
             stdout_text = stdout.decode()
             stderr_text = stderr.decode()
 
             if stderr_text:
-                logger.debug(f"Claude Code stderr: {stderr_text}")
+                logger.debug(f"OpenCode stderr: {stderr_text[:500]}...")
 
-            # Parse JSON output
-            try:
-                result = json.loads(stdout_text)
-                return {
-                    "success": result.get("is_error", False) is False,
-                    "result": result.get("result", stdout_text),
-                    "cost": result.get("cost_usd"),
-                    "turns": result.get("num_turns"),
-                }
-            except json.JSONDecodeError:
-                # Fallback to plain text if not JSON
-                return {
-                    "success": proc.returncode == 0,
-                    "result": stdout_text,
-                }
+            result = self._parse_json_output(stdout_text)
+
+            return {
+                "success": proc.returncode == 0,
+                "response": result.get("response", stdout_text.strip()),
+                "duration_seconds": round(duration, 2),
+                "token_usage": result.get("token_usage"),
+                "cost_usd": result.get("cost_usd"),
+            }
 
         except asyncio.TimeoutError:
-            logger.error("Claude Code execution timed out")
+            duration = time.perf_counter() - start_time
+            logger.error("OpenCode execution timed out")
             return {
                 "success": False,
-                "result": "Task timed out",
+                "response": "Task timed out",
+                "duration_seconds": round(duration, 2),
             }
         except Exception as e:
-            logger.error(f"Claude Code execution failed: {e}")
+            duration = time.perf_counter() - start_time
+            logger.error(f"OpenCode execution failed: {e}")
             return {
                 "success": False,
-                "result": str(e),
+                "response": str(e),
+                "duration_seconds": round(duration, 2),
             }
 
-    async def run_task(self, task: str, timeout: int = 60) -> Any:
+    def _parse_json_output(self, stdout_text: str) -> dict[str, Any]:
         """
-        Run a generic browser task using Claude Code + Playwright MCP.
+        Parse JSON output from OpenCode CLI.
 
-        Args:
-            task: Natural language task description
-            timeout: Task timeout in seconds (used as base for calculation)
+        OpenCode outputs JSONL (one JSON object per line) with event types:
+        - step_start: Agent step started
+        - text: Text output from the model
+        - tool_call/tool_result: Tool invocations
+        - step_finish: Step completed with token usage and cost
 
-        Returns:
-            Task result with success status and message
+        Returns dict with response, token_usage, and cost_usd.
         """
-        if not self._initialized:
-            await self.initialize()
-
-        system_prompt = """You have access to Playwright MCP for browser automation.
-
-Available browser tools:
-- mcp__playwright__browser_navigate: Navigate to URLs
-- mcp__playwright__browser_snapshot: Get page accessibility snapshot
-- mcp__playwright__browser_click: Click elements
-- mcp__playwright__browser_type: Type text into inputs
-- mcp__playwright__browser_wait_for: Wait for conditions
-- mcp__playwright__browser_take_screenshot: Take screenshots
-
-Strategies:
-1. For web search: Use Google, Bing, or DuckDuckGo
-2. For specific sites: Navigate directly to relevant websites
-3. Click through results to get detailed information
-4. Interact with chatbots/forms when helpful
-5. Take snapshots to understand page content
-
-Always provide a helpful summary of what you found."""
-
-        result = await self._run_claude(
-            prompt=task,
-            system_prompt=system_prompt,
-        )
-
-        return {
-            "success": result["success"],
-            "message": result["result"],
+        result: dict[str, Any] = {
+            "response": "",
+            "token_usage": None,
+            "cost_usd": None,
         }
 
-    async def answer(self, question: str) -> tuple[str, list[str]]:
-        """
-        Answer a question by searching the web using Claude Code + Playwright.
+        if not stdout_text:
+            return result
 
-        Args:
-            question: The question to answer
+        text_parts: list[str] = []
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_reasoning_tokens = 0
+        total_cache_read_tokens = 0
+        total_cost = 0.0
 
-        Returns:
-            Tuple of (answer, sources)
-        """
-        if not self._initialized:
-            await self.initialize()
+        for line in stdout_text.strip().split("\n"):
+            if not line.strip():
+                continue
 
-        prompt = f"""Answer this question by searching the web: "{question}"
+            try:
+                event = json.loads(line)
+                event_type = event.get("type")
 
-Steps:
-1. Navigate to Google and search for relevant information
-2. Take a snapshot to see the search results
-3. Click on promising results to get detailed information
-4. Synthesize the information into a clear, direct answer
+                if event_type == "text":
+                    part = event.get("part", {})
+                    text = part.get("text", "")
+                    if text:
+                        text_parts.append(text)
 
-Provide a concise, factual answer based on what you find.
-Respond in the same language as the question.
-Do NOT include URLs in your answer - just the information."""
+                elif event_type == "step_finish":
+                    part = event.get("part", {})
+                    cost = part.get("cost", 0)
+                    tokens = part.get("tokens", {})
 
-        result = await self._run_claude(
-            prompt=prompt,
-            max_turns=10,  # Limit turns for answer queries
-        )
+                    total_cost += cost
+                    total_input_tokens += tokens.get("input", 0)
+                    total_output_tokens += tokens.get("output", 0)
+                    total_reasoning_tokens += tokens.get("reasoning", 0)
 
-        # Extract answer from result
-        answer = result.get("result", "")
-        if isinstance(answer, dict):
-            answer = answer.get("result", str(answer))
+                    cache = tokens.get("cache", {})
+                    total_cache_read_tokens += cache.get("read", 0)
 
-        # Sources would need to be extracted from Claude's response
-        # For now, return empty list as Claude handles source attribution internally
-        sources: list[str] = []
+            except json.JSONDecodeError:
+                logger.debug(f"Failed to parse JSON line: {line[:100]}...")
+                continue
 
-        if not result["success"]:
-            return "I couldn't find enough information to answer your question.", []
+        result["response"] = "".join(text_parts)
 
-        return answer, sources
+        if total_input_tokens > 0 or total_output_tokens > 0:
+            result["token_usage"] = {
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens + total_reasoning_tokens,
+                "total_tokens": total_input_tokens + total_output_tokens + total_reasoning_tokens,
+                "cache_read_tokens": total_cache_read_tokens,
+            }
+
+        if total_cost > 0:
+            result["cost_usd"] = round(total_cost, 6)
+
+        return result
 
 
 _browser_service: BrowserService | None = None

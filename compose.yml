@@ -191,9 +191,18 @@ services:
     environment:
       # Use non-headless mode with Xvfb for better anti-detection
       - OPERATOR_HEADLESS=false
+      # LiteLLM proxy master key (internal use only)
+      - LITELLM_MASTER_KEY=sk-litellm-internal-key
 
     # Restart policy
     restart: unless-stopped
+
+    # Security options for Chromium browser
+    # Chrome needs these permissions to run in a container
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_ADMIN
 
     # Health check - longer start period for Playwright initialization
     healthcheck:
