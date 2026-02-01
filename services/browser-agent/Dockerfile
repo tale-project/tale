@@ -1,4 +1,4 @@
-# Operator Service Dockerfile
+# Browser Agent Service Dockerfile
 # AI-powered browser automation service using OpenCode + Playwright MCP
 # Based on crawler service pattern for Playwright/Chromium support
 
@@ -71,14 +71,14 @@ RUN npx playwright install chrome \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy pyproject.toml and install dependencies
-COPY services/operator/pyproject.toml .
+COPY services/browser-agent/pyproject.toml .
 RUN uv pip install --system .
 
 # Copy application code
-COPY services/operator/app ./app
+COPY services/browser-agent/app ./app
 
 # Copy entrypoint script
-COPY services/operator/docker-entrypoint.sh /usr/local/bin/
+COPY services/browser-agent/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set ownership for app directory and create OpenCode config dir
@@ -89,16 +89,16 @@ RUN chown -R pwuser:pwuser /app \
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set environment variables with OPERATOR_ prefix defaults
+# Set environment variables with BROWSER_AGENT_ prefix defaults
 ENV TALE_VERSION=${VERSION} \
-    OPERATOR_HOST=0.0.0.0 \
-    OPERATOR_PORT=8004 \
-    OPERATOR_WORKERS=1 \
-    OPERATOR_LOG_LEVEL=info \
-    OPERATOR_ALLOWED_ORIGINS="*" \
-    OPERATOR_HEADLESS=true \
-    OPERATOR_TIMEOUT=30 \
-    OPERATOR_MAX_STEPS=30 \
+    BROWSER_AGENT_HOST=0.0.0.0 \
+    BROWSER_AGENT_PORT=8004 \
+    BROWSER_AGENT_WORKERS=1 \
+    BROWSER_AGENT_LOG_LEVEL=info \
+    BROWSER_AGENT_ALLOWED_ORIGINS="*" \
+    BROWSER_AGENT_HEADLESS=true \
+    BROWSER_AGENT_TIMEOUT=30 \
+    BROWSER_AGENT_MAX_STEPS=30 \
     HOME=/home/pwuser
 
 # Switch to non-root user

@@ -1,5 +1,5 @@
 [project]
-name = "tale-operator"
+name = "tale-browser-agent"
 version = "0.1.0"
 description = "AI-powered browser automation service using OpenCode + Playwright MCP"
 requires-python = ">=3.11"

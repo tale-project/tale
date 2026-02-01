@@ -160,26 +160,26 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Operator (Browser-Use)
+  # Tale Browser Agent (OpenCode + Playwright MCP)
   # ============================================================================
   # AI-powered browser automation service
   # - Uses real browser to bypass anti-bot detection
-  # - Supports Google, Bing, DuckDuckGo search
+  # - Supports web search, browsing, and interaction
   # - Requires OpenAI-compatible LLM API
-  operator:
+  browser-agent:
     # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-operator:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-browser-agent:${VERSION:-latest}
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
-      dockerfile: services/operator/Dockerfile
+      dockerfile: services/browser-agent/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
 
     # Port mapping: host:container (for development)
-    # Access Operator API at localhost:8004
+    # Access Browser Agent API at localhost:8004
     ports:
       - '8004:8004'
 
@@ -190,9 +190,7 @@ services:
     # Environment variables (override .env for testing)
     environment:
       # Use non-headless mode with Xvfb for better anti-detection
-      - OPERATOR_HEADLESS=false
-      # LiteLLM proxy master key (internal use only)
-      - LITELLM_MASTER_KEY=sk-litellm-internal-key
+      - BROWSER_AGENT_HEADLESS=false
 
     # Restart policy
     restart: unless-stopped
@@ -412,7 +410,6 @@ services:
       - db
       - rag
       - crawler
-      - search
 
     # Resource limits (optional, adjust based on your needs)
     # deploy:
@@ -423,62 +420,6 @@ services:
     #     reservations:
     #       cpus: '1'
     #       memory: 2G
-
-    # Logging configuration
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-
-    # Networks
-    networks:
-      - internal
-
-  # ============================================================================
-  # Tale Search (SearXNG) - Self-hosted Meta Search Engine
-  # ============================================================================
-  # Stateless service - no container_name for blue-green deployment
-  search:
-    # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-search:${VERSION:-latest}
-    # Pull policy: 'build' for local dev, 'always' for production
-    pull_policy: ${PULL_POLICY:-build}
-    # Build configuration (used when PULL_POLICY=build)
-    build:
-      context: .
-      dockerfile: services/search/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-
-    # Port mapping: host:container (for development)
-    # Access SearXNG at localhost:8003
-    ports:
-      - '8003:8080'
-
-    # Environment file
-    env_file:
-      - .env
-
-    # Restart policy
-    restart: unless-stopped
-
-    # Health check - optimized for faster blue-green deployment
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'wget',
-          '--no-verbose',
-          '--tries=1',
-          '--spider',
-          '--header=X-Real-IP: 127.0.0.1',
-          'http://localhost:8080/healthz',
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 2
-      start_period: 30s
 
     # Logging configuration
     logging:
