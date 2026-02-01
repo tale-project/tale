@@ -375,8 +375,8 @@ export async function generateAgentResponse(
       structuredContext.contextText + '\n\n' + currentTurnFormatted;
     const currentTurnTokens = estimateTokens(currentTurnFormatted);
 
-    // Get actual model from response or fall back to config
-    const actualModel = result.response?.modelId || model;
+    // Get actual model from response (no fallback to config)
+    const actualModel = result.response?.modelId;
 
     const responseResult: GenerateResponseResult = {
       threadId,
