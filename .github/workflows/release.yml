@@ -5,7 +5,7 @@ name: Release All Services
 # ============================================================================
 # Triggered by version tags (v*.*.* or *.*.*) to build and push all 7 service
 # images with the same version number. This ensures consistent versioning
-# across the entire Tale platform.
+# across the entire Tale platform. Also triggers CLI build workflow.
 #
 # Usage:
 #   git tag v1.0.0 && git push origin v1.0.0
@@ -19,6 +19,7 @@ name: Release All Services
 #   - ghcr.io/tale-project/tale/tale-graph-db:1.0.0
 #   - ghcr.io/tale-project/tale/tale-proxy:1.0.0
 #   - ghcr.io/tale-project/tale/tale-search:1.0.0
+#   - CLI binaries (via cli.yml workflow)
 # ============================================================================
 
 on:
@@ -399,6 +400,23 @@ jobs:
           sbom: true
 
   # ============================================================================
+  # Trigger CLI build
+  # ============================================================================
+  trigger-cli:
+    name: Trigger CLI Build
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger CLI workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run cli.yml \
+            --repo ${{ github.repository }} \
+            --field release_tag=${{ needs.prepare.outputs.version }}
+
+  # ============================================================================
   # Summary
   # ============================================================================
   summary:
@@ -412,6 +430,7 @@ jobs:
       - build-graph-db
       - build-proxy
       - build-search
+      - trigger-cli
     runs-on: ubuntu-latest
 
     steps:
@@ -432,6 +451,11 @@ jobs:
           echo "| Graph DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-graph-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Search | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-search:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### CLI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "CLI build workflow has been triggered with tag \`${{ needs.prepare.outputs.version }}\`." >> $GITHUB_STEP_SUMMARY
+          echo "The CLI binaries will be uploaded to the release once the build completes." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deploy Command" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
