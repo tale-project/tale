@@ -412,6 +412,8 @@ export async function generateAgentResponse(
         usage: responseResult.usage,
         durationMs,
         timeToFirstTokenMs,
+        toolCalls: responseResult.toolCalls,
+        subAgentUsage: responseResult.subAgentUsage,
         contextWindow: completeContextWindow,
         contextStats: responseResult.contextStats,
       },
