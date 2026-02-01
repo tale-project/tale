@@ -406,6 +406,8 @@ jobs:
     name: Trigger CLI Build
     needs: prepare
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
 
     steps:
       - name: Trigger CLI workflow
