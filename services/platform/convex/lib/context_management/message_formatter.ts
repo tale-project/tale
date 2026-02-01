@@ -14,6 +14,18 @@ function shortTime(timestamp: number): string {
 }
 
 /**
+ * Escape HTML special characters to prevent structure breakage and XSS
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Wrap content in a collapsible <details> section.
  * Used for all context window sections for unified formatting.
  */
@@ -24,9 +36,9 @@ export function wrapInDetails(
 ): string {
   const openAttr = open ? ' open' : '';
   return `<details${openAttr}>
-<summary>${summary}</summary>
+<summary>${escapeHtml(summary)}</summary>
 
-${content}
+${escapeHtml(content)}
 
 </details>`;
 }
