@@ -1,8 +1,8 @@
 """
-Tale Browser Agent Service
+Tale Web Service
 
-AI-powered browser automation service using OpenCode + Playwright MCP.
-Provides REST API for web search and browser task automation.
+AI-powered web interaction service using OpenCode + Playwright MCP.
+Provides REST API for web search, browsing, and task automation.
 
 Architecture:
 - OpenCode CLI: Open-source AI coding agent with native MCP support
@@ -28,7 +28,7 @@ from app.services import get_browser_service
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Lifespan context manager for startup and shutdown events."""
     # Startup
-    logger.info(f"Starting Tale Browser Agent service v{__version__}...")
+    logger.info(f"Starting Tale Web service v{__version__}...")
     logger.info(f"Server: {settings.host}:{settings.port}")
     logger.info(f"Log level: {settings.log_level}")
     logger.info(f"Headless mode: {settings.headless}")
@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     yield
 
     # Shutdown
-    logger.info("Shutting down Tale Browser Agent service...")
+    logger.info("Shutting down Tale Web service...")
 
     # Cleanup browser service
     try:
@@ -60,8 +60,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
 # Create FastAPI application
 app = FastAPI(
-    title="Tale Browser Agent API",
-    description="AI-powered browser automation service using OpenCode + Playwright MCP",
+    title="Tale Web API",
+    description="AI-powered web interaction service using OpenCode + Playwright MCP",
     version=__version__,
     lifespan=lifespan,
     docs_url="/docs",

@@ -1,5 +1,5 @@
 """
-Configuration for the Tale Browser Agent service.
+Configuration for the Tale Web service.
 """
 
 from pydantic import Field, field_validator
@@ -9,19 +9,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings."""
 
-    # Server configuration (BROWSER_AGENT_ prefix)
-    host: str = Field(default="0.0.0.0", validation_alias="BROWSER_AGENT_HOST")
-    port: int = Field(default=8004, validation_alias="BROWSER_AGENT_PORT")
-    workers: int = Field(default=1, validation_alias="BROWSER_AGENT_WORKERS")
-    log_level: str = Field(default="info", validation_alias="BROWSER_AGENT_LOG_LEVEL")
+    # Server configuration (WEB_ prefix)
+    host: str = Field(default="0.0.0.0", validation_alias="WEB_HOST")
+    port: int = Field(default=8004, validation_alias="WEB_PORT")
+    workers: int = Field(default=1, validation_alias="WEB_WORKERS")
+    log_level: str = Field(default="info", validation_alias="WEB_LOG_LEVEL")
 
     # CORS configuration
-    allowed_origins: str = Field(default="*", validation_alias="BROWSER_AGENT_ALLOWED_ORIGINS")
+    allowed_origins: str = Field(default="*", validation_alias="WEB_ALLOWED_ORIGINS")
 
-    # Browser configuration (BROWSER_AGENT_ prefix)
-    headless: bool = Field(default=True, validation_alias="BROWSER_AGENT_HEADLESS")
-    timeout: int = Field(default=30, validation_alias="BROWSER_AGENT_TIMEOUT")
-    max_steps: int = Field(default=30, validation_alias="BROWSER_AGENT_MAX_STEPS")
+    # Browser configuration (WEB_ prefix)
+    headless: bool = Field(default=True, validation_alias="WEB_HEADLESS")
+    timeout: int = Field(default=30, validation_alias="WEB_TIMEOUT")
+    max_steps: int = Field(default=30, validation_alias="WEB_MAX_STEPS")
 
     # LLM configuration (from OPENAI_* env vars - used by OpenCode)
     openai_base_url: str = ""
