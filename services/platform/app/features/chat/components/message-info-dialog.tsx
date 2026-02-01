@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
@@ -62,7 +63,23 @@ function ContextWindowToken({
         className="sm:max-w-[800px] max-h-[80vh]"
       >
         <div className="context-window-content overflow-auto max-h-[60vh] [&_details]:border [&_details]:border-border [&_details]:rounded-md [&_details]:mb-2 [&_details]:overflow-hidden [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:cursor-pointer [&_details_summary]:font-medium [&_details_summary]:bg-muted [&_details_summary]:list-none [&_details[open]_summary]:border-b [&_details[open]_summary]:border-border [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details>*:not(summary)]:overflow-x-auto">
-          <Markdown rehypePlugins={[rehypeRaw]} remarkPlugins={[remarkGfm]}>
+          <Markdown
+            rehypePlugins={[
+              rehypeRaw,
+              [
+                rehypeSanitize,
+                {
+                  ...defaultSchema,
+                  tagNames: [
+                    ...(defaultSchema.tagNames ?? []),
+                    'details',
+                    'summary',
+                  ],
+                },
+              ],
+            ]}
+            remarkPlugins={[remarkGfm]}
+          >
             {contextWindow}
           </Markdown>
         </div>
