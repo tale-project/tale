@@ -7,7 +7,7 @@
  */
 
 import type { ActionCtx } from '../../_generated/server';
-import { createDocumentAgent } from './agent';
+import { createDocumentAgent, DOCUMENT_AGENT_INSTRUCTIONS } from './agent';
 import {
   generateAgentResponse,
   type GenerateResponseResult,
@@ -40,6 +40,7 @@ export async function generateDocumentResponse(
       model,
       provider: 'openai',
       debugTag: '[DocumentAgent]',
+      instructions: DOCUMENT_AGENT_INSTRUCTIONS,
     },
     args,
   );

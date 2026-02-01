@@ -1,10 +1,10 @@
 /**
  * Structured Context Builder
  *
- * Builds a fully structured XML-like context window by:
+ * Builds a fully structured context window using HTML <details> elements:
  * 1. Querying message history from Agent SDK
  * 2. Querying related approvals (including human_input_request)
- * 3. Formatting all content with XML tags
+ * 3. Formatting all content with collapsible <details> sections
  * 4. Returning a single system message with the complete context
  */
 
@@ -100,7 +100,7 @@ export interface BuildStructuredContextParams {
  * This function:
  * 1. Queries message history from the thread
  * 2. Queries related approvals
- * 3. Formats everything into XML-like structured text
+ * 3. Formats everything into collapsible <details> sections
  * 4. Returns both the ModelMessage array and the raw text for logging
  */
 export async function buildStructuredContext(
@@ -113,7 +113,7 @@ export async function buildStructuredContext(
     ragContext,
     integrationsInfo,
     maxMessages = 20,
-    taskDescription,
+    taskDescription: _taskDescription,
     additionalContext,
     parentThreadId,
   } = params;
@@ -142,10 +142,9 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatParentThread(parentThreadId));
   }
 
-  // Task description (for sub-agents or independent agent calls)
-  if (taskDescription) {
-    contextParts.push(fmt.formatTaskDescription(taskDescription));
-  }
+  // Note: taskDescription is NOT added here to avoid duplication.
+  // For main chat: user message is already in message history.
+  // For sub-agents: task is passed via the `prompt` parameter to generateText().
 
   // Additional context (key-value pairs as XML sections)
   if (additionalContext) {
@@ -172,18 +171,25 @@ export async function buildStructuredContext(
   }
 
   // 4. Format messages with approvals interleaved
-  const formattedHistory = formatMessagesWithApprovals(
+  // History = previous messages, Current Request = current user message (separated)
+  const { historyMessages, currentUserMessage } = formatMessagesWithApprovals(
     messagesResult.page,
     approvals ?? [],
   );
-  contextParts.push(...formattedHistory);
+  if (historyMessages.length > 0) {
+    contextParts.push(fmt.formatHistorySection(historyMessages.join('\n\n')));
+  }
+  // Current user message in its own section (distinct from history)
+  if (currentUserMessage) {
+    contextParts.push(fmt.formatCurrentRequestSection(currentUserMessage));
+  }
 
   // 5. Join all parts
-  const fullContext = contextParts.join('\n\n');
+  const contextText = contextParts.join('\n\n');
 
   // 6. Calculate stats
   const stats = {
-    totalTokens: estimateTokens(fullContext),
+    totalTokens: estimateTokens(contextText),
     messageCount: messagesResult.page.length,
     approvalCount: approvals?.length ?? 0,
     hasSummary: !!contextSummary,
@@ -193,19 +199,28 @@ export async function buildStructuredContext(
 
   // 7. Return as system message
   return {
-    messages: [{ role: 'system', content: fullContext }],
-    contextText: fullContext,
+    messages: [{ role: 'system', content: contextText }],
+    contextText,
     stats,
   };
 }
 
 /**
- * Format messages with approvals interleaved by timestamp
+ * Result from formatting messages with approvals
+ */
+interface FormattedMessagesResult {
+  historyMessages: string[];
+  currentUserMessage?: string;
+}
+
+/**
+ * Format messages with approvals interleaved by timestamp.
+ * Separates the current user message (latest) from history.
  */
 function formatMessagesWithApprovals(
   messages: MessageDoc[],
   approvals: ApprovalItem[],
-): string[] {
+): FormattedMessagesResult {
   const result: string[] = [];
 
   // Create approval lookup by messageId
@@ -227,17 +242,33 @@ function formatMessagesWithApprovals(
     return a.stepOrder - b.stepOrder;
   });
 
-  for (const msg of sortedMessages) {
+  // Find the last user message (current request, not history)
+  let lastUserMsgIndex = -1;
+  for (let i = sortedMessages.length - 1; i >= 0; i--) {
+    if (sortedMessages[i].message?.role === 'user') {
+      lastUserMsgIndex = i;
+      break;
+    }
+  }
+
+  let currentUserMessage: string | undefined;
+
+  for (let i = 0; i < sortedMessages.length; i++) {
+    const msg = sortedMessages[i];
     const timestamp = msg._creationTime;
     const message = msg.message;
 
     if (!message) continue;
 
     if (message.role === 'user') {
-      // User message
       const content = extractTextContent(message.content);
       if (content) {
-        result.push(fmt.formatUserMessage(content, timestamp));
+        // If this is the last user message, save it separately
+        if (i === lastUserMsgIndex) {
+          currentUserMessage = fmt.formatUserMessage(content, timestamp);
+        } else {
+          result.push(fmt.formatUserMessage(content, timestamp));
+        }
       }
     } else if (message.role === 'assistant') {
       // Assistant message - may contain text and/or tool calls
@@ -252,12 +283,11 @@ function formatMessagesWithApprovals(
         if (tc.toolCallId) {
           pendingToolCalls.set(tc.toolCallId, tc);
         }
-        // If we have output (inline result), format immediately
+        // If we have output (inline result), format as summary (non-mimicable format)
         if (tc.output !== undefined) {
           result.push(
-            fmt.formatToolCall(
+            fmt.formatToolCallSummary(
               tc.toolName,
-              tc.input,
               tc.output,
               timestamp,
               tc.isError ? 'error' : 'success',
@@ -309,12 +339,10 @@ function formatMessagesWithApprovals(
           ? pendingToolCalls.get(tr.toolCallId)
           : undefined;
         const toolName = tr.toolName ?? pendingCall?.toolName ?? 'unknown_tool';
-        const input = pendingCall?.input;
 
         result.push(
-          fmt.formatToolCall(
+          fmt.formatToolCallSummary(
             toolName,
-            input,
             tr.result,
             timestamp,
             tr.isError ? 'error' : 'success',
@@ -335,7 +363,7 @@ function formatMessagesWithApprovals(
     }
   }
 
-  return result;
+  return { historyMessages: result, currentUserMessage };
 }
 
 /**

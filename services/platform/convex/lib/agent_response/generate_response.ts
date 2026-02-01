@@ -24,6 +24,8 @@ import {
 import { onAgentComplete } from '../agent_completion';
 import {
   formatCurrentTurn,
+  formatCurrentTurnSection,
+  wrapInDetails,
   type CurrentTurnToolCall,
 } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
@@ -69,6 +71,7 @@ export async function generateAgentResponse(
     enableStreaming,
     hooks,
     convexToolNames,
+    instructions,
   } = config;
   const {
     ctx,
@@ -363,16 +366,20 @@ export async function generateAgentResponse(
       result.steps ?? [],
     );
 
-    // Build complete context window for metadata
+    // Build complete context window for metadata (uses <details> for collapsible display)
     const currentTurnFormatted = formatCurrentTurn({
-      userInput: taskDescription,
       assistantOutput: result.text || '',
       toolCalls:
         toolCalls.length > 0 ? (toolCalls as CurrentTurnToolCall[]) : undefined,
       timestamp: Date.now(),
     });
-    const completeContextWindow =
-      structuredContext.contextText + '\n\n' + currentTurnFormatted;
+    const contextWindowParts = [];
+    if (instructions) {
+      contextWindowParts.push(wrapInDetails('📋 System Prompt', instructions));
+    }
+    contextWindowParts.push(structuredContext.contextText);
+    contextWindowParts.push(formatCurrentTurnSection(currentTurnFormatted));
+    const completeContextWindow = contextWindowParts.join('\n\n');
     const currentTurnTokens = estimateTokens(currentTurnFormatted);
 
     // Get actual model from response (no fallback to config)

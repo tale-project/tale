@@ -11,7 +11,7 @@
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
 import { agentResponseReturnsValidator, generateAgentResponse } from '../../lib/agent_response';
-import { createChatAgent } from './agent';
+import { createChatAgent, CHAT_AGENT_INSTRUCTIONS } from './agent';
 
 export const generateResponse = internalAction({
   args: {
@@ -41,6 +41,7 @@ export const generateResponse = internalAction({
         provider: 'openai',
         debugTag: '[ChatAgent]',
         enableStreaming: !!args.streamId,
+        instructions: CHAT_AGENT_INSTRUCTIONS,
       },
       {
         ctx,

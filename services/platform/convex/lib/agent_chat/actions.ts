@@ -129,6 +129,7 @@ export const runAgentGeneration = internalAction({
           enableStreaming,
           hooks,
           convexToolNames: agentConfig.convexToolNames,
+          instructions: agentConfig.instructions,
         },
         {
           ctx,

@@ -14,6 +14,15 @@ export interface SubAgentUsage {
   totalTokens?: number;
 }
 
+export interface ContextStats {
+  totalTokens: number;
+  messageCount: number;
+  approvalCount: number;
+  hasSummary: boolean;
+  hasRag: boolean;
+  hasIntegrations: boolean;
+}
+
 export interface MessageMetadata {
   model: string;
   provider: string;
@@ -26,6 +35,8 @@ export interface MessageMetadata {
   durationMs?: number;
   timeToFirstTokenMs?: number;
   subAgentUsage?: SubAgentUsage[];
+  contextWindow?: string;
+  contextStats?: ContextStats;
 }
 
 export function useMessageMetadata(messageId: string | null) {
@@ -48,6 +59,8 @@ export function useMessageMetadata(messageId: string | null) {
           durationMs: metadata.durationMs,
           timeToFirstTokenMs: metadata.timeToFirstTokenMs,
           subAgentUsage: metadata.subAgentUsage,
+          contextWindow: metadata.contextWindow,
+          contextStats: metadata.contextStats,
         }
       : undefined,
     isLoading: metadata === undefined && messageId !== null,
