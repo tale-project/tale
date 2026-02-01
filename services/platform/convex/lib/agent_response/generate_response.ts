@@ -283,6 +283,7 @@ export async function generateAgentResponse(
         steps: generateResult.steps,
         usage: generateResult.usage,
         finishReason: generateResult.finishReason,
+        response: generateResult.response,
       };
 
       // If text is empty but we have tool results, retry without tools
