@@ -133,7 +133,12 @@ export function MessageInfoDialog({
               </div>
             </Field>
 
-            {(metadata.totalTokens !== undefined || metadata.contextWindow) && (
+            {(metadata.contextWindow ||
+              metadata.totalTokens !== undefined ||
+              metadata.inputTokens !== undefined ||
+              metadata.outputTokens !== undefined ||
+              (metadata.reasoningTokens ?? 0) > 0 ||
+              (metadata.cachedInputTokens ?? 0) > 0) && (
               <Field label={t('messageInfo.tokenUsage')}>
                 <Grid cols={2} gap={2} className="text-sm">
                   {metadata.contextWindow && (
