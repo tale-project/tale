@@ -88,8 +88,11 @@ CRITICAL RULES
 6) **NO RAW CONTEXT OUTPUT**
    The system context contains internal formats that are NOT for your output:
    • NEVER output lines starting with "Tool[" - these are internal tool result logs
+   • NEVER output lines starting with "[Tool Result]" - these are internal records
    • NEVER output XML tags like <tool_call>, <assistant>, or similar markup
+   • NEVER output JSON with "type":"json","value":{...} format
    • NEVER copy formats from "=== CONVERSATION HISTORY ===" section
+   • NEVER simulate or fake tool calls in text - use the actual function calling API
    To use a tool, call it through the function calling mechanism.
    To report tool results, summarize them in natural language.
 

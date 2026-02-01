@@ -126,13 +126,14 @@ export async function generateAgentResponse(
         userId,
         userTeamIds: userTeamIds ?? [],
       });
-      debugLog('RAG prefetch started', { threadId, userId });
+      debugLog('RAG prefetch started', { threadId, userId, elapsedMs: Date.now() - startTime });
     }
 
     // Call beforeContext hook if provided
     let hookData: BeforeContextResult | undefined;
     if (hooks?.beforeContext) {
       hookData = await hooks.beforeContext(ctx, args);
+      debugLog('beforeContext hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
 
     // Build structured context using the unified approach
@@ -154,6 +155,7 @@ export async function generateAgentResponse(
     debugLog('Context built', {
       estimatedTokens: structuredContext.stats.totalTokens,
       messageCount: structuredContext.stats.messageCount,
+      elapsedMs: Date.now() - startTime,
     });
 
     // Call beforeGenerate hook if provided
@@ -172,6 +174,7 @@ export async function generateAgentResponse(
       if (beforeResult.systemContextMessages) {
         systemContextMessages = beforeResult.systemContextMessages;
       }
+      debugLog('beforeGenerate hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
 
     // Create agent instance
@@ -198,6 +201,14 @@ export async function generateAgentResponse(
       finishReason?: string;
       response?: { modelId?: string };
     };
+
+    debugLog('PRE_LLM_CALL', {
+      threadId,
+      model,
+      enableStreaming,
+      elapsedMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
 
     if (enableStreaming) {
       // Streaming mode (chat agent)
@@ -239,6 +250,8 @@ export async function generateAgentResponse(
         streamResult.response,
       ]);
 
+      debugLog('Stream completed', { threadId, elapsedMs: Date.now() - startTime });
+
       result = {
         text: streamText,
         steps: streamSteps,
@@ -246,6 +259,61 @@ export async function generateAgentResponse(
         finishReason: streamFinishReason,
         response: streamResponse,
       };
+
+      // Retry if streaming returned empty text (handles thinking models that consume all tokens for reasoning)
+      if (!result.text?.trim()) {
+        debugLog('Streaming empty text response, retrying', {
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+
+        // Rebuild context to include any messages saved during the original streaming
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          taskDescription: undefined,
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          contextSummary: hookData?.contextSummary,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        debugLog('Rebuilt context for streaming empty text retry', {
+          estimatedTokens: retryContext.stats.totalTokens,
+          messageCount: retryContext.stats.messageCount,
+        });
+
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retryResult = await retryAgent.generateText(
+          contextWithOrg,
+          { threadId, userId },
+          {
+            system: retryContext.contextText,
+            prompt: 'Please provide a response based on the conversation above.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+            },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: result.steps,
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+        };
+
+        debugLog('Streaming empty text retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
     } else {
       // Non-streaming mode (sub-agents)
       // Extend context with all fields from contextWithOrg for consistency
@@ -281,6 +349,8 @@ export async function generateAgentResponse(
         },
       );
 
+      debugLog('Generate completed', { threadId, elapsedMs: Date.now() - startTime });
+
       result = {
         text: generateResult.text,
         steps: generateResult.steps,
@@ -292,7 +362,7 @@ export async function generateAgentResponse(
       // If text is empty but we have tool results, retry without tools
       // This handles cases where the LLM stopped after tool calls without generating text
       // (e.g., DeepSeek returning finishReason: "stop" with tool calls)
-      if (!result.text && result.steps && result.steps.length > 0) {
+      if (!result.text?.trim() && result.steps && result.steps.length > 0) {
         debugLog('Empty text with tool results, retrying without tools', {
           stepsCount: result.steps.length,
           finishReason: result.finishReason,
@@ -342,6 +412,61 @@ export async function generateAgentResponse(
         };
 
         debugLog('Retry completed', {
+          textLength: result.text?.length ?? 0,
+          finishReason: result.finishReason,
+        });
+      }
+
+      // General empty text retry (handles cases like thinking models that consume all tokens for reasoning)
+      if (!result.text?.trim()) {
+        debugLog('Empty text response, retrying', {
+          finishReason: result.finishReason,
+          usage: result.usage,
+        });
+
+        // Rebuild context to include any messages saved during the original generation
+        const retryContext = await buildStructuredContext({
+          ctx,
+          threadId,
+          taskDescription: undefined,
+          additionalContext,
+          parentThreadId,
+          maxMessages: agentConfig.recentMessages,
+          contextSummary: hookData?.contextSummary,
+          ragContext: hookData?.ragContext,
+          integrationsInfo: hookData?.integrationsInfo,
+        });
+
+        debugLog('Rebuilt context for empty text retry', {
+          estimatedTokens: retryContext.stats.totalTokens,
+          messageCount: retryContext.stats.messageCount,
+        });
+
+        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
+
+        const retryResult = await retryAgent.generateText(
+          subAgentContext,
+          { threadId, userId },
+          {
+            system: retryContext.contextText,
+            prompt: 'Please provide a response based on the conversation above.',
+          },
+          {
+            contextOptions: {
+              recentMessages: 0,
+              excludeToolMessages: false,
+            },
+          },
+        );
+
+        result = {
+          text: retryResult.text,
+          steps: result.steps,
+          usage: mergeUsage(result.usage, retryResult.usage),
+          finishReason: retryResult.finishReason,
+        };
+
+        debugLog('Empty text retry completed', {
           textLength: result.text?.length ?? 0,
           finishReason: result.finishReason,
         });

@@ -59,7 +59,7 @@ export function formatAssistantMessage(
 
 /**
  * Format a tool call with its input and output (legacy)
- * Uses markdown quote format to prevent AI from mimicking this format in output
+ * Uses log-style format to prevent AI from mimicking this as an action instruction
  */
 export function formatToolCall(
   toolName: string,
@@ -69,12 +69,12 @@ export function formatToolCall(
   status: 'success' | 'error' = 'success',
 ): string {
   const s = status === 'success' ? '✓' : '✗';
-  return `> 🔧 ${toolName} (${s}): ${summarize(output)}`;
+  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
 }
 
 /**
  * Format a tool call summary
- * Uses markdown quote format to prevent AI from mimicking this format in output
+ * Uses log-style format to prevent AI from mimicking this as an action instruction
  */
 export function formatToolCallSummary(
   toolName: string,
@@ -83,7 +83,7 @@ export function formatToolCallSummary(
   status: 'success' | 'error' = 'success',
 ): string {
   const s = status === 'success' ? '✓' : '✗';
-  return `> 🔧 ${toolName} (${s}): ${summarize(output)}`;
+  return `[Tool Result] ${toolName} (${s}): ${summarize(output)}`;
 }
 
 /**
