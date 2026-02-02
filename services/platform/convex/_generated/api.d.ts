@@ -588,6 +588,7 @@ import type * as wf_definitions_mutations from "../wf_definitions/mutations.js";
 import type * as wf_definitions_queries from "../wf_definitions/queries.js";
 import type * as wf_executions_mutations from "../wf_executions/mutations.js";
 import type * as wf_executions_queries from "../wf_executions/queries.js";
+import type * as wf_step_defs_audit from "../wf_step_defs/audit.js";
 import type * as wf_step_defs_get_workflow_steps_public from "../wf_step_defs/get_workflow_steps_public.js";
 import type * as wf_step_defs_mutations from "../wf_step_defs/mutations.js";
 import type * as wf_step_defs_queries from "../wf_step_defs/queries.js";
@@ -653,6 +654,7 @@ import type * as workflow_engine_actions_workflow_processing_records_helpers_rec
 import type * as workflow_engine_actions_workflow_processing_records_helpers_types from "../workflow_engine/actions/workflow_processing_records/helpers/types.js";
 import type * as workflow_engine_actions_workflow_processing_records_workflow_processing_records_action from "../workflow_engine/actions/workflow_processing_records/workflow_processing_records_action.js";
 import type * as workflow_engine_engine from "../workflow_engine/engine.js";
+import type * as workflow_engine_execution_dry_run_executor from "../workflow_engine/execution/dry_run_executor.js";
 import type * as workflow_engine_helpers_data_source_database_workflow_data_source from "../workflow_engine/helpers/data_source/database_workflow_data_source.js";
 import type * as workflow_engine_helpers_data_source_types from "../workflow_engine/helpers/data_source/types.js";
 import type * as workflow_engine_helpers_engine_build_steps_config_map from "../workflow_engine/helpers/engine/build_steps_config_map.js";
@@ -715,6 +717,7 @@ import type * as workflow_engine_helpers_step_execution_load_and_validate_execut
 import type * as workflow_engine_helpers_step_execution_merge_execution_variables from "../workflow_engine/helpers/step_execution/merge_execution_variables.js";
 import type * as workflow_engine_helpers_step_execution_persist_execution_result from "../workflow_engine/helpers/step_execution/persist_execution_result.js";
 import type * as workflow_engine_helpers_step_execution_types from "../workflow_engine/helpers/step_execution/types.js";
+import type * as workflow_engine_helpers_validation_circular_dependency_validator from "../workflow_engine/helpers/validation/circular_dependency_validator.js";
 import type * as workflow_engine_helpers_validation_constants from "../workflow_engine/helpers/validation/constants.js";
 import type * as workflow_engine_helpers_validation_index from "../workflow_engine/helpers/validation/index.js";
 import type * as workflow_engine_helpers_validation_steps_action from "../workflow_engine/helpers/validation/steps/action.js";
@@ -1420,6 +1423,7 @@ declare const fullApi: ApiFromModules<{
   "wf_definitions/queries": typeof wf_definitions_queries;
   "wf_executions/mutations": typeof wf_executions_mutations;
   "wf_executions/queries": typeof wf_executions_queries;
+  "wf_step_defs/audit": typeof wf_step_defs_audit;
   "wf_step_defs/get_workflow_steps_public": typeof wf_step_defs_get_workflow_steps_public;
   "wf_step_defs/mutations": typeof wf_step_defs_mutations;
   "wf_step_defs/queries": typeof wf_step_defs_queries;
@@ -1485,6 +1489,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/actions/workflow_processing_records/helpers/types": typeof workflow_engine_actions_workflow_processing_records_helpers_types;
   "workflow_engine/actions/workflow_processing_records/workflow_processing_records_action": typeof workflow_engine_actions_workflow_processing_records_workflow_processing_records_action;
   "workflow_engine/engine": typeof workflow_engine_engine;
+  "workflow_engine/execution/dry_run_executor": typeof workflow_engine_execution_dry_run_executor;
   "workflow_engine/helpers/data_source/database_workflow_data_source": typeof workflow_engine_helpers_data_source_database_workflow_data_source;
   "workflow_engine/helpers/data_source/types": typeof workflow_engine_helpers_data_source_types;
   "workflow_engine/helpers/engine/build_steps_config_map": typeof workflow_engine_helpers_engine_build_steps_config_map;
@@ -1547,6 +1552,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/step_execution/merge_execution_variables": typeof workflow_engine_helpers_step_execution_merge_execution_variables;
   "workflow_engine/helpers/step_execution/persist_execution_result": typeof workflow_engine_helpers_step_execution_persist_execution_result;
   "workflow_engine/helpers/step_execution/types": typeof workflow_engine_helpers_step_execution_types;
+  "workflow_engine/helpers/validation/circular_dependency_validator": typeof workflow_engine_helpers_validation_circular_dependency_validator;
   "workflow_engine/helpers/validation/constants": typeof workflow_engine_helpers_validation_constants;
   "workflow_engine/helpers/validation/index": typeof workflow_engine_helpers_validation_index;
   "workflow_engine/helpers/validation/steps/action": typeof workflow_engine_helpers_validation_steps_action;
