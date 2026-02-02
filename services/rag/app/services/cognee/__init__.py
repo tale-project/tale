@@ -57,10 +57,8 @@ else:
         async def generate(
             self,
             query: str,
-            top_k: int | None = None,
-            system_prompt: str | None = None,
-            temperature: float | None = None,
-            max_tokens: int | None = None,
+            user_id: str | None = None,
+            team_ids: list[str] | None = None,
         ) -> dict[str, Any]:
             """Return failure response when cognee is unavailable."""
             return {

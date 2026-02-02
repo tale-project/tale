@@ -340,26 +340,16 @@ class QueryResponse(BaseModel):
 # ============================================================================
 
 class GenerateRequest(BaseModel):
-    """Request to generate a response using RAG."""
+    """Request to generate a response using RAG.
+
+    This is a simplified API that uses optimized defaults for RAG:
+    - top_k: 30 (~15k chars context for comprehensive answers)
+    - temperature: 0.3 (low randomness for factual responses)
+    - max_tokens: 2000 (sufficient for detailed answers)
+
+    These parameters are hardcoded for consistency and simplicity.
+    """
     query: str = Field(..., description="User query")
-    top_k: int | None = Field(
-        default=None,
-        description="Number of context documents to retrieve"
-    )
-    system_prompt: str | None = Field(
-        default=None,
-        description="Optional system prompt override"
-    )
-    temperature: float | None = Field(
-        default=None,
-        description="LLM temperature (overrides default)"
-    )
-    max_tokens: int | None = Field(
-        default=None,
-        description="Maximum tokens to generate (overrides default)"
-    )
-    # Multi-tenancy support
-    # Generate can include both user's private dataset and team datasets
     user_id: str | None = Field(
         default=None,
         description="User ID for retrieving user's private documents as context.",

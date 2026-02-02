@@ -1,9 +1,9 @@
 'use node';
 
 /**
- * RAG Search Prefetch Module
+ * RAG Generate Prefetch Module
  *
- * Provides non-blocking prefetch of RAG search results.
+ * Provides non-blocking prefetch of RAG generation results.
  * The prefetch is triggered at the start of generateAgentResponse,
  * and the first rag_search tool call uses the prefetched result.
  */
@@ -15,28 +15,16 @@ import { createDebugLog } from '../debug_log';
 
 const debugLog = createDebugLog('DEBUG_CHAT_AGENT', '[RagPrefetch]');
 
-// Configuration constants
 const DEFAULT_RAG_SERVICE_URL = 'http://localhost:8001';
-const DEFAULT_TOP_K = 5;
-const DEFAULT_SIMILARITY_THRESHOLD = 0.3;
-const RAG_REQUEST_TIMEOUT_MS = 10000;
+const RAG_REQUEST_TIMEOUT_MS = 30000;
 
-// Query expansion constants
 const MAX_CONTEXT_MESSAGES = 3;
 const MAX_CONTEXT_CHARS = 500;
 
-interface SearchResult {
-  content: string;
-  score: number;
-  document_id?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface QueryResponse {
+interface RagServiceResponse {
   success: boolean;
   query: string;
-  results: SearchResult[];
-  total_results: number;
+  response: string;
   processing_time_ms: number;
 }
 
@@ -50,8 +38,8 @@ interface RecentMessage {
  * Attached to the action context and passed to tools.
  */
 export interface RagPrefetchCache {
-  /** The Promise that resolves to the RAG search result */
-  promise: Promise<QueryResponse>;
+  /** The Promise that resolves to the generated response string */
+  promise: Promise<string>;
   /** Whether this cache has been consumed (first call sets this to true) */
   consumed: boolean;
   /** Timestamp when the prefetch was started */
@@ -156,23 +144,18 @@ async function getRecentMessagesForPrefetch(
 }
 
 /**
- * Fetch RAG search results from the RAG service.
+ * Fetch RAG generation results from the RAG service.
  */
-async function fetchRagResults(options: {
+async function fetchRagGenerate(options: {
   query: string;
   teamIds: string[];
   userId: string;
-  top_k: number;
-  similarity_threshold?: number;
-}): Promise<QueryResponse> {
+}): Promise<string> {
   const ragServiceUrl = getRagServiceUrl();
-  const url = `${ragServiceUrl}/api/v1/search`;
+  const url = `${ragServiceUrl}/api/v1/generate`;
 
   const payload = {
     query: options.query,
-    top_k: options.top_k,
-    similarity_threshold: options.similarity_threshold ?? DEFAULT_SIMILARITY_THRESHOLD,
-    include_metadata: true,
     user_id: options.userId,
     team_ids: options.teamIds,
   };
@@ -195,7 +178,8 @@ async function fetchRagResults(options: {
       throw new Error(`RAG service error: ${response.status} ${errorText}`);
     }
 
-    return (await response.json()) as QueryResponse;
+    const result = (await response.json()) as RagServiceResponse;
+    return result.response;
   } catch (error) {
     clearTimeout(timeoutId);
     throw error;
@@ -208,94 +192,68 @@ export interface StartRagPrefetchOptions {
   userMessage: string;
   userId: string;
   userTeamIds: string[];
-  top_k?: number;
 }
 
 /**
- * Start RAG search prefetch.
+ * Start RAG generate prefetch.
  *
  * This function returns IMMEDIATELY (non-blocking).
  * All async operations (fetching recent messages, building query, calling RAG service)
  * happen inside the returned Promise.
  *
  * @returns A cache object containing:
- *   - promise: The Promise that resolves to QueryResponse
+ *   - promise: The Promise that resolves to the generated response string
  *   - consumed: false (set to true after first use)
  *   - timestamp: When the prefetch was started
  */
 export function startRagPrefetch(options: StartRagPrefetchOptions): RagPrefetchCache {
-  const top_k = options.top_k ?? DEFAULT_TOP_K;
-
-  const promise = (async (): Promise<QueryResponse> => {
+  const promise = (async (): Promise<string> => {
     debugLog('RAG prefetch started', {
       threadId: options.threadId,
       userMessage: options.userMessage.substring(0, 100),
     });
 
-    // 1. Get recent messages for context expansion
     const recentMessages = await getRecentMessagesForPrefetch(
       options.ctx,
       options.threadId,
     );
 
-    // 2. Build expanded query with conversation context
     const expandedQuery = buildExpandedQuery(
       options.userMessage,
       recentMessages,
     );
 
-    // 3. Use team IDs directly - RAG service converts them to datasets internally
     const teamIds = options.userTeamIds;
     if (teamIds.length === 0) {
       debugLog('RAG prefetch skipped: no team IDs', {
         threadId: options.threadId,
       });
-      return {
-        success: false,
-        query: expandedQuery,
-        results: [],
-        total_results: 0,
-        processing_time_ms: 0,
-      };
+      return '';
     }
 
     debugLog('RAG prefetch executing', {
       expandedQueryLength: expandedQuery.length,
       hasContextExpansion: expandedQuery !== options.userMessage,
       teamIds,
-      top_k,
     });
 
-    // 4. Fetch RAG results
     try {
-      const result = await fetchRagResults({
+      const response = await fetchRagGenerate({
         query: expandedQuery,
         teamIds,
         userId: options.userId,
-        top_k,
       });
 
       debugLog('RAG prefetch completed', {
-        success: result.success,
-        total_results: result.total_results,
-        processing_time_ms: result.processing_time_ms,
+        responseLength: response.length,
       });
 
-      return result;
+      return response;
     } catch (fetchError) {
-      // RAG prefetch is non-critical - return empty result on failure
-      // This prevents the entire chat from failing when RAG service is unavailable
       debugLog('RAG prefetch failed (non-fatal)', {
         error: fetchError instanceof Error ? fetchError.message : String(fetchError),
       });
-
-      return {
-        success: false,
-        query: expandedQuery,
-        results: [],
-        total_results: 0,
-        processing_time_ms: 0,
-      };
+      return '';
     }
   })();
 
