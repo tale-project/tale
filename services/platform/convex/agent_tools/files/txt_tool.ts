@@ -105,6 +105,10 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
           const fileId = await ctx.storage.store(blob);
           const url = await ctx.storage.getUrl(fileId);
 
+          if (!url) {
+            throw new Error('Storage URL unavailable for generated text file.');
+          }
+
           const lineCount = content.split('\n').length;
 
           debugLog('tool:txt generate success', {
@@ -118,7 +122,7 @@ Returns: { success, url (for generate), result (for parse), char_count, line_cou
             operation: 'generate',
             success: true,
             fileId,
-            url: url ?? '',
+            url,
             filename,
             char_count: content.length,
             line_count: lineCount,
