@@ -222,46 +222,6 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Perplexica (AI Search Engine)
-  # ============================================================================
-  # Open-source AI-powered search engine similar to Perplexity AI
-  # - Uses SearXNG for meta-search (bundled in the image)
-  # - Supports multiple LLM providers (OpenAI, Anthropic, Ollama, etc.)
-  # - Provides AI-generated answers with citations
-  # - Auto-configured via environment variables on startup
-  perplexica:
-    image: ghcr.io/tale-project/tale/tale-perplexica:${VERSION:-latest}
-    pull_policy: ${PULL_POLICY:-build}
-    build:
-      context: ./services/perplexica
-      dockerfile: Dockerfile
-    container_name: tale-perplexica
-    ports:
-      - '3001:3000'
-    volumes:
-      - perplexica-data:/home/perplexica/data
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_API_BASE=${OPENAI_BASE_URL}
-      # Use non-thinking model for Perplexica (thinking models have incompatible output format)
-      - PERPLEXICA_CHAT_MODEL=deepseek/deepseek-chat-v3-0324
-      - PERPLEXICA_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-openai/text-embedding-3-small}
-    restart: unless-stopped
-    healthcheck:
-      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3000']
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
-    networks:
-      - internal
-
-  # ============================================================================
   # Tale Graph DB (FalkorDB)
   # ============================================================================
   # Redis-based graph database optimized for GraphRAG
@@ -593,10 +553,6 @@ volumes:
 
   # Persistent storage for graph-db (FalkorDB graph + vector data)
   graph-db-data:
-    driver: local
-
-  # Persistent storage for Perplexica (AI search engine)
-  perplexica-data:
     driver: local
 
   # Persistent storage for Platform Convex local backend
