@@ -431,7 +431,7 @@ jobs:
       - build-db
       - build-graph-db
       - build-proxy
-      - build-search
+      - build-operator
       - trigger-cli
     runs-on: ubuntu-latest
 
@@ -452,7 +452,7 @@ jobs:
           echo "| DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Graph DB | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-graph-db:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Proxy | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Search | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-search:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Operator | \`${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:${{ needs.prepare.outputs.version_number }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### CLI" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
