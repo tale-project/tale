@@ -17,8 +17,6 @@ class Settings(BaseSettings):
 
     # Browser configuration (OPERATOR_ prefix)
     headless: bool = Field(default=True, validation_alias="OPERATOR_HEADLESS")
-    timeout: int = Field(default=30, validation_alias="OPERATOR_TIMEOUT")
-    max_steps: int = Field(default=30, validation_alias="OPERATOR_MAX_STEPS")
 
     # Workspace configuration for concurrent requests
     max_concurrent_requests: int = Field(

@@ -19,10 +19,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """
     try:
         service = get_browser_service()
-        result = await service.chat(
-            message=request.message,
-            max_turns=request.max_turns,
-        )
+        result = await service.chat(message=request.message)
 
         token_usage = None
         if result.get("token_usage"):

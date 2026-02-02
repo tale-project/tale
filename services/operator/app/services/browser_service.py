@@ -120,13 +120,12 @@ class BrowserService:
         self._initialized = False
         logger.info("Browser service cleaned up")
 
-    async def chat(self, message: str, max_turns: int = settings.max_steps) -> dict[str, Any]:
+    async def chat(self, message: str) -> dict[str, Any]:
         """
         Send a message to OpenCode with Playwright MCP.
 
         Args:
             message: The user's message/task
-            max_turns: Maximum agentic turns
 
         Returns:
             Dict with success status, response, cost, and turns
@@ -136,22 +135,20 @@ class BrowserService:
 
         workspace_dir = await self._workspace_manager.create_workspace()
         logger.info(
-            f"Running OpenCode with max_turns={max_turns}, "
-            f"workspace={os.path.basename(workspace_dir)}, "
+            f"Running OpenCode with workspace={os.path.basename(workspace_dir)}, "
             f"message: {message[:100]}..."
         )
 
         start_time = time.perf_counter()
 
         try:
-            return await self._execute_opencode(message, max_turns, workspace_dir, start_time)
+            return await self._execute_opencode(message, workspace_dir, start_time)
         finally:
             await self._workspace_manager.release_workspace(workspace_dir)
 
     async def _execute_opencode(
         self,
         message: str,
-        max_turns: int,
         workspace_dir: str,
         start_time: float,
     ) -> dict[str, Any]:
@@ -179,7 +176,7 @@ class BrowserService:
 
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
-                timeout=settings.timeout * max_turns,
+                timeout=settings.request_timeout_seconds,
             )
 
             duration = time.perf_counter() - start_time

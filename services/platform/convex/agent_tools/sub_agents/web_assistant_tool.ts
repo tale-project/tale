@@ -41,10 +41,6 @@ EXAMPLES:
       userRequest: z
         .string()
         .describe("The user's web-related request in natural language"),
-      maxTurns: z
-        .number()
-        .optional()
-        .describe('Max agent turns (default: 10, max: 50)'),
     }),
 
     handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
@@ -56,7 +52,6 @@ EXAMPLES:
       console.log('[web_assistant_tool] Calling operator:', {
         url: `${operatorUrl}/api/v1/chat`,
         message: args.userRequest.slice(0, 100),
-        maxTurns: args.maxTurns ?? 10,
       });
 
       try {
@@ -66,10 +61,7 @@ EXAMPLES:
         const response = await fetch(`${operatorUrl}/api/v1/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: args.userRequest,
-            max_turns: args.maxTurns ?? 10,
-          }),
+          body: JSON.stringify({ message: args.userRequest }),
           signal: controller.signal,
         });
 

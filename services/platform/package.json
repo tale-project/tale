@@ -164,7 +164,7 @@
     "workbox-strategies": "^7.4.0"
   },
   "overrides": {
-    "react-is": "19.2.4"
+    "react-is": "^19.2.4"
   },
   "optionalDependencies": {
     "@parcel/watcher-linux-arm64-glibc": "^2.5.4",
