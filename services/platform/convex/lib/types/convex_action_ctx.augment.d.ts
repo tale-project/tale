@@ -1,5 +1,5 @@
 import 'convex/server';
-import type { RagPrefetchCache } from '../lib/rag_prefetch';
+import type { RagPrefetchCache } from '../rag_prefetch';
 
 declare module 'convex/server' {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars

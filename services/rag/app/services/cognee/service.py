@@ -976,7 +976,7 @@ class CogneeService:
                         # Extract actual chunks from cognee's nested structure
                         # cognee.search returns: [{'search_result': [...], 'dataset_id': ...}]
                         # search_result can be [[chunk1, chunk2]] (nested) or [chunk1, chunk2] (flat)
-                        chunks_extracted = 0
+                        dataset_chunks: list[Any] = []
                         for item in result:
                             if isinstance(item, dict) and "search_result" in item:
                                 search_results = item.get("search_result", [])
@@ -984,16 +984,28 @@ class CogneeService:
                                     # Handle both nested [[chunk]] and flat [chunk] structures
                                     if isinstance(search_results[0], list):
                                         # Nested: [[chunk1, chunk2, ...]]
-                                        raw_results.extend(search_results[0])
-                                        chunks_extracted += len(search_results[0])
+                                        dataset_chunks.extend(search_results[0])
                                     else:
                                         # Flat: [chunk1, chunk2, ...]
-                                        raw_results.extend(search_results)
-                                        chunks_extracted += len(search_results)
+                                        dataset_chunks.extend(search_results)
                             else:
-                                raw_results.append(item)
-                                chunks_extracted += 1
-                        logger.debug(f"Dataset '{dataset}' returned {chunks_extracted} chunks")
+                                dataset_chunks.append(item)
+
+                        # WORKAROUND: cognee-community-hybrid-adapter-falkor has a bug where
+                        # FalkorDBAdapter.search() uses `limit * 5` internally but doesn't
+                        # truncate results back to the original limit before returning.
+                        # This causes top_k=30 to return ~150 results instead of 30.
+                        # We manually truncate here until the upstream fix is released.
+                        # See: https://github.com/topoteretes/cognee-community/issues/65
+                        if len(dataset_chunks) > effective_top_k:
+                            logger.debug(
+                                f"Dataset '{dataset}' returned {len(dataset_chunks)} chunks, "
+                                f"truncating to top_k={effective_top_k} (upstream bug workaround)"
+                            )
+                            dataset_chunks = dataset_chunks[:effective_top_k]
+
+                        raw_results.extend(dataset_chunks)
+                        logger.debug(f"Dataset '{dataset}' returned {len(dataset_chunks)} chunks")
             else:
                 # No datasets specified - search globally
                 global_search_kwargs: dict[str, Any] = {
@@ -1027,11 +1039,15 @@ class CogneeService:
                 r for r in normalized_results if r.get("score", 0) >= threshold
             ]
 
+            # Each dataset already returns top_k results sorted by Cognee.
+            # We keep them all (no re-sorting or truncation) to preserve
+            # the original ranking from each dataset.
+
             processing_time = (time.time() - start_time) * 1000
 
             logger.info(
                 f"Search completed in {processing_time:.2f}ms, "
-                f"found {len(filtered_results)} results (from {len(raw_results)} raw results)",
+                f"found {len(filtered_results)} results (from {len(raw_results)} raw, {len(datasets)} dataset(s) × top_k={effective_top_k})",
             )
 
             return filtered_results
@@ -1085,21 +1101,18 @@ class CogneeService:
     async def generate(
         self,
         query: str,
-        top_k: int | None = None,
-        system_prompt: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
         user_id: str | None = None,
         team_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response using RAG.
 
+        Uses optimized hardcoded defaults for RAG:
+        - top_k: 15 (sufficient context without excessive tokens)
+        - temperature: 0.3 (low randomness for factual responses)
+        - max_tokens: 2000 (detailed answers)
+
         Args:
             query: User query
-            top_k: Number of context documents
-            system_prompt: Optional system prompt
-            temperature: LLM temperature
-            max_tokens: Maximum tokens to generate
             user_id: Optional user ID for user-level isolation. Takes priority over team-level.
             team_ids: List of team IDs to retrieve context from (required).
 
@@ -1109,30 +1122,48 @@ class CogneeService:
         if not self.initialized:
             await self.initialize()
 
+        # Hardcoded RAG-optimized defaults
+        RAG_TOP_K = 30  # ~15k chars per dataset, sufficient context for comprehensive answers
+        RAG_TEMPERATURE = 0.3  # Low randomness for factual responses
+        RAG_MAX_TOKENS = 2000  # Detailed answers
+        RAG_MAX_CONTEXT_CHARS = 200_000  # Safety limit: ~50-100k tokens depending on language
+
         try:
             start_time = time.time()
 
             # Search for relevant context with multi-tenant team filtering
             search_results = await self.search(
-                query, top_k=top_k, user_id=user_id, team_ids=team_ids
+                query, top_k=RAG_TOP_K, user_id=user_id, team_ids=team_ids
             )
 
-            # Build context from search results
+            # Build context from search results with safety limit
             context_parts = []
+            total_chars = 0
             for i, result in enumerate(search_results, 1):
                 content = result.get("content", "")
                 if content:
-                    context_parts.append(f"[{i}] {content}")
+                    part = f"[{i}] {content}"
+                    if total_chars + len(part) > RAG_MAX_CONTEXT_CHARS:
+                        logger.warning(
+                            f"Context truncated at {total_chars} chars (limit: {RAG_MAX_CONTEXT_CHARS}), "
+                            f"used {len(context_parts)}/{len(search_results)} chunks"
+                        )
+                        break
+                    context_parts.append(part)
+                    total_chars += len(part) + 2  # +2 for "\n\n" separator
 
             context = "\n\n".join(context_parts) if context_parts else ""
 
-            # Build the system prompt for RAG
-            default_system_prompt = (
-                "You are a helpful assistant that answers questions based on the provided context. "
-                "Use the context to answer the user's question accurately. "
-                "If the context doesn't contain relevant information, say so."
+            # RAG-optimized system prompt
+            system_prompt = (
+                "You are a knowledgeable assistant that provides accurate answers based on the provided context. "
+                "Instructions:\n"
+                "1. Answer the question using ONLY the information from the context\n"
+                "2. If the context contains specific details (numbers, dates, names), include them\n"
+                "3. If the context doesn't contain relevant information, clearly state that\n"
+                "4. Respond in the same language as the user's question\n"
+                "5. Be concise but thorough"
             )
-            final_system_prompt = system_prompt or default_system_prompt
 
             # Build the user message with context
             if context:
@@ -1141,31 +1172,20 @@ class CogneeService:
                 user_message = query
 
             # Use cached LLM configuration and reusable OpenAI client
-            # This avoids per-request overhead from config parsing and connection setup
             llm_config = self._llm_config
             if llm_config is None or self._openai_client is None:
                 raise RuntimeError("CogneeService not initialized. Call initialize() first.")
 
-            # Build completion kwargs
-            # model is guaranteed to be set by get_llm_config() validation
+            # Build completion kwargs with hardcoded RAG defaults
             completion_kwargs: dict[str, Any] = {
                 "model": llm_config["model"],
                 "messages": [
-                    {"role": "system", "content": final_system_prompt},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
+                "temperature": RAG_TEMPERATURE,
+                "max_tokens": RAG_MAX_TOKENS,
             }
-
-            # Add optional parameters
-            if temperature is not None:
-                completion_kwargs["temperature"] = temperature
-            elif llm_config.get("temperature") is not None:
-                completion_kwargs["temperature"] = llm_config["temperature"]
-
-            if max_tokens is not None:
-                completion_kwargs["max_tokens"] = max_tokens
-            elif llm_config.get("max_tokens") is not None:
-                completion_kwargs["max_tokens"] = llm_config["max_tokens"]
 
             # Generate response using reusable OpenAI client (connection pooling)
             completion = await self._openai_client.chat.completions.create(**completion_kwargs)

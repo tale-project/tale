@@ -71,14 +71,16 @@ async def search(request: QueryRequest):
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate(request: GenerateRequest):
-    """Generate a response using RAG."""
+    """Generate a response using RAG.
+
+    This endpoint uses optimized defaults for RAG generation:
+    - Retrieves top 30 most relevant chunks (~15k chars context)
+    - Uses temperature 0.3 for factual, consistent responses
+    - Generates up to 2000 tokens for detailed answers
+    """
     try:
         result = await cognee_service.generate(
             query=request.query,
-            top_k=request.top_k,
-            system_prompt=request.system_prompt,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens,
             user_id=request.user_id,
             team_ids=request.team_ids,
         )

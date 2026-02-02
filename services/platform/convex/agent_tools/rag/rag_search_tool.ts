@@ -1,7 +1,7 @@
 /**
- * Convex Tool: RAG Search
+ * Convex Tool: RAG Generate
  *
- * Search the RAG knowledge base for relevant context using semantic search.
+ * Generate responses using the RAG knowledge base.
  * Uses team IDs passed from the parent context (resolved in mutation where auth identity is available).
  */
 
@@ -9,23 +9,14 @@ import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { TEAM_DATASET_PREFIX } from '../../lib/get_user_teams';
 import { createDebugLog } from '../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface SearchResult {
-  content: string;
-  score: number;
-  document_id?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface QueryResponse {
+interface RagServiceResponse {
   success: boolean;
   query: string;
-  results: SearchResult[];
-  total_results: number;
+  response: string;
   processing_time_ms: number;
 }
 
@@ -39,62 +30,32 @@ function getRagServiceUrl(): string {
 export const ragSearchTool = {
   name: 'rag_search' as const,
   tool: createTool({
-    description: `Search the knowledge base using semantic/vector similarity search.
+    description: `Query the knowledge base and get a generated response.
 
-PERFORMANCE TIP: Use SMALL top_k values (3-5) for faster responses. Larger values significantly slow down processing.
-
-IMPORTANT LIMITATIONS:
-• Returns only the TOP matching chunks (default 5, max 20)
-• NOT suitable for: counting records, listing all items, aggregate queries
-• For counting/listing/filtering, use database tools (customer_read, product_read, workflow_read) instead
+This tool uses RAG (Retrieval-Augmented Generation) to:
+1. Search for relevant context from the knowledge base
+2. Generate a comprehensive answer based on that context
 
 WHEN TO USE THIS TOOL:
-• Semantic/meaning-based search: "Find customers interested in sustainability"
 • Knowledge base lookups: policies, procedures, documentation
+• Questions about stored documents and content
 • Finding information when you don't know exact field values
-• Complex contextual questions about stored documents
 
 WHEN NOT TO USE:
 • "How many customers?" → Use customer_read with operation='list'
 • "List all products" → Use product_read with operation='list'
 • "Show customers with status=churned" → Use customer_read with filtering
+• For counting/listing/filtering, use database tools instead
 
-TOP_K GUIDANCE (IMPORTANT - affects response speed):
-• top_k=3-5: RECOMMENDED for most queries - fast response, high-quality results
-• top_k=10: Only when you need broader context (slower)
-• top_k=15-20: Only for comprehensive enumeration queries (much slower):
-  - "List ALL chapters/sections/topics"
-  - "Give me a COMPLETE summary/overview"
-  - "What are ALL the key points?"
-
-Returns the most relevant document chunks based on semantic similarity to your query.`,
+Returns a generated response based on the most relevant documents.`,
     args: z.object({
-      query: z.string().describe('Search query text'),
-      top_k: z
-        .number()
-        .optional()
-        .describe('Number of results (default: 5, max: 20). Use 3-5 for best performance. Only increase for comprehensive queries.'),
-      similarity_threshold: z
-        .number()
-        .optional()
-        .describe(
-          'Minimum similarity score (0.0-1.0). Results below this threshold will be filtered out.',
-        ),
-      include_metadata: z
-        .boolean()
-        .optional()
-        .describe('Whether to include metadata in results (default: true)'),
+      query: z.string().describe('Query text to search and generate response for'),
     }),
-    handler: async (ctx: ToolCtx, args): Promise<QueryResponse> => {
-      // Get user ID, team IDs, and prefetch cache from context
-      // userId is provided by Agent SDK from thread.userId
-      // userTeamIds is passed from generateAgentResponse (resolved in mutation where auth identity is available)
-      // ragPrefetchCache is set by generateAgentResponse for the first call
+    handler: async (ctx: ToolCtx, args): Promise<string> => {
       const { userId, userTeamIds, ragPrefetchCache } = ctx;
 
       debugLog('tool:rag_search start', {
         query: args.query,
-        top_k: args.top_k,
         hasPrefetchCache: !!ragPrefetchCache,
         prefetchConsumed: ragPrefetchCache?.consumed,
       });
@@ -104,18 +65,16 @@ Returns the most relevant document chunks based on semantic similarity to your q
         ragPrefetchCache.consumed = true;
 
         try {
-          const result = await ragPrefetchCache.promise;
+          const response = await ragPrefetchCache.promise;
 
-          debugLog('tool:rag_search using prefetched result (first call)', {
-            aiQuery: args.query,
-            prefetchAge: Date.now() - ragPrefetchCache.timestamp,
-            total_results: result.total_results,
-            processing_time_ms: result.processing_time_ms,
-          });
-
-          return result;
+          if (response) {
+            debugLog('tool:rag_search using prefetched result', {
+              prefetchAge: Date.now() - ragPrefetchCache.timestamp,
+              responseLength: response.length,
+            });
+            return response;
+          }
         } catch (error) {
-          // Prefetch failed, fall through to make a fresh request
           debugLog('tool:rag_search prefetch failed, making fresh request', {
             error: error instanceof Error ? error.message : String(error),
           });
@@ -123,20 +82,6 @@ Returns the most relevant document chunks based on semantic similarity to your q
       }
 
       // Subsequent calls or no prefetch: make a fresh request
-      const ragServiceUrl = getRagServiceUrl();
-      const url = `${ragServiceUrl}/api/v1/search`;
-
-      // Default similarity_threshold of 0.3 balances recall and precision:
-      // - Lower values (< 0.3) include more marginal matches, increasing noise
-      // - Higher values (> 0.5) filter too aggressively, missing relevant results
-      // - 0.3 is a common baseline for embedding-based search with cosine similarity
-      const payload: Record<string, unknown> = {
-        query: args.query,
-        top_k: args.top_k || 5,
-        similarity_threshold: args.similarity_threshold ?? 0.3,
-        include_metadata: args.include_metadata !== false,
-      };
-
       if (!userId) {
         throw new Error(
           'rag_search requires userId in ToolCtx. ' +
@@ -144,9 +89,6 @@ Returns the most relevant document chunks based on semantic similarity to your q
         );
       }
 
-      payload.user_id = userId;
-
-      // Pass team IDs directly - RAG service converts them to datasets internally
       const teamIds = userTeamIds ?? [];
       if (teamIds.length === 0) {
         throw new Error(
@@ -155,10 +97,18 @@ Returns the most relevant document chunks based on semantic similarity to your q
         );
       }
 
-      payload.team_ids = teamIds;
-      debugLog('tool:rag_search team_ids resolved', {
+      const ragServiceUrl = getRagServiceUrl();
+      const url = `${ragServiceUrl}/api/v1/generate`;
+
+      const payload = {
+        query: args.query,
+        user_id: userId,
+        team_ids: teamIds,
+      };
+
+      debugLog('tool:rag_search requesting generate', {
         userId,
-        userTeamIds: teamIds,
+        teamIds,
       });
 
       try {
@@ -175,15 +125,15 @@ Returns the most relevant document chunks based on semantic similarity to your q
           throw new Error(`RAG service error: ${response.status} ${errorText}`);
         }
 
-        const result = (await response.json()) as QueryResponse;
+        const result = (await response.json()) as RagServiceResponse;
 
         debugLog('tool:rag_search success', {
           query: args.query,
-          total_results: result.total_results,
+          responseLength: result.response.length,
           processing_time_ms: result.processing_time_ms,
         });
 
-        return result;
+        return result.response;
       } catch (error) {
         console.error('[tool:rag_search] error', {
           query: args.query,
