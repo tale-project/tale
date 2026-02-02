@@ -84,7 +84,7 @@ export function createOfflineEntityDataHook<
 
     const cacheKey = createCacheKey(config.queryName, organizationId);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const liveData = useQuery(
       config.queryFn as any,
       isOnline ? { organizationId } : 'skip'

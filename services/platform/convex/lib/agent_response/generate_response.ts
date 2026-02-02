@@ -16,18 +16,14 @@
 
 import { components } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
+import type { ModelMessage } from 'ai';
 import {
   buildStructuredContext,
   AGENT_CONTEXT_CONFIGS,
   estimateTokens,
 } from '../context_management';
 import { onAgentComplete } from '../agent_completion';
-import {
-  formatCurrentTurn,
-  formatCurrentTurnSection,
-  wrapInDetails,
-  type CurrentTurnToolCall,
-} from '../context_management/message_formatter';
+import { wrapInDetails } from '../context_management/message_formatter';
 import { createDebugLog } from '../debug_log';
 import {
   getLinkApprovalsToMessageRef,
@@ -78,7 +74,7 @@ export async function generateAgentResponse(
     threadId,
     userId,
     organizationId,
-    taskDescription,
+    promptMessage,
     additionalContext,
     parentThreadId,
     agentOptions,
@@ -113,16 +109,16 @@ export async function generateAgentResponse(
 
     // Start RAG prefetch immediately (non-blocking) if:
     // 1. userId is provided (needed for RAG search)
-    // 2. taskDescription exists (query to search)
+    // 2. promptMessage exists (query to search)
     // 3. rag_search tool is configured for this agent
     // This must be started in the main action context, not in a hook (Promises can't be serialized)
     let ragPrefetchCache: RagPrefetchCache | undefined;
     const hasRagSearchTool = convexToolNames?.includes('rag_search') ?? false;
-    if (userId && taskDescription && hasRagSearchTool) {
+    if (userId && promptMessage && hasRagSearchTool) {
       ragPrefetchCache = startRagPrefetch({
         ctx,
         threadId,
-        userMessage: taskDescription,
+        userMessage: promptMessage,
         userId,
         userTeamIds: userTeamIds ?? [],
       });
@@ -136,43 +132,38 @@ export async function generateAgentResponse(
       debugLog('beforeContext hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
 
-    // Build structured context using the unified approach
-    // For non-streaming (sub-agents): don't include taskDescription in context
-    // because it will be passed via prompt parameter to avoid duplication
+    // Build structured context (history, RAG, integrations)
+    // Note: promptMessage is NOT included - it's passed via `prompt` parameter
     const agentConfig = AGENT_CONTEXT_CONFIGS[agentType];
-    const structuredContext = await buildStructuredContext({
+    const structuredThreadContext = await buildStructuredContext({
       ctx,
       threadId,
-      taskDescription: enableStreaming ? taskDescription : undefined,
       additionalContext,
       parentThreadId,
       maxMessages: agentConfig.recentMessages,
-      contextSummary: hookData?.contextSummary,
       ragContext: hookData?.ragContext,
       integrationsInfo: hookData?.integrationsInfo,
     });
 
     debugLog('Context built', {
-      estimatedTokens: structuredContext.stats.totalTokens,
-      messageCount: structuredContext.stats.messageCount,
+      estimatedTokens: structuredThreadContext.stats.totalTokens,
+      messageCount: structuredThreadContext.stats.messageCount,
       elapsedMs: Date.now() - startTime,
     });
 
+    // Hook can override prompt content (e.g., for attachments → ModelMessage[])
+    let hookPromptContent: string | ModelMessage[] | undefined;
+
     // Call beforeGenerate hook if provided
-    let promptContent = structuredContext.messages;
-    let systemContextMessages = structuredContext.messages;
     if (hooks?.beforeGenerate) {
       const beforeResult = await hooks.beforeGenerate(
         ctx,
         args,
-        structuredContext,
+        structuredThreadContext,
         hookData,
       );
       if (beforeResult.promptContent) {
-        promptContent = beforeResult.promptContent;
-      }
-      if (beforeResult.systemContextMessages) {
-        systemContextMessages = beforeResult.systemContextMessages;
+        hookPromptContent = beforeResult.promptContent;
       }
       debugLog('beforeGenerate hook completed', { threadId, elapsedMs: Date.now() - startTime });
     }
@@ -202,23 +193,29 @@ export async function generateAgentResponse(
       response?: { modelId?: string };
     };
 
+    const promptToSend = hookPromptContent ?? promptMessage;
     debugLog('PRE_LLM_CALL', {
       threadId,
       model,
       enableStreaming,
+      promptMessageId,
+      system: structuredThreadContext.threadContext,
+      prompt: promptToSend,
       elapsedMs: Date.now() - startTime,
       timestamp: new Date().toISOString(),
     });
 
     if (enableStreaming) {
       // Streaming mode (chat agent)
+      // - system: thread context (history, RAG, integrations)
+      // - prompt: current user message (passed separately to avoid duplication)
       const streamResult = await agent.streamText(
         contextWithOrg,
         { threadId, userId },
         {
           promptMessageId,
-          messages: systemContextMessages,
-          prompt: promptContent,
+          system: structuredThreadContext.threadContext,
+          prompt: promptToSend,
           onChunk: ({ chunk }: { chunk: { type: string } }) => {
             if (firstTokenTime === null && chunk.type === 'text-delta') {
               firstTokenTime = Date.now();
@@ -228,7 +225,7 @@ export async function generateAgentResponse(
         {
           contextOptions: {
             recentMessages: 0,
-            excludeToolMessages: false,
+            excludeToolMessages: true,
             searchOtherThreads: false,
           },
           saveStreamDeltas: true,
@@ -259,61 +256,6 @@ export async function generateAgentResponse(
         finishReason: streamFinishReason,
         response: streamResponse,
       };
-
-      // Retry if streaming returned empty text (handles thinking models that consume all tokens for reasoning)
-      if (!result.text?.trim()) {
-        debugLog('Streaming empty text response, retrying', {
-          finishReason: result.finishReason,
-          usage: result.usage,
-        });
-
-        // Rebuild context to include any messages saved during the original streaming
-        const retryContext = await buildStructuredContext({
-          ctx,
-          threadId,
-          taskDescription: undefined,
-          additionalContext,
-          parentThreadId,
-          maxMessages: agentConfig.recentMessages,
-          contextSummary: hookData?.contextSummary,
-          ragContext: hookData?.ragContext,
-          integrationsInfo: hookData?.integrationsInfo,
-        });
-
-        debugLog('Rebuilt context for streaming empty text retry', {
-          estimatedTokens: retryContext.stats.totalTokens,
-          messageCount: retryContext.stats.messageCount,
-        });
-
-        const retryAgent = createAgent({ ...agentOptions, tools: undefined });
-
-        const retryResult = await retryAgent.generateText(
-          contextWithOrg,
-          { threadId, userId },
-          {
-            system: retryContext.contextText,
-            prompt: 'Please provide a response based on the conversation above.',
-          },
-          {
-            contextOptions: {
-              recentMessages: 0,
-              excludeToolMessages: false,
-            },
-          },
-        );
-
-        result = {
-          text: retryResult.text,
-          steps: result.steps,
-          usage: mergeUsage(result.usage, retryResult.usage),
-          finishReason: retryResult.finishReason,
-        };
-
-        debugLog('Streaming empty text retry completed', {
-          textLength: result.text?.length ?? 0,
-          finishReason: result.finishReason,
-        });
-      }
     } else {
       // Non-streaming mode (sub-agents)
       // Extend context with all fields from contextWithOrg for consistency
@@ -333,10 +275,10 @@ export async function generateAgentResponse(
         {
           // Use system parameter for context - it's passed to LLM but NOT saved to database
           // This prevents XML system messages from being stored as thread messages
-          system: structuredContext.contextText,
+          system: structuredThreadContext.threadContext,
           // Use prompt parameter for the task - this triggers the agent response
           // and gets saved as the user message in the thread (unless promptMessageId is provided)
-          prompt: taskDescription,
+          prompt: promptMessage,
           // If promptMessageId is provided, the message was already saved (e.g., with attachments)
           // This prevents double-saving the user message
           ...(promptMessageId ? { promptMessageId } : {}),
@@ -372,11 +314,9 @@ export async function generateAgentResponse(
         const retryContext = await buildStructuredContext({
           ctx,
           threadId,
-          taskDescription: undefined, // Already saved to thread
           additionalContext,
           parentThreadId,
           maxMessages: agentConfig.recentMessages,
-          contextSummary: hookData?.contextSummary,
           ragContext: hookData?.ragContext,
           integrationsInfo: hookData?.integrationsInfo,
         });
@@ -393,14 +333,17 @@ export async function generateAgentResponse(
           subAgentContext,
           { threadId, userId },
           {
-            system: retryContext.contextText,
-            prompt: 'Based on the conversation and tool results above, provide a summary response.',
+            system: retryContext.threadContext,
+            prompt: promptMessage
+              ? `Based on the tool results, complete this task: ${promptMessage}`
+              : 'Based on the conversation and tool results above, provide a summary response.',
           },
           {
             contextOptions: {
               recentMessages: 0,
               excludeToolMessages: false,
             },
+            storageOptions: { saveMessages: 'none' },
           },
         );
 
@@ -428,11 +371,9 @@ export async function generateAgentResponse(
         const retryContext = await buildStructuredContext({
           ctx,
           threadId,
-          taskDescription: undefined,
           additionalContext,
           parentThreadId,
           maxMessages: agentConfig.recentMessages,
-          contextSummary: hookData?.contextSummary,
           ragContext: hookData?.ragContext,
           integrationsInfo: hookData?.integrationsInfo,
         });
@@ -448,14 +389,17 @@ export async function generateAgentResponse(
           subAgentContext,
           { threadId, userId },
           {
-            system: retryContext.contextText,
-            prompt: 'Please provide a response based on the conversation above.',
+            system: retryContext.threadContext,
+            prompt: promptMessage
+              ? `Please complete this task: ${promptMessage}`
+              : 'Please provide a response based on the conversation above.',
           },
           {
             contextOptions: {
               recentMessages: 0,
               excludeToolMessages: false,
             },
+            storageOptions: { saveMessages: 'none' },
           },
         );
 
@@ -492,20 +436,12 @@ export async function generateAgentResponse(
     );
 
     // Build complete context window for metadata (uses <details> for collapsible display)
-    const currentTurnFormatted = formatCurrentTurn({
-      assistantOutput: result.text || '',
-      toolCalls:
-        toolCalls.length > 0 ? (toolCalls as CurrentTurnToolCall[]) : undefined,
-      timestamp: Date.now(),
-    });
     const contextWindowParts = [];
     if (instructions) {
       contextWindowParts.push(wrapInDetails('📋 System Prompt', instructions));
     }
-    contextWindowParts.push(structuredContext.contextText);
-    contextWindowParts.push(formatCurrentTurnSection(currentTurnFormatted));
+    contextWindowParts.push(structuredThreadContext.threadContext);
     const completeContextWindow = contextWindowParts.join('\n\n');
-    const currentTurnTokens = estimateTokens(currentTurnFormatted);
 
     // Get actual model from response (no fallback to config)
     const actualModel = result.response?.modelId;
@@ -520,10 +456,7 @@ export async function generateAgentResponse(
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       subAgentUsage: subAgentUsage.length > 0 ? subAgentUsage : undefined,
       contextWindow: completeContextWindow,
-      contextStats: {
-        ...structuredContext.stats,
-        totalTokens: structuredContext.stats.totalTokens + currentTurnTokens,
-      },
+      contextStats: structuredThreadContext.stats,
       model: actualModel,
       provider,
     };
@@ -662,6 +595,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }>;
 } {
   type StepWithTools = {
@@ -688,6 +622,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }> = [];
 
   for (const step of steps as StepWithTools[]) {
@@ -722,6 +657,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             inputTokens?: number;
             outputTokens?: number;
             totalTokens?: number;
+            durationSeconds?: number;
           };
         };
         const directResult = toolResult.result as SubAgentResultData | undefined;
@@ -745,6 +681,9 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             inputTokens: toolUsage?.inputTokens,
             outputTokens: toolUsage?.outputTokens,
             totalTokens: toolUsage?.totalTokens,
+            durationMs: toolUsage?.durationSeconds
+              ? Math.round(toolUsage.durationSeconds * 1000)
+              : undefined,
           });
         }
       }

@@ -1,15 +1,7 @@
 /**
- * Proactive Context Overflow Check and Summarization
+ * Context Size Check
  *
- * Checks context size before API calls and triggers summarization
- * if we're approaching the context limit. This avoids wasted API
- * calls that would fail due to context overflow.
- *
- * IMPROVEMENT (P2): Always async summarization
- * - Summarization is always triggered asynchronously to avoid blocking
- * - Uses existing summary for current request
- * - New summary will be available for next request
- * - This significantly reduces user-perceived latency
+ * Checks context size before API calls to estimate token usage.
  */
 
 import type { ActionCtx } from '../../_generated/server';
@@ -20,12 +12,11 @@ import {
   SUMMARIZATION_THRESHOLD,
 } from './constants';
 import { createDebugLog } from '../debug_log';
-import { getAutoSummarizeRef } from '../summarization';
 
 const debugLog = createDebugLog('DEBUG_CONTEXT_MANAGEMENT', '[ContextCheck]');
 
 /**
- * Arguments for check and summarize.
+ * Arguments for context size check.
  */
 export interface CheckAndSummarizeArgs {
   threadId: string;
@@ -40,12 +31,12 @@ export interface CheckAndSummarizeArgs {
 }
 
 /**
- * Result of check and summarize.
+ * Result of context size check.
  */
 export interface CheckAndSummarizeResult {
-  /** The context summary (always the existing one - async doesn't wait) */
+  /** The context summary */
   contextSummary: string | undefined;
-  /** Whether summarization was triggered (async) */
+  /** Whether context is approaching limit */
   summarizationTriggered: boolean;
   /** Context size estimate */
   estimate: {
@@ -56,15 +47,9 @@ export interface CheckAndSummarizeResult {
 }
 
 /**
- * Check context size and trigger async summarization if needed.
+ * Check context size and return estimate.
  *
- * ALWAYS ASYNC (P2 improvement):
- * - When context exceeds threshold, summarization is triggered asynchronously
- * - Returns immediately with existing summary (doesn't block)
- * - New summary will be available for next request
- * - Significantly reduces user-perceived latency
- *
- * @returns The existing context summary and whether async summarization was triggered
+ * @returns The existing context summary and context size estimate
  */
 export async function checkAndSummarizeIfNeeded(
   ctx: ActionCtx,
@@ -84,52 +69,27 @@ export async function checkAndSummarizeIfNeeded(
     contextMessagesTokens,
     currentPromptTokens,
     recentMessagesCount: DEFAULT_RECENT_MESSAGES,
-    excludeToolMessages: true, // Tool messages excluded from context (sub-agents have own memory)
+    excludeToolMessages: true,
     modelContextLimit,
   });
 
   const usageRatio = estimate.totalTokens / modelContextLimit;
+  const needsSummarization = usageRatio >= SUMMARIZATION_THRESHOLD;
 
-  // Below threshold: no action needed
-  if (usageRatio < SUMMARIZATION_THRESHOLD) {
-    debugLog('Context size within limits, no summarization needed', {
-      threadId,
-      totalTokens: estimate.totalTokens,
-      usagePercent: estimate.usagePercent.toFixed(1) + '%',
-    });
-
-    return {
-      contextSummary: existingSummary,
-      summarizationTriggered: false,
-      estimate: {
-        totalTokens: estimate.totalTokens,
-        usagePercent: estimate.usagePercent,
-        needsSummarization: false,
-      },
-    };
-  }
-
-  // Above threshold: trigger ASYNC summarization (never blocks)
-  debugLog('Context approaching limit, triggering ASYNC summarization', {
+  debugLog('Context size check', {
     threadId,
     totalTokens: estimate.totalTokens,
     usagePercent: estimate.usagePercent.toFixed(1) + '%',
-    breakdown: estimate.breakdown,
+    needsSummarization,
   });
 
-  // Schedule async summarization - don't await
-  // Uses scheduler to run in background after current action completes
-  ctx.scheduler.runAfter(0, getAutoSummarizeRef(), { threadId });
-
-  debugLog('Async summarization scheduled', { threadId });
-
   return {
-    contextSummary: existingSummary, // Always use existing summary (async)
-    summarizationTriggered: true,
+    contextSummary: existingSummary,
+    summarizationTriggered: false,
     estimate: {
       totalTokens: estimate.totalTokens,
       usagePercent: estimate.usagePercent,
-      needsSummarization: true,
+      needsSummarization,
     },
   };
 }

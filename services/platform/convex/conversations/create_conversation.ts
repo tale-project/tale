@@ -21,7 +21,6 @@ export async function createConversation(
     channel: args.channel,
     direction: args.direction,
     providerId: args.providerId,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     metadata: args.metadata as any,
   });
 

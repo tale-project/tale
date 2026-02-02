@@ -27,7 +27,7 @@ export const generateResponse = internalAction({
     threadId: v.string(),
     userId: v.optional(v.string()),
     organizationId: v.string(),
-    taskDescription: v.string(),
+    promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     parentThreadId: v.optional(v.string()),
     delegationMode: v.optional(v.boolean()),
@@ -39,7 +39,7 @@ export const generateResponse = internalAction({
       threadId: args.threadId,
       userId: args.userId,
       organizationId: args.organizationId,
-      taskDescription: args.taskDescription,
+      promptMessage: args.promptMessage,
       additionalContext: args.additionalContext,
       parentThreadId: args.parentThreadId,
       delegationMode: args.delegationMode,
@@ -128,7 +128,7 @@ export const chatWithWorkflowAssistant = action({
         threadId,
         userId: String(authUser._id),
         organizationId,
-        taskDescription: message,
+        promptMessage: message,
         additionalContext:
           Object.keys(additionalContext).length > 0
             ? additionalContext

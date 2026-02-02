@@ -69,7 +69,9 @@ import type * as agent_tools_sub_agents_document_assistant_tool from "../agent_t
 import type * as agent_tools_sub_agents_helpers_build_additional_context from "../agent_tools/sub_agents/helpers/build_additional_context.js";
 import type * as agent_tools_sub_agents_helpers_check_role_access from "../agent_tools/sub_agents/helpers/check_role_access.js";
 import type * as agent_tools_sub_agents_helpers_format_integrations from "../agent_tools/sub_agents/helpers/format_integrations.js";
+import type * as agent_tools_sub_agents_helpers_get_operator_service_url from "../agent_tools/sub_agents/helpers/get_operator_service_url.js";
 import type * as agent_tools_sub_agents_helpers_get_or_create_sub_thread from "../agent_tools/sub_agents/helpers/get_or_create_sub_thread.js";
+import type * as agent_tools_sub_agents_helpers_operator_types from "../agent_tools/sub_agents/helpers/operator_types.js";
 import type * as agent_tools_sub_agents_helpers_tool_response from "../agent_tools/sub_agents/helpers/tool_response.js";
 import type * as agent_tools_sub_agents_helpers_types from "../agent_tools/sub_agents/helpers/types.js";
 import type * as agent_tools_sub_agents_helpers_validate_context from "../agent_tools/sub_agents/helpers/validate_context.js";
@@ -899,7 +901,9 @@ declare const fullApi: ApiFromModules<{
   "agent_tools/sub_agents/helpers/build_additional_context": typeof agent_tools_sub_agents_helpers_build_additional_context;
   "agent_tools/sub_agents/helpers/check_role_access": typeof agent_tools_sub_agents_helpers_check_role_access;
   "agent_tools/sub_agents/helpers/format_integrations": typeof agent_tools_sub_agents_helpers_format_integrations;
+  "agent_tools/sub_agents/helpers/get_operator_service_url": typeof agent_tools_sub_agents_helpers_get_operator_service_url;
   "agent_tools/sub_agents/helpers/get_or_create_sub_thread": typeof agent_tools_sub_agents_helpers_get_or_create_sub_thread;
+  "agent_tools/sub_agents/helpers/operator_types": typeof agent_tools_sub_agents_helpers_operator_types;
   "agent_tools/sub_agents/helpers/tool_response": typeof agent_tools_sub_agents_helpers_tool_response;
   "agent_tools/sub_agents/helpers/types": typeof agent_tools_sub_agents_helpers_types;
   "agent_tools/sub_agents/helpers/validate_context": typeof agent_tools_sub_agents_helpers_validate_context;

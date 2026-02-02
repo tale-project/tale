@@ -71,7 +71,7 @@ export const create = action({
             smtpConfig: params.smtpConfig,
             imapConfig: params.imapConfig,
             isDefault: params.isDefault,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             metadata: params.metadata as any,
           },
         );
@@ -123,7 +123,7 @@ export const createOAuth2Provider = action({
             smtpConfig: params.smtpConfig,
             imapConfig: params.imapConfig,
             isDefault: params.isDefault,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             metadata: params.metadata as any,
           },
         );

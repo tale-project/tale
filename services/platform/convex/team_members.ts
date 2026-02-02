@@ -61,7 +61,7 @@ export const listByTeam = query({
     }
 
     const members = await Promise.all(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       result.page.map(async (member: any) => {
         const userResult = await ctx.runQuery(
           components.betterAuth.adapter.findOne,

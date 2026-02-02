@@ -20,7 +20,7 @@ export interface GenerateWorkflowResponseArgs {
   threadId: string;
   userId?: string;
   organizationId: string;
-  taskDescription: string;
+  promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   delegationMode?: boolean;

@@ -105,12 +105,23 @@ EXAMPLES:
           threadId: subThreadId,
           userId,
           organizationId,
-          taskDescription: args.userRequest,
+          promptMessage: args.userRequest,
           additionalContext: buildAdditionalContext(args, CRM_CONTEXT_MAPPING),
           parentThreadId: threadId,
         });
 
-        return successResponse(result.text, result.usage, result.model, result.provider);
+        return successResponse(
+          result.text,
+          {
+            ...result.usage,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
+          },
+          result.model,
+          result.provider,
+        );
       } catch (error) {
         return handleToolError('crm_assistant_tool', error);
       }

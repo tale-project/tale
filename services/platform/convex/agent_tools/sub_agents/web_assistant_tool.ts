@@ -1,99 +1,107 @@
 /**
  * Web Assistant Tool
  *
- * Delegates web-related tasks to the specialized Web Agent.
- * This tool is a thin wrapper that creates sub-threads and calls the agent.
- * All context management is handled by the agent itself.
+ * Delegates web tasks to the Operator browser automation service.
+ * Uses Playwright for browser control with AI-driven navigation.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
-import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import { validateToolContext } from './helpers/validate_context';
-import { buildAdditionalContext } from './helpers/build_additional_context';
 import {
   successResponse,
+  errorResponse,
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { getWebAgentGenerateResponseRef } from '../../lib/function_refs';
-
-const WEB_CONTEXT_MAPPING = {
-  url: 'target_url',
-  searchQuery: 'search_query',
-} as const;
+import { getOperatorServiceUrl } from './helpers/get_operator_service_url';
+import type { OperatorChatResponse } from './helpers/operator_types';
 
 export const webAssistantTool = {
   name: 'web_assistant' as const,
   tool: createTool({
-    description: `Delegate web-related tasks to the specialized Web Agent.
+    description: `Delegate web tasks to the Operator browser automation service.
 
-Use this tool for ANY web-related request, including:
-- Searching the web for information
-- Fetching content from URLs
-- Extracting and summarizing web page content
-- Looking up real-world data (weather, prices, news, etc.)
+Use this tool for:
+- Browsing websites and extracting content
+- Interacting with web pages (clicking, filling forms)
+- Taking screenshots and visual analysis
+- Multi-step web automation workflows
 
-The Web Agent is specialized in:
-- Web search using SearXNG meta search engine
-- URL content extraction with intelligent parsing
-- Handling the search → fetch → summarize workflow
-
-Simply describe what information you need from the web.
+The Operator uses Playwright for browser control with AI-driven navigation.
 
 EXAMPLES:
-• Search: { userRequest: "Find the latest React 19 features", searchQuery: "React 19 new features 2024" }
-• Fetch URL: { userRequest: "Summarize this article", url: "https://example.com/article" }
-• Research: { userRequest: "What's the current weather in Zurich?" }`,
+- Browse: { userRequest: "Go to example.com and summarize the main content" }
+- Interact: { userRequest: "Search for 'AI news' on Google and list top 5 results" }
+- Extract: { userRequest: "Find the pricing information on this product page" }`,
 
     args: z.object({
       userRequest: z
         .string()
         .describe("The user's web-related request in natural language"),
-      url: z
-        .string()
+      maxTurns: z
+        .number()
         .optional()
-        .describe('Specific URL to fetch content from (if known)'),
-      searchQuery: z
-        .string()
-        .optional()
-        .describe('Search query to use (if searching)'),
+        .describe('Max agent turns (default: 10, max: 50)'),
     }),
 
     handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
       const validation = validateToolContext(ctx, 'web_assistant');
       if (!validation.valid) return validation.error;
 
-      const { organizationId, threadId, userId } = validation.context;
+      const operatorUrl = getOperatorServiceUrl(ctx.variables);
+
+      console.log('[web_assistant_tool] Calling operator:', {
+        url: `${operatorUrl}/api/v1/chat`,
+        message: args.userRequest.slice(0, 100),
+        maxTurns: args.maxTurns ?? 10,
+      });
 
       try {
-        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
-          ctx,
-          {
-            parentThreadId: threadId,
-            subAgentType: 'web_assistant',
-            userId,
-          },
-        );
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300_000);
 
-        console.log(
-          '[web_assistant_tool] Sub-thread:',
-          subThreadId,
-          isNew ? '(new)' : '(reused)',
-        );
-
-        const result = await ctx.runAction(getWebAgentGenerateResponseRef(), {
-          threadId: subThreadId,
-          userId,
-          organizationId,
-          taskDescription: args.userRequest,
-          additionalContext: buildAdditionalContext(args, WEB_CONTEXT_MAPPING),
-          parentThreadId: threadId,
+        const response = await fetch(`${operatorUrl}/api/v1/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: args.userRequest,
+            max_turns: args.maxTurns ?? 10,
+          }),
+          signal: controller.signal,
         });
 
-        return successResponse(result.text, result.usage, result.model, result.provider);
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Operator service error: ${response.status} ${errorText}`,
+          );
+        }
+
+        const result = (await response.json()) as OperatorChatResponse;
+
+        if (!result.success) {
+          return errorResponse(result.error || 'Operator request failed');
+        }
+
+        return successResponse(
+          result.response || '',
+          result.token_usage
+            ? {
+                inputTokens: result.token_usage.input_tokens,
+                outputTokens: result.token_usage.output_tokens,
+                totalTokens: result.token_usage.total_tokens,
+                durationSeconds: result.duration_seconds ?? undefined,
+              }
+            : undefined,
+          'opencode',
+          'operator',
+          result.sources ?? undefined,
+        );
       } catch (error) {
         return handleToolError('web_assistant_tool', error);
       }

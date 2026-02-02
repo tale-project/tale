@@ -16,7 +16,6 @@ interface ContextStats {
   totalTokens: number;
   messageCount: number;
   approvalCount: number;
-  hasSummary: boolean;
   hasRag: boolean;
   hasIntegrations: boolean;
 }
@@ -91,7 +90,7 @@ type RunAgentGenerationArgs = {
   threadId: string;
   organizationId: string;
   userId?: string;
-  taskDescription: string;
+  promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   agentOptions?: unknown;

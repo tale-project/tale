@@ -81,7 +81,7 @@ export interface ContextBuilderOptions {
  * const builder = new ContextBuilder({ agentType: 'web' });
  * builder
  *   .addSystemInfo(threadId)
- *   .addContext('task_context', taskDescription, ContextPriority.HIGH_RELEVANCE)
+ *   .addContext('task_context', promptMessage, ContextPriority.HIGH_RELEVANCE)
  *   .addContext('history', summary, ContextPriority.CONVERSATION_SUMMARY);
  *
  * const result = builder.build();

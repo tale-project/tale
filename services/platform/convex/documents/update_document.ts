@@ -90,6 +90,6 @@ export async function updateDocument(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   await ctx.db.patch(args.documentId, updateData as any);
 }

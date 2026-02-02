@@ -30,7 +30,7 @@ export async function createConversationPublic(
     type: args.type || 'general',
     direction: args.direction,
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: (args.metadata || {}) as any,
   });
 

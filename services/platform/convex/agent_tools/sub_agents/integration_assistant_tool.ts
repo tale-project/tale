@@ -120,7 +120,7 @@ EXAMPLES:
             threadId: subThreadId,
             userId,
             organizationId,
-            taskDescription: args.userRequest,
+            promptMessage: args.userRequest,
             additionalContext: buildAdditionalContext(
               args,
               INTEGRATION_CONTEXT_MAPPING,
@@ -156,7 +156,13 @@ EXAMPLES:
           response: finalResponse,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
-          usage: result.usage,
+          usage: {
+            ...result.usage,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
+          },
           model: result.model,
           provider: result.provider,
         };

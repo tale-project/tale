@@ -12,13 +12,13 @@ export interface SubAgentUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  durationMs?: number;
 }
 
 export interface ContextStats {
   totalTokens: number;
   messageCount: number;
   approvalCount: number;
-  hasSummary: boolean;
   hasRag: boolean;
   hasIntegrations: boolean;
 }

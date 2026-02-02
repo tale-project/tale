@@ -73,7 +73,7 @@ export async function bulkCreateCustomers(
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       await ctx.db.insert('customers', {
         organizationId,
         ...customerData,

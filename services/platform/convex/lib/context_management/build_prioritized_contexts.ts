@@ -18,7 +18,6 @@ import {
  */
 export function buildPrioritizedContexts(params: {
   threadId: string;
-  contextSummary?: string;
   ragContext?: string;
   integrationsInfo?: string;
 }): PrioritizedContext[] {
@@ -43,18 +42,6 @@ export function buildPrioritizedContexts(params: {
       { canTrim: false, sectionName: 'current_time' },
     ),
   );
-
-  // Conversation summary
-  if (params.contextSummary) {
-    contexts.push(
-      createPrioritizedContext(
-        'context_summary',
-        ContextPriority.CONVERSATION_SUMMARY,
-        `[CONTEXT] Previous Conversation Summary:\n\n${params.contextSummary}`,
-        { sectionName: 'conversation_summary' },
-      ),
-    );
-  }
 
   // Split RAG by relevance
   if (params.ragContext) {

@@ -37,7 +37,7 @@ export async function createProduct(
     tags: args.tags,
     status: args.status,
     externalId: args.externalId,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: args.metadata as any,
   });
 

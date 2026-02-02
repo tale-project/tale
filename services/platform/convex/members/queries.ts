@@ -42,7 +42,7 @@ export const getMemberRoleInternal = internalQuery({
     });
 
     const member = result?.page?.[0];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (member as any)?.role ?? null;
   },
 });

@@ -88,7 +88,8 @@ export interface BeforeContextResult {
  * Result from beforeGenerate hook.
  */
 export interface BeforeGenerateResult {
-  promptContent?: ModelMessage[];
+  /** Prompt content - can be string (simple) or ModelMessage[] (with attachments) */
+  promptContent?: string | ModelMessage[];
   systemContextMessages?: ModelMessage[];
   additionalContextData?: Record<string, unknown>;
 }
@@ -101,7 +102,8 @@ export interface GenerateResponseArgs {
   threadId: string;
   userId?: string;
   organizationId: string;
-  taskDescription: string;
+  /** The user's message to send as prompt */
+  promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   agentOptions?: Record<string, unknown>;
@@ -136,13 +138,13 @@ export interface GenerateResponseResult {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }>;
   contextWindow?: string;
   contextStats?: {
     totalTokens: number;
     messageCount: number;
     approvalCount: number;
-    hasSummary: boolean;
     hasRag: boolean;
     hasIntegrations: boolean;
   };

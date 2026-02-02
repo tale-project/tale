@@ -1,8 +1,7 @@
 /**
  * Internal mutation called after a routing agent response completes.
  *
- * Saves metadata for the assistant message in the thread
- * and schedules background summarization.
+ * Saves metadata for the assistant message in the thread.
  */
 
 import type { MutationCtx } from '../../_generated/server';
@@ -10,7 +9,6 @@ import { components } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
 import { createDebugLog } from '../../lib/debug_log';
-import { getAutoSummarizeRef } from '../../lib/summarization';
 import { getSaveMessageMetadataRef } from '../../lib/agent_completion/function_refs';
 
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
@@ -50,7 +48,6 @@ interface ChatCompleteResult {
     totalTokens: number;
     messageCount: number;
     approvalCount: number;
-    hasSummary: boolean;
     hasRag: boolean;
     hasIntegrations: boolean;
   };
@@ -143,18 +140,6 @@ export async function onChatComplete(
         hasContextWindow: !!result.contextWindow,
       });
     }
-  }
-
-  // After a successful run, kick off incremental summarization in the
-  // background so the next user turn can use an up-to-date summary
-  // without paying the summarization cost synchronously.
-  try {
-    await ctx.scheduler.runAfter(0, getAutoSummarizeRef(), { threadId });
-  } catch (error) {
-    console.error('[chat_agent] Failed to schedule autoSummarizeIfNeeded', {
-      threadId,
-      error,
-    });
   }
 
   return null;

@@ -355,8 +355,8 @@ jobs:
           provenance: true
           sbom: true
 
-  build-search:
-    name: Build Search
+  build-operator:
+    name: Build Operator
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
@@ -386,12 +386,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: services/search/Dockerfile
+          file: services/operator/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-search:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-search:latest
+            ${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:${{ needs.prepare.outputs.version_number }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:latest
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha

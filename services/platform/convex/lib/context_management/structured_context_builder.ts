@@ -11,7 +11,6 @@
 import type { ActionCtx } from '../../_generated/server';
 import { components, internal } from '../../_generated/api';
 import { listMessages, type MessageDoc } from '@convex-dev/agent';
-import type { ModelMessage } from '@ai-sdk/provider-utils';
 import * as fmt from './message_formatter';
 import { estimateTokens } from './estimate_tokens';
 
@@ -64,13 +63,12 @@ interface ExtractedToolCall {
  * Result from building structured context
  */
 export interface StructuredContextResult {
-  messages: ModelMessage[];
-  contextText: string;
+  /** Thread context as a string (history, RAG, integrations, etc.) */
+  threadContext: string;
   stats: {
     totalTokens: number;
     messageCount: number;
     approvalCount: number;
-    hasSummary: boolean;
     hasRag: boolean;
     hasIntegrations: boolean;
   };
@@ -82,12 +80,9 @@ export interface StructuredContextResult {
 export interface BuildStructuredContextParams {
   ctx: ActionCtx;
   threadId: string;
-  contextSummary?: string;
   ragContext?: string;
   integrationsInfo?: string;
   maxMessages?: number;
-  /** Current task description (used by sub-agents or independent agent calls) */
-  taskDescription?: string;
   /** Additional structured context as key-value pairs */
   additionalContext?: Record<string, string>;
   /** Parent thread ID (for sub-agent mode, indicates this is a delegated task) */
@@ -109,11 +104,9 @@ export async function buildStructuredContext(
   const {
     ctx,
     threadId,
-    contextSummary,
     ragContext,
     integrationsInfo,
     maxMessages = 20,
-    taskDescription: _taskDescription,
     additionalContext,
     parentThreadId,
   } = params;
@@ -142,7 +135,7 @@ export async function buildStructuredContext(
     contextParts.push(fmt.formatParentThread(parentThreadId));
   }
 
-  // Note: taskDescription is NOT added here to avoid duplication.
+  // Note: promptMessage is NOT added here - it's passed via `prompt` parameter.
   // For main chat: user message is already in message history.
   // For sub-agents: task is passed via the `prompt` parameter to generateText().
 
@@ -153,11 +146,6 @@ export async function buildStructuredContext(
         contextParts.push(fmt.formatAdditionalContext(key, value));
       }
     }
-  }
-
-  // Context summary
-  if (contextSummary) {
-    contextParts.push(fmt.formatContextSummary(contextSummary));
   }
 
   // Knowledge base (RAG)
@@ -171,17 +159,13 @@ export async function buildStructuredContext(
   }
 
   // 4. Format messages with approvals interleaved
-  // History = previous messages, Current Request = current user message (separated)
-  const { historyMessages, currentUserMessage } = formatMessagesWithApprovals(
+  // Note: currentUserMessage is NOT included in context - it's passed via `prompt` parameter
+  const { historyMessages } = formatMessagesWithApprovals(
     messagesResult.page,
     approvals ?? [],
   );
   if (historyMessages.length > 0) {
     contextParts.push(fmt.formatHistorySection(historyMessages.join('\n\n')));
-  }
-  // Current user message in its own section (distinct from history)
-  if (currentUserMessage) {
-    contextParts.push(fmt.formatCurrentRequestSection(currentUserMessage));
   }
 
   // 5. Join all parts
@@ -192,15 +176,13 @@ export async function buildStructuredContext(
     totalTokens: estimateTokens(contextText),
     messageCount: messagesResult.page.length,
     approvalCount: approvals?.length ?? 0,
-    hasSummary: !!contextSummary,
     hasRag: !!ragContext,
     hasIntegrations: !!integrationsInfo,
   };
 
-  // 7. Return as system message
+  // 7. Return thread context
   return {
-    messages: [{ role: 'system', content: contextText }],
-    contextText,
+    threadContext: contextText,
     stats,
   };
 }
@@ -210,7 +192,6 @@ export async function buildStructuredContext(
  */
 interface FormattedMessagesResult {
   historyMessages: string[];
-  currentUserMessage?: string;
 }
 
 /**
@@ -251,8 +232,6 @@ function formatMessagesWithApprovals(
     }
   }
 
-  let currentUserMessage: string | undefined;
-
   for (let i = 0; i < sortedMessages.length; i++) {
     const msg = sortedMessages[i];
     const timestamp = msg._creationTime;
@@ -263,10 +242,8 @@ function formatMessagesWithApprovals(
     if (message.role === 'user') {
       const content = extractTextContent(message.content);
       if (content) {
-        // If this is the last user message, save it separately
-        if (i === lastUserMsgIndex) {
-          currentUserMessage = fmt.formatUserMessage(content, timestamp);
-        } else {
+        // Skip the last user message - it's passed via `prompt` parameter, not in context
+        if (i !== lastUserMsgIndex) {
           result.push(fmt.formatUserMessage(content, timestamp));
         }
       }
@@ -363,7 +340,7 @@ function formatMessagesWithApprovals(
     }
   }
 
-  return { historyMessages: result, currentUserMessage };
+  return { historyMessages: result };
 }
 
 /**

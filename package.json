@@ -10,7 +10,6 @@
     "services/graph-db",
     "services/db",
     "services/proxy",
-    "services/search",
     "tools/cli"
   ],
   "scripts": {

@@ -13,9 +13,9 @@ interface LazyComponentOptions {
  * @param options - Configuration options including loading fallback
  * @returns A wrapped component that lazy loads the actual component
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function lazyComponent<P = any>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   importFn: () => Promise<{ default: ComponentType<any> }>,
   options: LazyComponentOptions = {},
 ): ComponentType<P> {

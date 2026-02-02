@@ -5,9 +5,12 @@ import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import { Copy, Check } from 'lucide-react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { IconButton } from '@/app/components/ui/primitives/icon-button';
+import { useCopyButton } from '@/app/hooks/use-copy';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -28,6 +31,7 @@ interface ContextWindowTokenProps {
   contextWindow: string;
   contextStats?: MessageMetadata['contextStats'];
   t: (key: string) => string;
+  tCommon: (key: string) => string;
   locale: string;
 }
 
@@ -35,9 +39,11 @@ function ContextWindowToken({
   contextWindow,
   contextStats,
   t,
+  tCommon,
   locale,
 }: ContextWindowTokenProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { copied, onClick: handleCopy } = useCopyButton(contextWindow);
   const tokenCount = contextStats?.totalTokens ?? 0;
 
   return (
@@ -61,6 +67,13 @@ function ContextWindowToken({
         title={t('messageInfo.contextWindow')}
         description={t('messageInfo.contextWindowDescription')}
         className="sm:max-w-[800px] max-h-[80vh]"
+        headerActions={
+          <IconButton
+            icon={copied ? Check : Copy}
+            aria-label={copied ? tCommon('actions.copied') : tCommon('actions.copy')}
+            onClick={handleCopy}
+          />
+        }
       >
         <div className="context-window-content overflow-auto max-h-[60vh] [&_details]:border [&_details]:border-border [&_details]:rounded-md [&_details]:mb-2 [&_details]:overflow-hidden [&_details_summary]:px-3 [&_details_summary]:py-2 [&_details_summary]:cursor-pointer [&_details_summary]:font-medium [&_details_summary]:bg-muted [&_details_summary]:list-none [&_details[open]_summary]:border-b [&_details[open]_summary]:border-border [&_details>*:not(summary)]:p-3 [&_details>*:not(summary)]:font-mono [&_details>*:not(summary)]:text-xs [&_details>*:not(summary)]:whitespace-pre-wrap [&_details>*:not(summary)]:overflow-x-auto">
           <Markdown
@@ -105,6 +118,7 @@ export function MessageInfoDialog({
 }: MessageInfoDialogProps) {
   const locale = useLocale();
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
 
   return (
     <ViewDialog
@@ -146,6 +160,7 @@ export function MessageInfoDialog({
                       contextWindow={metadata.contextWindow}
                       contextStats={metadata.contextStats}
                       t={t}
+                      tCommon={tCommon}
                       locale={locale}
                     />
                   )}
@@ -256,6 +271,12 @@ export function MessageInfoDialog({
                           {t('messageInfo.output')}: {formatNumber(usage.outputTokens ?? 0, locale)}
                           {' · '}
                           {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+                          {usage.durationMs !== undefined && (
+                            <>
+                              {' · '}
+                              {t('messageInfo.duration')}: {(usage.durationMs / 1000).toFixed(2)}s
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
