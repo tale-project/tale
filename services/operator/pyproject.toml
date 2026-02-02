@@ -1,7 +1,7 @@
 [project]
-name = "tale-web"
+name = "tale-operator"
 version = "0.1.0"
-description = "AI-powered web interaction service using OpenCode + Playwright MCP"
+description = "AI-powered operator service using OpenCode + Playwright MCP"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",

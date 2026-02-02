@@ -160,26 +160,26 @@ services:
       - internal
 
   # ============================================================================
-  # Tale Web (OpenCode + Playwright MCP)
+  # Tale Operator (OpenCode + Playwright MCP)
   # ============================================================================
-  # AI-powered web interaction service
+  # AI-powered operator service
   # - Uses real browser to bypass anti-bot detection
   # - Supports web search, browsing, and interaction
   # - Requires OpenAI-compatible LLM API
-  web:
+  operator:
     # Image from GHCR (used when PULL_POLICY=always)
-    image: ghcr.io/tale-project/tale/tale-web:${VERSION:-latest}
+    image: ghcr.io/tale-project/tale/tale-operator:${VERSION:-latest}
     # Pull policy: 'build' for local dev, 'always' for production
     pull_policy: ${PULL_POLICY:-build}
     # Build configuration (used when PULL_POLICY=build)
     build:
       context: .
-      dockerfile: services/web/Dockerfile
+      dockerfile: services/operator/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
 
     # Port mapping: host:container (for development)
-    # Access Web API at localhost:8004
+    # Access Operator API at localhost:8004
     ports:
       - '8004:8004'
 
@@ -190,7 +190,7 @@ services:
     # Environment variables (override .env for testing)
     environment:
       # Use non-headless mode with Xvfb for better anti-detection
-      - WEB_HEADLESS=false
+      - OPERATOR_HEADLESS=false
 
     # Restart policy
     restart: unless-stopped

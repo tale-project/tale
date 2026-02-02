@@ -1,5 +1,5 @@
-# Web Service Dockerfile
-# AI-powered web interaction service using OpenCode + Playwright MCP
+# Operator Service Dockerfile
+# AI-powered operator service using OpenCode + Playwright MCP
 # Based on crawler service pattern for Playwright/Chromium support
 
 # Version argument - injected by CI from git tag, defaults to 'dev' for local builds
@@ -71,14 +71,14 @@ RUN npx playwright install chrome \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy pyproject.toml and install dependencies
-COPY services/web/pyproject.toml .
+COPY services/operator/pyproject.toml .
 RUN uv pip install --system .
 
 # Copy application code
-COPY services/web/app ./app
+COPY services/operator/app ./app
 
 # Copy entrypoint script
-COPY services/web/docker-entrypoint.sh /usr/local/bin/
+COPY services/operator/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Set ownership for app directory and create OpenCode config dir
@@ -89,16 +89,16 @@ RUN chown -R pwuser:pwuser /app \
 # Re-declare VERSION arg (ARGs don't persist after FROM)
 ARG VERSION=dev
 
-# Set environment variables with WEB_ prefix defaults
+# Set environment variables with OPERATOR_ prefix defaults
 ENV TALE_VERSION=${VERSION} \
-    WEB_HOST=0.0.0.0 \
-    WEB_PORT=8004 \
-    WEB_WORKERS=1 \
-    WEB_LOG_LEVEL=info \
-    WEB_ALLOWED_ORIGINS="*" \
-    WEB_HEADLESS=true \
-    WEB_TIMEOUT=30 \
-    WEB_MAX_STEPS=30 \
+    OPERATOR_HOST=0.0.0.0 \
+    OPERATOR_PORT=8004 \
+    OPERATOR_WORKERS=1 \
+    OPERATOR_LOG_LEVEL=info \
+    OPERATOR_ALLOWED_ORIGINS="*" \
+    OPERATOR_HEADLESS=true \
+    OPERATOR_TIMEOUT=30 \
+    OPERATOR_MAX_STEPS=30 \
     HOME=/home/pwuser
 
 # Switch to non-root user
