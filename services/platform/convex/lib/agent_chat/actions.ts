@@ -227,13 +227,12 @@ function buildHooksFromConfig(hooksConfig: {
 
   if (hooksConfig.beforeGenerate) {
     const handle = hooksConfig.beforeGenerate as FunctionHandle<'action'>;
-    hooks.beforeGenerate = async (ctx, args, context, hookData) => {
+    hooks.beforeGenerate = async (ctx, args, context, _hookData) => {
       const result = await ctx.runAction(handle, {
         threadId: args.threadId,
         taskDescription: args.taskDescription,
         attachments: args.attachments,
         contextMessagesTokens: context.stats.totalTokens,
-        existingSummary: hookData?.contextSummary,
       });
       return result as BeforeGenerateResult;
     };

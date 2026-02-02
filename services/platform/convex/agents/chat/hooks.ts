@@ -7,20 +7,17 @@
  * via FunctionHandle to the generic agent action.
  *
  * Hooks:
- * - beforeContextHook: Load summary, integrations, and start RAG prefetch
- * - beforeGenerateHook: Process attachments and check context overflow
- * - onErrorHook: Trigger summarization and log error details
+ * - beforeContextHook: Load integrations
+ * - beforeGenerateHook: Process attachments and check context budget
+ * - onErrorHook: Log error details
  */
 
 import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
 import { getListIntegrationsInternalRef } from '../../lib/function_refs';
-import { getAutoSummarizeRef } from '../../lib/summarization';
 import { processAttachments } from '../../lib/attachments/index';
 import {
-  checkAndSummarizeIfNeeded,
   estimateTokens,
-  loadContextSummary,
   DEFAULT_MODEL_CONTEXT_LIMIT,
   CONTEXT_SAFETY_MARGIN,
   SYSTEM_INSTRUCTIONS_TOKENS,
@@ -31,7 +28,7 @@ import { createDebugLog } from '../../lib/debug_log';
 const debugLog = createDebugLog('DEBUG_ROUTING_AGENT', '[RoutingAgent]');
 
 /**
- * Before context hook: Load summary and integrations.
+ * Before context hook: Load integrations.
  */
 export const beforeContextHook = internalAction({
   args: {
@@ -42,18 +39,16 @@ export const beforeContextHook = internalAction({
     userTeamIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
-    contextSummary: v.optional(v.string()),
     integrationsInfo: v.optional(v.string()),
     integrationsList: v.optional(v.array(v.any())),
   }),
   handler: async (ctx, args) => {
     const { threadId, organizationId } = args;
 
-    // Load context summary and integrations in parallel
-    const [contextSummary, integrationsList] = await Promise.all([
-      loadContextSummary(ctx, threadId),
-      ctx.runQuery(getListIntegrationsInternalRef(), { organizationId }),
-    ]);
+    // Load integrations list
+    const integrationsList = await ctx.runQuery(getListIntegrationsInternalRef(), {
+      organizationId,
+    });
 
     // Format integrations info
     let integrationsInfo: string | undefined;
@@ -71,12 +66,10 @@ export const beforeContextHook = internalAction({
 
     debugLog('Initial context loaded', {
       threadId,
-      hasSummary: !!contextSummary,
       integrationsCount: integrationsList?.length ?? 0,
     });
 
     return {
-      contextSummary: contextSummary ?? undefined,
       integrationsInfo,
       integrationsList: integrationsList ?? undefined,
     };
@@ -101,33 +94,16 @@ export const beforeGenerateHook = internalAction({
       ),
     ),
     contextMessagesTokens: v.number(),
-    existingSummary: v.optional(v.string()),
   },
   returns: v.object({
     promptContent: v.optional(v.any()),
-    summarizationTriggered: v.boolean(),
     contextExceedsBudget: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { threadId, taskDescription, attachments, contextMessagesTokens, existingSummary } = args;
-
-    // Check context overflow and trigger summarization if needed
-    const currentPromptTokens = estimateTokens(taskDescription || '');
-    const overflowCheck = await checkAndSummarizeIfNeeded(ctx, {
-      threadId,
-      contextMessagesTokens,
-      currentPromptTokens,
-      existingSummary,
-    });
-
-    if (overflowCheck.summarizationTriggered) {
-      debugLog('Async summarization triggered', {
-        threadId,
-        currentUsagePercent: overflowCheck.estimate.usagePercent.toFixed(1) + '%',
-      });
-    }
+    const { threadId, taskDescription, attachments, contextMessagesTokens } = args;
 
     // Token budget check for logging
+    const currentPromptTokens = estimateTokens(taskDescription || '');
     const contextBudget =
       DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
       SYSTEM_INSTRUCTIONS_TOKENS -
@@ -153,14 +129,13 @@ export const beforeGenerateHook = internalAction({
 
     return {
       promptContent: attachmentPrompt,
-      summarizationTriggered: overflowCheck.summarizationTriggered,
       contextExceedsBudget,
     };
   },
 });
 
 /**
- * On error hook: Trigger summarization and log error details.
+ * On error hook: Log error details.
  */
 export const onErrorHook = internalAction({
   args: {
@@ -172,10 +147,9 @@ export const onErrorHook = internalAction({
     errorCode: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (_ctx, args) => {
     const { threadId, errorName, errorMessage, errorStatus, errorType, errorCode } = args;
 
-    // Log error details first to ensure we capture them even if summarization fails
     console.error('[RoutingAgent] generateAgentResponse error', {
       threadId,
       name: errorName,
@@ -184,16 +158,6 @@ export const onErrorHook = internalAction({
       type: errorType,
       code: errorCode,
     });
-
-    // Trigger summarization on error (wrapped to prevent masking the original error)
-    try {
-      await ctx.runAction(getAutoSummarizeRef(), { threadId });
-    } catch (summarizeError) {
-      console.error('[RoutingAgent] Summarization failed after error', {
-        threadId,
-        error: summarizeError instanceof Error ? summarizeError.message : String(summarizeError),
-      });
-    }
 
     return null;
   },

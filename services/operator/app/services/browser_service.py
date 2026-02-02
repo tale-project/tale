@@ -227,6 +227,7 @@ class BrowserService:
         total_cache_read_tokens = 0
         total_cost = 0.0
         seen_urls: dict[str, None] = {}
+        event_types_seen: set[str] = set()
 
         for line in stdout_text.strip().split("\n"):
             if not line.strip():
@@ -235,6 +236,7 @@ class BrowserService:
             try:
                 event = json.loads(line)
                 event_type = event.get("type")
+                event_types_seen.add(event_type)
 
                 if event_type == "text":
                     part = event.get("part", {})
@@ -261,9 +263,16 @@ class BrowserService:
                         if url not in seen_urls:
                             seen_urls[url] = None
 
+                urls_in_event = _extract_urls_from_value(event)
+                if urls_in_event:
+                    logger.debug(f"[sources-debug] Event '{event_type}' contains URLs: {urls_in_event[:3]}")
+
             except json.JSONDecodeError:
                 logger.debug(f"Failed to parse JSON line: {line[:100]}...")
                 continue
+
+        logger.info(f"[sources-debug] Event types seen: {sorted(event_types_seen)}")
+        logger.info(f"[sources-debug] URLs extracted from tool events: {len(seen_urls)}")
 
         result["response"] = "".join(text_parts)
         result["sources"] = list(seen_urls.keys())

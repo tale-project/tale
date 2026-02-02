@@ -16,7 +16,6 @@ interface ContextStats {
   totalTokens: number;
   messageCount: number;
   approvalCount: number;
-  hasSummary: boolean;
   hasRag: boolean;
   hasIntegrations: boolean;
 }

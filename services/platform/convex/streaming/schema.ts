@@ -30,7 +30,7 @@ export const messageMetadataTable = defineTable({
     totalTokens: v.number(),
     messageCount: v.number(),
     approvalCount: v.number(),
-    hasSummary: v.boolean(),
+    hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
     hasRag: v.boolean(),
     hasIntegrations: v.boolean(),
   })),

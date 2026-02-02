@@ -70,7 +70,6 @@ export interface StructuredContextResult {
     totalTokens: number;
     messageCount: number;
     approvalCount: number;
-    hasSummary: boolean;
     hasRag: boolean;
     hasIntegrations: boolean;
   };
@@ -82,7 +81,6 @@ export interface StructuredContextResult {
 export interface BuildStructuredContextParams {
   ctx: ActionCtx;
   threadId: string;
-  contextSummary?: string;
   ragContext?: string;
   integrationsInfo?: string;
   maxMessages?: number;
@@ -109,7 +107,6 @@ export async function buildStructuredContext(
   const {
     ctx,
     threadId,
-    contextSummary,
     ragContext,
     integrationsInfo,
     maxMessages = 20,
@@ -155,11 +152,6 @@ export async function buildStructuredContext(
     }
   }
 
-  // Context summary
-  if (contextSummary) {
-    contextParts.push(fmt.formatContextSummary(contextSummary));
-  }
-
   // Knowledge base (RAG)
   if (ragContext) {
     contextParts.push(fmt.formatKnowledgeBase(ragContext));
@@ -192,7 +184,6 @@ export async function buildStructuredContext(
     totalTokens: estimateTokens(contextText),
     messageCount: messagesResult.page.length,
     approvalCount: approvals?.length ?? 0,
-    hasSummary: !!contextSummary,
     hasRag: !!ragContext,
     hasIntegrations: !!integrationsInfo,
   };

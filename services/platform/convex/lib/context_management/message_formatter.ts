@@ -60,8 +60,10 @@ function safeStringify(value: unknown): string {
 
 /**
  * Summarize output (truncate long values)
+ * Default limit increased to 8000 chars to preserve meaningful tool results
+ * like web research reports, RAG results, and document analysis.
  */
-function summarize(output: unknown, max = 200): string {
+function summarize(output: unknown, max = 8000): string {
   if (output === null || output === undefined) return '-';
   const str = safeStringify(output);
   return str.length > max ? str.slice(0, max) + '...' : str;
