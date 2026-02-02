@@ -135,15 +135,8 @@ export function GlobalErrorDisplay({ error, reset }: GlobalErrorDisplayProps) {
 
   return (
     <div
-      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
+      style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ padding: '2.5rem' }}>
-        <img
-          src={logoSrc}
-          alt="Tale"
-          style={{ width: '1.25rem', height: '1.25rem' }}
-        />
-      </div>
       <div
         style={{
           flex: 1,

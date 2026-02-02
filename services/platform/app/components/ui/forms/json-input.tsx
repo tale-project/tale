@@ -12,17 +12,20 @@ import { toast } from '@/app/hooks/use-toast';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { useT } from '@/lib/i18n/client';
 
-const ReactJsonView = lazyComponent(() => import('@microlink/react-json-view'), {
-  loading: () => (
-    <div className="bg-muted p-4 rounded-md">
-      <div className="animate-pulse">
-        <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-1/2 mb-2"></div>
-        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+const ReactJsonView = lazyComponent(
+  () => import('@microlink/react-json-view'),
+  {
+    loading: () => (
+      <div className="bg-muted p-4 rounded-md">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-300 rounded w-1/4 mb-2"></div>
+          <div className="h-4 bg-gray-300 rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  },
+);
 interface JsonInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -93,7 +96,9 @@ export function JsonInput({
                 .map((e) => `${e.path.join('.')}: ${e.message}`)
                 .join(', ');
               setIsValid(false);
-              setError(t('validation.schemaValidationFailed', { error: errorMessage }));
+              setError(
+                t('validation.schemaValidationFailed', { error: errorMessage }),
+              );
             } else {
               setIsValid(false);
               setError(t('validation.schemaValidationFailed', { error: '' }));
@@ -107,7 +112,9 @@ export function JsonInput({
         }
       } catch (err) {
         setIsValid(false);
-        setError(err instanceof Error ? err.message : t('validation.invalidJson'));
+        setError(
+          err instanceof Error ? err.message : t('validation.invalidJson'),
+        );
         return false;
       }
     },
@@ -137,7 +144,8 @@ export function JsonInput({
         setIsEditing(false);
       } catch (err) {
         toast({
-          title: err instanceof Error ? err.message : t('validation.invalidJson'),
+          title:
+            err instanceof Error ? err.message : t('validation.invalidJson'),
           variant: 'destructive',
         });
         // Stay in edit mode if invalid
@@ -322,6 +330,7 @@ export function JsonInput({
               displayDataTypes={false}
               collapsed={false}
               sortKeys={false}
+              collapseStringsAfterLength={80}
               theme={{
                 base00: 'hsl(var(--background))',
                 base01: 'hsl(var(--muted))',
@@ -363,11 +372,15 @@ export function JsonInput({
               {t('keyboardShortcuts.ctrlEnter')}
             </kbd>{' '}
             to save,{' '}
-            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">{t('keyboardShortcuts.escape')}</kbd> to
-            cancel
+            <kbd className="px-1 py-0.5 text-xs bg-muted rounded">
+              {t('keyboardShortcuts.escape')}
+            </kbd>{' '}
+            to cancel
           </div>
           {isDirty && (
-            <span className="text-amber-600 font-medium">{t('unsavedChanges')}</span>
+            <span className="text-amber-600 font-medium">
+              {t('unsavedChanges')}
+            </span>
           )}
         </div>
       )}
