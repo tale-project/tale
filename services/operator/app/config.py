@@ -15,9 +15,6 @@ class Settings(BaseSettings):
     workers: int = Field(default=1, validation_alias="OPERATOR_WORKERS")
     log_level: str = Field(default="info", validation_alias="OPERATOR_LOG_LEVEL")
 
-    # CORS configuration
-    allowed_origins: str = Field(default="*", validation_alias="OPERATOR_ALLOWED_ORIGINS")
-
     # Browser configuration (OPERATOR_ prefix)
     headless: bool = Field(default=True, validation_alias="OPERATOR_HEADLESS")
     timeout: int = Field(default=30, validation_alias="OPERATOR_TIMEOUT")
