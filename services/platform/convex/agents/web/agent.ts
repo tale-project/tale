@@ -77,7 +77,6 @@ export function createWebAgent(options?: { maxSteps?: number }) {
     instructions: WEB_AGENT_INSTRUCTIONS,
     convexToolNames,
     maxSteps,
-    useFastModel: true,
   });
 
   return new Agent(components.agent, agentConfig);

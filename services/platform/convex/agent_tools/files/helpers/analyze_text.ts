@@ -141,9 +141,7 @@ Guidelines:
 function createTextAnalysisAgent(): Agent {
   const config = createAgentConfig({
     name: 'text-analyzer',
-    useFastModel: true,
     instructions: TEXT_ANALYSIS_INSTRUCTIONS,
-    maxTokens: 4096,
   });
 
   return new Agent(components.agent, config);

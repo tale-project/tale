@@ -133,8 +133,6 @@ export function createChatAgent(options?: {
 
   const agentConfig = createAgentConfig({
     name: 'routing-agent',
-    useFastModel: true,
-    maxTokens: 16384,
     instructions: CHAT_AGENT_INSTRUCTIONS,
     ...(withTools ? { convexToolNames } : {}),
     maxSteps,
