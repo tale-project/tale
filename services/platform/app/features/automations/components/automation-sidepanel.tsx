@@ -59,7 +59,7 @@ interface AutomationSidePanelProps {
   showTestPanel?: boolean;
   automationId?: Id<'wfDefinitions'>;
   organizationId?: string;
-  availableSteps?: Array<{
+  stepOptions?: Array<{
     stepSlug: string;
     name: string;
     stepType?: Doc<'wfStepDefs'>['stepType'];
@@ -152,7 +152,7 @@ export function AutomationSidePanel({
   showTestPanel = false,
   automationId,
   organizationId,
-  availableSteps = [],
+  stepOptions = [],
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
@@ -244,9 +244,9 @@ export function AutomationSidePanel({
         variant: 'default',
       });
     } catch (error) {
+      console.error('Failed to save step:', error);
       toast({
         title: t('sidePanel.stepSaveFailed'),
-        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     } finally {
@@ -456,7 +456,7 @@ export function AutomationSidePanel({
               stepType={step.stepType}
               value={editedNextSteps}
               onChange={setEditedNextSteps}
-              availableSteps={availableSteps}
+              stepOptions={stepOptions}
               currentStepSlug={step.stepSlug}
             />
 

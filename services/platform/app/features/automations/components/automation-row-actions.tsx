@@ -25,7 +25,6 @@ export function AutomationRowActions({
 }: AutomationRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t: tToast } = useT('toast');
-  const { t: tTables } = useT('tables');
   const { user } = useAuth();
   const dialogs = useEntityRowDialogs(['delete', 'rename']);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -46,11 +45,11 @@ export function AutomationRowActions({
     } catch (error) {
       console.error('Failed to duplicate automation:', error);
       toast({
-        title: `${tToast('error.automationDuplicateFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
+        title: tToast('error.automationDuplicateFailed'),
         variant: 'destructive',
       });
     }
-  }, [duplicateAutomation, automation._id, tToast, tTables]);
+  }, [duplicateAutomation, automation._id, tToast]);
 
   const handleRename = useCallback(
     async (name: string) => {
@@ -68,13 +67,13 @@ export function AutomationRowActions({
       } catch (error) {
         console.error('Failed to rename automation:', error);
         toast({
-          title: `${tToast('error.automationRenameFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
+          title: tToast('error.automationRenameFailed'),
           variant: 'destructive',
         });
         throw error;
       }
     },
-    [updateAutomation, automation._id, user, tToast, tTables],
+    [updateAutomation, automation._id, user, tToast],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -87,13 +86,13 @@ export function AutomationRowActions({
     } catch (error) {
       console.error('Failed to delete automation:', error);
       toast({
-        title: `${tToast('error.automationDeleteFailed')}: ${error instanceof Error ? error.message : tTables('cells.unknown')}`,
+        title: tToast('error.automationDeleteFailed'),
         variant: 'destructive',
       });
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteAutomation, automation._id, dialogs.setOpen, tToast, tTables]);
+  }, [deleteAutomation, automation._id, dialogs.setOpen, tToast]);
 
   const actions = useMemo(
     () => [

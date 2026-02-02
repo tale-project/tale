@@ -23,7 +23,7 @@ interface CreateStepDialogProps {
     config: Doc<'wfStepDefs'>['config'];
     nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
   }) => Promise<void>;
-  availableSteps?: Array<{
+  stepOptions?: Array<{
     stepSlug: string;
     name: string;
     stepType?: Doc<'wfStepDefs'>['stepType'];
@@ -95,7 +95,7 @@ export function CreateStepDialog({
   open,
   onOpenChange,
   onCreateStep,
-  availableSteps = [],
+  stepOptions = [],
 }: CreateStepDialogProps) {
   const { t } = useT('automations');
   const initialDefaults = getDefaultTemplates('action');
@@ -248,7 +248,7 @@ export function CreateStepDialog({
           stepType={stepType}
           value={nextSteps}
           onChange={setNextSteps}
-          availableSteps={availableSteps}
+          stepOptions={stepOptions}
           disabled={isSubmitting}
         />
       </Stack>

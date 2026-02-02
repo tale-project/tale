@@ -18,8 +18,7 @@ export async function improveMessage(
     console.error('Error improving message:', error);
     return {
       improvedMessage: originalMessage,
-      error:
-        error instanceof Error ? error.message : 'Failed to improve message',
+      error: 'IMPROVE_MESSAGE_FAILED',
     };
   }
 }

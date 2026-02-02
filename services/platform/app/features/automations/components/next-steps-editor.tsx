@@ -40,7 +40,7 @@ interface NextStepsEditorProps {
   stepType: Doc<'wfStepDefs'>['stepType'];
   value: Record<string, string>;
   onChange: (value: Record<string, string>) => void;
-  availableSteps: AvailableStep[];
+  stepOptions: AvailableStep[];
   currentStepSlug?: string;
   disabled?: boolean;
 }
@@ -120,7 +120,7 @@ export function NextStepsEditor({
   stepType,
   value,
   onChange,
-  availableSteps,
+  stepOptions,
   currentStepSlug,
   disabled = false,
 }: NextStepsEditorProps) {
@@ -128,7 +128,7 @@ export function NextStepsEditor({
 
   const transitionKeys = TRANSITION_KEYS_BY_TYPE[stepType] || ['success'];
 
-  const stepOptions = useMemo(() => {
+  const selectOptions = useMemo(() => {
     const options: Array<{
       value: string;
       label: string;
@@ -141,7 +141,7 @@ export function NextStepsEditor({
       },
     ];
 
-    availableSteps
+    stepOptions
       .filter((s) => s.stepSlug !== currentStepSlug)
       .forEach((step) => {
         options.push({
@@ -152,7 +152,7 @@ export function NextStepsEditor({
       });
 
     return options;
-  }, [availableSteps, currentStepSlug, t]);
+  }, [stepOptions, currentStepSlug, t]);
 
   const handleTransitionChange = (key: string, targetSlug: string) => {
     const newValue = { ...value };
@@ -168,7 +168,7 @@ export function NextStepsEditor({
           label={t(`nextSteps.transitions.${key}`)}
           value={value[key] || 'noop'}
           onValueChange={(v) => handleTransitionChange(key, v)}
-          options={stepOptions}
+          options={selectOptions}
           disabled={disabled}
         />
       ))}

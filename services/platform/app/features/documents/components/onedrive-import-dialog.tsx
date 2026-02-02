@@ -775,15 +775,13 @@ export function OneDriveImportDialog({
         teamTags,
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : tCommon('errors.generic');
+      console.error('Failed to import from OneDrive:', error);
 
       toast({
         title:
           importType === 'one-time'
             ? t('onedrive.importFailed')
             : t('onedrive.syncFailed'),
-        description: errorMessage,
         variant: 'destructive',
       });
 

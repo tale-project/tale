@@ -273,7 +273,7 @@ function AutomationStepsInner({
       .join('|');
   }, [steps]);
 
-  const availableSteps = useMemo(
+  const stepOptions = useMemo(
     () =>
       steps.map((s) => ({
         stepSlug: s.stepSlug,
@@ -849,9 +849,6 @@ function AutomationStepsInner({
       }
     });
 
-    const nodesToProcess = nodes;
-    const edgesToProcess = edges;
-
     // Calculate incoming and outgoing connection counts for each node
     const incomingCounts = new Map<string, number>();
     const outgoingCounts = new Map<string, number>();
@@ -860,7 +857,7 @@ function AutomationStepsInner({
     const topHandlesUsed = new Map<string, Set<string>>(); // nodeId -> Set of handle types used at top
     const bottomHandlesUsed = new Map<string, Set<string>>(); // nodeId -> Set of handle types used at bottom
 
-    edgesToProcess.forEach((edge) => {
+    edges.forEach((edge) => {
       // Count incoming connections
       const inCount = incomingCounts.get(edge.target) || 0;
       incomingCounts.set(edge.target, inCount + 1);
@@ -896,7 +893,7 @@ function AutomationStepsInner({
     const hasBidirectionalTop = new Map<string, boolean>();
     const hasBidirectionalBottom = new Map<string, boolean>();
 
-    nodesToProcess.forEach((node: Node) => {
+    nodes.forEach((node: Node) => {
       // Check if both target and source handles are used at the top
       const topHandles = topHandlesUsed.get(node.id) || new Set();
       hasBidirectionalTop.set(
@@ -914,7 +911,7 @@ function AutomationStepsInner({
     });
 
     // Update nodes with connection count data and handle usage info
-    const nodesWithFullConnectionData = nodesToProcess.map((node: Node) => ({
+    const nodesWithFullConnectionData = nodes.map((node: Node) => ({
       ...node,
       data: {
         ...node.data,
@@ -928,7 +925,7 @@ function AutomationStepsInner({
     // Apply Dagre layout algorithm
     const layouted = getLayoutedElements(
       nodesWithFullConnectionData,
-      edgesToProcess,
+      edges,
       'TB',
     );
 
@@ -1046,7 +1043,6 @@ function AutomationStepsInner({
       console.error('Failed to create step:', error);
       toast({
         title: t('steps.toast.createFailed'),
-        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     }
@@ -1276,7 +1272,7 @@ function AutomationStepsInner({
             showTestPanel={sidePanelMode === 'test'}
             automationId={automationId}
             organizationId={organizationId}
-            availableSteps={availableSteps}
+            stepOptions={stepOptions}
           />
         )}
         {/* Create Step Dialog */}
@@ -1290,7 +1286,7 @@ function AutomationStepsInner({
             }
           }}
           onCreateStep={handleCreateStep}
-          availableSteps={availableSteps}
+          stepOptions={stepOptions}
         />
       </div>
     </AutomationCallbacksProvider>
