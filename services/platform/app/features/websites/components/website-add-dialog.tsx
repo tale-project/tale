@@ -34,8 +34,13 @@ export function AddWebsiteDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        domain: z.string().min(1, tWebsites('validation.domainRequired')).url(tWebsites('validation.validUrl')),
-        scanInterval: z.string().min(1, tWebsites('validation.scanIntervalRequired')),
+        domain: z
+          .string()
+          .min(1, tWebsites('validation.domainRequired'))
+          .url(tWebsites('validation.validUrl')),
+        scanInterval: z
+          .string()
+          .min(1, tWebsites('validation.scanIntervalRequired')),
       }),
     [tWebsites],
   );
@@ -84,8 +89,9 @@ export function AddWebsiteDialog({
       reset();
       onClose();
     } catch (error) {
+      console.error('Failed to add website:', error);
       toast({
-        title: error instanceof Error ? error.message : tWebsites('toast.addError'),
+        title: tWebsites('toast.addError'),
         variant: 'destructive',
       });
     } finally {

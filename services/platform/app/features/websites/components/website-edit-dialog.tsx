@@ -35,8 +35,13 @@ export function EditWebsiteDialog({
   const formSchema = useMemo(
     () =>
       z.object({
-        domain: z.string().min(1, tWebsites('validation.domainRequired')).url(tWebsites('validation.validUrl')),
-        scanInterval: z.string().min(1, tWebsites('validation.scanIntervalRequired')),
+        domain: z
+          .string()
+          .min(1, tWebsites('validation.domainRequired'))
+          .url(tWebsites('validation.validUrl')),
+        scanInterval: z
+          .string()
+          .min(1, tWebsites('validation.scanIntervalRequired')),
       }),
     [tWebsites],
   );
@@ -93,9 +98,9 @@ export function EditWebsiteDialog({
 
       onClose();
     } catch (error) {
+      console.error('Failed to update website:', error);
       toast({
-        title:
-          error instanceof Error ? error.message : tWebsites('toast.updateError'),
+        title: tWebsites('toast.updateError'),
         variant: 'destructive',
       });
     } finally {

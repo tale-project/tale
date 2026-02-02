@@ -950,7 +950,11 @@
         "editingNotAvailable": "Editing connections not yet available",
         "apiNotWired": "Public APIs for editing workflow steps are not wired up yet.",
         "stepCreationNotAvailable": "Step creation not yet available",
-        "createFailed": "Failed to create step"
+        "createFailed": "Failed to create step",
+        "stepCreated": "Step created successfully",
+        "notAuthenticated": "You must be logged in to create steps",
+        "invalidStepName": "Step name must contain at least one letter or number",
+        "duplicateStepSlug": "A step with this name already exists"
       },
       "banners": {
         "draftNotPublished": "This automation is not yet published",
@@ -960,7 +964,8 @@
         "focus": "Focus",
         "aiAssistant": "AI assistant",
         "testAutomation": "Test automation",
-        "viewAutomation": "View automation"
+        "viewAutomation": "View automation",
+        "addStep": "Add step"
       }
     },
     "stepTypes": {
@@ -980,7 +985,23 @@
       "stepTooltip": "{stepType} step",
       "end": "End",
       "close": "Close panel",
-      "viewAutomation": "View automation"
+      "viewAutomation": "View automation",
+      "validationErrors": "Validation errors",
+      "validationWarnings": "Warnings",
+      "stepSaved": "Step saved successfully",
+      "stepSaveFailed": "Failed to save step",
+      "saving": "Saving..."
+    },
+    "nextSteps": {
+      "endWorkflow": "End workflow",
+      "transitions": {
+        "success": "Next step (on success)",
+        "failure": "Next step (on failure)",
+        "true": "Next step (if true)",
+        "false": "Next step (if false)",
+        "loop": "Next step (loop iteration)",
+        "done": "Next step (loop complete)"
+      }
     },
     "createStep": {
       "title": "Create step",
@@ -1090,16 +1111,25 @@
     "tester": {
       "inputLabel": "Test input (JSON)",
       "inputDescription": "Provide input data in JSON format for the automation execution",
-      "tip": "💡 Test executions create real automation runs. Monitor progress in the Executions tab.",
-      "runTest": "Run test",
-      "runningTest": "Running test...",
+      "tip": "💡 Dry run simulates execution without side effects. Execute creates real runs visible in Executions tab.",
+      "execute": "Execute",
+      "executing": "Executing...",
+      "dryRunning": "Simulating...",
+      "dryRun": {
+        "button": "Dry run",
+        "success": "Dry run completed successfully",
+        "failed": "Dry run found issues",
+        "errors": "Errors",
+        "warnings": "Warnings",
+        "executionPath": "Execution path"
+      },
       "toast": {
         "invalidJson": "Invalid JSON",
         "invalidJsonDescription": "Please provide valid JSON input",
-        "executionStarted": "Test execution started",
+        "executionStarted": "Execution started",
         "executionId": "Execution ID: {id}",
-        "testFailed": "Test failed",
-        "startFailed": "Failed to start test execution"
+        "testFailed": "Execution failed",
+        "startFailed": "Failed to start execution"
       }
     },
     "monitoring": {

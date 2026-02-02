@@ -115,9 +115,10 @@ export function useSendMessage({
           attachments: mutationAttachments,
         });
       } catch (error) {
+        console.error('Failed to send message:', error);
         clearChatState();
         toast({
-          title: error instanceof Error ? error.message : t('toast.sendFailed'),
+          title: t('toast.sendFailed'),
           variant: 'destructive',
         });
       }

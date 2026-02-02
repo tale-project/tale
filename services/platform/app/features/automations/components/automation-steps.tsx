@@ -33,9 +33,12 @@ import {
   Scan,
   Sparkles,
   AlertTriangle,
+  Plus,
 } from 'lucide-react';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useCreateStep } from '../hooks/use-create-step';
 import { CreateStepDialog } from './step-create-dialog';
 import { AutomationStep } from './automation-step';
 import { AutomationSidePanel } from './automation-sidepanel';
@@ -76,6 +79,8 @@ function AutomationStepsInner({
   onStepCreated: _onStepCreated,
 }: AutomationStepsProps) {
   const { t } = useT('automations');
+  const { user } = useAuth();
+  const createStep = useCreateStep();
   const isDraft = status === 'draft';
   const isActive = status === 'active';
   const hasSteps = steps && steps.length > 0;
@@ -267,6 +272,22 @@ function AutomationStepsInner({
       .sort()
       .join('|');
   }, [steps]);
+
+  const stepOptions = useMemo(
+    () =>
+      steps.map((s) => ({
+        stepSlug: s.stepSlug,
+        name: s.name,
+        stepType: s.stepType,
+        actionType:
+          s.stepType === 'action'
+            ? ((s.config as Record<string, unknown>)?.type as
+                | string
+                | undefined)
+            : undefined,
+      })),
+    [steps],
+  );
 
   // Convert steps to nodes and edges using Dagre layout
   // IMPORTANT: Only include primitive values in node.data to avoid infinite loops
@@ -526,6 +547,10 @@ function AutomationStepsInner({
           label: step.name,
           stepType: step.stepType,
           stepSlug: step.stepSlug,
+          actionType:
+            step.stepType === 'action'
+              ? ((step.config as Record<string, unknown>)?.type as string)
+              : undefined,
           isLeafNode: leafStepSlugs.has(step.stepSlug),
           isTerminalNode: leafStepSlugs.has(step.stepSlug),
           rank: step.order, // Use order as rank for automatic positioning
@@ -581,9 +606,6 @@ function AutomationStepsInner({
       return node;
     });
 
-    // Filter out terminal nodes from visualization
-    const visibleNodes = nodes.filter((node) => !node.data.isTerminalNode);
-
     // Create edges based on actual step connections from nextSteps
     const edges: Edge[] = [];
     sortedSteps.forEach((step) => {
@@ -593,12 +615,6 @@ function AutomationStepsInner({
         Object.entries(nextSteps).forEach(([key, targetStepSlug]) => {
           // Only create edge if target step exists
           if (sortedSteps.find((s) => s.stepSlug === targetStepSlug)) {
-            // Skip edges to terminal nodes
-            const isTargetTerminal = leafStepSlugs.has(targetStepSlug);
-            if (isTargetTerminal) {
-              return;
-            }
-
             const keyLower = key.toLowerCase();
 
             // Check if target is a child of the source (parent-child relationship)
@@ -833,10 +849,6 @@ function AutomationStepsInner({
       }
     });
 
-    // Use visible nodes (excluding terminal nodes) and edges for processing
-    const nodesToProcess = visibleNodes;
-    const edgesToProcess = edges;
-
     // Calculate incoming and outgoing connection counts for each node
     const incomingCounts = new Map<string, number>();
     const outgoingCounts = new Map<string, number>();
@@ -845,7 +857,7 @@ function AutomationStepsInner({
     const topHandlesUsed = new Map<string, Set<string>>(); // nodeId -> Set of handle types used at top
     const bottomHandlesUsed = new Map<string, Set<string>>(); // nodeId -> Set of handle types used at bottom
 
-    edgesToProcess.forEach((edge) => {
+    edges.forEach((edge) => {
       // Count incoming connections
       const inCount = incomingCounts.get(edge.target) || 0;
       incomingCounts.set(edge.target, inCount + 1);
@@ -881,7 +893,7 @@ function AutomationStepsInner({
     const hasBidirectionalTop = new Map<string, boolean>();
     const hasBidirectionalBottom = new Map<string, boolean>();
 
-    nodesToProcess.forEach((node: Node) => {
+    nodes.forEach((node: Node) => {
       // Check if both target and source handles are used at the top
       const topHandles = topHandlesUsed.get(node.id) || new Set();
       hasBidirectionalTop.set(
@@ -899,7 +911,7 @@ function AutomationStepsInner({
     });
 
     // Update nodes with connection count data and handle usage info
-    const nodesWithFullConnectionData = nodesToProcess.map((node: Node) => ({
+    const nodesWithFullConnectionData = nodes.map((node: Node) => ({
       ...node,
       data: {
         ...node.data,
@@ -913,7 +925,7 @@ function AutomationStepsInner({
     // Apply Dagre layout algorithm
     const layouted = getLayoutedElements(
       nodesWithFullConnectionData,
-      edgesToProcess,
+      edges,
       'TB',
     );
 
@@ -964,36 +976,68 @@ function AutomationStepsInner({
   };
 
   // Handle creating a new step
-  const handleCreateStep = async (_data: {
+  const handleCreateStep = async (data: {
     name: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     config: Doc<'wfStepDefs'>['config'];
+    nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
   }) => {
-    try {
-      // Generate a unique stepSlug
-      const _stepSlug = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    if (!user) {
+      toast({
+        title: t('steps.toast.notAuthenticated'),
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      // Calculate the next order number
-      const _nextOrder =
+    try {
+      const stepSlug = data.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+
+      if (!stepSlug) {
+        toast({
+          title: t('steps.toast.invalidStepName'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (steps.some((s) => s.stepSlug === stepSlug)) {
+        toast({
+          title: t('steps.toast.duplicateStepSlug'),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const nextOrder =
         steps.length > 0 ? Math.max(...steps.map((s) => s.order)) + 1 : 1;
 
-      // Prepare nextSteps for the new step - start with empty object
-      let _newStepNextSteps = {};
+      let nextSteps: Record<string, string> = data.nextSteps || {};
 
-      // If we're inserting on an edge, the new step should point to the target
       if (edgeToInsertStep) {
-        _newStepNextSteps = {
-          default: edgeToInsertStep.targetId,
+        nextSteps = {
+          ...nextSteps,
+          success: edgeToInsertStep.targetId,
         };
       }
 
-      // NOTE: Step creation is currently disabled until public Convex mutations
-      // are available. This UI is temporarily read-only.
-      toast({
-        title: t('steps.toast.stepCreationNotAvailable'),
-        description: t('steps.toast.apiNotWired'),
+      await createStep({
+        wfDefinitionId: automationId,
+        stepSlug,
+        name: data.name,
+        stepType: data.stepType,
+        order: nextOrder,
+        config: data.config,
+        nextSteps,
+        editMode: 'visual',
       });
-      return;
+
+      toast({
+        title: t('steps.toast.stepCreated'),
+      });
     } catch (error) {
       console.error('Failed to create step:', error);
       toast({
@@ -1193,6 +1237,16 @@ function AutomationStepsInner({
                   </Button>
 
                   <Button
+                    size="icon"
+                    variant="outline"
+                    title={t('steps.toolbar.addStep')}
+                    onClick={() => setIsCreateStepDialogOpen(true)}
+                    disabled={isActive}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+
+                  <Button
                     variant="outline"
                     size="icon"
                     title={t('steps.toolbar.testAutomation')}
@@ -1217,6 +1271,7 @@ function AutomationStepsInner({
             showTestPanel={sidePanelMode === 'test'}
             automationId={automationId}
             organizationId={organizationId}
+            stepOptions={stepOptions}
           />
         )}
         {/* Create Step Dialog */}
@@ -1230,6 +1285,7 @@ function AutomationStepsInner({
             }
           }}
           onCreateStep={handleCreateStep}
+          stepOptions={stepOptions}
         />
       </div>
     </AutomationCallbacksProvider>

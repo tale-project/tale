@@ -35,9 +35,9 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         variant: 'success',
       });
     } catch (error) {
+      console.error('Failed to rescan website:', error);
       toast({
-        title:
-          error instanceof Error ? error.message : t('actions.rescanFailed'),
+        title: t('actions.rescanFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -74,7 +74,7 @@ export function WebsiteRowActions({ website }: WebsiteRowActionsProps) {
         destructive: true,
       },
     ],
-    [tCommon, t, dialogs.open, handleRescan, isRescanning]
+    [tCommon, t, dialogs.open, handleRescan, isRescanning],
   );
 
   return (

@@ -70,3 +70,6 @@ venv/
 
 # Turborepo
 .turbo
+
+# Local ARM64 Dockerfile for operator
+services/operator/Dockerfile.arm64
