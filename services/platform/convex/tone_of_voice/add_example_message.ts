@@ -40,7 +40,6 @@ export async function addExampleMessage(
     content: args.content,
     createdAt: now,
     updatedAt: now,
-     
     metadata: args.metadata as any,
   });
 

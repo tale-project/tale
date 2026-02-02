@@ -57,7 +57,6 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'action' as const,
-           
           config: stepDef.config as any,
         },
         variables,
