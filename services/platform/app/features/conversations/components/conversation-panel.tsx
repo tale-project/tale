@@ -268,7 +268,7 @@ export function ConversationPanel({
         className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
       >
         {/* Skeleton Header */}
-        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
+        <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
           <div className="flex items-center gap-3 flex-1">
             <div className="size-10 rounded-full bg-muted animate-pulse" />
             <div className="flex flex-col gap-1.5 flex-1">
@@ -361,7 +361,7 @@ export function ConversationPanel({
       ref={containerRef}
       className="flex-[1_1_0] p-0 relative flex flex-col overflow-y-auto"
     >
-      <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border shadow-sm">
+      <div className="flex px-4 py-3 flex-[0_0_auto] bg-background/50 backdrop-blur-sm h-16 sticky top-0 z-50 border-b border-border">
         <ConversationHeader
           conversation={conversation}
           onResolve={() => {
