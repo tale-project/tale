@@ -23,7 +23,6 @@ const CRM_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'crm-assistant',
   instructions: CRM_AGENT_INSTRUCTIONS,
   convexToolNames: CRM_AGENT_TOOL_NAMES,
-  useFastModel: true,
   maxSteps: 10,
 };
 
@@ -63,7 +62,7 @@ export const chatWithCrmAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: CRM_AGENT_CONFIG,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model: process.env.OPENAI_MODEL || '',
       provider: 'openai',
       debugTag: '[CrmAgent]',
       enableStreaming: true,

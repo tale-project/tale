@@ -29,7 +29,6 @@ const INTEGRATION_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'integration-assistant',
   instructions: INTEGRATION_AGENT_INSTRUCTIONS,
   convexToolNames: INTEGRATION_AGENT_TOOL_NAMES,
-  useFastModel: true,
   maxSteps: 20,
 };
 
@@ -81,7 +80,7 @@ export const chatWithIntegrationAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: INTEGRATION_AGENT_CONFIG,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model: process.env.OPENAI_MODEL || '',
       provider: 'openai',
       debugTag: '[IntegrationAgent]',
       enableStreaming: true,

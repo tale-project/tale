@@ -19,7 +19,6 @@ const WEB_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'web-assistant',
   instructions: WEB_AGENT_INSTRUCTIONS,
   convexToolNames: WEB_AGENT_TOOL_NAMES,
-  useFastModel: true,
   maxSteps: 5,
 };
 
@@ -59,7 +58,7 @@ export const chatWithWebAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: WEB_AGENT_CONFIG,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model: process.env.OPENAI_MODEL || '',
       provider: 'openai',
       debugTag: '[WebAgent]',
       enableStreaming: true,

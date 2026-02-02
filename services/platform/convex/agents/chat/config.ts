@@ -24,10 +24,7 @@ export const CHAT_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'routing-agent',
   instructions: CHAT_AGENT_INSTRUCTIONS,
   convexToolNames: CHAT_AGENT_TOOL_NAMES,
-  useFastModel: true,
   maxSteps: 20,
-  maxTokens: 16384,
-  temperature: 0.7,
 };
 
 /**

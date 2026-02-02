@@ -26,7 +26,6 @@ const DOCUMENT_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'document-assistant',
   instructions: DOCUMENT_AGENT_INSTRUCTIONS,
   convexToolNames: DOCUMENT_AGENT_TOOL_NAMES,
-  useFastModel: true,
   maxSteps: 15,
 };
 
@@ -66,7 +65,7 @@ export const chatWithDocumentAgent = mutation({
       maxSteps: args.maxSteps,
       attachments: args.attachments,
       agentConfig: DOCUMENT_AGENT_CONFIG,
-      model: process.env.OPENAI_FAST_MODEL || '',
+      model: process.env.OPENAI_MODEL || '',
       provider: 'openai',
       debugTag: '[DocumentAgent]',
       enableStreaming: true,
