@@ -6,6 +6,7 @@ export interface ToolUsage {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  durationSeconds?: number;
 }
 
 export interface ToolResponse {

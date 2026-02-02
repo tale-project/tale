@@ -95,6 +95,7 @@ EXAMPLES:
                 inputTokens: result.token_usage.input_tokens,
                 outputTokens: result.token_usage.output_tokens,
                 totalTokens: result.token_usage.total_tokens,
+                durationSeconds: result.duration_seconds ?? undefined,
               }
             : undefined,
           'opencode',
