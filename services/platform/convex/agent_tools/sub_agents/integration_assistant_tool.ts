@@ -156,7 +156,10 @@ EXAMPLES:
           response: finalResponse,
           approvalCreated: hasApproval,
           approvalId: approvalMatch?.[1],
-          usage: result.usage,
+          usage: {
+            ...result.usage,
+            durationSeconds: result.durationMs / 1000,
+          },
           model: result.model,
           provider: result.provider,
         };

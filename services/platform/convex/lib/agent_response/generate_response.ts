@@ -595,6 +595,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }>;
 } {
   type StepWithTools = {
@@ -621,6 +622,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }> = [];
 
   for (const step of steps as StepWithTools[]) {
@@ -655,6 +657,7 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             inputTokens?: number;
             outputTokens?: number;
             totalTokens?: number;
+            durationSeconds?: number;
           };
         };
         const directResult = toolResult.result as SubAgentResultData | undefined;
@@ -678,6 +681,9 @@ function extractToolCallsFromSteps(steps: unknown[]): {
             inputTokens: toolUsage?.inputTokens,
             outputTokens: toolUsage?.outputTokens,
             totalTokens: toolUsage?.totalTokens,
+            durationMs: toolUsage?.durationSeconds
+              ? Math.round(toolUsage.durationSeconds * 1000)
+              : undefined,
           });
         }
       }

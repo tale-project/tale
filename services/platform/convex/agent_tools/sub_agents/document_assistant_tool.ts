@@ -109,7 +109,15 @@ EXAMPLES:
           },
         );
 
-        return successResponse(result.text, result.usage, result.model, result.provider);
+        return successResponse(
+          result.text,
+          {
+            ...result.usage,
+            durationSeconds: result.durationMs / 1000,
+          },
+          result.model,
+          result.provider,
+        );
       } catch (error) {
         return handleToolError('document_assistant_tool', error);
       }

@@ -37,6 +37,7 @@ export const subAgentUsageValidator = v.object({
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
 });
 
 export const agentResponseReturnsValidator = v.object({

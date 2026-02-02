@@ -271,6 +271,12 @@ export function MessageInfoDialog({
                           {t('messageInfo.output')}: {formatNumber(usage.outputTokens ?? 0, locale)}
                           {' · '}
                           {t('messageInfo.total')}: {formatNumber(usage.totalTokens, locale)}
+                          {usage.durationMs !== undefined && (
+                            <>
+                              {' · '}
+                              {t('messageInfo.duration')}: {(usage.durationMs / 1000).toFixed(2)}s
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

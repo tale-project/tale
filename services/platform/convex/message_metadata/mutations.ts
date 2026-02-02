@@ -38,6 +38,7 @@ export const saveMessageMetadata = mutation({
           inputTokens: v.optional(v.number()),
           outputTokens: v.optional(v.number()),
           totalTokens: v.optional(v.number()),
+          durationMs: v.optional(v.number()),
         }),
       ),
     ),

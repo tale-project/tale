@@ -2,11 +2,9 @@
  * Unified Agent Completion Handler
  *
  * Called after any agent (routing or specialized) completes a response.
- * Handles:
- * 1. Saving message metadata (model, usage, reasoning, context stats)
- * 2. Scheduling background summarization for long conversations
+ * Handles saving message metadata (model, usage, reasoning, context stats).
  *
- * This function runs in action context and calls mutations/schedulers as needed.
+ * This function runs in action context and calls mutations as needed.
  */
 
 import type { ActionCtx } from '../../_generated/server';
@@ -14,7 +12,6 @@ import { components } from '../../_generated/api';
 import { listMessages } from '@convex-dev/agent';
 
 import { createDebugLog } from '../debug_log';
-import { getAutoSummarizeRef } from '../summarization';
 import { getSaveMessageMetadataRef } from './function_refs';
 
 const debugLog = createDebugLog('DEBUG_AGENT_COMPLETION', '[AgentCompletion]');
@@ -60,7 +57,6 @@ export interface OnAgentCompleteArgs {
   agentType: string;
   result: AgentResponseResult;
   options?: {
-    skipSummarization?: boolean;
     skipMetadata?: boolean;
   };
 }
@@ -141,24 +137,6 @@ export async function onAgentComplete(
     } catch (error) {
       // Non-fatal: log and continue
       console.error(`[${agentType}] Failed to save message metadata:`, {
-        threadId,
-        error,
-      });
-    }
-  }
-
-  // Step 2: Schedule background summarization (unless skipped)
-  if (!options?.skipSummarization) {
-    try {
-      await ctx.scheduler.runAfter(0, getAutoSummarizeRef(), { threadId });
-
-      debugLog('Summarization scheduled', {
-        threadId,
-        agentType,
-      });
-    } catch (error) {
-      // Non-fatal: log and continue
-      console.error(`[${agentType}] Failed to schedule summarization:`, {
         threadId,
         error,
       });

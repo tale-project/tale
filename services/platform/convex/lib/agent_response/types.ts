@@ -138,6 +138,7 @@ export interface GenerateResponseResult {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
   }>;
   contextWindow?: string;
   contextStats?: {

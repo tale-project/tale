@@ -117,7 +117,10 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
-          usage: result.usage,
+          usage: {
+            ...result.usage,
+            durationSeconds: result.durationMs / 1000,
+          },
           model: result.model,
           provider: result.provider,
         };
