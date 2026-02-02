@@ -21,7 +21,6 @@ export async function createDocument(
     fileId: args.fileId,
     mimeType: args.mimeType,
     extension,
-     
     metadata: args.metadata as any,
     sourceProvider: args.sourceProvider,
     externalItemId: args.externalItemId,

@@ -21,7 +21,6 @@ export async function createConversation(
     channel: args.channel,
     direction: args.direction,
     providerId: args.providerId,
-     
     metadata: args.metadata as any,
   });
 

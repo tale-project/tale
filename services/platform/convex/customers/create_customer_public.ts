@@ -60,6 +60,5 @@ export async function createCustomerPublic(
     }
   }
 
-   
   return await ctx.db.insert('customers', { ...args, metadata: args.metadata as any });
 }
