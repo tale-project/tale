@@ -15,6 +15,7 @@ export interface ToolResponse {
   usage?: ToolUsage;
   model?: string;
   provider?: string;
+  sources?: string[];
 }
 
 export interface ToolResponseWithApproval extends ToolResponse {
@@ -31,8 +32,9 @@ export function successResponse(
   usage?: ToolUsage,
   model?: string,
   provider?: string,
+  sources?: string[],
 ): ToolResponse {
-  return { success: true, response, usage, model, provider };
+  return { success: true, response, usage, model, provider, sources };
 }
 
 export function handleToolError(toolName: string, error: unknown): ToolResponse {

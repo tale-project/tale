@@ -32,6 +32,7 @@ interface UseMessageProcessingResult {
   canLoadMore: boolean;
   isLoadingMore: boolean;
   streamingMessage: UIMessage | undefined;
+  pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
 }
 
@@ -133,6 +134,11 @@ export function useMessageProcessing(
     (m) => m.role === 'assistant' && m.status === 'streaming',
   );
 
+  // Find pending tool response (waiting for tool results to complete)
+  const pendingToolResponse = uiMessages?.find(
+    (m) => m.role === 'assistant' && m.status === 'pending',
+  );
+
   // Check for active tools in streaming message
   const hasActiveTools = useMemo(() => {
     if (!streamingMessage?.parts) return false;
@@ -153,6 +159,7 @@ export function useMessageProcessing(
     canLoadMore,
     isLoadingMore,
     streamingMessage,
+    pendingToolResponse,
     hasActiveTools,
   };
 }

@@ -55,7 +55,7 @@ export const runAgentGeneration = internalAction({
     threadId: v.string(),
     organizationId: v.string(),
     userId: v.optional(v.string()),
-    taskDescription: v.string(),
+    promptMessage: v.string(),
     additionalContext: v.optional(v.record(v.string(), v.string())),
     parentThreadId: v.optional(v.string()),
     agentOptions: v.optional(v.any()),
@@ -92,7 +92,7 @@ export const runAgentGeneration = internalAction({
       threadId,
       organizationId,
       userId,
-      taskDescription,
+      promptMessage,
       additionalContext,
       parentThreadId,
       agentOptions,
@@ -145,7 +145,7 @@ export const runAgentGeneration = internalAction({
           threadId,
           organizationId,
           userId,
-          taskDescription,
+          promptMessage,
           additionalContext,
           parentThreadId,
           agentOptions,
@@ -217,7 +217,7 @@ function buildHooksFromConfig(hooksConfig: {
       const result = await ctx.runAction(handle, {
         threadId: args.threadId,
         userId: args.userId,
-        taskDescription: args.taskDescription,
+        promptMessage: args.promptMessage,
         organizationId: args.organizationId,
         userTeamIds: args.userTeamIds,
       });
@@ -230,7 +230,7 @@ function buildHooksFromConfig(hooksConfig: {
     hooks.beforeGenerate = async (ctx, args, context, _hookData) => {
       const result = await ctx.runAction(handle, {
         threadId: args.threadId,
-        taskDescription: args.taskDescription,
+        promptMessage: args.promptMessage,
         attachments: args.attachments,
         contextMessagesTokens: context.stats.totalTokens,
       });

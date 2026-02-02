@@ -100,7 +100,7 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
             threadId: subThreadId,
             userId,
             organizationId,
-            taskDescription: args.userRequest,
+            promptMessage: args.userRequest,
             additionalContext: buildAdditionalContext(
               args,
               WORKFLOW_CONTEXT_MAPPING,

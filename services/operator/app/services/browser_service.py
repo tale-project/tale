@@ -10,6 +10,7 @@ from typing import Any
 from loguru import logger
 
 from app.config import settings
+from app.services.workspace_manager import get_workspace_manager
 
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
@@ -77,6 +78,7 @@ class BrowserService:
 
     def __init__(self):
         self._initialized = False
+        self._workspace_manager = get_workspace_manager()
 
     @property
     def initialized(self) -> bool:
@@ -103,8 +105,10 @@ class BrowserService:
             version = stdout.decode().strip()
             logger.info(f"OpenCode version: {version}")
 
+            await self._workspace_manager.initialize()
+
             self._initialized = True
-            logger.info("Browser service initialized with OpenCode")
+            logger.info("Browser service initialized with OpenCode and WorkspaceManager")
 
         except Exception as e:
             logger.error(f"Failed to initialize browser service: {e}")
@@ -112,10 +116,11 @@ class BrowserService:
 
     async def cleanup(self) -> None:
         """Cleanup service resources."""
+        await self._workspace_manager.shutdown()
         self._initialized = False
         logger.info("Browser service cleaned up")
 
-    async def chat(self, message: str, max_turns: int = 10) -> dict[str, Any]:
+    async def chat(self, message: str, max_turns: int = settings.max_steps) -> dict[str, Any]:
         """
         Send a message to OpenCode with Playwright MCP.
 
@@ -129,6 +134,28 @@ class BrowserService:
         if not self._initialized:
             await self.initialize()
 
+        workspace_dir = await self._workspace_manager.create_workspace()
+        logger.info(
+            f"Running OpenCode with max_turns={max_turns}, "
+            f"workspace={os.path.basename(workspace_dir)}, "
+            f"message: {message[:100]}..."
+        )
+
+        start_time = time.perf_counter()
+
+        try:
+            return await self._execute_opencode(message, max_turns, workspace_dir, start_time)
+        finally:
+            await self._workspace_manager.release_workspace(workspace_dir)
+
+    async def _execute_opencode(
+        self,
+        message: str,
+        max_turns: int,
+        workspace_dir: str,
+        start_time: float,
+    ) -> dict[str, Any]:
+        """Execute OpenCode in the given workspace directory."""
         full_prompt = f"{SYSTEM_PROMPT}\n\n---\n\nUser request: {message}"
 
         cmd = [
@@ -137,13 +164,6 @@ class BrowserService:
             "--format", "json",
             full_prompt,
         ]
-
-        logger.info(f"Running OpenCode with message: {message[:100]}...")
-
-        workspace_dir = "/tmp/opencode-workspace"
-        os.makedirs(workspace_dir, exist_ok=True)
-
-        start_time = time.perf_counter()
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -183,7 +203,7 @@ class BrowserService:
 
         except asyncio.TimeoutError:
             duration = time.perf_counter() - start_time
-            logger.error("OpenCode execution timed out")
+            logger.error(f"OpenCode execution timed out in workspace {os.path.basename(workspace_dir)}")
             return {
                 "success": False,
                 "response": "Task timed out",
@@ -191,7 +211,7 @@ class BrowserService:
             }
         except Exception as e:
             duration = time.perf_counter() - start_time
-            logger.error(f"OpenCode execution failed: {e}")
+            logger.error(f"OpenCode execution failed in workspace {os.path.basename(workspace_dir)}: {e}")
             return {
                 "success": False,
                 "response": str(e),

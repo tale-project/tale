@@ -23,6 +23,38 @@ class Settings(BaseSettings):
     timeout: int = Field(default=30, validation_alias="OPERATOR_TIMEOUT")
     max_steps: int = Field(default=30, validation_alias="OPERATOR_MAX_STEPS")
 
+    # Workspace configuration for concurrent requests
+    max_concurrent_requests: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        validation_alias="OPERATOR_MAX_CONCURRENT_REQUESTS",
+        description="Maximum number of concurrent requests",
+    )
+    request_timeout_seconds: int = Field(
+        default=1800,
+        ge=60,
+        validation_alias="OPERATOR_REQUEST_TIMEOUT",
+        description="Maximum timeout for a single request (30 minutes default)",
+    )
+    cleanup_interval_seconds: int = Field(
+        default=60,
+        ge=10,
+        validation_alias="OPERATOR_CLEANUP_INTERVAL",
+        description="Interval between cleanup cycles",
+    )
+    workspace_base_dir: str = Field(
+        default="/tmp/operator-sessions",
+        validation_alias="OPERATOR_WORKSPACE_BASE_DIR",
+        description="Base directory for isolated workspaces",
+    )
+    workspace_max_size_mb: int = Field(
+        default=500,
+        ge=100,
+        validation_alias="OPERATOR_WORKSPACE_MAX_SIZE_MB",
+        description="Maximum total workspace disk usage in MB",
+    )
+
     # LLM configuration (from OPENAI_* env vars - used by OpenCode)
     openai_base_url: str = ""
     openai_api_key: str = ""

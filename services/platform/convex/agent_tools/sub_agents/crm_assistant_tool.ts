@@ -105,7 +105,7 @@ EXAMPLES:
           threadId: subThreadId,
           userId,
           organizationId,
-          taskDescription: args.userRequest,
+          promptMessage: args.userRequest,
           additionalContext: buildAdditionalContext(args, CRM_CONTEXT_MAPPING),
           parentThreadId: threadId,
         });

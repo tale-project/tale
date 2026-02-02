@@ -17,16 +17,17 @@
  * import { buildStructuredContext, AGENT_CONTEXT_CONFIGS } from './lib/context_management';
  *
  * const config = AGENT_CONTEXT_CONFIGS.workflow;
- * const structuredContext = await buildStructuredContext({
+ * const structuredThreadContext = await buildStructuredContext({
  *   ctx,
  *   threadId,
- *   taskDescription: 'User request here',
  *   additionalContext: { key: 'value' },
  *   maxMessages: config.recentMessages,
  * });
  *
+ * // Use system parameter for context, prompt for user request
  * const result = await agent.generateText(ctx, { threadId }, {
- *   messages: structuredContext.messages,
+ *   system: structuredThreadContext.threadContext,  // History, RAG, integrations
+ *   prompt: promptMessage,                    // User's current request
  * }, {
  *   contextOptions: {
  *     recentMessages: 0,  // Disable SDK history - we control it

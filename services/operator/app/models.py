@@ -4,6 +4,8 @@ Request and response models for the Operator service.
 
 from pydantic import BaseModel, Field
 
+from app.config import settings
+
 
 class HealthResponse(BaseModel):
     """Health check response."""
@@ -17,7 +19,7 @@ class ChatRequest(BaseModel):
     """Chat request - send a message to OpenCode with Playwright MCP."""
 
     message: str = Field(..., description="The message/task for OpenCode")
-    max_turns: int = Field(default=10, ge=1, le=50, description="Maximum agentic turns")
+    max_turns: int = Field(default=settings.max_steps, ge=1, le=50, description="Maximum agentic turns")
 
 
 class TokenUsage(BaseModel):

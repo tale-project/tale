@@ -99,6 +99,7 @@ EXAMPLES:
             : undefined,
           'opencode',
           'operator',
+          result.sources ?? undefined,
         );
       } catch (error) {
         return handleToolError('web_assistant_tool', error);

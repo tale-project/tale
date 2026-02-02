@@ -18,4 +18,5 @@ export interface OperatorChatResponse {
   token_usage: OperatorTokenUsage | null;
   cost_usd: number | null;
   turns: number | null;
+  sources: string[] | null;
 }

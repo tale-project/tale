@@ -90,7 +90,7 @@ type RunAgentGenerationArgs = {
   threadId: string;
   organizationId: string;
   userId?: string;
-  taskDescription: string;
+  promptMessage: string;
   additionalContext?: Record<string, string>;
   parentThreadId?: string;
   agentOptions?: unknown;

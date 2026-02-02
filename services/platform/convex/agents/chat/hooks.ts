@@ -34,7 +34,7 @@ export const beforeContextHook = internalAction({
   args: {
     threadId: v.string(),
     userId: v.optional(v.string()),
-    taskDescription: v.string(),
+    promptMessage: v.string(),
     organizationId: v.string(),
     userTeamIds: v.optional(v.array(v.string())),
   },
@@ -82,7 +82,7 @@ export const beforeContextHook = internalAction({
 export const beforeGenerateHook = internalAction({
   args: {
     threadId: v.string(),
-    taskDescription: v.string(),
+    promptMessage: v.string(),
     attachments: v.optional(
       v.array(
         v.object({
@@ -100,10 +100,10 @@ export const beforeGenerateHook = internalAction({
     contextExceedsBudget: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { threadId, taskDescription, attachments, contextMessagesTokens } = args;
+    const { threadId, promptMessage, attachments, contextMessagesTokens } = args;
 
     // Token budget check for logging
-    const currentPromptTokens = estimateTokens(taskDescription || '');
+    const currentPromptTokens = estimateTokens(promptMessage || '');
     const contextBudget =
       DEFAULT_MODEL_CONTEXT_LIMIT * CONTEXT_SAFETY_MARGIN -
       SYSTEM_INSTRUCTIONS_TOKENS -
@@ -123,7 +123,7 @@ export const beforeGenerateHook = internalAction({
     const { promptContent: attachmentPrompt } = await processAttachments(
       ctx,
       attachments ?? [],
-      taskDescription,
+      promptMessage,
       { debugLog, toolName: 'chat_agent' },
     );
 

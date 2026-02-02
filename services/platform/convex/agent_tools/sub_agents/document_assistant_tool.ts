@@ -100,7 +100,7 @@ EXAMPLES:
             threadId: subThreadId,
             userId,
             organizationId,
-            taskDescription: args.userRequest,
+            promptMessage: args.userRequest,
             additionalContext: buildAdditionalContext(
               args,
               DOCUMENT_CONTEXT_MAPPING,

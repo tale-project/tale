@@ -33,6 +33,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Log level: {settings.log_level}")
     logger.info(f"Headless mode: {settings.headless}")
     logger.info(f"LLM model: {settings.openai_model} (via OpenCode)")
+    logger.info(f"Max concurrent requests: {settings.max_concurrent_requests}")
+    logger.info(f"Workspace base dir: {settings.workspace_base_dir}")
+    logger.info(f"Workspace max size: {settings.workspace_max_size_mb}MB")
 
     # Initialize browser service (lazy - will init on first request)
     try:
