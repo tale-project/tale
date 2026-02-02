@@ -38,7 +38,6 @@ export async function upsertProductTranslation(
     description: args.description,
     category: args.category,
     tags: args.tags,
-     
     metadata: args.metadata as any,
     lastUpdated: now,
     createdAt: existingIndex >= 0 ? translations[existingIndex].createdAt : now,
@@ -46,11 +45,9 @@ export async function upsertProductTranslation(
 
   if (existingIndex >= 0) {
     // Update existing translation
-     
     translations[existingIndex] = newTranslation as any;
   } else {
     // Add new translation
-     
     translations.push(newTranslation as any);
   }
 
