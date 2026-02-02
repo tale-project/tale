@@ -53,7 +53,7 @@ export const updateMetadata = internalMutation({
     };
 
     await ctx.db.patch(args.providerId, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       metadata: updatedMetadata as any,
     });
 

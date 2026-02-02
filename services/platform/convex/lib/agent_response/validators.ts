@@ -20,7 +20,7 @@ export const contextStatsValidator = v.object({
   totalTokens: v.number(),
   messageCount: v.number(),
   approvalCount: v.number(),
-  hasSummary: v.boolean(),
+  hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
   hasRag: v.boolean(),
   hasIntegrations: v.boolean(),
 });
@@ -37,6 +37,7 @@ export const subAgentUsageValidator = v.object({
   inputTokens: v.optional(v.number()),
   outputTokens: v.optional(v.number()),
   totalTokens: v.optional(v.number()),
+  durationMs: v.optional(v.number()),
 });
 
 export const agentResponseReturnsValidator = v.object({

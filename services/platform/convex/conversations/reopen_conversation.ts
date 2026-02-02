@@ -19,12 +19,12 @@ export async function reopenConversation(
   const previousStatus = conversation.status;
 
   const metadata = conversation.metadata || {};
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { resolved_at: _resolved_at, resolved_by: _resolved_by, ...restMetadata } = metadata as Record<string, unknown>;
 
   await ctx.db.patch(conversationId, {
     status: 'open',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: restMetadata as any,
   });
 

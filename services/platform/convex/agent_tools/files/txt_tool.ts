@@ -1,5 +1,6 @@
 /** Convex Tool: TXT
  *  Parse plain text files and analyze content using fast model.
+ *  Generate plain text files from content.
  *  Handles various encodings and large files via chunked processing.
  *  Uses ctx.storage.get() for direct Convex storage access (like image_tool).
  */
@@ -13,7 +14,7 @@ import { analyzeTextContent } from './helpers/analyze_text';
 
 const debugLog = createDebugLog('DEBUG_AGENT_TOOLS', '[AgentTools]');
 
-interface TxtResult {
+interface TxtParseResult {
   operation: 'parse';
   success: boolean;
   result: string;
@@ -26,47 +27,126 @@ interface TxtResult {
   error?: string;
 }
 
-const txtArgs = z.object({
-  fileId: z
-    .string()
-    .describe(
-      "**REQUIRED** - Convex storage ID of the text file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
-    ),
-  filename: z.string().describe("Original filename (e.g., 'data.txt')"),
-  user_input: z
-    .string()
-    .describe('The user question or instruction about what to analyze in the text file'),
-});
+interface TxtGenerateResult {
+  operation: 'generate';
+  success: boolean;
+  fileId: string;
+  url: string;
+  filename: string;
+  char_count: number;
+  line_count: number;
+  error?: string;
+}
+
+type TxtResult = TxtParseResult | TxtGenerateResult;
+
+const txtArgs = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('parse').describe('Parse and analyze a text file'),
+    fileId: z
+      .string()
+      .describe(
+        "**REQUIRED** - Convex storage ID of the text file (e.g., 'kg2bazp7fbgt9srq63knfagjrd7yfenj'). Get this from the file attachment context.",
+      ),
+    filename: z.string().describe("Original filename (e.g., 'data.txt')"),
+    user_input: z
+      .string()
+      .describe('The user question or instruction about what to analyze in the text file'),
+  }),
+  z.object({
+    operation: z.literal('generate').describe('Generate a new text file'),
+    filename: z.string().describe("Output filename (e.g., 'output.txt')"),
+    content: z.string().describe('The text content to write to the file'),
+  }),
+]);
 
 export const txtTool = {
   name: 'txt' as const,
   tool: createTool({
-    description: `Text file (.txt) tool for parsing and analyzing plain text files.
+    description: `Text file (.txt) tool for parsing, analyzing, and generating plain text files.
 
-USE THIS when a user uploads a .txt file and asks to analyze its content.
+OPERATIONS:
+1. **parse** - Parse and analyze an uploaded text file
+2. **generate** - Create a new text file from content
 
-**CRITICAL: You MUST provide the fileId parameter.**
-The fileId is provided in the context when users upload files (look for "fileId" in the attachment info).
-DO NOT use URL for uploaded files - use the fileId from the attachment context.
-
+**PARSE OPERATION**
+Use when a user uploads a .txt file and asks to analyze its content.
 Parameters:
+- operation: "parse"
 - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
 - filename: Original filename (e.g., "notes.txt")
-- user_input: The user's question or instruction (e.g., "Find all error messages", "Summarize this log")
+- user_input: The user's question or instruction
 
-The tool automatically:
-- Detects file encoding (UTF-8, UTF-16, GBK, etc.)
-- Handles large files by chunking and processing with fast model
-- Returns analyzed results based on the user's question
+**GENERATE OPERATION**
+Use when a user wants to create/export a text file.
+Parameters:
+- operation: "generate"
+- filename: Output filename (e.g., "output.txt")
+- content: The text content to write
 
 EXAMPLES:
-• Parse and analyze: { "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "error.log", "user_input": "Find all error messages" }
-• Extract info: { "fileId": "...", "filename": "data.txt", "user_input": "List all email addresses" }
+• Parse: { "operation": "parse", "fileId": "kg2...", "filename": "error.log", "user_input": "Find all errors" }
+• Generate: { "operation": "generate", "filename": "report.txt", "content": "Your report content here..." }
 
-Returns: { success, result, char_count, line_count, encoding, chunked }
+Returns: { success, url (for generate), result (for parse), char_count, line_count }
 `,
     args: txtArgs,
     handler: async (ctx: ToolCtx, args): Promise<TxtResult> => {
+      if (args.operation === 'generate') {
+        const { filename, content } = args;
+
+        debugLog('tool:txt generate start', {
+          filename,
+          contentLength: content.length,
+        });
+
+        try {
+          const blob = new Blob([content], { type: 'text/plain; charset=utf-8' });
+          const fileId = await ctx.storage.store(blob);
+          const url = await ctx.storage.getUrl(fileId);
+
+          if (!url) {
+            throw new Error('Storage URL unavailable for generated text file.');
+          }
+
+          const lineCount = content.split('\n').length;
+
+          debugLog('tool:txt generate success', {
+            filename,
+            fileId,
+            charCount: content.length,
+            lineCount,
+          });
+
+          return {
+            operation: 'generate',
+            success: true,
+            fileId,
+            url,
+            filename,
+            char_count: content.length,
+            line_count: lineCount,
+          };
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error('[tool:txt generate] error', {
+            filename,
+            error: errorMessage,
+          });
+
+          return {
+            operation: 'generate',
+            success: false,
+            fileId: '',
+            url: '',
+            filename,
+            char_count: 0,
+            line_count: 0,
+            error: errorMessage,
+          };
+        }
+      }
+
       const { fileId, filename, user_input } = args;
 
       if (!fileId) {

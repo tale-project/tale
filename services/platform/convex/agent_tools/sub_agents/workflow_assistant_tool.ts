@@ -100,7 +100,7 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
             threadId: subThreadId,
             userId,
             organizationId,
-            taskDescription: args.userRequest,
+            promptMessage: args.userRequest,
             additionalContext: buildAdditionalContext(
               args,
               WORKFLOW_CONTEXT_MAPPING,
@@ -117,7 +117,13 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
-          usage: result.usage,
+          usage: {
+            ...result.usage,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
+          },
           model: result.model,
           provider: result.provider,
         };

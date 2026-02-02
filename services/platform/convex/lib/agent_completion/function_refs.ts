@@ -38,7 +38,6 @@ export type SaveMessageMetadataRef = FunctionReference<
       totalTokens: number;
       messageCount: number;
       approvalCount: number;
-      hasSummary: boolean;
       hasRag: boolean;
       hasIntegrations: boolean;
     };

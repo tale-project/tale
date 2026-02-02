@@ -18,7 +18,6 @@ COPY services/rag/package.json ./services/rag/
 COPY services/graph-db/package.json ./services/graph-db/
 COPY services/db/package.json ./services/db/
 COPY services/proxy/package.json ./services/proxy/
-COPY services/search/package.json ./services/search/
 
 RUN npm ci --legacy-peer-deps
 

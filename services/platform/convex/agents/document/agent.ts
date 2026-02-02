@@ -42,7 +42,7 @@ Do NOT ask about:
 - pdf: Parse existing PDFs or generate new PDFs from Markdown/HTML
 - docx: Parse Word documents or generate DOCX from sections
 - pptx: Parse or generate PowerPoint presentations (template-based)
-- txt: Parse and analyze plain text files (.txt)
+- txt: Parse/analyze text files OR generate new .txt files from content
 - image: Analyze images or generate screenshots from HTML/URLs
 - generate_excel: Create Excel files from structured data
 - request_human_input: Ask user for clarification when needed
@@ -54,14 +54,21 @@ When parsing PDF, DOCX, PPTX files:
 3. Preserve document structure in your summary
 4. Note page/slide numbers for reference
 
-**TEXT FILE PARSING (txt)**
-When parsing .txt files:
-1. ALWAYS use the fileId parameter (not URL) for uploaded text files
+**TEXT FILE OPERATIONS (txt)**
+The txt tool supports two operations:
+
+PARSING .txt files:
+1. Use operation="parse" with fileId parameter for uploaded text files
 2. fileId looks like "kg2bazp7fbgt9srq63knfagjrd7yfenj" (from attachment context)
 3. Pass the user's question/request as the user_input parameter
-4. The txt tool will analyze the content and answer the user's question
-5. For large files, the tool automatically chunks and processes with AI
-6. Supports various encodings (UTF-8, UTF-16, GBK, etc.)
+4. For large files, the tool automatically chunks and processes with AI
+5. Supports various encodings (UTF-8, UTF-16, GBK, etc.)
+
+GENERATING .txt files:
+1. Use operation="generate" to create a new text file
+2. Provide filename (e.g., "report.txt") and content (the text to write)
+3. Returns a download URL for the generated file
+4. Example: { "operation": "generate", "filename": "notes.txt", "content": "Your text here..." }
 
 **PPTX GENERATION**
 When generating PowerPoint presentations:
@@ -97,6 +104,7 @@ When generating documents:
 - PDF: Use sourceType='markdown' for formatted reports
 - DOCX: Provide sections with text/items/tables
 - PPTX: Provide slidesContent with your content
+- TXT: Use operation='generate' with filename and content
 - Excel: Provide clear column headers and data structure
 - Images: Use for charts, diagrams, or webpage captures
 

@@ -179,7 +179,7 @@ export const submitHumanInputResponse = mutation({
       hooks,
       threadId,
       organizationId,
-      taskDescription: responseMessage,
+      promptMessage: responseMessage,
       streamId,
       promptMessageId,
       maxSteps: 500,

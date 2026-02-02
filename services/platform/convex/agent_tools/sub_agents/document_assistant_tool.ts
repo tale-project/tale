@@ -100,7 +100,7 @@ EXAMPLES:
             threadId: subThreadId,
             userId,
             organizationId,
-            taskDescription: args.userRequest,
+            promptMessage: args.userRequest,
             additionalContext: buildAdditionalContext(
               args,
               DOCUMENT_CONTEXT_MAPPING,
@@ -109,7 +109,18 @@ EXAMPLES:
           },
         );
 
-        return successResponse(result.text, result.usage, result.model, result.provider);
+        return successResponse(
+          result.text,
+          {
+            ...result.usage,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
+          },
+          result.model,
+          result.provider,
+        );
       } catch (error) {
         return handleToolError('document_assistant_tool', error);
       }

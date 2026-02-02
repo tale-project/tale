@@ -300,7 +300,7 @@ function AutomationAssistantContent({
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const { results: uiMessages } = useUIMessages(
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',

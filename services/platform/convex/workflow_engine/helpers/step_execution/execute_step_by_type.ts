@@ -57,7 +57,6 @@ export async function executeStepByType(
         stepDef: {
           stepSlug: stepDef.stepSlug,
           stepType: 'action' as const,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           config: stepDef.config as any,
         },
         variables,

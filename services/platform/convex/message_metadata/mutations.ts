@@ -38,6 +38,7 @@ export const saveMessageMetadata = mutation({
           inputTokens: v.optional(v.number()),
           outputTokens: v.optional(v.number()),
           totalTokens: v.optional(v.number()),
+          durationMs: v.optional(v.number()),
         }),
       ),
     ),
@@ -48,7 +49,7 @@ export const saveMessageMetadata = mutation({
         totalTokens: v.number(),
         messageCount: v.number(),
         approvalCount: v.number(),
-        hasSummary: v.boolean(),
+        hasSummary: v.optional(v.boolean()), // Deprecated, kept for backward compatibility
         hasRag: v.boolean(),
         hasIntegrations: v.boolean(),
       }),
