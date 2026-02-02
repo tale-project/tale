@@ -63,7 +63,7 @@ export function useStepValidation(
   }
 
   return {
-    isValid: validationResult?.valid ?? true,
+    isValid: isValidating ? false : (validationResult?.valid ?? false),
     errors: validationResult?.errors ?? [],
     warnings: validationResult?.warnings ?? [],
     isValidating,

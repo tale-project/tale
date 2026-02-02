@@ -2,11 +2,6 @@
 
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import {
-  Zap,
-  Cpu,
-  HelpCircle,
-  CheckCircle2,
-  Repeat,
   Sparkles,
   TestTubeDiagonal,
   Workflow,
@@ -14,23 +9,6 @@ import {
   Save,
   AlertCircle,
   AlertTriangle,
-  Users,
-  MessageSquare,
-  Package,
-  FileText,
-  Plug,
-  Variable,
-  Database,
-  Mail,
-  Send,
-  ClipboardList,
-  CheckCircle,
-  Mic,
-  Cloud,
-  Globe,
-  Layout,
-  GitBranch,
-  Settings,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -47,9 +25,9 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { useUpdateStep } from '../hooks/use-update-step';
 import { useStepValidation } from '../hooks/use-step-validation';
-import { useAuth } from '@/app/hooks/use-convex-auth';
 import { toast } from '@/app/hooks/use-toast';
 import { NextStepsEditor } from './next-steps-editor';
+import { getStepIcon } from '../utils/step-icons';
 
 interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;
@@ -66,65 +44,6 @@ interface AutomationSidePanelProps {
     actionType?: string;
   }>;
 }
-
-const getActionIcon = (actionType?: string) => {
-  switch (actionType) {
-    case 'customer':
-      return <Users className="size-4" />;
-    case 'conversation':
-      return <MessageSquare className="size-4" />;
-    case 'product':
-      return <Package className="size-4" />;
-    case 'document':
-      return <FileText className="size-4" />;
-    case 'integration':
-      return <Plug className="size-4" />;
-    case 'set_variables':
-      return <Variable className="size-4" />;
-    case 'rag':
-      return <Database className="size-4" />;
-    case 'imap':
-      return <Mail className="size-4" />;
-    case 'email_provider':
-      return <Send className="size-4" />;
-    case 'workflow_processing_records':
-      return <ClipboardList className="size-4" />;
-    case 'approval':
-      return <CheckCircle className="size-4" />;
-    case 'tone_of_voice':
-      return <Mic className="size-4" />;
-    case 'onedrive':
-      return <Cloud className="size-4" />;
-    case 'crawler':
-    case 'website':
-      return <Globe className="size-4" />;
-    case 'websitePages':
-      return <Layout className="size-4" />;
-    case 'workflow':
-      return <GitBranch className="size-4" />;
-    default:
-      return <Settings className="size-4" />;
-  }
-};
-
-const getStepIcon = (stepType: string, actionType?: string) => {
-  switch (stepType) {
-    case 'trigger':
-      return <Zap className="size-4" />;
-    case 'llm':
-      return <Cpu className="size-4" />;
-    case 'condition':
-      return <HelpCircle className="size-4" />;
-    case 'approval':
-      return <CheckCircle2 className="size-4" />;
-    case 'loop':
-      return <Repeat className="size-4" />;
-    case 'action':
-      return getActionIcon(actionType);
-    default:
-      return <div className="size-4 rounded-full bg-muted" />;
-  }
-};
 
 const getStepTypeColor = (stepType: string) => {
   switch (stepType) {
@@ -156,7 +75,6 @@ export function AutomationSidePanel({
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
-  const { user } = useAuth();
   const [width, setWidth] = useState(384); // 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
   const [canClearChat, setCanClearChat] = useState(false);
@@ -225,7 +143,7 @@ export function AutomationSidePanel({
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!step || !user || !parsedEditedConfig || !isValid) return;
+    if (!step || !parsedEditedConfig || !isValid) return;
 
     setIsSaving(true);
     try {
@@ -237,7 +155,6 @@ export function AutomationSidePanel({
         stepRecordId: step._id,
         updates,
         editMode: 'json',
-        changedBy: user.userId,
       });
       toast({
         title: t('sidePanel.stepSaved'),
@@ -254,7 +171,6 @@ export function AutomationSidePanel({
     }
   }, [
     step,
-    user,
     parsedEditedConfig,
     isValid,
     isNextStepsDirty,

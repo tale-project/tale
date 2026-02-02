@@ -131,11 +131,14 @@ export function validateWorkflowDefinition(
   }
 
   // Validate circular dependencies
+  const validStepsForCircularCheck = stepsConfig.filter(
+    (step): step is { stepSlug: string; nextSteps?: Record<string, string> } =>
+      step !== null &&
+      typeof step === 'object' &&
+      typeof (step as { stepSlug?: unknown }).stepSlug === 'string',
+  );
   const circularDepResult = validateCircularDependencies(
-    stepsConfig as Array<{
-      stepSlug: string;
-      nextSteps?: Record<string, string>;
-    }>,
+    validStepsForCircularCheck,
   );
   errors.push(...circularDepResult.errors);
   warnings.push(...circularDepResult.warnings);

@@ -10,6 +10,7 @@ import { updateStep as updateStepHelper } from '../workflows/steps/update_step';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { auditStepChange } from './audit';
+import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 
 export const updateStep = internalMutation({
   args: {
@@ -26,9 +27,10 @@ export const updateStepPublic = mutationWithRLS({
     stepRecordId: v.id('wfStepDefs'),
     updates: jsonRecordValidator,
     editMode: v.union(v.literal('visual'), v.literal('json'), v.literal('ai')),
-    changedBy: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const existing = await ctx.db.get(args.stepRecordId);
     if (!existing) {
       throw new Error('Step not found');
@@ -62,7 +64,7 @@ export const updateStepPublic = mutationWithRLS({
         stepId: args.stepRecordId,
         wfDefinitionId: existing.wfDefinitionId,
         organizationId: existing.organizationId,
-        changedBy: args.changedBy,
+        changedBy: user.userId,
         changeType: 'updated',
         editMode: args.editMode,
         before: beforeState,
@@ -90,9 +92,10 @@ export const createStepPublic = mutationWithRLS({
     config: stepConfigValidator,
     nextSteps: v.record(v.string(), v.string()),
     editMode: v.union(v.literal('visual'), v.literal('json'), v.literal('ai')),
-    changedBy: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const workflow = await ctx.db.get(args.wfDefinitionId);
     if (!workflow) {
       throw new Error('Workflow not found');
@@ -125,7 +128,7 @@ export const createStepPublic = mutationWithRLS({
         stepId,
         wfDefinitionId: args.wfDefinitionId,
         organizationId: workflow.organizationId,
-        changedBy: args.changedBy,
+        changedBy: user.userId,
         changeType: 'created',
         editMode: args.editMode,
         after: afterState,

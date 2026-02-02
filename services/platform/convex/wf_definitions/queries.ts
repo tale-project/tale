@@ -197,6 +197,6 @@ export const dryRunWorkflow = queryWithRLS({
       steps.push(step);
     }
 
-    return executeDryRun(workflow, steps, args.input || {});
+    return executeDryRun(workflow, steps, args.input ?? {});
   },
 });

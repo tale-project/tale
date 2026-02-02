@@ -1,35 +1,16 @@
 'use client';
 
 import { Position } from '@xyflow/react';
-import {
-  Cpu,
-  HelpCircle,
-  Zap,
-  Repeat,
-  Users,
-  MessageSquare,
-  Package,
-  FileText,
-  Plug,
-  Variable,
-  Database,
-  Mail,
-  Send,
-  ClipboardList,
-  CheckCircle,
-  Mic,
-  Cloud,
-  Globe,
-  Layout,
-  GitBranch,
-  Settings,
-} from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { useT } from '@/lib/i18n/client';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 import { InvisibleHandle } from './invisible-handle';
+import {
+  getStepIconComponent,
+  getActionIconComponent,
+} from '../utils/step-icons';
 
 interface AutomationStepProps {
   data: {
@@ -60,74 +41,34 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomTargetLeft = data.hasBidirectionalBottom ? '45%' : '50%';
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
-  const getActionIcon = (actionType?: string) => {
-    const iconClass =
-      'size-5 p-1 bg-orange-100 rounded-sm shrink-0 text-orange-600';
-    switch (actionType) {
-      case 'customer':
-        return <Users className={iconClass} />;
-      case 'conversation':
-        return <MessageSquare className={iconClass} />;
-      case 'product':
-        return <Package className={iconClass} />;
-      case 'document':
-        return <FileText className={iconClass} />;
-      case 'integration':
-        return <Plug className={iconClass} />;
-      case 'set_variables':
-        return <Variable className={iconClass} />;
-      case 'rag':
-        return <Database className={iconClass} />;
-      case 'imap':
-        return <Mail className={iconClass} />;
-      case 'email_provider':
-        return <Send className={iconClass} />;
-      case 'workflow_processing_records':
-        return <ClipboardList className={iconClass} />;
-      case 'approval':
-        return <CheckCircle className={iconClass} />;
-      case 'tone_of_voice':
-        return <Mic className={iconClass} />;
-      case 'onedrive':
-        return <Cloud className={iconClass} />;
-      case 'crawler':
-      case 'website':
-        return <Globe className={iconClass} />;
-      case 'websitePages':
-        return <Layout className={iconClass} />;
-      case 'workflow':
-        return <GitBranch className={iconClass} />;
-      default:
-        return <Settings className={iconClass} />;
-    }
+  const STEP_TYPE_STYLES: Record<string, string> = {
+    trigger: 'bg-blue-100 text-blue-600',
+    llm: 'bg-purple-100 text-purple-600',
+    condition: 'bg-amber-100 text-amber-600',
+    loop: 'bg-cyan-100 text-cyan-600',
+    action: 'bg-orange-100 text-orange-600',
   };
 
-  const getIcon = (stepType: string, actionType?: string) => {
-    switch (stepType) {
-      case 'trigger':
-        return (
-          <Zap className="size-5 p-1 bg-blue-100 rounded-sm shrink-0 text-blue-600" />
-        );
-      case 'llm':
-        return (
-          <Cpu className="size-5 p-1 bg-purple-100 rounded-sm shrink-0 text-purple-600" />
-        );
-      case 'condition':
-        return (
-          <HelpCircle className="size-5 p-1 bg-amber-100 rounded-sm shrink-0 text-amber-600" />
-        );
-      case 'loop':
-        return (
-          <Repeat className="size-5 p-1 bg-cyan-100 rounded-sm shrink-0 text-cyan-600" />
-        );
-      case 'action':
-        return getActionIcon(actionType);
-      default:
-        return <div className="size-5 rounded-full bg-muted" />;
+  const getIcon = (
+    stepType: Doc<'wfStepDefs'>['stepType'],
+    actionType?: string,
+  ) => {
+    const baseClass = 'size-5 p-1 rounded-sm shrink-0';
+    const styleClass = STEP_TYPE_STYLES[stepType] || 'bg-muted';
+
+    if (stepType === 'action') {
+      const IconComponent = getActionIconComponent(actionType);
+      return <IconComponent className={cn(baseClass, styleClass)} />;
     }
+
+    const IconComponent = getStepIconComponent(stepType, actionType);
+    if (!IconComponent) {
+      return <div className="size-5 rounded-full bg-muted" />;
+    }
+    return <IconComponent className={cn(baseClass, styleClass)} />;
   };
 
-  const getStepTypeLabel = (stepType: string) => {
+  const getStepTypeLabel = (stepType: Doc<'wfStepDefs'>['stepType']) => {
     const labels: Record<string, string> = {
       trigger: t('stepTypes.trigger'),
       llm: t('stepTypes.llm'),

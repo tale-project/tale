@@ -1,0 +1,98 @@
+/**
+ * Shared step icon utilities for automation components
+ */
+
+import {
+  Zap,
+  Cpu,
+  HelpCircle,
+  Repeat,
+  Users,
+  MessageSquare,
+  Package,
+  FileText,
+  Plug,
+  Variable,
+  Database,
+  Mail,
+  Send,
+  ClipboardList,
+  CheckCircle,
+  Mic,
+  Cloud,
+  Globe,
+  Layout,
+  GitBranch,
+  Settings,
+} from 'lucide-react';
+import type { Doc } from '@/convex/_generated/dataModel';
+import type { LucideIcon } from 'lucide-react';
+
+export const ACTION_ICON_MAP: Record<string, LucideIcon> = {
+  customer: Users,
+  conversation: MessageSquare,
+  product: Package,
+  document: FileText,
+  integration: Plug,
+  set_variables: Variable,
+  rag: Database,
+  imap: Mail,
+  email_provider: Send,
+  workflow_processing_records: ClipboardList,
+  approval: CheckCircle,
+  tone_of_voice: Mic,
+  onedrive: Cloud,
+  crawler: Globe,
+  website: Globe,
+  websitePages: Layout,
+  workflow: GitBranch,
+};
+
+export const STEP_TYPE_ICON_MAP: Record<string, LucideIcon> = {
+  trigger: Zap,
+  llm: Cpu,
+  condition: HelpCircle,
+  loop: Repeat,
+};
+
+export const DEFAULT_ACTION_ICON = Settings;
+
+export function getActionIconComponent(actionType?: string): LucideIcon {
+  return ACTION_ICON_MAP[actionType || ''] || DEFAULT_ACTION_ICON;
+}
+
+export function getStepIconComponent(
+  stepType?: Doc<'wfStepDefs'>['stepType'],
+  actionType?: string,
+): LucideIcon | null {
+  if (stepType === 'action') {
+    return getActionIconComponent(actionType);
+  }
+  return STEP_TYPE_ICON_MAP[stepType || ''] || null;
+}
+
+export function getActionIcon(
+  actionType?: string,
+  iconClass = 'size-4 shrink-0',
+) {
+  const IconComponent = getActionIconComponent(actionType);
+  return <IconComponent className={iconClass} />;
+}
+
+export function getStepIcon(
+  stepType?: Doc<'wfStepDefs'>['stepType'],
+  actionType?: string,
+  iconClass = 'size-4 shrink-0',
+) {
+  if (stepType === 'action') {
+    return getActionIcon(actionType, iconClass);
+  }
+
+  const IconComponent = STEP_TYPE_ICON_MAP[stepType || ''];
+
+  if (IconComponent) {
+    return <IconComponent className={iconClass} />;
+  }
+
+  return null;
+}

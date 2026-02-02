@@ -1033,7 +1033,6 @@ function AutomationStepsInner({
         config: data.config,
         nextSteps,
         editMode: 'visual',
-        changedBy: user.userId,
       });
 
       toast({
