@@ -43,9 +43,14 @@ export function useDocumentUpload(options: UploadOptions) {
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const generateUploadUrl = useMutation(api.file.mutations.generateUploadUrl);
-  const createDocumentFromUpload = useMutation(api.documents.mutations.createDocumentFromUpload);
+  const createDocumentFromUpload = useMutation(
+    api.documents.mutations.createDocumentFromUpload,
+  );
 
-  const uploadFiles = async (files: File[], uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
+  const uploadFiles = async (
+    files: File[],
+    uploadOptions?: UploadFilesOptions,
+  ): Promise<UploadResult> => {
     if (isUploading) {
       toast({
         title: t('upload.uploadInProgress'),
@@ -70,7 +75,11 @@ export function useDocumentUpload(options: UploadOptions) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
         const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        const error = t('upload.fileSizeExceeded', { name: file.name, maxSize: maxSizeMB, currentSize: fileSizeMB });
+        const error = t('upload.fileSizeExceeded', {
+          name: file.name,
+          maxSize: maxSizeMB,
+          currentSize: fileSizeMB,
+        });
         toast({
           title: t('upload.fileTooLarge'),
           description: error,
@@ -111,7 +120,9 @@ export function useDocumentUpload(options: UploadOptions) {
           throw new Error(`Upload failed: ${uploadResponse.statusText}`);
         }
 
-        const { storageId } = await uploadResponse.json() as { storageId: string };
+        const { storageId } = (await uploadResponse.json()) as {
+          storageId: string;
+        };
 
         // Step 3: Create document record in database
         const result = await createDocumentFromUpload({
@@ -130,10 +141,14 @@ export function useDocumentUpload(options: UploadOptions) {
         return result;
       });
 
-      const results = await Promise.all(uploadPromises) as CreateDocumentResult[];
+      const results = (await Promise.all(
+        uploadPromises,
+      )) as CreateDocumentResult[];
 
       // Check if all uploads were successful
-      const failedUploads = results.filter((result: CreateDocumentResult) => !result.success);
+      const failedUploads = results.filter(
+        (result: CreateDocumentResult) => !result.success,
+      );
       if (failedUploads.length > 0) {
         throw new Error(failedUploads[0].error || t('upload.uploadFailed'));
       }
@@ -141,7 +156,9 @@ export function useDocumentUpload(options: UploadOptions) {
       // Show success toast
       toast({
         title: t('upload.uploadSuccessful'),
-        description: t('upload.filesUploadedSuccessfully', { count: files.length }),
+        description: t('upload.filesUploadedSuccessfully', {
+          count: files.length,
+        }),
         variant: 'success',
       });
 
@@ -165,33 +182,27 @@ export function useDocumentUpload(options: UploadOptions) {
         },
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : t('upload.uploadFailed');
+      console.error('Failed to upload document:', error);
 
       // Check if the error is due to cancellation
       const isCancellationError =
         (error instanceof Error && error.name === 'AbortError') ||
-        (error instanceof DOMException && error.name === 'AbortError') ||
-        // Fallback for non-standard environments
-        errorMessage.includes('cancelled') ||
-        errorMessage.includes('aborted');
+        (error instanceof DOMException && error.name === 'AbortError');
 
       if (isCancellationError) {
-        // Don't show error toast for user-initiated cancellations
         return {
           success: false,
           error: t('upload.uploadCancelled'),
         };
       }
 
-      // Show error toast for actual failures
+      const errorMessage = t('upload.uploadFailed');
+
       toast({
-        title: t('upload.uploadFailed'),
-        description: errorMessage,
+        title: errorMessage,
         variant: 'destructive',
       });
 
-      // Call error callback
       options.onError?.(errorMessage);
 
       return {
@@ -204,11 +215,17 @@ export function useDocumentUpload(options: UploadOptions) {
     }
   };
 
-  const uploadFile = async (file: File, uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
+  const uploadFile = async (
+    file: File,
+    uploadOptions?: UploadFilesOptions,
+  ): Promise<UploadResult> => {
     return uploadFiles([file], uploadOptions);
   };
 
-  const uploadMultipleFiles = async (files: File[], uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
+  const uploadMultipleFiles = async (
+    files: File[],
+    uploadOptions?: UploadFilesOptions,
+  ): Promise<UploadResult> => {
     return uploadFiles(files, uploadOptions);
   };
 

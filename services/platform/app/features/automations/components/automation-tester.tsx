@@ -2,18 +2,47 @@
 
 import { useState } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { useStartWorkflow } from '../hooks/use-start-workflow';
 import { Button } from '@/app/components/ui/primitives/button';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { Stack, VStack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
-import { TestTubeDiagonal, Loader2 } from 'lucide-react';
+import {
+  Search,
+  Play,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+} from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
 interface AutomationTesterProps {
   organizationId: string;
   automationId: Id<'wfDefinitions'>;
   onTestComplete?: () => void;
+}
+
+interface DryRunStepResult {
+  stepSlug: string;
+  stepType: string;
+  name: string;
+  mocked: boolean;
+  wouldExecute: boolean;
+  simulatedOutput: unknown;
+  nextStep: string | null;
+  branch?: string;
+}
+
+interface DryRunResult {
+  success: boolean;
+  executionPath: string[];
+  stepResults: DryRunStepResult[];
+  errors: string[];
+  warnings: string[];
 }
 
 export function AutomationTester({
@@ -24,14 +53,49 @@ export function AutomationTester({
   const { t } = useT('automations');
   const [testInput, setTestInput] = useState('{}');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isDryRunning, setIsDryRunning] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<DryRunResult | null>(null);
 
   const startWorkflow = useStartWorkflow();
 
-  const handleTest = async () => {
+  const parsedInput = (() => {
+    try {
+      return JSON.parse(testInput);
+    } catch {
+      return null;
+    }
+  })();
+
+  const dryRunQuery = useQuery(
+    api.wf_definitions.queries.dryRunWorkflow,
+    isDryRunning && parsedInput
+      ? { wfDefinitionId: automationId, input: parsedInput }
+      : 'skip',
+  );
+
+  const handleDryRun = async () => {
+    if (!parsedInput) {
+      toast({
+        title: t('tester.toast.invalidJson'),
+        description: t('tester.toast.invalidJsonDescription'),
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsDryRunning(true);
+    setDryRunResult(null);
+  };
+
+  if (isDryRunning && dryRunQuery && !dryRunResult) {
+    setDryRunResult(dryRunQuery);
+    setIsDryRunning(false);
+  }
+
+  const handleExecute = async () => {
     try {
       setIsExecuting(true);
 
-      // Validate JSON
       let input = {};
       try {
         input = JSON.parse(testInput);
@@ -45,7 +109,6 @@ export function AutomationTester({
         return;
       }
 
-      // Start test execution using startWorkflow (bypasses trigger type validation)
       const executionId = await startWorkflow({
         organizationId,
         wfDefinitionId: automationId,
@@ -63,10 +126,8 @@ export function AutomationTester({
         description: t('tester.toast.executionId', { id: executionId }),
       });
 
-      // Reset test input
       setTestInput('{}');
-
-      // Call completion callback
+      setDryRunResult(null);
       onTestComplete?.();
     } catch (error) {
       console.error('Test execution failed:', error);
@@ -83,18 +144,112 @@ export function AutomationTester({
     }
   };
 
+  const getStepTypeColor = (stepType: string) => {
+    switch (stepType) {
+      case 'trigger':
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
+      case 'llm':
+        return 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300';
+      case 'condition':
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300';
+      case 'loop':
+        return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300';
+      case 'action':
+        return 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300';
+      default:
+        return 'bg-muted text-muted-foreground';
+    }
+  };
+
   return (
     <VStack justify="between" className="flex-1 overflow-hidden">
       <Stack gap={3} className="flex-1 overflow-y-auto p-3">
         <JsonInput
           className="px-2"
           value={testInput}
-          onChange={setTestInput}
+          onChange={(value) => {
+            setTestInput(value);
+            setDryRunResult(null);
+          }}
           label={t('tester.inputLabel')}
           description={t('tester.inputDescription')}
-          disabled={isExecuting}
-          rows={10}
+          disabled={isExecuting || isDryRunning}
+          rows={8}
         />
+
+        {dryRunResult && (
+          <div
+            className={cn(
+              'rounded-lg border p-3',
+              dryRunResult.success
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                : 'bg-destructive/10 border-destructive/50',
+            )}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              {dryRunResult.success ? (
+                <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <AlertCircle className="size-4 text-destructive" />
+              )}
+              <span className="text-sm font-medium">
+                {dryRunResult.success
+                  ? t('tester.dryRun.success')
+                  : t('tester.dryRun.failed')}
+              </span>
+            </div>
+
+            {dryRunResult.errors.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs font-medium text-destructive mb-1">
+                  {t('tester.dryRun.errors')}:
+                </p>
+                <ul className="text-xs text-destructive space-y-0.5">
+                  {dryRunResult.errors.map((err, i) => (
+                    <li key={i}>• {err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {dryRunResult.warnings.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-1">
+                  {t('tester.dryRun.warnings')}:
+                </p>
+                <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
+                  {dryRunResult.warnings.map((warn, i) => (
+                    <li key={i}>• {warn}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-medium text-foreground mb-2">
+                {t('tester.dryRun.executionPath')}:
+              </p>
+              <div className="flex flex-wrap items-center gap-1">
+                {dryRunResult.stepResults.map((step, i) => (
+                  <div key={step.stepSlug} className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        'text-xs px-2 py-0.5 rounded',
+                        getStepTypeColor(step.stepType),
+                      )}
+                    >
+                      {step.name}
+                    </span>
+                    {i < dryRunResult.stepResults.length - 1 && (
+                      <ArrowRight className="size-3 text-muted-foreground" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
           <p className="text-xs text-blue-900 dark:text-blue-100">
             {t('tester.tip')}
@@ -102,17 +257,39 @@ export function AutomationTester({
         </div>
       </Stack>
 
-      <div className="p-3 border-t border-border">
-        <Button onClick={handleTest} disabled={isExecuting} fullWidth>
-          {isExecuting ? (
+      <div className="p-3 border-t border-border flex gap-2">
+        <Button
+          variant="outline"
+          onClick={handleDryRun}
+          disabled={isExecuting || isDryRunning}
+          className="flex-1"
+        >
+          {isDryRunning ? (
             <>
               <Loader2 className="size-4 mr-2 animate-spin" />
-              {t('tester.runningTest')}
+              {t('tester.dryRunning')}
             </>
           ) : (
             <>
-              <TestTubeDiagonal className="size-4 mr-2" />
-              {t('tester.runTest')}
+              <Search className="size-4 mr-2" />
+              {t('tester.dryRun.button')}
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={handleExecute}
+          disabled={isExecuting || isDryRunning}
+          className="flex-1"
+        >
+          {isExecuting ? (
+            <>
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              {t('tester.executing')}
+            </>
+          ) : (
+            <>
+              <Play className="size-4 mr-2" />
+              {t('tester.execute')}
             </>
           )}
         </Button>

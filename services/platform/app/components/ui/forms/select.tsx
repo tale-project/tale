@@ -41,6 +41,7 @@ const selectViewportVariants = cva('p-1', {
 interface SelectOption {
   value: string;
   label: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -133,7 +134,14 @@ export const Select = forwardRef<
                     </SelectPrimitive.ItemIndicator>
                   </span>
                   <SelectPrimitive.ItemText>
-                    {option.label}
+                    {option.icon ? (
+                      <span className="flex items-center gap-2">
+                        {option.icon}
+                        {option.label}
+                      </span>
+                    ) : (
+                      option.label
+                    )}
                   </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
               ))}

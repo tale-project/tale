@@ -167,6 +167,9 @@ export function ChatHistorySidebar({
       )}
       {...restProps}
     >
+      <h2 className="text-sm font-medium text-muted-foreground px-2">
+        {t('chatHistory')}
+      </h2>
       <Stack gap={1}>
         {!isMounted || !chats ? (
           <div className="text-sm text-muted-foreground text-nowrap px-2">

@@ -13,19 +13,14 @@ import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
 import { messageMetadataTable } from './streaming/schema';
-import {
-  toneOfVoiceTable,
-  exampleMessagesTable,
-} from './tone_of_voice/schema';
+import { toneOfVoiceTable, exampleMessagesTable } from './tone_of_voice/schema';
 import { vendorsTable } from './vendors/schema';
-import {
-  websitesTable,
-  websitePagesTable,
-} from './websites/schema';
+import { websitesTable, websitePagesTable } from './websites/schema';
 import {
   wfDefinitionsTable,
-  wfStepDefsTable,
   wfExecutionsTable,
+  wfStepAuditLogsTable,
+  wfStepDefsTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
 
@@ -48,6 +43,7 @@ export default defineSchema({
   websites: websitesTable,
   wfDefinitions: wfDefinitionsTable,
   wfExecutions: wfExecutionsTable,
+  wfStepAuditLogs: wfStepAuditLogsTable,
   wfStepDefs: wfStepDefsTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,
 });

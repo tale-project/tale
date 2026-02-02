@@ -20,6 +20,7 @@ import {
   SheetTitle,
 } from '@/app/components/ui/overlays/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 
@@ -61,7 +62,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
   }, []);
 
   const handleToggleHistory = useCallback(() => {
-    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
     if (isMobile) {
       setIsMobileHistoryOpen((prev) => !prev);
     } else {
@@ -106,7 +107,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
   return (
     <>
       <Sheet open={isMobileHistoryOpen} onOpenChange={setIsMobileHistoryOpen}>
-        <SheetContent side="left" hideClose className="w-[18rem] p-0 sm:hidden">
+        <SheetContent side="left" hideClose className="w-[18rem] p-0 md:hidden">
           <VisuallyHidden>
             <SheetTitle>{tChat('chatHistory')}</SheetTitle>
           </VisuallyHidden>
@@ -117,7 +118,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="hidden sm:flex items-start h-full w-fit absolute left-0 top-0 z-10">
+      <div className="hidden md:flex items-start h-full w-fit absolute left-0 top-0 z-10">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: isHistoryOpen ? '18rem' : 0 }}
@@ -202,6 +203,35 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
           </TooltipProvider>
         </motion.div>
       </div>
+
+      <AdaptiveHeaderRoot className="md:hidden">
+        <div className="flex flex-1 justify-end">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleToggleHistory}
+            aria-label={tChat('chatHistory')}
+          >
+            <Clock className={baseIconClasses} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleToggleSearch}
+            aria-label={tChat('searchChat')}
+          >
+            <Search className={baseIconClasses} />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleNewChat}
+            aria-label={tChat('newChat')}
+          >
+            <Plus className={baseIconClasses} />
+          </Button>
+        </div>
+      </AdaptiveHeaderRoot>
 
       <ChatSearchDialog
         isOpen={isSearchOpen}

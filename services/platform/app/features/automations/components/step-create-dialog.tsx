@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import { JsonInput } from '@/app/components/ui/forms/json-input';
 import { toast } from '@/app/hooks/use-toast';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { NextStepsEditor } from './next-steps-editor';
 
 interface CreateStepDialogProps {
   open: boolean;
@@ -22,13 +23,18 @@ interface CreateStepDialogProps {
     config: Doc<'wfStepDefs'>['config'];
     nextSteps?: Doc<'wfStepDefs'>['nextSteps'];
   }) => Promise<void>;
+  stepOptions?: Array<{
+    stepSlug: string;
+    name: string;
+    stepType?: Doc<'wfStepDefs'>['stepType'];
+    actionType?: string;
+  }>;
 }
 
 type FormData = {
   name: string;
   stepType: Doc<'wfStepDefs'>['stepType'];
   config: string;
-  nextSteps: string;
 };
 
 const getDefaultTemplates = (
@@ -71,8 +77,12 @@ const getDefaultTemplates = (
     case 'action':
     default: {
       const cfg = {
-        type: 'log',
-        parameters: { message: 'Hello from action step' },
+        type: 'set_variables',
+        parameters: {
+          variables: {
+            example_variable: 'example_value',
+          },
+        },
       };
       return {
         config: JSON.stringify(cfg, null, 2),
@@ -85,9 +95,11 @@ export function CreateStepDialog({
   open,
   onOpenChange,
   onCreateStep,
+  stepOptions = [],
 }: CreateStepDialogProps) {
   const { t } = useT('automations');
   const initialDefaults = getDefaultTemplates('action');
+  const [nextSteps, setNextSteps] = useState<Record<string, string>>({});
 
   const formSchema = useMemo(
     () =>
@@ -95,10 +107,12 @@ export function CreateStepDialog({
         name: z
           .string()
           .min(1, t('createStep.validation.nameRequired'))
-          .regex(/^[a-zA-Z_][a-zA-Z0-9_-]*$/, t('createStep.validation.nameFormat')),
+          .regex(
+            /^[a-zA-Z_][a-zA-Z0-9_-]*$/,
+            t('createStep.validation.nameFormat'),
+          ),
         stepType: z.enum(['trigger', 'llm', 'condition', 'action', 'loop']),
         config: z.string(),
-        nextSteps: z.string(),
       }),
     [t],
   );
@@ -116,13 +130,11 @@ export function CreateStepDialog({
       name: '',
       stepType: 'action',
       config: initialDefaults.config,
-      nextSteps: '{}',
     },
   });
 
   const stepType = watch('stepType');
   const config = watch('config');
-  const nextSteps = watch('nextSteps');
 
   // Update config template when step type changes
   useEffect(() => {
@@ -131,25 +143,11 @@ export function CreateStepDialog({
   }, [stepType, setValue]);
 
   const onSubmit = async (data: FormData) => {
-    // Parse JSON fields
     let parsedConfig: Doc<'wfStepDefs'>['config'] = {};
-    let parsedNextSteps: Doc<'wfStepDefs'>['nextSteps'] = {};
 
     if (data.config.trim()) {
       try {
         parsedConfig = JSON.parse(data.config);
-      } catch {
-        toast({
-          title: t('configuration.validation.invalidJson'),
-          variant: 'destructive',
-        });
-        return;
-      }
-    }
-
-    if (data.nextSteps.trim()) {
-      try {
-        parsedNextSteps = JSON.parse(data.nextSteps);
       } catch {
         toast({
           title: t('configuration.validation.invalidJson'),
@@ -164,7 +162,7 @@ export function CreateStepDialog({
         name: data.name.trim(),
         stepType: data.stepType,
         config: parsedConfig,
-        nextSteps: parsedNextSteps,
+        nextSteps,
       });
 
       // Reset form
@@ -173,8 +171,8 @@ export function CreateStepDialog({
         name: '',
         stepType: 'action',
         config: defaults.config,
-        nextSteps: '{}',
       });
+      setNextSteps({});
 
       onOpenChange(false);
     } catch (error) {
@@ -191,8 +189,8 @@ export function CreateStepDialog({
         name: '',
         stepType: 'action',
         config: defaults.config,
-        nextSteps: '{}',
       });
+      setNextSteps({});
     }
   };
 
@@ -244,18 +242,14 @@ export function CreateStepDialog({
           placeholder='{"key":"value"}'
           rows={4}
           disabled={isSubmitting}
-          description={t('createStep.configDescription')}
         />
 
-        <JsonInput
-          id="step-next"
-          label={t('createStep.nextStepsLabel')}
+        <NextStepsEditor
+          stepType={stepType}
           value={nextSteps}
-          onChange={(value) => setValue('nextSteps', value)}
-          placeholder='{"onSuccess":"step-2","onFailure":"step-x"}'
-          rows={3}
+          onChange={setNextSteps}
+          stepOptions={stepOptions}
           disabled={isSubmitting}
-          description={t('createStep.nextStepsDescription')}
         />
       </Stack>
     </FormDialog>

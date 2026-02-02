@@ -1,14 +1,16 @@
 'use client';
 
 import { Position } from '@xyflow/react';
-import { Cpu, HelpCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
-import { PickaxeIcon, Repeat } from 'lucide-react';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { useT } from '@/lib/i18n/client';
 import { useAutomationCallbacks } from './automation-callbacks-context';
 import { InvisibleHandle } from './invisible-handle';
+import {
+  getStepIconComponent,
+  getActionIconComponent,
+} from '../utils/step-icons';
 
 interface AutomationStepProps {
   data: {
@@ -16,6 +18,7 @@ interface AutomationStepProps {
     description?: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     stepSlug: string;
+    actionType?: string;
     isLeafNode?: boolean;
     isTerminalNode?: boolean;
     hasNextSteps?: boolean;
@@ -38,35 +41,34 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomTargetLeft = data.hasBidirectionalBottom ? '45%' : '50%';
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
-  const getIcon = (stepType: string) => {
-    switch (stepType) {
-      case 'trigger':
-        return (
-          <Zap className="size-5 p-1 bg-blue-100 rounded-sm shrink-0 text-blue-600" />
-        );
-      case 'llm':
-        return (
-          <Cpu className="size-5 p-1 bg-purple-100 rounded-sm shrink-0 text-purple-600" />
-        );
-      case 'condition':
-        return (
-          <HelpCircle className="size-5 p-1 bg-amber-100 rounded-sm shrink-0 text-amber-600" />
-        );
-
-      case 'loop':
-        return (
-          <Repeat className="size-5 p-1 bg-cyan-100 rounded-sm shrink-0 text-cyan-600" />
-        );
-      case 'action':
-        return (
-          <PickaxeIcon className="size-5 p-1 bg-orange-100 rounded-sm shrink-0 text-orange-600" />
-        );
-      default:
-        return <div className="size-5 rounded-full bg-muted" />;
-    }
+  const STEP_TYPE_STYLES: Record<string, string> = {
+    trigger: 'bg-blue-100 text-blue-600',
+    llm: 'bg-purple-100 text-purple-600',
+    condition: 'bg-amber-100 text-amber-600',
+    loop: 'bg-cyan-100 text-cyan-600',
+    action: 'bg-orange-100 text-orange-600',
   };
 
-  const getStepTypeLabel = (stepType: string) => {
+  const getIcon = (
+    stepType: Doc<'wfStepDefs'>['stepType'],
+    actionType?: string,
+  ) => {
+    const baseClass = 'size-5 p-1 rounded-sm shrink-0';
+    const styleClass = STEP_TYPE_STYLES[stepType] || 'bg-muted';
+
+    if (stepType === 'action') {
+      const IconComponent = getActionIconComponent(actionType);
+      return <IconComponent className={cn(baseClass, styleClass)} />;
+    }
+
+    const IconComponent = getStepIconComponent(stepType, actionType);
+    if (!IconComponent) {
+      return <div className="size-5 rounded-full bg-muted" />;
+    }
+    return <IconComponent className={cn(baseClass, styleClass)} />;
+  };
+
+  const getStepTypeLabel = (stepType: Doc<'wfStepDefs'>['stepType']) => {
     const labels: Record<string, string> = {
       trigger: t('stepTypes.trigger'),
       llm: t('stepTypes.llm'),
@@ -95,7 +97,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
     >
       <div className="py-2 px-2.5 flex gap-3">
         {/* Icon on left */}
-        {getIcon(data.stepType)}
+        {getIcon(data.stepType, data.actionType)}
 
         {/* Content in center */}
         <div className="flex-1 min-w-0">

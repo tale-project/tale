@@ -8,7 +8,11 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Button } from '@/app/components/ui/primitives/button';
 import { JsonInput } from '@/app/components/ui/forms/json-input';
-import { Stack, Grid, NarrowContainer } from '@/app/components/ui/layout/layout';
+import {
+  Stack,
+  Grid,
+  NarrowContainer,
+} from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/app/hooks/use-convex-auth';
@@ -139,8 +143,7 @@ function ConfigurationPage() {
     } catch (error) {
       console.error('Failed to save configuration:', error);
       toast({
-        title:
-          error instanceof Error ? error.message : tToast('error.saveFailed'),
+        title: tToast('error.saveFailed'),
         variant: 'destructive',
       });
     } finally {

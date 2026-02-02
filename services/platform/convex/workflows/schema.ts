@@ -98,6 +98,26 @@ export const wfStepDefsTable = defineTable({
     'order',
   ]);
 
+export const wfStepAuditLogsTable = defineTable({
+  stepId: v.id('wfStepDefs'),
+  wfDefinitionId: v.id('wfDefinitions'),
+  organizationId: v.string(),
+  changedBy: v.string(),
+  changedAt: v.number(),
+  changeType: v.union(
+    v.literal('created'),
+    v.literal('updated'),
+    v.literal('deleted'),
+  ),
+  editMode: v.union(v.literal('visual'), v.literal('json'), v.literal('ai')),
+  before: v.optional(jsonRecordValidator),
+  after: v.optional(jsonRecordValidator),
+})
+  .index('by_step', ['stepId'])
+  .index('by_workflow', ['wfDefinitionId'])
+  .index('by_org', ['organizationId'])
+  .index('by_org_changedAt', ['organizationId', 'changedAt']);
+
 export const wfExecutionsTable = defineTable({
   organizationId: v.string(),
   wfDefinitionId: v.union(v.id('wfDefinitions'), v.string(), v.null()),
@@ -138,9 +158,7 @@ export const workflowProcessingRecordsTable = defineTable({
   wfDefinitionId: v.string(),
   recordCreationTime: v.number(),
   processedAt: v.number(),
-  status: v.optional(
-    v.union(v.literal('in_progress'), v.literal('completed')),
-  ),
+  status: v.optional(v.union(v.literal('in_progress'), v.literal('completed'))),
   metadata: v.optional(jsonRecordValidator),
 })
   .index('by_org_table_wfDefinition', [
