@@ -15,6 +15,7 @@ import type { WorkflowValidationResult } from './types';
 import { validateStepConfig } from './validate_step_config';
 import { validateWorkflowSteps } from './validate_workflow_steps';
 import { validateWorkflowVariableReferences } from './variables';
+import { validateCircularDependencies } from './circular_dependency_validator';
 
 // Re-export types for backward compatibility
 export type { WorkflowValidationResult } from './types';
@@ -108,7 +109,7 @@ export function validateWorkflowDefinition(
       const actionType = config.type as string;
       if (isValidStepType(actionType)) {
         warnings.push(
-          `${stepPrefix} Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`
+          `${stepPrefix} Action type "${actionType}" matches a stepType name. Did you mean stepType: "${actionType}"?`,
         );
       }
     }
@@ -129,6 +130,16 @@ export function validateWorkflowDefinition(
     );
   }
 
+  // Validate circular dependencies
+  const circularDepResult = validateCircularDependencies(
+    stepsConfig as Array<{
+      stepSlug: string;
+      nextSteps?: Record<string, string>;
+    }>,
+  );
+  errors.push(...circularDepResult.errors);
+  warnings.push(...circularDepResult.warnings);
+
   // Check for trigger step
   const hasTrigger = stepsConfig.some((step) => step.stepType === 'trigger');
   if (!hasTrigger) {
@@ -144,4 +155,3 @@ export function validateWorkflowDefinition(
 
   return { valid: errors.length === 0, errors, warnings };
 }
-
