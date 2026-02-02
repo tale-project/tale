@@ -149,7 +149,7 @@
     "bcryptjs": "3.0.3",
     "convex-test": "0.0.40",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "jsdom": "27.4.0",
+    "jsdom": "28.0.0",
     "pdfjs-dist": "5.4.624",
     "postcss-load-config": "6.0.1",
     "storybook": "8.6.15",
