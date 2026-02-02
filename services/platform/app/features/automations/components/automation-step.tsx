@@ -1,10 +1,31 @@
 'use client';
 
 import { Position } from '@xyflow/react';
-import { Cpu, HelpCircle, Zap } from 'lucide-react';
+import {
+  Cpu,
+  HelpCircle,
+  Zap,
+  Repeat,
+  Users,
+  MessageSquare,
+  Package,
+  FileText,
+  Plug,
+  Variable,
+  Database,
+  Mail,
+  Send,
+  ClipboardList,
+  CheckCircle,
+  Mic,
+  Cloud,
+  Globe,
+  Layout,
+  GitBranch,
+  Settings,
+} from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { Doc } from '@/convex/_generated/dataModel';
-import { PickaxeIcon, Repeat } from 'lucide-react';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { useT } from '@/lib/i18n/client';
 import { useAutomationCallbacks } from './automation-callbacks-context';
@@ -16,6 +37,7 @@ interface AutomationStepProps {
     description?: string;
     stepType: Doc<'wfStepDefs'>['stepType'];
     stepSlug: string;
+    actionType?: string;
     isLeafNode?: boolean;
     isTerminalNode?: boolean;
     hasNextSteps?: boolean;
@@ -38,7 +60,49 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomTargetLeft = data.hasBidirectionalBottom ? '45%' : '50%';
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
-  const getIcon = (stepType: string) => {
+  const getActionIcon = (actionType?: string) => {
+    const iconClass =
+      'size-5 p-1 bg-orange-100 rounded-sm shrink-0 text-orange-600';
+    switch (actionType) {
+      case 'customer':
+        return <Users className={iconClass} />;
+      case 'conversation':
+        return <MessageSquare className={iconClass} />;
+      case 'product':
+        return <Package className={iconClass} />;
+      case 'document':
+        return <FileText className={iconClass} />;
+      case 'integration':
+        return <Plug className={iconClass} />;
+      case 'set_variables':
+        return <Variable className={iconClass} />;
+      case 'rag':
+        return <Database className={iconClass} />;
+      case 'imap':
+        return <Mail className={iconClass} />;
+      case 'email_provider':
+        return <Send className={iconClass} />;
+      case 'workflow_processing_records':
+        return <ClipboardList className={iconClass} />;
+      case 'approval':
+        return <CheckCircle className={iconClass} />;
+      case 'tone_of_voice':
+        return <Mic className={iconClass} />;
+      case 'onedrive':
+        return <Cloud className={iconClass} />;
+      case 'crawler':
+      case 'website':
+        return <Globe className={iconClass} />;
+      case 'websitePages':
+        return <Layout className={iconClass} />;
+      case 'workflow':
+        return <GitBranch className={iconClass} />;
+      default:
+        return <Settings className={iconClass} />;
+    }
+  };
+
+  const getIcon = (stepType: string, actionType?: string) => {
     switch (stepType) {
       case 'trigger':
         return (
@@ -52,15 +116,12 @@ export function AutomationStep({ data }: AutomationStepProps) {
         return (
           <HelpCircle className="size-5 p-1 bg-amber-100 rounded-sm shrink-0 text-amber-600" />
         );
-
       case 'loop':
         return (
           <Repeat className="size-5 p-1 bg-cyan-100 rounded-sm shrink-0 text-cyan-600" />
         );
       case 'action':
-        return (
-          <PickaxeIcon className="size-5 p-1 bg-orange-100 rounded-sm shrink-0 text-orange-600" />
-        );
+        return getActionIcon(actionType);
       default:
         return <div className="size-5 rounded-full bg-muted" />;
     }
@@ -95,7 +156,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
     >
       <div className="py-2 px-2.5 flex gap-3">
         {/* Icon on left */}
-        {getIcon(data.stepType)}
+        {getIcon(data.stepType, data.actionType)}
 
         {/* Content in center */}
         <div className="flex-1 min-w-0">

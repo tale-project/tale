@@ -1,17 +1,36 @@
 'use client';
 
-import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
+import { JsonInput } from '@/app/components/ui/forms/json-input';
 import {
   Zap,
   Cpu,
   HelpCircle,
   CheckCircle2,
   Repeat,
-  Pickaxe,
   Sparkles,
   TestTubeDiagonal,
   Workflow,
   Trash2,
+  Save,
+  AlertCircle,
+  AlertTriangle,
+  Users,
+  MessageSquare,
+  Package,
+  FileText,
+  Plug,
+  Variable,
+  Database,
+  Mail,
+  Send,
+  ClipboardList,
+  CheckCircle,
+  Mic,
+  Cloud,
+  Globe,
+  Layout,
+  GitBranch,
+  Settings,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -20,12 +39,17 @@ import {
   TooltipContent,
 } from '@/app/components/ui/overlays/tooltip';
 import { cn } from '@/lib/utils/cn';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { AutomationTester } from './automation-tester';
 import { AutomationAssistant } from './automation-assistant';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
+import { useUpdateStep } from '../hooks/use-update-step';
+import { useStepValidation } from '../hooks/use-step-validation';
+import { useAuth } from '@/app/hooks/use-convex-auth';
+import { toast } from '@/app/hooks/use-toast';
+import { NextStepsEditor } from './next-steps-editor';
 
 interface AutomationSidePanelProps {
   step: Doc<'wfStepDefs'> | null;
@@ -35,9 +59,55 @@ interface AutomationSidePanelProps {
   showTestPanel?: boolean;
   automationId?: Id<'wfDefinitions'>;
   organizationId?: string;
+  availableSteps?: Array<{
+    stepSlug: string;
+    name: string;
+    stepType?: Doc<'wfStepDefs'>['stepType'];
+    actionType?: string;
+  }>;
 }
 
-const getStepIcon = (stepType: string) => {
+const getActionIcon = (actionType?: string) => {
+  switch (actionType) {
+    case 'customer':
+      return <Users className="size-4" />;
+    case 'conversation':
+      return <MessageSquare className="size-4" />;
+    case 'product':
+      return <Package className="size-4" />;
+    case 'document':
+      return <FileText className="size-4" />;
+    case 'integration':
+      return <Plug className="size-4" />;
+    case 'set_variables':
+      return <Variable className="size-4" />;
+    case 'rag':
+      return <Database className="size-4" />;
+    case 'imap':
+      return <Mail className="size-4" />;
+    case 'email_provider':
+      return <Send className="size-4" />;
+    case 'workflow_processing_records':
+      return <ClipboardList className="size-4" />;
+    case 'approval':
+      return <CheckCircle className="size-4" />;
+    case 'tone_of_voice':
+      return <Mic className="size-4" />;
+    case 'onedrive':
+      return <Cloud className="size-4" />;
+    case 'crawler':
+    case 'website':
+      return <Globe className="size-4" />;
+    case 'websitePages':
+      return <Layout className="size-4" />;
+    case 'workflow':
+      return <GitBranch className="size-4" />;
+    default:
+      return <Settings className="size-4" />;
+  }
+};
+
+const getStepIcon = (stepType: string, actionType?: string) => {
   switch (stepType) {
     case 'trigger':
       return <Zap className="size-4" />;
@@ -50,7 +120,7 @@ const getStepIcon = (stepType: string) => {
     case 'loop':
       return <Repeat className="size-4" />;
     case 'action':
-      return <Pickaxe className="size-4" />;
+      return getActionIcon(actionType);
     default:
       return <div className="size-4 rounded-full bg-muted" />;
   }
@@ -82,14 +152,116 @@ export function AutomationSidePanel({
   showTestPanel = false,
   automationId,
   organizationId,
+  availableSteps = [],
 }: AutomationSidePanelProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
+  const { user } = useAuth();
   const [width, setWidth] = useState(384); // 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
   const [canClearChat, setCanClearChat] = useState(false);
   const clearChatRef = useRef<(() => void) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const [editedConfig, setEditedConfig] = useState<string>('');
+  const [editedNextSteps, setEditedNextSteps] = useState<
+    Record<string, string>
+  >({});
+  const [isSaving, setIsSaving] = useState(false);
+  const updateStep = useUpdateStep();
+
+  const originalConfigJson = useMemo(
+    () => (step?.config ? JSON.stringify(step.config, null, 2) : '{}'),
+    [step?.config],
+  );
+
+  const originalNextStepsJson = useMemo(
+    () => (step?.nextSteps ? JSON.stringify(step.nextSteps) : '{}'),
+    [step?.nextSteps],
+  );
+
+  const isConfigDirty =
+    editedConfig !== originalConfigJson && editedConfig !== '';
+  const isNextStepsDirty =
+    JSON.stringify(editedNextSteps) !== originalNextStepsJson;
+  const isDirty = isConfigDirty || isNextStepsDirty;
+
+  useEffect(() => {
+    if (step?.config) {
+      setEditedConfig(JSON.stringify(step.config, null, 2));
+    }
+    if (step?.nextSteps) {
+      setEditedNextSteps(step.nextSteps as Record<string, string>);
+    } else {
+      setEditedNextSteps({});
+    }
+  }, [step?._id, step?.config, step?.nextSteps]);
+
+  const parsedEditedConfig = useMemo(() => {
+    try {
+      return JSON.parse(editedConfig || '{}');
+    } catch {
+      return null;
+    }
+  }, [editedConfig]);
+
+  const validationConfig = useMemo(() => {
+    if (!step || !parsedEditedConfig) return null;
+    return {
+      stepSlug: step.stepSlug,
+      name: step.name,
+      stepType: step.stepType,
+      config: parsedEditedConfig,
+    };
+  }, [step, parsedEditedConfig]);
+
+  const { isValid, errors, warnings, isValidating } = useStepValidation(
+    validationConfig,
+    automationId,
+  );
+
+  const handleConfigChange = useCallback((value: string) => {
+    setEditedConfig(value);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!step || !user || !parsedEditedConfig || !isValid) return;
+
+    setIsSaving(true);
+    try {
+      const updates: Record<string, unknown> = { config: parsedEditedConfig };
+      if (isNextStepsDirty) {
+        updates.nextSteps = editedNextSteps;
+      }
+      await updateStep({
+        stepRecordId: step._id,
+        updates,
+        editMode: 'json',
+        changedBy: user.userId,
+      });
+      toast({
+        title: t('sidePanel.stepSaved'),
+        variant: 'default',
+      });
+    } catch (error) {
+      toast({
+        title: t('sidePanel.stepSaveFailed'),
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    step,
+    user,
+    parsedEditedConfig,
+    isValid,
+    isNextStepsDirty,
+    editedNextSteps,
+    updateStep,
+    t,
+  ]);
 
   const handleClearChatStateChange = useCallback(
     (canClear: boolean, clearFn: () => void) => {
@@ -197,7 +369,12 @@ export function AutomationSidePanel({
                         getStepTypeColor(step.stepType),
                       )}
                     >
-                      {getStepIcon(step.stepType)}
+                      {getStepIcon(
+                        step.stepType,
+                        (step.config as Record<string, unknown>)?.type as
+                          | string
+                          | undefined,
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
@@ -266,16 +443,64 @@ export function AutomationSidePanel({
           onClearChatStateChange={handleClearChatStateChange}
         />
       ) : step ? (
-        <div className="flex-1 overflow-y-auto p-3">
-          <JsonViewer
-            className="rounded-xl border max-h-none px-2"
-            data={step.config || {}}
-            collapsed={false}
-            enableClipboard={true}
-            maxHeight={false}
-            indentWidth={1}
-          />
-        </div>
+        <>
+          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
+            <JsonInput
+              value={editedConfig}
+              onChange={handleConfigChange}
+              indentWidth={2}
+              rows={10}
+            />
+
+            <NextStepsEditor
+              stepType={step.stepType}
+              value={editedNextSteps}
+              onChange={setEditedNextSteps}
+              availableSteps={availableSteps}
+              currentStepSlug={step.stepSlug}
+            />
+
+            {errors.length > 0 && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+                <div className="flex items-center gap-2 text-destructive text-sm font-medium mb-1">
+                  <AlertCircle className="size-4" />
+                  {t('sidePanel.validationErrors')}
+                </div>
+                <ul className="text-xs text-destructive space-y-1">
+                  {errors.map((error, i) => (
+                    <li key={i}>• {error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {warnings.length > 0 && (
+              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-medium mb-1">
+                  <AlertTriangle className="size-4" />
+                  {t('sidePanel.validationWarnings')}
+                </div>
+                <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
+                  {warnings.map((warning, i) => (
+                    <li key={i}>• {warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t bg-background p-3 flex">
+            <Button
+              onClick={handleSave}
+              disabled={!isDirty || !isValid || isSaving || isValidating}
+              size="sm"
+              className="flex-1"
+            >
+              <Save className="size-4 mr-1" />
+              {isSaving ? t('sidePanel.saving') : tCommon('actions.save')}
+            </Button>
+          </div>
+        </>
       ) : null}
     </div>
   );
