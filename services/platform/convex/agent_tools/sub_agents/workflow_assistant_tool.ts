@@ -119,7 +119,10 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           approvalId: approvalMatch?.[1],
           usage: {
             ...result.usage,
-            durationSeconds: result.durationMs / 1000,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
           },
           model: result.model,
           provider: result.provider,

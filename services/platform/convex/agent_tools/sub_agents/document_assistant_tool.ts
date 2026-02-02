@@ -113,7 +113,10 @@ EXAMPLES:
           result.text,
           {
             ...result.usage,
-            durationSeconds: result.durationMs / 1000,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
           },
           result.model,
           result.provider,
