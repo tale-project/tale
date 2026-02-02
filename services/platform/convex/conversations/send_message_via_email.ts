@@ -159,7 +159,7 @@ export async function sendMessageViaEmail(
     deliveryState: 'queued',
     content: args.content,
     sentAt: now, // Set sentAt when message is created for UI display
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: messageMetadata as any,
   });
 
@@ -267,7 +267,7 @@ export async function sendMessageViaEmail(
       status: 'approved',
       approvedBy,
       reviewedAt: Date.now(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       metadata: approvalMetadata as any,
     });
   }

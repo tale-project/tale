@@ -65,7 +65,7 @@ export async function addMessageToConversation(
       : direction === 'inbound' && args.sentAt
         ? args.sentAt
         : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: {
       sender: args.sender,
       isCustomer: args.isCustomer,

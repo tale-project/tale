@@ -36,6 +36,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             token_usage=token_usage,
             cost_usd=result.get("cost_usd"),
             turns=result.get("turns"),
+            sources=result.get("sources", []),
         )
 
     except TimeoutError:

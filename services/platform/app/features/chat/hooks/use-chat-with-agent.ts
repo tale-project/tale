@@ -5,9 +5,9 @@ import { api } from '@/convex/_generated/api';
 
 // Explicit types to avoid TS2589 "Type instantiation is excessively deep" error
 // when accessing deeply nested api paths
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type AnyMutation = FunctionReference<'mutation', 'public', any, any>;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type AnyQuery = FunctionReference<'query', 'public', any, any>;
 
 const chatWithAgentMutation: AnyMutation = api.agents.chat.mutations.chatWithAgent;
@@ -28,7 +28,7 @@ export function useChatWithAgent() {
     (store, args) => {
       // Type assertion needed due to SDK type compatibility issue
       // The streaming query return type doesn't exactly match what optimisticallySendMessage expects
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       optimisticallySendMessage(getThreadMessagesStreamingQuery as any)(store, {
         threadId: args.threadId,
         prompt: args.message,

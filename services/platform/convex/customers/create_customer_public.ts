@@ -60,6 +60,6 @@ export async function createCustomerPublic(
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return await ctx.db.insert('customers', { ...args, metadata: args.metadata as any });
 }

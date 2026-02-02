@@ -46,7 +46,7 @@ export function useMessageProcessing(
     results: uiMessages,
     loadMore,
     status: paginationStatus,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
   } = useUIMessages(
     // @ts-ignore - Deep api path may cause TS2589 depending on TypeScript state
     api.threads.queries.getThreadMessagesStreaming as any,

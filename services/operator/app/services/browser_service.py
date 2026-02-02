@@ -3,12 +3,30 @@
 import asyncio
 import json
 import os
+import re
 import time
 from typing import Any
 
 from loguru import logger
 
 from app.config import settings
+
+
+URL_PATTERN = re.compile(r'https?://[^\s<>"\'`\]\)}\|]+', re.IGNORECASE)
+
+
+def _extract_urls_from_value(value: Any) -> list[str]:
+    """Recursively extract URLs from any JSON value."""
+    urls: list[str] = []
+    if isinstance(value, str):
+        urls.extend(URL_PATTERN.findall(value))
+    elif isinstance(value, dict):
+        for v in value.values():
+            urls.extend(_extract_urls_from_value(v))
+    elif isinstance(value, list):
+        for item in value:
+            urls.extend(_extract_urls_from_value(item))
+    return urls
 
 
 SYSTEM_PROMPT = """You are an autonomous browser automation agent with access to Playwright MCP and Vision MCP.
@@ -160,6 +178,7 @@ class BrowserService:
                 "duration_seconds": round(duration, 2),
                 "token_usage": result.get("token_usage"),
                 "cost_usd": result.get("cost_usd"),
+                "sources": result.get("sources", []),
             }
 
         except asyncio.TimeoutError:
@@ -189,12 +208,13 @@ class BrowserService:
         - tool_call/tool_result: Tool invocations
         - step_finish: Step completed with token usage and cost
 
-        Returns dict with response, token_usage, and cost_usd.
+        Returns dict with response, token_usage, cost_usd, and sources.
         """
         result: dict[str, Any] = {
             "response": "",
             "token_usage": None,
             "cost_usd": None,
+            "sources": [],
         }
 
         if not stdout_text:
@@ -206,6 +226,7 @@ class BrowserService:
         total_reasoning_tokens = 0
         total_cache_read_tokens = 0
         total_cost = 0.0
+        seen_urls: dict[str, None] = {}
 
         for line in stdout_text.strip().split("\n"):
             if not line.strip():
@@ -234,11 +255,18 @@ class BrowserService:
                     cache = tokens.get("cache", {})
                     total_cache_read_tokens += cache.get("read", 0)
 
+                elif event_type in ("tool_result", "tool-output-available"):
+                    urls = _extract_urls_from_value(event)
+                    for url in urls:
+                        if url not in seen_urls:
+                            seen_urls[url] = None
+
             except json.JSONDecodeError:
                 logger.debug(f"Failed to parse JSON line: {line[:100]}...")
                 continue
 
         result["response"] = "".join(text_parts)
+        result["sources"] = list(seen_urls.keys())
 
         if total_input_tokens > 0 or total_output_tokens > 0:
             result["token_usage"] = {

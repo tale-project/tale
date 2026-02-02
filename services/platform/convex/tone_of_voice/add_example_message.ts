@@ -40,7 +40,7 @@ export async function addExampleMessage(
     content: args.content,
     createdAt: now,
     updatedAt: now,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: args.metadata as any,
   });
 

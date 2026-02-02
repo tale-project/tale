@@ -36,7 +36,7 @@ export async function createCustomer(
     locale: args.locale,
     address: args.address,
     externalId: args.externalId,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     metadata: args.metadata as any,
   });
 

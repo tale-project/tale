@@ -40,3 +40,4 @@ class ChatResponse(BaseModel):
     token_usage: TokenUsage | None = Field(None, description="Token consumption statistics")
     cost_usd: float | None = None
     turns: int | None = None
+    sources: list[str] = Field(default_factory=list, description="URLs from tool results")
