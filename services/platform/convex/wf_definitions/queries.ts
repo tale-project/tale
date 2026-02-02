@@ -5,6 +5,8 @@ import type { Doc } from '../_generated/dataModel';
 import { getActiveVersion as getActiveVersionHelper } from '../workflows/definitions/get_active_version';
 import { getWorkflowByName as getWorkflowByNameHelper } from '../workflows/definitions/get_workflow_by_name';
 import { listWorkflows as listWorkflowsHelper } from '../workflows/definitions/list_workflows';
+import { executeDryRun } from '../workflow_engine/execution/dry_run_executor';
+import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 type WorkflowDefinition = Doc<'wfDefinitions'>;
 
@@ -157,9 +159,7 @@ export const hasAutomations = queryWithRLS({
   handler: async (ctx, args) => {
     const query = ctx.db
       .query('wfDefinitions')
-      .withIndex('by_org', (q) =>
-        q.eq('organizationId', args.organizationId),
-      );
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId));
 
     for await (const item of query) {
       if (item.parentVersionId === undefined) {
@@ -168,5 +168,35 @@ export const hasAutomations = queryWithRLS({
     }
 
     return false;
+  },
+});
+
+export const dryRunWorkflow = queryWithRLS({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+    input: v.optional(jsonValueValidator),
+  },
+  handler: async (ctx, args) => {
+    const workflow = await ctx.db.get(args.wfDefinitionId);
+    if (!workflow) {
+      return {
+        success: false,
+        executionPath: [],
+        stepResults: [],
+        errors: ['Workflow not found'],
+        warnings: [],
+      };
+    }
+
+    const steps: Doc<'wfStepDefs'>[] = [];
+    for await (const step of ctx.db
+      .query('wfStepDefs')
+      .withIndex('by_definition', (q) =>
+        q.eq('wfDefinitionId', args.wfDefinitionId),
+      )) {
+      steps.push(step);
+    }
+
+    return executeDryRun(workflow, steps, args.input || {});
   },
 });
