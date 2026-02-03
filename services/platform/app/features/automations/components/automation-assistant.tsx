@@ -785,6 +785,7 @@ function AutomationAssistantContent({
       <FileUpload.DropZone
         className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50"
         onFilesSelected={uploadFiles}
+        clickable={false}
       >
         <FileUpload.Overlay className="rounded-t-2xl" />
         <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">

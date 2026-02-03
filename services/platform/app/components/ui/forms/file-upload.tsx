@@ -59,6 +59,7 @@ interface DropZoneProps {
   disabled?: boolean;
   inputId?: string;
   multiple?: boolean;
+  clickable?: boolean;
   'aria-label'?: string;
 }
 
@@ -70,6 +71,7 @@ function DropZone({
   disabled,
   inputId = 'file-upload',
   multiple,
+  clickable = true,
   'aria-label': ariaLabel,
 }: DropZoneProps) {
   const { setIsDragOver } = useFileUploadContext();
@@ -111,20 +113,20 @@ function DropZone({
   );
 
   const handleClick = useCallback(() => {
-    if (disabled) return;
+    if (disabled || !clickable) return;
     const input = document.getElementById(inputId) as HTMLInputElement;
     input?.click();
-  }, [inputId, disabled]);
+  }, [inputId, disabled, clickable]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (disabled) return;
+      if (disabled || !clickable) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         handleClick();
       }
     },
-    [handleClick, disabled],
+    [handleClick, disabled, clickable],
   );
 
   const handleFileInputChange = useCallback(
@@ -140,27 +142,29 @@ function DropZone({
 
   return (
     <div
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-      aria-disabled={disabled}
-      aria-label={ariaLabel}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable && !disabled ? 0 : undefined}
+      aria-disabled={clickable ? disabled : undefined}
+      aria-label={clickable ? ariaLabel : undefined}
       className={className}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      onClick={clickable ? handleClick : undefined}
+      onKeyDown={clickable ? handleKeyDown : undefined}
     >
       {children}
-      <input
-        id={inputId}
-        type="file"
-        accept={accept}
-        multiple={multiple}
-        onChange={handleFileInputChange}
-        className="hidden"
-        disabled={disabled}
-      />
+      {clickable && (
+        <input
+          id={inputId}
+          type="file"
+          accept={accept}
+          multiple={multiple}
+          onChange={handleFileInputChange}
+          className="hidden"
+          disabled={disabled}
+        />
+      )}
     </div>
   );
 }
