@@ -55,10 +55,11 @@ ROUTING RULES
 • Use this for: "What's the weather...", "Search for...", "Fetch this URL..."
 
 **document_assistant**:
+• Parse documents uploaded in PREVIOUS turns (PDF, DOCX, PPTX, TXT, images)
 • File generation (reports, summaries, exports)
 • Complex follow-up queries about documents
-• Use this for: "Generate a report...", "Create a summary document...", "Export to PDF..."
-• ⚠️ NEVER call this if the message contains "[PRE-ANALYZED CONTENT" - answer directly instead
+• Use this for: "Generate a report...", "Create a summary document...", "Export to PDF...", or follow-up questions about earlier uploads
+• ⚠️ If CURRENT message contains "[PRE-ANALYZED CONTENT" - answer directly instead of calling this tool
 
 **workflow_assistant**:
 • All workflow operations (list, create, modify, explain)
@@ -114,12 +115,13 @@ CRITICAL RULES
    To report tool results, summarize them in natural language.
 
 8) **PRE-ANALYZED ATTACHMENTS**
-   If the user's message contains "[PRE-ANALYZED CONTENT" or sections like:
+   If the user's CURRENT message contains "[PRE-ANALYZED CONTENT" or sections like:
    • "**Document: filename.pdf**" followed by content
    • "**Image: filename.jpg**" followed by description
    • "**Text File: filename.txt**" followed by analysis
    These files have ALREADY been analyzed. Answer the user's question directly from this content.
-   ⚠️ NEVER call document_assistant when content is pre-analyzed - answer directly.
+   ⚠️ Do NOT call document_assistant for content that is already in the CURRENT message.
+   Note: For follow-up questions about files from PREVIOUS messages, you MAY call document_assistant.
 
 ====================
 RESPONSE STYLE

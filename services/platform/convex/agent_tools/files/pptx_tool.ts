@@ -89,6 +89,12 @@ const pptxArgs = z.object({
     .string()
     .optional()
     .describe("For 'parse': Original filename (e.g., 'presentation.pptx')"),
+  user_input: z
+    .string()
+    .optional()
+    .describe(
+      "For 'parse': **REQUIRED** - The user's question or instruction about the presentation content",
+    ),
 });
 
 // Result types
@@ -147,12 +153,13 @@ OPERATIONS:
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
    - filename: Original filename (e.g., "presentation.pptx")
+   - user_input: **REQUIRED** - The user's question or instruction about the presentation
    Returns: { success, full_text, slide_count, metadata }
 
 EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "Report", "slidesContent": [...] }
-• Parse: { "operation": "parse", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "presentation.pptx" }
+• Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "presentation.pptx", "user_input": "Summarize the key slides" }
 
 SLIDE CONTENT EXAMPLES:
 - Title slide: { "title": "Welcome", "subtitle": "Introduction" }
@@ -233,8 +240,19 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         if (!args.filename) {
           throw new Error("Missing required 'filename' for parse operation");
         }
+        if (!args.user_input) {
+          throw new Error(
+            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the presentation.",
+          );
+        }
 
-        const result = await parseFile(ctx, args.fileId, args.filename, 'pptx');
+        const result = await parseFile(
+          ctx,
+          args.fileId,
+          args.filename,
+          'pptx',
+          args.user_input,
+        );
         return { operation: 'parse', ...result };
       }
 

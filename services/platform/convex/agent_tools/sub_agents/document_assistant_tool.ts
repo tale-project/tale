@@ -31,21 +31,28 @@ export const documentAssistantTool = {
   tool: createTool({
     description: `Delegate document-related tasks to the specialized Document Agent.
 
-⚠️ IMPORTANT: Do NOT call this tool if the user's message contains "[PRE-ANALYZED CONTENT" or sections like "**Document:**", "**Image:**", or "**Text File:**". These indicate the content has ALREADY been analyzed and you should answer directly from that content.
+CAPABILITIES:
+• Parse documents: PDF, Word (.docx), PowerPoint (.pptx), text files (requires fileId)
+• Analyze images using vision model (requires fileId)
+• Generate files: PDF from Markdown/HTML, Excel spreadsheets, Word/PowerPoint from templates
+• Multi-step document workflows
 
-Use this tool ONLY for:
-- Generating new PDF documents from Markdown/HTML
-- Creating Excel files from structured data
-- Complex follow-up queries about documents that require additional processing
-- Multi-step document workflows
+⚠️ PRE-ANALYZED CONTENT CHECK:
+If the CURRENT message contains "[PRE-ANALYZED CONTENT" or sections like "**Document:**", "**Image:**", "**Text File:**", answer directly from that content WITHOUT calling this tool.
 
-DO NOT use this tool for:
-- Content that is already visible in the user's message (pre-analyzed)
-- Simple questions about document content that's already extracted
+WHEN TO USE THIS TOOL:
+• Multi-turn conversations: User asks follow-up questions about a file uploaded in a PREVIOUS message
+• File generation: Creating new PDF, Excel, Word, or PowerPoint files
+• Re-analysis: User wants deeper analysis or different perspective on a document
+• Complex queries: Multi-step document processing workflows
 
 EXAMPLES:
+• Parse PDF: { userRequest: "Summarize the key findings in this PDF", fileId: "kg2bazp7...", fileName: "report.pdf" }
+• Parse DOCX: { userRequest: "Extract all action items from this document", fileId: "kg2bazp7...", fileName: "meeting.docx" }
+• Analyze image: { userRequest: "What products are shown in this image?", fileId: "kg2bazp7..." }
 • Generate PDF: { userRequest: "Create a PDF report with this data: ..." }
-• Create Excel: { userRequest: "Generate an Excel file with these columns: Name, Email, Status" }`,
+• Create Excel: { userRequest: "Generate an Excel file with these columns: Name, Email, Status" }
+• Follow-up query: { userRequest: "Find all dates mentioned in that document I uploaded earlier" }`,
 
     args: z.object({
       userRequest: z

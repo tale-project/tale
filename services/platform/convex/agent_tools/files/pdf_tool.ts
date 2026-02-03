@@ -52,11 +52,12 @@ OPERATIONS:
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
    - filename: Original filename (e.g., "report.pdf")
+   - user_input: **REQUIRED** - The user's question or instruction about the PDF
    Returns: { success, full_text, page_count, metadata }
 
 EXAMPLES:
 • Generate: { "operation": "generate", "fileName": "report", "sourceType": "markdown", "content": "# Report\\n..." }
-• Parse: { "operation": "parse", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "report.pdf" }
+• Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "report.pdf", "user_input": "Summarize the key findings" }
 
 CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
 `,
@@ -117,6 +118,12 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         .string()
         .optional()
         .describe("For 'parse': Original filename (e.g., 'report.pdf')"),
+      user_input: z
+        .string()
+        .optional()
+        .describe(
+          "For 'parse': **REQUIRED** - The user's question or instruction about the PDF content",
+        ),
     }),
     handler: async (ctx: ToolCtx, args): Promise<PdfResult> => {
       const operation = args.operation ?? 'generate';
@@ -131,8 +138,19 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         if (!args.filename) {
           throw new Error("Missing required 'filename' for parse operation");
         }
+        if (!args.user_input) {
+          throw new Error(
+            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the PDF.",
+          );
+        }
 
-        const result = await parseFile(ctx, args.fileId, args.filename, 'pdf');
+        const result = await parseFile(
+          ctx,
+          args.fileId,
+          args.filename,
+          'pdf',
+          args.user_input,
+        );
         return { operation: 'parse', ...result };
       }
 

@@ -142,6 +142,7 @@ function createTextAnalysisAgent(): Agent {
   const config = createAgentConfig({
     name: 'text-analyzer',
     instructions: TEXT_ANALYSIS_INSTRUCTIONS,
+    useFastModel: true,
   });
 
   return new Agent(components.agent, config);
