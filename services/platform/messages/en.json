@@ -1411,6 +1411,7 @@
       "image": "IMG",
       "pdf": "PDF",
       "doc": "DOC",
+      "pptx": "PPTX",
       "txt": "TXT",
       "file": "FILE"
     },

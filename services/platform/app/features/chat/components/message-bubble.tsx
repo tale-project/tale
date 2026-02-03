@@ -136,6 +136,17 @@ function FileTypeIcon({
       fileName.endsWith('.docx')
     )
       return { icon: '📝', label: t('fileTypes.doc'), bgColor: 'bg-blue-100' };
+    if (
+      fileType.includes('presentation') ||
+      fileType.includes('powerpoint') ||
+      fileName.endsWith('.ppt') ||
+      fileName.endsWith('.pptx')
+    )
+      return {
+        icon: '📊',
+        label: t('fileTypes.pptx'),
+        bgColor: 'bg-orange-100',
+      };
     if (fileType === 'text/plain')
       return { icon: '📄', label: t('fileTypes.txt'), bgColor: 'bg-gray-100' };
     return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
@@ -208,9 +219,12 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
             ? t('fileTypes.pdf')
             : attachment.fileType.includes('word')
               ? t('fileTypes.doc')
-              : attachment.fileType === 'text/plain'
-                ? t('fileTypes.txt')
-                : t('fileTypes.file')}
+              : attachment.fileType.includes('presentation') ||
+                  attachment.fileType.includes('powerpoint')
+                ? t('fileTypes.pptx')
+                : attachment.fileType === 'text/plain'
+                  ? t('fileTypes.txt')
+                  : t('fileTypes.file')}
         </div>
       </div>
     </a>
@@ -260,9 +274,12 @@ const FilePartDisplay = memo(function FilePartDisplay({
             ? t('fileTypes.pdf')
             : filePart.mediaType.includes('word')
               ? t('fileTypes.doc')
-              : filePart.mediaType === 'text/plain'
-                ? t('fileTypes.txt')
-                : t('fileTypes.file')}
+              : filePart.mediaType.includes('presentation') ||
+                  filePart.mediaType.includes('powerpoint')
+                ? t('fileTypes.pptx')
+                : filePart.mediaType === 'text/plain'
+                  ? t('fileTypes.txt')
+                  : t('fileTypes.file')}
         </div>
       </div>
     </a>

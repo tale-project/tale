@@ -60,7 +60,7 @@ async def _process_slide(
         Tuple of (slide_num, slide_content, vision_used)
     """
     elements: list[tuple[float, str]] = []  # (top, content)
-    vision_used = False
+    image_tasks: list[tuple[float, bytes]] = []  # (top, image_bytes)
 
     for shape in slide.shapes:
         top = shape.top or 0
@@ -81,16 +81,26 @@ async def _process_slide(
             if table_text:
                 elements.append((top, f"[Table]\n{table_text}"))
 
-        # Picture
+        # Collect images for concurrent processing
         if process_images and shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
             try:
-                image_bytes = shape.image.blob
-                description = await _describe_image_bytes(image_bytes, semaphore)
-                if description:
-                    elements.append((top, f"[Image: {description}]"))
-                    vision_used = True
+                image_tasks.append((top, shape.image.blob))
             except Exception as e:
-                logger.warning(f"Failed to process image on slide {slide_num}: {e}")
+                logger.warning(f"Failed to extract image on slide {slide_num}: {e}")
+
+    # Process all images concurrently
+    vision_used = False
+    if image_tasks:
+        results = await asyncio.gather(
+            *[_describe_image_bytes(img_bytes, semaphore) for _, img_bytes in image_tasks],
+            return_exceptions=True,
+        )
+        for (top, _), result in zip(image_tasks, results):
+            if isinstance(result, Exception):
+                logger.warning(f"Failed to describe image on slide {slide_num}: {result}")
+            elif result:
+                elements.append((top, f"[Image: {result}]"))
+                vision_used = True
 
     # Sort elements by top position
     elements.sort(key=lambda x: x[0])

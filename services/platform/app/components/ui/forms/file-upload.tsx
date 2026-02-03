@@ -63,6 +63,8 @@ const DEFAULT_CONFIG: Required<FileUploadConfig> = {
     'text/plain',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   ],
 };
 

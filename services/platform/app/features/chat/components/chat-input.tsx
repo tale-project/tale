@@ -128,7 +128,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,.pdf,.doc,.docx,.txt"
+          accept="image/*,.pdf,.doc,.docx,.txt,.ppt,.pptx"
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
         />
@@ -190,9 +190,12 @@ export function ChatInput({
                           ? tChat('fileTypes.pdf')
                           : attachment.fileType.includes('word')
                             ? tChat('fileTypes.doc')
-                            : attachment.fileType === 'text/plain'
-                              ? tChat('fileTypes.txt')
-                              : tChat('fileTypes.file')}
+                            : attachment.fileType.includes('presentation') ||
+                                attachment.fileType.includes('powerpoint')
+                              ? tChat('fileTypes.pptx')
+                              : attachment.fileType === 'text/plain'
+                                ? tChat('fileTypes.txt')
+                                : tChat('fileTypes.file')}
                       </div>
                     </div>
                     <button
