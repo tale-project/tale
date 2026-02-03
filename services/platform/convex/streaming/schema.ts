@@ -24,6 +24,8 @@ export const messageMetadataTable = defineTable({
     outputTokens: v.optional(v.number()),
     totalTokens: v.optional(v.number()),
     durationMs: v.optional(v.number()),
+    input: v.optional(v.string()),
+    output: v.optional(v.string()),
   }))),
   // Structured context window for debugging (XML-like formatted)
   contextWindow: v.optional(v.string()),

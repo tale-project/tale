@@ -13,6 +13,8 @@ export interface SubAgentUsage {
   outputTokens?: number;
   totalTokens?: number;
   durationMs?: number;
+  input?: string;
+  output?: string;
 }
 
 export interface ContextStats {

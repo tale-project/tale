@@ -121,6 +121,8 @@ EXAMPLES:
           },
           result.model,
           result.provider,
+          undefined,
+          args.userRequest,
         );
       } catch (error) {
         return handleToolError('crm_assistant_tool', error);

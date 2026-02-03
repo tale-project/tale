@@ -1453,6 +1453,11 @@
       "contextApprovals": "Approvals",
       "showContext": "Show context window"
     },
+    "subAgentDetails": {
+      "title": "{agent} agent details",
+      "input": "Input",
+      "output": "Output"
+    },
     "loadOlderMessages": "Load older messages",
     "history": {
       "loading": "Loading chats...",

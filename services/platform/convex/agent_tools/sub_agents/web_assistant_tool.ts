@@ -93,6 +93,7 @@ EXAMPLES:
           'opencode',
           'operator',
           result.sources ?? undefined,
+          args.userRequest,
         );
       } catch (error) {
         return handleToolError('web_assistant_tool', error);
