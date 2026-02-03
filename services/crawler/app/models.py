@@ -247,6 +247,8 @@ class ParseFileResponse(BaseModel):
     full_text: str | None = Field(None, description="Full extracted text content")
     page_count: int | None = Field(None, description="Number of pages (PDF)")
     paragraph_count: int | None = Field(None, description="Number of paragraphs (DOCX)")
+    element_count: int | None = Field(None, description="Number of elements (DOCX with Vision)")
     slide_count: int | None = Field(None, description="Number of slides (PPTX)")
     metadata: dict[str, Any] | None = Field(None, description="Document metadata")
+    vision_used: bool | None = Field(None, description="Whether Vision API was used")
     error: str | None = Field(None, description="Error message if parsing failed")

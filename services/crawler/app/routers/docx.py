@@ -209,14 +209,20 @@ async def generate_docx_from_template(
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_docx_file(
     file: UploadFile = File(..., description="DOCX file to parse"),
+    user_input: str | None = Form(None, description="User instruction for AI extraction per section"),
+    process_images: bool = Form(True, description="Extract and describe embedded images"),
 ):
     """
-    Parse a DOCX file and extract its text content.
+    Parse a DOCX file and extract its text content using Vision API.
 
-    Returns the extracted text content along with metadata like paragraph count.
+    Uses Vision API to:
+    - Extract and describe embedded images
+    - Optionally process with user instructions
 
     Args:
         file: The DOCX file to parse
+        user_input: Optional user instruction for AI extraction per section
+        process_images: Whether to extract and describe embedded images
 
     Returns:
         Parsed content including full text and metadata
@@ -233,7 +239,12 @@ async def parse_docx_file(
         filename = file.filename or "unknown.docx"
 
         parser = get_file_parser_service()
-        result = parser.parse_docx(file_bytes, filename)
+        result = await parser.parse_docx_with_vision(
+            file_bytes,
+            filename,
+            user_input=user_input,
+            process_images=process_images,
+        )
 
         return ParseFileResponse(**result)
 

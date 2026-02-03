@@ -2,7 +2,7 @@
 PDF Router - PDF conversion and parsing endpoints.
 """
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from loguru import logger
 
@@ -149,14 +149,23 @@ async def convert_url_to_pdf(request: UrlToPdfRequest):
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_pdf_file(
     file: UploadFile = File(..., description="PDF file to parse"),
+    user_input: str | None = Form(None, description="User instruction for AI extraction per page"),
+    process_images: bool = Form(True, description="Extract and describe embedded images"),
+    ocr_scanned_pages: bool = Form(True, description="OCR pages with low text content"),
 ):
     """
-    Parse a PDF file and extract its text content.
+    Parse a PDF file and extract its text content using Vision API.
 
-    Returns the extracted text content along with metadata like page count.
+    Uses Vision API to:
+    - Extract and describe embedded images
+    - OCR scanned pages with low text content
+    - Optionally process with user instructions
 
     Args:
         file: The PDF file to parse
+        user_input: Optional user instruction for AI extraction per page
+        process_images: Whether to extract and describe embedded images
+        ocr_scanned_pages: Whether to OCR pages with low text content
 
     Returns:
         Parsed content including full text and metadata
@@ -173,7 +182,13 @@ async def parse_pdf_file(
         filename = file.filename or "unknown.pdf"
 
         parser = get_file_parser_service()
-        result = parser.parse_pdf(file_bytes, filename)
+        result = await parser.parse_pdf_with_vision(
+            file_bytes,
+            filename,
+            user_input=user_input,
+            process_images=process_images,
+            ocr_scanned_pages=ocr_scanned_pages,
+        )
 
         return ParseFileResponse(**result)
 
