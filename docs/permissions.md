@@ -71,7 +71,7 @@ This document describes the permission system for the Platform service, helping 
 
 | Feature | Member | Editor | Developer | Admin |
 |---------|:------:|:------:|:---------:|:-----:|
-| View integrations | ✅ | ✅ | ✅ | ✅ |
+| View integrations | ❌ | ❌ | ✅ | ✅ |
 | Configure email integration | ❌ | ❌ | ✅ | ✅ |
 | Configure OneDrive sync | ❌ | ❌ | ✅ | ✅ |
 | Manage API integrations | ❌ | ❌ | ✅ | ✅ |
