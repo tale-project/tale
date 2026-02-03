@@ -4,13 +4,11 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/app/components/ui/navigation/tabs';
-import { Input } from '@/app/components/ui/forms/input';
 import { useFormContext } from 'react-hook-form';
 import { Form } from '@/app/components/ui/forms/form';
 import { Description } from '@/app/components/ui/forms/description';
 import { Stack, HStack, VStack } from '@/app/components/ui/layout/layout';
 import { Upload, Trash2 } from 'lucide-react';
-import { useState } from 'react';
 import { ShopifyIcon } from '@/app/components/icons/shopify-icon';
 import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/utils/cn';
@@ -18,6 +16,8 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { toast } from '@/app/hooks/use-toast';
 
 interface CustomerImportFormProps {
   hideTabs?: boolean;
@@ -45,59 +45,26 @@ export function CustomerImportForm({
       ? 'manual_import'
       : 'file_upload'
     : watch('dataSource');
-  const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleFileChange = (file: File) => {
-    if (file) {
-      setValue('file', file);
-    }
-  };
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      handleFileChange(selectedFile);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-
-    const files = Array.from(e.dataTransfer.files);
+  const handleFilesSelected = (files: File[]) => {
     const file = files[0];
+    if (!file) return;
 
-    if (file && (file.type.includes('sheet') || file.name.endsWith('.csv'))) {
-      handleFileChange(file);
-    }
-  };
-
-  const handleClick = () => {
-    const input = document.getElementById('file-upload') as HTMLInputElement;
-    input?.click();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
+    if (file.type.includes('sheet') || file.name.endsWith('.csv')) {
+      setValue('file', file);
+    } else {
+      toast({
+        title: tCommon('validation.unsupportedFileType'),
+        description: tCommon('upload.supportedFormats'),
+        variant: 'destructive',
+      });
     }
   };
 
   const fileValue = watch('file') as File | null;
 
   return (
-    <Form className="p-4">
+    <Form>
       {!hideTabs && !mode && (
         <Tabs
           value={dataSource}
@@ -168,69 +135,27 @@ export function CustomerImportForm({
       )}
       {dataSource === 'file_upload' && (
         <Stack gap={4}>
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label={tCommon('aria.dropzone')}
-            className={cn(
-              'bg-background box-border content-stretch flex flex-col gap-[16px] h-[160px] items-center justify-center px-[16px] py-[12px] relative rounded-[12px] shrink-0 w-full cursor-pointer transition-colors group',
-              isDragOver
-                ? 'bg-info'
-                : 'hover:bg-info/50 focus:outline-none focus:ring-2 focus:ring-info-foreground focus:ring-offset-2',
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={handleClick}
-            onKeyDown={handleKeyDown}
-          >
-            <div
-              aria-hidden="true"
-              className={cn(
-                'absolute border border-dashed border-border inset-0 pointer-events-none rounded-xl',
-                isDragOver
-                  ? 'border-info-foreground'
-                  : 'group-hover:border-info-foreground',
-              )}
-            />
-            <div className="overflow-clip relative shrink-0 size-[40px]">
-              <div className="absolute inset-[12.5%]">
-                <div className="absolute inset-[-5%]">
-                  <Upload
-                    className="size-8 text-muted-foreground"
-                    strokeWidth={1.5}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="content-stretch flex flex-col items-center justify-start leading-[0] not-italic relative shrink-0">
-              <div className="content-stretch flex font-['Inter:Medium',_sans-serif] font-medium gap-[4px] items-center justify-start relative shrink-0 text-[16px] text-foreground text-nowrap">
-                <div className="relative shrink-0">
-                  <p className="leading-[1.5] text-nowrap whitespace-pre">
-                    {tCommon('upload.clickToUpload')}
-                  </p>
-                </div>
-                <div className="relative shrink-0">
-                  <p className="leading-[1.5] text-nowrap whitespace-pre">{`${tCommon('upload.or')} `}</p>
-                </div>
-                <div className="relative shrink-0">
-                  <p className="leading-[1.5] text-nowrap whitespace-pre">{`${tCommon('upload.dragAndDrop')} `}</p>
-                </div>
-              </div>
-              <div className="min-w-full relative shrink-0 text-[14px] text-center text-muted-foreground">
-                <p className="leading-[1.5]">
-                  {tCommon('upload.supportedFormats')}
-                </p>
-              </div>
-            </div>
-            <Input
-              id="file-upload"
-              type="file"
+          <FileUpload.Root>
+            <FileUpload.DropZone
+              onFilesSelected={handleFilesSelected}
               accept=".xlsx,.xls,.csv"
-              onChange={handleFileInputChange}
-              className="hidden"
-            />
-          </div>
+              inputId="customer-file-upload"
+              className={cn(
+                'relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+                'hover:border-primary hover:bg-accent/50',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              )}
+            >
+              <FileUpload.Overlay className="rounded-lg" />
+              <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium">
+                {tCommon('upload.clickToUpload')}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {tCommon('upload.supportedFormats')}
+              </p>
+            </FileUpload.DropZone>
+          </FileUpload.Root>
           <Description className="text-xs">
             <Stack gap={2} className="list-disc list-outside pl-4">
               <li>{t('importForm.localeHint')}</li>
