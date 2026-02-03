@@ -32,6 +32,7 @@ import { useUIMessages, type UIMessage } from '@convex-dev/agent/react';
 import { Image } from '@/app/components/ui/data-display/image';
 import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubble';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
+import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useT } from '@/lib/i18n/client';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
@@ -269,7 +270,7 @@ function AutomationAssistantContent({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = FileUpload.useContext();
+  } = useConvexFileUpload();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -300,7 +301,6 @@ function AutomationAssistantContent({
     automationId ? { wfDefinitionId: automationId } : 'skip',
   );
 
-   
   const { results: uiMessages } = useUIMessages(
     api.threads.queries.getThreadMessagesStreaming as any,
     threadId ? { threadId } : 'skip',
@@ -439,7 +439,7 @@ function AutomationAssistantContent({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      uploadFiles(files);
+      uploadFiles(Array.from(files));
     }
     // Reset input to allow selecting the same file again
     e.target.value = '';
@@ -469,9 +469,7 @@ function AutomationAssistantContent({
     }
 
     if (imageFiles.length > 0) {
-      const dataTransfer = new DataTransfer();
-      imageFiles.forEach((file) => dataTransfer.items.add(file));
-      uploadFiles(dataTransfer.files);
+      uploadFiles(imageFiles);
     }
   };
 
@@ -784,7 +782,10 @@ function AutomationAssistantContent({
       />
 
       {/* Chat input */}
-      <FileUpload.DropZone className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50">
+      <FileUpload.DropZone
+        className="border-muted rounded-t-3xl border-[0.5rem] border-b-0 mx-2 sticky bottom-0 z-50"
+        onFilesSelected={uploadFiles}
+      >
         <FileUpload.Overlay className="rounded-t-2xl" />
         <div className="bg-background rounded-t-[0.875rem] relative p-1 border border-muted-foreground/50 border-b-0">
           {/* Attachment previews */}

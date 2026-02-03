@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useCallback, useRef, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Users, Upload, X, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
-import { useDocumentUpload, MAX_FILE_SIZE_BYTES } from '../hooks/use-document-upload';
+import {
+  useDocumentUpload,
+  MAX_FILE_SIZE_BYTES,
+} from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/app/hooks/use-toast';
 
@@ -31,7 +35,6 @@ export function DocumentUploadDialog({
 
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch user's teams via Convex query
   const teamsResult = useQuery(
@@ -50,13 +53,16 @@ export function DocumentUploadDialog({
   });
 
   // Reset state when dialog closes
-  const handleOpenChange = useCallback((newOpen: boolean) => {
-    if (!newOpen) {
-      setSelectedTeams(new Set());
-      setSelectedFiles([]);
-    }
-    onOpenChange(newOpen);
-  }, [onOpenChange]);
+  const handleOpenChange = useCallback(
+    (newOpen: boolean) => {
+      if (!newOpen) {
+        setSelectedTeams(new Set());
+        setSelectedFiles([]);
+      }
+      onOpenChange(newOpen);
+    },
+    [onOpenChange],
+  );
 
   const handleToggleTeam = useCallback((teamId: string) => {
     setSelectedTeams((prev) => {
@@ -70,70 +76,58 @@ export function DocumentUploadDialog({
     });
   }, []);
 
-  const handleFileSelect = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
-    e?.stopPropagation();
-    fileInputRef.current?.click();
-  }, []);
+  const processFiles = useCallback(
+    (files: File[]) => {
+      if (files.length === 0) return;
 
-  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if ((event.key === 'Enter' || event.key === ' ') && !isUploading) {
-      event.preventDefault();
-      handleFileSelect();
-    }
-  }, [handleFileSelect, isUploading]);
+      const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
+      const validFiles: File[] = [];
+      const rejectedFiles: File[] = [];
 
-  const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (files.length === 0) return;
-
-    // Filter out files that are too large and notify user
-    const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
-    const validFiles: File[] = [];
-    const rejectedFiles: File[] = [];
-
-    for (const file of files) {
-      if (file.size <= MAX_FILE_SIZE_BYTES) {
-        validFiles.push(file);
-      } else {
-        rejectedFiles.push(file);
+      for (const file of files) {
+        if (file.size <= MAX_FILE_SIZE_BYTES) {
+          validFiles.push(file);
+        } else {
+          rejectedFiles.push(file);
+        }
       }
-    }
 
-    if (rejectedFiles.length > 0) {
-      for (const file of rejectedFiles) {
-        const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        toast({
-          title: tDocuments('upload.fileTooLarge'),
-          description: tDocuments('upload.fileSizeExceeded', {
-            name: file.name,
-            maxSize: maxSizeMB.toString(),
-            currentSize: currentSizeMB,
-          }),
-          variant: 'destructive',
-        });
+      if (rejectedFiles.length > 0) {
+        for (const file of rejectedFiles) {
+          const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+          toast({
+            title: tDocuments('upload.fileTooLarge'),
+            description: tDocuments('upload.fileSizeExceeded', {
+              name: file.name,
+              maxSize: maxSizeMB.toString(),
+              currentSize: currentSizeMB,
+            }),
+            variant: 'destructive',
+          });
+        }
       }
-    }
 
-    setSelectedFiles((prev) => [...prev, ...validFiles]);
-
-    // Reset the input
-    if (event.target) {
-      event.target.value = '';
-    }
-  }, [tDocuments]);
+      setSelectedFiles((prev) => [...prev, ...validFiles]);
+    },
+    [tDocuments],
+  );
 
   const handleRemoveFile = useCallback((index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
 
-    if (selectedFiles.length === 0) return;
+      if (selectedFiles.length === 0) return;
 
-    const teamTags = selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
-    await uploadFiles(selectedFiles, { teamTags });
-  }, [selectedFiles, selectedTeams, uploadFiles]);
+      const teamTags =
+        selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
+      await uploadFiles(selectedFiles, { teamTags });
+    },
+    [selectedFiles, selectedTeams, uploadFiles],
+  );
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -157,43 +151,38 @@ export function DocumentUploadDialog({
     >
       <Stack gap={4}>
         {/* File selection area */}
-        <div>
-          <div
-            role="button"
-            tabIndex={isUploading ? -1 : 0}
-            aria-disabled={isUploading}
+        <FileUpload.Root>
+          <FileUpload.DropZone
+            onFilesSelected={processFiles}
+            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt"
+            multiple
+            disabled={isUploading}
+            inputId="document-file-upload"
             className={cn(
-              'border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
+              'relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',
               'hover:border-primary hover:bg-accent/50',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               isUploading && 'opacity-50 cursor-not-allowed',
             )}
-            onClick={!isUploading ? (e) => handleFileSelect(e) : undefined}
-            onKeyDown={handleKeyDown}
           >
+            <FileUpload.Overlay className="rounded-lg" />
             <Upload className="size-8 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-sm font-medium">{tCommon('upload.clickToUpload')}</p>
+            <p className="text-sm font-medium">
+              {tCommon('upload.clickToUpload')}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">
               {tDocuments('upload.fromComputerDescription')}
             </p>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            disabled={isUploading}
-            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
+          </FileUpload.DropZone>
+        </FileUpload.Root>
 
         {/* Selected files list */}
         {selectedFiles.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium">
-              {tDocuments('upload.uploadingCount', { count: selectedFiles.length })}
+              {tDocuments('upload.uploadingCount', {
+                count: selectedFiles.length,
+              })}
             </p>
             <div className="max-h-32 overflow-y-auto space-y-1">
               {selectedFiles.map((file, index) => (
@@ -202,8 +191,10 @@ export function DocumentUploadDialog({
                   className="flex items-start gap-2 p-2 rounded-md bg-muted/50"
                 >
                   <FileText className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                  <span className="text-sm break-words flex-1 min-w-0">{file.name}</span>
-                  <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+                  <span className="text-sm wrap-anywhere flex-1 min-w-0">
+                    {file.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground shrink-0 whitespace-nowrap leading-6">
                     {formatFileSize(file.size)}
                   </span>
                   <Button
