@@ -41,6 +41,9 @@ export interface AgentResponseResult {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
+    durationMs?: number;
+    input?: string;
+    output?: string;
   }>;
   contextWindow?: string;
   contextStats?: {

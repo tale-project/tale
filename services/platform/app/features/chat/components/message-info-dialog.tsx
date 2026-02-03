@@ -14,7 +14,8 @@ import { useCopyButton } from '@/app/hooks/use-copy';
 import { formatDate } from '@/lib/utils/date/format';
 import { formatNumber } from '@/lib/utils/format/number';
 import { useLocale, useT } from '@/lib/i18n/client';
-import type { MessageMetadata } from '../hooks/use-message-metadata';
+import type { MessageMetadata, SubAgentUsage } from '../hooks/use-message-metadata';
+import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
 
 function formatAgentName(toolName: string): string {
   const nameMap: Record<string, string> = {
@@ -119,6 +120,7 @@ export function MessageInfoDialog({
   const locale = useLocale();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
+  const [selectedSubAgent, setSelectedSubAgent] = useState<SubAgentUsage | null>(null);
 
   return (
     <ViewDialog
@@ -251,9 +253,11 @@ export function MessageInfoDialog({
               <Field label={t('messageInfo.subAgentCalls')}>
                 <Stack gap={2}>
                   {metadata.subAgentUsage.map((usage, index) => (
-                    <div
+                    <button
                       key={`${usage.toolName}-${index}`}
-                      className="text-sm bg-muted px-3 py-2 rounded"
+                      type="button"
+                      onClick={() => setSelectedSubAgent(usage)}
+                      className="text-sm bg-muted px-3 py-2 rounded text-left cursor-pointer hover:bg-muted/80 transition-colors"
                     >
                       <div className="font-medium mb-1">
                         {formatAgentName(usage.toolName)}
@@ -279,7 +283,7 @@ export function MessageInfoDialog({
                           )}
                         </div>
                       )}
-                    </div>
+                    </button>
                   ))}
                 </Stack>
               </Field>
@@ -299,6 +303,12 @@ export function MessageInfoDialog({
           </div>
         )}
       </FieldGroup>
+
+      <SubAgentDetailsDialog
+        isOpen={selectedSubAgent !== null}
+        onOpenChange={(open) => !open && setSelectedSubAgent(null)}
+        usage={selectedSubAgent}
+      />
     </ViewDialog>
   );
 }

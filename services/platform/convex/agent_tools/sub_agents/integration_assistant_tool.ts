@@ -165,6 +165,8 @@ EXAMPLES:
           },
           model: result.model,
           provider: result.provider,
+          input: args.userRequest,
+          output: finalResponse,
         };
       } catch (error) {
         return handleToolError('integration_assistant_tool', error);

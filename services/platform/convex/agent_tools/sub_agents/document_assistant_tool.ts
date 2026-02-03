@@ -120,6 +120,8 @@ EXAMPLES:
           },
           result.model,
           result.provider,
+          undefined,
+          args.userRequest,
         );
       } catch (error) {
         return handleToolError('document_assistant_tool', error);

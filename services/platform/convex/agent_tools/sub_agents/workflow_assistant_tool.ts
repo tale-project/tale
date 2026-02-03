@@ -112,9 +112,11 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
 
         const approvalMatch = result.text.match(/APPROVAL_CREATED:(\w+)/);
 
+        const outputResponse = result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim();
+
         return {
           success: true,
-          response: result.text.replace(/APPROVAL_CREATED:\w+/g, '').trim(),
+          response: outputResponse,
           approvalCreated: !!approvalMatch,
           approvalId: approvalMatch?.[1],
           usage: {
@@ -126,6 +128,8 @@ Simply pass the user's request - the Workflow Agent will handle everything.`,
           },
           model: result.model,
           provider: result.provider,
+          input: args.userRequest,
+          output: outputResponse,
         };
       } catch (error) {
         return handleToolError('workflow_assistant_tool', error);
