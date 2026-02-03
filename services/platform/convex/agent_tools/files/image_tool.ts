@@ -51,12 +51,12 @@ OPERATIONS:
    Returns: { operation, success, url, fileName, contentType, size }
 
 2. analyze - Analyze an uploaded image using a vision model
-   **CRITICAL: You MUST provide the fileId parameter.**
+   **CRITICAL: You MUST provide the fileId and question parameters.**
    The fileId is provided in the context when users upload images (look for "fileId" in the attachment info).
    DO NOT use imageUrl for uploaded images - it will fail because internal URLs are not accessible.
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
-   - question: What you want to know about the image
+   - question: **REQUIRED** - The user's question or instruction about the image
    Returns: { operation, success, analysis, model }
 
 EXAMPLES:
@@ -136,7 +136,7 @@ CRITICAL RULES:
         .string()
         .optional()
         .describe(
-          "For 'analyze': Question or instruction about what to analyze in the image",
+          "For 'analyze': **REQUIRED** - The user's question or instruction about the image",
         ),
     }),
     handler: async (ctx: ToolCtx, args): Promise<ImageResult> => {
@@ -159,8 +159,19 @@ CRITICAL RULES:
           };
         }
 
-        const question =
-          args.question || 'Describe what you see in this image in detail.';
+        // REQUIRE question - we need to know what the user wants to analyze
+        if (!args.question) {
+          return {
+            operation: 'analyze',
+            success: false,
+            analysis: '',
+            model: getVisionModel(),
+            error:
+              "ERROR: Missing required 'question' parameter. Please provide the user's question or instruction about the image.",
+          };
+        }
+
+        const question = args.question;
 
         debugLog('tool:image analyze start', {
           fileId: args.fileId,

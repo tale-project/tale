@@ -125,6 +125,12 @@ const docxArgs = z.object({
     .string()
     .optional()
     .describe("For 'parse': Original filename (e.g., 'document.docx')"),
+  user_input: z
+    .string()
+    .optional()
+    .describe(
+      "For 'parse': **REQUIRED** - The user's question or instruction about the document content",
+    ),
 });
 
 export const docxTool = {
@@ -149,12 +155,13 @@ OPERATIONS:
    Parameters:
    - fileId: **REQUIRED** - Convex storage ID (e.g., "kg2bazp7fbgt9srq63knfagjrd7yfenj")
    - filename: Original filename (e.g., "document.docx")
+   - user_input: **REQUIRED** - The user's question or instruction about the document
    Returns: { success, full_text, paragraph_count, metadata }
 
 EXAMPLES:
 • List templates: { "operation": "list_templates" }
 • Generate: { "operation": "generate", "templateStorageId": "kg...", "fileName": "report", "sections": [...] }
-• Parse: { "operation": "parse", "fileId": "kg2bazp7fbgt9srq63knfagjrd7yfenj", "filename": "document.docx" }
+• Parse: { "operation": "parse", "fileId": "kg2bazp7...", "filename": "document.docx", "user_input": "Extract the main points" }
 
 CRITICAL: When presenting download links, copy the exact 'url' from the result. Never fabricate URLs.
 `,
@@ -232,8 +239,19 @@ CRITICAL: When presenting download links, copy the exact 'url' from the result. 
         if (!args.filename) {
           throw new Error("Missing required 'filename' for parse operation");
         }
+        if (!args.user_input) {
+          throw new Error(
+            "Missing required 'user_input' for parse operation. Provide the user's question or instruction about the document.",
+          );
+        }
 
-        const result = await parseFile(ctx, args.fileId, args.filename, 'docx');
+        const result = await parseFile(
+          ctx,
+          args.fileId,
+          args.filename,
+          'docx',
+          args.user_input,
+        );
         return { operation: 'parse', ...result };
       }
 
