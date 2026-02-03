@@ -124,6 +124,7 @@ export function ChatInput({
       <FileUpload.DropZone
         className="relative flex flex-col h-full flex-1 min-h-0"
         onFilesSelected={uploadFiles}
+        clickable={false}
       >
         <FileUpload.Overlay className="rounded-t-3xl mx-2" />
         <input
