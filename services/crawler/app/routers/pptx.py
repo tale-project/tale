@@ -132,14 +132,20 @@ async def generate_pptx_from_json(
 @router.post("/parse", response_model=ParseFileResponse)
 async def parse_pptx_file(
     file: UploadFile = File(..., description="PPTX file to parse"),
+    user_input: str | None = Form(None, description="User instruction for AI extraction per slide"),
+    process_images: bool = Form(True, description="Extract and describe embedded images"),
 ):
     """
-    Parse a PPTX file and extract its text content.
+    Parse a PPTX file and extract its text content using Vision API.
 
-    Returns the extracted text content along with metadata like slide count.
+    Uses Vision API to:
+    - Extract and describe embedded images
+    - Optionally process with user instructions
 
     Args:
         file: The PPTX file to parse
+        user_input: Optional user instruction for AI extraction per slide
+        process_images: Whether to extract and describe embedded images
 
     Returns:
         Parsed content including full text and metadata
@@ -156,7 +162,12 @@ async def parse_pptx_file(
         filename = file.filename or "unknown.pptx"
 
         parser = get_file_parser_service()
-        result = parser.parse_pptx(file_bytes, filename)
+        result = await parser.parse_pptx_with_vision(
+            file_bytes,
+            filename,
+            user_input=user_input,
+            process_images=process_images,
+        )
 
         return ParseFileResponse(**result)
 
