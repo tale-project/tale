@@ -58,8 +58,7 @@ ROUTING RULES
 • File generation (reports, summaries, exports)
 • Complex follow-up queries about documents
 • Use this for: "Generate a report...", "Create a summary document...", "Export to PDF..."
-• IMPORTANT: If the prompt already contains "**Document:**", "**Image:**", or "**Text File:**" sections,
-  the file has been PRE-ANALYZED. Answer directly from that content - do NOT call document_assistant.
+• ⚠️ NEVER call this if the message contains "[PRE-ANALYZED CONTENT" - answer directly instead
 
 **workflow_assistant**:
 • All workflow operations (list, create, modify, explain)
@@ -115,12 +114,12 @@ CRITICAL RULES
    To report tool results, summarize them in natural language.
 
 8) **PRE-ANALYZED ATTACHMENTS**
-   If the user's message contains sections like:
+   If the user's message contains "[PRE-ANALYZED CONTENT" or sections like:
    • "**Document: filename.pdf**" followed by content
    • "**Image: filename.jpg**" followed by description
    • "**Text File: filename.txt**" followed by analysis
    These files have ALREADY been analyzed. Answer the user's question directly from this content.
-   Do NOT call document_assistant - the content is already available in the message.
+   ⚠️ NEVER call document_assistant when content is pre-analyzed - answer directly.
 
 ====================
 RESPONSE STYLE

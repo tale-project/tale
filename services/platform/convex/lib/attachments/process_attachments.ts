@@ -249,6 +249,12 @@ export async function processAttachments(
     const text = userText || 'Please analyze the attached files.';
     const contentParts: MessageContentPart[] = [{ type: 'text', text }];
 
+    // Add a strong marker to prevent document_assistant from being called
+    contentParts.push({
+      type: 'text',
+      text: '\n\n[PRE-ANALYZED CONTENT BELOW - Answer directly from this content. DO NOT call document_assistant.]',
+    });
+
     // Add parsed document content
     for (const doc of parsedDocuments) {
       const truncatedContent =
