@@ -31,27 +31,20 @@ export const documentAssistantTool = {
   tool: createTool({
     description: `Delegate document-related tasks to the specialized Document Agent.
 
-Use this tool for ANY document-related request, including:
-- Parsing uploaded PDF, Word, PowerPoint, or TXT files
-- Generating PDF documents from Markdown/HTML
-- Creating Excel files from structured data
-- Analyzing images using vision capabilities
-- Analyzing text/log files
+⚠️ IMPORTANT: Do NOT call this tool if the user's message contains "[PRE-ANALYZED CONTENT" or sections like "**Document:**", "**Image:**", or "**Text File:**". These indicate the content has ALREADY been analyzed and you should answer directly from that content.
 
-The Document Agent is specialized in:
-- Extracting text and structure from documents
-- Analyzing text files (TXT, LOG) with AI
-- Generating downloadable files (PDF, Excel)
-- Image analysis with vision model
+Use this tool ONLY for:
+- Generating new PDF documents from Markdown/HTML
+- Creating Excel files from structured data
+- Complex follow-up queries about documents that require additional processing
 - Multi-step document workflows
 
-Simply describe what you need done with the document.
+DO NOT use this tool for:
+- Content that is already visible in the user's message (pre-analyzed)
+- Simple questions about document content that's already extracted
 
 EXAMPLES:
-• Parse PDF: { userRequest: "Extract the content from this PDF", fileUrl: "https://...", fileName: "report.pdf" }
-• Analyze TXT: { userRequest: "Find all error messages in this log", fileId: "kg2bazp7...", fileName: "app.log" }
 • Generate PDF: { userRequest: "Create a PDF report with this data: ..." }
-• Analyze image: { userRequest: "What's in this image?", fileId: "kg2bazp7..." }
 • Create Excel: { userRequest: "Generate an Excel file with these columns: Name, Email, Status" }`,
 
     args: z.object({
