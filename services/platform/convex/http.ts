@@ -8,6 +8,11 @@ import {
 } from './lib/rate_limiter/helpers';
 import { streamChatHttp, streamChatHttpOptions } from './streaming/http_actions';
 import { oauth2CallbackHandler } from './email_providers/oauth2_callback';
+import {
+  ssoDiscoverHandler,
+  ssoAuthorizeHandler,
+  ssoCallbackHandler,
+} from './sso_providers/http_handlers';
 
 const http = httpRouter();
 
@@ -91,6 +96,25 @@ http.route({
   path: '/api/chat-stream',
   method: 'OPTIONS',
   handler: streamChatHttpOptions,
+});
+
+// SSO Routes - Dynamic per-organization Microsoft Entra ID authentication
+http.route({
+  path: '/api/sso/discover',
+  method: 'POST',
+  handler: ssoDiscoverHandler,
+});
+
+http.route({
+  path: '/api/sso/authorize',
+  method: 'GET',
+  handler: ssoAuthorizeHandler,
+});
+
+http.route({
+  path: '/api/sso/callback',
+  method: 'GET',
+  handler: ssoCallbackHandler,
 });
 
 const _routes = http.getRoutes();

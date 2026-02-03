@@ -11,6 +11,7 @@
 import type * as adapter from "../adapter.js";
 import type * as auth from "../auth.js";
 import type * as generated_schema from "../generated_schema.js";
+import type * as sso_team_sync from "../sso/team_sync.js";
 import type * as trusted_headers_create_session_for_trusted_user from "../trusted_headers/create_session_for_trusted_user.js";
 import type * as trusted_headers_find_or_create_user_from_headers from "../trusted_headers/find_or_create_user_from_headers.js";
 import type * as trusted_headers_get_user_by_id from "../trusted_headers/get_user_by_id.js";
@@ -29,6 +30,7 @@ const fullApi: ApiFromModules<{
   adapter: typeof adapter;
   auth: typeof auth;
   generated_schema: typeof generated_schema;
+  "sso/team_sync": typeof sso_team_sync;
   "trusted_headers/create_session_for_trusted_user": typeof trusted_headers_create_session_for_trusted_user;
   "trusted_headers/find_or_create_user_from_headers": typeof trusted_headers_find_or_create_user_from_headers;
   "trusted_headers/get_user_by_id": typeof trusted_headers_get_user_by_id;

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -40,6 +40,8 @@ function LogInPage() {
   const { t: tCommon } = useT('common');
 
   const hasUsers = useQuery(api.users.queries.hasAnyUsers, {});
+  // @ts-expect-error TS2589 - deep type instantiation in Convex queries
+  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
   const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
 
   useEffect(() => {
@@ -116,6 +118,12 @@ function LogInPage() {
     }
   };
 
+  const handleSsoLogin = useCallback(() => {
+    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
+    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+    window.location.href = authorizeUrl;
+  }, []);
+
   const handleMicrosoftLogIn = async () => {
     try {
       await authClient.signIn.social({
@@ -134,6 +142,10 @@ function LogInPage() {
   if (hasUsers === undefined) {
     return null;
   }
+
+  const showMicrosoftButton = microsoftEnabled && !ssoConfig?.enabled;
+  const showSsoButton = ssoConfig?.enabled;
+  const showSocialLogin = showMicrosoftButton || showSsoButton;
 
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
@@ -183,22 +195,41 @@ function LogInPage() {
           </Form>
         </Stack>
 
-        {microsoftEnabled && (
+        {showSocialLogin && (
           <>
             <Separator variant="muted" />
 
-            <Button
-              onClick={handleMicrosoftLogIn}
-              variant="outline"
-              size="lg"
-              fullWidth
-              disabled={isSubmitting}
-            >
-              <span className="mr-3 inline-flex">
-                <MicrosoftIcon />
-              </span>
-              {t('continueWithMicrosoft')}
-            </Button>
+            <Stack gap={3}>
+              {showSsoButton && (
+                <Button
+                  onClick={handleSsoLogin}
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  disabled={isSubmitting}
+                >
+                  <span className="mr-3 inline-flex">
+                    <MicrosoftIcon />
+                  </span>
+                  {t('login.continueWithSso')}
+                </Button>
+              )}
+
+              {showMicrosoftButton && (
+                <Button
+                  onClick={handleMicrosoftLogIn}
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  disabled={isSubmitting}
+                >
+                  <span className="mr-3 inline-flex">
+                    <MicrosoftIcon />
+                  </span>
+                  {t('continueWithMicrosoft')}
+                </Button>
+              )}
+            </Stack>
           </>
         )}
       </Stack>

@@ -76,6 +76,7 @@ function IntegrationsPage() {
     name: 'protel',
   });
   const emailProviders = useQuery(api.email_providers.queries.list, { organizationId });
+  const ssoProvider = useQuery(api.sso_providers.queries.getByOrganization, { organizationId });
 
   if (
     memberContext === undefined ||
@@ -83,7 +84,8 @@ function IntegrationsPage() {
     shopify === undefined ||
     circuly === undefined ||
     protel === undefined ||
-    emailProviders === undefined
+    emailProviders === undefined ||
+    ssoProvider === undefined
   ) {
     return <IntegrationsSkeleton />;
   }
@@ -102,6 +104,7 @@ function IntegrationsPage() {
       circuly={circuly}
       protel={protel}
       emailProviders={emailProviders}
+      ssoProvider={ssoProvider}
       tab={tab}
     />
   );

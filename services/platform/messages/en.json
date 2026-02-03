@@ -390,10 +390,12 @@
       "loginTitle": "Log in",
       "signingIn": "Signing in...",
       "loginButton": "Log in",
+      "continueWithSso": "Continue with SSO",
       "wrongCredentials": "Wrong email or password",
       "toast": {
         "success": "Signed in successfully",
-        "microsoftFailed": "Microsoft sign-in failed. Please try again."
+        "microsoftFailed": "Microsoft sign-in failed. Please try again.",
+        "ssoFailed": "SSO login failed. Please try again."
       }
     },
     "signup": {
@@ -757,7 +759,45 @@
       "outlookLimitedAvailability": "⚠️ Limited availability",
       "outlookSecurityWarning": "Microsoft 365 security defaults block password authentication. This may not work for your account.",
       "microsoftAppPasswordsGuide": "Microsoft App Passwords guide",
-      "recommended": "Recommended"
+      "recommended": "Recommended",
+      "sso": {
+        "name": "Single Sign-On",
+        "description": "Auto-provision teams and roles via Microsoft Entra ID SSO.",
+        "title": "SSO configuration",
+        "connected": "Connected",
+        "domain": "Domain",
+        "connectedToEntra": "Connected to Microsoft Entra ID",
+        "validationError": "Validation error",
+        "allFieldsRequired": "All fields are required",
+        "configureSuccessful": "Configuration successful",
+        "updateSuccessful": "Update successful",
+        "ssoConfigured": "SSO provider has been configured successfully",
+        "configureFailed": "Configuration failed",
+        "configureError": "Failed to configure SSO provider",
+        "disconnected": "Disconnected",
+        "ssoDisconnected": "SSO provider has been removed",
+        "disconnectFailed": "Disconnect failed",
+        "disconnectError": "Failed to remove SSO provider",
+        "updating": "Updating...",
+        "update": "Update",
+        "configuring": "Configuring...",
+        "configure": "Configure",
+        "domainLabel": "Domain",
+        "domainHelp": "The email domain for SSO authentication (e.g., yourcompany.com)",
+        "issuerLabel": "Issuer URL",
+        "issuerHelp": "The OIDC issuer URL for your Entra ID tenant",
+        "clientIdLabel": "Client ID",
+        "clientIdHelp": "The Application (client) ID from Azure App Registration",
+        "clientSecretLabel": "Client secret",
+        "clientSecretHelp": "The client secret from Azure App Registration",
+        "autoProvisionLabel": "Auto-provision teams and roles",
+        "autoProvisionHelp": "Automatically sync team memberships and roles from Entra ID groups and App Roles",
+        "excludeGroupsLabel": "Exclude groups",
+        "excludeGroupsHelp": "Comma-separated list of Entra groups to exclude from team sync",
+        "syncModeLabel": "Full sync mode",
+        "syncModeHelp": "When enabled, team memberships are fully synced - users will be removed from teams they no longer belong to in Entra",
+        "additiveModeHelp": "When disabled, teams are only added - users keep existing team memberships even if removed in Entra"
+      }
     },
     "form": {
       "name": "Name",

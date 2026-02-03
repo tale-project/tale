@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Input } from '@/app/components/ui/forms/input';
@@ -28,6 +30,9 @@ function SignUpPage() {
   const navigate = useNavigate();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
+
+  // @ts-expect-error TS2589 - deep type instantiation in Convex queries
+  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
   const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
 
   const signUpSchema = useMemo(
@@ -97,6 +102,12 @@ function SignUpPage() {
     }
   };
 
+  const handleSsoLogin = useCallback(() => {
+    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
+    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+    window.location.href = authorizeUrl;
+  }, []);
+
   const handleMicrosoftSignUp = async () => {
     try {
       await authClient.signIn.social({
@@ -111,6 +122,10 @@ function SignUpPage() {
       });
     }
   };
+
+  const showMicrosoftButton = microsoftEnabled && !ssoConfig?.enabled;
+  const showSsoButton = ssoConfig?.enabled;
+  const showSocialLogin = showMicrosoftButton || showSsoButton;
 
   return (
     <AuthFormLayout title={t('signup.signupTitle')}>
@@ -181,22 +196,41 @@ function SignUpPage() {
           </Form>
         </Stack>
 
-        {microsoftEnabled && (
+        {showSocialLogin && (
           <>
             <Separator variant="muted" />
 
-            <Button
-              onClick={handleMicrosoftSignUp}
-              variant="outline"
-              size="lg"
-              fullWidth
-              disabled={isSubmitting}
-            >
-              <span className="mr-3 inline-flex">
-                <MicrosoftIcon />
-              </span>
-              {t('continueWithMicrosoft')}
-            </Button>
+            <Stack gap={3}>
+              {showSsoButton && (
+                <Button
+                  onClick={handleSsoLogin}
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  disabled={isSubmitting}
+                >
+                  <span className="mr-3 inline-flex">
+                    <MicrosoftIcon />
+                  </span>
+                  {t('login.continueWithSso')}
+                </Button>
+              )}
+
+              {showMicrosoftButton && (
+                <Button
+                  onClick={handleMicrosoftSignUp}
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  disabled={isSubmitting}
+                >
+                  <span className="mr-3 inline-flex">
+                    <MicrosoftIcon />
+                  </span>
+                  {t('continueWithMicrosoft')}
+                </Button>
+              )}
+            </Stack>
           </>
         )}
       </Stack>

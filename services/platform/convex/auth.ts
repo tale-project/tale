@@ -7,6 +7,7 @@ import authSchema from './betterAuth/schema';
 import { organization } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import authConfig from './auth.config';
+import { syncTeamsFromGroups } from './betterAuth/sso/team_sync';
 
 import {
   defaultStatements,
@@ -250,6 +251,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           'offline_access',
           'email',
           'https://graph.microsoft.com/Files.Read',
+          'https://graph.microsoft.com/GroupMember.Read.All',
         ],
       },
     },
@@ -300,6 +302,84 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
         },
       }),
     ],
+    // Hook into account creation to sync teams from Entra ID groups
+    databaseHooks: {
+      account: {
+        create: {
+          after: async (account: {
+            providerId: string;
+            accessToken?: string | null;
+            userId: string;
+          }) => {
+            if (account.providerId !== 'microsoft') {
+              return;
+            }
+
+            const accessToken = account.accessToken;
+            if (!accessToken) {
+              console.warn('[SSO] No access token available for team sync');
+              return;
+            }
+
+            // Get user email to determine domain
+            const convexCtx = ctx as any;
+            const userRes = await convexCtx.runQuery(
+              components.betterAuth.adapter.findMany,
+              {
+                model: 'user',
+                paginationOpts: { cursor: null, numItems: 1 },
+                where: [{ field: 'id', value: account.userId, operator: 'eq' }],
+              },
+            );
+
+            const user = userRes?.page?.[0] as { email?: string } | undefined;
+            if (!user?.email) {
+              console.warn('[SSO] Cannot find user email for team sync');
+              return;
+            }
+
+            // Extract domain from email
+            const emailDomain = user.email.split('@')[1]?.toLowerCase();
+            if (!emailDomain) {
+              console.warn('[SSO] Invalid email format for team sync');
+              return;
+            }
+
+            // Query SSO config from database by domain
+            const ssoConfig = await convexCtx.db
+              .query('ssoProviders')
+              .withIndex('domain', (q: any) => q.eq('domain', emailDomain))
+              .first();
+
+            if (!ssoConfig) {
+              console.log(`[SSO] No SSO config found for domain: ${emailDomain}`);
+              return;
+            }
+
+            if (!ssoConfig.autoProvisionEnabled) {
+              console.log('[SSO] Auto-provisioning disabled for this domain');
+              return;
+            }
+
+            try {
+              const result = await syncTeamsFromGroups({
+                ctx: convexCtx,
+                userId: account.userId,
+                accessToken,
+                excludeGroups: ssoConfig.excludeGroups,
+                teamMembershipMode: ssoConfig.teamMembershipMode,
+              });
+
+              if (result.errors.length > 0) {
+                console.warn('[SSO] Team sync errors:', result.errors);
+              }
+            } catch (error) {
+              console.error('[SSO] Team sync failed:', error);
+            }
+          },
+        },
+      },
+    },
   };
 };
 
