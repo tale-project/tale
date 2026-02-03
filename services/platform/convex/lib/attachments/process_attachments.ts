@@ -8,6 +8,8 @@
 import type { ActionCtx } from '../../_generated/server';
 import type { Id } from '../../_generated/dataModel';
 import { parseFile } from '../../agent_tools/files/helpers/parse_file';
+import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
+import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { registerFilesWithAgent } from './register_files';
 import type { FileAttachment, MessageContentPart } from './types';
 
@@ -122,6 +124,7 @@ export async function processAttachments(
           attachment.fileId as string,
           attachment.fileName,
           toolName,
+          userText,
         );
         return { attachment, parseResult };
       } catch (error) {
@@ -154,27 +157,80 @@ export async function processAttachments(
     }
   }
 
-  // Get image info for the image tool's analyze operation
-  const imageInfoResults = await Promise.all(
+  // Analyze images with vision model (in parallel)
+  const imageAnalysisResults = await Promise.all(
     imageAttachments.map(async (attachment) => {
-      const url = await ctx.storage.getUrl(attachment.fileId);
-      return {
-        fileName: attachment.fileName,
-        fileId: attachment.fileId,
-        url: url || undefined,
-      };
+      try {
+        const result = await analyzeImageCached(ctx, {
+          fileId: attachment.fileId,
+          fileName: attachment.fileName,
+          question: userText,
+        });
+
+        if (result.success) {
+          return {
+            fileName: attachment.fileName,
+            analysis: result.analysis,
+          };
+        } else {
+          debugLog('Image analysis failed', {
+            fileName: attachment.fileName,
+            error: result.error,
+          });
+          return null;
+        }
+      } catch (error) {
+        debugLog('Error analyzing image', {
+          fileName: attachment.fileName,
+          error: String(error),
+        });
+        return null;
+      }
     }),
   );
-  const imageInfoList = imageInfoResults.filter(
-    (r): r is ImageInfo => r.fileId !== undefined,
+
+  const analyzedImages = imageAnalysisResults.filter(
+    (r): r is { fileName: string; analysis: string } => r !== null,
   );
 
-  // Get text file info for the txt tool's parse operation
-  const textFileInfoList: TextFileInfo[] = textFileAttachments.map((attachment) => ({
-    fileName: attachment.fileName,
-    fileId: attachment.fileId,
-    fileSize: attachment.fileSize,
-  }));
+  // Analyze text files with LLM (in parallel)
+  const textAnalysisResults = await Promise.all(
+    textFileAttachments.map(async (attachment) => {
+      try {
+        const result = await analyzeTextContent(ctx, {
+          fileId: attachment.fileId as string,
+          filename: attachment.fileName,
+          userInput: userText || 'Analyze this file',
+        });
+
+        if (result.success) {
+          return {
+            fileName: attachment.fileName,
+            analysis: result.result,
+            charCount: result.charCount,
+            lineCount: result.lineCount,
+          };
+        } else {
+          debugLog('Text file analysis failed', {
+            fileName: attachment.fileName,
+            error: result.error,
+          });
+          return null;
+        }
+      } catch (error) {
+        debugLog('Error analyzing text file', {
+          fileName: attachment.fileName,
+          error: String(error),
+        });
+        return null;
+      }
+    }),
+  );
+
+  const analyzedTextFiles = textAnalysisResults.filter(
+    (r): r is { fileName: string; analysis: string; charCount: number; lineCount: number } =>
+      r !== null,
+  );
 
   // Register files with the agent component for tracking (documents only)
   // Images and text files are handled via their respective tools, not inline
@@ -187,8 +243,8 @@ export async function processAttachments(
 
   if (
     parsedDocuments.length > 0 ||
-    imageInfoList.length > 0 ||
-    textFileInfoList.length > 0
+    analyzedImages.length > 0 ||
+    analyzedTextFiles.length > 0
   ) {
     const text = userText || 'Please analyze the attached files.';
     const contentParts: MessageContentPart[] = [{ type: 'text', text }];
@@ -207,35 +263,19 @@ export async function processAttachments(
       });
     }
 
-    // Add image information for the image tool
-    if (imageInfoList.length > 0) {
-      const imageInfo = imageInfoList
-        .map((img) => {
-          const urlPart = img.url ? `, imageUrl="${img.url}"` : '';
-          return `- **${img.fileName}**: Use the \`image\` tool with operation="analyze", fileId="${img.fileId}"${urlPart} to analyze this image.`;
-        })
-        .join('\n');
+    // Add image analysis results
+    for (const img of analyzedImages) {
       contentParts.push({
         type: 'text',
-        text: `\n\n---\n**Attached Images** (use \`image\` tool with operation="analyze" to view/analyze):\n${imageInfo}\n---\n`,
+        text: `\n\n---\n**Image: ${img.fileName}**\n\n${img.analysis}\n---\n`,
       });
     }
 
-    // Add text file information for the document_assistant
-    if (textFileInfoList.length > 0) {
-      const textFileInfo = textFileInfoList
-        .map((txt) => {
-          const sizeKB = Math.max(1, Math.round(txt.fileSize / 1024));
-          const sizeDisplay =
-            sizeKB >= 1024
-              ? `${(sizeKB / 1024).toFixed(1)} MB`
-              : `${sizeKB} KB`;
-          return `- **${txt.fileName}** (${sizeDisplay}): fileId="${txt.fileId}"`;
-        })
-        .join('\n');
+    // Add text file analysis results
+    for (const txt of analyzedTextFiles) {
       contentParts.push({
         type: 'text',
-        text: `\n\n---\n**Attached Text Files** (use \`document_assistant\` with fileId and fileName to analyze):\n${textFileInfo}\n---\n`,
+        text: `\n\n---\n**Text File: ${txt.fileName}** (${txt.charCount} chars, ${txt.lineCount} lines)\n\n${txt.analysis}\n---\n`,
       });
     }
 
@@ -244,8 +284,8 @@ export async function processAttachments(
 
   return {
     parsedDocuments,
-    imageInfoList,
-    textFileInfoList,
+    imageInfoList: [],
+    textFileInfoList: [],
     promptContent,
   };
 }

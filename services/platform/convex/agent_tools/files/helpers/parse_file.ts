@@ -52,6 +52,7 @@ function getParseEndpoint(filename: string): string {
  * @param fileId - Convex storage ID of the file
  * @param filename - Original filename with extension
  * @param toolName - Name of the calling tool (for logging)
+ * @param userInput - Optional user question/instruction to guide parsing
  * @returns ParseFileResult with extracted text and metadata
  */
 export async function parseFile(
@@ -59,6 +60,7 @@ export async function parseFile(
   fileId: string,
   filename: string,
   toolName: string,
+  userInput?: string,
 ): Promise<ParseFileResult> {
   debugLog(`tool:${toolName} parse start`, {
     fileId,
@@ -85,11 +87,15 @@ export async function parseFile(
     // Create FormData and upload to crawler service
     const formData = new FormData();
     formData.append('file', fileBlob, filename);
+    if (userInput) {
+      formData.append('user_input', userInput);
+    }
 
     debugLog(`tool:${toolName} parse uploading to crawler`, {
       filename,
       size: fileBlob.size,
       endpoint: endpointPath,
+      hasUserInput: !!userInput,
     });
 
     const controller = new AbortController();
