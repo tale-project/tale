@@ -35,7 +35,12 @@ export function ProductImportForm({
     const file = files[0];
     if (!file) return;
 
-    if (file.type.includes('sheet') || file.name.endsWith('.csv')) {
+    const fileName = file.name.toLowerCase();
+    if (
+      fileName.endsWith('.xlsx') ||
+      fileName.endsWith('.xls') ||
+      fileName.endsWith('.csv')
+    ) {
       setValue('file', file);
     } else {
       toast({
