@@ -75,7 +75,7 @@
     "dexie": "^4.2.1",
     "dompurify": "3.3.1",
     "express": "^5.0.0",
-    "framer-motion": "12.30.0",
+    "framer-motion": "12.30.1",
     "fuse.js": "7.1.0",
     "he": "1.2.0",
     "i18next": "^25.7.4",
