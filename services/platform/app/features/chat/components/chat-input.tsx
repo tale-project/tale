@@ -8,10 +8,11 @@ import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { LoaderCircleIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
+import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import {
-  FileUpload,
+  useConvexFileUpload,
   type FileAttachment,
-} from '@/app/components/ui/forms/file-upload';
+} from '../hooks/use-convex-file-upload';
 import { ImagePreviewDialog } from './message-bubble';
 
 interface ChatInputProps extends Omit<
@@ -49,7 +50,7 @@ export function ChatInput({
     uploadFiles,
     removeAttachment,
     clearAttachments,
-  } = FileUpload.useContext();
+  } = useConvexFileUpload();
 
   const defaultPlaceholder = placeholder || tChat('typeMessageHere');
 
@@ -106,23 +107,24 @@ export function ChatInput({
     }
 
     if (imageFiles.length > 0) {
-      const dataTransfer = new DataTransfer();
-      imageFiles.forEach((file) => dataTransfer.items.add(file));
-      uploadFiles(dataTransfer.files);
+      uploadFiles(imageFiles);
     }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      uploadFiles(files);
+      uploadFiles(Array.from(files));
     }
     e.target.value = '';
   };
 
   return (
     <div {...restProps} className={cn('bg-background', restProps.className)}>
-      <FileUpload.DropZone className="relative flex flex-col h-full flex-1 min-h-0">
+      <FileUpload.DropZone
+        className="relative flex flex-col h-full flex-1 min-h-0"
+        onFilesSelected={uploadFiles}
+      >
         <FileUpload.Overlay className="rounded-t-3xl mx-2" />
         <input
           ref={fileInputRef}

@@ -9,29 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 import { ImagePlus } from 'lucide-react';
-import { toast } from '@/app/hooks/use-toast';
-import { useGenerateUploadUrl } from '@/app/features/chat/hooks/use-generate-upload-url';
-import { compressImage } from '@/lib/utils/compress-image';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
-import type { Id } from '@/convex/_generated/dataModel';
-
-interface FileAttachment {
-  fileId: Id<'_storage'>;
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  previewUrl?: string;
-}
 
 interface FileUploadContextValue {
-  attachments: FileAttachment[];
-  uploadingFiles: string[];
   isDragOver: boolean;
-  isUploading: boolean;
-  uploadFiles: (files: FileList) => Promise<void>;
-  removeAttachment: (fileId: Id<'_storage'>) => void;
-  clearAttachments: () => FileAttachment[];
   setIsDragOver: (value: boolean) => void;
 }
 
@@ -47,162 +29,19 @@ function useFileUploadContext() {
   return context;
 }
 
-interface FileUploadConfig {
-  maxFileSize?: number;
-  allowedTypes?: string[];
-}
-
-const DEFAULT_CONFIG: Required<FileUploadConfig> = {
-  maxFileSize: 10 * 1024 * 1024, // 10MB
-  allowedTypes: [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-    'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ],
-};
-
 interface RootProps {
   children: ReactNode;
-  config?: FileUploadConfig;
 }
 
-function Root({ children, config }: RootProps) {
-  const { t } = useT('chat');
-  const [attachments, setAttachments] = useState<FileAttachment[]>([]);
-  const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
+function Root({ children }: RootProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const generateUploadUrl = useGenerateUploadUrl();
-
-  const mergedConfig = useMemo(
-    () => ({ ...DEFAULT_CONFIG, ...config }),
-    [config],
-  );
-
-  const uploadFiles = useCallback(
-    async (files: FileList) => {
-      const fileArray = Array.from(files);
-
-      const invalidFiles = fileArray.filter(
-        (file) =>
-          file.size > mergedConfig.maxFileSize ||
-          !mergedConfig.allowedTypes.includes(file.type),
-      );
-
-      if (invalidFiles.length > 0) {
-        toast({
-          title: t('invalidFiles'),
-          description: t('filesNotSupported'),
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      const uploadPromises = fileArray.map(async (file) => {
-        const fileId = `${file.name}-${Date.now()}`;
-        setUploadingFiles((prev) => [...prev, fileId]);
-
-        try {
-          let fileToUpload = file;
-
-          if (file.type.startsWith('image/')) {
-            const compressionResult = await compressImage(file);
-            fileToUpload = compressionResult.file;
-          }
-
-          const uploadUrl = await generateUploadUrl();
-
-          const result = await fetch(uploadUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': fileToUpload.type },
-            body: fileToUpload,
-          });
-
-          if (!result.ok) {
-            throw new Error(t('uploadFailed'));
-          }
-
-          const { storageId } = await result.json();
-
-          const attachment: FileAttachment = {
-            fileId: storageId,
-            fileName: fileToUpload.name,
-            fileType: fileToUpload.type,
-            fileSize: fileToUpload.size,
-            previewUrl: fileToUpload.type.startsWith('image/')
-              ? URL.createObjectURL(fileToUpload)
-              : undefined,
-          };
-
-          setAttachments((prev) => [...prev, attachment]);
-
-          toast({
-            title: t('fileUploaded'),
-            description: t('uploadedSuccessfully', { filename: file.name }),
-          });
-        } catch (error) {
-          console.error('Upload error:', error);
-          toast({
-            title: t('uploadFailed'),
-            description: t('failedToUpload', { filename: file.name }),
-            variant: 'destructive',
-          });
-        } finally {
-          setUploadingFiles((prev) => prev.filter((id) => id !== fileId));
-        }
-      });
-
-      await Promise.all(uploadPromises);
-    },
-    [generateUploadUrl, mergedConfig, t],
-  );
-
-  const removeAttachment = useCallback((fileId: Id<'_storage'>) => {
-    setAttachments((prev) => {
-      const attachment = prev.find((att) => att.fileId === fileId);
-      if (attachment?.previewUrl) {
-        URL.revokeObjectURL(attachment.previewUrl);
-      }
-      return prev.filter((att) => att.fileId !== fileId);
-    });
-  }, []);
-
-  const clearAttachments = useCallback(() => {
-    const current = attachments;
-    current.forEach((att) => {
-      if (att.previewUrl) {
-        URL.revokeObjectURL(att.previewUrl);
-      }
-    });
-    setAttachments([]);
-    return current;
-  }, [attachments]);
 
   const value = useMemo(
     () => ({
-      attachments,
-      uploadingFiles,
       isDragOver,
-      isUploading: uploadingFiles.length > 0,
-      uploadFiles,
-      removeAttachment,
-      clearAttachments,
       setIsDragOver,
     }),
-    [
-      attachments,
-      uploadingFiles,
-      isDragOver,
-      uploadFiles,
-      removeAttachment,
-      clearAttachments,
-    ],
+    [isDragOver],
   );
 
   return (
@@ -215,18 +54,35 @@ function Root({ children, config }: RootProps) {
 interface DropZoneProps {
   children: ReactNode;
   className?: string;
+  onFilesSelected: (files: File[]) => void;
+  accept?: string;
+  disabled?: boolean;
+  inputId?: string;
+  multiple?: boolean;
+  'aria-label'?: string;
 }
 
-function DropZone({ children, className }: DropZoneProps) {
-  const { setIsDragOver, uploadFiles } = useFileUploadContext();
+function DropZone({
+  children,
+  className,
+  onFilesSelected,
+  accept,
+  disabled,
+  inputId = 'file-upload',
+  multiple,
+  'aria-label': ariaLabel,
+}: DropZoneProps) {
+  const { setIsDragOver } = useFileUploadContext();
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragOver(true);
+      if (!disabled) {
+        setIsDragOver(true);
+      }
     },
-    [setIsDragOver],
+    [setIsDragOver, disabled],
   );
 
   const handleDragLeave = useCallback(
@@ -244,22 +100,67 @@ function DropZone({ children, className }: DropZoneProps) {
       e.stopPropagation();
       setIsDragOver(false);
 
+      if (disabled) return;
+
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
-        uploadFiles(files);
+        onFilesSelected(Array.from(files));
       }
     },
-    [setIsDragOver, uploadFiles],
+    [setIsDragOver, onFilesSelected, disabled],
+  );
+
+  const handleClick = useCallback(() => {
+    if (disabled) return;
+    const input = document.getElementById(inputId) as HTMLInputElement;
+    input?.click();
+  }, [inputId, disabled]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (disabled) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick, disabled],
+  );
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = e.target.files;
+      if (selectedFiles && selectedFiles.length > 0) {
+        onFilesSelected(Array.from(selectedFiles));
+      }
+      e.target.value = '';
+    },
+    [onFilesSelected],
   );
 
   return (
     <div
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      aria-label={ariaLabel}
       className={className}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
     >
       {children}
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        onChange={handleFileInputChange}
+        className="hidden"
+        disabled={disabled}
+      />
     </div>
   );
 }
@@ -270,7 +171,7 @@ interface OverlayProps {
 }
 
 function Overlay({ className, label }: OverlayProps) {
-  const { t } = useT('chat');
+  const { t } = useT('common');
   const { isDragOver } = useFileUploadContext();
 
   if (!isDragOver) return null;
@@ -284,7 +185,7 @@ function Overlay({ className, label }: OverlayProps) {
     >
       <ImagePlus className="size-8 text-muted-foreground" />
       <span className="text-sm text-muted-foreground">
-        {label ?? t('dropFilesToAdd')}
+        {label ?? t('upload.dropFilesHere')}
       </span>
     </div>
   );
@@ -297,4 +198,4 @@ export const FileUpload = {
   useContext: useFileUploadContext,
 };
 
-export type { FileAttachment, FileUploadContextValue };
+export type { FileUploadContextValue };

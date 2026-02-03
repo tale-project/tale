@@ -1,1 +1,1 @@
-export type { FileAttachment } from '@/app/components/ui/forms/file-upload';
+export type { FileAttachment } from './hooks/use-convex-file-upload';

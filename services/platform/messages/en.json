@@ -64,7 +64,8 @@
       "or": "or",
       "dragAndDrop": "drag and drop",
       "supportedFormats": ".xlsx, .xls or .csv",
-      "pickADate": "Pick a date"
+      "pickADate": "Pick a date",
+      "dropFilesHere": "Drop files here to upload"
     },
     "labels": {
       "name": "Name",
@@ -103,6 +104,7 @@
       "passwordMismatch": "Passwords do not match",
       "invalidJson": "Invalid JSON format",
       "uploadFile": "Please upload a file",
+      "unsupportedFileType": "Unsupported file type",
       "schemaValidationFailed": "Schema validation failed{error, select, empty {} other {: {error}}}"
     },
     "aria": {
