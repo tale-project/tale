@@ -47,7 +47,13 @@ export async function getWithClientId(ctx: GenericActionCtx<DataModel>): Promise
 		return null;
 	}
 
-	const clientId = await decryptString(provider.clientIdEncrypted);
+	let clientId: string;
+	try {
+		clientId = await decryptString(provider.clientIdEncrypted);
+	} catch (error) {
+		console.error('[SSO] Failed to decrypt clientId for provider:', provider._id, error);
+		return null;
+	}
 
 	return {
 		_id: provider._id,
