@@ -106,7 +106,11 @@ export async function updateOAuth2ProviderLogic(
 
   // Update metadata if tenantId or credentialsSource provided
   if (args.tenantId !== undefined || args.credentialsSource !== undefined) {
-    const currentMetadata = (provider.metadata || {}) as Record<string, unknown>;
+    const rawMetadata = provider.metadata;
+    const currentMetadata =
+      typeof rawMetadata === 'object' && rawMetadata !== null && !Array.isArray(rawMetadata)
+        ? (rawMetadata as Record<string, unknown>)
+        : {};
     updateParams.metadata = {
       ...currentMetadata,
       ...(args.tenantId !== undefined && { tenantId: args.tenantId || undefined }),
