@@ -182,7 +182,8 @@ export async function hasMicrosoftAccount(ctx: QueryCtx): Promise<boolean> {
     });
 
     const accounts = result?.page ?? [];
-    return accounts.length > 0 && accounts[0]?.accessToken !== null;
+    const accessToken = accounts[0]?.accessToken;
+    return accounts.length > 0 && accessToken != null;
   } catch {
     return false;
   }
