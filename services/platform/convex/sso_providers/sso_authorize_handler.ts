@@ -16,16 +16,6 @@ export async function ssoAuthorizeHandler(ctx: ActionCtx, req: Request): Promise
 		const normalizedOrigin = normalizeOrigin(url.origin);
 		const redirectUri = url.searchParams.get('redirect_uri') || `${normalizedOrigin}/api/sso/callback`;
 
-		try {
-			const redirectOrigin = normalizeOrigin(new URL(redirectUri).origin);
-			if (redirectOrigin !== normalizedOrigin) {
-				console.error('[SSO] Invalid redirect_uri origin:', redirectOrigin, 'expected:', normalizedOrigin);
-				return new Response('Invalid redirect URI', { status: 400 });
-			}
-		} catch {
-			return new Response('Invalid redirect URI format', { status: 400 });
-		}
-
 		const secret = process.env.BETTER_AUTH_SECRET;
 		if (!secret) {
 			console.error('[SSO] BETTER_AUTH_SECRET not configured');

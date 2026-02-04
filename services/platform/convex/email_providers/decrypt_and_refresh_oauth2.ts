@@ -63,9 +63,10 @@ export async function decryptAndRefreshOAuth2Token(
   }
 
   // Check if token is expired and refresh if needed
+  // Default to needing refresh when expiry is unknown (safer than assuming valid)
   const currentTime = Math.floor(Date.now() / 1000);
   const tokenExpiry = oauth2Auth.tokenExpiry;
-  const needsRefresh = tokenExpiry && currentTime >= tokenExpiry - 300; // Refresh if expires in < 5 minutes
+  const needsRefresh = !tokenExpiry || currentTime >= tokenExpiry - 300; // Refresh if expires in < 5 minutes or expiry unknown
 
   if (needsRefresh && oauth2Auth.refreshTokenEncrypted) {
     debugLog(
