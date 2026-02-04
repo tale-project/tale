@@ -3,7 +3,7 @@
  * This replicates the signing logic from better-call/crypto
  * so we can sign session tokens in Convex actions.
  *
- * Format: encodeURIComponent(`${value}.${base64Signature}`)
+ * Format: encodeURIComponent(`${value}.${base64urlSignature}`)
  */
 export async function signCookieValue(value: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -20,9 +20,12 @@ export async function signCookieValue(value: string, secret: string): Promise<st
   // Sign the value
   const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
 
-  // Convert to base64
-  const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+  // Convert to base64url (RFC 4648) to match better-auth signing format
+  const base64urlSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 
   // Return in the same format as better-call
-  return encodeURIComponent(`${value}.${base64Signature}`);
+  return encodeURIComponent(`${value}.${base64urlSignature}`);
 }
