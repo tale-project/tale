@@ -142,13 +142,25 @@ export async function listSharePointSites(
     }
 
     if (sitesMap.size === 0) {
-      if (
-        searchResult.status === 'fulfilled' &&
-        searchResult.value.status === 403
-      ) {
+      // Check if any request had a meaningful error
+      if (searchResult.status === 'fulfilled' && !searchResult.value.ok) {
+        if (searchResult.value.status === 403) {
+          return {
+            success: false,
+            error: 'Access denied. You may not have permission to access SharePoint sites.',
+          };
+        }
+        if (searchResult.value.status === 401) {
+          return {
+            success: false,
+            error: 'Authentication failed. Please re-authenticate.',
+          };
+        }
+      }
+      if (searchResult.status === 'rejected') {
         return {
           success: false,
-          error: 'Access denied. You may not have permission to access SharePoint sites.',
+          error: 'Failed to search SharePoint sites. Please try again.',
         };
       }
     }
