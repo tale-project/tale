@@ -31,10 +31,14 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
   );
 
   if (tokenResult.needsRefresh && tokenResult.accountId && tokenResult.refreshToken) {
-    await ctx.runAction(internal.onedrive.internal_actions.refreshToken, {
+    const refreshResult = await ctx.runAction(internal.onedrive.internal_actions.refreshToken, {
       accountId: tokenResult.accountId,
       refreshToken: tokenResult.refreshToken,
     });
+
+    if (!refreshResult.success) {
+      return { success: false, error: refreshResult.error || 'Failed to refresh OneDrive token' };
+    }
 
     const newTokenResult = await ctx.runQuery(
       internal.onedrive.queries.getUserToken,
@@ -42,7 +46,7 @@ export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
     );
 
     if (!newTokenResult.token) {
-      return { success: false, error: 'Failed to refresh OneDrive token' };
+      return { success: false, error: 'Failed to retrieve refreshed OneDrive token' };
     }
 
     return { success: true, token: newTokenResult.token, userId };
