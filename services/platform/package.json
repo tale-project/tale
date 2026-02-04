@@ -91,7 +91,7 @@
     "mssql": "12.2.0",
     "mustache": "4.2.0",
     "mysql2": "3.16.3",
-    "nodemailer": "7.0.13",
+    "nodemailer": "8.0.0",
     "pg": "8.18.0",
     "react": "19.2.4",
     "react-datepicker": "9.1.0",
