@@ -3,6 +3,7 @@ import { internal } from '../_generated/api';
 import { decryptString } from '../lib/crypto/decrypt_string';
 import { getAdapter } from './registry';
 import { ONEDRIVE_SCOPES } from './entra_id/adapter';
+import { signValue } from './sign_cookie_value';
 
 function normalizeOrigin(origin: string): string {
 	return origin.replace('127.0.0.1', 'localhost');
@@ -14,6 +15,12 @@ export async function ssoAuthorizeHandler(ctx: ActionCtx, req: Request): Promise
 		const email = url.searchParams.get('email');
 		const normalizedOrigin = normalizeOrigin(url.origin);
 		const redirectUri = url.searchParams.get('redirect_uri') || `${normalizedOrigin}/api/sso/callback`;
+
+		const secret = process.env.BETTER_AUTH_SECRET;
+		if (!secret) {
+			console.error('[SSO] BETTER_AUTH_SECRET not configured');
+			return new Response('Server configuration error', { status: 500 });
+		}
 
 		const provider = await ctx.runQuery(internal.sso_providers.internal_queries.getSsoConfig, {});
 
@@ -30,11 +37,12 @@ export async function ssoAuthorizeHandler(ctx: ActionCtx, req: Request): Promise
 
 		const clientId = await decryptString(provider.clientIdEncrypted);
 
-		const stateData = JSON.stringify({
+		const statePayload = JSON.stringify({
 			redirectUri,
 			timestamp: Date.now(),
 		});
-		const state = btoa(stateData).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+		const base64Payload = btoa(statePayload).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+		const state = await signValue(base64Payload, secret);
 
 		const scopes = [...provider.scopes];
 		const entraFeatures = provider.providerFeatures?.entraId;

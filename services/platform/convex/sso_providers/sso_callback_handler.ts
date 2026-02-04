@@ -1,7 +1,7 @@
 import { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { decryptString } from '../lib/crypto/decrypt_string';
-import { signCookieValue } from './sign_cookie_value';
+import { signCookieValue, verifySignedValue } from './sign_cookie_value';
 import { createAuth } from '../auth';
 import { getAdapter } from './registry';
 
@@ -34,9 +34,20 @@ export async function ssoCallbackHandler(ctx: ActionCtx, req: Request): Promise<
 			return redirectWithError(url.origin, 'Missing authorization code or state');
 		}
 
+		const secret = process.env.BETTER_AUTH_SECRET;
+		if (!secret) {
+			console.error('[SSO] BETTER_AUTH_SECRET not configured');
+			return redirectWithError(url.origin, 'Server configuration error');
+		}
+
+		const verifiedPayload = await verifySignedValue(stateParam, secret);
+		if (!verifiedPayload) {
+			return redirectWithError(url.origin, 'Invalid state signature');
+		}
+
 		let state: { redirectUri: string; timestamp: number };
 		try {
-			const base64 = stateParam.replace(/-/g, '+').replace(/_/g, '/');
+			const base64 = verifiedPayload.replace(/-/g, '+').replace(/_/g, '/');
 			const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
 			state = JSON.parse(atob(padded));
 		} catch {

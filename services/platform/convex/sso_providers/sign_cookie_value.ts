@@ -6,9 +6,16 @@
  * Format: encodeURIComponent(`${value}.${base64urlSignature}`)
  */
 export async function signCookieValue(value: string, secret: string): Promise<string> {
+  const signedValue = await signValue(value, secret);
+  return encodeURIComponent(signedValue);
+}
+
+/**
+ * Sign a value using HMAC-SHA256 and return in format: `${value}.${base64urlSignature}`
+ */
+export async function signValue(value: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
 
-  // Import the secret key for HMAC-SHA256
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -17,15 +24,31 @@ export async function signCookieValue(value: string, secret: string): Promise<st
     ['sign'],
   );
 
-  // Sign the value
   const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
 
-  // Convert to base64url (RFC 4648) to match better-auth signing format
   const base64urlSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
 
-  // Return in the same format as better-call
-  return encodeURIComponent(`${value}.${base64urlSignature}`);
+  return `${value}.${base64urlSignature}`;
+}
+
+/**
+ * Verify a signed value and return the original value if valid, null otherwise.
+ */
+export async function verifySignedValue(signedValue: string, secret: string): Promise<string | null> {
+  const lastDotIndex = signedValue.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    return null;
+  }
+
+  const value = signedValue.substring(0, lastDotIndex);
+  const expectedSigned = await signValue(value, secret);
+
+  if (signedValue === expectedSigned) {
+    return value;
+  }
+
+  return null;
 }
