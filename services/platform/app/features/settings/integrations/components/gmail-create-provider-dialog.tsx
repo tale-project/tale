@@ -17,7 +17,6 @@ import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
 import { useTestEmailConnection } from '../hooks/use-test-email-connection';
 
-// Type for the form data
 type PasswordFormData = {
   name: string;
   email: string;
@@ -51,7 +50,6 @@ export function GmailCreateProviderDialog({
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
 
-  // Create Zod schemas with translated validation messages
   const passwordSchema = useMemo(
     () =>
       z.object({
@@ -78,7 +76,6 @@ export function GmailCreateProviderDialog({
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convex actions (hooks)
   const createProvider = useCreateEmailProvider();
   const createOAuth2Provider = useCreateOAuth2Provider();
   const testConnection = useTestEmailConnection();
@@ -86,7 +83,7 @@ export function GmailCreateProviderDialog({
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
-      name: '',
+      name: 'Gmail',
       email: '',
       password: '',
       isDefault: false,
@@ -96,7 +93,7 @@ export function GmailCreateProviderDialog({
   const oauth2Form = useForm<OAuth2FormData>({
     resolver: zodResolver(oauth2Schema),
     defaultValues: {
-      name: '',
+      name: 'Gmail',
       isDefault: false,
       useApiSending: true, // Default to API sending for OAuth2
       clientId: '',
@@ -107,7 +104,6 @@ export function GmailCreateProviderDialog({
   const handleOAuth2Submit = async (data: OAuth2FormData) => {
     setIsLoading(true);
     try {
-      // Create provider with OAuth2 config (credentials from user input)
       toast({
         title: t('integrations.settingUpOAuth'),
       });
@@ -157,7 +153,6 @@ export function GmailCreateProviderDialog({
   const handlePasswordSubmit = async (data: PasswordFormData) => {
     setIsLoading(true);
     try {
-      // Step 1: Test connection BEFORE saving
       toast({
         title: t('integrations.testingConnection'),
         description: t('integrations.validatingCredentials'),
@@ -182,7 +177,6 @@ export function GmailCreateProviderDialog({
         },
       });
 
-      // If test failed, show error and don't save
       if (!testResult.success) {
         const errors = [];
         if (!testResult.smtp.success) {
@@ -200,7 +194,6 @@ export function GmailCreateProviderDialog({
         return;
       }
 
-      // Step 2: Connection successful, now save
       toast({
         title: t('integrations.connectionSuccessful'),
         variant: 'success',
@@ -268,7 +261,6 @@ export function GmailCreateProviderDialog({
           </TabsTrigger>
         </TabsList>
 
-        {/* OAuth2 Form */}
         <TabsContent value="oauth2" className="mt-0">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
             <p className="text-xs text-blue-700 mb-1.5">
@@ -328,7 +320,6 @@ export function GmailCreateProviderDialog({
           </Form>
         </TabsContent>
 
-        {/* Password Form */}
         <TabsContent value="password" className="mt-0">
           <div className="border border-border rounded-lg p-2.5 mb-3">
             <p className="text-xs">

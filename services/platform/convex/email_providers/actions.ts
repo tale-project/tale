@@ -1,9 +1,5 @@
 'use node';
 
-/**
- * Email Providers Public Actions
- */
-
 import { v } from 'convex/values';
 import { action } from '../_generated/server';
 import { internal, api } from '../_generated/api';
@@ -101,6 +97,7 @@ export const createOAuth2Provider = action({
     tenantId: v.optional(v.string()),
     clientId: v.optional(v.string()),
     clientSecret: v.optional(v.string()),
+    credentialsSource: v.optional(v.union(v.literal('sso'), v.literal('manual'))),
   },
   handler: async (ctx, args): Promise<Id<'emailProviders'>> => {
     const authUser = await authComponent.getAuthUser(ctx);
@@ -282,6 +279,7 @@ export const updateOAuth2Provider = action({
     clientSecret: v.optional(v.string()),
     tenantId: v.optional(v.string()),
     sendMethod: v.optional(sendMethodValidator),
+    credentialsSource: v.optional(v.union(v.literal('sso'), v.literal('manual'))),
   },
   handler: async (ctx, args): Promise<null> => {
     const authUser = await authComponent.getAuthUser(ctx);

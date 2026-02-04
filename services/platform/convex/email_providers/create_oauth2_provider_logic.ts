@@ -1,9 +1,3 @@
-/**
- * Business logic for creating OAuth2 email providers
- * - Microsoft: requires user-provided credentials (clientId + clientSecret)
- * - Gmail: supports user-provided credentials or env var fallback
- */
-
 import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 
@@ -28,6 +22,7 @@ interface CreateOAuth2ProviderArgs {
   tenantId?: string;
   clientId?: string;
   clientSecret?: string;
+  credentialsSource?: 'sso' | 'manual';
 }
 
 interface CreateOAuth2ProviderDependencies {
@@ -104,7 +99,7 @@ function getOAuth2Credentials(
  * Fetches OAuth2 credentials from overrides or environment variables and encrypts them
  */
 export async function createOAuth2ProviderLogic(
-  ctx: ActionCtx,
+  _ctx: ActionCtx,
   args: CreateOAuth2ProviderArgs,
   deps: CreateOAuth2ProviderDependencies,
 ): Promise<Doc<'emailProviders'>['_id']> {
@@ -140,6 +135,9 @@ export async function createOAuth2ProviderLogic(
   }
   if (args.tenantId) {
     metadata.tenantId = args.tenantId;
+  }
+  if (args.credentialsSource) {
+    metadata.credentialsSource = args.credentialsSource;
   }
 
   // Call internal mutation to insert the provider

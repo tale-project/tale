@@ -4,6 +4,7 @@ import { get as getFn } from './get';
 import { isSsoConfigured as isSsoConfiguredFn } from './is_sso_configured';
 import { getMicrosoftToken as getMicrosoftTokenFn } from './get_microsoft_token';
 import { getWithClientId as getWithClientIdFn } from './get_with_client_id';
+import { getSsoCredentialsForEmail as getSsoCredentialsForEmailFn } from './get_sso_credentials_for_email';
 
 const platformRoleValidator = v.union(
 	v.literal('admin'),
@@ -105,4 +106,19 @@ export const getWithClientId = action({
 		v.null(),
 	),
 	handler: async (ctx) => getWithClientIdFn(ctx),
+});
+
+export const getSsoCredentialsForEmail = action({
+	args: {
+		organizationId: v.string(),
+	},
+	returns: v.union(
+		v.object({
+			clientId: v.string(),
+			clientSecret: v.string(),
+			tenantId: v.string(),
+		}),
+		v.null(),
+	),
+	handler: async (ctx, args) => getSsoCredentialsForEmailFn(ctx, args),
 });

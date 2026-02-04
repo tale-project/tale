@@ -9,12 +9,14 @@ import { Mail, ChevronRight } from 'lucide-react';
 import { GmailCreateProviderDialog } from './gmail-create-provider-dialog';
 import { OutlookCreateProviderDialog } from './outlook-create-provider-dialog';
 import { useT } from '@/lib/i18n/client';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 interface EmailProviderTypeSelectorProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess?: () => void;
+  ssoProvider?: SsoProvider | null;
 }
 
 export function EmailProviderTypeSelector({
@@ -22,6 +24,7 @@ export function EmailProviderTypeSelector({
   onOpenChange,
   organizationId,
   onSuccess,
+  ssoProvider,
 }: EmailProviderTypeSelectorProps) {
   const { t } = useT('settings');
   const [showGmailDialog, setShowGmailDialog] = useState(false);
@@ -103,7 +106,6 @@ export function EmailProviderTypeSelector({
         </Stack>
       </ViewDialog>
 
-      {/* Gmail Create Dialog */}
       <GmailCreateProviderDialog
         open={showGmailDialog}
         onOpenChange={setShowGmailDialog}
@@ -114,11 +116,11 @@ export function EmailProviderTypeSelector({
         }}
       />
 
-      {/* Outlook Create Dialog */}
       <OutlookCreateProviderDialog
         open={showOutlookDialog}
         onOpenChange={setShowOutlookDialog}
         organizationId={organizationId}
+        ssoProvider={ssoProvider}
         onSuccess={() => {
           setShowOutlookDialog(false);
           onSuccess?.();

@@ -1,7 +1,3 @@
-/**
- * Business logic for updating OAuth2 email providers
- */
-
 import type { ActionCtx } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
 
@@ -12,6 +8,7 @@ interface UpdateOAuth2ProviderArgs {
   clientSecret?: string;
   tenantId?: string;
   sendMethod?: 'smtp' | 'api';
+  credentialsSource?: 'sso' | 'manual';
 }
 
 interface UpdateOAuth2ProviderDependencies {
@@ -107,12 +104,13 @@ export async function updateOAuth2ProviderLogic(
     updateParams.status = 'pending_authorization';
   }
 
-  // Update tenant ID in metadata if provided
-  if (args.tenantId !== undefined) {
+  // Update metadata if tenantId or credentialsSource provided
+  if (args.tenantId !== undefined || args.credentialsSource !== undefined) {
     const currentMetadata = (provider.metadata || {}) as Record<string, unknown>;
     updateParams.metadata = {
       ...currentMetadata,
-      tenantId: args.tenantId || undefined,
+      ...(args.tenantId !== undefined && { tenantId: args.tenantId || undefined }),
+      ...(args.credentialsSource !== undefined && { credentialsSource: args.credentialsSource }),
     };
   }
 

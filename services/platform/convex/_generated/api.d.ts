@@ -538,6 +538,7 @@ import type * as sso_providers_get_auth_user from "../sso_providers/get_auth_use
 import type * as sso_providers_get_caller_role from "../sso_providers/get_caller_role.js";
 import type * as sso_providers_get_microsoft_token from "../sso_providers/get_microsoft_token.js";
 import type * as sso_providers_get_sso_config from "../sso_providers/get_sso_config.js";
+import type * as sso_providers_get_sso_credentials_for_email from "../sso_providers/get_sso_credentials_for_email.js";
 import type * as sso_providers_get_with_client_id from "../sso_providers/get_with_client_id.js";
 import type * as sso_providers_handle_sso_login from "../sso_providers/handle_sso_login.js";
 import type * as sso_providers_http_handlers from "../sso_providers/http_handlers.js";
@@ -1421,6 +1422,7 @@ declare const fullApi: ApiFromModules<{
   "sso_providers/get_caller_role": typeof sso_providers_get_caller_role;
   "sso_providers/get_microsoft_token": typeof sso_providers_get_microsoft_token;
   "sso_providers/get_sso_config": typeof sso_providers_get_sso_config;
+  "sso_providers/get_sso_credentials_for_email": typeof sso_providers_get_sso_credentials_for_email;
   "sso_providers/get_with_client_id": typeof sso_providers_get_with_client_id;
   "sso_providers/handle_sso_login": typeof sso_providers_handle_sso_login;
   "sso_providers/http_handlers": typeof sso_providers_http_handlers;

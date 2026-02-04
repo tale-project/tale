@@ -516,6 +516,7 @@ export function IntegrationsClient({
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         organizationId={organizationId}
+        ssoProvider={ssoProvider}
       />
     </Stack>
   );
