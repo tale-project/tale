@@ -120,7 +120,11 @@ export async function findOrCreateSsoUser(
 		},
 	});
 
-	const userId: string = (createResult as any)?._id ?? (createResult as any)?.id ?? String(createResult);
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const userId: string | undefined = (createResult as any)?._id ?? (createResult as any)?.id;
+	if (!userId) {
+		throw new Error('Failed to extract userId from user creation result');
+	}
 
 	await ctx.runMutation(components.betterAuth.adapter.create, {
 		input: {
