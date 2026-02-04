@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Input } from '@/app/components/ui/forms/input';
@@ -13,7 +15,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useT } from '@/lib/i18n/client';
-import { getEnv } from '@/lib/env';
 
 export const Route = createFileRoute('/_auth/sign-up')({
   component: SignUpPage,
@@ -28,7 +29,9 @@ function SignUpPage() {
   const navigate = useNavigate();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
-  const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
+
+  // @ts-expect-error TS2589 - deep type instantiation in Convex queries
+  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
 
   const signUpSchema = useMemo(
     () =>
@@ -97,20 +100,13 @@ function SignUpPage() {
     }
   };
 
-  const handleMicrosoftSignUp = async () => {
-    try {
-      await authClient.signIn.social({
-        provider: 'microsoft',
-        callbackURL: '/dashboard',
-      });
-    } catch (error) {
-      console.error('Microsoft sign-in error:', error);
-      toast({
-        title: t('signup.microsoftSignInFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleSsoLogin = useCallback(() => {
+    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
+    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+    window.location.href = authorizeUrl;
+  }, []);
+
+  const showSsoButton = ssoConfig?.enabled;
 
   return (
     <AuthFormLayout title={t('signup.signupTitle')}>
@@ -181,12 +177,12 @@ function SignUpPage() {
           </Form>
         </Stack>
 
-        {microsoftEnabled && (
+        {showSsoButton && (
           <>
             <Separator variant="muted" />
 
             <Button
-              onClick={handleMicrosoftSignUp}
+              onClick={handleSsoLogin}
               variant="outline"
               size="lg"
               fullWidth
@@ -195,7 +191,7 @@ function SignUpPage() {
               <span className="mr-3 inline-flex">
                 <MicrosoftIcon />
               </span>
-              {t('continueWithMicrosoft')}
+              {t('login.continueWithSso')}
             </Button>
           </>
         )}

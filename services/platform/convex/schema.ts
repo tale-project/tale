@@ -12,6 +12,7 @@ import { emailProvidersTable } from './email_providers/schema';
 import { integrationsTable } from './integrations/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
+import { ssoProvidersTable } from './sso_providers/schema';
 import { messageMetadataTable } from './streaming/schema';
 import { toneOfVoiceTable, exampleMessagesTable } from './tone_of_voice/schema';
 import { vendorsTable } from './vendors/schema';
@@ -37,6 +38,7 @@ export default defineSchema({
   messageMetadata: messageMetadataTable,
   onedriveSyncConfigs: onedriveSyncConfigsTable,
   products: productsTable,
+  ssoProviders: ssoProvidersTable,
   toneOfVoice: toneOfVoiceTable,
   vendors: vendorsTable,
   websitePages: websitePagesTable,

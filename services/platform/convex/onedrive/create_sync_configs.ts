@@ -1,9 +1,9 @@
 /**
- * Create Sync Configs Logic - Business logic for creating OneDrive sync configs
+ * Create Sync Configs - Business logic for creating OneDrive sync configs
  */
 
 import type { MutationCtx } from '../_generated/server';
-import type { FileItem } from './list_folder_contents_logic';
+import type { FileItem } from './list_folder_contents';
 
 export interface CreateSyncConfigsResult {
   count: number;
@@ -13,7 +13,7 @@ export interface CreateSyncConfigsResult {
  * Create sync config records for files in a folder
  * This allows each file to be processed individually in subsequent workflow runs
  */
-export async function createSyncConfigsLogic(
+export async function createSyncConfigs(
   ctx: MutationCtx,
   args: {
     organizationId: string;
@@ -24,7 +24,6 @@ export async function createSyncConfigsLogic(
     files: Array<FileItem>;
   },
 ): Promise<CreateSyncConfigsResult> {
-  // Insert all sync configs in parallel
   await Promise.all(
     args.files.map((file) =>
       ctx.db.insert('onedriveSyncConfigs', {

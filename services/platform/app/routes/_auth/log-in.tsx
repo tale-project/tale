@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,7 +16,6 @@ import { toast } from '@/app/hooks/use-toast';
 import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
 import { useT } from '@/lib/i18n/client';
-import { getEnv } from '@/lib/env';
 
 const searchSchema = z.object({
   redirectTo: z.string().optional(),
@@ -40,7 +39,7 @@ function LogInPage() {
   const { t: tCommon } = useT('common');
 
   const hasUsers = useQuery(api.users.queries.hasAnyUsers, {});
-  const microsoftEnabled = getEnv('MICROSOFT_AUTH_ENABLED');
+  const ssoConfig = useQuery(api.sso_providers.queries.isSsoConfigured, {});
 
   useEffect(() => {
     if (hasUsers === false) {
@@ -116,24 +115,17 @@ function LogInPage() {
     }
   };
 
-  const handleMicrosoftLogIn = async () => {
-    try {
-      await authClient.signIn.social({
-        provider: 'microsoft',
-        callbackURL: redirectTo || '/dashboard',
-      });
-    } catch (error) {
-      console.error('Microsoft sign-in error:', error);
-      toast({
-        title: t('login.toast.microsoftFailed'),
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleSsoLogin = useCallback(() => {
+    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
+    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+    window.location.href = authorizeUrl;
+  }, []);
 
   if (hasUsers === undefined) {
     return null;
   }
+
+  const showSsoButton = ssoConfig?.enabled;
 
   return (
     <AuthFormLayout title={t('login.loginTitle')}>
@@ -183,12 +175,12 @@ function LogInPage() {
           </Form>
         </Stack>
 
-        {microsoftEnabled && (
+        {showSsoButton && (
           <>
             <Separator variant="muted" />
 
             <Button
-              onClick={handleMicrosoftLogIn}
+              onClick={handleSsoLogin}
               variant="outline"
               size="lg"
               fullWidth
@@ -197,7 +189,7 @@ function LogInPage() {
               <span className="mr-3 inline-flex">
                 <MicrosoftIcon />
               </span>
-              {t('continueWithMicrosoft')}
+              {t('login.continueWithSso')}
             </Button>
           </>
         )}

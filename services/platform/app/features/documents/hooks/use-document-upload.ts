@@ -9,6 +9,16 @@ import type { Id } from '@/convex/_generated/dataModel';
 
 export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 
+/**
+ * Calculate SHA-256 hash of a file using Web Crypto API
+ */
+async function calculateFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface FileInfo {
   name: string;
   storagePath: string;
@@ -103,10 +113,13 @@ export function useDocumentUpload(options: UploadOptions) {
 
       // Upload files using direct HTTP upload to Convex storage
       const uploadPromises = files.map(async (file) => {
-        // Step 1: Get upload URL from Convex
+        // Step 1: Calculate content hash for deduplication
+        const contentHash = await calculateFileHash(file);
+
+        // Step 2: Get upload URL from Convex
         const uploadUrl = await generateUploadUrl();
 
-        // Step 2: Upload file directly to Convex storage via HTTP
+        // Step 3: Upload file directly to Convex storage via HTTP
         const uploadResponse = await fetch(uploadUrl, {
           method: 'POST',
           headers: {
@@ -124,12 +137,13 @@ export function useDocumentUpload(options: UploadOptions) {
           storageId: string;
         };
 
-        // Step 3: Create document record in database
+        // Step 4: Create document record in database
         const result = await createDocumentFromUpload({
           organizationId: options.organizationId,
           fileId: storageId as Id<'_storage'>,
           fileName: file.name,
           contentType: file.type || 'application/octet-stream',
+          contentHash,
           metadata: {
             size: file.size,
             sourceProvider: 'upload',

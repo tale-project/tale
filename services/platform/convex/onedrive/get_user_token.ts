@@ -1,5 +1,5 @@
 /**
- * Get User Token Logic - Business logic for getting Microsoft Graph token
+ * Get User Token - Business logic for getting Microsoft Graph token
  */
 
 import type { QueryCtx } from '../_generated/server';
@@ -16,7 +16,7 @@ export interface GetUserTokenResult {
  * Get Microsoft Graph token for a specific user
  * Checks token validity and returns account info if refresh is needed
  */
-export async function getUserTokenLogic(
+export async function getUserToken(
   ctx: QueryCtx,
   args: { userId: string },
 ): Promise<GetUserTokenResult> {
@@ -29,9 +29,7 @@ export async function getUserTokenLogic(
     return { token: null, needsRefresh: false };
   }
 
-  // No access token available
   if (!account.accessToken) {
-    // If we have a usable refresh token, request a refresh
     const hasUsableRefresh =
       !!account.refreshToken &&
       (!account.refreshTokenExpiresAt ||
@@ -39,7 +37,7 @@ export async function getUserTokenLogic(
 
     if (hasUsableRefresh) {
       console.warn(
-        `getUserTokenLogic: No access token for user ${args.userId}, will refresh using refresh token`,
+        `getUserToken: No access token for user ${args.userId}, will refresh using refresh token`,
       );
       return {
         token: null,
@@ -49,19 +47,16 @@ export async function getUserTokenLogic(
       };
     }
 
-    // No access or refresh token; nothing we can do
     return { token: null, needsRefresh: false };
   }
 
-  // Access token exists; check expiry with buffer
   if (account.accessTokenExpiresAt) {
     const now = Date.now();
-    const bufferMs = 5 * 60 * 1000; // 5 minutes buffer
+    const bufferMs = 5 * 60 * 1000;
     if (account.accessTokenExpiresAt < now + bufferMs) {
       if (account.refreshToken) {
-        // Token is expired or about to expire - needs refresh
         console.warn(
-          `getUserTokenLogic: Token expired for user ${args.userId}, needs refresh`,
+          `getUserToken: Token expired for user ${args.userId}, needs refresh`,
         );
         return {
           token: null,
@@ -70,7 +65,6 @@ export async function getUserTokenLogic(
           refreshToken: account.refreshToken ?? undefined,
         };
       } else {
-        // Token expiring but no refresh token; treat as invalid
         return { token: null, needsRefresh: false };
       }
     }

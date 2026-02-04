@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { Plus, HardDrive } from 'lucide-react';
 import { DataTableActionMenu, type DataTableActionMenuItem } from '@/app/components/ui/data-table/data-table-action-menu';
-import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
+import { MicrosoftIcon } from '@/app/components/icons/microsoft-icon';
 import { useT } from '@/lib/i18n/client';
 
 const OneDriveImportDialog = lazyComponent(
@@ -52,8 +52,8 @@ export function DocumentsActionMenu({
 
     if (hasMicrosoftAccount) {
       items.push({
-        label: tDocuments('upload.fromOneDrive'),
-        icon: OneDriveIcon,
+        label: tDocuments('upload.fromMicrosoft365'),
+        icon: MicrosoftIcon,
         onClick: handleOneDriveClick,
       });
     }

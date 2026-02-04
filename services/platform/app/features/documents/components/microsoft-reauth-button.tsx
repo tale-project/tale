@@ -1,9 +1,8 @@
 'use client';
 
-import { authClient } from '@/lib/auth-client';
 import { Button } from '@/app/components/ui/primitives/button';
 import { RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 interface MicrosoftReauthButtonProps {
@@ -12,8 +11,8 @@ interface MicrosoftReauthButtonProps {
 }
 
 /**
- * Button component for re-authenticating with Microsoft.
- * Shows different text based on the error type.
+ * Button component for re-authenticating with Microsoft via SSO.
+ * Redirects to the SSO login flow to get fresh OneDrive access tokens.
  */
 export function MicrosoftReauthButton({
   error,
@@ -22,20 +21,12 @@ export function MicrosoftReauthButton({
   const { t } = useT('auth');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleReauth = async () => {
+  const handleReauth = useCallback(() => {
     setIsLoading(true);
-    try {
-      // Link Microsoft account for OAuth tokens (Files.Read scope)
-      await authClient.signIn.social({
-        provider: 'microsoft',
-        callbackURL: window.location.href,
-      });
-    } catch (err) {
-      console.error('Re-authentication failed:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const callbackUri = `${window.location.origin}/http_api/api/sso/callback`;
+    const authorizeUrl = `/http_api/api/sso/authorize?redirect_uri=${encodeURIComponent(callbackUri)}`;
+    window.location.href = authorizeUrl;
+  }, []);
 
   const getButtonText = () => {
     if (error === 'ConsentRequired') {

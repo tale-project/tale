@@ -1,0 +1,56 @@
+/**
+ * With Microsoft Token - Helper for authentication and token handling
+ */
+
+import type { ActionCtx } from '../_generated/server';
+import { internal } from '../_generated/api';
+import { authComponent } from '../auth';
+
+export type TokenResult =
+  | { success: true; token: string; userId: string }
+  | { success: false; error: string };
+
+/**
+ * Common helper for authentication and Microsoft token handling.
+ * Handles:
+ * - User authentication check
+ * - Token retrieval
+ * - Token refresh if needed
+ */
+export async function withMicrosoftToken(ctx: ActionCtx): Promise<TokenResult> {
+  const authUser = await authComponent.getAuthUser(ctx);
+  if (!authUser) {
+    return { success: false, error: 'Unauthenticated' };
+  }
+
+  const userId = String(authUser._id);
+
+  const tokenResult = await ctx.runQuery(
+    internal.onedrive.queries.getUserToken,
+    { userId },
+  );
+
+  if (tokenResult.needsRefresh && tokenResult.accountId && tokenResult.refreshToken) {
+    await ctx.runAction(internal.onedrive.internal_actions.refreshToken, {
+      accountId: tokenResult.accountId,
+      refreshToken: tokenResult.refreshToken,
+    });
+
+    const newTokenResult = await ctx.runQuery(
+      internal.onedrive.queries.getUserToken,
+      { userId },
+    );
+
+    if (!newTokenResult.token) {
+      return { success: false, error: 'Failed to refresh OneDrive token' };
+    }
+
+    return { success: true, token: newTokenResult.token, userId };
+  }
+
+  if (!tokenResult.token) {
+    return { success: false, error: 'Microsoft account not connected or token expired' };
+  }
+
+  return { success: true, token: tokenResult.token, userId };
+}
