@@ -218,11 +218,6 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
   const isHttps = siteUrl.startsWith('https://');
 
   return {
-    // disable logging when createAuth is called just to generate options.
-    // this is not required, but there's a lot of noise in logs without it.
-    logger: {
-      disabled: true,
-    },
     baseURL: siteUrl,
     // TEMPORARY: Allow requests from any host on port 3000
     // TODO: Replace with proper origin validation in production
@@ -232,26 +227,6 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
-    },
-    account: {
-      accountLinking: {
-        enabled: true,
-        trustedProviders: ['microsoft'],
-      },
-    },
-    socialProviders: {
-      microsoft: {
-        clientId: process.env.AUTH_MICROSOFT_ENTRA_ID_ID as string,
-        clientSecret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET as string,
-        tenantId: process.env.AUTH_MICROSOFT_ENTRA_ID_TENANT_ID as string,
-        authority: 'https://login.microsoftonline.com',
-        prompt: 'select_account' as const,
-        scope: [
-          'offline_access',
-          'email',
-          'https://graph.microsoft.com/Files.Read',
-        ],
-      },
     },
     advanced: {
       // Better Auth automatically adds __Secure- prefix when useSecureCookies is true

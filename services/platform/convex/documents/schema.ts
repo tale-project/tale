@@ -10,9 +10,13 @@ export const documentsTable = defineTable({
   mimeType: v.optional(v.string()),
   extension: v.optional(v.string()),
   sourceProvider: v.optional(
-    v.union(v.literal('onedrive'), v.literal('upload')),
+    v.union(v.literal('onedrive'), v.literal('upload'), v.literal('sharepoint')),
   ),
   externalItemId: v.optional(v.string()),
+  siteId: v.optional(v.string()),
+  driveId: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+  historyFiles: v.optional(v.array(v.id('_storage'))),
   teamTags: v.optional(v.array(v.string())),
   ragInfo: v.optional(
     v.object({

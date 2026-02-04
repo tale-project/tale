@@ -10,6 +10,12 @@ interface UpdateProviderArgs {
   providerId: Doc<'emailProviders'>['_id'];
   name?: string;
   isDefault?: boolean;
+  sendMethod?: 'smtp' | 'api';
+  oauth2Auth?: {
+    provider: string;
+    clientId: string;
+    clientSecretEncrypted: string;
+  };
   smtpConfig?: SmtpConfig;
   imapConfig?: ImapConfig;
   status?: EmailProviderStatus;
@@ -52,6 +58,8 @@ export async function updateProvider(
   const updateData: Partial<Doc<'emailProviders'>> = {};
   if (args.name !== undefined) updateData.name = args.name;
   if (args.isDefault !== undefined) updateData.isDefault = args.isDefault;
+  if (args.sendMethod !== undefined) updateData.sendMethod = args.sendMethod;
+  if (args.oauth2Auth !== undefined) updateData.oauth2Auth = args.oauth2Auth;
   if (args.smtpConfig !== undefined) updateData.smtpConfig = args.smtpConfig;
   if (args.imapConfig !== undefined) updateData.imapConfig = args.imapConfig;
   if (args.status !== undefined) updateData.status = args.status;
@@ -70,4 +78,3 @@ export async function updateProvider(
   await ctx.db.patch(providerId, updateData);
   return null;
 }
-

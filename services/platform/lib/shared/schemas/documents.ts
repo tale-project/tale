@@ -9,7 +9,7 @@ export const ragInfoStatusLiterals = ['queued', 'running', 'completed', 'failed'
 export const ragInfoStatusSchema = z.enum(ragInfoStatusLiterals);
 export type RagInfoStatus = z.infer<typeof ragInfoStatusSchema>;
 
-export const sourceProviderLiterals = ['onedrive', 'upload'] as const;
+export const sourceProviderLiterals = ['onedrive', 'upload', 'sharepoint'] as const;
 export const sourceProviderSchema = z.enum(sourceProviderLiterals);
 export type SourceProvider = z.infer<typeof sourceProviderSchema>;
 

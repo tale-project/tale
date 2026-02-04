@@ -1,5 +1,5 @@
 /**
- * Upload to Storage Logic - Business logic for uploading files to Convex storage
+ * Upload to Storage - Business logic for uploading files to Convex storage
  */
 
 import type { ActionCtx } from '../_generated/server';
@@ -17,7 +17,7 @@ export interface UploadToStorageDependencies {
 /**
  * Upload file content to Convex storage
  */
-export async function uploadToStorageLogic(
+export async function uploadToStorage(
   args: {
     fileName: string;
     fileContent: ArrayBuffer | string;
@@ -28,7 +28,6 @@ export async function uploadToStorageLogic(
   deps: UploadToStorageDependencies,
 ): Promise<UploadToStorageResult> {
   try {
-    // Convert content to Blob
     let blob: Blob;
     if (typeof args.fileContent === 'string') {
       blob = new Blob([args.fileContent], {
@@ -40,7 +39,6 @@ export async function uploadToStorageLogic(
       });
     }
 
-    // Store in Convex storage
     const storageId = await deps.storageStore(blob);
 
     return {
@@ -48,7 +46,7 @@ export async function uploadToStorageLogic(
       storageId,
     };
   } catch (error) {
-    console.error('uploadToStorageLogic error:', error);
+    console.error('uploadToStorage error:', error);
     return {
       success: false,
       error:
@@ -58,4 +56,3 @@ export async function uploadToStorageLogic(
     };
   }
 }
-

@@ -13,16 +13,16 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
-import { Search, Home, Loader2, Database, X, Users } from 'lucide-react';
+import { Search, Home, Loader2, Database, Users } from 'lucide-react';
+import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
+import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { formatFileSize, formatDate } from '@/lib/utils/onedrive-helpers';
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useSyncStatus, type FileProcessingStatus } from './sync-status';
 import { MicrosoftReauthButton } from './microsoft-reauth-button';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import type { ColumnDef } from '@tanstack/react-table';
-import { camelCase } from 'lodash';
 import { useT } from '@/lib/i18n/client';
 
 // Normalized OneDrive item type returned by Convex action
@@ -40,6 +40,15 @@ type OneDriveApiItem = {
 const isFolder = (item: OneDriveApiItem): boolean => item.isFolder;
 const isFile = (item: OneDriveApiItem): boolean => !item.isFolder;
 
+const getPathFromUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+};
+
 interface OneDriveImportDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -49,8 +58,182 @@ interface OneDriveImportDialogProps {
 
 type ImportType = 'one-time' | 'sync';
 type Stage = 'picker' | 'settings';
+type SourceTab = 'onedrive' | 'sharepoint';
 
 const noop = () => {};
+
+// SharePoint types
+type SharePointSite = {
+  id: string;
+  name: string;
+  displayName: string;
+  webUrl: string;
+  description?: string;
+};
+
+type SharePointDrive = {
+  id: string;
+  name: string;
+  driveType: string;
+  webUrl?: string;
+  description?: string;
+};
+
+// SharePoint Sites Table Component
+interface SharePointSitesTableProps {
+  sites: SharePointSite[];
+  isLoading: boolean;
+  onSiteClick: (site: SharePointSite) => void;
+}
+
+function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSitesTableProps) {
+  const { t } = useT('documents');
+  const { t: tTables } = useT('tables');
+
+  const columns = useMemo<ColumnDef<SharePointSite>[]>(
+    () => [
+      {
+        id: 'name',
+        header: tTables('headers.name'),
+        cell: ({ row }) => {
+          const site = row.original;
+          return (
+            <HStack gap={3}>
+              <div className="flex items-center justify-center size-8 rounded-md bg-teal-100 dark:bg-teal-900/30">
+                <SharePointIcon className="size-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-foreground truncate cursor-pointer hover:text-blue-600">
+                  {site.displayName}
+                </div>
+                {site.description && (
+                  <div className="text-xs text-muted-foreground truncate max-w-md">
+                    {site.description}
+                  </div>
+                )}
+              </div>
+            </HStack>
+          );
+        },
+      },
+      {
+        id: 'url',
+        header: () => <div className="text-right">{t('microsoft365.siteUrl')}</div>,
+        cell: ({ row }) => (
+          <div className="text-sm text-muted-foreground text-right truncate max-w-[200px]" title={row.original.webUrl}>
+            {getPathFromUrl(row.original.webUrl)}
+          </div>
+        ),
+      },
+    ],
+    [tTables, t],
+  );
+
+  if (isLoading) {
+    return <DataTableSkeleton columns={columns} rows={5} showPagination={false} />;
+  }
+
+  if (!sites || sites.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center py-12">
+        <SharePointIcon className="size-12 opacity-50 mb-4" />
+        <h3 className="text-lg font-medium text-foreground mb-2">
+          {t('microsoft365.noSites')}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {t('microsoft365.noSitesDescription')}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      data={sites}
+      getRowId={(row) => row.id}
+      onRowClick={(row) => onSiteClick(row.original)}
+    />
+  );
+}
+
+// SharePoint Drives Table Component
+interface SharePointDrivesTableProps {
+  drives: SharePointDrive[];
+  isLoading: boolean;
+  onDriveClick: (drive: SharePointDrive) => void;
+}
+
+function SharePointDrivesTable({ drives, isLoading, onDriveClick }: SharePointDrivesTableProps) {
+  const { t } = useT('documents');
+  const { t: tTables } = useT('tables');
+
+  const columns = useMemo<ColumnDef<SharePointDrive>[]>(
+    () => [
+      {
+        id: 'name',
+        header: tTables('headers.name'),
+        cell: ({ row }) => {
+          const drive = row.original;
+          return (
+            <HStack gap={3}>
+              <div className="flex items-center justify-center size-8 rounded-md bg-amber-100 dark:bg-amber-900/30">
+                <Database className="size-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-foreground truncate cursor-pointer hover:text-blue-600">
+                  {drive.name}
+                </div>
+                {drive.description && (
+                  <div className="text-xs text-muted-foreground truncate max-w-md">
+                    {drive.description}
+                  </div>
+                )}
+              </div>
+            </HStack>
+          );
+        },
+      },
+      {
+        id: 'type',
+        header: () => <div className="text-right">{t('microsoft365.driveType')}</div>,
+        cell: ({ row }) => (
+          <div className="text-sm text-muted-foreground text-right capitalize">
+            {row.original.driveType}
+          </div>
+        ),
+      },
+    ],
+    [tTables, t],
+  );
+
+  if (isLoading) {
+    return <DataTableSkeleton columns={columns} rows={5} showPagination={false} />;
+  }
+
+  if (!drives || drives.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center py-12">
+        <Database className="size-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-medium text-foreground mb-2">
+          {t('microsoft365.noDrives')}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          {t('microsoft365.noDrivesDescription')}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      data={drives}
+      getRowId={(row) => row.id}
+      onRowClick={(row) => onDriveClick(row.original)}
+    />
+  );
+}
 
 type OneDriveSelectedItem = {
   id: string;
@@ -184,21 +367,25 @@ function OneDriveFileTable({
     ],
   );
 
-  const emptyState = isMicrosoftAccountError
-    ? {
+  const emptyState = useMemo(() => {
+    if (isMicrosoftAccountError) {
+      return {
         title: t('onedrive.microsoftNotConnected'),
         description: t('onedrive.microsoftNotConnectedDescription'),
         customAction: <MicrosoftReauthButton className="mx-auto" />,
-      }
-    : searchQuery
-      ? {
-          title: t('noItemsFound'),
-          description: t('noItemsMatchingSearch'),
-        }
-      : {
-          title: t('noItemsAvailable'),
-          description: t('onedrive.folderEmpty'),
-        };
+      };
+    }
+    if (searchQuery) {
+      return {
+        title: t('noItemsFound'),
+        description: t('noItemsMatchingSearch'),
+      };
+    }
+    return {
+      title: t('noItemsAvailable'),
+      description: t('onedrive.folderEmpty'),
+    };
+  }, [isMicrosoftAccountError, searchQuery, t]);
 
   // Show skeleton while loading
   if (isLoading) {
@@ -227,16 +414,27 @@ export function OneDriveImportDialog({
 
   // OneDrive file listing via Convex action
   const listOneDriveFiles = useAction(api.onedrive.actions.listFiles);
+  const importFilesAction = useAction(api.onedrive.actions.importFiles);
+
+  const listSharePointSites = useAction(api.onedrive.actions.listSharePointSites);
+  const listSharePointDrives = useAction(api.onedrive.actions.listSharePointDrives);
+  const listSharePointFiles = useAction(api.onedrive.actions.listSharePointFiles);
 
   const [stage, setStage] = useState<Stage>('picker');
   const [importType, setImportType] = useState<ImportType>('one-time');
   const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
 
-  // Sync state management
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncAbortController, setSyncAbortController] =
-    useState<AbortController | null>(null);
-  const syncStatus = useSyncStatus();
+  // Source tab state
+  const [sourceTab, setSourceTab] = useState<SourceTab>('onedrive');
+
+  // SharePoint navigation state
+  const [selectedSite, setSelectedSite] = useState<SharePointSite | null>(null);
+  const [selectedDrive, setSelectedDrive] = useState<SharePointDrive | null>(null);
+  const [spFolderId, setSpFolderId] = useState<string | undefined>(undefined);
+  const [spFolderPath, setSpFolderPath] = useState<Array<{ id: string | undefined; name: string }>>([]);
+
+  // Import state
+  const [isImporting, setIsImporting] = useState(false);
 
   // File picker state
   const [searchQuery, setSearchQuery] = useState('');
@@ -292,8 +490,68 @@ export function OneDriveImportDialog({
         throw error;
       }
     },
-    enabled: stage === 'picker',
+    enabled: stage === 'picker' && sourceTab === 'onedrive',
     staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: 2,
+  });
+
+  // React Query for SharePoint sites
+  const {
+    data: sitesData,
+    isLoading: loadingSites,
+  } = useQuery({
+    queryKey: ['sharepoint-sites'],
+    queryFn: async () => {
+      const result = await listSharePointSites({});
+      if (!result.success || !result.sites) {
+        throw new Error(result.error || t('onedrive.loadFailed'));
+      }
+      return result.sites;
+    },
+    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !selectedSite,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
+  // React Query for SharePoint drives (document libraries)
+  const {
+    data: drivesData,
+    isLoading: loadingDrives,
+  } = useQuery({
+    queryKey: ['sharepoint-drives', selectedSite?.id],
+    queryFn: async () => {
+      if (!selectedSite) throw new Error('No site selected');
+      const result = await listSharePointDrives({ siteId: selectedSite.id });
+      if (!result.success || !result.drives) {
+        throw new Error(result.error || t('onedrive.loadFailed'));
+      }
+      return result.drives;
+    },
+    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !!selectedSite && !selectedDrive,
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
+  // React Query for SharePoint files
+  const {
+    data: spFilesData,
+    isLoading: loadingSpFiles,
+  } = useQuery({
+    queryKey: ['sharepoint-files', selectedSite?.id, selectedDrive?.id, spFolderId],
+    queryFn: async () => {
+      if (!selectedSite || !selectedDrive) throw new Error('No site/drive selected');
+      const result = await listSharePointFiles({
+        siteId: selectedSite.id,
+        driveId: selectedDrive.id,
+        folderId: spFolderId,
+      });
+      if (!result.success || !result.items) {
+        throw new Error(result.error || t('onedrive.loadFailed'));
+      }
+      return result.items;
+    },
+    enabled: stage === 'picker' && sourceTab === 'sharepoint' && !!selectedSite && !!selectedDrive,
+    staleTime: 5 * 60 * 1000,
     retry: 2,
   });
 
@@ -302,28 +560,25 @@ export function OneDriveImportDialog({
     loadError instanceof Error &&
     loadError.message.includes('Microsoft account not connected');
 
+  type CollectedFile = {
+    id: string;
+    name: string;
+    size: number;
+    relativePath?: string;
+    isDirectlySelected?: boolean;
+    selectedParentId?: string;
+    selectedParentName?: string;
+    selectedParentPath?: string;
+  };
+
   // Function to recursively collect all files from folders with path preservation
   const collectAllFiles = async (
     items: OneDriveApiItem[],
     currentPath: string = '',
     directlySelectedItems?: Set<string>,
     selectedParentInfo?: { id: string; name: string; path: string } | null,
-  ): Promise<
-    (FileProcessingStatus & {
-      relativePath?: string;
-      isDirectlySelected?: boolean;
-      selectedParentId?: string;
-      selectedParentName?: string;
-      selectedParentPath?: string;
-    })[]
-  > => {
-    const allFiles: (FileProcessingStatus & {
-      relativePath?: string;
-      isDirectlySelected?: boolean;
-      selectedParentId?: string;
-      selectedParentName?: string;
-      selectedParentPath?: string;
-    })[] = [];
+  ): Promise<CollectedFile[]> => {
+    const allFiles: CollectedFile[] = [];
 
     for (const item of items) {
       if (isFile(item)) {
@@ -332,7 +587,6 @@ export function OneDriveImportDialog({
         allFiles.push({
           id: item.id,
           name: item.name,
-          status: 'pending',
           size: item.size,
           relativePath: currentPath,
           isDirectlySelected,
@@ -346,10 +600,19 @@ export function OneDriveImportDialog({
         });
       } else if (isFolder(item)) {
         try {
-          // Get files from this folder
-          const folderResult = await listOneDriveFiles({
-            folderId: item.id,
-          });
+          // Get files from this folder (use appropriate API based on source)
+          let folderResult;
+          if (sourceTab === 'sharepoint' && selectedSite && selectedDrive) {
+            folderResult = await listSharePointFiles({
+              siteId: selectedSite.id,
+              driveId: selectedDrive.id,
+              folderId: item.id,
+            });
+          } else {
+            folderResult = await listOneDriveFiles({
+              folderId: item.id,
+            });
+          }
 
           if (folderResult.success && folderResult.items) {
             // Build the path for files in this folder
@@ -388,204 +651,6 @@ export function OneDriveImportDialog({
     return allFiles;
   };
 
-  // Function to start sync with SSE streaming
-  const startSyncWithStream = async (
-    items: Array<{
-      id: string;
-      name: string;
-      size?: number;
-      relativePath?: string;
-    }>,
-    organizationId: string,
-    abortController: AbortController,
-    importType: ImportType,
-    teamTags?: string[],
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      // Prepare request body with import type differentiation
-      const requestBody = {
-        items,
-        organizationId,
-        importType, // Pass import type to backend
-        teamTags, // Pass team tags for access control
-      };
-
-      // Create SSE connection with POST data and abort signal
-      fetch('/api/documents/onedrive', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-        signal: abortController.signal,
-      })
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-
-          if (!response.body) {
-            throw new Error(t('import.noResponseBody'));
-          }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-
-          const processStream = async () => {
-            try {
-              while (true) {
-                const { done, value } = await reader.read();
-
-                if (done) {
-                  resolve();
-                  break;
-                }
-
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                  if (line.startsWith('event: ')) {
-                    // const eventType = line.substring(7); // Event type for future use
-                    continue;
-                  }
-
-                  if (line.startsWith('data: ')) {
-                    const data = line.substring(6);
-
-                    try {
-                      const parsedData = JSON.parse(data);
-
-                      // Handle different event types based on the data structure
-                      // Note: handle completion before progress because a 'complete' event may include progress: 100
-                      if (parsedData.success !== undefined) {
-                        // Complete/error event
-                        syncStatus.completeSync({
-                          success: parsedData.success,
-                          error: parsedData.error,
-                          syncedFiles: [], // Will be populated from file statuses
-                          failedFiles: [], // Will be populated from file statuses
-                          totalFiles: items.length,
-                        });
-
-                        if (parsedData.success) {
-                          toast({
-                            variant: 'success',
-                            title:
-                              importType === 'one-time'
-                                ? t('onedrive.importCompleted')
-                                : t('onedrive.syncCompleted'),
-                            description:
-                              importType === 'one-time'
-                                ? t('onedrive.filesImported')
-                                : t('onedrive.filesSynced'),
-                          });
-
-                          // Clear selection after successful operation
-                          setSelectedItems(new Map());
-                          onSuccess?.();
-                        } else {
-                          toast({
-                            title:
-                              importType === 'one-time'
-                                ? t('onedrive.importFailed')
-                                : t('onedrive.syncFailed'),
-                            description:
-                              parsedData.error || tCommon('errors.generic'),
-                            variant: 'destructive',
-                          });
-                        }
-                      } else if (parsedData.fileId) {
-                        // File status event
-                        syncStatus.updateFileStatus(
-                          parsedData.fileId,
-                          parsedData.status,
-                          parsedData.error,
-                        );
-                      } else if (parsedData.progress !== undefined) {
-                        // Progress event
-                        syncStatus.updateProgress(
-                          parsedData.progress,
-                          parsedData.currentFile || 'Processing...',
-                        );
-
-                        if (parsedData.files) {
-                          parsedData.files.forEach(
-                            (file: {
-                              id: string;
-                              status:
-                                | 'pending'
-                                | 'processing'
-                                | 'completed'
-                                | 'failed';
-                              error?: string;
-                            }) => {
-                              syncStatus.updateFileStatus(
-                                file.id,
-                                file.status,
-                                file.error,
-                              );
-                            },
-                          );
-                        }
-                      }
-                    } catch (parseError) {
-                      console.error(parseError);
-                      toast({
-                        title: t('onedrive.failedToParseSSE'),
-                        variant: 'destructive',
-                      });
-                    }
-                  }
-                }
-              }
-            } catch (streamError) {
-              toast({
-                title: t('onedrive.failedToProcessStream'),
-                variant: 'destructive',
-              });
-              reject(streamError);
-            }
-          };
-
-          processStream();
-        })
-        .catch((error) => {
-          // Check if the error is due to abort
-          if (error.name === 'AbortError') {
-            toast({
-              title:
-                importType === 'one-time'
-                  ? t('onedrive.importCancelled')
-                  : t('onedrive.syncCancelled'),
-              description:
-                importType === 'one-time'
-                  ? t('onedrive.importCancelledDescription')
-                  : t('onedrive.syncCancelledDescription'),
-              variant: 'default',
-            });
-            reject(
-              new Error(
-                t('onedrive.cancelledByUser', { type: camelCase(importType) }),
-              ),
-            );
-          } else {
-            toast({
-              title:
-                importType === 'one-time'
-                  ? t('onedrive.importFailed')
-                  : t('onedrive.syncFailed'),
-              description: t('onedrive.failedToStart', {
-                type: camelCase(importType),
-              }),
-              variant: 'destructive',
-            });
-            reject(error);
-          }
-        });
-    });
-  };
-
   // Helper function to build hierarchical path for an item
   const buildItemPath = (item: OneDriveApiItem): string => {
     const pathParts = [];
@@ -612,8 +677,9 @@ export function OneDriveImportDialog({
     const newSelectedItems = new Map(selectedItems);
 
     if (isSelected) {
-      // Find the item details and store with path
-      const item = (itemsData || []).find(
+      // Find the item details from the correct data source based on current tab
+      const dataSource = sourceTab === 'sharepoint' ? (spFilesData || []) : (itemsData || []);
+      const item = dataSource.find(
         (i: OneDriveApiItem) => i.id === itemId,
       );
       if (item) {
@@ -705,11 +771,7 @@ export function OneDriveImportDialog({
     try {
       const selectedItemsArray = Array.from(selectedItems.values());
 
-      setIsSyncing(true);
-
-      // Create abort controller for this operation
-      const abortController = new AbortController();
-      setSyncAbortController(abortController);
+      setIsImporting(true);
 
       // Convert selected items to OneDriveApiItem format for collectAllFiles
       const driveItems: OneDriveApiItem[] = selectedItemsArray.map(
@@ -740,10 +802,7 @@ export function OneDriveImportDialog({
         directlySelectedIds,
       );
 
-      // Show sync status dialog
-      syncStatus.showSync(allFiles);
-
-      // Show toast notification as backup
+      // Show starting toast
       toast({
         title:
           importType === 'one-time'
@@ -751,15 +810,19 @@ export function OneDriveImportDialog({
             : t('onedrive.syncStarted'),
         description:
           importType === 'one-time'
-            ? t('onedrive.importingItems', { count: selectedItemsArray.length })
-            : t('onedrive.syncingItems', { count: selectedItemsArray.length }),
+            ? t('onedrive.importingItems', { count: allFiles.length })
+            : t('onedrive.syncingItems', { count: allFiles.length }),
       });
 
-      // Start import/sync with streaming
+      // Call import action
       const teamTags =
         selectedTeams.size > 0 ? Array.from(selectedTeams) : undefined;
-      await startSyncWithStream(
-        allFiles.map((file) => ({
+
+      // Determine if this is a SharePoint import
+      const isSharePoint = sourceTab === 'sharepoint' && selectedSite && selectedDrive;
+
+      const result = await importFilesAction({
+        items: allFiles.map((file) => ({
           id: file.id,
           name: file.name,
           size: file.size,
@@ -768,12 +831,50 @@ export function OneDriveImportDialog({
           selectedParentId: file.selectedParentId,
           selectedParentName: file.selectedParentName,
           selectedParentPath: file.selectedParentPath,
+          // Include SharePoint context if applicable
+          ...(isSharePoint && {
+            siteId: selectedSite.id,
+            driveId: selectedDrive.id,
+            sourceType: 'sharepoint' as const,
+          }),
         })),
         organizationId,
-        abortController,
         importType,
         teamTags,
-      );
+      });
+
+      if (result.success) {
+        toast({
+          variant: 'success',
+          title:
+            importType === 'one-time'
+              ? t('onedrive.importCompleted')
+              : t('onedrive.syncCompleted'),
+          description:
+            importType === 'one-time'
+              ? t('onedrive.filesImportedCount', {
+                  count: result.successCount,
+                  total: result.totalFiles,
+                })
+              : t('onedrive.filesSyncedCount', {
+                  count: result.successCount,
+                  total: result.totalFiles,
+                }),
+        });
+
+        // Clear selection after successful operation
+        setSelectedItems(new Map());
+        onSuccess?.();
+      } else {
+        toast({
+          title:
+            importType === 'one-time'
+              ? t('onedrive.importFailed')
+              : t('onedrive.syncFailed'),
+          description: result.error || tCommon('errors.generic'),
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
       console.error('Failed to import from OneDrive:', error);
 
@@ -782,110 +883,307 @@ export function OneDriveImportDialog({
           importType === 'one-time'
             ? t('onedrive.importFailed')
             : t('onedrive.syncFailed'),
+        description:
+          error instanceof Error ? error.message : tCommon('errors.generic'),
         variant: 'destructive',
       });
-
-      syncStatus.completeSync({
-        success: false,
-        error: errorMessage,
-        syncedFiles: [],
-        failedFiles: [],
-        totalFiles: 0,
-      });
     } finally {
-      setIsSyncing(false);
-      setSyncAbortController(null);
+      setIsImporting(false);
     }
   };
 
-  const filteredItems = (itemsData || []).filter((item: OneDriveApiItem) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // Get current items based on active tab
+  const currentItems = useMemo(() => {
+    if (sourceTab === 'sharepoint' && selectedSite && selectedDrive) {
+      return (spFilesData || []).filter((item: OneDriveApiItem) =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    }
+    return (itemsData || []).filter((item: OneDriveApiItem) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+  }, [sourceTab, selectedSite, selectedDrive, spFilesData, itemsData, searchQuery]);
+
+  // Keep filteredItems for backward compatibility with OneDrive tab
+  const filteredItems = currentItems;
+
+  const handleTabChange = (tab: SourceTab) => {
+    setSourceTab(tab);
+    // Reset selection when switching tabs
+    setSelectedItems(new Map());
+    setSearchQuery('');
+    // Reset SharePoint navigation
+    if (tab === 'onedrive') {
+      setSelectedSite(null);
+      setSelectedDrive(null);
+    }
+  };
 
   if (stage === 'picker') {
     return (
       <Dialog
         open={props.open ?? false}
         onOpenChange={props.onOpenChange ?? noop}
-        title={t('onedrive.selectFiles')}
+        title={t('microsoft365.title')}
         hideClose
         className="max-w-5xl p-0 sm:p-0"
         customHeader={
-          <HStack
-            align="start"
-            justify="between"
-            className="border-b border-border px-6 py-6"
-          >
-            <Stack gap={1}>
-              <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
-                {t('onedrive.selectFiles')}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t('onedrive.selectDescription')}
-              </p>
-            </Stack>
-          </HStack>
+          <div className="border-b border-border">
+            <HStack
+              align="start"
+              justify="between"
+              className="px-6 pt-6 pb-4"
+            >
+              <Stack gap={1}>
+                <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">
+                  {t('microsoft365.title')}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {t('microsoft365.selectDescription')}
+                </p>
+              </Stack>
+            </HStack>
+            {/* Tab Switcher */}
+            <HStack gap={0} className="px-6">
+              <button
+                type="button"
+                onClick={() => handleTabChange('onedrive')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  sourceTab === 'onedrive'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <OneDriveIcon className="size-4" />
+                {t('microsoft365.myOneDrive')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTabChange('sharepoint')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  sourceTab === 'sharepoint'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <SharePointIcon className="size-4" />
+                {t('microsoft365.sharePointSites')}
+              </button>
+            </HStack>
+          </div>
         }
       >
-        <Stack gap={4} className="px-6 py-2">
-          {/* Breadcrumb Navigation */}
-          {folderPath.length > 1 && (
-            <HStack gap={2} className="text-sm text-muted-foreground">
-              {folderPath.map((folder, index) => (
-                <HStack key={folder.id || 'root'} gap={2}>
-                  <button
-                    type="button"
-                    onClick={() => handleBreadcrumbClick(index)}
-                    className="hover:text-blue-600 hover:underline"
-                  >
-                    {index === 0 ? <Home className="size-4" /> : folder.name}
-                  </button>
-                  {index < folderPath.length - 1 && (
-                    <span className="text-muted-foreground">/</span>
-                  )}
+        <Stack gap={4} className="px-6 py-4">
+          {/* OneDrive Tab Content */}
+          {sourceTab === 'onedrive' && (
+            <>
+              {/* Breadcrumb Navigation */}
+              {folderPath.length > 1 && (
+                <HStack gap={2} className="text-sm text-muted-foreground">
+                  {folderPath.map((folder, index) => (
+                    <HStack key={folder.id || 'root'} gap={2}>
+                      <button
+                        type="button"
+                        onClick={() => handleBreadcrumbClick(index)}
+                        className="hover:text-blue-600 hover:underline"
+                      >
+                        {index === 0 ? <Home className="size-4" /> : folder.name}
+                      </button>
+                      {index < folderPath.length - 1 && (
+                        <span className="text-muted-foreground">/</span>
+                      )}
+                    </HStack>
+                  ))}
                 </HStack>
-              ))}
-            </HStack>
+              )}
+
+              {/* Search Input and Import Button */}
+              <HStack gap={3}>
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    placeholder={t('searchFilesAndFolders')}
+                    size="sm"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={proceedToSettings}
+                  disabled={selectedItems.size === 0}
+                  className="px-6 whitespace-nowrap"
+                >
+                  {t('onedrive.importCount', { count: selectedItems.size })}
+                </Button>
+              </HStack>
+
+              {/* Items List */}
+              <div className="h-[500px] overflow-y-auto">
+                <OneDriveFileTable
+                  items={filteredItems}
+                  isLoading={loading}
+                  isMicrosoftAccountError={isMicrosoftAccountError}
+                  searchQuery={searchQuery}
+                  selectedItems={selectedItems}
+                  getSelectAllState={getSelectAllState}
+                  handleSelectAllChange={handleSelectAllChange}
+                  getCheckedState={getCheckedState}
+                  handleCheckChange={handleCheckChange}
+                  handleFolderClick={handleFolderClick}
+                  buildItemPath={buildItemPath}
+                />
+              </div>
+            </>
           )}
 
-          {/* Search Input and Import Button */}
-          <HStack gap={3}>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                placeholder={t('searchFilesAndFolders')}
-                size="sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button
-              size="sm"
-              onClick={proceedToSettings}
-              disabled={selectedItems.size === 0}
-              className="px-6 whitespace-nowrap"
-            >
-              {t('onedrive.importCount', { count: selectedItems.size })}
-            </Button>
-          </HStack>
+          {/* SharePoint Tab Content */}
+          {sourceTab === 'sharepoint' && (
+            <>
+              {/* SharePoint Breadcrumb */}
+              <HStack gap={2} className="text-sm text-muted-foreground">
+                {selectedSite && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSite(null);
+                        setSelectedDrive(null);
+                        setSpFolderId(undefined);
+                        setSpFolderPath([]);
+                        setSelectedItems(new Map());
+                      }}
+                      className="hover:text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <SharePointIcon className="size-4" />
+                      {t('microsoft365.sharePointSites')}
+                    </button>
+                    <span>/</span>
+                    {selectedDrive ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDrive(null);
+                            setSpFolderId(undefined);
+                            setSpFolderPath([]);
+                            setSelectedItems(new Map());
+                          }}
+                          className="hover:text-blue-600 hover:underline"
+                        >
+                          {selectedSite.displayName}
+                        </button>
+                        <span>/</span>
+                        {spFolderPath.length > 0 ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSpFolderId(undefined);
+                                setSpFolderPath([]);
+                                setSelectedItems(new Map());
+                              }}
+                              className="hover:text-blue-600 hover:underline"
+                            >
+                              {selectedDrive.name}
+                            </button>
+                            {spFolderPath.map((folder, index) => (
+                              <HStack key={folder.id || index} gap={2}>
+                                <span>/</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSpFolderId(folder.id);
+                                    setSpFolderPath(spFolderPath.slice(0, index + 1));
+                                    setSelectedItems(new Map());
+                                  }}
+                                  className="hover:text-blue-600 hover:underline"
+                                >
+                                  {folder.name}
+                                </button>
+                              </HStack>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="text-foreground">{selectedDrive.name}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-foreground">{selectedSite.displayName}</span>
+                    )}
+                  </>
+                )}
+              </HStack>
 
-          {/* Items List */}
-          <div className="h-[500px] overflow-y-auto">
-            <OneDriveFileTable
-              items={filteredItems}
-              isLoading={loading}
-              isMicrosoftAccountError={isMicrosoftAccountError}
-              searchQuery={searchQuery}
-              selectedItems={selectedItems}
-              getSelectAllState={getSelectAllState}
-              handleSelectAllChange={handleSelectAllChange}
-              getCheckedState={getCheckedState}
-              handleCheckChange={handleCheckChange}
-              handleFolderClick={handleFolderClick}
-              buildItemPath={buildItemPath}
-            />
-          </div>
+              {/* Sites List */}
+              {!selectedSite && (
+                <div className="h-[500px] overflow-y-auto">
+                  <SharePointSitesTable
+                    sites={sitesData || []}
+                    isLoading={loadingSites}
+                    onSiteClick={setSelectedSite}
+                  />
+                </div>
+              )}
+
+              {/* Drives List */}
+              {selectedSite && !selectedDrive && (
+                <div className="h-[500px] overflow-y-auto">
+                  <SharePointDrivesTable
+                    drives={drivesData || []}
+                    isLoading={loadingDrives}
+                    onDriveClick={setSelectedDrive}
+                  />
+                </div>
+              )}
+
+              {/* Files List (SharePoint) */}
+              {selectedSite && selectedDrive && (
+                <>
+                  <HStack gap={3}>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+                      <Input
+                        placeholder={t('searchFilesAndFolders')}
+                        size="sm"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={proceedToSettings}
+                      disabled={selectedItems.size === 0}
+                      className="px-6 whitespace-nowrap"
+                    >
+                      {t('onedrive.importCount', { count: selectedItems.size })}
+                    </Button>
+                  </HStack>
+                  <div className="h-[440px] overflow-y-auto">
+                    <OneDriveFileTable
+                      items={currentItems}
+                      isLoading={loadingSpFiles}
+                      isMicrosoftAccountError={false}
+                      searchQuery={searchQuery}
+                      selectedItems={selectedItems}
+                      getSelectAllState={getSelectAllState}
+                      handleSelectAllChange={handleSelectAllChange}
+                      getCheckedState={getCheckedState}
+                      handleCheckChange={handleCheckChange}
+                      handleFolderClick={(folder) => {
+                        setSpFolderId(folder.id);
+                        setSpFolderPath([...spFolderPath, { id: folder.id, name: folder.name }]);
+                        setSelectedItems(new Map());
+                      }}
+                      buildItemPath={buildItemPath}
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </Stack>
       </Dialog>
     );
@@ -896,40 +1194,18 @@ export function OneDriveImportDialog({
       <HStack gap={4} className="justify-stretch w-full">
         <Button
           variant="outline"
-          onClick={() => {
-            if (isSyncing && syncAbortController) {
-              syncAbortController.abort();
-              setSyncAbortController(null);
-              setIsSyncing(false);
-              toast({
-                title:
-                  importType === 'one-time'
-                    ? t('onedrive.importCancelled')
-                    : t('onedrive.syncCancelled'),
-                description:
-                  importType === 'one-time'
-                    ? t('onedrive.importCancelledDescription')
-                    : t('onedrive.syncCancelledDescription'),
-                variant: 'default',
-              });
-            } else {
-              setStage('picker');
-            }
-          }}
+          onClick={() => setStage('picker')}
           className="flex-1"
-          disabled={false}
+          disabled={isImporting}
         >
-          {isSyncing ? (
-            <>
-              <X className="size-4 mr-2" />
-              {tCommon('actions.cancel')}
-            </>
-          ) : (
-            tCommon('actions.back')
-          )}
+          {tCommon('actions.back')}
         </Button>
-        <Button onClick={handleImport} className="flex-1" disabled={isSyncing}>
-          {isSyncing ? (
+        <Button
+          onClick={handleImport}
+          className="flex-1"
+          disabled={isImporting}
+        >
+          {isImporting ? (
             <>
               <Loader2 className="size-4 mr-2 animate-spin" />
               {importType === 'one-time'
@@ -939,10 +1215,9 @@ export function OneDriveImportDialog({
           ) : (
             <>
               <Database className="size-4 mr-2" />
-              {t('onedrive.importItem', {
-                type: camelCase(importType),
-                count: selectedItems.size,
-              })}
+              {importType === 'one-time'
+                ? t('onedrive.importItems', { count: selectedItems.size })
+                : t('onedrive.syncItems', { count: selectedItems.size })}
             </>
           )}
         </Button>
@@ -1055,7 +1330,7 @@ export function OneDriveImportDialog({
                       id={`onedrive-team-${team.id}`}
                       checked={selectedTeams.has(team.id)}
                       onCheckedChange={() => handleToggleTeam(team.id)}
-                      disabled={isSyncing}
+                      disabled={isImporting}
                       label={team.name}
                     />
                   </div>

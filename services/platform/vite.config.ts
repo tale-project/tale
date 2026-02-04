@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import tsConfigPaths from 'vite-tsconfig-paths';
 import viteReact from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -39,6 +40,16 @@ export default defineConfig({
       },
       // Proxy better-auth requests to Convex HTTP endpoint
       '/api/auth': {
+        target: 'http://127.0.0.1:3211',
+        changeOrigin: true,
+      },
+      // Proxy SSO requests to Convex HTTP endpoint
+      '/api/sso': {
+        target: 'http://127.0.0.1:3211',
+        changeOrigin: true,
+      },
+      // Proxy documents API requests to Convex HTTP endpoint
+      '/api/documents': {
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
       },
@@ -118,6 +129,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    tanstackRouter(),
     injectEnv(),
     stubSSRImports(),
     tsConfigPaths(),

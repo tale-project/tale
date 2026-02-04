@@ -10,7 +10,7 @@ import type { CursorPaginatedResult } from '../lib/pagination';
 
 export interface QueryDocumentsArgs {
   organizationId: string;
-  sourceProvider?: 'onedrive' | 'upload';
+  sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   paginationOpts: {
     numItems: number;
     cursor: string | null;

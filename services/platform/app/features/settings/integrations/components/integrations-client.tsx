@@ -30,6 +30,8 @@ import { ShopifyDisconnectConfirmationDialog } from './shopify-disconnect-confir
 import { EmailIntegrationDialog } from './email-integration-dialog';
 import { ProtelIntegrationDialog } from './protel-integration-dialog';
 import { ProtelDisconnectConfirmationDialog } from './protel-disconnect-confirmation-dialog';
+import { SSOCard } from './sso-card';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 type Integration = Doc<'integrations'> | null;
 type EmailProvider = Doc<'emailProviders'>;
@@ -40,6 +42,7 @@ interface IntegrationsClientProps {
   circuly: Integration;
   protel: Integration;
   emailProviders: EmailProvider[];
+  ssoProvider: SsoProvider | null;
   tab?: string;
 }
 
@@ -49,6 +52,7 @@ export function IntegrationsClient({
   circuly: circulyIntegration,
   protel: protelIntegration,
   emailProviders,
+  ssoProvider,
   tab,
 }: IntegrationsClientProps) {
   const { t } = useT('settings');
@@ -374,6 +378,10 @@ export function IntegrationsClient({
       <OAuth2Banner />
 
       <Grid cols={1} md={2} lg={3}>
+        <SSOCard
+          organizationId={organizationId}
+          ssoProvider={ssoProvider}
+        />
         {integrations.map((integration) => {
           const IconComponent = integration.icon;
           return (
@@ -508,6 +516,7 @@ export function IntegrationsClient({
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         organizationId={organizationId}
+        ssoProvider={ssoProvider}
       />
     </Stack>
   );

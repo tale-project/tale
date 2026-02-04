@@ -155,19 +155,21 @@ type AccountType = 'personal' | 'organizational' | 'both';
 function getTokenUrl(
   provider: OAuthProvider,
   accountType?: AccountType,
+  tenantId?: string,
 ): string {
   if (provider === 'gmail') {
     return 'https://oauth2.googleapis.com/token';
   }
-  // Microsoft: Use tenant-specific endpoint based on account type
-  // personal -> consumers, organizational -> organizations, both/undefined -> common
-  const tenantType =
-    accountType === 'personal'
-      ? 'consumers'
-      : accountType === 'organizational'
-        ? 'organizations'
-        : 'common';
-  return `https://login.microsoftonline.com/${tenantType}/oauth2/v2.0/token`;
+  // Microsoft: Use tenant ID if provided (for single-tenant apps), otherwise use account type
+  let tenant = 'common';
+  if (tenantId) {
+    tenant = tenantId;
+  } else if (accountType === 'personal') {
+    tenant = 'consumers';
+  } else if (accountType === 'organizational') {
+    tenant = 'organizations';
+  }
+  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
 }
 
 async function exchangeCodeForTokens(
@@ -177,8 +179,9 @@ async function exchangeCodeForTokens(
   clientSecret: string,
   redirectUri: string,
   accountType?: AccountType,
+  tenantId?: string,
 ): Promise<TokenResponse> {
-  const tokenUrl = getTokenUrl(provider, accountType);
+  const tokenUrl = getTokenUrl(provider, accountType, tenantId);
 
   const body = new URLSearchParams({
     client_id: clientId,
@@ -255,16 +258,18 @@ export const handleOAuth2Callback = internalAction({
     const { oauth2Auth } = emailProvider;
     const provider = oauth2Auth.provider as OAuthProvider;
 
-    // Get account type from metadata (used for Microsoft tenant-specific endpoints)
+    // Get account type and tenant ID from metadata (used for Microsoft tenant-specific endpoints)
     const accountType = emailProvider.metadata?.accountType as
       | AccountType
       | undefined;
+    const tenantId = emailProvider.metadata?.tenantId as string | undefined;
 
     console.log('[OAuth2 Callback] Provider info:', {
       provider,
       accountType,
+      tenantId,
       metadata: emailProvider.metadata,
-      tokenUrl: getTokenUrl(provider, accountType),
+      tokenUrl: getTokenUrl(provider, accountType, tenantId),
     });
 
     // Decrypt client secret
@@ -278,6 +283,7 @@ export const handleOAuth2Callback = internalAction({
       clientSecret,
       args.redirectUri,
       accountType,
+      tenantId,
     );
 
     // Encrypt tokens for storage
@@ -292,7 +298,7 @@ export const handleOAuth2Callback = internalAction({
       : undefined;
 
     // Get the tenant-specific token URL to store for future token refreshes
-    const tokenUrl = getTokenUrl(provider, accountType);
+    const tokenUrl = getTokenUrl(provider, accountType, tenantId);
 
     // Store encrypted tokens
     await ctx.runMutation(

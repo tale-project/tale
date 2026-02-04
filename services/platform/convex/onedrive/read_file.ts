@@ -1,5 +1,5 @@
 /**
- * Read File Logic - Business logic for reading files from OneDrive
+ * Read File - Business logic for reading files from OneDrive
  */
 
 export interface ReadFileResult {
@@ -13,12 +13,11 @@ export interface ReadFileResult {
 /**
  * Read file from OneDrive using Microsoft Graph API
  */
-export async function readFileLogic(args: {
+export async function readFile(args: {
   itemId: string;
   token: string;
 }): Promise<ReadFileResult> {
   try {
-    // Call Microsoft Graph API to download file content
     const response = await fetch(
       `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/content`,
       {
@@ -36,10 +35,8 @@ export async function readFileLogic(args: {
       };
     }
 
-    // Get file content as ArrayBuffer
     const arrayBuffer = await response.arrayBuffer();
 
-    // Get content type from response headers
     const contentType =
       response.headers.get('content-type') || 'application/octet-stream';
 
@@ -50,7 +47,7 @@ export async function readFileLogic(args: {
       size: arrayBuffer.byteLength,
     };
   } catch (error) {
-    console.error('readFileLogic error:', error);
+    console.error('readFile error:', error);
     return {
       success: false,
       error:
@@ -58,4 +55,3 @@ export async function readFileLogic(args: {
     };
   }
 }
-
