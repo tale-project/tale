@@ -10,10 +10,8 @@ import * as DocumentsHelpers from './helpers';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import { documentItemValidator, sourceProviderValidator as srcProviderValidator } from './validators';
+import { documentItemValidator, sourceProviderValidator } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
-
-const sourceProviderValidator = v.union(v.literal('onedrive'), v.literal('upload'), v.literal('sharepoint'));
 
 /**
  * Get a document by ID (internal query)
