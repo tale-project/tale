@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Settings } from 'lucide-react';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
@@ -13,35 +13,13 @@ import {
 } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Center } from '@/app/components/ui/layout/layout';
 import { Badge } from '@/app/components/ui/feedback/badge';
-import { Settings } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { SSOConfigDialog } from './sso-config-dialog';
-
-type PlatformRole = 'admin' | 'developer' | 'editor' | 'member' | 'disabled';
-
-type RoleMappingRule = {
-  source: 'jobTitle' | 'appRole';
-  pattern: string;
-  targetRole: PlatformRole;
-};
-
-interface SSOProvider {
-  _id: string;
-  providerId: string;
-  issuer: string;
-  clientId?: string;
-  scopes: string[];
-  autoProvisionTeam: boolean;
-  excludeGroups: string[];
-  autoProvisionRole: boolean;
-  roleMappingRules: RoleMappingRule[];
-  defaultRole: PlatformRole;
-  enableOneDriveAccess: boolean;
-}
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 interface SSOCardProps {
   organizationId: string;
-  ssoProvider: SSOProvider | null;
+  ssoProvider: SsoProvider | null;
   onConfigured?: () => void;
 }
 

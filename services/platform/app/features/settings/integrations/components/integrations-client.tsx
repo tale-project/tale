@@ -31,31 +31,10 @@ import { EmailIntegrationDialog } from './email-integration-dialog';
 import { ProtelIntegrationDialog } from './protel-integration-dialog';
 import { ProtelDisconnectConfirmationDialog } from './protel-disconnect-confirmation-dialog';
 import { SSOCard } from './sso-card';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
 type Integration = Doc<'integrations'> | null;
 type EmailProvider = Doc<'emailProviders'>;
-
-type PlatformRole = 'admin' | 'developer' | 'editor' | 'member' | 'disabled';
-
-type RoleMappingRule = {
-  source: 'jobTitle' | 'appRole';
-  pattern: string;
-  targetRole: PlatformRole;
-};
-
-interface SSOProvider {
-  _id: string;
-  providerId: string;
-  issuer: string;
-  clientId?: string;
-  scopes: string[];
-  autoProvisionTeam: boolean;
-  excludeGroups: string[];
-  autoProvisionRole: boolean;
-  roleMappingRules: RoleMappingRule[];
-  defaultRole: PlatformRole;
-  enableOneDriveAccess: boolean;
-}
 
 interface IntegrationsClientProps {
   organizationId: string;
@@ -63,7 +42,7 @@ interface IntegrationsClientProps {
   circuly: Integration;
   protel: Integration;
   emailProviders: EmailProvider[];
-  ssoProvider: SSOProvider | null;
+  ssoProvider: SsoProvider | null;
   tab?: string;
 }
 
