@@ -4,7 +4,7 @@
 
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
-import { updateSyncConfigLogic } from './update_sync_config_logic';
+import { updateSyncConfig as updateSyncConfigImpl } from './update_sync_config';
 import * as MicrosoftAccountsModel from '../accounts/helpers';
 
 export const updateSyncConfig = internalMutation({
@@ -19,7 +19,7 @@ export const updateSyncConfig = internalMutation({
     success: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    return await updateSyncConfigLogic(ctx, args);
+    return await updateSyncConfigImpl(ctx, args);
   },
 });
 

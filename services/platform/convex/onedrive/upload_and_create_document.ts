@@ -1,11 +1,10 @@
 /**
- * Upload and Create Document Logic - Orchestrates storage upload and document creation
+ * Upload and Create Document - Orchestrates storage upload and document creation
  */
 
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 
-/** Metadata shape for OneDrive documents */
 export interface OneDriveMetadata extends Record<string, unknown> {
   oneDriveItemId?: string;
   oneDriveId?: string;
@@ -45,7 +44,7 @@ export interface UploadAndCreateDocDependencies {
 /**
  * Upload file content to storage and create a document record
  */
-export async function uploadAndCreateDocumentLogic(
+export async function uploadAndCreateDocument(
   args: {
     organizationId: string;
     fileName: string;
@@ -58,7 +57,6 @@ export async function uploadAndCreateDocumentLogic(
   deps: UploadAndCreateDocDependencies,
 ): Promise<UploadAndCreateDocResult> {
   try {
-    // Convert content to Blob
     let blob: Blob;
     if (typeof args.fileContent === 'string') {
       blob = new Blob([args.fileContent], {
@@ -70,12 +68,10 @@ export async function uploadAndCreateDocumentLogic(
       });
     }
 
-    // Store in Convex storage
     const storageId = await deps.storageStore(blob);
 
     const externalItemId = args.metadata.oneDriveItemId ?? args.metadata.oneDriveId;
 
-    // If updating an existing document, patch it instead of creating a new one
     if (args.documentIdToUpdate) {
       await deps.updateDocument({
         documentId: args.documentIdToUpdate,
@@ -94,7 +90,6 @@ export async function uploadAndCreateDocumentLogic(
       };
     }
 
-    // Create document record via injected dependency
     const { documentId } = await deps.createDocument({
       organizationId: args.organizationId,
       title: args.fileName,
@@ -109,7 +104,7 @@ export async function uploadAndCreateDocumentLogic(
 
     return { success: true, fileId: storageId, documentId };
   } catch (error) {
-    console.error('uploadAndCreateDocumentLogic error:', error);
+    console.error('uploadAndCreateDocument error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

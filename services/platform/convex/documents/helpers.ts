@@ -28,3 +28,6 @@ export * from './generate_docx_from_template';
 export * from './extract_extension';
 export * from './list_documents_by_extension';
 export * from './find_document_by_title';
+export * from './find_document_by_external_id';
+export * from './update_document_internal';
+export * from './update_document_rag_info';

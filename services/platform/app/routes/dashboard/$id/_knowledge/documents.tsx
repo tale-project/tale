@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useQuery } from 'convex/react';
 import { z } from 'zod';
+import { api } from '@/convex/_generated/api';
 import { DocumentsClient } from '@/app/features/documents/components/documents-client';
 
 const searchSchema = z.object({
@@ -15,15 +17,18 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/documents')({
 
 function DocumentsPage() {
   const { id: organizationId } = Route.useParams();
-  const { query, folderPath, doc } = Route.useSearch();
+  const { query: searchQuery, folderPath, doc } = Route.useSearch();
+
+  const hasMicrosoftAccount =
+    useQuery(api.accounts.queries.hasMicrosoftAccount) ?? false;
 
   return (
     <DocumentsClient
       organizationId={organizationId}
-      searchQuery={query?.trim()}
+      searchQuery={searchQuery?.trim()}
       currentFolderPath={folderPath}
       docId={doc}
-      hasMicrosoftAccount={false}
+      hasMicrosoftAccount={hasMicrosoftAccount}
     />
   );
 }

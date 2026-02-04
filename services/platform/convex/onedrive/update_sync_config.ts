@@ -1,5 +1,5 @@
 /**
- * Update Sync Config Logic - Business logic for updating OneDrive sync config status
+ * Update Sync Config - Business logic for updating OneDrive sync config status
  */
 
 import type { MutationCtx } from '../_generated/server';
@@ -12,7 +12,7 @@ export interface UpdateSyncConfigResult {
 /**
  * Update sync config status and metadata
  */
-export async function updateSyncConfigLogic(
+export async function updateSyncConfig(
   ctx: MutationCtx,
   args: {
     configId: Id<'onedriveSyncConfigs'>;
@@ -46,4 +46,3 @@ export async function updateSyncConfigLogic(
 
   return { success: true };
 }
-

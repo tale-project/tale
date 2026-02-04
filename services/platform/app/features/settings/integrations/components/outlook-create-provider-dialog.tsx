@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Input } from '@/app/components/ui/forms/input';
@@ -8,7 +8,7 @@ import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { OutlookIcon } from '@/app/components/icons/outlook-icon';
-import { ExternalLink, Shield, Key } from 'lucide-react';
+import { ExternalLink, Shield, Key, Loader2 } from 'lucide-react';
 import { toast } from '@/app/hooks/use-toast';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,9 +18,9 @@ import { useSiteUrl } from '@/lib/site-url-context';
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
 import { useTestEmailConnection } from '../hooks/use-test-email-connection';
-import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
+import { useSsoCredentials } from '../hooks/use-sso-credentials';
+import type { SsoProvider } from '@/lib/shared/schemas/sso_providers';
 
-// Type for the form data
 type PasswordFormData = {
   name: string;
   email: string;
@@ -32,6 +32,9 @@ type OAuth2FormData = {
   name: string;
   isDefault: boolean;
   useApiSending: boolean;
+  clientId: string;
+  clientSecret: string;
+  tenantId: string;
 };
 
 type AuthMethod = 'oauth2' | 'password';
@@ -41,6 +44,7 @@ interface OutlookCreateProviderDialogProps {
   onOpenChange?: (open: boolean) => void;
   organizationId: string;
   onSuccess: () => void;
+  ssoProvider?: SsoProvider | null;
 }
 
 export function OutlookCreateProviderDialog({
@@ -48,12 +52,18 @@ export function OutlookCreateProviderDialog({
   onOpenChange,
   organizationId,
   onSuccess,
+  ssoProvider,
 }: OutlookCreateProviderDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const siteUrl = useSiteUrl();
 
-  // Create Zod schemas with translated validation messages
+  const [useSsoCredentialsChecked, setUseSsoCredentialsChecked] = useState(false);
+  const [isLoadingSsoCredentials, setIsLoadingSsoCredentials] = useState(false);
+  const fetchSsoCredentials = useSsoCredentials();
+
+  const hasSsoConfigured = !!ssoProvider && ssoProvider.providerId === 'entra-id';
+
   const passwordSchema = useMemo(
     () =>
       z.object({
@@ -71,6 +81,9 @@ export function OutlookCreateProviderDialog({
         name: z.string().min(1, tCommon('validation.required', { field: t('integrations.providerName') })),
         isDefault: z.boolean(),
         useApiSending: z.boolean(),
+        clientId: z.string().min(1, tCommon('validation.required', { field: t('integrations.microsoftClientId') })),
+        clientSecret: z.string().min(1, tCommon('validation.required', { field: t('integrations.microsoftClientSecret') })),
+        tenantId: z.string(),
       }),
     [t, tCommon],
   );
@@ -78,16 +91,14 @@ export function OutlookCreateProviderDialog({
   const [authMethod, setAuthMethod] = useState<AuthMethod>('oauth2');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Convex actions (hooks)
   const createProvider = useCreateEmailProvider();
   const createOAuth2Provider = useCreateOAuth2Provider();
   const testConnection = useTestEmailConnection();
-  const generateAuthUrl = useGenerateOAuthUrl();
 
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
-      name: '',
+      name: 'Outlook',
       email: '',
       password: '',
       isDefault: false,
@@ -97,21 +108,56 @@ export function OutlookCreateProviderDialog({
   const oauth2Form = useForm<OAuth2FormData>({
     resolver: zodResolver(oauth2Schema),
     defaultValues: {
-      name: '',
+      name: 'Outlook',
       isDefault: false,
-      useApiSending: true, // Default to API sending for OAuth2
+      useApiSending: true,
+      clientId: '',
+      clientSecret: '',
+      tenantId: '',
     },
   });
+
+  useEffect(() => {
+    if (useSsoCredentialsChecked && hasSsoConfigured) {
+      setIsLoadingSsoCredentials(true);
+      fetchSsoCredentials({ organizationId })
+        .then((credentials) => {
+          if (credentials) {
+            oauth2Form.setValue('clientId', credentials.clientId);
+            oauth2Form.setValue('clientSecret', credentials.clientSecret);
+            oauth2Form.setValue('tenantId', credentials.tenantId);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to fetch SSO credentials:', error);
+          toast({
+            title: t('integrations.failedToLoadSsoCredentials'),
+            variant: 'destructive',
+          });
+          setUseSsoCredentialsChecked(false);
+        })
+        .finally(() => {
+          setIsLoadingSsoCredentials(false);
+        });
+    }
+  }, [useSsoCredentialsChecked, hasSsoConfigured, organizationId, fetchSsoCredentials, oauth2Form, t]);
+
+  useEffect(() => {
+    if (!open) {
+      setUseSsoCredentialsChecked(false);
+      oauth2Form.reset();
+      passwordForm.reset();
+    }
+  }, [open, oauth2Form, passwordForm]);
 
   const handleOAuth2Submit = async (data: OAuth2FormData) => {
     setIsLoading(true);
     try {
-      // Step 1: Create provider with OAuth2 config (credentials from server env vars)
       toast({
         title: t('integrations.settingUpOAuth'),
       });
 
-      const providerId = await createOAuth2Provider({
+      await createOAuth2Provider({
         organizationId: organizationId as string,
         name: data.name,
         vendor: 'outlook',
@@ -130,33 +176,28 @@ export function OutlookCreateProviderDialog({
           secure: true,
         },
         isDefault: data.isDefault,
-        accountType: 'organizational',
+        accountType: 'both',
+        tenantId: data.tenantId || undefined,
+        clientId: data.clientId,
+        clientSecret: data.clientSecret,
+        credentialsSource: useSsoCredentialsChecked ? 'sso' : 'manual',
       });
-
-      // Step 2: Generate OAuth2 authorization URL
-      const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
-
-      const result = await generateAuthUrl({
-        emailProviderId: providerId,
-        organizationId: organizationId as string,
-        redirectUri,
-      });
-
-      console.log('[OAuth2 Client] Generated authUrl:', result.authUrl);
 
       toast({
-        title: t('integrations.redirectingToMicrosoft'),
-        description: t('integrations.authorizeOutlook'),
+        title: t('integrations.providerSaved'),
+        description: t('integrations.authorizationRequired'),
+        variant: 'success',
       });
 
-      // Step 3: Redirect to Microsoft for authorization
-      window.location.href = result.authUrl;
+      oauth2Form.reset();
+      onSuccess();
     } catch (error) {
-      console.error('Failed to initiate OAuth2 flow:', error);
+      console.error('Failed to create OAuth2 provider:', error);
       toast({
-        title: t('integrations.failedToStartAuth'),
+        title: t('integrations.failedToCreateProvider', { provider: 'Outlook' }),
         variant: 'destructive',
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -164,7 +205,6 @@ export function OutlookCreateProviderDialog({
   const handlePasswordSubmit = async (data: PasswordFormData) => {
     setIsLoading(true);
     try {
-      // Step 1: Test connection BEFORE saving
       toast({
         title: t('integrations.testingConnection'),
         description: t('integrations.validatingCredentials'),
@@ -189,7 +229,6 @@ export function OutlookCreateProviderDialog({
         },
       });
 
-      // If test failed, show error and don't save
       if (!testResult.success) {
         const errors = [];
         if (!testResult.smtp.success) {
@@ -207,11 +246,9 @@ export function OutlookCreateProviderDialog({
         return;
       }
 
-      // Step 2: Connection successful, now save
       toast({
         title: t('integrations.connectionSuccessful'),
         variant: 'success',
-        description: t('integrations.providerCreated', { provider: 'Outlook', smtp: testResult.smtp.latencyMs, imap: testResult.imap.latencyMs }),
       });
 
       await createProvider({
@@ -271,156 +308,204 @@ export function OutlookCreateProviderDialog({
       customHeader={customHeader}
       customFooter={<></>}
       isSubmitting={isLoading}
+      large
     >
       <Tabs
-            value={authMethod}
-            onValueChange={(value) => setAuthMethod(value as AuthMethod)}
-          >
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="oauth2" className="gap-2">
-                <Shield className="size-4" />
-                {t('integrations.oauth2Tab')}
-                <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                  {t('integrations.recommended')}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="password" className="gap-2">
-                <Key className="size-4" />
-                {t('integrations.appPasswordTab')}
-              </TabsTrigger>
-            </TabsList>
+        value={authMethod}
+        onValueChange={(value) => setAuthMethod(value as AuthMethod)}
+      >
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="oauth2" className="gap-2">
+            <Shield className="size-4" />
+            {t('integrations.oauth2Tab')}
+            <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+              {t('integrations.recommended')}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="password" className="gap-2">
+            <Key className="size-4" />
+            {t('integrations.appPasswordTab')}
+          </TabsTrigger>
+        </TabsList>
 
-            {/* OAuth2 Form */}
-            <TabsContent value="oauth2" className="mt-0">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                <p className="text-sm text-blue-800 mb-2">
-                  <strong>{t('integrations.oauth2Authentication')}</strong>
-                </p>
-                <p className="text-sm text-blue-700 mb-2">
-                  {t('integrations.oauth2MicrosoftInfo')}
-                </p>
-                <a
-                  href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  {t('integrations.microsoftOAuth2Guide')}
-                </a>
-              </div>
+        <TabsContent value="oauth2" className="mt-0">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
+            <p className="text-xs text-blue-700 mb-1.5">
+              {t('integrations.microsoftOAuthCredentialsInfo')}
+            </p>
+            <code className="block text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mb-1.5 break-all">
+              {siteUrl}/api/auth/oauth2/callback
+            </code>
+            <a
+              href="https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              {t('integrations.microsoftOAuth2Guide')}
+            </a>
+          </div>
 
-              <Stack gap={4}>
-                <Input
-                  id="oauth2-name"
-                  label={t('integrations.providerName')}
-                  {...oauth2Form.register('name')}
-                  placeholder={t('integrations.outlook.namePlaceholder')}
-                  errorMessage={oauth2Form.formState.errors.name?.message}
-                />
-
-                <Stack gap={3}>
-                  <Checkbox
-                    id="oauth2-api-sending"
-                    checked={oauth2Form.watch('useApiSending')}
-                    onCheckedChange={(checked) =>
-                      oauth2Form.setValue('useApiSending', !!checked)
-                    }
-                    label={t('integrations.useApiSending')}
-                  />
-
-                  <Checkbox
-                    id="oauth2-default"
-                    checked={oauth2Form.watch('isDefault')}
-                    onCheckedChange={(checked) =>
-                      oauth2Form.setValue('isDefault', !!checked)
-                    }
-                    label={t('integrations.setAsDefaultProvider')}
-                  />
-                </Stack>
-
-                <Button
-                  type="button"
-                  fullWidth
-                  disabled={isLoading}
-                  onClick={oauth2Form.handleSubmit(handleOAuth2Submit)}
-                >
-                  {isLoading
-                    ? t('integrations.redirectingToMicrosoft')
-                    : t('integrations.continueWithMicrosoft')}
-                </Button>
-              </Stack>
-            </TabsContent>
-
-            {/* Password Form */}
-            <TabsContent value="password" className="mt-0">
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                <p className="text-sm text-orange-800 mb-2">
-                  <strong>{t('integrations.outlookLimitedAvailability')}</strong>
-                </p>
-                <p className="text-sm text-orange-700 mb-2">
-                  {t('integrations.outlookSecurityWarning')}
-                </p>
-                <a
-                  href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4851-ad95-6d07799387e9"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-orange-600 hover:underline inline-flex items-center gap-1"
-                >
-                  <ExternalLink className="size-3" />
-                  {t('integrations.microsoftAppPasswordsGuide')}
-                </a>
-              </div>
-
-              <Stack gap={4}>
-                <Input
-                  id="name"
-                  label={t('integrations.providerName')}
-                  {...passwordForm.register('name')}
-                  placeholder={t('integrations.outlook.namePlaceholder')}
-                  errorMessage={passwordForm.formState.errors.name?.message}
-                />
-
-                <Input
-                  id="email"
-                  type="email"
-                  label={t('integrations.emailAddress')}
-                  {...passwordForm.register('email')}
-                  placeholder={t('integrations.outlook.emailPlaceholder')}
-                  errorMessage={passwordForm.formState.errors.email?.message}
-                />
-
-                <Input
-                  id="password"
-                  type="password"
-                  label={t('integrations.appPassword')}
-                  {...passwordForm.register('password')}
-                  placeholder={t('integrations.outlook.passwordPlaceholder')}
-                  errorMessage={passwordForm.formState.errors.password?.message}
-                />
-
+          {hasSsoConfigured && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2.5 mb-3">
+              <HStack gap={2} className="items-start">
                 <Checkbox
-                  id="password-default"
-                  checked={passwordForm.watch('isDefault')}
-                  onCheckedChange={(checked) =>
-                    passwordForm.setValue('isDefault', !!checked)
-                  }
-                  label={t('integrations.setAsDefaultProvider')}
+                  id="use-sso-credentials"
+                  checked={useSsoCredentialsChecked}
+                  onCheckedChange={(checked) => setUseSsoCredentialsChecked(!!checked)}
+                  disabled={isLoadingSsoCredentials}
                 />
+                <div className="flex-1">
+                  <label
+                    htmlFor="use-sso-credentials"
+                    className="text-xs font-medium text-green-800 cursor-pointer flex items-center gap-1.5"
+                  >
+                    {t('integrations.useSsoCredentials')}
+                    {isLoadingSsoCredentials && <Loader2 className="size-3 animate-spin" />}
+                  </label>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    {t('integrations.useSsoCredentialsDescription')}
+                  </p>
+                </div>
+              </HStack>
+            </div>
+          )}
 
-                <Button
-                  type="button"
-                  fullWidth
-                  disabled={isLoading}
-                  onClick={passwordForm.handleSubmit(handlePasswordSubmit)}
-                >
-                  {isLoading
-                    ? t('integrations.testingAndCreating')
-                    : t('integrations.testAndCreate')}
-                </Button>
-              </Stack>
-            </TabsContent>
-          </Tabs>
+          <Stack gap={3}>
+            <Input
+              id="oauth2-client-id"
+              label={t('integrations.microsoftClientId')}
+              {...oauth2Form.register('clientId')}
+              placeholder={t('integrations.microsoftClientIdPlaceholder')}
+              errorMessage={oauth2Form.formState.errors.clientId?.message}
+            />
+
+            <Input
+              id="oauth2-client-secret"
+              type="password"
+              label={t('integrations.microsoftClientSecret')}
+              {...oauth2Form.register('clientSecret')}
+              placeholder={t('integrations.microsoftClientSecretPlaceholder')}
+              errorMessage={oauth2Form.formState.errors.clientSecret?.message}
+            />
+
+            <Input
+              id="oauth2-tenant-id"
+              label={t('integrations.microsoftTenantId')}
+              {...oauth2Form.register('tenantId')}
+              placeholder={t('integrations.microsoftTenantIdPlaceholder')}
+            />
+
+            <Input
+              id="oauth2-name"
+              label={t('integrations.providerName')}
+              {...oauth2Form.register('name')}
+              placeholder={t('integrations.outlook.namePlaceholder')}
+              errorMessage={oauth2Form.formState.errors.name?.message}
+            />
+
+            <HStack gap={4}>
+              <Checkbox
+                id="oauth2-api-sending"
+                checked={oauth2Form.watch('useApiSending')}
+                onCheckedChange={(checked) =>
+                  oauth2Form.setValue('useApiSending', !!checked)
+                }
+                label={t('integrations.useApiSendingShort')}
+              />
+
+              <Checkbox
+                id="oauth2-default"
+                checked={oauth2Form.watch('isDefault')}
+                onCheckedChange={(checked) =>
+                  oauth2Form.setValue('isDefault', !!checked)
+                }
+                label={t('integrations.setAsDefault')}
+              />
+            </HStack>
+
+            <Button
+              type="button"
+              fullWidth
+              disabled={isLoading}
+              onClick={oauth2Form.handleSubmit(handleOAuth2Submit)}
+            >
+              {isLoading
+                ? t('integrations.redirectingToMicrosoft')
+                : t('integrations.continueWithMicrosoft')}
+            </Button>
+          </Stack>
+        </TabsContent>
+
+        <TabsContent value="password" className="mt-0">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5 mb-3">
+            <p className="text-xs text-orange-800 mb-1">
+              <strong>{t('integrations.outlookLimitedAvailability')}</strong>
+            </p>
+            <p className="text-xs text-orange-700 mb-1.5">
+              {t('integrations.outlookSecurityWarning')}
+            </p>
+            <a
+              href="https://support.microsoft.com/en-us/account-billing/manage-app-passwords-for-two-step-verification-d6dc8c6d-4bf7-4851-ad95-6d07799387e9"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-orange-600 hover:underline inline-flex items-center gap-1"
+            >
+              <ExternalLink className="size-3" />
+              {t('integrations.microsoftAppPasswordsGuide')}
+            </a>
+          </div>
+
+          <Stack gap={3}>
+            <Input
+              id="name"
+              label={t('integrations.providerName')}
+              {...passwordForm.register('name')}
+              placeholder={t('integrations.outlook.namePlaceholder')}
+              errorMessage={passwordForm.formState.errors.name?.message}
+            />
+
+            <Input
+              id="email"
+              type="email"
+              label={t('integrations.emailAddress')}
+              {...passwordForm.register('email')}
+              placeholder={t('integrations.outlook.emailPlaceholder')}
+              errorMessage={passwordForm.formState.errors.email?.message}
+            />
+
+            <Input
+              id="password"
+              type="password"
+              label={t('integrations.appPassword')}
+              {...passwordForm.register('password')}
+              placeholder={t('integrations.outlook.passwordPlaceholder')}
+              errorMessage={passwordForm.formState.errors.password?.message}
+            />
+
+            <Checkbox
+              id="password-default"
+              checked={passwordForm.watch('isDefault')}
+              onCheckedChange={(checked) =>
+                passwordForm.setValue('isDefault', !!checked)
+              }
+              label={t('integrations.setAsDefault')}
+            />
+
+            <Button
+              type="button"
+              fullWidth
+              disabled={isLoading}
+              onClick={passwordForm.handleSubmit(handlePasswordSubmit)}
+            >
+              {isLoading
+                ? t('integrations.testingAndCreating')
+                : t('integrations.testAndCreate')}
+            </Button>
+          </Stack>
+        </TabsContent>
+      </Tabs>
     </FormDialog>
   );
 }

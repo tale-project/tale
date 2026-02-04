@@ -18,7 +18,7 @@ export async function updateDocument(
     fileId?: Id<'_storage'>;
     mimeType?: string;
     extension?: string;
-    sourceProvider?: 'onedrive' | 'upload';
+    sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
     externalItemId?: string;
     teamTags?: string[];
     userId?: string;
@@ -50,7 +50,7 @@ export async function updateDocument(
     fileId?: Id<'_storage'>;
     mimeType?: string;
     extension?: string;
-    sourceProvider?: 'onedrive' | 'upload';
+    sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
     externalItemId?: string;
     teamTags?: string[];
   } = {};

@@ -14,6 +14,7 @@ export interface OAuth2UrlConfig {
   emailProviderId: Doc<'emailProviders'>['_id'];
   organizationId: string;
   accountType?: 'personal' | 'organizational' | 'both';
+  tenantId?: string;
   redirectUri?: string;
 }
 
@@ -28,6 +29,7 @@ interface OAuth2ProviderConfig {
 export function getOAuth2ProviderConfig(
   provider: string,
   accountType?: 'personal' | 'organizational' | 'both',
+  tenantId?: string,
 ): OAuth2ProviderConfig {
   if (provider === 'gmail') {
     return {
@@ -35,14 +37,17 @@ export function getOAuth2ProviderConfig(
       scope: ['https://mail.google.com/'],
     };
   } else if (provider === 'microsoft') {
-    const tenantType =
-      accountType === 'personal'
-        ? 'consumers'
-        : accountType === 'organizational'
-          ? 'organizations'
-          : 'common';
+    // Use tenant ID if provided (for single-tenant apps), otherwise use account type
+    let tenant = 'common';
+    if (tenantId) {
+      tenant = tenantId;
+    } else if (accountType === 'personal') {
+      tenant = 'consumers';
+    } else if (accountType === 'organizational') {
+      tenant = 'organizations';
+    }
     return {
-      authUrl: `https://login.microsoftonline.com/${tenantType}/oauth2/v2.0/authorize`,
+      authUrl: `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize`,
       scope: [
         'https://outlook.office.com/SMTP.Send',
         'https://outlook.office.com/IMAP.AccessAsUser.All',
@@ -64,6 +69,7 @@ export function buildOAuth2AuthUrl(config: OAuth2UrlConfig): string {
   const providerConfig = getOAuth2ProviderConfig(
     config.provider,
     config.accountType,
+    config.tenantId,
   );
 
   // Build redirect URI (derive from SITE_URL)

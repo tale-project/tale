@@ -1,5 +1,5 @@
 /**
- * List Folder Contents Logic - Business logic for listing OneDrive folder contents
+ * List Folder Contents - Business logic for listing OneDrive folder contents
  */
 
 export interface FileItem {
@@ -20,12 +20,11 @@ export interface ListFolderContentsResult {
  * List files in a OneDrive folder using Microsoft Graph API
  * Only returns files, not subfolders
  */
-export async function listFolderContentsLogic(args: {
+export async function listFolderContents(args: {
   itemId: string;
   token: string;
 }): Promise<ListFolderContentsResult> {
   try {
-    // Call Microsoft Graph API to list folder children
     const response = await fetch(
       `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/children`,
       {
@@ -56,7 +55,6 @@ export async function listFolderContentsLogic(args: {
       }>;
     };
 
-    // Filter to only include files (not subfolders)
     const files = data.value
       .filter((item) => item.file !== undefined)
       .map((item) => {
@@ -80,7 +78,7 @@ export async function listFolderContentsLogic(args: {
       files,
     };
   } catch (error) {
-    console.error('listFolderContentsLogic error:', error);
+    console.error('listFolderContents error:', error);
     return {
       success: false,
       error:

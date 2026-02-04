@@ -14,6 +14,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { BreadcrumbNavigation } from './breadcrumb-navigation';
 import { formatBytes } from '@/lib/utils/format/number';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
+import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import type { DocumentItem } from '@/types/documents';
 import { DocumentRowActions } from './document-row-actions';
 import { DocumentPreviewDialog } from './document-preview-dialog';
@@ -239,17 +240,34 @@ export function DocumentsClient({
           <HStack gap={2}>
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'auto' && (
-                <div className="relative">
+                <div className="relative" title="OneDrive (synced)">
                   <OneDriveIcon className="size-6" />
                   <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
                 </div>
               )}
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'manual' && (
-                <OneDriveIcon className="size-6" />
+                <div title="OneDrive">
+                  <OneDriveIcon className="size-6" />
+                </div>
+              )}
+            {row.original.sourceProvider === 'sharepoint' &&
+              row.original.sourceMode === 'auto' && (
+                <div className="relative" title="SharePoint (synced)">
+                  <SharePointIcon className="size-6" />
+                  <RefreshCw className="size-4 text-background absolute bottom-0 right-0.5 p-0.5 rounded-full bg-foreground" />
+                </div>
+              )}
+            {row.original.sourceProvider === 'sharepoint' &&
+              row.original.sourceMode === 'manual' && (
+                <div title="SharePoint">
+                  <SharePointIcon className="size-6" />
+                </div>
               )}
             {row.original.sourceProvider === 'upload' && (
-              <Monitor className="size-6" />
+              <div title="Uploaded">
+                <Monitor className="size-6" />
+              </div>
             )}
           </HStack>
         ),

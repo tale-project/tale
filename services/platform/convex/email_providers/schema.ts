@@ -48,7 +48,12 @@ export const emailProvidersTable = defineTable({
   isActive: v.optional(v.boolean()),
   isDefault: v.boolean(),
   status: v.optional(
-    v.union(v.literal('active'), v.literal('error'), v.literal('testing')),
+    v.union(
+      v.literal('active'),
+      v.literal('error'),
+      v.literal('testing'),
+      v.literal('pending_authorization'),
+    ),
   ),
   lastTestedAt: v.optional(v.number()),
   lastSyncAt: v.optional(v.number()),

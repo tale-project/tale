@@ -45,7 +45,7 @@ function DocumentTeamTagsDialogContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Update document mutation
-  const updateDocument = useMutation(api.documents.update_document_public.updateDocument);
+  const updateDocument = useMutation(api.documents.mutations.updateDocument);
 
   // Fetch only teams that the current user belongs to
   const teamsResult = useQuery(

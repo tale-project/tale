@@ -9,7 +9,7 @@ export const emailProviderAuthMethodLiterals = ['password', 'oauth2'] as const;
 export const emailProviderAuthMethodSchema = z.enum(emailProviderAuthMethodLiterals);
 export type EmailProviderAuthMethod = z.infer<typeof emailProviderAuthMethodSchema>;
 
-export const emailProviderStatusLiterals = ['active', 'error', 'testing'] as const;
+export const emailProviderStatusLiterals = ['active', 'error', 'testing', 'pending_authorization'] as const;
 export const emailProviderStatusSchema = z.enum(emailProviderStatusLiterals);
 export type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
 

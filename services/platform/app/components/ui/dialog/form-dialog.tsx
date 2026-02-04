@@ -121,7 +121,7 @@ export function FormDialog({
       onOpenChange={handleClose}
       title={title}
       description={description}
-      className={cn(large && 'max-h-[90vh] overflow-y-auto', className)}
+      className={cn(large && 'max-h-[90vh] overflow-y-auto pr-2', className)}
       trigger={trigger}
       customHeader={customHeader}
     >

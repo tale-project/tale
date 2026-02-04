@@ -4,7 +4,7 @@
 
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
-import { getUserTokenLogic } from './get_user_token_logic';
+import { getUserToken as getUserTokenImpl } from './get_user_token';
 
 export const getUserToken = internalQuery({
   args: {
@@ -17,6 +17,6 @@ export const getUserToken = internalQuery({
     refreshToken: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    return await getUserTokenLogic(ctx, args);
+    return await getUserTokenImpl(ctx, args);
   },
 });

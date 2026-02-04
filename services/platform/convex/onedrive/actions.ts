@@ -2,23 +2,26 @@
 
 /**
  * OneDrive Public Actions
+ * Thin wrappers that delegate to implementation files
  */
 
 import { v } from 'convex/values';
-import { action } from '../_generated/server';
-import { internal } from '../_generated/api';
-import { authComponent } from '../auth';
-
-const oneDriveItemValidator = v.object({
-  id: v.string(),
-  name: v.string(),
-  size: v.number(),
-  isFolder: v.boolean(),
-  mimeType: v.optional(v.string()),
-  lastModified: v.optional(v.number()),
-  childCount: v.optional(v.number()),
-  webUrl: v.optional(v.string()),
-});
+import { action, internalAction } from '../_generated/server';
+import { withMicrosoftToken } from './with_microsoft_token';
+import { importFiles as importFilesImpl, type ImportItem, type ImportFilesResult } from './import_files';
+import { listSharePointSites as listSharePointSitesImpl } from './list_sharepoint_sites';
+import { listSharePointDrives as listSharePointDrivesImpl } from './list_sharepoint_drives';
+import { listSharePointFiles as listSharePointFilesImpl } from './list_sharepoint_files';
+import { listFiles as listFilesImpl } from './list_files';
+import { downloadAndStoreFile as downloadAndStoreFileImpl } from './download_and_store_file';
+import { createImportFilesDeps } from './import_files_deps';
+import {
+  oneDriveItemValidator,
+  importItemValidator,
+  importFileResultValidator,
+  sharePointSiteValidator,
+  sharePointDriveValidator,
+} from './validators';
 
 export const listFiles = action({
   args: {
@@ -30,132 +33,134 @@ export const listFiles = action({
     items: v.optional(v.array(oneDriveItemValidator)),
     error: v.optional(v.string()),
   }),
-  handler: async (ctx, args): Promise<{ success: boolean; items?: Array<{ id: string; name: string; size: number; isFolder: boolean; mimeType?: string; lastModified?: number; childCount?: number; webUrl?: string; }>; error?: string }> => {
-    const authUser = await authComponent.getAuthUser(ctx);
-    if (!authUser) {
-      return { success: false, error: 'Unauthenticated' };
+  handler: async (ctx, args) => {
+    const tokenResult = await withMicrosoftToken(ctx);
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error };
     }
-
-    const userId = String(authUser._id);
-
-    try {
-      // Get Microsoft Graph token
-      const tokenResult = await ctx.runQuery(
-        internal.onedrive.queries.getUserToken,
-        { userId },
-      );
-
-      if (tokenResult.needsRefresh && tokenResult.accountId && tokenResult.refreshToken) {
-        // Refresh the token
-        await ctx.runAction(internal.onedrive.internal_actions.refreshToken, {
-          accountId: tokenResult.accountId,
-          refreshToken: tokenResult.refreshToken,
-        });
-
-        // Get the new token
-        const newTokenResult = await ctx.runQuery(
-          internal.onedrive.queries.getUserToken,
-          { userId },
-        );
-
-        if (!newTokenResult.token) {
-          return { success: false, error: 'Failed to refresh OneDrive token' };
-        }
-
-        return await fetchOneDriveFiles(newTokenResult.token, args.folderId, args.search);
-      }
-
-      if (!tokenResult.token) {
-        return { success: false, error: 'OneDrive not connected. Please connect your Microsoft account.' };
-      }
-
-      return await fetchOneDriveFiles(tokenResult.token, args.folderId, args.search);
-    } catch (error) {
-      console.error('[listFiles] Error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
-    }
+    return await listFilesImpl(tokenResult.token, args.folderId, args.search);
   },
 });
 
-async function fetchOneDriveFiles(
-  token: string,
-  folderId?: string,
-  search?: string,
-): Promise<{
-  success: boolean;
-  items?: Array<{
-    id: string;
-    name: string;
-    size: number;
-    isFolder: boolean;
-    mimeType?: string;
-    lastModified?: number;
-    childCount?: number;
-    webUrl?: string;
-  }>;
-  error?: string;
-}> {
-  try {
-    let url: string;
-
-    if (search) {
-      // Search endpoint
-      url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(search)}')?$top=50`;
-    } else if (folderId) {
-      // List folder children
-      url = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children?$top=100`;
-    } else {
-      // List root children
-      url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$top=100`;
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
+export const downloadAndStoreFile = internalAction({
+  args: {
+    itemId: v.string(),
+    token: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    storageId: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    return await downloadAndStoreFileImpl(args, {
+      storeFile: async (blob) => ctx.storage.store(blob),
     });
+  },
+});
 
-    if (!response.ok) {
-      const errorText = await response.text();
+export const importFiles = action({
+  args: {
+    items: v.array(importItemValidator),
+    organizationId: v.string(),
+    importType: v.union(v.literal('one-time'), v.literal('sync')),
+    teamTags: v.optional(v.array(v.string())),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    results: v.array(importFileResultValidator),
+    totalFiles: v.number(),
+    successCount: v.number(),
+    failedCount: v.number(),
+    skippedCount: v.number(),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args): Promise<ImportFilesResult & { error?: string }> => {
+    const tokenResult = await withMicrosoftToken(ctx);
+    if (!tokenResult.success) {
       return {
         success: false,
-        error: `OneDrive API error: ${response.status} ${errorText}`,
+        results: [],
+        totalFiles: 0,
+        successCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        error: tokenResult.error,
       };
     }
 
-    const data = await response.json() as {
-      value: Array<{
-        id: string;
-        name: string;
-        size: number;
-        file?: { mimeType?: string };
-        folder?: { childCount?: number };
-        lastModifiedDateTime?: string;
-        webUrl?: string;
-      }>;
-    };
+    return await importFilesImpl(
+      {
+        items: args.items as ImportItem[],
+        organizationId: args.organizationId,
+        importType: args.importType,
+        teamTags: args.teamTags,
+        token: tokenResult.token,
+        userId: tokenResult.userId,
+      },
+      createImportFilesDeps(ctx),
+    );
+  },
+});
 
-    const items = data.value.map((item) => ({
-      id: item.id,
-      name: item.name,
-      size: item.size || 0,
-      isFolder: item.folder !== undefined,
-      mimeType: item.file?.mimeType,
-      lastModified: item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined,
-      childCount: item.folder?.childCount,
-      webUrl: item.webUrl,
-    }));
+export const listSharePointSites = action({
+  args: {
+    search: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    sites: v.optional(v.array(sharePointSiteValidator)),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const tokenResult = await withMicrosoftToken(ctx);
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error };
+    }
+    return await listSharePointSitesImpl({ token: tokenResult.token, search: args.search });
+  },
+});
 
-    return { success: true, items };
-  } catch (error) {
-    console.error('[fetchOneDriveFiles] Error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
-}
+export const listSharePointDrives = action({
+  args: {
+    siteId: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    drives: v.optional(v.array(sharePointDriveValidator)),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const tokenResult = await withMicrosoftToken(ctx);
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error };
+    }
+    return await listSharePointDrivesImpl({ siteId: args.siteId, token: tokenResult.token });
+  },
+});
+
+export const listSharePointFiles = action({
+  args: {
+    siteId: v.string(),
+    driveId: v.string(),
+    folderId: v.optional(v.string()),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    items: v.optional(v.array(oneDriveItemValidator)),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const tokenResult = await withMicrosoftToken(ctx);
+    if (!tokenResult.success) {
+      return { success: false, error: tokenResult.error };
+    }
+    return await listSharePointFilesImpl({
+      siteId: args.siteId,
+      driveId: args.driveId,
+      folderId: args.folderId,
+      token: tokenResult.token,
+    });
+  },
+});

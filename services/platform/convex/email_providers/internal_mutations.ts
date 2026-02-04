@@ -16,6 +16,7 @@ import {
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { createProviderInternal } from './create_provider_internal';
+import { updateProvider as updateProviderHelper } from './update_provider';
 
 export const createProvider = internalMutation({
   args: {
@@ -102,5 +103,20 @@ export const updateProviderStatus = internalMutation({
     const { providerId, ...patch } = args;
     await ctx.db.patch(providerId, patch);
     return null;
+  },
+});
+
+export const updateProvider = internalMutation({
+  args: {
+    providerId: v.id('emailProviders'),
+    name: v.optional(v.string()),
+    sendMethod: v.optional(sendMethodValidator),
+    oauth2Auth: v.optional(oauth2AuthStoredValidator),
+    smtpConfig: v.optional(smtpConfigValidator),
+    status: v.optional(emailProviderStatusValidator),
+    metadata: v.optional(jsonRecordValidator),
+  },
+  handler: async (ctx, args) => {
+    return await updateProviderHelper(ctx, args);
   },
 });
