@@ -40,6 +40,15 @@ type OneDriveApiItem = {
 const isFolder = (item: OneDriveApiItem): boolean => item.isFolder;
 const isFile = (item: OneDriveApiItem): boolean => !item.isFolder;
 
+const getPathFromUrl = (url: string | undefined): string => {
+  if (!url) return '';
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+};
+
 interface OneDriveImportDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -112,7 +121,7 @@ function SharePointSitesTable({ sites, isLoading, onSiteClick }: SharePointSites
         header: () => <div className="text-right">{t('microsoft365.siteUrl')}</div>,
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground text-right truncate max-w-[200px]" title={row.original.webUrl}>
-            {row.original.webUrl ? new URL(row.original.webUrl).pathname : ''}
+            {getPathFromUrl(row.original.webUrl)}
           </div>
         ),
       },
