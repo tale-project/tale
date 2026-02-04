@@ -120,12 +120,6 @@ export async function ssoCallbackHandler(ctx: ActionCtx, req: Request): Promise<
 			return redirectWithError(frontendOrigin, 'Failed to create session');
 		}
 
-		const secret = process.env.BETTER_AUTH_SECRET;
-		if (!secret) {
-			console.error('[SSO] BETTER_AUTH_SECRET not configured');
-			return redirectWithError(frontendOrigin, 'Server configuration error');
-		}
-
 		const signedToken = await signCookieValue(result.sessionToken, secret);
 
 		const isHttps = frontendOrigin.startsWith('https://');

@@ -108,6 +108,15 @@ export async function ssoSetSessionHandler(
   }
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function createErrorResponse(origin: string, message: string): Response {
   const html = `<!DOCTYPE html>
 <html>
@@ -116,7 +125,7 @@ function createErrorResponse(origin: string, message: string): Response {
   <title>Login Error</title>
 </head>
 <body>
-  <p>Error: ${message}</p>
+  <p>Error: ${escapeHtml(message)}</p>
   <p><a href="/log-in">Return to login</a></p>
 </body>
 </html>`;
