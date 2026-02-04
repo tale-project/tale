@@ -118,16 +118,17 @@ async function getGroups(accessToken: string): Promise<SsoGroup[]> {
 
 async function getAppRoles(accessToken: string): Promise<string[]> {
 	const response = await fetch(
-		`${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId,principalDisplayName`,
+		`${MICROSOFT_GRAPH_BASE}/me/appRoleAssignments?$select=appRoleId`,
 		{ headers: { Authorization: `Bearer ${accessToken}` } },
 	);
 
 	if (!response.ok) {
+		console.error('[Entra ID] Failed to fetch app roles:', response.status, await response.text());
 		return [];
 	}
 
 	const data = await response.json();
-	return (data.value || []).map((r: { principalDisplayName?: string }) => r.principalDisplayName || '');
+	return (data.value || []).map((r: { appRoleId?: string }) => r.appRoleId || '').filter(Boolean);
 }
 
 async function validateConfig(
