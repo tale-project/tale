@@ -1,5 +1,7 @@
 /**
- * Business logic for creating OAuth2 email providers with server-side credentials
+ * Business logic for creating OAuth2 email providers
+ * - Microsoft: requires user-provided credentials (clientId + clientSecret)
+ * - Gmail: supports user-provided credentials or env var fallback
  */
 
 import type { ActionCtx } from '../_generated/server';
@@ -23,6 +25,7 @@ interface CreateOAuth2ProviderArgs {
   };
   isDefault: boolean;
   accountType?: 'personal' | 'organizational' | 'both';
+  tenantId?: string;
   clientId?: string;
   clientSecret?: string;
 }
@@ -65,19 +68,21 @@ function getOAuth2Credentials(
   clientId: string;
   clientSecret: string;
 } {
-  // If overrides provided, use them (organization-level credentials)
+  // Microsoft requires user-provided credentials (no env var fallback)
+  if (provider === 'microsoft') {
+    if (!overrides?.clientId || !overrides?.clientSecret) {
+      throw new Error(
+        'Missing Microsoft OAuth2 credentials. Please provide your Azure AD Client ID and Client Secret.',
+      );
+    }
+    return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
+  }
+
+  // Gmail: use overrides if provided, otherwise fall back to env vars
   if (overrides?.clientId && overrides?.clientSecret) {
     return { clientId: overrides.clientId, clientSecret: overrides.clientSecret };
   }
 
-  // Warn if partial credentials provided (indicates user confusion)
-  if (overrides?.clientId || overrides?.clientSecret) {
-    console.warn(
-      'Partial OAuth2 credentials provided. Both clientId and clientSecret are required for org-level credentials. Falling back to environment variables.',
-    );
-  }
-
-  // Otherwise fall back to env vars (platform-level credentials)
   if (provider === 'gmail') {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -85,17 +90,6 @@ function getOAuth2Credentials(
     if (!clientId || !clientSecret) {
       throw new Error(
         'Missing Google OAuth2 credentials. Please provide Client ID and Client Secret, or set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.',
-      );
-    }
-
-    return { clientId, clientSecret };
-  } else if (provider === 'microsoft') {
-    const clientId = process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
-    const clientSecret = process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET;
-
-    if (!clientId || !clientSecret) {
-      throw new Error(
-        'Missing Microsoft OAuth2 credentials. Please set AUTH_MICROSOFT_ENTRA_ID_ID and AUTH_MICROSOFT_ENTRA_ID_SECRET environment variables.',
       );
     }
 
@@ -143,6 +137,9 @@ export async function createOAuth2ProviderLogic(
   const metadata: Record<string, unknown> = {};
   if (args.accountType) {
     metadata.accountType = args.accountType;
+  }
+  if (args.tenantId) {
+    metadata.tenantId = args.tenantId;
   }
 
   // Call internal mutation to insert the provider

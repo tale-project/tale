@@ -253,6 +253,7 @@ import type * as email_providers_test_new_provider_connection_logic from "../ema
 import type * as email_providers_test_smtp_connection_logic from "../email_providers/test_smtp_connection_logic.js";
 import type * as email_providers_types from "../email_providers/types.js";
 import type * as email_providers_update_metadata_internal from "../email_providers/update_metadata_internal.js";
+import type * as email_providers_update_oauth2_provider_logic from "../email_providers/update_oauth2_provider_logic.js";
 import type * as email_providers_update_oauth2_tokens from "../email_providers/update_oauth2_tokens.js";
 import type * as email_providers_update_provider from "../email_providers/update_provider.js";
 import type * as email_providers_update_provider_status from "../email_providers/update_provider_status.js";
@@ -1128,6 +1129,7 @@ declare const fullApi: ApiFromModules<{
   "email_providers/test_smtp_connection_logic": typeof email_providers_test_smtp_connection_logic;
   "email_providers/types": typeof email_providers_types;
   "email_providers/update_metadata_internal": typeof email_providers_update_metadata_internal;
+  "email_providers/update_oauth2_provider_logic": typeof email_providers_update_oauth2_provider_logic;
   "email_providers/update_oauth2_tokens": typeof email_providers_update_oauth2_tokens;
   "email_providers/update_provider": typeof email_providers_update_provider;
   "email_providers/update_provider_status": typeof email_providers_update_provider_status;

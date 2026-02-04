@@ -13,11 +13,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useT } from '@/lib/i18n/client';
-import { useSiteUrl } from '@/lib/site-url-context';
 import { useCreateEmailProvider } from '../hooks/use-create-email-provider';
 import { useCreateOAuth2Provider } from '../hooks/use-create-oauth2-provider';
 import { useTestEmailConnection } from '../hooks/use-test-email-connection';
-import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
 
 // Type for the form data
 type PasswordFormData = {
@@ -52,7 +50,6 @@ export function GmailCreateProviderDialog({
 }: GmailCreateProviderDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
-  const siteUrl = useSiteUrl();
 
   // Create Zod schemas with translated validation messages
   const passwordSchema = useMemo(
@@ -85,7 +82,6 @@ export function GmailCreateProviderDialog({
   const createProvider = useCreateEmailProvider();
   const createOAuth2Provider = useCreateOAuth2Provider();
   const testConnection = useTestEmailConnection();
-  const generateAuthUrl = useGenerateOAuthUrl();
 
   const passwordForm = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -111,13 +107,12 @@ export function GmailCreateProviderDialog({
   const handleOAuth2Submit = async (data: OAuth2FormData) => {
     setIsLoading(true);
     try {
-      // Step 1: Create provider with OAuth2 config (credentials from server env vars)
+      // Create provider with OAuth2 config (credentials from user input)
       toast({
-        title: t('integrations.creatingProvider'),
-        description: t('integrations.settingUpOAuth'),
+        title: t('integrations.settingUpOAuth'),
       });
 
-      const providerId = await createOAuth2Provider({
+      await createOAuth2Provider({
         organizationId: organizationId as string,
         name: data.name,
         vendor: 'gmail',
@@ -140,30 +135,21 @@ export function GmailCreateProviderDialog({
         clientSecret: data.clientSecret,
       });
 
-      // Step 2: Generate OAuth2 authorization URL
-      const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
-
-      const result = await generateAuthUrl({
-        emailProviderId: providerId,
-        organizationId: organizationId as string,
-        redirectUri,
-      });
-
-      console.log('[OAuth2 Client] Generated authUrl:', result.authUrl);
-
       toast({
-        title: t('integrations.redirectingToGoogle'),
-        description: t('integrations.authorizeGmail'),
+        title: t('integrations.providerSaved'),
+        description: t('integrations.authorizationRequired'),
+        variant: 'success',
       });
 
-      // Step 3: Redirect to Google for authorization
-      window.location.href = result.authUrl;
+      oauth2Form.reset();
+      onSuccess();
     } catch (error) {
-      console.error('Failed to initiate OAuth2 flow:', error);
+      console.error('Failed to create OAuth2 provider:', error);
       toast({
-        title: t('integrations.failedToStartAuth'),
+        title: t('integrations.failedToCreateProvider', { provider: 'Gmail' }),
         variant: 'destructive',
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -271,7 +257,7 @@ export function GmailCreateProviderDialog({
         value={authMethod}
         onValueChange={(value) => setAuthMethod(value as AuthMethod)}
       >
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="oauth2" className="gap-2">
             <Shield className="size-4" />
             {t('integrations.oauth2Tab')}
@@ -284,8 +270,8 @@ export function GmailCreateProviderDialog({
 
         {/* OAuth2 Form */}
         <TabsContent value="oauth2" className="mt-0">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-xs text-blue-700 mb-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 mb-3">
+            <p className="text-xs text-blue-700 mb-1.5">
               {t('integrations.googleOAuthCredentialsInfo')}
             </p>
             <a
@@ -299,7 +285,7 @@ export function GmailCreateProviderDialog({
             </a>
           </div>
 
-          <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} >
+          <Form onSubmit={oauth2Form.handleSubmit(handleOAuth2Submit)} className="space-y-3">
             <Input
               id="oauth2-client-id"
               label={t('integrations.googleClientId')}
@@ -331,7 +317,7 @@ export function GmailCreateProviderDialog({
               onCheckedChange={(checked) =>
                 oauth2Form.setValue('isDefault', !!checked)
               }
-              label={t('integrations.setAsDefaultProvider')}
+              label={t('integrations.setAsDefault')}
             />
 
             <Button type="submit" fullWidth disabled={isLoading}>
@@ -344,7 +330,7 @@ export function GmailCreateProviderDialog({
 
         {/* Password Form */}
         <TabsContent value="password" className="mt-0">
-          <div className="border border-border rounded-lg p-3 mb-4">
+          <div className="border border-border rounded-lg p-2.5 mb-3">
             <p className="text-xs">
               {t('integrations.gmailAppPasswordInfo')}
             </p>
@@ -359,7 +345,7 @@ export function GmailCreateProviderDialog({
             </a>
           </div>
 
-          <Form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} >
+          <Form onSubmit={passwordForm.handleSubmit(handlePasswordSubmit)} className="space-y-3">
             <Input
               id="name"
               label={t('integrations.providerName')}
@@ -392,7 +378,7 @@ export function GmailCreateProviderDialog({
               onCheckedChange={(checked) =>
                 passwordForm.setValue('isDefault', !!checked)
               }
-              label={t('integrations.setAsDefaultProvider')}
+              label={t('integrations.setAsDefault')}
             />
 
             <Button type="submit" fullWidth disabled={isLoading}>

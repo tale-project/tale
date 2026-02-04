@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
+import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Badge } from '@/app/components/ui/feedback/badge';
+import { Input } from '@/app/components/ui/forms/input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import {
   DropdownMenu,
@@ -13,7 +15,7 @@ import {
 } from '@/app/components/ui/overlays/dropdown-menu';
 import { GmailIcon } from '@/app/components/icons/gmail-icon';
 import { OutlookIcon } from '@/app/components/icons/outlook-icon';
-import { Plus, Trash2, MoreVertical, TestTube, Star, Mail } from 'lucide-react';
+import { Plus, Trash2, MoreVertical, TestTube, Star, Mail, KeyRound, Pencil } from 'lucide-react';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { toast } from '@/app/hooks/use-toast';
 import { EmailProviderTypeSelector } from './email-provider-type-selector';
@@ -25,7 +27,11 @@ type EmailProviderDoc = Doc<'emailProviders'>;
 import { useDeleteEmailProvider } from '../hooks/use-delete-email-provider';
 import { useSetDefaultProvider } from '../hooks/use-set-default-provider';
 import { useTestEmailProvider } from '../hooks/use-test-email-provider';
+import { useGenerateOAuthUrl } from '../hooks/use-generate-oauth-url';
+import { useUpdateEmailProvider } from '../hooks/use-update-email-provider';
+import { useUpdateOAuth2Provider } from '../hooks/use-update-oauth2-provider';
 import { useT } from '@/lib/i18n/client';
+import { useSiteUrl } from '@/lib/site-url-context';
 
 interface EmailIntegrationDialogProps {
   open?: boolean;
@@ -40,10 +46,20 @@ export function EmailIntegrationDialog({
 }: EmailIntegrationDialogProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
+  const siteUrl = useSiteUrl();
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [testingProviderId, setTestingProviderId] = useState<string | null>(
     null,
   );
+  const [authorizingProviderId, setAuthorizingProviderId] = useState<string | null>(
+    null,
+  );
+  const [editingProvider, setEditingProvider] = useState<EmailProviderDoc | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editClientId, setEditClientId] = useState('');
+  const [editClientSecret, setEditClientSecret] = useState('');
+  const [editTenantId, setEditTenantId] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Fetch all email providers using Convex
   const providersData = useQuery(
@@ -57,6 +73,9 @@ export function EmailIntegrationDialog({
   const deleteProvider = useDeleteEmailProvider();
   const setDefaultProvider = useSetDefaultProvider();
   const testExistingProvider = useTestEmailProvider();
+  const generateAuthUrl = useGenerateOAuthUrl();
+  const updateProvider = useUpdateEmailProvider();
+  const updateOAuth2Provider = useUpdateOAuth2Provider();
 
   const handleAddProvider = () => {
     setShowTypeSelector(true);
@@ -137,6 +156,100 @@ export function EmailIntegrationDialog({
     }
   };
 
+  const handleEditProvider = (provider: EmailProviderDoc) => {
+    setEditingProvider(provider);
+    setEditName(provider.name);
+    if (provider.authMethod === 'oauth2' && provider.oauth2Auth) {
+      setEditClientId(provider.oauth2Auth.clientId || '');
+      setEditClientSecret('');
+      setEditTenantId((provider.metadata?.tenantId as string) || '');
+    }
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditingProvider(null);
+    setEditName('');
+    setEditClientId('');
+    setEditClientSecret('');
+    setEditTenantId('');
+  };
+
+  const hasEditChanges = () => {
+    if (!editingProvider) return false;
+
+    const nameChanged = editName.trim() !== editingProvider.name;
+
+    if (editingProvider.authMethod === 'oauth2') {
+      const clientIdChanged = editClientId !== (editingProvider.oauth2Auth?.clientId || '');
+      const clientSecretChanged = editClientSecret.length > 0;
+      const tenantIdChanged = editTenantId !== ((editingProvider.metadata?.tenantId as string) || '');
+      return nameChanged || clientIdChanged || clientSecretChanged || tenantIdChanged;
+    }
+
+    return nameChanged;
+  };
+
+  const handleUpdateProvider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProvider || !editName.trim()) return;
+
+    setIsUpdating(true);
+    try {
+      if (editingProvider.authMethod === 'oauth2') {
+        await updateOAuth2Provider({
+          providerId: editingProvider._id,
+          name: editName.trim(),
+          clientId: editClientId || undefined,
+          clientSecret: editClientSecret || undefined,
+          tenantId: editTenantId,
+        });
+      } else {
+        await updateProvider({
+          providerId: editingProvider._id,
+          name: editName.trim(),
+        });
+      }
+      toast({
+        title: t('integrations.providerUpdated'),
+        variant: 'success',
+      });
+      handleCloseEditDialog();
+    } catch (error) {
+      console.error('Failed to update provider:', error);
+      toast({
+        title: t('integrations.failedToUpdateProvider'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleAuthorize = async (providerId: string) => {
+    setAuthorizingProviderId(providerId);
+    try {
+      toast({
+        title: t('integrations.authorizingProvider'),
+      });
+
+      const redirectUri = `${siteUrl}/api/auth/oauth2/callback`;
+      const result = await generateAuthUrl({
+        emailProviderId: providerId as Id<'emailProviders'>,
+        organizationId: organizationId,
+        redirectUri,
+      });
+
+      window.location.href = result.authUrl;
+    } catch (error) {
+      console.error('Failed to start authorization:', error);
+      toast({
+        title: t('integrations.failedToStartAuth'),
+        variant: 'destructive',
+      });
+      setAuthorizingProviderId(null);
+    }
+  };
+
   const getVendorIcon = (vendor: string) => {
     switch (vendor) {
       case 'gmail':
@@ -145,21 +258,6 @@ export function EmailIntegrationDialog({
         return <OutlookIcon className="size-5" />;
       default:
         return <Mail className="size-5" />;
-    }
-  };
-
-  const _getVendorName = (vendor: string) => {
-    switch (vendor) {
-      case 'gmail':
-        return 'Gmail';
-      case 'outlook':
-        return 'Outlook';
-      case 'smtp':
-        return 'Custom SMTP';
-      case 'resend':
-        return 'Resend';
-      default:
-        return 'Other';
     }
   };
 
@@ -212,6 +310,23 @@ export function EmailIntegrationDialog({
                         />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {provider.status === 'pending_authorization' && (
+                          <DropdownMenuItem
+                            onClick={() => handleAuthorize(provider._id)}
+                            disabled={authorizingProviderId === provider._id}
+                          >
+                            <KeyRound className="mr-2 size-4" />
+                            {authorizingProviderId === provider._id
+                              ? t('integrations.authorizingProvider')
+                              : t('integrations.authorize')}
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => handleEditProvider(provider)}
+                        >
+                          <Pencil className="mr-2 size-4" />
+                          {tCommon('actions.edit')}
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleTestConnection(provider._id)}
                           disabled={testingProviderId === provider._id}
@@ -242,7 +357,7 @@ export function EmailIntegrationDialog({
                 </HStack>
 
                 {/* Badges Row */}
-                <HStack gap={2} className="mb-3">
+                <HStack gap={2} className="mb-3 flex-wrap">
                   {provider.isDefault && (
                     <Badge
                       variant="orange"
@@ -250,6 +365,15 @@ export function EmailIntegrationDialog({
                     >
                       <Star className="size-3.5 mr-1" />
                       {t('integrations.default')}
+                    </Badge>
+                  )}
+                  {provider.status === 'pending_authorization' && (
+                    <Badge
+                      variant="yellow"
+                      className="[&>span]:flex [&>span]:items-center"
+                    >
+                      <KeyRound className="size-3.5 mr-1" />
+                      {t('integrations.pendingAuthorization')}
                     </Badge>
                   )}
                   {provider.authMethod === 'oauth2' && (
@@ -323,6 +447,61 @@ export function EmailIntegrationDialog({
           setShowTypeSelector(false);
         }}
       />
+
+      {/* Edit Provider Dialog */}
+      <FormDialog
+        open={!!editingProvider}
+        onOpenChange={(open) => !open && handleCloseEditDialog()}
+        title={t('integrations.editProvider')}
+        isSubmitting={isUpdating}
+        onSubmit={handleUpdateProvider}
+        submitLabel={tCommon('actions.save')}
+        submitDisabled={!hasEditChanges()}
+      >
+        <Stack gap={3}>
+          <Input
+            id="edit-name"
+            label={t('integrations.providerName')}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder={t('integrations.providerNamePlaceholder')}
+          />
+          {editingProvider?.authMethod === 'oauth2' && (
+            <>
+              <Input
+                id="edit-client-id"
+                label={editingProvider.vendor === 'outlook'
+                  ? t('integrations.microsoftClientId')
+                  : t('integrations.googleClientId')}
+                value={editClientId}
+                onChange={(e) => setEditClientId(e.target.value)}
+                placeholder={editingProvider.vendor === 'outlook'
+                  ? t('integrations.microsoftClientIdPlaceholder')
+                  : t('integrations.googleClientIdPlaceholder')}
+              />
+              <Input
+                id="edit-client-secret"
+                type="password"
+                label={editingProvider.vendor === 'outlook'
+                  ? t('integrations.microsoftClientSecret')
+                  : t('integrations.googleClientSecret')}
+                value={editClientSecret}
+                onChange={(e) => setEditClientSecret(e.target.value)}
+                placeholder={t('integrations.leaveEmptyToKeep')}
+              />
+              {editingProvider.vendor === 'outlook' && (
+                <Input
+                  id="edit-tenant-id"
+                  label={t('integrations.microsoftTenantId')}
+                  value={editTenantId}
+                  onChange={(e) => setEditTenantId(e.target.value)}
+                  placeholder={t('integrations.microsoftTenantIdPlaceholder')}
+                />
+              )}
+            </>
+          )}
+        </Stack>
+      </FormDialog>
     </>
   );
 }

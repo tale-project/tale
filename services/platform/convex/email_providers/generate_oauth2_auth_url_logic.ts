@@ -58,6 +58,7 @@ export async function generateOAuth2AuthUrlLogic(
     | 'organizational'
     | 'both'
     | undefined;
+  const tenantId = metadata?.tenantId as string | undefined;
 
   // Build and return OAuth2 authorization URL
   // Use redirectUri from args (passed from client) if available,
@@ -89,6 +90,7 @@ export async function generateOAuth2AuthUrlLogic(
     emailProviderId: args.emailProviderId,
     organizationId: args.organizationId,
     accountType,
+    tenantId,
     redirectUri: finalRedirectUri,
   });
 }

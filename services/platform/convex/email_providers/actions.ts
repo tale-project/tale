@@ -10,6 +10,7 @@ import { internal, api } from '../_generated/api';
 import { authComponent } from '../auth';
 import { createProviderLogic } from './create_provider_logic';
 import { createOAuth2ProviderLogic } from './create_oauth2_provider_logic';
+import { updateOAuth2ProviderLogic } from './update_oauth2_provider_logic';
 import { generateOAuth2AuthUrlLogic } from './generate_oauth2_auth_url_logic';
 import { storeOAuth2TokensLogic } from './store_oauth2_tokens_logic';
 import { testExistingProviderLogic } from './test_existing_provider_logic';
@@ -97,6 +98,7 @@ export const createOAuth2Provider = action({
         v.literal('both'),
       ),
     ),
+    tenantId: v.optional(v.string()),
     clientId: v.optional(v.string()),
     clientSecret: v.optional(v.string()),
   },
@@ -266,6 +268,41 @@ export const testExistingProvider = action({
         await ctx.runMutation(
           internal.email_providers.internal_mutations.updateMetadata,
           { providerId, metadata },
+        );
+      },
+    });
+  },
+});
+
+export const updateOAuth2Provider = action({
+  args: {
+    providerId: v.id('emailProviders'),
+    name: v.optional(v.string()),
+    clientId: v.optional(v.string()),
+    clientSecret: v.optional(v.string()),
+    tenantId: v.optional(v.string()),
+    sendMethod: v.optional(sendMethodValidator),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Not authenticated');
+    }
+
+    return await updateOAuth2ProviderLogic(ctx, args, {
+      encryptString: async (plaintext: string): Promise<string> => {
+        return await ctx.runAction(internal.lib.crypto.actions.encryptStringInternal, { plaintext });
+      },
+      getProvider: async (providerId: Id<'emailProviders'>): Promise<Doc<'emailProviders'> | null> => {
+        return await ctx.runQuery(
+          internal.email_providers.internal_queries.getProviderById,
+          { providerId },
+        );
+      },
+      updateInternal: async (params) => {
+        return await ctx.runMutation(
+          internal.email_providers.internal_mutations.updateProvider,
+          params,
         );
       },
     });
