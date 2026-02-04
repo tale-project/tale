@@ -208,12 +208,16 @@ export function EmailIntegrationDialog({
       if (editingProvider.authMethod === 'oauth2') {
         const hasCredentialChanges = editClientId !== (editingProvider.oauth2Auth?.clientId || '') ||
           editClientSecret.length > 0;
+        const tenantId =
+          editingProvider.vendor === 'outlook' && editTenantId.trim()
+            ? editTenantId.trim()
+            : undefined;
         await updateOAuth2Provider({
           providerId: editingProvider._id,
           name: editName.trim(),
           clientId: editClientId || undefined,
           clientSecret: editClientSecret || undefined,
-          tenantId: editTenantId,
+          tenantId,
           credentialsSource: hasCredentialChanges
             ? (didSyncFromSso ? 'sso' : 'manual')
             : undefined,
