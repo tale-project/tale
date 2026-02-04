@@ -39,7 +39,7 @@ export async function getMicrosoftToken(
   }
 
   const expiresAt = account.accessTokenExpiresAt ?? null;
-  const isExpired = expiresAt ? Date.now() > expiresAt : false;
+  const isExpired = expiresAt ? Date.now() > expiresAt : true;
 
   return {
     accessToken: account.accessToken ?? null,
