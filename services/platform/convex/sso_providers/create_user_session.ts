@@ -45,7 +45,6 @@ export async function createUserSession(
   const sessionId = (createResult as any)?._id ?? (createResult as any)?.id;
 
   console.log('[createUserSession] Session created:', {
-    token: sessionToken,
     id: sessionId,
     userId: args.userId,
   });
