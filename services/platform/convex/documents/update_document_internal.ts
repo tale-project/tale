@@ -30,7 +30,8 @@ export async function updateDocumentInternal(
   }
 
   // Check if file content has changed (by comparing hash)
-  const hashChanged = contentHash && document.contentHash !== contentHash;
+  const hashChanged =
+    contentHash !== undefined && document.contentHash !== contentHash;
   const hasNewFile = updateData.fileId !== undefined;
 
   // If hash changed and there's a new file, save the old file to history
