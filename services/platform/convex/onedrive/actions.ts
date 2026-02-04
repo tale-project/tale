@@ -49,7 +49,7 @@ export const downloadAndStoreFile = internalAction({
   },
   returns: v.object({
     success: v.boolean(),
-    storageId: v.optional(v.id('_storage')),
+    storageId: v.optional(v.string()),
     mimeType: v.optional(v.string()),
     error: v.optional(v.string()),
   }),

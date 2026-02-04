@@ -7,7 +7,7 @@ export interface DownloadAndStoreFileArgs {
 
 export interface DownloadAndStoreFileResult {
   success: boolean;
-  storageId?: Id<'_storage'>;
+  storageId?: string;
   mimeType?: string;
   error?: string;
 }
