@@ -44,6 +44,7 @@ export function createRouter() {
   if (sentryDsn) {
     Sentry.init({
       dsn: sentryDsn,
+      release: getEnv('TALE_VERSION'),
       integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
       tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
     });

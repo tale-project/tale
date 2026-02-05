@@ -19,6 +19,7 @@ function getEnvConfig() {
     SENTRY_TRACES_SAMPLE_RATE: parseFloat(
       process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0',
     ),
+    TALE_VERSION: process.env.TALE_VERSION,
   };
 }
 
