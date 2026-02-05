@@ -388,6 +388,8 @@ CONVEX_BACKEND_PORT=3210
 CONVEX_SITE_PROXY_PORT=3211
 CONVEX_DASHBOARD_PORT=6791
 
+export SENTRY_RELEASE="${TALE_VERSION:-unknown}"
+
 echo "📦 Starting Convex backend on port ${CONVEX_BACKEND_PORT}..."
 
 # Configure Convex backend logging
