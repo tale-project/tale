@@ -77,8 +77,12 @@ export async function browserOperate(
         : undefined,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error';
+    const isAborted = error instanceof Error && error.name === 'AbortError';
+    const errorMessage = isAborted
+      ? 'Request timed out after 5 minutes'
+      : error instanceof Error
+        ? error.message
+        : 'Unknown error';
     console.error('[tool:web:browser_operate] error', {
       error: errorMessage,
     });
