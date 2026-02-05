@@ -84,6 +84,12 @@
 		reverse_proxy platform:3211
 	}
 
+	# HTTP: API Gateway run requests (/api/run/* -> platform:3211)
+	# Handles OpenAPI/Swagger calls with cookie or x-api-key authentication
+	handle /api/run/* {
+		reverse_proxy platform:3211
+	}
+
 	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
 	# Dashboard HTML references these at root but they're served under /convex-dashboard/
 	@convexDashboardAssets {
