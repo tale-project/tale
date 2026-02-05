@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Suspense, lazy, useMemo, useEffect } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import 'swagger-ui-react/swagger-ui.css';
@@ -26,22 +26,6 @@ function SwaggerSkeleton() {
 }
 
 function ApiDocsPage() {
-  useEffect(() => {
-    const originalFetch = window.fetch.bind(window);
-    const patchedFetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
-      if (url.includes('/api/')) {
-        return originalFetch(input, { ...init, credentials: 'include' });
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
-    Object.assign(patchedFetch, originalFetch);
-    window.fetch = patchedFetch;
-    return () => {
-      window.fetch = originalFetch as typeof fetch;
-    };
-  }, []);
-
   const swaggerConfig = useMemo(
     () => ({
       url: '/openapi.json',
@@ -54,6 +38,12 @@ function ApiDocsPage() {
       showCommonExtensions: true,
       tryItOutEnabled: true,
       persistAuthorization: true,
+      requestInterceptor: (req: Record<string, unknown>) => {
+        if (typeof req.url === 'string' && req.url.includes('/api/')) {
+          req.credentials = 'include';
+        }
+        return req;
+      },
     }),
     [],
   );
