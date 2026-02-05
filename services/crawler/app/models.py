@@ -252,3 +252,27 @@ class ParseFileResponse(BaseModel):
     metadata: dict[str, Any] | None = Field(None, description="Document metadata")
     vision_used: bool | None = Field(None, description="Whether Vision API was used")
     error: str | None = Field(None, description="Error message if parsing failed")
+
+
+# ==================== Web Fetch & Extract Models ====================
+
+
+class WebFetchExtractRequest(BaseModel):
+    """Request to fetch URL and extract content."""
+
+    url: HttpUrl = Field(..., description="URL to fetch and extract content from")
+    instruction: str | None = Field(None, description="Optional AI instruction for content extraction")
+    timeout: int = Field(60000, description="Navigation timeout in ms (default: 60s)", ge=5000, le=120000)
+
+
+class WebFetchExtractResponse(BaseModel):
+    """Response from web fetch and extract operation."""
+
+    success: bool = Field(..., description="Whether the operation was successful")
+    url: str = Field(..., description="The fetched URL")
+    title: str | None = Field(None, description="Page title")
+    content: str = Field(..., description="Extracted text content")
+    word_count: int = Field(..., description="Number of words in content")
+    page_count: int = Field(..., description="Number of pages in PDF")
+    vision_used: bool = Field(False, description="Whether Vision API was used for extraction")
+    error: str | None = Field(None, description="Error message if operation failed")

@@ -34,21 +34,19 @@ export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) 
     toolName: string,
     input?: Record<string, unknown>,
   ): ToolDetail => {
-    if (toolName === 'web_read' && input) {
-      if (input.operation === 'search' && input.query) {
-        return {
-          toolName,
-          displayText: t('thinking.searching', {
-            query: truncate(String(input.query), 30),
-          }),
-        };
-      }
+    if (toolName === 'web' && input) {
       if (input.operation === 'fetch_url' && input.url) {
         return {
           toolName,
           displayText: t('thinking.reading', {
             hostname: extractHostname(String(input.url)),
           }),
+        };
+      }
+      if (input.operation === 'browser_operate' && input.instruction) {
+        return {
+          toolName,
+          displayText: t('thinking.browsing'),
         };
       }
     }
@@ -66,7 +64,7 @@ export function ThinkingAnimation({ streamingMessage }: ThinkingAnimationProps) 
       customer_read: t('tools.customerRead'),
       product_read: t('tools.productRead'),
       rag_search: t('tools.ragSearch'),
-      web_read: t('tools.webRead'),
+      web: t('tools.web'),
       pdf: t('tools.pdf'),
       image: t('tools.image'),
       pptx: t('tools.pptx'),

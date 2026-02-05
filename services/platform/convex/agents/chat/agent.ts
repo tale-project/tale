@@ -150,6 +150,7 @@ export function createChatAgent(options?: {
       'integration_assistant',
       'workflow_assistant',
       'crm_assistant',
+      'request_human_input',
     ];
     convexToolNames = options?.convexToolNames ?? defaultToolNames;
 
