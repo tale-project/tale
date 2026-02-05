@@ -1,6 +1,6 @@
 import { createAuthClient } from 'better-auth/react';
 import { convexClient } from '@convex-dev/better-auth/client/plugins';
-import { organizationClient } from 'better-auth/client/plugins';
+import { apiKeyClient, organizationClient } from 'better-auth/client/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 
 // Mirror minimal access control on the client for type-safe checks
@@ -37,6 +37,7 @@ export const authClient = createAuthClient({
   // baseURL: appUrl,
   plugins: [
     convexClient(),
+    apiKeyClient(),
     organizationClient({
       ac,
       roles: {

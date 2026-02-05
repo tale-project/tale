@@ -4,7 +4,7 @@ import { components } from './_generated/api';
 import { DataModel } from './_generated/dataModel';
 import { betterAuth } from 'better-auth';
 import authSchema from './betterAuth/schema';
-import { organization } from 'better-auth/plugins';
+import { apiKey, organization } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import authConfig from './auth.config';
 
@@ -272,6 +272,16 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
           defaultTeam: {
             enabled: false,
           },
+        },
+      }),
+      apiKey({
+        defaultPrefix: 'tale',
+        apiKeyHeaders: ['x-api-key'],
+        enableSessionForAPIKeys: true,
+        rateLimit: {
+          enabled: true,
+          timeWindow: 60,
+          maxRequests: 100,
         },
       }),
     ],

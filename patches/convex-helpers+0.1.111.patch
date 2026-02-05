@@ -1,0 +1,22 @@
+# Temporary patch for convex-helpers open-api-spec command
+#
+# Issue: Internal functions not filtered when generating schemas,
+#        causing "bytes unsupported" error
+#
+# GitHub Issue: https://github.com/get-convex/convex-helpers/issues/908
+#
+# TODO: Remove this patch when the issue is fixed upstream
+
+diff --git a/node_modules/convex-helpers/bin.cjs b/node_modules/convex-helpers/bin.cjs
+index 5e07847..f145feb 100755
+--- a/node_modules/convex-helpers/bin.cjs
++++ b/node_modules/convex-helpers/bin.cjs
+@@ -4650,7 +4650,7 @@ components:
+       description: Token of the format "Bearer {token}" for normal authentication and "Convex {token}" for admin tokens.
+   schemas:
+ ${reindent(
+-    functionSpec.functions.filter((f) => f.functionType !== "HttpAction").map((f) => generateEndpointSchemas(f)).join("\n"),
++    functionSpec.functions.filter((f) => f.functionType !== "HttpAction").filter((f) => includeInternal || f.visibility.kind === "public").map((f) => generateEndpointSchemas(f)).join("\n"),
+     1
+   )}
+       FailedResponse:

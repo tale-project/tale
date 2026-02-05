@@ -15,6 +15,7 @@ import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useT } from '@/lib/i18n/client';
+import { CopyableText } from '@/app/components/ui/data-display/copyable-field';
 
 type Member = {
   _id: string;
@@ -143,6 +144,13 @@ export function OrganizationSettingsClient({
           </Button>
         </HStack>
       </Form>
+
+      {organization && (
+        <HStack gap={2} align="center" className="text-sm text-muted-foreground">
+          <span>{tSettings('organization.organizationId')}:</span>
+          <CopyableText value={organization._id} />
+        </HStack>
+      )}
 
       <Stack className="pt-4">
         <Stack gap={1}>
