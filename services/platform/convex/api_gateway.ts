@@ -6,10 +6,30 @@ import { createAuth } from './auth';
 // In production: https://xxx.convex.cloud
 const CONVEX_URL = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
 
+function isAllowedOrigin(origin: string): boolean {
+  const siteUrl = process.env.SITE_URL || 'http://127.0.0.1:3000';
+  const siteOrigin = new URL(siteUrl).origin;
+
+  if (origin === siteOrigin) {
+    return true;
+  }
+
+  if (
+    siteOrigin.includes('127.0.0.1') ||
+    siteOrigin.includes('localhost')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function getCorsHeaders(request: Request): Record<string, string> {
-  const origin = request.headers.get('origin') || '*';
+  const origin = request.headers.get('origin');
+  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : '';
+
   return {
-    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
