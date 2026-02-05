@@ -14,7 +14,7 @@ import {
   CardDescription,
 } from '@/app/components/ui/layout/card';
 import { Stack, HStack, Grid, Center } from '@/app/components/ui/layout/layout';
-import { Settings, Mail, Loader2 } from 'lucide-react';
+import { Settings, Mail } from 'lucide-react';
 import type { Doc, Id } from '@/convex/_generated/dataModel';
 import { toast } from '@/app/hooks/use-toast';
 import { useCreateIntegration } from '../hooks/use-create-integration';
@@ -360,18 +360,6 @@ export function IntegrationsClient({
       throw error;
     }
   };
-
-  if (
-    shopifyIntegration === undefined ||
-    circulyIntegration === undefined ||
-    protelIntegration === undefined
-  ) {
-    return (
-      <Center>
-        <Loader2 className="size-4 animate-spin" />
-      </Center>
-    );
-  }
 
   return (
     <Stack>

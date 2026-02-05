@@ -67,7 +67,7 @@ function ToneOfVoicePage() {
   if (hasExamples === undefined || toneOfVoice === undefined) {
     return (
       <Stack gap={8}>
-        {hasExamples && <ExampleMessagesSkeleton />}
+        <ExampleMessagesSkeleton />
         <ToneFormSkeleton />
       </Stack>
     );

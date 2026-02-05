@@ -55,6 +55,8 @@ function AutomationsPage() {
     organizationId,
   });
 
+  const hasFilters = query || status;
+
   if (memberContext === undefined || hasAutomations === undefined) {
     return (
       <ContentWrapper>
@@ -68,7 +70,6 @@ function AutomationsPage() {
     return <AccessDenied message={t('automations')} />;
   }
 
-  const hasFilters = query || status;
   if (!hasFilters && !hasAutomations) {
     return <AutomationsEmptyState organizationId={organizationId} />;
   }

@@ -18,6 +18,7 @@ export default defineConfig({
       '**/*.config.{js,ts}',
       '**/.{idea,git,cache,output,temp}/**',
       'app/components/**/*.test.{ts,tsx}',
+      'app/hooks/**/*.test.{ts,tsx}',
       'convex/workflow_engine/helpers/validation/validate_predefined_workflows.test.ts',
     ],
     coverage: {

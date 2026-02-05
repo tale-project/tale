@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
@@ -32,20 +32,38 @@ export function AutomationsClient({
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
+  const [displayCount, setDisplayCount] = useState(pageSize);
+
   const queryArgs = useMemo(
     () => ({
       organizationId,
       searchTerm: searchTerm || undefined,
       status: status && status.length > 0 ? status : undefined,
-      paginationOpts: { cursor: null, numItems: pageSize },
+      paginationOpts: { cursor: null, numItems: 1000 },
     }),
-    [organizationId, searchTerm, status, pageSize],
+    [organizationId, searchTerm, status],
   );
 
   const automationsResult = useQuery(
     api.wf_definitions.queries.getAutomations,
     queryArgs,
   );
+
+  const allAutomations = useMemo(
+    () => automationsResult ?? [],
+    [automationsResult],
+  );
+
+  const displayedAutomations = useMemo(
+    () => allAutomations.slice(0, displayCount),
+    [allAutomations, displayCount],
+  );
+
+  const hasMore = displayCount < allAutomations.length;
+
+  const handleLoadMore = useCallback(() => {
+    setDisplayCount((prev) => prev + pageSize);
+  }, [pageSize]);
 
   // Define handlers with useCallback before any early returns
   const handleRowClick = useCallback(
@@ -108,13 +126,11 @@ export function AutomationsClient({
     return <AutomationsTableSkeleton organizationId={organizationId} />;
   }
 
-  const automations = automationsResult ?? [];
-
   return (
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={automations}
+      data={displayedAutomations}
       getRowId={(row) => row._id}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
@@ -130,6 +146,12 @@ export function AutomationsClient({
         icon: Workflow,
         title: tEmpty('automations.title'),
         description: tEmpty('automations.description'),
+      }}
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: false,
+        isInitialLoading: false,
       }}
     />
   );

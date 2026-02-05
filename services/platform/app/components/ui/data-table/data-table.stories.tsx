@@ -312,14 +312,54 @@ export const WithInfiniteScroll: Story = {
     };
 
     return (
+      <div className="h-[600px]">
+        <DataTable
+          columns={columns}
+          data={data}
+          caption="Infinite scroll table"
+          stickyLayout
+          infiniteScroll={{
+            hasMore: data.length < manyUsers.length,
+            onLoadMore: loadMore,
+            isLoadingMore: isLoading,
+            threshold: 200,
+          }}
+        />
+      </div>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Automatic infinite scroll that triggers 200px before reaching the bottom.',
+      },
+    },
+  },
+};
+
+export const WithManualLoadMore: Story = {
+  render: function ManualLoadMoreStory() {
+    const [data, setData] = useState(manyUsers.slice(0, 10));
+    const [isLoading, setIsLoading] = useState(false);
+
+    const loadMore = () => {
+      setIsLoading(true);
+      setTimeout(() => {
+        setData((prev) => [...prev, ...manyUsers.slice(prev.length, prev.length + 10)]);
+        setIsLoading(false);
+      }, 1000);
+    };
+
+    return (
       <DataTable
         columns={columns}
         data={data}
-        caption="Infinite scroll table"
+        caption="Manual load more table"
         infiniteScroll={{
           hasMore: data.length < manyUsers.length,
           onLoadMore: loadMore,
           isLoadingMore: isLoading,
+          autoLoad: false,
         }}
       />
     );
@@ -327,7 +367,7 @@ export const WithInfiniteScroll: Story = {
   parameters: {
     docs: {
       description: {
-        story: 'Infinite scroll with load more button.',
+        story: 'Manual load more button (autoLoad disabled for backward compatibility).',
       },
     },
   },

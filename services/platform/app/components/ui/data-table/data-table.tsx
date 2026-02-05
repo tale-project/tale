@@ -1,6 +1,13 @@
 'use client';
 
-import { Fragment, useState, useRef, useEffect, type ReactNode } from 'react';
+import {
+  Fragment,
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -29,14 +36,15 @@ import { cn } from '@/lib/utils/cn';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
-import { HStack, Stack } from '@/app/components/ui/layout/layout';
+import { Spinner } from '@/app/components/ui/feedback/spinner';
+import { Center, HStack, Stack, VStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
+import { useInfiniteScroll } from '@/app/hooks/use-infinite-scroll';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { ErrorBoundaryBase } from '@/app/components/error-boundaries/core/error-boundary-base';
 import { ErrorDisplayCompact } from '@/app/components/error-boundaries/displays/error-display-compact';
 import {
   DataTableEmptyState,
-  DataTableFilteredEmptyState,
   type DataTableEmptyStateProps,
 } from './data-table-empty-state';
 import {
@@ -76,6 +84,10 @@ export interface DataTableProps<TData> {
     isLoadingMore?: boolean;
     /** Whether initial data is loading (prevents empty state flash) */
     isInitialLoading?: boolean;
+    /** Enable automatic loading on scroll (default: true) */
+    autoLoad?: boolean;
+    /** Distance from bottom to trigger load in px (default: 300) */
+    threshold?: number;
   };
   /** Sorting configuration from useDataTable hook */
   sorting?: DataTableSortingConfig;
@@ -199,6 +211,9 @@ export function DataTable<TData>({
   const prevRowCountRef = useRef(0);
   const [animatingRows, setAnimatingRows] = useState<Set<string>>(new Set());
 
+  // Stable noop callback for when infiniteScroll is not provided
+  const noop = useCallback(() => {}, []);
+
   useEffect(() => {
     const currentCount = data.length;
     if (currentCount > prevRowCountRef.current && prevRowCountRef.current > 0) {
@@ -216,6 +231,15 @@ export function DataTable<TData>({
     }
     prevRowCountRef.current = currentCount;
   }, [data, getRowId]);
+
+  // Initialize infinite scroll hook for automatic loading
+  const { sentinelRef } = useInfiniteScroll({
+    onLoadMore: infiniteScroll?.onLoadMore ?? noop,
+    hasMore: infiniteScroll?.hasMore ?? false,
+    isLoading: infiniteScroll?.isLoadingMore ?? false,
+    threshold: infiniteScroll?.threshold ?? 300,
+    enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
+  });
 
   // Use controlled or internal state
   const sorting = onSortingChange ? initialSorting : internalSorting;
@@ -286,9 +310,14 @@ export function DataTable<TData>({
     dateRange?.from ||
     dateRange?.to;
 
-  // Show empty state when no data (but not during initial load)
+  // Determine empty state (but not during initial load)
   const isInitialLoading = infiniteScroll?.isInitialLoading;
-  if (data.length === 0 && emptyState && !isInitialLoading) {
+  const showEmptyState = data.length === 0 && emptyState && !isInitialLoading;
+  const showInitialEmptyState = showEmptyState && !hasActiveFilters;
+  const showFilteredEmptyState = showEmptyState && hasActiveFilters;
+
+  // Initial empty state (no data, no filters) - early return since no header needed
+  if (showInitialEmptyState) {
     return (
       <div
         className={cn(
@@ -296,16 +325,7 @@ export function DataTable<TData>({
           className,
         )}
       >
-        {hasActiveFilters ? (
-          <DataTableFilteredEmptyState
-            title={t('search.noResults')}
-            description={t('search.tryAdjusting')}
-            headerContent={headerContent}
-            stickyLayout={stickyLayout}
-          />
-        ) : (
-          <DataTableEmptyState {...emptyState} actionMenu={actionMenu} />
-        )}
+        <DataTableEmptyState {...emptyState} actionMenu={actionMenu} />
         {footer}
       </div>
     );
@@ -488,22 +508,55 @@ export function DataTable<TData>({
     />
   );
 
-  // Infinite scroll content (load more button) - renders inside table container
-  // Only show when there are more items to load
+  // Infinite scroll content - renders inside table container
+  // Shows sentinel element for auto-loading or manual button/loading indicator
   const infiniteScrollContent = infiniteScroll &&
     data.length > 0 &&
     infiniteScroll.hasMore && (
-      <div className="flex justify-center py-3 border-t border-border">
-        <Button
-          variant="ghost"
-          onClick={infiniteScroll.onLoadMore}
-          isLoading={infiniteScroll.isLoadingMore}
-          aria-label={t('pagination.loadMore')}
-        >
-          {t('pagination.loadMore')}
-        </Button>
+      <div className="border-t border-border">
+        {/* Sentinel element for IntersectionObserver (auto-loading) */}
+        {infiniteScroll.autoLoad !== false && (
+          <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />
+        )}
+
+        {/* Loading indicator or manual button */}
+        <div className="flex justify-center py-3">
+          {infiniteScroll.isLoadingMore ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size="sm" label={t('pagination.loading')} />
+              <span>{t('pagination.loading')}</span>
+            </div>
+          ) : infiniteScroll.autoLoad === false ? (
+            <Button
+              variant="ghost"
+              onClick={infiniteScroll.onLoadMore}
+              aria-label={t('pagination.loadMore')}
+            >
+              {t('pagination.loadMore')}
+            </Button>
+          ) : null}
+        </div>
       </div>
     );
+
+  // Filtered empty state content (rendered inline to preserve filter popover state)
+  const filteredEmptyContent = (
+    <Center
+      className={cn(
+        'rounded-xl border border-border',
+        stickyLayout ? 'flex-1 min-h-0' : 'py-16',
+      )}
+    >
+      <VStack align="center" className="text-center">
+        <h4 className="text-base font-semibold text-foreground mb-1">
+          {t('search.noResults')}
+        </h4>
+        <p className="text-sm text-muted-foreground">
+          {t('search.tryAdjusting')}
+        </p>
+      </VStack>
+    </Center>
+  );
 
   // Non-sticky layout: simple stacked layout with gaps
   if (!stickyLayout) {
@@ -520,11 +573,15 @@ export function DataTable<TData>({
       >
         <div className={cn('space-y-4', className)}>
           {headerContent}
-          <div className="rounded-xl border border-border">
-            {tableContent}
-            {infiniteScrollContent}
-          </div>
-          {paginationContent}
+          {showFilteredEmptyState ? (
+            filteredEmptyContent
+          ) : (
+            <div className="rounded-xl border border-border">
+              {tableContent}
+              {infiniteScrollContent}
+            </div>
+          )}
+          {!showFilteredEmptyState && paginationContent}
           {footer}
         </div>
       </ErrorBoundaryBase>
@@ -547,11 +604,15 @@ export function DataTable<TData>({
         {headerContent && (
           <div className="flex-shrink-0 pb-4">{headerContent}</div>
         )}
-        <div className="min-h-0 overflow-auto rounded-xl border border-border">
-          {tableContent}
-          {infiniteScrollContent}
-        </div>
-        {paginationContent && (
+        {showFilteredEmptyState ? (
+          filteredEmptyContent
+        ) : (
+          <div className="min-h-0 overflow-auto rounded-xl border border-border">
+            {tableContent}
+            {infiniteScrollContent}
+          </div>
+        )}
+        {!showFilteredEmptyState && paginationContent && (
           <div className="flex-shrink-0 pt-6">{paginationContent}</div>
         )}
         {footer}

@@ -24,7 +24,7 @@ function SettingsLayout() {
 
   if (userContext === undefined) {
     return (
-      <>
+      <div className="flex flex-col flex-1 min-h-0 overflow-auto">
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false}>
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -38,7 +38,7 @@ function SettingsLayout() {
         <ContentWrapper className="p-4">
           <Skeleton className="h-96 w-full" />
         </ContentWrapper>
-      </>
+      </div>
     );
   }
 
@@ -46,7 +46,7 @@ function SettingsLayout() {
   const canChangePassword = true;
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -62,6 +62,6 @@ function SettingsLayout() {
           <Outlet />
         </ContentWrapper>
       </LayoutErrorBoundary>
-    </>
+    </div>
   );
 }

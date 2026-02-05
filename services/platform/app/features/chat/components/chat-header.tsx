@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { motion } from 'framer-motion';
 import { Clock, Search, Plus } from 'lucide-react';
 
-import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
@@ -21,6 +19,7 @@ import {
 } from '@/app/components/ui/overlays/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { AdaptiveHeaderRoot } from '@/app/components/layout/adaptive-header';
+import { useChatLayout } from '@/app/features/chat/context/chat-layout-context';
 import { ChatHistorySidebar } from './chat-history-sidebar';
 import { ChatSearchDialog } from './chat-search-dialog';
 
@@ -28,12 +27,10 @@ interface ChatHeaderProps {
   organizationId: string;
 }
 
-const HISTORY_WIDTH = 288;
-
 export function ChatHeader({ organizationId }: ChatHeaderProps) {
   const navigate = useNavigate();
+  const { isHistoryOpen, setIsHistoryOpen } = useChatLayout();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isMobileHistoryOpen, setIsMobileHistoryOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
 
@@ -66,9 +63,9 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
     if (isMobile) {
       setIsMobileHistoryOpen((prev) => !prev);
     } else {
-      setIsHistoryOpen((prev) => !prev);
+      setIsHistoryOpen(!isHistoryOpen);
     }
-  }, []);
+  }, [isHistoryOpen, setIsHistoryOpen]);
 
   const handleNewChat = useCallback(() => {
     navigate({ to: '/dashboard/$id/chat', params: { id: organizationId } });
@@ -118,90 +115,65 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="hidden md:flex items-start h-full w-fit absolute left-0 top-0 z-10">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: isHistoryOpen ? '18rem' : 0 }}
-          transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-          className={cn(
-            'flex flex-col sticky top-0 h-full w-[18rem] max-w-[calc(100vw-4rem)] border-r border-border overflow-hidden bg-background rounded-tl-xl',
-            !isHistoryOpen && 'border-r-0',
-          )}
-        >
-          <ChatHistorySidebar organizationId={organizationId} />
-        </motion.div>
-
-        <motion.div
-          initial={{ x: -HISTORY_WIDTH }}
-          animate={{ x: isHistoryOpen ? 0 : -HISTORY_WIDTH }}
-          transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ left: `${HISTORY_WIDTH}px` }}
-          className="absolute top-0 flex items-center px-5 py-2 bg-background rounded-br-xl"
-        >
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleToggleHistory}
-                  aria-label={tChat('chatHistory')}
-                >
-                  <Clock className={baseIconClasses} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent
-                align="start"
-                alignOffset={-12}
-                side="bottom"
-                className="py-1.5"
+      <div className="hidden md:flex items-center gap-1 px-5 py-2 border-b border-border">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleToggleHistory}
+                aria-label={tChat('chatHistory')}
               >
-                {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
-                <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
-                  {historyShortcut}
-                </span>
-              </TooltipContent>
-            </Tooltip>
+                <Clock className={baseIconClasses} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="py-1.5">
+              {isHistoryOpen ? tChat('hideHistory') : tChat('showHistory')}
+              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+                {historyShortcut}
+              </span>
+            </TooltipContent>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleToggleSearch}
-                  aria-label={tChat('searchChat')}
-                >
-                  <Search className={baseIconClasses} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="py-1.5">
-                {isSearchOpen ? tChat('hideSearch') : tChat('searchChat')}
-                <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
-                  {findShortcut}
-                </span>
-              </TooltipContent>
-            </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleToggleSearch}
+                aria-label={tChat('searchChat')}
+              >
+                <Search className={baseIconClasses} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="py-1.5">
+              {isSearchOpen ? tChat('hideSearch') : tChat('searchChat')}
+              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+                {findShortcut}
+              </span>
+            </TooltipContent>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleNewChat}
-                  aria-label={tChat('newChat')}
-                >
-                  <Plus className={baseIconClasses} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="py-1.5">
-                {tChat('newChat')}
-                <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
-                  {newChatShortcut}
-                </span>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </motion.div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleNewChat}
+                aria-label={tChat('newChat')}
+              >
+                <Plus className={baseIconClasses} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="py-1.5">
+              {tChat('newChat')}
+              <span className="text-xs text-muted bg-muted-foreground/60 px-1 rounded-sm py-0.5 ml-3">
+                {newChatShortcut}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <AdaptiveHeaderRoot className="md:hidden">

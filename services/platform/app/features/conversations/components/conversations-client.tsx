@@ -2,9 +2,9 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, usePaginatedQuery } from 'convex/react';
-import { Input } from '@/app/components/ui/forms/input';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Search, Loader2Icon } from 'lucide-react';
+import { Loader2Icon } from 'lucide-react';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { ConversationPanel } from './conversation-panel';
 import { ConversationsList } from './conversations-list';
@@ -160,7 +160,7 @@ export function ConversationsClient({
   // Fetch conversations with cursor-based pagination
   const { results, status: paginationStatus, loadMore, isLoading } = usePaginatedQuery(
     api.conversations.queries.listConversations,
-    { organizationId },
+    { organizationId, status },
     { initialNumItems: PAGE_SIZE },
   );
 
@@ -169,11 +169,6 @@ export function ConversationsClient({
     if (!results) return [];
 
     let data = [...results] as ConversationItem[];
-
-    // Filter by status
-    if (status) {
-      data = data.filter((c) => c.status === status);
-    }
 
     // Filter by priority
     if (initialPriority) {
@@ -191,13 +186,8 @@ export function ConversationsClient({
       ]);
     }
 
-    // Sort by lastMessageAt descending
-    return data.sort((a, b) => {
-      const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : a._creationTime;
-      const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : b._creationTime;
-      return bTime - aTime;
-    });
-  }, [results, status, initialPriority, searchQuery, initialSearch]);
+    return data;
+  }, [results, initialPriority, searchQuery, initialSearch]);
 
   // Fetch email providers
   const emailProviders = useQuery(api.email_providers.queries.list, {
@@ -626,16 +616,13 @@ function ConversationsClientInner({
               )}
             </>
           ) : (
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                placeholder={tChat('searchConversations')}
-                size="sm"
-                className="pl-9 pr-3 bg-transparent shadow-none text-sm"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            <SearchInput
+              placeholder={tChat('searchConversations')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              wrapperClassName="flex-1"
+              className="pr-3 bg-transparent shadow-none text-sm"
+            />
           )}
         </div>
 

@@ -23,7 +23,7 @@ function DashboardLayout() {
 
   return (
     <AdaptiveHeaderProvider>
-      <div className="flex flex-col md:flex-row size-full">
+      <div className="flex flex-col md:flex-row size-full overflow-hidden">
         <div className="md:hidden flex items-center gap-2 h-[--nav-size] p-2 bg-background">
           <MobileNavigation
             organizationId={organizationId}
@@ -39,7 +39,7 @@ function DashboardLayout() {
           />
         </div>
 
-        <div className="flex flex-col flex-1 min-h-0 md:border-l border-border bg-background">
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden md:border-l border-border bg-background">
           {isAuthLoading ? null : <Outlet />}
         </div>
       </div>

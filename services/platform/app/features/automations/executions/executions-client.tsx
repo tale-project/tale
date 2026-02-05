@@ -122,6 +122,8 @@ export function ExecutionsClient({
   const { searchPlaceholder, stickyLayout, pageSize } =
     useExecutionsTableConfig();
 
+  const [displayCount, setDisplayCount] = useState(pageSize);
+
   const queryArgs = useMemo(
     () => ({
       wfDefinitionId: amId,
@@ -131,15 +133,31 @@ export function ExecutionsClient({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       cursor: undefined,
-      numItems: pageSize,
+      numItems: 1000,
     }),
-    [amId, searchTerm, status, triggeredBy, dateFrom, dateTo, pageSize],
+    [amId, searchTerm, status, triggeredBy, dateFrom, dateTo],
   );
 
   const executionsResult = useQuery(
     api.wf_executions.queries.listExecutionsCursor,
     queryArgs,
   );
+
+  const allExecutions = useMemo(
+    () => executionsResult?.page ?? [],
+    [executionsResult],
+  );
+
+  const displayedExecutions = useMemo(
+    () => allExecutions.slice(0, displayCount),
+    [allExecutions, displayCount],
+  );
+
+  const hasMore = displayCount < allExecutions.length;
+
+  const handleLoadMore = useCallback(() => {
+    setDisplayCount((prev) => prev + pageSize);
+  }, [pageSize]);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -345,13 +363,11 @@ export function ExecutionsClient({
     return <ExecutionsTableSkeleton />;
   }
 
-  const executions = executionsResult.page ?? [];
-
   return (
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={executions}
+      data={displayedExecutions}
       getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
@@ -371,6 +387,12 @@ export function ExecutionsClient({
       emptyState={{
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
+      }}
+      infiniteScroll={{
+        hasMore,
+        onLoadMore: handleLoadMore,
+        isLoadingMore: false,
+        isInitialLoading: false,
       }}
     />
   );
