@@ -103,6 +103,9 @@ async function handleApiGateway(
 
   const body = await request.text();
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(`${CONVEX_URL}${path}`, {
       method: 'POST',
@@ -111,7 +114,9 @@ async function handleApiGateway(
         Authorization: `Bearer ${jwtToken}`,
       },
       body,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     const responseBody = await response.text();
 
@@ -123,6 +128,11 @@ async function handleApiGateway(
       },
     });
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[API Gateway] Request to Convex API timed out');
+      return jsonError('Gateway timeout', 504, request);
+    }
     console.error('[API Gateway] Failed to reach Convex API:', error);
     return jsonError('Internal server error', 500, request);
   }
