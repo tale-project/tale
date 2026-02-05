@@ -15,6 +15,7 @@ export type WebFetchUrlResult = {
   word_count: number;
   page_count: number;
   vision_used: boolean;
+  truncated?: boolean;
   error?: string;
 };
 

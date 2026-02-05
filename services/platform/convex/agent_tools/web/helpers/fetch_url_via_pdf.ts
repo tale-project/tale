@@ -93,6 +93,7 @@ export async function fetchUrlViaPdf(
       word_count: result.word_count,
       page_count: result.page_count,
       vision_used: result.vision_used,
+      truncated,
     };
   } catch (error) {
     const errorMessage =
