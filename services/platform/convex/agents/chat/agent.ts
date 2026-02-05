@@ -131,7 +131,8 @@ CRITICAL RULES
    • "**Document: filename.pdf**" followed by content
    • "**Image: filename.jpg**" followed by description
    • "**Text File: filename.txt**" followed by analysis
-   These files have ALREADY been analyzed. Answer the user's question directly from this content.
+   These are attachments from the CURRENT message. They take PRIORITY over any previous context.
+   Answer the user's question directly from this content.
    ⚠️ Do NOT call document_assistant for content that is already in the CURRENT message.
    Note: For follow-up questions about files from PREVIOUS messages, you MAY call document_assistant.
 

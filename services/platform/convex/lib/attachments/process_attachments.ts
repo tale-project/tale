@@ -252,7 +252,7 @@ export async function processAttachments(
     // Add a marker indicating content has been pre-analyzed in this message
     contentParts.push({
       type: 'text',
-      text: '\n\n[PRE-ANALYZED CONTENT BELOW - Answer directly from this content without calling document_assistant.]',
+      text: '\n\n[PRE-ANALYZED CONTENT BELOW - This is the attachment from the CURRENT message. It takes priority over any previous context. Answer directly from this content without calling document_assistant.]',
     });
 
     // Add parsed document content
