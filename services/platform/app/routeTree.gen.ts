@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConvexDashboardRouteImport } from './routes/convex-dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
@@ -32,6 +33,7 @@ import { Route as DashboardIdSettingsTeamsRouteImport } from './routes/dashboard
 import { Route as DashboardIdSettingsOrganizationRouteImport } from './routes/dashboard/$id/settings/organization'
 import { Route as DashboardIdSettingsLogsRouteImport } from './routes/dashboard/$id/settings/logs'
 import { Route as DashboardIdSettingsIntegrationsRouteImport } from './routes/dashboard/$id/settings/integrations'
+import { Route as DashboardIdSettingsApiKeysRouteImport } from './routes/dashboard/$id/settings/api-keys'
 import { Route as DashboardIdSettingsAccountRouteImport } from './routes/dashboard/$id/settings/account'
 import { Route as DashboardIdConversationsStatusRouteImport } from './routes/dashboard/$id/conversations/$status'
 import { Route as DashboardIdChatThreadIdRouteImport } from './routes/dashboard/$id/chat/$threadId'
@@ -46,6 +48,11 @@ import { Route as DashboardIdKnowledgeCustomersRouteImport } from './routes/dash
 import { Route as DashboardIdAutomationsAmIdExecutionsRouteImport } from './routes/dashboard/$id/automations/$amId/executions'
 import { Route as DashboardIdAutomationsAmIdConfigurationRouteImport } from './routes/dashboard/$id/automations/$amId/configuration'
 
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -166,6 +173,12 @@ const DashboardIdSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => DashboardIdSettingsRoute,
   } as any)
+const DashboardIdSettingsApiKeysRoute =
+  DashboardIdSettingsApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
+    getParentRoute: () => DashboardIdSettingsRoute,
+  } as any)
 const DashboardIdSettingsAccountRoute =
   DashboardIdSettingsAccountRouteImport.update({
     id: '/account',
@@ -248,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/docs': typeof DocsRoute
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdKnowledgeRouteWithChildren
@@ -270,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -283,6 +298,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/convex-dashboard': typeof ConvexDashboardRoute
+  '/docs': typeof DocsRoute
   '/log-in': typeof AuthLogInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/dashboard/create-organization': typeof DashboardCreateOrganizationRoute
@@ -301,6 +317,7 @@ export interface FileRoutesByTo {
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -317,6 +334,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/convex-dashboard': typeof ConvexDashboardRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/docs': typeof DocsRoute
   '/_auth/log-in': typeof AuthLogInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/dashboard/$id': typeof DashboardIdRouteWithChildren
@@ -340,6 +358,7 @@ export interface FileRoutesById {
   '/dashboard/$id/chat/$threadId': typeof DashboardIdChatThreadIdRoute
   '/dashboard/$id/conversations/$status': typeof DashboardIdConversationsStatusRoute
   '/dashboard/$id/settings/account': typeof DashboardIdSettingsAccountRoute
+  '/dashboard/$id/settings/api-keys': typeof DashboardIdSettingsApiKeysRoute
   '/dashboard/$id/settings/integrations': typeof DashboardIdSettingsIntegrationsRoute
   '/dashboard/$id/settings/logs': typeof DashboardIdSettingsLogsRoute
   '/dashboard/$id/settings/organization': typeof DashboardIdSettingsOrganizationRoute
@@ -356,6 +375,7 @@ export interface FileRouteTypes {
     | '/'
     | '/convex-dashboard'
     | '/dashboard'
+    | '/docs'
     | '/log-in'
     | '/sign-up'
     | '/dashboard/$id'
@@ -378,6 +398,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
+    | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -391,6 +412,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/convex-dashboard'
+    | '/docs'
     | '/log-in'
     | '/sign-up'
     | '/dashboard/create-organization'
@@ -409,6 +431,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
+    | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -424,6 +447,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/convex-dashboard'
     | '/dashboard'
+    | '/docs'
     | '/_auth/log-in'
     | '/_auth/sign-up'
     | '/dashboard/$id'
@@ -447,6 +471,7 @@ export interface FileRouteTypes {
     | '/dashboard/$id/chat/$threadId'
     | '/dashboard/$id/conversations/$status'
     | '/dashboard/$id/settings/account'
+    | '/dashboard/$id/settings/api-keys'
     | '/dashboard/$id/settings/integrations'
     | '/dashboard/$id/settings/logs'
     | '/dashboard/$id/settings/organization'
@@ -463,10 +488,18 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   ConvexDashboardRoute: typeof ConvexDashboardRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  DocsRoute: typeof DocsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -626,6 +659,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/dashboard/$id/settings/integrations'
       preLoaderRoute: typeof DashboardIdSettingsIntegrationsRouteImport
+      parentRoute: typeof DashboardIdSettingsRoute
+    }
+    '/dashboard/$id/settings/api-keys': {
+      id: '/dashboard/$id/settings/api-keys'
+      path: '/api-keys'
+      fullPath: '/dashboard/$id/settings/api-keys'
+      preLoaderRoute: typeof DashboardIdSettingsApiKeysRouteImport
       parentRoute: typeof DashboardIdSettingsRoute
     }
     '/dashboard/$id/settings/account': {
@@ -831,6 +871,7 @@ const DashboardIdConversationsRouteWithChildren =
 
 interface DashboardIdSettingsRouteChildren {
   DashboardIdSettingsAccountRoute: typeof DashboardIdSettingsAccountRoute
+  DashboardIdSettingsApiKeysRoute: typeof DashboardIdSettingsApiKeysRoute
   DashboardIdSettingsIntegrationsRoute: typeof DashboardIdSettingsIntegrationsRoute
   DashboardIdSettingsLogsRoute: typeof DashboardIdSettingsLogsRoute
   DashboardIdSettingsOrganizationRoute: typeof DashboardIdSettingsOrganizationRoute
@@ -840,6 +881,7 @@ interface DashboardIdSettingsRouteChildren {
 
 const DashboardIdSettingsRouteChildren: DashboardIdSettingsRouteChildren = {
   DashboardIdSettingsAccountRoute: DashboardIdSettingsAccountRoute,
+  DashboardIdSettingsApiKeysRoute: DashboardIdSettingsApiKeysRoute,
   DashboardIdSettingsIntegrationsRoute: DashboardIdSettingsIntegrationsRoute,
   DashboardIdSettingsLogsRoute: DashboardIdSettingsLogsRoute,
   DashboardIdSettingsOrganizationRoute: DashboardIdSettingsOrganizationRoute,
@@ -895,6 +937,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   ConvexDashboardRoute: ConvexDashboardRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  DocsRoute: DocsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

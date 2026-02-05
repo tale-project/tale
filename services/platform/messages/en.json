@@ -204,6 +204,8 @@
     "organization": "Organization",
     "teams": "Teams",
     "integrations": "Integrations",
+    "apiKeys": "API keys",
+    "apiDocs": "API docs",
     "account": "Account",
     "logs": "Logs"
   },
@@ -492,6 +494,7 @@
     "title": "Settings",
     "organization": {
       "title": "Organization (optional)",
+      "organizationId": "Organization ID",
       "membersTitle": "Organization members",
       "manageAccess": "Manage access to the organization",
       "searchMember": "Search member",
@@ -864,6 +867,56 @@
       "editor": "Editor",
       "member": "Member",
       "disabled": "Disabled"
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "description": "Manage API keys for external integrations",
+      "accessDenied": "You need Admin or Developer permissions to manage API keys.",
+      "createKey": "Create API key",
+      "noKeys": "No API keys yet",
+      "noKeysDescription": "Create an API key to enable external integrations via REST API.",
+      "keyCreated": "API key created",
+      "keyCreatedDescription": "Copy this key now. You won't be able to see it again.",
+      "keyRevoked": "API key revoked",
+      "keyRevokeFailed": "Failed to revoke API key",
+      "revokeKey": "Revoke key",
+      "revokeConfirmation": "Are you sure you want to revoke this API key? This action cannot be undone.",
+      "revoking": "Revoking...",
+      "copyKey": "Copy API key",
+      "keyCopied": "API key copied to clipboard",
+      "columns": {
+        "name": "Name",
+        "prefix": "Key prefix",
+        "created": "Created",
+        "lastUsed": "Last used",
+        "expires": "Expires"
+      },
+      "form": {
+        "name": "Name",
+        "namePlaceholder": "e.g., ERP integration",
+        "nameRequired": "Name is required",
+        "expiresIn": "Expires in",
+        "expiresOptions": {
+          "7days": "7 days",
+          "30days": "30 days",
+          "90days": "90 days",
+          "1year": "1 year",
+          "never": "Never"
+        }
+      },
+      "never": "Never",
+      "neverUsed": "Never used"
+    },
+    "apiDocs": {
+      "title": "API documentation",
+      "description": "Interactive API documentation for the Tale platform. Test endpoints directly from this page.",
+      "apiKeyLabel": "API key",
+      "apiKeyPlaceholder": "Enter your API key to test endpoints",
+      "noApiKeyWarning": "Enter an API key above to authenticate requests. You can create one in API Keys settings.",
+      "refresh": "Refresh",
+      "manageKeys": "Manage keys",
+      "backToApp": "Back",
+      "openDocs": "API docs"
     },
     "logs": {
       "auditLogs": "Audit logs",
@@ -2092,6 +2145,8 @@
     "title": "Access denied",
     "automations": "You need Admin or Developer permissions to access automations.",
     "integrations": "You need Admin or Developer permissions to access integrations settings.",
+    "apiKeys": "You need Admin or Developer permissions to manage API keys.",
+    "apiDocs": "You need Admin or Developer permissions to access API documentation.",
     "organization": "You need Admin permissions to access organization settings.",
     "teams": "You need Admin permissions to access team settings."
   },

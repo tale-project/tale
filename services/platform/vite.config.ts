@@ -53,6 +53,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:3211',
         changeOrigin: true,
       },
+      // Proxy API run requests (OpenAPI/Swagger) to Convex HTTP endpoint for cookie-to-bearer auth
+      '/api/run': {
+        target: 'http://127.0.0.1:3211',
+        changeOrigin: true,
+      },
     },
   },
   optimizeDeps: {

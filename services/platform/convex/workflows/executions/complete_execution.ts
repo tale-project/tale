@@ -41,21 +41,38 @@ export async function completeExecution(
 
   await ctx.db.patch(args.executionId, updates);
 
-  // Clean up old variables storage
+  // Clean up old variables storage (ignore errors if already deleted)
   if (oldVariablesStorageId) {
-    if (!updates.variablesStorageId) {
-      await ctx.storage.delete(oldVariablesStorageId);
-    } else if (oldVariablesStorageId !== updates.variablesStorageId) {
-      await ctx.storage.delete(oldVariablesStorageId);
+    const shouldDelete =
+      !updates.variablesStorageId ||
+      oldVariablesStorageId !== updates.variablesStorageId;
+    if (shouldDelete) {
+      try {
+        await ctx.storage.delete(oldVariablesStorageId);
+      } catch (error) {
+        console.warn(
+          '[completeExecution] Failed to delete old variables storage:',
+          oldVariablesStorageId,
+          error,
+        );
+      }
     }
   }
 
-  // Clean up old output storage
+  // Clean up old output storage (ignore errors if already deleted)
   if (oldOutputStorageId) {
-    if (!updates.outputStorageId) {
-      await ctx.storage.delete(oldOutputStorageId);
-    } else if (oldOutputStorageId !== updates.outputStorageId) {
-      await ctx.storage.delete(oldOutputStorageId);
+    const shouldDelete =
+      !updates.outputStorageId || oldOutputStorageId !== updates.outputStorageId;
+    if (shouldDelete) {
+      try {
+        await ctx.storage.delete(oldOutputStorageId);
+      } catch (error) {
+        console.warn(
+          '[completeExecution] Failed to delete old output storage:',
+          oldOutputStorageId,
+          error,
+        );
+      }
     }
   }
 

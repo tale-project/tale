@@ -14,6 +14,7 @@ import {
   ssoCallbackHandler,
   ssoSetSessionHandler,
 } from './sso_providers/http_handlers';
+import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
 
 const http = httpRouter();
 
@@ -122,6 +123,19 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication
+http.route({
+  pathPrefix: '/api/run/',
+  method: 'POST',
+  handler: apiGatewayRun,
+});
+
+http.route({
+  pathPrefix: '/api/run/',
+  method: 'OPTIONS',
+  handler: apiGatewayOptions,
 });
 
 const _routes = http.getRoutes();

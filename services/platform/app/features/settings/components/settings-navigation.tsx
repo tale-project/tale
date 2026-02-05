@@ -12,7 +12,7 @@ interface SettingsNavigationProps {
   canChangePassword?: boolean;
 }
 
-type SettingsLabelKey = 'organization' | 'teams' | 'integrations' | 'account';
+type SettingsLabelKey = 'organization' | 'teams' | 'integrations' | 'apiKeys' | 'account';
 
 export function SettingsNavigation({
   organizationId,
@@ -39,6 +39,12 @@ export function SettingsNavigation({
       labelKey: 'integrations',
       label: t('integrations'),
       href: `/dashboard/${organizationId}/settings/integrations`,
+      roles: ['admin', 'developer'],
+    },
+    {
+      labelKey: 'apiKeys',
+      label: t('apiKeys'),
+      href: `/dashboard/${organizationId}/settings/api-keys`,
       roles: ['admin', 'developer'],
     },
     {
