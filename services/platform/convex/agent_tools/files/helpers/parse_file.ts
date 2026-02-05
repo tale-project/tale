@@ -5,7 +5,7 @@
  */
 
 import { createDebugLog } from '../../../lib/debug_log';
-import { getCrawlerServiceUrl } from '../../crawler/helpers/get_crawler_service_url';
+import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
 import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 

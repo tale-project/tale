@@ -1,98 +1,112 @@
 /**
  * Web Assistant Tool
  *
- * Delegates web tasks to the Operator browser automation service.
- * Uses Playwright for browser control with AI-driven navigation.
+ * Delegates web tasks to the specialized Web Agent.
+ * This tool is a thin wrapper that creates sub-threads and calls the agent.
+ * All context management is handled by the agent itself.
  */
 
 import { z } from 'zod/v4';
 import { createTool } from '@convex-dev/agent';
 import type { ToolCtx } from '@convex-dev/agent';
 import type { ToolDefinition } from '../types';
+import { getOrCreateSubThread } from './helpers/get_or_create_sub_thread';
 import { validateToolContext } from './helpers/validate_context';
+import { buildAdditionalContext } from './helpers/build_additional_context';
 import {
   successResponse,
-  errorResponse,
   handleToolError,
   type ToolResponse,
 } from './helpers/tool_response';
-import { getOperatorServiceUrl } from './helpers/get_operator_service_url';
-import type { OperatorChatResponse } from './helpers/operator_types';
+import { getWebAgentGenerateResponseRef } from '../../lib/function_refs';
+
+const WEB_CONTEXT_MAPPING = {
+  url: 'url',
+} as const;
 
 export const webAssistantTool = {
   name: 'web_assistant' as const,
   tool: createTool({
-    description: `Delegate web tasks to the Operator browser automation service.
+    description: `Delegate web tasks to the specialized Web Agent.
 
 Use this tool for:
-- Browsing websites and extracting content
-- Interacting with web pages (clicking, filling forms)
-- Taking screenshots and visual analysis
-- Multi-step web automation workflows
+- Fetching and extracting content from URLs
+- Browsing websites and web pages
+- Searching the web for information
+- Multi-step web interactions and automation
 
-The Operator uses Playwright for browser control with AI-driven navigation.
+The Web Agent has access to:
+- fetch_url: Extract content from URLs (URL → PDF → Vision API extraction)
+- browser_operate: AI-driven browser automation for searching and interactions
+
+IMPORTANT: Preserve the user's INTENT in userRequest - include what they actually want to know.
+Do NOT reduce specific questions to generic "Get the content from URL" requests.
 
 EXAMPLES:
-- Browse: { userRequest: "Go to example.com and summarize the main content" }
-- Interact: { userRequest: "Search for 'AI news' on Google and list top 5 results" }
-- Extract: { userRequest: "Find the pricing information on this product page" }`,
+- Price query: { userRequest: "What is the price of the product at https://example.com/product", url: "https://example.com/product" }
+- Search: { userRequest: "Search for the latest news about AI" }
+- Specific extraction: { userRequest: "Find the opening hours from this page", url: "https://example.com/contact" }
+- Browse: { userRequest: "Go to GitHub and find trending repositories" }
+
+WRONG: { userRequest: "Get the content from https://example.com" } ← Loses the user's specific intent
+RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ← Preserves full question`,
 
     args: z.object({
       userRequest: z
         .string()
         .describe("The user's web-related request in natural language"),
+      url: z
+        .string()
+        .optional()
+        .describe('Target URL if fetching a specific page'),
     }),
 
     handler: async (ctx: ToolCtx, args): Promise<ToolResponse> => {
       const validation = validateToolContext(ctx, 'web_assistant');
       if (!validation.valid) return validation.error;
 
-      const operatorUrl = getOperatorServiceUrl(ctx.variables);
-
-      console.log('[web_assistant_tool] Calling operator:', {
-        url: `${operatorUrl}/api/v1/chat`,
-        message: args.userRequest.slice(0, 100),
-      });
+      const { organizationId, threadId, userId } = validation.context;
 
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 300_000);
+        const { threadId: subThreadId, isNew } = await getOrCreateSubThread(
+          ctx,
+          {
+            parentThreadId: threadId,
+            subAgentType: 'web_assistant',
+            userId,
+          },
+        );
 
-        const response = await fetch(`${operatorUrl}/api/v1/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: args.userRequest }),
-          signal: controller.signal,
-        });
+        console.log(
+          '[web_assistant_tool] Sub-thread:',
+          subThreadId,
+          isNew ? '(new)' : '(reused)',
+        );
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `Operator service error: ${response.status} ${errorText}`,
-          );
-        }
-
-        const result = (await response.json()) as OperatorChatResponse;
-
-        if (!result.success) {
-          return errorResponse(result.error || 'Operator request failed');
-        }
+        const result = await ctx.runAction(
+          getWebAgentGenerateResponseRef(),
+          {
+            threadId: subThreadId,
+            userId,
+            organizationId,
+            promptMessage: args.userRequest,
+            additionalContext: buildAdditionalContext(args, WEB_CONTEXT_MAPPING),
+            parentThreadId: threadId,
+          },
+        );
 
         return successResponse(
-          result.response || '',
-          result.token_usage
-            ? {
-                inputTokens: result.token_usage.input_tokens,
-                outputTokens: result.token_usage.output_tokens,
-                totalTokens: result.token_usage.total_tokens,
-                durationSeconds: result.duration_seconds ?? undefined,
-              }
-            : undefined,
-          'opencode',
-          'operator',
-          result.sources ?? undefined,
+          result.text,
+          {
+            ...result.usage,
+            durationSeconds:
+              result.durationMs !== undefined
+                ? result.durationMs / 1000
+                : undefined,
+          },
+          result.model,
+          result.provider,
+          undefined,
           args.userRequest,
         );
       } catch (error) {

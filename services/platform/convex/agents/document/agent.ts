@@ -45,7 +45,6 @@ Do NOT ask about:
 - txt: Parse/analyze text files OR generate new .txt files from content
 - image: Analyze images or generate screenshots from HTML/URLs
 - generate_excel: Create Excel files from structured data
-- request_human_input: Ask user for clarification when needed
 
 **FILE PARSING (pdf, docx, pptx)**
 When parsing PDF, DOCX, PPTX files:
@@ -130,7 +129,6 @@ export function createDocumentAgent(options?: { maxSteps?: number }) {
     'pptx',
     'txt',
     'generate_excel',
-    'request_human_input',
   ];
 
   debugLog('createDocumentAgent Loaded tools', {
