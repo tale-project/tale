@@ -119,7 +119,7 @@ export const updateDocument = mutation({
     }
 
     await getOrganizationMember(ctx, document.organizationId, {
-      userId: authUser.userId ?? '',
+      userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
@@ -166,7 +166,7 @@ export const deleteDocument = mutation({
     }
 
     await getOrganizationMember(ctx, document.organizationId, {
-      userId: authUser.userId ?? '',
+      userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
@@ -206,7 +206,7 @@ export const createDocumentFromUpload = mutation({
     }
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: authUser.userId ?? '',
+      userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
