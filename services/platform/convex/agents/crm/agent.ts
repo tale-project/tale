@@ -18,7 +18,6 @@ export const CRM_AGENT_INSTRUCTIONS = `You are a CRM assistant specialized in re
 **AVAILABLE TOOLS**
 - customer_read: Read customer data (get_by_id, get_by_email, list operations)
 - product_read: Read product data (get_by_id, list operations)
-- request_human_input: Ask user to select when multiple matches found
 
 **ACTION-FIRST PRINCIPLE**
 Search first, but STOP and ask when multiple matches are found.
@@ -31,11 +30,10 @@ ALWAYS search first:
 **CRITICAL - MULTIPLE MATCHES:**
 When you find 2 or more matching records and the user's request implies ONE specific target:
 1. DO NOT pick one arbitrarily or proceed with all
-2. MUST call request_human_input tool with format="single_select"
-3. Include email and distinguishing details in each option
-4. STOP after calling request_human_input - do NOT continue
+2. Return the list of matches with minimal distinguishing details (name, status, source) to help the user identify the correct record
+3. Ask the user to clarify which one they mean
 
-Do NOT ask (use plain text or request_human_input):
+Do NOT ask:
 • For IDs when you have a name to search
 • About scope for simple queries (just return results)
 • For confirmation on obvious single-match requests
@@ -81,7 +79,6 @@ export function createCrmAgent(options?: { maxSteps?: number }) {
   const convexToolNames: ToolName[] = [
     'customer_read',
     'product_read',
-    'request_human_input',
   ];
 
   debugLog('createCrmAgent Loaded tools', {

@@ -56,6 +56,7 @@ export function ChatInterface({
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,
+    isProcessingToolResult,
   } = useMessageProcessing(threadId);
 
   // Merge with pending messages from context for optimistic UI
@@ -221,6 +222,7 @@ export function ChatInterface({
             streamingMessage={streamingMessage}
             pendingToolResponse={pendingToolResponse}
             hasActiveTools={hasActiveTools}
+            isProcessingToolResult={isProcessingToolResult}
             aiResponseAreaRef={aiResponseAreaRef}
             onHumanInputResponseSubmitted={handleHumanInputResponseSubmitted}
           />

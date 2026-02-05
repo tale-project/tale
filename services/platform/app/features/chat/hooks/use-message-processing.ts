@@ -34,6 +34,7 @@ interface UseMessageProcessingResult {
   streamingMessage: UIMessage | undefined;
   pendingToolResponse: UIMessage | undefined;
   hasActiveTools: boolean;
+  isProcessingToolResult: boolean;
 }
 
 /**
@@ -151,6 +152,39 @@ export function useMessageProcessing(
     );
   }, [streamingMessage?.parts]);
 
+  // Check if agent is processing tool result (tool completed but no text after it)
+  // This handles the gap when sub-agent tools complete but agent hasn't resumed streaming
+  const isProcessingToolResult = useMemo(() => {
+    if (!uiMessages?.length) return false;
+
+    const lastAssistant = uiMessages
+      .filter((m) => m.role === 'assistant')
+      .at(-1);
+    if (!lastAssistant?.parts?.length) return false;
+    if (lastAssistant.status === 'success' || lastAssistant.status === 'failed')
+      return false;
+
+    const lastToolIndex = lastAssistant.parts.findLastIndex(
+      (part: { type: string }) =>
+        part.type.startsWith('tool-') && part.type !== 'tool-result',
+    );
+    if (lastToolIndex === -1) return false;
+
+    const lastToolPart = lastAssistant.parts[lastToolIndex] as {
+      type: string;
+      state?: string;
+    };
+    if (lastToolPart?.state !== 'output-available') return false;
+
+    const partsAfterTool = lastAssistant.parts.slice(lastToolIndex + 1);
+    const hasTextAfterTool = partsAfterTool.some(
+      (part: { type: string; text?: string }) =>
+        part.type === 'text' && part.text,
+    );
+
+    return !hasTextAfterTool;
+  }, [uiMessages]);
+
   return {
     messages,
     uiMessages,
@@ -160,5 +194,6 @@ export function useMessageProcessing(
     streamingMessage,
     pendingToolResponse,
     hasActiveTools,
+    isProcessingToolResult,
   };
 }

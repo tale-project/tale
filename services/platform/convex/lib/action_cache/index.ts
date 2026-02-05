@@ -54,22 +54,6 @@ export const imageAnalysisCache: ActionCache<
 });
 
 // ============================================
-// Web Crawling Caches
-// ============================================
-
-/**
- * Cache for search engine results.
- * Results change frequently, 30-minute TTL.
- */
-export const searchResultsCache: ActionCache<
-  FunctionReference<'action', 'internal'>
-> = new ActionCache(components.actionCache, {
-  action: internal.agent_tools.crawler.internal_actions.fetchSearXNGResultsUncached,
-  name: `search_results_${CACHE_VERSION}`,
-  ttl: TTL.THIRTY_MIN,
-});
-
-// ============================================
 // Organization Configuration Caches
 // ============================================
 

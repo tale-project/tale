@@ -13,7 +13,7 @@ import { WEB_AGENT_INSTRUCTIONS } from './agent';
 import type { SerializableAgentConfig } from '../../lib/agent_chat/types';
 import type { ToolName } from '../../agent_tools/tool_registry';
 
-const WEB_AGENT_TOOL_NAMES: ToolName[] = ['web_read', 'request_human_input'];
+const WEB_AGENT_TOOL_NAMES: ToolName[] = ['web', 'request_human_input'];
 
 const WEB_AGENT_CONFIG: SerializableAgentConfig = {
   name: 'web-assistant',

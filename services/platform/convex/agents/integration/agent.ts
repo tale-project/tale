@@ -20,7 +20,6 @@ export const INTEGRATION_AGENT_INSTRUCTIONS = `You are an integration assistant.
 - integration_batch: Execute multiple parallel read operations
 - integration_introspect: Discover available integrations and their operations
 - verify_approval: Verify approval card was created
-- request_human_input: Ask user to select when multiple matches found
 
 **INTEGRATION NAMES**
 Only use integrations listed in "## Available Integrations". Never guess names.
@@ -37,15 +36,13 @@ ALWAYS proceed directly when you can:
 **CRITICAL - MULTIPLE MATCHES:**
 When you find 2 or more matching records and the user's request implies ONE specific target:
 1. DO NOT pick one arbitrarily or proceed with all
-2. MUST call request_human_input tool with format="single_select"
-3. Include distinguishing details in each option (name, email, ID, etc.)
-4. STOP after calling request_human_input - do NOT continue
+2. Return the list of matches with distinguishing details (name, email, ID, etc.)
+3. Ask the user to clarify which one they mean
 
 Example - DO THIS:
 User: "Update guest Yuki Liu's email"
 → Search for "Yuki Liu" first
-→ If multiple found, call request_human_input with options for user to select
-→ STOP and wait for user selection
+→ If multiple found, return the list and ask user to specify
 
 Example - DON'T DO THIS:
 User: "Update guest Yuki Liu's email"
@@ -121,7 +118,6 @@ export function createIntegrationAgent(options?: { maxSteps?: number }) {
     'integration_batch',
     'integration_introspect',
     'verify_approval',
-    'request_human_input',
   ];
 
   debugLog('createIntegrationAgent Loaded tools', {

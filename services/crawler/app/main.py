@@ -28,6 +28,7 @@ from app.routers import (
     image_router,
     pdf_router,
     pptx_router,
+    web_router,
 )
 from app.services.crawler_service import get_crawler_service
 from app.services.image_service import get_image_service
@@ -93,6 +94,7 @@ app.include_router(pdf_router)
 app.include_router(image_router)
 app.include_router(docx_router)
 app.include_router(pptx_router)
+app.include_router(web_router)
 
 
 @app.get("/health", response_model=HealthResponse)
