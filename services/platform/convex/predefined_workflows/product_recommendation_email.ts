@@ -48,7 +48,6 @@ const productRecommendationEmailWorkflow = {
       timeout: 300000, // 5 minutes total timeout
       retryPolicy: { maxRetries: 2, backoffMs: 3000 },
       variables: {
-        organizationId: 'org_demo',
         workflowId: 'product-recommendation-email',
         backoffHours: 24, // Process each approval once per day
       },

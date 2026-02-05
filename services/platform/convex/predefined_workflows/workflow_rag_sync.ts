@@ -20,9 +20,7 @@ const workflowRagSyncWorkflow = {
     config: {
       timeout: 600000, // 10 minutes for uploading all workflows
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
-      variables: {
-        organizationId: 'org_demo',
-      },
+      variables: {},
     },
   },
   stepsConfig: [

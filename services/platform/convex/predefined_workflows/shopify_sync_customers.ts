@@ -24,7 +24,6 @@ const shopifySyncCustomersWorkflow = {
       timeout: 300000, // 5 minutes for full sync
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: 'org_demo',
         pageSize: 50, // Fetch 50 customers per page (Shopify max is 250)
         maxPages: 20, // Safety limit to prevent infinite loops
         currentPage: 0, // Track current page number

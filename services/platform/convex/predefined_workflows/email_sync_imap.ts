@@ -33,7 +33,6 @@ const emailSyncImapWorkflow = {
       timeout: 300000, // 5 minutes
       retryPolicy: { maxRetries: 3, backoffMs: 2000 },
       variables: {
-        organizationId: '', // Set by user
         imapHost: '', // Will be set from default email provider
         imapPort: 993, // Will be set from default email provider
         imapSecure: true, // Will be set from default email provider

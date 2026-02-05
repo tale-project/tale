@@ -22,6 +22,7 @@ import onedriveSync from './onedrive_sync';
 import websiteScan from './website_scan';
 import workflowRagSync from './workflow_rag_sync';
 import websitePagesRagSync from './website_pages_rag_sync';
+import protelGuestWelcomeEmail from './protel_guest_welcome_email';
 
 // Dynamic Orchestration Examples
 // (examples directory removed)
@@ -51,4 +52,5 @@ export const workflows = {
   conversationAutoArchive,
   loopiCustomerStatusAssessment,
   productRelationshipAnalysis,
+  protelGuestWelcomeEmail,
 } as const;
