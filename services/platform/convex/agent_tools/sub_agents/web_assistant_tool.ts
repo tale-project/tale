@@ -39,11 +39,17 @@ The Web Agent has access to:
 - fetch_url: Extract content from URLs (URL → PDF → Vision API extraction)
 - browser_operate: AI-driven browser automation for searching and interactions
 
+IMPORTANT: Preserve the user's INTENT in userRequest - include what they actually want to know.
+Do NOT reduce specific questions to generic "Get the content from URL" requests.
+
 EXAMPLES:
-- Fetch URL: { userRequest: "Get the content from https://example.com" }
+- Price query: { userRequest: "What is the price of the product at https://example.com/product", url: "https://example.com/product" }
 - Search: { userRequest: "Search for the latest news about AI" }
-- Extract: { userRequest: "Find the pricing information from this page", url: "https://example.com/pricing" }
-- Browse: { userRequest: "Go to GitHub and find trending repositories" }`,
+- Specific extraction: { userRequest: "Find the opening hours from this page", url: "https://example.com/contact" }
+- Browse: { userRequest: "Go to GitHub and find trending repositories" }
+
+WRONG: { userRequest: "Get the content from https://example.com" } ← Loses the user's specific intent
+RIGHT: { userRequest: "What is the shipping policy on https://example.com" } ← Preserves full question`,
 
     args: z.object({
       userRequest: z
