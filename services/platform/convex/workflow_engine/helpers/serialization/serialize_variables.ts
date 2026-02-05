@@ -12,8 +12,8 @@ import { createDebugLog } from '../../../lib/debug_log';
 
 const debugLog = createDebugLog('DEBUG_WORKFLOW', '[Workflow]');
 
-// Threshold: 800KB (safe margin under 1MB limit)
-export const SIZE_THRESHOLD = 800 * 1024;
+// Threshold: 400KB (accounts for ~2x Convex serialization overhead under 1MB limit)
+export const SIZE_THRESHOLD = 400 * 1024;
 
 export interface SerializeResult {
   serialized: string;
