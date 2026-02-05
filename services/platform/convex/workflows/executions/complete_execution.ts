@@ -49,8 +49,12 @@ export async function completeExecution(
     if (shouldDelete) {
       try {
         await ctx.storage.delete(oldVariablesStorageId);
-      } catch {
-        // Storage file may already be deleted, ignore
+      } catch (error) {
+        console.warn(
+          '[completeExecution] Failed to delete old variables storage:',
+          oldVariablesStorageId,
+          error,
+        );
       }
     }
   }
@@ -62,8 +66,12 @@ export async function completeExecution(
     if (shouldDelete) {
       try {
         await ctx.storage.delete(oldOutputStorageId);
-      } catch {
-        // Storage file may already be deleted, ignore
+      } catch (error) {
+        console.warn(
+          '[completeExecution] Failed to delete old output storage:',
+          oldOutputStorageId,
+          error,
+        );
       }
     }
   }
