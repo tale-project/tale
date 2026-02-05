@@ -49,11 +49,15 @@ function ApiKeysSettingsPage() {
     organizationId,
   });
 
-  if (memberContext === undefined || memberContext === null) {
+  if (memberContext === undefined) {
     return <ApiKeysSettingsSkeleton />;
   }
 
-  const userRole = (memberContext.role ?? '').toLowerCase();
+  if (memberContext === null) {
+    return <AccessDenied message={t('apiKeys')} />;
+  }
+
+  const userRole = memberContext.role.toLowerCase();
   const hasAccess = userRole === 'admin' || userRole === 'developer';
 
   if (!hasAccess) {
