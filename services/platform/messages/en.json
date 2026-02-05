@@ -494,6 +494,7 @@
     "title": "Settings",
     "organization": {
       "title": "Organization (optional)",
+      "organizationId": "Organization ID",
       "membersTitle": "Organization members",
       "manageAccess": "Manage access to the organization",
       "searchMember": "Search member",

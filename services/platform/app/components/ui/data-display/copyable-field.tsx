@@ -115,7 +115,7 @@ export const CopyableText = React.memo(function CopyableText({
       <button
         type="button"
         onClick={onClick}
-        className="p-0.5 rounded hover:bg-muted transition-colors"
+        className="p-0.5 rounded hover:bg-muted transition-colors cursor-pointer"
         aria-label={tCommon('actions.copy')}
       >
         {copied ? (
