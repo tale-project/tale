@@ -39,9 +39,13 @@ export function useCreateApiKey(organizationId: string) {
         throw new Error(result.error.message);
       }
 
+      if (!result.data?.key || !result.data?.id) {
+        throw new Error('API key creation returned no key/id');
+      }
+
       return {
-        key: result.data?.key ?? '',
-        id: result.data?.id ?? '',
+        key: result.data.key,
+        id: result.data.id,
       };
     },
     onSuccess: () => {
