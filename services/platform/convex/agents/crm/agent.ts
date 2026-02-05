@@ -30,7 +30,7 @@ ALWAYS search first:
 **CRITICAL - MULTIPLE MATCHES:**
 When you find 2 or more matching records and the user's request implies ONE specific target:
 1. DO NOT pick one arbitrarily or proceed with all
-2. Return the list of matches with email and distinguishing details
+2. Return the list of matches with minimal distinguishing details (name, status, source) to help the user identify the correct record
 3. Ask the user to clarify which one they mean
 
 Do NOT ask:
