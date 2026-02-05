@@ -22,7 +22,7 @@ export const list = query({
     // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId ?? '',
+        userId: String(authUser._id),
         email: authUser.email,
         name: authUser.name,
       });

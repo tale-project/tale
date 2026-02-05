@@ -23,7 +23,7 @@ export const getToneOfVoiceWithExamples = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId ?? '',
+        userId: String(authUser._id),
         email: authUser.email,
         name: authUser.name,
       });
@@ -47,7 +47,7 @@ export const hasExampleMessages = query({
 
     try {
       await getOrganizationMember(ctx, args.organizationId, {
-        userId: authUser.userId ?? '',
+        userId: String(authUser._id),
         email: authUser.email,
         name: authUser.name,
       });

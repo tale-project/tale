@@ -24,7 +24,8 @@ export async function listFiles(
     let url: string;
 
     if (search) {
-      url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(search)}')?$top=50`;
+      const escapedSearch = search.replace(/'/g, "''");
+      url = `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(escapedSearch)}')?$top=50`;
     } else if (folderId) {
       url = `https://graph.microsoft.com/v1.0/me/drive/items/${folderId}/children?$top=100`;
     } else {

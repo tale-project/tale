@@ -100,7 +100,7 @@ export const upsertToneOfVoice = mutation({
     }
 
     await getOrganizationMember(ctx, args.organizationId, {
-      userId: authUser.userId ?? '',
+      userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
     });
