@@ -4,6 +4,8 @@ Web Router - URL content extraction endpoint.
 Combines URL-to-PDF conversion with Vision-based text extraction.
 """
 
+import socket
+from ipaddress import ip_address
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, status
@@ -14,6 +16,61 @@ from app.services.file_parser_service import get_file_parser_service
 from app.services.pdf_service import get_pdf_service
 
 router = APIRouter(prefix="/api/v1/web", tags=["Web"])
+
+
+def validate_url_not_private(url_str: str) -> str:
+    """
+    Validate that a URL does not resolve to a private/internal IP address.
+
+    Prevents SSRF attacks by blocking requests to loopback, link-local,
+    and private RFC1918/IPv6 addresses.
+
+    Args:
+        url_str: The URL to validate
+
+    Returns:
+        The hostname if validation passes
+
+    Raises:
+        HTTPException: If the URL host cannot be resolved or resolves to a private IP
+    """
+    parsed_url = urlparse(url_str)
+    hostname = parsed_url.hostname or ""
+
+    if not hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid URL: no hostname found",
+        )
+
+    try:
+        resolved_ips = {
+            ip_address(info[4][0])
+            for info in socket.getaddrinfo(hostname, None)
+        }
+    except socket.gaierror:
+        logger.warning(f"SSRF protection: unable to resolve hostname '{hostname}'")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to resolve URL host",
+        )
+
+    blocked_ips = [
+        ip for ip in resolved_ips
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+    ]
+
+    if blocked_ips:
+        logger.warning(
+            f"SSRF protection: blocked request to '{hostname}' "
+            f"(resolved to private/internal IPs: {blocked_ips})"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL host is not allowed (resolves to private/internal address)",
+        )
+
+    return hostname
 
 
 @router.post("/fetch-and-extract", response_model=WebFetchExtractResponse)
@@ -32,7 +89,7 @@ async def fetch_and_extract(request: WebFetchExtractRequest):
         Extracted content with metadata
     """
     url_str = str(request.url)
-    hostname = urlparse(url_str).netloc
+    hostname = validate_url_not_private(url_str)
 
     try:
         pdf_service = get_pdf_service()
