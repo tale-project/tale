@@ -7,13 +7,13 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from '@/app/components/ui/forms/radio-group';
-import { Input } from '@/app/components/ui/forms/input';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { toast } from '@/app/hooks/use-toast';
-import { Search, Home, Loader2, Database, Users } from 'lucide-react';
+import { Home, Loader2, Database, Users } from 'lucide-react';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
 import { formatFileSize, formatDate } from '@/lib/utils/onedrive-helpers';
@@ -999,16 +999,12 @@ export function OneDriveImportDialog({
 
               {/* Search Input and Import Button */}
               <HStack gap={3}>
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-                  <Input
-                    placeholder={t('searchFilesAndFolders')}
-                    size="sm"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                <SearchInput
+                  placeholder={t('searchFilesAndFolders')}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  wrapperClassName="flex-1"
+                />
                 <Button
                   size="sm"
                   onClick={proceedToSettings}
@@ -1142,16 +1138,12 @@ export function OneDriveImportDialog({
               {selectedSite && selectedDrive && (
                 <>
                   <HStack gap={3}>
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-                      <Input
-                        placeholder={t('searchFilesAndFolders')}
-                        size="sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+                    <SearchInput
+                      placeholder={t('searchFilesAndFolders')}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      wrapperClassName="flex-1"
+                    />
                     <Button
                       size="sm"
                       onClick={proceedToSettings}

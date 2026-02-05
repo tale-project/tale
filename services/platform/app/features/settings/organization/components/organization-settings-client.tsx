@@ -9,7 +9,8 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Form } from '@/app/components/ui/forms/form';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { api } from '@/convex/_generated/api';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { useToast } from '@/app/hooks/use-toast';
 import { AddMemberDialog } from './member-add-dialog';
 import { MemberTable } from './member-table';
@@ -163,16 +164,12 @@ export function OrganizationSettingsClient({
         </Stack>
 
         <HStack justify="between">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-              placeholder={tSettings('organization.searchMember')}
-              size="sm"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          <SearchInput
+            placeholder={tSettings('organization.searchMember')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            wrapperClassName="flex-1 max-w-sm"
+          />
           {memberContext?.isAdmin && (
             <Button
               size="sm"

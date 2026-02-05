@@ -42,11 +42,15 @@ export const useProductsTableConfig = createTableConfigHook<'products'>(
     },
     {
       accessorKey: 'stock',
-      header: () => tTables('headers.stock'),
+      header: () => (
+        <span className="text-right w-full block">
+          {tTables('headers.stock')}
+        </span>
+      ),
       size: 80,
       cell: ({ row }) => (
         <span
-          className={`text-xs ${
+          className={`text-xs text-right block ${
             row.original.stock === 0
               ? 'text-red-600'
               : 'text-muted-foreground'

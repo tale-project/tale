@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Image } from '@/app/components/ui/data-display/image';
 import { CheckIcon, GitCompare, Info, Loader2, X } from 'lucide-react';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -74,7 +74,13 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
         ];
 
   return (
-    <DataTableSkeleton rows={8} columns={columns} showHeader stickyLayout />
+    <DataTableSkeleton
+      rows={8}
+      columns={columns}
+      showHeader
+      stickyLayout
+      infiniteScroll
+    />
   );
 }
 
@@ -110,14 +116,35 @@ export function ApprovalsClient({
   );
   const [approvalDetailDialogOpen, setApprovalDetailDialogOpen] =
     useState(false);
+  const [displayCount, setDisplayCount] = useState(10);
+  const pageSize = 10;
 
-  const approvals = useQuery(api.approvals.queries.getApprovalsByOrganization, {
-    organizationId,
-    status: status === 'pending' ? 'pending' : undefined,
-    resourceType: ['product_recommendation'],
-    search: search || undefined,
-    limit: 500,
-  });
+  const approvalsResult = useQuery(
+    api.approvals.queries.getApprovalsByOrganization,
+    {
+      organizationId,
+      status: status === 'pending' ? 'pending' : undefined,
+      resourceType: ['product_recommendation'],
+      search: search || undefined,
+      limit: 1000,
+    },
+  );
+
+  const allApprovals = useMemo(
+    () => approvalsResult ?? [],
+    [approvalsResult],
+  );
+
+  const displayedApprovals = useMemo(
+    () => allApprovals.slice(0, displayCount),
+    [allApprovals, displayCount],
+  );
+
+  const hasMore = displayCount < allApprovals.length;
+
+  const handleLoadMore = useCallback(() => {
+    setDisplayCount((prev) => prev + pageSize);
+  }, []);
 
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
@@ -229,8 +256,8 @@ export function ApprovalsClient({
 
   const getApprovalDetail = useCallback(
     (approvalId: string): ApprovalDetail | null => {
-      if (!approvals) return null;
-      const approval = approvals.find(
+      if (!allApprovals) return null;
+      const approval = allApprovals.find(
         (a: ApprovalItem) => a._id === approvalId,
       );
       if (!approval) return null;
@@ -328,7 +355,7 @@ export function ApprovalsClient({
         previousPurchases,
       };
     },
-    [approvals],
+    [allApprovals],
   );
 
   const renderProductList = useCallback(
@@ -458,7 +485,7 @@ export function ApprovalsClient({
         : Math.round(n);
   }, []);
 
-  if (approvals === undefined) {
+  if (approvalsResult === undefined) {
     return <ApprovalsSkeleton status={status} />;
   }
 
@@ -537,17 +564,15 @@ export function ApprovalsClient({
     {
       id: 'confidence',
       header: () => (
-        <span className="text-center w-full block">
+        <span className="text-right w-full block">
           {t('columns.confidence')}
         </span>
       ),
       size: 100,
       cell: ({ row }) => (
-        <div className="flex justify-center">
-          <span className="text-xs font-medium text-muted-foreground">
-            {getConfidencePercent(row.original)}%
-          </span>
-        </div>
+        <span className="text-xs font-medium text-muted-foreground text-right block">
+          {getConfidencePercent(row.original)}%
+        </span>
       ),
     },
     {
@@ -724,7 +749,7 @@ export function ApprovalsClient({
     },
   ];
 
-  if (approvals.length === 0) {
+  if (allApprovals.length === 0) {
     return (
       <DataTableEmptyState
         icon={GitCompare}
@@ -746,11 +771,17 @@ export function ApprovalsClient({
     <>
       <DataTable
         columns={columns}
-        data={approvals}
+        data={displayedApprovals}
         getRowId={(row) => row._id}
         stickyLayout
         onRowClick={(row) => handleApprovalRowClick(row.original._id)}
         rowClassName="cursor-pointer"
+        infiniteScroll={{
+          hasMore,
+          onLoadMore: handleLoadMore,
+          isLoadingMore: false,
+          isInitialLoading: false,
+        }}
       />
       <ApprovalDetailDialog
         open={approvalDetailDialogOpen}

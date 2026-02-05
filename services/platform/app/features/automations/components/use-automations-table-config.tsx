@@ -38,10 +38,14 @@ export const useAutomationsTableConfig = createTableConfigHook<'wfDefinitions'>(
     },
     {
       accessorKey: 'version',
-      header: () => tTables('headers.version'),
+      header: () => (
+        <span className="text-right w-full block">
+          {tTables('headers.version')}
+        </span>
+      ),
       size: 100,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs text-muted-foreground text-right block">
           {row.original.version}
         </span>
       ),

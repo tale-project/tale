@@ -10,6 +10,40 @@ import {
 } from '@/app/components/ui/data-display/table-date-cell';
 import { startCase } from '@/lib/utils/string';
 
+const DEFAULT_LANGUAGE_TO_COUNTRY: Record<string, string> = {
+  en: 'US',
+  de: 'DE',
+  fr: 'FR',
+  es: 'ES',
+  it: 'IT',
+  pt: 'PT',
+  nl: 'NL',
+  zh: 'CN',
+};
+
+function getCountryFlag(locale: string): string {
+  let countryCode: string | undefined;
+
+  try {
+    const parsed = new Intl.Locale(locale);
+    countryCode = parsed.region;
+  } catch {
+    // Invalid locale string, continue with fallback
+  }
+
+  if (!countryCode) {
+    const lang = locale.toLowerCase().slice(0, 2);
+    countryCode = DEFAULT_LANGUAGE_TO_COUNTRY[lang] || lang.toUpperCase();
+  }
+
+  if (countryCode.length !== 2) return locale;
+
+  const codePoints = [...countryCode.toUpperCase()].map(
+    (char) => 127397 + char.charCodeAt(0)
+  );
+  return String.fromCodePoint(...codePoints);
+}
+
 type TranslationFn = (key: string) => string;
 
 interface ActionsColumnOptions {
@@ -33,7 +67,6 @@ interface SourceColumnOptions {
 
 interface LocaleColumnOptions {
   size?: number;
-  uppercase?: boolean;
 }
 
 interface TextColumnOptions {
@@ -158,7 +191,7 @@ export function createSourceColumn<TData extends { source?: string | null }>(
 }
 
 /**
- * Creates a locale column with an icon header.
+ * Creates a locale column with an icon header and flag emoji display.
  *
  * @example
  * ```tsx
@@ -168,16 +201,14 @@ export function createSourceColumn<TData extends { source?: string | null }>(
 export function createLocaleColumn<TData extends { locale?: string | null }>(
   options?: LocaleColumnOptions,
 ): ColumnDef<TData> {
-  const uppercase = options?.uppercase ?? false;
-
   return {
     accessorKey: 'locale',
     header: () => <LocaleIcon className="size-4 text-muted-foreground" />,
     size: options?.size ?? 100,
     cell: ({ row }) => {
       const locale = row.original.locale || 'en';
-      const display = uppercase ? locale.toUpperCase().slice(0, 2) : locale;
-      return <span className="text-xs text-muted-foreground">{display}</span>;
+      const flag = getCountryFlag(locale);
+      return <span className="text-base">{flag}</span>;
     },
   };
 }

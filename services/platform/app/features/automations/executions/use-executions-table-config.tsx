@@ -16,11 +16,13 @@ export function useExecutionsTableConfig() {
         accessorKey: '_id',
         header: tTables('headers.executionId'),
         size: 160,
+        meta: { skeleton: { type: 'id-copy' as const } },
       },
       {
         accessorKey: 'status',
         header: tTables('headers.status'),
         size: 128,
+        meta: { skeleton: { type: 'badge' as const } },
       },
       {
         accessorKey: 'startedAt',

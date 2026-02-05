@@ -73,8 +73,10 @@ export function ChatHistorySidebar({
 
   useEffect(() => {
     if (editingChatId && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
     }
   }, [editingChatId]);
 
@@ -195,30 +197,23 @@ export function ChatHistorySidebar({
                 )}
               >
                 {isEditing ? (
-                  <div
-                    className="w-full"
-                    style={{
-                      transform: 'matrix(0.9, 0, 0, 0.9, 0, 0)',
-                      transformOrigin: 'left center',
+                  <Input
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveRename(chat._id);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        handleCancelRename();
+                      }
                     }}
-                  >
-                    <Input
-                      ref={inputRef}
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSaveRename(chat._id);
-                        } else if (e.key === 'Escape') {
-                          e.preventDefault();
-                          handleCancelRename();
-                        }
-                      }}
-                      onBlur={() => handleInputBlur(chat._id)}
-                      className="w-full h-6 px-0 py-0 leading-none focus:border-0 ring-0 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:ring-0 focus:outline-none shadow-none"
-                    />
-                  </div>
+                    onBlur={() => handleInputBlur(chat._id)}
+                    aria-label={t('history.renameChat')}
+                    className="w-full text-sm leading-snug min-h-[20px] px-0 py-0 border-0 ring-1 ring-primary rounded-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0 shadow-none bg-transparent"
+                  />
                 ) : (
                   <>
                     <button
@@ -234,7 +229,7 @@ export function ChatHistorySidebar({
                           }, 250);
                         }
                       }}
-                      className="flex-1 truncate text-left cursor-pointer"
+                      className="flex-1 truncate text-left text-sm leading-snug min-h-[20px]"
                     >
                       {chat.title}
                     </button>

@@ -34,6 +34,8 @@ interface DocumentsClientProps {
   hasMicrosoftAccount?: boolean;
 }
 
+const PAGE_SIZE = 20;
+
 function DocumentsSkeleton() {
   const { t } = useT('tables');
   const { t: tDocuments } = useT('documents');
@@ -50,6 +52,7 @@ function DocumentsSkeleton() {
         { isAction: true, size: 160 },
       ]}
       stickyLayout
+      infiniteScroll
       searchPlaceholder={tDocuments('searchPlaceholder')}
       actionMenu={<Skeleton className="h-9 w-40" />}
     />
@@ -68,6 +71,7 @@ export function DocumentsClient({
   const { t: tTables } = useT('tables');
 
   const [query, setQuery] = useState(searchQuery ?? '');
+  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
   const debouncedQuery = useDebounce(query, 300);
 
   // Fetch all teams for mapping team IDs to names
@@ -87,21 +91,33 @@ export function DocumentsClient({
       query: debouncedQuery || undefined,
       folderPath: currentFolderPath || undefined,
       cursor: null,
-      numItems: 20,
+      numItems: 1000,
     }),
     [organizationId, debouncedQuery, currentFolderPath],
   );
 
   const documentsResult = useQuery(api.documents.queries.getDocumentsCursor, queryArgs);
 
+  const allDocuments = useMemo(
+    () => (documentsResult?.page as DocumentItem[]) ?? [],
+    [documentsResult],
+  );
+
+  const displayedDocuments = useMemo(
+    () => allDocuments.slice(0, displayCount),
+    [allDocuments, displayCount],
+  );
+
+  const hasMore = displayCount < allDocuments.length;
+
+  const handleLoadMore = useCallback(() => {
+    setDisplayCount((prev) => prev + PAGE_SIZE);
+  }, []);
+
   const previewDocument = useMemo(() => {
-    if (!docId || !documentsResult) return null;
-    return (
-      (documentsResult.page as DocumentItem[]).find(
-        (item) => item.id === docId,
-      ) ?? null
-    );
-  }, [documentsResult, docId]);
+    if (!docId || !allDocuments.length) return null;
+    return allDocuments.find((item) => item.id === docId) ?? null;
+  }, [allDocuments, docId]);
 
   const previewPath = previewDocument?.storagePath ?? null;
   const previewFileName = previewDocument?.name ?? null;
@@ -376,8 +392,6 @@ export function DocumentsClient({
     return <DocumentsSkeleton />;
   }
 
-  const items = documentsResult.page as DocumentItem[];
-
   return (
     <>
       {currentFolderPath && (
@@ -386,7 +400,7 @@ export function DocumentsClient({
 
       <DataTable
         columns={columns}
-        data={items}
+        data={displayedDocuments}
         getRowId={(row) => row.id}
         onRowClick={handleRowClick}
         rowClassName={getRowClassName}
@@ -407,6 +421,12 @@ export function DocumentsClient({
           icon: ClipboardList,
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
+        }}
+        infiniteScroll={{
+          hasMore,
+          onLoadMore: handleLoadMore,
+          isLoadingMore: false,
+          isInitialLoading: false,
         }}
       />
 
