@@ -54,12 +54,12 @@
       "source-map": "^0.7.0",
       "@babel/preset-env": {
         "@babel/helper-compilation-targets": {
-          "lru-cache": "^5.1.1"
+          "lru-cache": "^11.0.0"
         }
       }
     },
     "@babel/helper-compilation-targets": {
-      "lru-cache": "^5.1.1"
+      "lru-cache": "^11.0.0"
     }
   },
   "dependencies": {
