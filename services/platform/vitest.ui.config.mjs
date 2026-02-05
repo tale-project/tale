@@ -9,7 +9,7 @@ export default defineConfig({
     globals: true,
     pool: 'threads',
     setupFiles: ['./test/setup-ui.ts'],
-    include: ['app/components/**/*.test.{ts,tsx}'],
+    include: ['app/components/**/*.test.{ts,tsx}', 'app/hooks/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', '.next', 'dist', 'convex/**'],
     deps: {
       optimizer: {

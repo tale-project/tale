@@ -28,6 +28,8 @@ interface ChatLayoutContextType {
   clearChatState: () => void;
   pendingMessage: PendingMessage | null;
   setPendingMessage: (message: PendingMessage | null) => void;
+  isHistoryOpen: boolean;
+  setIsHistoryOpen: (open: boolean) => void;
 }
 
 const ChatLayoutContext = createContext<ChatLayoutContextType | null>(null);
@@ -49,6 +51,7 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
   const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(
     null,
   );
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const clearChatState = useCallback(() => {
     setIsPending(false);
@@ -63,6 +66,8 @@ export function ChatLayoutProvider({ children }: ChatLayoutProviderProps) {
         clearChatState,
         pendingMessage,
         setPendingMessage,
+        isHistoryOpen,
+        setIsHistoryOpen,
       }}
     >
       {children}

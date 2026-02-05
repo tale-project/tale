@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
-import { Input } from '@/app/components/ui/forms/input';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { useT } from '@/lib/i18n/client';
 import { useDebounce } from '@/app/hooks/use-debounce';
@@ -46,16 +46,12 @@ export function TeamsSettings({ organizationId }: TeamsSettingsProps) {
       </Stack>
 
       <HStack justify="between" className="pt-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder={tSettings('teams.searchTeam')}
-            size="sm"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+        <SearchInput
+          placeholder={tSettings('teams.searchTeam')}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          wrapperClassName="flex-1 max-w-sm"
+        />
         {!isExternallyManaged && (
           <Button
             size="sm"

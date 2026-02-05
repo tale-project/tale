@@ -24,7 +24,7 @@ function KnowledgeLayout() {
 
   if (userContext === undefined) {
     return (
-      <>
+      <div className="flex flex-col flex-1 min-h-0 overflow-auto">
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false}>
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -41,14 +41,14 @@ function KnowledgeLayout() {
         <ContentWrapper className="p-4">
           <Skeleton className="h-96 w-full" />
         </ContentWrapper>
-      </>
+      </div>
     );
   }
 
   const userRole = userContext?.role ?? 'member';
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -63,6 +63,6 @@ function KnowledgeLayout() {
           <Outlet />
         </ContentWrapper>
       </LayoutErrorBoundary>
-    </>
+    </div>
   );
 }

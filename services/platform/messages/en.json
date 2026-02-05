@@ -144,6 +144,7 @@
       "of": "of",
       "showing": "{start}-{end} of {total}",
       "loadMore": "Load more",
+      "loading": "Loading more...",
       "noMore": "No more items to load"
     },
     "search": {
@@ -1607,6 +1608,7 @@
       "loading": "Loading chats...",
       "empty": "No chats yet",
       "untitled": "Untitled chat",
+      "renameChat": "Rename chat",
       "toast": {
         "titleEmpty": "Chat title cannot be empty",
         "renameFailed": "Failed to rename chat"

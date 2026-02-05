@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Search, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { lazyComponent } from '@/lib/utils/lazy-component';
-import { Input } from '@/app/components/ui/forms/input';
+import { SearchInput } from '@/app/components/ui/forms/search-input';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
   Popover,
@@ -149,20 +149,15 @@ export function DataTableFilters({
       <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-3 w-full sm:w-auto">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {search && (
-            <div
-              className={cn(
-                'relative flex-1 sm:flex-none',
+            <SearchInput
+              placeholder={search.placeholder ?? t('search.placeholder')}
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+              wrapperClassName={cn(
+                'flex-1 sm:flex-none',
                 search.className ?? 'w-full sm:w-[18.75rem]',
               )}
-            >
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground size-4" />
-              <Input
-                placeholder={search.placeholder ?? t('search.placeholder')}
-                value={search.value}
-                onChange={(e) => search.onChange(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            />
           )}
 
           {filters.length > 0 && (

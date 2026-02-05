@@ -323,6 +323,7 @@ export const getConversationWithMessages = queryWithRLS({
 export const listConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
+    status: v.optional(conversationStatusValidator),
     paginationOpts: cursorPaginationOptsValidator,
   },
   returns: v.object({
@@ -331,12 +332,21 @@ export const listConversations = queryWithRLS({
     continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
-    const result = await ctx.db
-      .query('conversations')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .paginate(args.paginationOpts);
+    const query = args.status
+      ? ctx.db
+          .query('conversations')
+          .withIndex('by_org_status_lastMessageAt', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', args.status),
+          )
+          .order('desc')
+      : ctx.db
+          .query('conversations')
+          .withIndex('by_organizationId', (q) =>
+            q.eq('organizationId', args.organizationId),
+          )
+          .order('desc');
+
+    const result = await query.paginate(args.paginationOpts);
 
     const transformedPage = await Promise.all(
       result.page.map((conversation) =>

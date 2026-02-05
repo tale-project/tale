@@ -26,7 +26,7 @@ function ApprovalsLayout() {
   const { t } = useT('approvals');
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       <StickyHeader>
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
@@ -38,6 +38,6 @@ function ApprovalsLayout() {
           <Outlet />
         </ContentWrapper>
       </LayoutErrorBoundary>
-    </>
+    </div>
   );
 }

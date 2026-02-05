@@ -22,7 +22,7 @@ function AutomationsLayout() {
   });
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 overflow-auto">
       {!isSpecificAutomation && (
         <StickyHeader>
           <AdaptiveHeaderRoot standalone={false}>
@@ -34,6 +34,6 @@ function AutomationsLayout() {
       <LayoutErrorBoundary organizationId={organizationId}>
         <Outlet />
       </LayoutErrorBoundary>
-    </>
+    </div>
   );
 }
