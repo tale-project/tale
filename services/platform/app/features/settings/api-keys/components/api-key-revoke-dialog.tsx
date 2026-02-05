@@ -10,6 +10,7 @@ interface ApiKeyRevokeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   apiKey: ApiKey;
+  organizationId: string;
   onSuccess?: () => void;
 }
 
@@ -17,10 +18,11 @@ export function ApiKeyRevokeDialog({
   open,
   onOpenChange,
   apiKey,
+  organizationId,
   onSuccess,
 }: ApiKeyRevokeDialogProps) {
   const { t: tSettings } = useT('settings');
-  const { mutate: revokeKey, isPending: isRevoking } = useRevokeApiKey();
+  const { mutate: revokeKey, isPending: isRevoking } = useRevokeApiKey(organizationId);
 
   const handleConfirm = () => {
     if (isRevoking) return;

@@ -11,9 +11,10 @@ import type { ApiKey } from '../types';
 
 interface ApiKeyRowActionsProps {
   apiKey: ApiKey;
+  organizationId: string;
 }
 
-export function ApiKeyRowActions({ apiKey }: ApiKeyRowActionsProps) {
+export function ApiKeyRowActions({ apiKey, organizationId }: ApiKeyRowActionsProps) {
   const { t: tSettings } = useT('settings');
   const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState(false);
 
@@ -38,6 +39,7 @@ export function ApiKeyRowActions({ apiKey }: ApiKeyRowActionsProps) {
         open={isRevokeDialogOpen}
         onOpenChange={setIsRevokeDialogOpen}
         apiKey={apiKey}
+        organizationId={organizationId}
       />
     </>
   );

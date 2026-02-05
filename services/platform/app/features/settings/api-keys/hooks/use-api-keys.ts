@@ -12,9 +12,9 @@ interface CreateApiKeyResult {
   id: string;
 }
 
-export function useApiKeys() {
+export function useApiKeys(organizationId: string) {
   return useQuery({
-    queryKey: ['api-keys'],
+    queryKey: ['api-keys', organizationId],
     queryFn: async () => {
       const result = await authClient.apiKey.list();
       if (result.error) {
@@ -25,7 +25,7 @@ export function useApiKeys() {
   });
 }
 
-export function useCreateApiKey() {
+export function useCreateApiKey(organizationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -45,12 +45,12 @@ export function useCreateApiKey() {
       };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      queryClient.invalidateQueries({ queryKey: ['api-keys', organizationId] });
     },
   });
 }
 
-export function useRevokeApiKey() {
+export function useRevokeApiKey(organizationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -66,7 +66,7 @@ export function useRevokeApiKey() {
       return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      queryClient.invalidateQueries({ queryKey: ['api-keys', organizationId] });
     },
   });
 }

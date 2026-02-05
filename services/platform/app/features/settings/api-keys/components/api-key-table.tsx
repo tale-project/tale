@@ -12,6 +12,7 @@ import type { ApiKey } from '../types';
 interface ApiKeyTableProps {
   apiKeys: ApiKey[];
   isLoading: boolean;
+  organizationId: string;
 }
 
 function formatDate(date: Date | string | number | null | undefined): string {
@@ -28,6 +29,7 @@ function formatDate(date: Date | string | number | null | undefined): string {
 export function ApiKeyTable({
   apiKeys,
   isLoading,
+  organizationId,
 }: ApiKeyTableProps) {
   const { t: tSettings } = useT('settings');
 
@@ -92,13 +94,13 @@ export function ApiKeyTable({
         header: '',
         cell: ({ row }) => (
           <HStack gap={1} justify="end">
-            <ApiKeyRowActions apiKey={row.original} />
+            <ApiKeyRowActions apiKey={row.original} organizationId={organizationId} />
           </HStack>
         ),
         size: 80,
       },
     ];
-  }, [tSettings]);
+  }, [tSettings, organizationId]);
 
   if (isLoading) {
     return null;

@@ -17,6 +17,7 @@ import { useCreateApiKey } from '../hooks/use-api-keys';
 interface ApiKeyCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId: string;
   onSuccess?: () => void;
 }
 
@@ -28,12 +29,13 @@ type ApiKeyFormData = {
 export function ApiKeyCreateDialog({
   open,
   onOpenChange,
+  organizationId,
   onSuccess,
 }: ApiKeyCreateDialogProps) {
   const { t: tSettings } = useT('settings');
   const { t: tCommon } = useT('common');
   const { toast } = useToast();
-  const { mutateAsync: createKey } = useCreateApiKey();
+  const { mutateAsync: createKey } = useCreateApiKey(organizationId);
 
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);

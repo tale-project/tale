@@ -14,11 +14,11 @@ interface ApiKeysSettingsProps {
   organizationId: string;
 }
 
-export function ApiKeysSettings({ organizationId: _organizationId }: ApiKeysSettingsProps) {
+export function ApiKeysSettings({ organizationId }: ApiKeysSettingsProps) {
   const { t: tSettings } = useT('settings');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  const { data: apiKeys, isLoading } = useApiKeys();
+  const { data: apiKeys, isLoading } = useApiKeys(organizationId);
 
   return (
     <Stack>
@@ -52,11 +52,13 @@ export function ApiKeysSettings({ organizationId: _organizationId }: ApiKeysSett
       <ApiKeyTable
         apiKeys={apiKeys || []}
         isLoading={isLoading}
+        organizationId={organizationId}
       />
 
       <ApiKeyCreateDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
+        organizationId={organizationId}
       />
     </Stack>
   );
