@@ -9,8 +9,8 @@
  * 4. Outputs to public/openapi.json for serving
  */
 
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { parse } from 'yaml';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,9 +42,10 @@ function main() {
   console.log('Generating OpenAPI spec from Convex...');
 
   try {
-    execSync(`npx convex-helpers open-api-spec --output-file ${tempYamlPath}`, {
+    execFileSync('npx', ['convex-helpers', 'open-api-spec', '--output-file', tempYamlPath], {
       cwd: platformDir,
       stdio: 'inherit',
+      shell: true,
     });
   } catch {
     console.error('Failed to generate OpenAPI spec. Make sure Convex is running.');
@@ -120,7 +121,7 @@ All endpoints accept POST requests with JSON body containing an \`args\` object:
 
   writeFileSync(outputPath, JSON.stringify(spec, null, 2), 'utf-8');
 
-  execSync(`rm -f ${tempYamlPath}`, { cwd: platformDir });
+  rmSync(tempYamlPath, { force: true });
 
   console.log(`OpenAPI spec written to ${outputPath}`);
 }
