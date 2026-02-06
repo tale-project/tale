@@ -591,7 +591,7 @@
       "leaveEmptyToKeep": "Leave empty to keep current",
       "email": {
         "name": "Email",
-        "description": "Send and receive emails via Gmail, Outlook, or custom SMTP."
+        "description": "Send and receive emails via Outlook, Gmail, or custom SMTP/IMAP."
       },
       "emailIntegration": "Email integration",
       "chooseEmailProvider": "Choose email provider",
@@ -714,14 +714,14 @@
       "clickToCopy": "Click to copy",
       "failedToCopy": "Failed to copy to clipboard",
       "comingSoon": "(Coming soon)",
-      "customSMTP": "Custom SMTP",
+      "customSMTP": "Custom SMTP/IMAP",
       "moreOptions": "More options",
       "testing": "Testing...",
       "test": "Test",
       "setAsDefault": "Set as default",
       "default": "Default",
       "noProvidersYet": "No email providers configured yet",
-      "addProviderToStart": "Add Gmail, Outlook, or a custom SMTP provider to get started",
+      "addProviderToStart": "Add Gmail, Outlook, or a custom SMTP/IMAP provider to get started",
       "addEmailProvider": "Add email provider",
       "authorize": "Authorize",
       "oauth2": "OAuth2",
