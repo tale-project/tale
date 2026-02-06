@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeService, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
@@ -7,7 +8,7 @@ export function createProxyService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-proxy:${config.version}`,
-    container_name: `${config.projectName}-proxy`,
+    container_name: `${PROJECT_NAME}-proxy`,
     ports: ["80:80", "443:443"],
     volumes: ["caddy-data:/data", "caddy-config:/config"],
     env_file: [".env"],

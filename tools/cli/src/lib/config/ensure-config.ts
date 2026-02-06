@@ -15,21 +15,7 @@ function getRecommendedDir(): string {
   return join(homedir(), ".tale", "deployments");
 }
 
-export interface EnsureConfigOptions {
-  explicitDir?: string;
-}
-
-export async function ensureConfig(
-  options: EnsureConfigOptions = {}
-): Promise<string> {
-  if (options.explicitDir) {
-    if (!existsSync(options.explicitDir)) {
-      await mkdir(options.explicitDir, { recursive: true });
-      logger.info(`Created deployment directory: ${options.explicitDir}`);
-    }
-    return options.explicitDir;
-  }
-
+export async function ensureConfig(): Promise<string> {
   const existingConfig = await getConfig();
   if (existingConfig) {
     return existingConfig.deployDir;
@@ -39,13 +25,7 @@ export async function ensureConfig(
     logger.error("No deployment directory configured");
     logger.blank();
     logger.info("This appears to be your first time running Tale CLI.");
-    logger.info(
-      "Run the CLI interactively to set up your deployment directory,"
-    );
-    logger.info("or specify one explicitly with --dir <path>");
-    logger.blank();
-    logger.info("Example:");
-    logger.info("  tale deploy v1.0.0 --dir ~/.tale/deployments");
+    logger.info("Run the CLI interactively to complete the initial setup.");
     process.exit(1);
   }
 

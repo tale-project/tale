@@ -6,18 +6,10 @@ import {
 } from "../../lib/compose/types";
 import { ensureConfig } from "../../lib/config/ensure-config";
 import { ensureEnv } from "../../lib/config/ensure-env";
-import { getDefaultDeployDir } from "../../lib/config/get-default-deploy-dir";
 import { selectVersion } from "../../lib/registry/select-version";
 import { loadEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 import { deploy } from "../../lib/actions/deploy";
-
-function getDirOptionDescription(): string {
-  const defaultDir = getDefaultDeployDir();
-  return defaultDir
-    ? `Deployment directory (default: ${defaultDir})`
-    : "Deployment directory";
-}
 
 export function createDeployCommand(): Command {
   return new Command("deploy")
@@ -33,11 +25,10 @@ export function createDeployCommand(): Command {
       `Specific services to update (comma-separated: ${ALL_SERVICES.join(",")})`
     )
     .option("--dry-run", "Preview deployment without making changes", false)
-    .option("-d, --dir <path>", getDirOptionDescription())
     .option("--host <hostname>", "Host alias for proxy")
     .action(async (versionArg: string | undefined, options) => {
       try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const deployDir = await ensureConfig();
         const envSetupSuccess = await ensureEnv({ deployDir });
         if (!envSetupSuccess) {
           process.exit(1);

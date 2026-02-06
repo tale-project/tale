@@ -2,6 +2,7 @@
 import { program } from "commander";
 import { createCleanupCommand } from "./commands/cleanup";
 import { createConfigCommand } from "./commands/config";
+import { createConvexCommand } from "./commands/convex";
 import { createDeployCommand } from "./commands/deploy";
 import { createLogsCommand } from "./commands/logs";
 import { createResetCommand } from "./commands/reset";
@@ -15,6 +16,7 @@ program
   .version(pkg.version);
 
 program.addCommand(createConfigCommand());
+program.addCommand(createConvexCommand());
 program.addCommand(createDeployCommand());
 program.addCommand(createStatusCommand());
 program.addCommand(createLogsCommand());

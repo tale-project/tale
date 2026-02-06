@@ -10,6 +10,7 @@ import { isContainerRunning } from "../docker/is-container-running";
 import { listContainers } from "../docker/list-containers";
 import { getDeploymentState } from "../state/get-deployment-state";
 import { getLockInfo } from "../state/get-lock-info";
+import { PROJECT_NAME } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
 type ServiceStatus = "healthy" | "starting" | "unhealthy" | "running" | "stopped" | "not deployed";
@@ -48,7 +49,6 @@ function getServiceStatus(
 
 interface StatusOptions {
   deployDir: string;
-  projectName: string;
 }
 
 async function getContainerStatus(containerName: string) {
@@ -62,7 +62,7 @@ async function getContainerStatus(containerName: string) {
 }
 
 export async function status(options: StatusOptions): Promise<void> {
-  const { deployDir, projectName } = options;
+  const { deployDir } = options;
 
   logger.header("Tale Deployment Status");
 
@@ -87,7 +87,7 @@ export async function status(options: StatusOptions): Promise<void> {
   logger.step("Stateful Services:");
   const statefulResults = await Promise.all(
     STATEFUL_SERVICES.map(async (service) => {
-      const containerName = `${projectName}-${service}`;
+      const containerName = `${PROJECT_NAME}-${service}`;
       const info = await getContainerStatus(containerName);
       return { service, ...info };
     })
@@ -109,7 +109,7 @@ export async function status(options: StatusOptions): Promise<void> {
 
     const rotatableResults = await Promise.all(
       ROTATABLE_SERVICES.map(async (service) => {
-        const containerName = `${projectName}-${service}-${color}`;
+        const containerName = `${PROJECT_NAME}-${service}-${color}`;
         const info = await getContainerStatus(containerName);
         return { service, ...info };
       })
@@ -134,7 +134,7 @@ export async function status(options: StatusOptions): Promise<void> {
   }
 
   // Show all tale containers for reference
-  const containers = await listContainers(`name=${projectName}`);
+  const containers = await listContainers(`name=${PROJECT_NAME}`);
   if (containers.length > 0) {
     logger.step("All Containers:");
     for (const container of containers) {

@@ -1,4 +1,5 @@
 import { stringify } from "yaml";
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeConfig, DeploymentColor, ServiceConfig } from "../types";
 import { createCrawlerService } from "../services/create-crawler-service";
 import { createPlatformService } from "../services/create-platform-service";
@@ -19,21 +20,21 @@ export function generateColorCompose(
     volumes: {
       "platform-convex-data": {
         external: true,
-        name: `${config.projectName}_platform-convex-data`,
+        name: `${PROJECT_NAME}_platform-convex-data`,
       },
       "caddy-data": {
         external: true,
-        name: `${config.projectName}_caddy-data`,
+        name: `${PROJECT_NAME}_caddy-data`,
       },
       "rag-data": {
         external: true,
-        name: `${config.projectName}_rag-data`,
+        name: `${PROJECT_NAME}_rag-data`,
       },
     },
     networks: {
       internal: {
         external: true,
-        name: `${config.projectName}_internal`,
+        name: `${PROJECT_NAME}_internal`,
       },
     },
   };

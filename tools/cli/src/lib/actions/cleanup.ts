@@ -5,7 +5,7 @@ import { stopContainer } from "../docker/stop-container";
 import { getCurrentColor } from "../state/get-current-color";
 import { getOppositeColor } from "../state/get-opposite-color";
 import { withLock } from "../state/with-lock";
-import type { DeploymentEnv } from "../../utils/load-env";
+import { PROJECT_NAME, type DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
 interface CleanupOptions {
@@ -30,7 +30,7 @@ export async function cleanup(options: CleanupOptions): Promise<void> {
 
     let cleaned = 0;
     for (const service of ROTATABLE_SERVICES) {
-      const containerName = `${env.PROJECT_NAME}-${service}-${inactiveColor}`;
+      const containerName = `${PROJECT_NAME}-${service}-${inactiveColor}`;
       const exists = await containerExists(containerName);
 
       if (exists) {

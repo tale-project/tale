@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../utils/load-env";
 import { docker } from "./docker";
 import * as logger from "../../utils/logger";
 
@@ -6,7 +7,7 @@ async function networkExists(networkName: string): Promise<boolean> {
   return result.success;
 }
 
-async function createNetwork(networkName: string, projectName: string): Promise<boolean> {
+async function createNetwork(networkName: string): Promise<boolean> {
   const exists = await networkExists(networkName);
   if (exists) {
     logger.debug(`Network ${networkName} already exists`);
@@ -18,7 +19,7 @@ async function createNetwork(networkName: string, projectName: string): Promise<
     "network",
     "create",
     "--label",
-    `project=${projectName}`,
+    `project=${PROJECT_NAME}`,
     networkName
   );
   if (!result.success) {
@@ -27,10 +28,7 @@ async function createNetwork(networkName: string, projectName: string): Promise<
   return result.success;
 }
 
-export async function ensureNetwork(
-  projectName: string,
-  networkName: string
-): Promise<boolean> {
-  const fullName = `${projectName}_${networkName}`;
-  return createNetwork(fullName, projectName);
+export async function ensureNetwork(networkName: string): Promise<boolean> {
+  const fullName = `${PROJECT_NAME}_${networkName}`;
+  return createNetwork(fullName);
 }

@@ -42,7 +42,6 @@ export type DeploymentColor = "blue" | "green";
 export interface ServiceConfig {
   version: string;
   registry: string;
-  projectName: string;
 }
 
 export const ROTATABLE_SERVICES = ["platform", "rag", "crawler", "operator"] as const;
