@@ -24,7 +24,7 @@ export function createPlatformService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`platform-${color}`],
+        aliases: ["platform", `platform-${color}`],
       },
     },
   };
