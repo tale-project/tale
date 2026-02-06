@@ -25,6 +25,7 @@ import {
   safeGetNumber,
   safeGetArray,
 } from '@/lib/utils/safe-parsers';
+import { useListPage } from '@/app/hooks/use-list-page';
 
 type ApprovalItem = {
   _id: string;
@@ -115,7 +116,6 @@ export function ApprovalsClient({
   );
   const [approvalDetailDialogOpen, setApprovalDetailDialogOpen] =
     useState(false);
-  const [displayCount, setDisplayCount] = useState(10);
   const pageSize = 10;
 
   const approvalsResult = useQuery(
@@ -129,21 +129,16 @@ export function ApprovalsClient({
     },
   );
 
-  const allApprovals = useMemo(
-    () => approvalsResult ?? [],
-    [approvalsResult],
-  );
+  const allApprovals = useMemo(() => approvalsResult ?? [], [approvalsResult]);
 
-  const displayedApprovals = useMemo(
-    () => allApprovals.slice(0, displayCount),
-    [allApprovals, displayCount],
-  );
-
-  const hasMore = displayCount < allApprovals.length;
-
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => prev + pageSize);
-  }, []);
+  const list = useListPage({
+    dataSource: {
+      type: 'query',
+      data: approvalsResult === undefined ? undefined : allApprovals,
+    },
+    pageSize,
+    getRowId: (row) => row._id,
+  });
 
   const memberContext = useQuery(api.members.queries.getCurrentMemberContext, {
     organizationId,
@@ -767,17 +762,10 @@ export function ApprovalsClient({
     <>
       <DataTable
         columns={columns}
-        data={displayedApprovals}
-        getRowId={(row) => row._id}
         stickyLayout
         onRowClick={(row) => handleApprovalRowClick(row.original._id)}
         rowClassName="cursor-pointer"
-        infiniteScroll={{
-          hasMore,
-          onLoadMore: handleLoadMore,
-          isLoadingMore: false,
-          isInitialLoading: false,
-        }}
+        {...list.tableProps}
       />
       <ApprovalDetailDialog
         open={approvalDetailDialogOpen}
