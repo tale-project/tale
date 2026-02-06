@@ -7,6 +7,7 @@ import { ApiKeyRowActions } from './api-key-row-actions';
 import { Key } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useT } from '@/lib/i18n/client';
+import { useDateFormat } from '@/app/hooks/use-date-format';
 import type { ApiKey } from '../types';
 
 interface ApiKeyTableProps {
@@ -15,23 +16,13 @@ interface ApiKeyTableProps {
   organizationId: string;
 }
 
-function formatDate(date: Date | string | number | null | undefined): string {
-  if (!date) return '-';
-  const dateObj = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(dateObj.getTime())) return '-';
-  return dateObj.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 export function ApiKeyTable({
   apiKeys,
   isLoading,
   organizationId,
 }: ApiKeyTableProps) {
   const { t: tSettings } = useT('settings');
+  const { formatDate } = useDateFormat();
 
   const columns = useMemo<ColumnDef<ApiKey>[]>(() => {
     return [
@@ -100,7 +91,7 @@ export function ApiKeyTable({
         size: 80,
       },
     ];
-  }, [tSettings, organizationId]);
+  }, [tSettings, organizationId, formatDate]);
 
   if (isLoading) {
     return null;

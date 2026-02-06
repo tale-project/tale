@@ -94,7 +94,9 @@ export const Interactive: Story = {
         <DatePickerWithRange onChange={setRange} />
         {range && (
           <div className="text-sm text-muted-foreground">
+            {/* eslint-disable-next-line no-restricted-syntax -- Story demo display only */}
             <p>From: {range.from?.toLocaleDateString()}</p>
+            {/* eslint-disable-next-line no-restricted-syntax -- Story demo display only */}
             <p>To: {range.to?.toLocaleDateString()}</p>
           </div>
         )}

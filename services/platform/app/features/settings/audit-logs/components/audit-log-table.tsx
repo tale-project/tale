@@ -8,6 +8,7 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
+import { useDateFormat } from '@/app/hooks/use-date-format';
 import type { AuditLogItem } from '@/convex/audit_logs/types';
 
 interface AuditLogTableProps {
@@ -16,6 +17,7 @@ interface AuditLogTableProps {
 
 export function AuditLogTable({ logs }: AuditLogTableProps) {
   const { t } = useT('settings');
+  const { formatDate } = useDateFormat();
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
   const columns = useMemo<ColumnDef<AuditLogItem>[]>(
@@ -85,7 +87,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
           const status = row.original.status;
           return (
             <Badge
-              variant={status === 'success' ? 'success' : status === 'denied' ? 'warning' : 'destructive'}
+              variant={status === 'success' ? 'green' : status === 'denied' ? 'yellow' : 'destructive'}
             >
               {status}
             </Badge>
@@ -122,7 +124,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
             <div className="space-y-4 pr-4">
               <DetailRow
                 label={t('logs.audit.columns.timestamp')}
-                value={new Date(selectedLog.timestamp).toLocaleString()}
+                value={formatDate(selectedLog.timestamp, 'long')}
               />
               <DetailRow
                 label={t('logs.audit.columns.action')}
