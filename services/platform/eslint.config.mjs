@@ -25,7 +25,6 @@ const eslintConfig = [
       'react-hooks': reactHooks,
     },
     rules: {
-      // Prefer TS rule and allow underscore-prefixed unused identifiers
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
@@ -38,6 +37,57 @@ const eslintConfig = [
       '@typescript-eslint/no-explicit-any': 'off',
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleDateString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleDateString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleTimeString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleTimeString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleString() for dates.',
+        },
+      ],
+    },
+  },
+  {
+    files: ['convex/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleDateString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleDateString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleTimeString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleTimeString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleString() for dates.',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="collect"]',
+          message:
+            'Avoid .collect() — it loads all documents into memory. Use for-await iteration, .take(n), or paginated queries instead.',
+        },
+      ],
     },
   },
   {

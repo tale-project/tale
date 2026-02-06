@@ -37,6 +37,7 @@ export async function getScheduledWorkflows(
   // Batch query trigger steps per organization in parallel
   const orgStepsResults = await Promise.all(
     orgIds.map((orgId) =>
+      // eslint-disable-next-line no-restricted-syntax -- Bounded by org count, need all trigger steps for batch lookup
       ctx.db
         .query('wfStepDefs')
         .withIndex('by_organizationId_and_stepType_and_order', (q) =>
