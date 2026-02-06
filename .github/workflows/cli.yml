@@ -93,40 +93,21 @@ jobs:
         working-directory: tools/cli
         run: bun run ${{ matrix.build_script }}
 
-      - name: Rename binary (Unix)
-        if: matrix.platform != 'windows'
-        working-directory: tools/cli/dist
-        run: |
-          mv ${{ matrix.binary }} tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
-          cp tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }} ${{ matrix.artifact }}
-
-      - name: Rename binary (Windows)
-        if: matrix.platform == 'windows'
+      - name: Rename binary
         working-directory: tools/cli/dist
         shell: bash
-        run: |
-          mv ${{ matrix.binary }} tale_${{ needs.prepare.outputs.version }}_windows.exe
-          cp tale_${{ needs.prepare.outputs.version }}_windows.exe ${{ matrix.artifact }}
+        run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
 
       - name: Verify binary
         working-directory: tools/cli/dist
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" != "windows" ]; then
-            chmod +x tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
-            ./tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }} --version
-          else
-            ./tale_${{ needs.prepare.outputs.version }}_windows.exe --version
+            chmod +x ${{ matrix.artifact }}
           fi
+          ./${{ matrix.artifact }} --version
 
-      - name: Upload versioned artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
-          path: tools/cli/dist/tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}${{ matrix.platform == 'windows' && '.exe' || '' }}
-          retention-days: 30
-
-      - name: Upload stable artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
@@ -135,7 +116,7 @@ jobs:
 
   release:
     name: Upload to Release
-    needs: [prepare, build]
+    needs: build
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
 
@@ -153,9 +134,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            artifacts/tale_${{ needs.prepare.outputs.version }}_linux/* \
-            artifacts/tale_${{ needs.prepare.outputs.version }}_macos/* \
-            artifacts/tale_${{ needs.prepare.outputs.version }}_windows/* \
             artifacts/tale_linux/* \
             artifacts/tale_macos/* \
             artifacts/tale_windows.exe/* \
