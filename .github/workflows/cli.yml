@@ -5,13 +5,11 @@ on:
     inputs:
       release_tag:
         description: 'Release tag to attach binary to (e.g., v1.0.0)'
-        required: false
+        required: true
         type: string
   push:
     branches:
       - main
-    tags:
-      - 'v*'
     paths:
       - 'tools/cli/**'
       - '.github/workflows/cli.yml'
@@ -20,8 +18,44 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            VERSION="${{ github.event.inputs.release_tag }}"
+          else
+            VERSION="dev"
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   build:
-    runs-on: self-hosted
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            binary: tale
+            artifact: tale_linux
+          - os: macos-latest
+            platform: macos
+            binary: tale
+            artifact: tale_macos
+          - os: windows-latest
+            platform: windows
+            binary: tale.exe
+            artifact: tale_windows.exe
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -36,111 +70,91 @@ jobs:
         run: bun install
 
       - name: Type check
+        if: matrix.platform == 'linux'
         working-directory: tools/cli
         run: bun run typecheck
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            VERSION="${{ github.event.inputs.release_tag }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="dev"
-          fi
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Inject version into package.json
         working-directory: tools/cli
+        shell: bash
         run: |
-          jq '.version = "${{ steps.version.outputs.version }}"' package.json > package.json.tmp
-          mv package.json.tmp package.json
+          if command -v jq &>/dev/null; then
+            jq '.version = "${{ needs.prepare.outputs.version }}"' package.json > package.json.tmp
+            mv package.json.tmp package.json
+          else
+            # Windows fallback using node
+            node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${{ needs.prepare.outputs.version }}';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
+          fi
 
-      - name: Build Linux binary
+      - name: Build binary
         working-directory: tools/cli
-        run: |
-          bun run build:linux
-          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_linux
+        run: bun run build
 
-      - name: Build macOS binary
-        working-directory: tools/cli
-        run: |
-          bun run build:mac
-          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_macos
-
-      - name: Build Windows binary
-        working-directory: tools/cli
-        run: |
-          bun run build:windows
-          mv dist/tale.exe dist/tale_${{ steps.version.outputs.version }}_windows.exe
-
-      - name: Create versionless copies for stable download URLs
+      - name: Rename binary (Unix)
+        if: matrix.platform != 'windows'
         working-directory: tools/cli/dist
         run: |
-          cp tale_${{ steps.version.outputs.version }}_linux tale_linux
-          cp tale_${{ steps.version.outputs.version }}_macos tale_macos
-          cp tale_${{ steps.version.outputs.version }}_windows.exe tale_windows.exe
+          mv ${{ matrix.binary }} tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
+          cp tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }} ${{ matrix.artifact }}
 
-      - name: Verify Linux binary
+      - name: Rename binary (Windows)
+        if: matrix.platform == 'windows'
         working-directory: tools/cli/dist
+        shell: bash
         run: |
-          chmod +x tale_${{ steps.version.outputs.version }}_linux
-          ./tale_${{ steps.version.outputs.version }}_linux --version
-          ./tale_${{ steps.version.outputs.version }}_linux --help
+          mv ${{ matrix.binary }} tale_${{ needs.prepare.outputs.version }}_windows.exe
+          cp tale_${{ needs.prepare.outputs.version }}_windows.exe ${{ matrix.artifact }}
 
-      - name: Upload Linux artifact
+      - name: Verify binary
+        working-directory: tools/cli/dist
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
+            ./tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }} --version
+          else
+            ./tale_${{ needs.prepare.outputs.version }}_windows.exe --version
+          fi
+
+      - name: Upload versioned artifact
         uses: actions/upload-artifact@v6
         with:
-          name: tale_${{ steps.version.outputs.version }}_linux
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux
+          name: tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}
+          path: tools/cli/dist/tale_${{ needs.prepare.outputs.version }}_${{ matrix.platform }}${{ matrix.platform == 'windows' && '.exe' || '' }}
           retention-days: 30
 
-      - name: Upload macOS artifact
+      - name: Upload stable artifact
         uses: actions/upload-artifact@v6
         with:
-          name: tale_${{ steps.version.outputs.version }}_macos
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos
+          name: ${{ matrix.artifact }}
+          path: tools/cli/dist/${{ matrix.artifact }}
           retention-days: 30
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v6
+  release:
+    name: Upload to Release
+    needs: [prepare, build]
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
         with:
-          name: tale_${{ steps.version.outputs.version }}_windows
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe
-          retention-days: 30
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
 
       - name: Upload to release
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
-            tools/cli/dist/tale_linux \
-            tools/cli/dist/tale_macos \
-            tools/cli/dist/tale_windows.exe \
+            artifacts/tale_${{ needs.prepare.outputs.version }}_linux/* \
+            artifacts/tale_${{ needs.prepare.outputs.version }}_macos/* \
+            artifacts/tale_${{ needs.prepare.outputs.version }}_windows/* \
+            artifacts/tale_linux/* \
+            artifacts/tale_macos/* \
+            artifacts/tale_windows.exe/* \
+            --repo ${{ github.repository }} \
             --clobber
-
-      - name: Upload to latest release
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || echo "")
-          if [ -n "$LATEST_TAG" ]; then
-            echo "Uploading to release: $LATEST_TAG"
-            gh release upload "$LATEST_TAG" \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
-              tools/cli/dist/tale_linux \
-              tools/cli/dist/tale_macos \
-              tools/cli/dist/tale_windows.exe \
-              --clobber || echo "Failed to upload to release, skipping"
-          else
-            echo "No releases found, skipping upload"
-          fi
