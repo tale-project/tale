@@ -95,9 +95,9 @@ jobs:
   # Build all services on native runners (no QEMU)
   # ============================================================================
   build:
-    name: Build ${{ matrix.service }} (${{ matrix.arch }})
+    name: Build ${{ matrix.service.name }} (${{ matrix.arch.name }})
     needs: prepare
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.arch.runner }}
     permissions:
       contents: read
       packages: write
