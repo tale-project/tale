@@ -883,6 +883,8 @@ import type * as workflows_steps_list_workflow_steps from "../workflows/steps/li
 import type * as workflows_steps_types from "../workflows/steps/types.js";
 import type * as workflows_steps_update_step from "../workflows/steps/update_step.js";
 import type * as workflows_steps_validators from "../workflows/steps/validators.js";
+import type * as workflows_triggers_queries from "../workflows/triggers/queries.js";
+import type * as workflows_triggers_schedules from "../workflows/triggers/schedules.js";
 import type * as workflows_validators from "../workflows/validators.js";
 
 import type {
@@ -1767,6 +1769,8 @@ declare const fullApi: ApiFromModules<{
   "workflows/steps/types": typeof workflows_steps_types;
   "workflows/steps/update_step": typeof workflows_steps_update_step;
   "workflows/steps/validators": typeof workflows_steps_validators;
+  "workflows/triggers/queries": typeof workflows_triggers_queries;
+  "workflows/triggers/schedules": typeof workflows_triggers_schedules;
   "workflows/validators": typeof workflows_validators;
 }>;
 
