@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef, type Row } from '@tanstack/react-table';
+import { type ColumnDef } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -47,7 +47,9 @@ function DocumentsSkeleton() {
         { header: t('headers.document') },
         { header: t('headers.size'), size: 128 },
         { header: t('headers.source'), size: 96 },
-        { header: t('headers.ragStatus'), size: 128 },
+        { header: t('headers.ragStatus'), size: 160 },
+        { header: t('headers.teams'), size: 160 },
+        { header: t('headers.uploadedBy'), size: 160 },
         { header: t('headers.modified'), size: 192 },
         { isAction: true, size: 160 },
       ]}
@@ -138,12 +140,6 @@ export function DocumentsClient({
     [navigate, organizationId, currentFolderPath, docId],
   );
 
-  const getRowClassName = useCallback(
-    (row: Row<DocumentItem>) =>
-      row.original.type === 'folder' ? 'cursor-pointer' : '',
-    [],
-  );
-
   const handleFolderClick = useCallback(
     (item: DocumentItem) => {
       navigate({
@@ -156,16 +152,6 @@ export function DocumentsClient({
       });
     },
     [navigate, organizationId, query],
-  );
-
-  const handleRowClick = useCallback(
-    (row: Row<DocumentItem>) => {
-      const item = row.original;
-      if (item.type === 'folder') {
-        handleFolderClick(item);
-      }
-    },
-    [handleFolderClick],
   );
 
   const openPreview = useCallback(
@@ -238,10 +224,14 @@ export function DocumentsClient({
       },
       {
         accessorKey: 'size',
-        header: tTables('headers.size'),
+        header: () => (
+          <span className="text-right w-full block">
+            {tTables('headers.size')}
+          </span>
+        ),
         size: 128,
         cell: ({ row }) => (
-          <span className="whitespace-nowrap">
+          <span className="whitespace-nowrap text-right block">
             {row.original.type === 'folder' || !row.original.size
               ? '—'
               : formatBytes(row.original.size)}
@@ -250,10 +240,14 @@ export function DocumentsClient({
       },
       {
         id: 'source',
-        header: tTables('headers.source'),
+        header: () => (
+          <span className="text-center w-full block">
+            {tTables('headers.source')}
+          </span>
+        ),
         size: 96,
         cell: ({ row }) => (
-          <HStack gap={2}>
+          <HStack gap={2} justify="center">
             {row.original.sourceProvider === 'onedrive' &&
               row.original.sourceMode === 'auto' && (
                 <div className="relative" title="OneDrive (synced)">
@@ -402,8 +396,6 @@ export function DocumentsClient({
         columns={columns}
         data={displayedDocuments}
         getRowId={(row) => row.id}
-        onRowClick={handleRowClick}
-        rowClassName={getRowClassName}
         stickyLayout
         search={{
           value: query,

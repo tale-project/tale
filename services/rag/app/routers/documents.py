@@ -230,9 +230,31 @@ async def upload_document(
     team_id_list = _parse_team_ids(team_ids, required=True)
 
     SUPPORTED_EXTENSIONS = {
-        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
-        ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
-        ".txt", ".md", ".csv"
+        # Documents
+        ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+        # Images
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+        # Text / markup
+        ".txt", ".md", ".mdx", ".rst", ".tex", ".csv", ".tsv",
+        ".html", ".htm", ".css", ".scss", ".sass", ".less",
+        # Data / config
+        ".json", ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg",
+        ".conf", ".env", ".properties",
+        # Code
+        ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+        ".py", ".pyi",
+        ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx",
+        ".rs", ".go", ".swift", ".kt", ".java",
+        ".rb", ".php", ".pl", ".lua", ".r",
+        ".scala", ".groovy", ".dart", ".ex", ".exs",
+        # Shell / scripts
+        ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd",
+        # Query / schema
+        ".sql", ".graphql", ".gql", ".proto",
+        # Build / project
+        ".gradle", ".cmake", ".lock",
+        # Log
+        ".log",
     }
 
     tmp_path: str | None = None

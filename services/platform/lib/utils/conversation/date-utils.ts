@@ -1,10 +1,5 @@
 import type { Message } from '../../../app/features/conversations/types';
-import { formatDate, dayjs } from '@/lib/utils/date/format';
-import { defaultLocale } from '@/lib/i18n/config';
-
-export function formatMessageTime(timestamp: string, locale: string = defaultLocale): string {
-  return formatDate(timestamp, { preset: 'time', locale });
-}
+import { dayjs } from '@/lib/utils/date/format';
 
 export * from '@/lib/utils/date/format';
 

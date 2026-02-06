@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useRetryRagIndexing } from '../hooks/use-retry-rag-indexing';
-import { useDateFormat } from '@/app/hooks/use-date-format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
@@ -41,7 +41,7 @@ export function RagStatusBadge({
   documentId,
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
-  const { formatDate } = useDateFormat();
+  const { formatDate } = useFormatDate();
   const retryRagIndexing = useRetryRagIndexing();
   const [isRetrying, setIsRetrying] = useState(false);
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);

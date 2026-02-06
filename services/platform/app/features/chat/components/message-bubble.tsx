@@ -15,6 +15,13 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { highlightCode } from '@/lib/utils/shiki';
+import { useTheme } from '@/app/components/theme/theme-provider';
+import {
+  isTextBasedFile,
+  getTextFileCategory,
+  getFileExtensionLower,
+} from '@/lib/utils/text-file-types';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
   TableBody,
@@ -149,6 +156,19 @@ function FileTypeIcon({
       };
     if (fileType === 'text/plain')
       return { icon: '📄', label: t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+    if (isTextBasedFile(fileName, fileType)) {
+      const category = getTextFileCategory(fileName);
+      const ext = getFileExtensionLower(fileName).toUpperCase();
+      if (category === 'code')
+        return { icon: '💻', label: ext || t('fileTypes.code'), bgColor: 'bg-purple-100' };
+      if (category === 'config')
+        return { icon: '⚙️', label: ext || t('fileTypes.config'), bgColor: 'bg-yellow-100' };
+      if (category === 'data')
+        return { icon: '📊', label: ext || t('fileTypes.data'), bgColor: 'bg-green-100' };
+      if (category === 'markup')
+        return { icon: '📝', label: ext || t('fileTypes.markup'), bgColor: 'bg-teal-100' };
+      return { icon: '📄', label: ext || t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+    }
     return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
   };
 
@@ -224,7 +244,9 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
                 ? t('fileTypes.pptx')
                 : attachment.fileType === 'text/plain'
                   ? t('fileTypes.txt')
-                  : t('fileTypes.file')}
+                  : isTextBasedFile(attachment.fileName, attachment.fileType)
+                    ? getFileExtensionLower(attachment.fileName).toUpperCase() || t('fileTypes.txt')
+                    : t('fileTypes.file')}
         </div>
       </div>
     </a>
@@ -279,10 +301,59 @@ const FilePartDisplay = memo(function FilePartDisplay({
                 ? t('fileTypes.pptx')
                 : filePart.mediaType === 'text/plain'
                   ? t('fileTypes.txt')
-                  : t('fileTypes.file')}
+                  : isTextBasedFile(filePart.filename || '', filePart.mediaType)
+                    ? getFileExtensionLower(filePart.filename || '').toUpperCase() || t('fileTypes.txt')
+                    : t('fileTypes.file')}
         </div>
       </div>
     </a>
+  );
+});
+
+/**
+ * Extract the inner HTML from Shiki's codeToHtml output.
+ * Shiki wraps output in `<pre class="shiki ..."><code>...tokens...</code></pre>`.
+ * Since we're already inside a `<pre>` from react-markdown's CodeBlock,
+ * we extract only the inner content of the `<code>` element.
+ */
+function extractShikiCodeContent(html: string): string {
+  const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
+  return codeMatch ? codeMatch[1] : html;
+}
+
+// Shiki-highlighted code element for fenced code blocks
+const HighlightedCode = memo(function HighlightedCode({
+  lang,
+  code,
+}: {
+  lang: string;
+  code: string;
+}) {
+  const [html, setHtml] = useState<string>('');
+  const { resolvedTheme } = useTheme();
+  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+
+  useEffect(() => {
+    let cancelled = false;
+    highlightCode(code, lang, shikiTheme).then((result) => {
+      if (!cancelled && result) setHtml(extractShikiCodeContent(result));
+    });
+    return () => { cancelled = true; };
+  }, [code, lang, shikiTheme]);
+
+  if (!html) {
+    const lines = code.split('\n');
+    return (
+      <code>
+        {lines.map((line, i) => (
+          <span key={i} className="line">{line}{i < lines.length - 1 ? '\n' : ''}</span>
+        ))}
+      </code>
+    );
+  }
+
+  return (
+    <code dangerouslySetInnerHTML={{ __html: html }} />
   );
 });
 
@@ -321,7 +392,7 @@ function CodeBlock({
   };
 
   return (
-    <div className="relative group">
+    <div className="relative group code-line-numbers">
       <pre
         ref={preRef}
         {...props}
@@ -543,6 +614,27 @@ const markdownComponents = {
   }: { node?: unknown } & ComponentPropsWithoutRef<'pre'>) => (
     <CodeBlock {...props} />
   ),
+  code: ({
+    node: _node,
+    className,
+    children,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLElement>) => {
+    const match = className?.match(/language-(\w+)/);
+    if (match) {
+      return (
+        <HighlightedCode
+          lang={match[1]}
+          code={String(children).replace(/\n$/, '')}
+        />
+      );
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
   img: ({
     node: _node,
     ...props

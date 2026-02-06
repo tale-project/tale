@@ -31,18 +31,3 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-/**
- * Format date in a readable format
- */
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return (
-    date.toLocaleDateString() +
-    ' ' +
-    date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    })
-  );
-}

@@ -13,6 +13,10 @@ import {
   useConvexFileUpload,
   type FileAttachment,
 } from '../hooks/use-convex-file-upload';
+import {
+  isTextBasedFile,
+  getFileExtensionLower,
+} from '@/lib/utils/text-file-types';
 import { ImagePreviewDialog } from './message-bubble';
 
 interface ChatInputProps extends Omit<
@@ -131,7 +135,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,.pdf,.doc,.docx,.txt,.ppt,.pptx"
+          accept="image/*,.pdf,.doc,.docx,.txt,.ppt,.pptx,.md,.csv,.json,.yaml,.yml,.xml,.toml,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.sh,.sql,.c,.cpp,.h,.log,.ini,.cfg,.conf,.env"
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
         />
@@ -198,7 +202,9 @@ export function ChatInput({
                               ? tChat('fileTypes.pptx')
                               : attachment.fileType === 'text/plain'
                                 ? tChat('fileTypes.txt')
-                                : tChat('fileTypes.file')}
+                                : isTextBasedFile(attachment.fileName, attachment.fileType)
+                                  ? getFileExtensionLower(attachment.fileName).toUpperCase() || tChat('fileTypes.txt')
+                                  : tChat('fileTypes.file')}
                       </div>
                     </div>
                     <button

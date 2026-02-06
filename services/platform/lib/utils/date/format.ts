@@ -5,7 +5,7 @@ export type DatePreset = 'short' | 'medium' | 'long' | 'time' | 'relative';
 
 export interface FormatDateOptions {
   preset?: DatePreset;
-  locale?: string;
+  locale: string;
   timezone?: string;
   customFormat?: string;
 }
@@ -13,6 +13,18 @@ export interface FormatDateOptions {
 export interface DateTranslations {
   today: string;
   yesterday: string;
+}
+
+/**
+ * Apply the best available dayjs locale, trying the full regional key first
+ * (e.g. 'en-gb'), then falling back to the base language (e.g. 'en').
+ */
+function applyLocale(d: Dayjs, locale: string): Dayjs {
+  const key = locale.toLowerCase().replace('_', '-');
+  const base = key.split('-')[0];
+  const withRegion = d.locale(key);
+  if (withRegion.locale() === key || key === base) return withRegion;
+  return d.locale(base);
 }
 
 /**
@@ -29,11 +41,11 @@ function hasTimezoneInfo(timestamp: string): boolean {
  */
 export function formatDate(
   date: string | Date | Dayjs,
-  options: FormatDateOptions = {},
+  options: FormatDateOptions,
 ): string {
   const {
     preset = 'medium',
-    locale = 'en-US',
+    locale,
     timezone,
     customFormat,
   } = options;
@@ -58,9 +70,7 @@ export function formatDate(
       return '';
     }
 
-    // Set locale
-    const baseLocale = locale.split('-')[0].toLowerCase();
-    dayjsDate = dayjsDate.locale(baseLocale);
+    dayjsDate = applyLocale(dayjsDate, locale);
 
     // Apply timezone if specified
     if (timezone) {
@@ -111,10 +121,10 @@ const defaultDateTranslations: DateTranslations = {
  */
 export function formatDateSmart(
   date: string | Date | Dayjs,
-  options: FormatDateOptions = {},
+  options: FormatDateOptions,
   translations: DateTranslations = defaultDateTranslations,
 ): string {
-  const { locale = 'en-US', preset = 'short' } = options;
+  const { locale, preset = 'short' } = options;
 
   if (!date) return '';
 
@@ -130,8 +140,7 @@ export function formatDateSmart(
 
     if (!dayjsDate.isValid()) return '';
 
-    const baseLocale = locale.split('-')[0].toLowerCase();
-    dayjsDate = dayjsDate.locale(baseLocale);
+    dayjsDate = applyLocale(dayjsDate, locale);
 
     if (dayjsDate.isToday()) {
       return formatDate(dayjsDate, { preset: 'time', locale });
@@ -158,10 +167,10 @@ export function formatDateSmart(
  */
 export function formatDateHeader(
   date: string | Date | Dayjs,
-  options: FormatDateOptions = {},
+  options: FormatDateOptions,
   translations: DateTranslations = defaultDateTranslations,
 ): string {
-  const { locale = 'en-US' } = options;
+  const { locale } = options;
 
   if (!date) return '';
 
@@ -177,8 +186,7 @@ export function formatDateHeader(
 
     if (!dayjsDate.isValid()) return '';
 
-    const baseLocale = locale.split('-')[0].toLowerCase();
-    dayjsDate = dayjsDate.locale(baseLocale);
+    dayjsDate = applyLocale(dayjsDate, locale);
 
     if (dayjsDate.isToday()) {
       return translations.today;

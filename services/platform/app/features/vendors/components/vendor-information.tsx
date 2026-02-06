@@ -1,7 +1,7 @@
-import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface VendorInformationProps {
@@ -9,6 +9,7 @@ interface VendorInformationProps {
 }
 
 export function VendorInformation({ vendor }: VendorInformationProps) {
+  const { formatDate } = useFormatDate();
   const { t } = useT('common');
 
   if (!vendor) return null;
@@ -71,7 +72,7 @@ export function VendorInformation({ vendor }: VendorInformationProps) {
       )}
 
       <Field label={t('labels.created')}>
-        {formatDate(new Date(vendor._creationTime), { preset: 'long' })}
+        {formatDate(new Date(vendor._creationTime), 'long')}
       </Field>
     </FieldGroup>
   );

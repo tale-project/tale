@@ -9,10 +9,10 @@ import { ProductCard } from './product-card';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/app/components/ui/primitives/button';
 import { cn } from '@/lib/utils/cn';
-import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useT } from '@/lib/i18n/client';
 import { CustomerInfoDialog } from '@/app/features/customers/components/customer-info-dialog';
 
 const RecommendationIcon = () => (
@@ -43,7 +43,7 @@ export function ApprovalDetailDialog({
   removingProductId,
 }: ApprovalDetailDialogProps) {
   const { t } = useT('approvals');
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
   const [customerInfoOpen, setCustomerInfoOpen] = useState(false);
 
   const customer = useQuery(
@@ -73,13 +73,6 @@ export function ApprovalDetailDialog({
   const handleRemoveRecommendation = (productId: string) => {
     if (!onRemoveRecommendation) return;
     onRemoveRecommendation(approvalDetail._id, productId);
-  };
-
-  const formatDate = (timestamp: number) => {
-    return formatDateUtil(new Date(timestamp).toISOString(), {
-      preset: 'long',
-      locale,
-    });
   };
 
   const visibleProducts = sortedProducts.slice(0, 3);
@@ -184,7 +177,7 @@ export function ApprovalDetailDialog({
                   {t('detail.createdAt')}
                 </div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  {formatDate(approvalDetail.createdAt)}
+                  {formatDate(new Date(approvalDetail.createdAt).toISOString(), 'long')}
                 </div>
               </HStack>
 
