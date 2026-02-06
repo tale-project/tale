@@ -70,6 +70,13 @@ jobs:
           bun run build:windows
           mv dist/tale.exe dist/tale_${{ steps.version.outputs.version }}_windows.exe
 
+      - name: Create versionless copies for stable download URLs
+        working-directory: tools/cli/dist
+        run: |
+          cp tale_${{ steps.version.outputs.version }}_linux tale_linux
+          cp tale_${{ steps.version.outputs.version }}_macos tale_macos
+          cp tale_${{ steps.version.outputs.version }}_windows.exe tale_windows.exe
+
       - name: Verify Linux binary
         working-directory: tools/cli/dist
         run: |
@@ -107,6 +114,9 @@ jobs:
             tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
             tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
             tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
+            tools/cli/dist/tale_linux \
+            tools/cli/dist/tale_macos \
+            tools/cli/dist/tale_windows.exe \
             --clobber
 
       - name: Upload to latest release
@@ -121,6 +131,9 @@ jobs:
               tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
               tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
               tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
+              tools/cli/dist/tale_linux \
+              tools/cli/dist/tale_macos \
+              tools/cli/dist/tale_windows.exe \
               --clobber || echo "Failed to upload to release, skipping"
           else
             echo "No releases found, skipping upload"
