@@ -48,7 +48,7 @@ const conversationAutoReplyWorkflow = {
     {
       stepSlug: 'start',
       name: 'Start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       config: {
         type: 'manual', // Can be changed to 'schedule' for automated processing

@@ -21,7 +21,7 @@ const generalProductRecommendationWorkflow: PredefinedWorkflowDefinition = {
     {
       stepSlug: 'start',
       name: 'Start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       config: {
         type: 'manual',

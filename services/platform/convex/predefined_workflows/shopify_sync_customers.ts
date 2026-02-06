@@ -37,7 +37,7 @@ const shopifySyncCustomersWorkflow = {
     {
       stepSlug: 'trigger_start',
       name: 'Start Customers Sync',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       config: {
         type: 'manual', // Can be changed to 'schedule' for automated sync

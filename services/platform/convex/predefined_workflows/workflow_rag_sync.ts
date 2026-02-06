@@ -30,7 +30,7 @@ const workflowRagSyncWorkflow = {
     {
       stepSlug: 'start',
       name: 'Start Workflow RAG Sync',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       config: {
         type: 'manual',

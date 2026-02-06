@@ -53,7 +53,7 @@ const emailSyncImapWorkflow = {
     {
       stepSlug: 'start',
       name: 'start',
-      stepType: 'trigger',
+      stepType: 'start',
       order: 1,
       config: {
         type: 'manual',
