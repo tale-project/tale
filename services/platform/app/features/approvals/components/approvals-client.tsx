@@ -722,7 +722,7 @@ export function ApprovalsClient({
       cell: ({ row }) => (
         <span className="text-sm text-right block">
           {row.original.reviewedAt
-            ? formatDate(new Date(row.original.reviewedAt).toISOString(), 'short')
+            ? formatDate(new Date(row.original.reviewedAt), 'short')
             : ''}
         </span>
       ),

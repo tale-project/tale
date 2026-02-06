@@ -16,6 +16,7 @@ import {
 import {
   isTextBasedFile,
   getFileExtensionLower,
+  TEXT_FILE_ACCEPT,
 } from '@/lib/utils/text-file-types';
 import { ImagePreviewDialog } from './message-bubble';
 
@@ -135,7 +136,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/*,.pdf,.doc,.docx,.txt,.ppt,.pptx,.md,.csv,.json,.yaml,.yml,.xml,.toml,.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.java,.go,.rs,.rb,.php,.sh,.sql,.c,.cpp,.h,.log,.ini,.cfg,.conf,.env"
+          accept={TEXT_FILE_ACCEPT}
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
         />

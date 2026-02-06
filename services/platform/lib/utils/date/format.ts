@@ -18,13 +18,26 @@ export interface DateTranslations {
 /**
  * Apply the best available dayjs locale, trying the full regional key first
  * (e.g. 'en-gb'), then falling back to the base language (e.g. 'en').
+ *
+ * When neither the regional nor base locale is registered, the original Dayjs
+ * object is returned unchanged to avoid silently relying on dayjs's global
+ * default locale (commonly 'en').
  */
 function applyLocale(d: Dayjs, locale: string): Dayjs {
+  if (!locale) return d;
+
   const key = locale.toLowerCase().replace('_', '-');
   const base = key.split('-')[0];
+
   const withRegion = d.locale(key);
-  if (withRegion.locale() === key || key === base) return withRegion;
-  return d.locale(base);
+  if (withRegion.locale() === key) return withRegion;
+
+  if (key !== base) {
+    const withBase = d.locale(base);
+    if (withBase.locale() === base) return withBase;
+  }
+
+  return d;
 }
 
 /**

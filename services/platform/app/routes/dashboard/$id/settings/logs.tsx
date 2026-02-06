@@ -43,6 +43,7 @@ function LogsSkeleton() {
                 { header: t('logs.audit.columns.status'), size: 100 },
               ]}
               showHeader
+              showPagination={false}
               noFirstColumnAvatar
             />
           </CardContent>

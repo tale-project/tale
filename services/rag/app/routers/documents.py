@@ -18,6 +18,7 @@ from ..models import (
 )
 from ..services import job_store_db as job_store
 from ..services.cognee import cognee_service
+from ..secret_scanner import scan_file_for_secrets
 from ..utils import cleanup_memory
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
@@ -239,7 +240,7 @@ async def upload_document(
         ".html", ".htm", ".css", ".scss", ".sass", ".less",
         # Data / config
         ".json", ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg",
-        ".conf", ".env", ".properties",
+        ".conf", ".properties",
         # Code
         ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
         ".py", ".pyi",
@@ -253,8 +254,6 @@ async def upload_document(
         ".sql", ".graphql", ".gql", ".proto",
         # Build / project
         ".gradle", ".cmake", ".lock",
-        # Log
-        ".log",
     }
 
     tmp_path: str | None = None
@@ -303,6 +302,20 @@ async def upload_document(
                         detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
                     )
                 await tmp.write(chunk)
+
+        # Scan for embedded secrets before ingestion
+        async with aiofiles.open(tmp_path, "rb") as f:
+            file_bytes = await f.read()
+        rejected, reason = scan_file_for_secrets(file_bytes)
+        if rejected:
+            logger.warning(
+                "Upload rejected by secret scanner",
+                extra={"filename": file.filename, "reason": reason},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"File rejected: {reason}",
+            )
 
         # Parse metadata
         parsed_metadata: dict[str, Any] = {}

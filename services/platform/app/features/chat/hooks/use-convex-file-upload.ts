@@ -91,7 +91,9 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
           const result = await fetch(uploadUrl, {
             method: 'POST',
-            headers: { 'Content-Type': fileToUpload.type },
+            headers: {
+              'Content-Type': fileToUpload.type || 'application/octet-stream',
+            },
             body: fileToUpload,
           });
 

@@ -177,7 +177,7 @@ export function ApprovalDetailDialog({
                   {t('detail.createdAt')}
                 </div>
                 <div className="text-sm font-medium text-muted-foreground">
-                  {formatDate(new Date(approvalDetail.createdAt).toISOString(), 'long')}
+                  {formatDate(new Date(approvalDetail.createdAt), 'long')}
                 </div>
               </HStack>
 

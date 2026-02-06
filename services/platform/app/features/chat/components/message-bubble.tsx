@@ -48,6 +48,21 @@ import { useMessageMetadata } from '../hooks/use-message-metadata';
 import { TypewriterText } from './typewriter-text';
 import { useT } from '@/lib/i18n/client';
 
+function getFileTypeLabel(
+  fileName: string,
+  mediaType: string,
+  t: (key: string) => string,
+) {
+  if (mediaType === 'application/pdf') return t('fileTypes.pdf');
+  if (mediaType.includes('word')) return t('fileTypes.doc');
+  if (mediaType.includes('presentation') || mediaType.includes('powerpoint'))
+    return t('fileTypes.pptx');
+  if (mediaType === 'text/plain') return t('fileTypes.txt');
+  if (isTextBasedFile(fileName, mediaType))
+    return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
+  return t('fileTypes.file');
+}
+
 interface FileAttachment {
   fileId: Id<'_storage'>;
   fileName: string;
@@ -235,18 +250,7 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           {attachment.fileName}
         </div>
         <div className="text-xs text-gray-500">
-          {attachment.fileType === 'application/pdf'
-            ? t('fileTypes.pdf')
-            : attachment.fileType.includes('word')
-              ? t('fileTypes.doc')
-              : attachment.fileType.includes('presentation') ||
-                  attachment.fileType.includes('powerpoint')
-                ? t('fileTypes.pptx')
-                : attachment.fileType === 'text/plain'
-                  ? t('fileTypes.txt')
-                  : isTextBasedFile(attachment.fileName, attachment.fileType)
-                    ? getFileExtensionLower(attachment.fileName).toUpperCase() || t('fileTypes.txt')
-                    : t('fileTypes.file')}
+          {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
         </div>
       </div>
     </a>
@@ -292,18 +296,7 @@ const FilePartDisplay = memo(function FilePartDisplay({
           {filePart.filename || t('fileTypes.file')}
         </div>
         <div className="text-xs text-muted-foreground">
-          {filePart.mediaType === 'application/pdf'
-            ? t('fileTypes.pdf')
-            : filePart.mediaType.includes('word')
-              ? t('fileTypes.doc')
-              : filePart.mediaType.includes('presentation') ||
-                  filePart.mediaType.includes('powerpoint')
-                ? t('fileTypes.pptx')
-                : filePart.mediaType === 'text/plain'
-                  ? t('fileTypes.txt')
-                  : isTextBasedFile(filePart.filename || '', filePart.mediaType)
-                    ? getFileExtensionLower(filePart.filename || '').toUpperCase() || t('fileTypes.txt')
-                    : t('fileTypes.file')}
+          {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
         </div>
       </div>
     </a>

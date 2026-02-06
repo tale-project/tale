@@ -6,15 +6,10 @@ import { useTheme } from '@/app/components/theme/theme-provider';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
 import { getFileExtensionLower, getTextFileCategory } from '@/lib/utils/text-file-types';
 
-const SUPPORTED_ENCODINGS = [
-  'utf-8',
-  'utf-16le',
-  'utf-16be',
-  'iso-8859-1',
-] as const;
+const STRICT_ENCODINGS = ['utf-8', 'utf-16le', 'utf-16be'] as const;
 
 function decodeWithEncoding(buffer: ArrayBuffer): { text: string; encoding: string } {
-  for (const encoding of SUPPORTED_ENCODINGS) {
+  for (const encoding of STRICT_ENCODINGS) {
     try {
       const decoder = new TextDecoder(encoding, { fatal: true });
       const text = decoder.decode(buffer);
@@ -26,8 +21,8 @@ function decodeWithEncoding(buffer: ArrayBuffer): { text: string; encoding: stri
     }
   }
 
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  return { text: decoder.decode(buffer), encoding: 'utf-8 (fallback)' };
+  const decoder = new TextDecoder('iso-8859-1');
+  return { text: decoder.decode(buffer), encoding: 'iso-8859-1' };
 }
 
 interface DocumentPreviewTextProps {
@@ -45,39 +40,41 @@ export function DocumentPreviewText({ url, fileName }: DocumentPreviewTextProps)
 
   const ext = getFileExtensionLower(fileName || '');
   const category = getTextFileCategory(fileName || '');
-  const isCodeFile = category === 'code' || category === 'markup' || category === 'config';
+  const isCodeFile = category === 'code' || category === 'markup' || category === 'config' || category === 'data';
   const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error(`Failed to fetch file (${res.status})`);
 
         const buffer = await res.arrayBuffer();
         const { text } = decodeWithEncoding(buffer);
-        if (!cancelled) setContent(text);
+        if (!controller.signal.aborted) setContent(text);
       } catch (e) {
+        if (controller.signal.aborted) return;
         console.error('Error loading text file:', e);
-        if (!cancelled) setError(t('preview.failedToLoad'));
+        setError(t('preview.failedToLoad'));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     load();
-    return () => { cancelled = true; };
+    return () => { controller.abort(); };
   }, [url, t]);
 
   useEffect(() => {
+    setHighlightedHtml(null);
     if (!content || !isCodeFile || !ext) return;
 
     let cancelled = false;
     const lang = resolveLanguage(ext);
     highlightCode(content, lang, shikiTheme).then((html) => {
-      if (!cancelled && html) setHighlightedHtml(html);
+      if (!cancelled) setHighlightedHtml(html || null);
     });
     return () => { cancelled = true; };
   }, [content, ext, isCodeFile, shikiTheme]);

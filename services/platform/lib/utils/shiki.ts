@@ -1,18 +1,29 @@
 /**
  * Shared Shiki syntax highlighter singleton.
+ * Uses shiki/core with the JavaScript regex engine to avoid bundling
+ * the full WASM-based oniguruma engine and all grammars/themes.
  * Lazy-initialized with on-demand language loading to minimize bundle size.
  * Used by chat code blocks and document text preview.
  */
 
-import { createHighlighter, type Highlighter } from 'shiki';
+import DOMPurify from 'dompurify';
+import { createHighlighterCore, type HighlighterCore } from 'shiki/core';
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
-let highlighterPromise: Promise<Highlighter> | null = null;
+let highlighterPromise: Promise<HighlighterCore> | null = null;
 
-function getHighlighter(): Promise<Highlighter> {
+function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ['github-dark', 'github-light'],
+    highlighterPromise = createHighlighterCore({
+      themes: [
+        import('shiki/themes/github-dark.mjs'),
+        import('shiki/themes/github-light.mjs'),
+      ],
       langs: [],
+      engine: createJavaScriptRegexEngine(),
+    }).catch((error) => {
+      highlighterPromise = null;
+      throw error;
     });
   }
   return highlighterPromise;
@@ -60,11 +71,13 @@ export async function highlightCode(
   const loadedLangs = hl.getLoadedLanguages();
   if (!loadedLangs.includes(resolvedLang)) {
     try {
-      await hl.loadLanguage(resolvedLang as Parameters<Highlighter['loadLanguage']>[0]);
+      await hl.loadLanguage(
+        import(`shiki/langs/${resolvedLang}.mjs`) as Parameters<HighlighterCore['loadLanguage']>[0],
+      );
     } catch {
-      return '';
+      return DOMPurify.sanitize(hl.codeToHtml(code, { lang: 'text', theme }));
     }
   }
 
-  return hl.codeToHtml(code, { lang: resolvedLang, theme });
+  return DOMPurify.sanitize(hl.codeToHtml(code, { lang: resolvedLang, theme }));
 }

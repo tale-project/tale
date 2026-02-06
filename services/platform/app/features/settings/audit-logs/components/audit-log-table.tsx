@@ -93,7 +93,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         size: 100,
       },
     ],
-    [t, formatDate, formatRelative],
+    [t, formatRelative],
   );
 
   return (

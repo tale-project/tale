@@ -4,79 +4,6 @@
  * Used by frontend (upload validation, display, preview) and backend (processing routing).
  */
 
-export const TEXT_FILE_EXTENSIONS = new Set([
-  // Plain text
-  'txt', 'log', 'text',
-  // Markup / docs
-  'md', 'mdx', 'rst', 'tex', 'latex', 'adoc',
-  // Web
-  'html', 'htm', 'css', 'scss', 'sass', 'less',
-  // Data / config
-  'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
-  'xml', 'csv', 'tsv', 'env', 'properties',
-  // Code - JS/TS ecosystem
-  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts',
-  // Code - Python
-  'py', 'pyi', 'pyw',
-  // Code - Systems
-  'c', 'h', 'cpp', 'hpp', 'cc', 'cxx', 'hxx',
-  'rs', 'go', 'swift', 'kt', 'kts', 'java',
-  // Code - Scripting
-  'rb', 'php', 'pl', 'pm', 'lua', 'r',
-  'scala', 'groovy', 'dart', 'ex', 'exs',
-  // Code - Shell
-  'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-  // Code - Other
-  'sql', 'graphql', 'gql', 'proto', 'thrift',
-  // Build / config files
-  'gradle', 'cmake',
-  'lock', 'gitignore', 'gitattributes', 'editorconfig',
-  'eslintrc', 'prettierrc', 'babelrc',
-]);
-
-const TEXT_MIME_PREFIXES = ['text/'];
-
-const TEXT_MIME_TYPES = new Set([
-  'application/json',
-  'application/xml',
-  'application/javascript',
-  'application/typescript',
-  'application/x-yaml',
-  'application/toml',
-  'application/sql',
-  'application/graphql',
-  'application/x-sh',
-  'application/x-httpd-php',
-]);
-
-const KNOWN_TEXT_FILENAMES = new Set([
-  'makefile', 'dockerfile', 'gemfile', 'rakefile',
-  'procfile', 'vagrantfile', 'justfile', 'taskfile',
-]);
-
-export function getFileExtensionLower(filename: string): string {
-  const lastDot = filename.lastIndexOf('.');
-  if (lastDot === -1 || lastDot === filename.length - 1) return '';
-  return filename.slice(lastDot + 1).toLowerCase();
-}
-
-export function isTextBasedFile(filename: string, mimeType?: string): boolean {
-  const ext = getFileExtensionLower(filename);
-  if (ext && TEXT_FILE_EXTENSIONS.has(ext)) return true;
-
-  if (mimeType) {
-    if (TEXT_MIME_PREFIXES.some((p) => mimeType.startsWith(p))) return true;
-    if (TEXT_MIME_TYPES.has(mimeType)) return true;
-  }
-
-  const base = filename.split('/').pop()?.toLowerCase() || '';
-  if (KNOWN_TEXT_FILENAMES.has(base)) return true;
-
-  return false;
-}
-
-export type TextFileCategory = 'code' | 'config' | 'markup' | 'data' | 'text';
-
 const CODE_EXTENSIONS = new Set([
   'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'mts', 'cts',
   'py', 'pyi', 'pyw',
@@ -102,6 +29,74 @@ const MARKUP_EXTENSIONS = new Set([
 ]);
 
 const DATA_EXTENSIONS = new Set(['csv', 'tsv']);
+
+const TEXT_EXTENSIONS = new Set(['txt', 'log', 'text']);
+
+export const TEXT_FILE_EXTENSIONS = new Set([
+  ...CODE_EXTENSIONS,
+  ...CONFIG_EXTENSIONS,
+  ...MARKUP_EXTENSIONS,
+  ...DATA_EXTENSIONS,
+  ...TEXT_EXTENSIONS,
+]);
+
+const TEXT_MIME_PREFIXES = ['text/'];
+
+const TEXT_MIME_TYPES = new Set([
+  'application/json',
+  'application/xml',
+  'application/javascript',
+  'application/typescript',
+  'application/x-yaml',
+  'application/toml',
+  'application/sql',
+  'application/graphql',
+  'application/x-sh',
+  'application/x-httpd-php',
+]);
+
+const KNOWN_TEXT_FILENAMES = new Set([
+  'makefile', 'dockerfile', 'gemfile', 'rakefile',
+  'procfile', 'vagrantfile', 'justfile', 'taskfile',
+]);
+
+export const TEXT_FILE_ACCEPT = [
+  'image/*',
+  '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx',
+  ...[...TEXT_FILE_EXTENSIONS].map((ext) => `.${ext}`),
+].join(',');
+
+export function getFileExtensionLower(filename: string): string {
+  const lastDot = filename.lastIndexOf('.');
+  if (lastDot === -1 || lastDot === filename.length - 1) return '';
+  return filename.slice(lastDot + 1).toLowerCase();
+}
+
+function stripUrlParams(input: string): string {
+  try {
+    return new URL(input, 'http://local').pathname;
+  } catch {
+    return input.split('?')[0].split('#')[0];
+  }
+}
+
+export function isTextBasedFile(filename: string, mimeType?: string): boolean {
+  const cleaned = stripUrlParams(filename);
+  const ext = getFileExtensionLower(cleaned);
+  if (ext && TEXT_FILE_EXTENSIONS.has(ext)) return true;
+
+  if (mimeType) {
+    if (TEXT_MIME_PREFIXES.some((p) => mimeType.startsWith(p))) return true;
+    if (TEXT_MIME_TYPES.has(mimeType)) return true;
+  }
+
+  const base = cleaned.split('/').pop()?.toLowerCase() || '';
+  if (KNOWN_TEXT_FILENAMES.has(base)) return true;
+
+  return false;
+}
+
+export type TextFileCategory = 'code' | 'config' | 'markup' | 'data' | 'text';
 
 export function getTextFileCategory(filename: string): TextFileCategory {
   const ext = getFileExtensionLower(filename);
