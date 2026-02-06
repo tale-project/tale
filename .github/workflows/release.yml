@@ -4,14 +4,13 @@ name: Release All Services
 # Unified Release Workflow
 # ============================================================================
 # Triggered by version tags (v*.*.* or *.*.*) to build and push all 7 service
-# images with the same version number. This ensures consistent versioning
-# across the entire Tale platform. Also triggers CLI build workflow.
+# images with the same version number. Uses native ARM/AMD64 runners for
+# faster builds without QEMU emulation.
 #
 # Usage:
 #   git tag v1.0.0 && git push origin v1.0.0
-#   git tag 1.0.0 && git push origin 1.0.0
 #
-# This will build and push:
+# This will build and push multi-arch images:
 #   - ghcr.io/tale-project/tale/tale-platform:1.0.0
 #   - ghcr.io/tale-project/tale/tale-rag:1.0.0
 #   - ghcr.io/tale-project/tale/tale-crawler:1.0.0
@@ -28,7 +27,6 @@ on:
       - 'v*.*.*'
       - '[0-9]*.*.*'
 
-  # Manual trigger for re-releasing a version
   workflow_dispatch:
     inputs:
       version:
@@ -59,11 +57,8 @@ jobs:
           else
             VERSION="${GITHUB_REF#refs/tags/}"
           fi
-          # Normalize: strip 'v' prefix first, then add it back
           VERSION_NUMBER="${VERSION#v}"
-          # version includes 'v' prefix (e.g., v1.0.0)
           echo "version=v${VERSION_NUMBER}" >> $GITHUB_OUTPUT
-          # version_number excludes 'v' prefix (e.g., 1.0.0)
           echo "version_number=${VERSION_NUMBER}" >> $GITHUB_OUTPUT
 
       - name: Log version
@@ -74,30 +69,84 @@ jobs:
           echo "- **Version Number**: ${{ steps.version.outputs.version_number }}" >> $GITHUB_STEP_SUMMARY
 
   # ============================================================================
-  # Build all services in parallel
+  # Create GitHub Release
   # ============================================================================
-  build-platform:
-    name: Build Platform
+  create-release:
+    name: Create Release
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ needs.prepare.outputs.version }} \
+            --title "Tale ${{ needs.prepare.outputs.version }}" \
+            --generate-notes \
+            || echo "Release already exists, skipping creation"
+
+  # ============================================================================
+  # Build all services on native runners (no QEMU)
+  # ============================================================================
+  build:
+    name: Build ${{ matrix.service }} (${{ matrix.arch }})
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    permissions:
       contents: read
       packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: platform
+            dockerfile: services/platform/Dockerfile
+            context: .
+          - name: rag
+            dockerfile: services/rag/Dockerfile
+            context: .
+          - name: crawler
+            dockerfile: services/crawler/Dockerfile
+            context: .
+          - name: db
+            dockerfile: services/db/Dockerfile
+            context: .
+          - name: graph-db
+            dockerfile: services/graph-db/Dockerfile
+            context: services/graph-db
+          - name: proxy
+            dockerfile: services/proxy/Dockerfile
+            context: .
+          - name: operator
+            dockerfile: services/operator/Dockerfile
+            context: .
+        arch:
+          - name: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - name: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+        exclude: []
+        include: []
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Free disk space
+        if: matrix.service.name == 'platform' || matrix.service.name == 'rag' || matrix.service.name == 'crawler'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune -af
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -111,300 +160,62 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: services/platform/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          platforms: ${{ matrix.arch.platform }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-platform:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-platform:latest
+            ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
+          cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.arch.name }}
+          cache-to: type=gha,scope=${{ matrix.service.name }}-${{ matrix.arch.name }},mode=max
+          provenance: false
 
-  build-rag:
-    name: Build RAG
-    needs: prepare
+  # ============================================================================
+  # Create multi-arch manifests
+  # ============================================================================
+  manifest:
+    name: Create Manifest (${{ matrix.service }})
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: write
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+    strategy:
+      matrix:
+        service: [platform, rag, crawler, db, graph-db, proxy, operator]
 
-      - name: Free disk space
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
+          IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}"
+          VERSION="${{ needs.prepare.outputs.version_number }}"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
+          docker manifest create ${IMAGE}:${VERSION} \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          docker manifest create ${IMAGE}:latest \
+            ${IMAGE}:${VERSION}-amd64 \
+            ${IMAGE}:${VERSION}-arm64
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/rag/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-rag:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-rag:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-
-  build-crawler:
-    name: Build Crawler
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune -af
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/crawler/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-crawler:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-crawler:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-
-  build-db:
-    name: Build DB
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/db/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-db:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-db:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-
-  build-graph-db:
-    name: Build Graph DB
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: services/graph-db
-          file: services/graph-db/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-graph-db:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-graph-db:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-
-  build-proxy:
-    name: Build Proxy
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/proxy/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-proxy:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-
-  build-operator:
-    name: Build Operator
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/amd64,linux/arm64
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: services/operator/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:${{ needs.prepare.outputs.version_number }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/tale-operator:latest
-          build-args: |
-            VERSION=${{ needs.prepare.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
+          docker manifest push ${IMAGE}:${VERSION}
+          docker manifest push ${IMAGE}:latest
 
   # ============================================================================
   # Trigger CLI build
   # ============================================================================
   trigger-cli:
     name: Trigger CLI Build
-    needs: prepare
+    needs: [prepare, create-release]
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -426,13 +237,8 @@ jobs:
     name: Release Summary
     needs:
       - prepare
-      - build-platform
-      - build-rag
-      - build-crawler
-      - build-db
-      - build-graph-db
-      - build-proxy
-      - build-operator
+      - create-release
+      - manifest
       - trigger-cli
     runs-on: ubuntu-latest
 
@@ -441,7 +247,7 @@ jobs:
         run: |
           echo "## Release ${{ needs.prepare.outputs.version }} Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All 7 service images have been built and pushed to GHCR." >> $GITHUB_STEP_SUMMARY
+          echo "All 7 service images have been built and pushed to GHCR (native amd64 + arm64)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
