@@ -24,6 +24,12 @@ import {
   wfStepDefsTable,
   workflowProcessingRecordsTable,
 } from './workflows/schema';
+import {
+  wfApiKeysTable,
+  wfSchedulesTable,
+  wfTriggerLogsTable,
+  wfWebhooksTable,
+} from './workflows/triggers/schema';
 
 export default defineSchema({
   approvals: approvalsTable,
@@ -43,9 +49,13 @@ export default defineSchema({
   vendors: vendorsTable,
   websitePages: websitePagesTable,
   websites: websitesTable,
+  wfApiKeys: wfApiKeysTable,
   wfDefinitions: wfDefinitionsTable,
   wfExecutions: wfExecutionsTable,
+  wfSchedules: wfSchedulesTable,
   wfStepAuditLogs: wfStepAuditLogsTable,
   wfStepDefs: wfStepDefsTable,
+  wfTriggerLogs: wfTriggerLogsTable,
+  wfWebhooks: wfWebhooksTable,
   workflowProcessingRecords: workflowProcessingRecordsTable,
 });
