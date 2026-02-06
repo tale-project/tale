@@ -47,17 +47,17 @@ const eslintConfig = [
         {
           selector: 'CallExpression[callee.property.name="toLocaleDateString"]',
           message:
-            'Use useDateFormat() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleDateString().',
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleDateString().',
         },
         {
           selector: 'CallExpression[callee.property.name="toLocaleTimeString"]',
           message:
-            'Use useDateFormat() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleTimeString().',
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleTimeString().',
         },
         {
           selector: 'CallExpression[callee.property.name="toLocaleString"]',
           message:
-            'Use useDateFormat() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleString() for dates.',
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleString() for dates.',
         },
       ],
     },
@@ -67,6 +67,21 @@ const eslintConfig = [
     rules: {
       'no-restricted-syntax': [
         'error',
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleDateString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleDateString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleTimeString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleTimeString().',
+        },
+        {
+          selector: 'CallExpression[callee.property.name="toLocaleString"]',
+          message:
+            'Use useFormatDate() hook (React) or formatDate() from lib/utils/date/format instead of toLocaleString() for dates.',
+        },
         {
           selector: 'CallExpression[callee.property.name="collect"]',
           message:

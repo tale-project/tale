@@ -8,7 +8,6 @@ import { Key } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { useDateFormat } from '@/app/hooks/use-date-format';
 import type { ApiKey } from '../types';
 
 interface ApiKeyTableProps {
@@ -24,7 +23,6 @@ export function ApiKeyTable({
 }: ApiKeyTableProps) {
   const { formatDate } = useFormatDate();
   const { t: tSettings } = useT('settings');
-  const { formatDate } = useDateFormat();
 
   const columns = useMemo<ColumnDef<ApiKey>[]>(() => {
     return [
