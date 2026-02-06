@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeService, DeploymentColor, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
@@ -7,7 +8,7 @@ export function createOperatorService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-operator:${config.version}`,
-    container_name: `${config.projectName}-operator-${color}`,
+    container_name: `${PROJECT_NAME}-operator-${color}`,
     env_file: [".env"],
     restart: "unless-stopped",
     healthcheck: {

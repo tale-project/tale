@@ -1,16 +1,8 @@
 import { Command } from "commander";
 import { ensureConfig } from "../lib/config/ensure-config";
-import { getDefaultDeployDir } from "../lib/config/get-default-deploy-dir";
 import { loadEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
 import { logs } from "../lib/actions/logs";
-
-function getDirOptionDescription(): string {
-  const defaultDir = getDefaultDeployDir();
-  return defaultDir
-    ? `Deployment directory (default: ${defaultDir})`
-    : "Deployment directory";
-}
 
 export function createLogsCommand(): Command {
   return new Command("logs")
@@ -23,10 +15,9 @@ export function createLogsCommand(): Command {
     .option("-f, --follow", "Follow log output", false)
     .option("--since <duration>", "Show logs since duration (e.g., 1h, 30m)")
     .option("-n, --tail <lines>", "Number of lines to show from end")
-    .option("-d, --dir <path>", getDirOptionDescription())
     .action(async (service: string, options) => {
       try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const deployDir = await ensureConfig();
         const env = loadEnv(deployDir);
 
         if (
@@ -58,7 +49,6 @@ export function createLogsCommand(): Command {
           since: options.since,
           tail,
           deployDir: env.DEPLOY_DIR,
-          projectName: env.PROJECT_NAME,
         });
       } catch (err) {
         logger.error(err instanceof Error ? err.message : String(err));

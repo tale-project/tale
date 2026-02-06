@@ -2,18 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as logger from "./logger";
 
+export const PROJECT_NAME = "tale";
+
 export interface DeploymentEnv {
   GHCR_REGISTRY: string;
   HEALTH_CHECK_TIMEOUT: number;
   DRAIN_TIMEOUT: number;
-  PROJECT_NAME: string;
   DEPLOY_DIR: string;
 }
 
 const DEFAULT_REGISTRY = "ghcr.io/tale-project/tale";
 const DEFAULT_HEALTH_CHECK_TIMEOUT = 180;
 const DEFAULT_DRAIN_TIMEOUT = 30;
-const DEFAULT_PROJECT_NAME = "tale";
 
 function parseIntSafe(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -52,7 +52,6 @@ export function loadEnv(deployDir: string): DeploymentEnv {
     GHCR_REGISTRY: process.env.GHCR_REGISTRY ?? DEFAULT_REGISTRY,
     HEALTH_CHECK_TIMEOUT: parseIntSafe(process.env.HEALTH_CHECK_TIMEOUT, DEFAULT_HEALTH_CHECK_TIMEOUT),
     DRAIN_TIMEOUT: parseIntSafe(process.env.DRAIN_TIMEOUT, DEFAULT_DRAIN_TIMEOUT),
-    PROJECT_NAME: process.env.PROJECT_NAME ?? DEFAULT_PROJECT_NAME,
     DEPLOY_DIR: deployDir,
   };
 }

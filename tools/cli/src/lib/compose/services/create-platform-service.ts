@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeService, DeploymentColor, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
@@ -7,7 +8,7 @@ export function createPlatformService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-platform:${config.version}`,
-    container_name: `${config.projectName}-platform-${color}`,
+    container_name: `${PROJECT_NAME}-platform-${color}`,
     volumes: ["platform-convex-data:/app/convex-data", "caddy-data:/caddy-data:ro"],
     env_file: [".env"],
     restart: "unless-stopped",

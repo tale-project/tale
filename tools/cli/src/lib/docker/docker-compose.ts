@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { PROJECT_NAME } from "../../utils/load-env";
 import { type ExecResult, exec } from "./exec";
 
 export async function dockerCompose(
@@ -7,7 +8,7 @@ export async function dockerCompose(
   args: string[],
   options: { projectName?: string; cwd?: string } = {}
 ): Promise<ExecResult> {
-  const { projectName = "tale", cwd = process.cwd() } = options;
+  const { projectName = PROJECT_NAME, cwd = process.cwd() } = options;
 
   // Write compose file to cwd so env_file paths resolve correctly
   const tempFile = join(cwd, `.tale-deploy-compose-${randomUUID()}.yml`);
