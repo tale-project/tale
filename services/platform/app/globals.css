@@ -249,6 +249,34 @@
     animation: cursor-blink 1s ease-in-out infinite;
   }
 
+  /* ==========================================================================
+   * CODE LINE NUMBERS
+   *
+   * Uses CSS counters on Shiki's `.line` spans to display line numbers.
+   * Applied via the `.code-line-numbers` class on any wrapper element.
+   * ==========================================================================
+   */
+
+  .code-line-numbers code {
+    counter-reset: line;
+  }
+
+  .code-line-numbers .line {
+    display: block;
+  }
+
+  .code-line-numbers .line::before {
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    min-width: 2rem;
+    margin-right: 1rem;
+    text-align: right;
+    color: hsl(var(--muted-foreground));
+    user-select: none;
+    opacity: 0.5;
+  }
+
   /*
    * Reduced motion support
    * When user prefers reduced motion, disable cursor blink and show instant text

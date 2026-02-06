@@ -2,8 +2,8 @@
 
 import { CustomerStatusBadge } from './customer-status-badge';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
-import { formatDate } from '@/lib/utils/date/format';
 import { Doc } from '@/convex/_generated/dataModel';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
 interface CustomerInformationProps {
@@ -11,6 +11,7 @@ interface CustomerInformationProps {
 }
 
 export function CustomerInformation({ customer }: CustomerInformationProps) {
+  const { formatDate } = useFormatDate();
   const { t } = useT('common');
   if (!customer) return null;
 
@@ -54,9 +55,7 @@ export function CustomerInformation({ customer }: CustomerInformationProps) {
             </div>
             <div className="text-sm font-medium text-foreground tracking-tight">
               {customer._creationTime
-                ? formatDate(new Date(customer._creationTime), {
-                    preset: 'long',
-                  })
+                ? formatDate(new Date(customer._creationTime), 'long')
                 : t('labels.notAvailable')}
             </div>
           </HStack>

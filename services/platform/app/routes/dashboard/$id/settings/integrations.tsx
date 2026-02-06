@@ -27,9 +27,13 @@ function IntegrationCardSkeleton() {
             <Skeleton className="size-6 rounded-sm" />
           </div>
           <Stack gap={1}>
-            <Skeleton className="h-5 w-24" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-4/5" />
+            <HStack gap={2}>
+              <Skeleton className="h-5 w-24" />
+            </HStack>
+            <div className="space-y-1">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-4/5" />
+            </div>
           </Stack>
         </Stack>
       </CardContent>
@@ -47,7 +51,7 @@ function IntegrationsSkeleton() {
   return (
     <Stack>
       <Grid cols={1} md={2} lg={3}>
-        {Array.from({ length: 4 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <IntegrationCardSkeleton key={i} />
         ))}
       </Grid>

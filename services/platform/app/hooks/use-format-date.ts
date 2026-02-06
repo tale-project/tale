@@ -12,7 +12,7 @@ import {
 } from '@/lib/utils/date/format';
 import { useT } from '@/lib/i18n/client';
 
-export interface UseDateFormatReturn {
+export interface UseFormatDateReturn {
   formatDate: (
     date: string | Date | Dayjs,
     preset?: DatePreset,
@@ -32,20 +32,18 @@ export interface UseDateFormatReturn {
 }
 
 /**
- * Hook that combines locale management with date formatting functionality
- * Provides convenient methods for formatting dates with automatic locale application
+ * Hook that combines locale management with date formatting functionality.
+ * Provides convenient methods for formatting dates with automatic locale application.
  */
-export function useDateFormat(): UseDateFormatReturn {
+export function useFormatDate(): UseFormatDateReturn {
   const { locale } = useLocale();
   const { t } = useT('common');
 
-  // Get localized date translations
   const dateTranslations: DateTranslations = {
     today: t('dates.today'),
     yesterday: t('dates.yesterday'),
   };
 
-  // Format date with automatic locale application
   const formatDateWithLocale = (
     date: string | Date | Dayjs,
     preset: DatePreset = 'medium',
@@ -58,7 +56,6 @@ export function useDateFormat(): UseDateFormatReturn {
     });
   };
 
-  // Smart format with automatic locale application
   const formatDateSmartWithLocale = (
     date: string | Date | Dayjs,
     preset: DatePreset = 'short',
@@ -75,7 +72,6 @@ export function useDateFormat(): UseDateFormatReturn {
     );
   };
 
-  // Format date header with automatic locale application
   const formatDateHeaderWithLocale = (
     date: string | Date | Dayjs,
     options: Omit<FormatDateOptions, 'locale'> = {},
@@ -90,7 +86,6 @@ export function useDateFormat(): UseDateFormatReturn {
     );
   };
 
-  // Format relative time with automatic locale application
   const formatRelative = (date: string | Date | Dayjs): string => {
     return formatDate(date, {
       preset: 'relative',

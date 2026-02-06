@@ -4,7 +4,8 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { formatNumber } from '@/lib/utils/format/number';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useLocale } from '@/app/hooks/use-locale';
+import { useT } from '@/lib/i18n/client';
 import type { SubAgentUsage } from '../hooks/use-message-metadata';
 
 function formatAgentName(toolName: string): string {
@@ -29,7 +30,7 @@ export function SubAgentDetailsDialog({
   onOpenChange,
   usage,
 }: SubAgentDetailsDialogProps) {
-  const locale = useLocale();
+  const { locale } = useLocale();
   const { t } = useT('chat');
 
   if (!usage) return null;

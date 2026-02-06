@@ -30,8 +30,7 @@ function TeamsSettingsSkeleton() {
       <DataTableSkeleton
         rows={5}
         columns={[
-          { header: t('teams.columns.name') },
-          { header: t('teams.columns.created'), size: 150 },
+          { header: t('teams.columns.name'), size: 300 },
           { isAction: true, size: 80 },
         ]}
         showHeader

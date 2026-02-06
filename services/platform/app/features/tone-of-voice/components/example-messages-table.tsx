@@ -23,9 +23,9 @@ import {
   Sparkles,
   MoreVertical,
 } from 'lucide-react';
-import { formatDate } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Pagination } from '@/app/components/ui/navigation/pagination';
-import { useT, useLocale } from '@/lib/i18n/client';
+import { useT } from '@/lib/i18n/client';
 
 interface ExampleMessage {
   id: string;
@@ -57,7 +57,7 @@ export function ExampleMessagesTable({
   const { t: tTone } = useT('toneOfVoice');
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
   const search = useSearch({ strict: false }) as Record<string, string | undefined>;
   const itemsPerPage = 5;
 
@@ -89,7 +89,7 @@ export function ExampleMessagesTable({
         size: 140,
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground tracking-[-0.072px]">
-            {formatDate(row.original.updatedAt, { customFormat: 'YYYY-MM-DD', locale })}
+            {formatDate(row.original.updatedAt, undefined, { customFormat: 'YYYY-MM-DD' })}
           </span>
         ),
       },

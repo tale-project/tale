@@ -3,8 +3,8 @@
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
 import { Doc } from '@/convex/_generated/dataModel';
-import { formatDate } from '@/lib/utils/date/format';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useT } from '@/lib/i18n/client';
 
 interface ViewWebsiteDialogProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ export function ViewWebsiteDialog({
   onClose,
   website,
 }: ViewWebsiteDialogProps) {
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
   const { t } = useT('websites');
 
   const SCAN_INTERVALS: Record<string, string> = {
@@ -73,10 +73,7 @@ export function ViewWebsiteDialog({
             <Label>{t('viewDialog.lastScanned')}</Label>
             <Value>
               {website.lastScannedAt
-                ? formatDate(new Date(website.lastScannedAt), {
-                    preset: 'long',
-                    locale,
-                  })
+                ? formatDate(new Date(website.lastScannedAt), 'long')
                 : t('viewDialog.notScannedYet')}
             </Value>
           </div>
@@ -96,10 +93,7 @@ export function ViewWebsiteDialog({
           <div>
             <Label>{t('viewDialog.created')}</Label>
             <Value>
-              {formatDate(new Date(website._creationTime), {
-                preset: 'long',
-                locale,
-              })}
+              {formatDate(new Date(website._creationTime), 'long')}
             </Value>
           </div>
         </Grid>

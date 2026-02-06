@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { formatDate, type DatePreset } from '@/lib/utils/date/format';
-import { useLocale } from '@/lib/i18n/client';
+import { type DatePreset } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { cn } from '@/lib/utils/cn';
 
 interface TableDateCellProps {
@@ -41,7 +41,7 @@ export const TableDateCell = React.memo(function TableDateCell({
   emptyText = '—',
   alignRight = false,
 }: TableDateCellProps) {
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
 
   if (date === null || date === undefined) {
     return (
@@ -62,9 +62,9 @@ export const TableDateCell = React.memo(function TableDateCell({
       ? new Date(date)
       : date;
 
-  const formatted = formatDate(dateObj, { preset, locale });
+  const formatted = formatDate(dateObj, preset);
   // Use formatDate for title to ensure SSR/CSR consistency
-  const titleText = formatDate(dateObj, { preset: 'long', locale });
+  const titleText = formatDate(dateObj, 'long');
 
   return (
     <span

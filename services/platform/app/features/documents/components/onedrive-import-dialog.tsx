@@ -16,7 +16,8 @@ import { toast } from '@/app/hooks/use-toast';
 import { Home, Loader2, Database, Users } from 'lucide-react';
 import { OneDriveIcon } from '@/app/components/icons/onedrive-icon';
 import { SharePointIcon } from '@/app/components/icons/sharepoint-icon';
-import { formatFileSize, formatDate } from '@/lib/utils/onedrive-helpers';
+import { formatFileSize } from '@/lib/utils/onedrive-helpers';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useQuery } from '@tanstack/react-query';
 import { useAction, useQuery as useConvexQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -269,6 +270,7 @@ function OneDriveFileTable({
   handleFolderClick,
   buildItemPath,
 }: OneDriveFileTableProps) {
+  const { formatDate } = useFormatDate();
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -338,7 +340,7 @@ function OneDriveFileTable({
         cell: ({ row }) => (
           <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
             {row.original.lastModified
-              ? formatDate(new Date(row.original.lastModified).toISOString())
+              ? formatDate(new Date(row.original.lastModified), 'short')
               : ''}
           </div>
         ),
@@ -364,6 +366,7 @@ function OneDriveFileTable({
       handleCheckChange,
       handleFolderClick,
       tTables,
+      formatDate,
     ],
   );
 

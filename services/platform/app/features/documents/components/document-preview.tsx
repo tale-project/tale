@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Center, VStack } from '@/app/components/ui/layout/layout';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { getFileExtension } from '@/lib/utils/document-helpers';
+import { isTextBasedFile } from '@/lib/utils/text-file-types';
 import { Image, Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -25,6 +26,9 @@ const DocumentPreviewDocx = lazyComponent(() => import('./document-preview-docx'
   loading: () => <PreviewSkeleton />,
 });
 const DocumentPreviewXlsx = lazyComponent(() => import('./document-preview-xlsx').then((m) => ({ default: m.DocumentPreviewXlsx })), {
+  loading: () => <PreviewSkeleton />,
+});
+const DocumentPreviewText = lazyComponent(() => import('./document-preview-text').then((m) => ({ default: m.DocumentPreviewText })), {
   loading: () => <PreviewSkeleton />,
 });
 
@@ -93,6 +97,10 @@ export function DocumentPreview({
 
   if (extension === 'XLSX' || extension === 'XLS') {
     return <DocumentPreviewXlsx url={url} />;
+  }
+
+  if (isTextBasedFile(fileName || url)) {
+    return <DocumentPreviewText url={url} fileName={fileName} />;
   }
 
   return (

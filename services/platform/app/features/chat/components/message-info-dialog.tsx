@@ -11,9 +11,9 @@ import { Stack, Grid } from '@/app/components/ui/layout/layout';
 import { Field, FieldGroup } from '@/app/components/ui/forms/field';
 import { IconButton } from '@/app/components/ui/primitives/icon-button';
 import { useCopyButton } from '@/app/hooks/use-copy';
-import { formatDate } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { formatNumber } from '@/lib/utils/format/number';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useT } from '@/lib/i18n/client';
 import type { MessageMetadata, SubAgentUsage } from '../hooks/use-message-metadata';
 import { SubAgentDetailsDialog } from './sub-agent-details-dialog';
 
@@ -117,7 +117,7 @@ export function MessageInfoDialog({
   timestamp,
   metadata,
 }: MessageInfoDialogProps) {
-  const locale = useLocale();
+  const { formatDate, locale } = useFormatDate();
   const { t } = useT('chat');
   const { t: tCommon } = useT('common');
   const [selectedSubAgent, setSelectedSubAgent] = useState<SubAgentUsage | null>(null);
@@ -132,7 +132,7 @@ export function MessageInfoDialog({
     >
       <FieldGroup gap={4}>
         <Field label={t('messageInfo.timestamp')}>
-          <div className="text-sm">{formatDate(timestamp, { preset: 'long' })}</div>
+          <div className="text-sm">{formatDate(timestamp, 'long')}</div>
         </Field>
 
         <Field label={t('messageInfo.messageId')}>

@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils/cn';
 import { Image } from '@/app/components/ui/data-display/image';
 import type { Message as MessageType } from '../types';
-import { formatMessageTime } from '@/lib/utils/conversation/date-utils';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { EmailPreview } from '@/app/components/ui/data-display/email-preview';
 import { Clock, AlertCircle } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -24,6 +24,7 @@ function getDeliveryIcon(status: string) {
 }
 
 export function Message({ message }: MessageProps) {
+  const { formatDate } = useFormatDate();
   const { t } = useT('conversations');
   return (
     <div className="flex flex-col">
@@ -84,7 +85,7 @@ export function Message({ message }: MessageProps) {
                 : 'text-muted-foreground/70 text-right mb-4',
             )}
           >
-            {formatMessageTime(message.timestamp)}
+            {formatDate(message.timestamp, 'time')}
             {!message.isCustomer && message.status && (
               <span className="inline-flex items-center">
                 {getDeliveryIcon(message.status)}

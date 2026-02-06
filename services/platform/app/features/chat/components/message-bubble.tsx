@@ -15,6 +15,13 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import { CopyIcon, CheckIcon, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { highlightCode } from '@/lib/utils/shiki';
+import { useTheme } from '@/app/components/theme/theme-provider';
+import {
+  isTextBasedFile,
+  getTextFileCategory,
+  getFileExtensionLower,
+} from '@/lib/utils/text-file-types';
 import { Button } from '@/app/components/ui/primitives/button';
 import {
   TableBody,
@@ -40,6 +47,21 @@ import { MessageInfoDialog } from './message-info-dialog';
 import { useMessageMetadata } from '../hooks/use-message-metadata';
 import { TypewriterText } from './typewriter-text';
 import { useT } from '@/lib/i18n/client';
+
+function getFileTypeLabel(
+  fileName: string,
+  mediaType: string,
+  t: (key: string) => string,
+) {
+  if (mediaType === 'application/pdf') return t('fileTypes.pdf');
+  if (mediaType.includes('word')) return t('fileTypes.doc');
+  if (mediaType.includes('presentation') || mediaType.includes('powerpoint'))
+    return t('fileTypes.pptx');
+  if (mediaType === 'text/plain') return t('fileTypes.txt');
+  if (isTextBasedFile(fileName, mediaType))
+    return getFileExtensionLower(fileName).toUpperCase() || t('fileTypes.txt');
+  return t('fileTypes.file');
+}
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -149,6 +171,19 @@ function FileTypeIcon({
       };
     if (fileType === 'text/plain')
       return { icon: '📄', label: t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+    if (isTextBasedFile(fileName, fileType)) {
+      const category = getTextFileCategory(fileName);
+      const ext = getFileExtensionLower(fileName).toUpperCase();
+      if (category === 'code')
+        return { icon: '💻', label: ext || t('fileTypes.code'), bgColor: 'bg-purple-100' };
+      if (category === 'config')
+        return { icon: '⚙️', label: ext || t('fileTypes.config'), bgColor: 'bg-yellow-100' };
+      if (category === 'data')
+        return { icon: '📊', label: ext || t('fileTypes.data'), bgColor: 'bg-green-100' };
+      if (category === 'markup')
+        return { icon: '📝', label: ext || t('fileTypes.markup'), bgColor: 'bg-teal-100' };
+      return { icon: '📄', label: ext || t('fileTypes.txt'), bgColor: 'bg-gray-100' };
+    }
     return { icon: '📎', label: t('fileTypes.file'), bgColor: 'bg-gray-100' };
   };
 
@@ -215,16 +250,7 @@ const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
           {attachment.fileName}
         </div>
         <div className="text-xs text-gray-500">
-          {attachment.fileType === 'application/pdf'
-            ? t('fileTypes.pdf')
-            : attachment.fileType.includes('word')
-              ? t('fileTypes.doc')
-              : attachment.fileType.includes('presentation') ||
-                  attachment.fileType.includes('powerpoint')
-                ? t('fileTypes.pptx')
-                : attachment.fileType === 'text/plain'
-                  ? t('fileTypes.txt')
-                  : t('fileTypes.file')}
+          {getFileTypeLabel(attachment.fileName, attachment.fileType, t)}
         </div>
       </div>
     </a>
@@ -270,19 +296,57 @@ const FilePartDisplay = memo(function FilePartDisplay({
           {filePart.filename || t('fileTypes.file')}
         </div>
         <div className="text-xs text-muted-foreground">
-          {filePart.mediaType === 'application/pdf'
-            ? t('fileTypes.pdf')
-            : filePart.mediaType.includes('word')
-              ? t('fileTypes.doc')
-              : filePart.mediaType.includes('presentation') ||
-                  filePart.mediaType.includes('powerpoint')
-                ? t('fileTypes.pptx')
-                : filePart.mediaType === 'text/plain'
-                  ? t('fileTypes.txt')
-                  : t('fileTypes.file')}
+          {getFileTypeLabel(filePart.filename || '', filePart.mediaType, t)}
         </div>
       </div>
     </a>
+  );
+});
+
+/**
+ * Extract the inner HTML from Shiki's codeToHtml output.
+ * Shiki wraps output in `<pre class="shiki ..."><code>...tokens...</code></pre>`.
+ * Since we're already inside a `<pre>` from react-markdown's CodeBlock,
+ * we extract only the inner content of the `<code>` element.
+ */
+function extractShikiCodeContent(html: string): string {
+  const codeMatch = html.match(/<code[^>]*>([\s\S]*?)<\/code>/);
+  return codeMatch ? codeMatch[1] : html;
+}
+
+// Shiki-highlighted code element for fenced code blocks
+const HighlightedCode = memo(function HighlightedCode({
+  lang,
+  code,
+}: {
+  lang: string;
+  code: string;
+}) {
+  const [html, setHtml] = useState<string>('');
+  const { resolvedTheme } = useTheme();
+  const shikiTheme = resolvedTheme === 'dark' ? 'github-dark' : 'github-light';
+
+  useEffect(() => {
+    let cancelled = false;
+    highlightCode(code, lang, shikiTheme).then((result) => {
+      if (!cancelled && result) setHtml(extractShikiCodeContent(result));
+    });
+    return () => { cancelled = true; };
+  }, [code, lang, shikiTheme]);
+
+  if (!html) {
+    const lines = code.split('\n');
+    return (
+      <code>
+        {lines.map((line, i) => (
+          <span key={i} className="line">{line}{i < lines.length - 1 ? '\n' : ''}</span>
+        ))}
+      </code>
+    );
+  }
+
+  return (
+    <code dangerouslySetInnerHTML={{ __html: html }} />
   );
 });
 
@@ -321,7 +385,7 @@ function CodeBlock({
   };
 
   return (
-    <div className="relative group">
+    <div className="relative group code-line-numbers">
       <pre
         ref={preRef}
         {...props}
@@ -543,6 +607,27 @@ const markdownComponents = {
   }: { node?: unknown } & ComponentPropsWithoutRef<'pre'>) => (
     <CodeBlock {...props} />
   ),
+  code: ({
+    node: _node,
+    className,
+    children,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLElement>) => {
+    const match = className?.match(/language-(\w+)/);
+    if (match) {
+      return (
+        <HighlightedCode
+          lang={match[1]}
+          code={String(children).replace(/\n$/, '')}
+        />
+      );
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
   img: ({
     node: _node,
     ...props

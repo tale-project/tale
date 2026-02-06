@@ -30,7 +30,7 @@ const MessageEditor = lazyComponent(
 );
 
 import { groupMessagesByDate } from '@/lib/utils/conversation/date-utils';
-import { useDateFormat } from '@/app/hooks/use-date-format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 
 interface AttachedFile {
   id: string;
@@ -57,7 +57,7 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   // Translations
   const { t: tConversations } = useT('conversations');
-  const { formatDateHeader } = useDateFormat();
+  const { formatDateHeader } = useFormatDate();
 
   // Use Convex query hook
   const conversation = useConvexQuery(

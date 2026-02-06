@@ -4,6 +4,7 @@ import { api } from '@/convex/_generated/api';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { AuditLogTable } from '@/app/features/settings/audit-logs/components/audit-log-table';
 import { Skeleton } from '@/app/components/ui/feedback/skeleton';
+import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/layout/card';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/navigation/tabs';
@@ -14,10 +15,40 @@ export const Route = createFileRoute('/dashboard/$id/settings/logs')({
 });
 
 function LogsSkeleton() {
+  const { t } = useT('settings');
+
   return (
     <Stack gap={4}>
-      <Skeleton className="h-10 w-80" />
-      <Skeleton className="h-96 w-full rounded-xl" />
+      <div className="space-y-4">
+        <div className="inline-flex h-10 items-center gap-1 rounded-lg bg-muted p-1">
+          <Skeleton className="h-8 w-24 rounded-md" />
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="h-8 w-24 rounded-md" />
+        </div>
+
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+          </CardHeader>
+          <CardContent>
+            <DataTableSkeleton
+              rows={10}
+              columns={[
+                { header: t('logs.audit.columns.timestamp'), size: 140 },
+                { header: t('logs.audit.columns.action'), size: 160 },
+                { header: t('logs.audit.columns.actor'), size: 200 },
+                { header: t('logs.audit.columns.resource'), size: 120 },
+                { header: t('logs.audit.columns.target'), size: 200 },
+                { header: t('logs.audit.columns.category'), size: 100 },
+                { header: t('logs.audit.columns.status'), size: 100 },
+              ]}
+              showHeader
+              showPagination={false}
+              noFirstColumnAvatar
+            />
+          </CardContent>
+        </Card>
+      </div>
     </Stack>
   );
 }

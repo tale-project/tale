@@ -6,8 +6,8 @@ import { Button } from '@/app/components/ui/primitives/button';
 import { Stack, HStack } from '@/app/components/ui/layout/layout';
 import { X } from 'lucide-react';
 import { RecommendedProduct, PreviousPurchase } from '../types/approval-detail';
-import { formatDate } from '@/lib/utils/date/format';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useT } from '@/lib/i18n/client';
 
 interface ProductCardProps {
   product?: RecommendedProduct;
@@ -26,7 +26,7 @@ export function ProductCard({
   isRemoving,
   canRemove,
 }: ProductCardProps) {
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
   const { t } = useT('approvals');
 
   if (type === 'recommended' && product) {
@@ -109,7 +109,7 @@ export function ProductCard({
             </h4>
             {purchase.purchaseDate && (
               <p className="text-xs text-muted-foreground">
-                {formatDate(purchase.purchaseDate, { locale })}
+                {formatDate(purchase.purchaseDate)}
               </p>
             )}
           </Stack>

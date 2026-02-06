@@ -14,7 +14,6 @@ import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
-import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
 import { useToast } from '@/app/hooks/use-toast';
 import { ChatActions } from './chat-actions';
@@ -190,14 +189,14 @@ export function ChatHistorySidebar({
                 key={chat._id}
                 className={cn(
                   'group relative flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
-                  !isEditing && 'hover:bg-accent hover:text-accent-foreground',
+                  !isEditing && 'cursor-pointer hover:bg-accent hover:text-accent-foreground',
                   currentThreadId === chat._id &&
                     !isEditing &&
                     'bg-accent text-accent-foreground',
                 )}
               >
                 {isEditing ? (
-                  <Input
+                  <input
                     ref={inputRef}
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
@@ -212,7 +211,7 @@ export function ChatHistorySidebar({
                     }}
                     onBlur={() => handleInputBlur(chat._id)}
                     aria-label={t('history.renameChat')}
-                    className="w-full text-sm leading-snug min-h-[20px] px-0 py-0 border-0 ring-1 ring-primary rounded-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0 shadow-none bg-transparent"
+                    className="flex-1 min-w-0 text-sm leading-snug min-h-[20px] bg-transparent outline-none ring-1 ring-primary rounded-sm focus-visible:ring-2 focus-visible:ring-primary px-1"
                   />
                 ) : (
                   <>

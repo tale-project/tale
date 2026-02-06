@@ -9,7 +9,7 @@ import { api } from '@/convex/_generated/api';
 import { cn } from '@/lib/utils/cn';
 import { useT } from '@/lib/i18n/client';
 import { useDebounce } from '@/app/hooks/use-debounce';
-import { useDateFormat } from '@/app/hooks/use-date-format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Input } from '@/app/components/ui/forms/input';
 
@@ -26,7 +26,7 @@ export function ChatSearchDialog({
 }: ChatSearchDialogProps) {
   const { t } = useT('dialogs');
   const { t: tCommon } = useT('common');
-  const { formatDateSmart } = useDateFormat();
+  const { formatDateSmart } = useFormatDate();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -123,7 +123,7 @@ export function ChatSearchDialog({
       }
     >
       <div className="h-[13.75rem] overflow-y-auto p-3">
-        {chats.length === 0 ? (
+        {threadsData !== undefined && chats.length === 0 ? (
           <div className="text-sm text-muted-foreground px-4 py-6 size-full flex items-center justify-center">
             {t('searchChat.noResults')}
           </div>
@@ -134,7 +134,7 @@ export function ChatSearchDialog({
                 <button
                   type="button"
                   className={cn(
-                    'w-full text-left flex items-start gap-3 p-3 hover:bg-muted transition-colors rounded-lg',
+                    'w-full text-left flex items-start gap-3 p-3 hover:bg-muted transition-colors rounded-lg cursor-pointer',
                     idx === selectedIndex && 'bg-muted',
                   )}
                   onMouseEnter={() => setSelectedIndex(idx)}

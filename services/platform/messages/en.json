@@ -1557,6 +1557,10 @@
       "doc": "DOC",
       "pptx": "PPTX",
       "txt": "TXT",
+      "code": "CODE",
+      "config": "CONFIG",
+      "data": "DATA",
+      "markup": "MARKUP",
       "file": "FILE"
     },
     "fallback": {

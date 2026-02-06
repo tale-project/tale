@@ -11,6 +11,7 @@ import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { registerFilesWithAgent } from './register_files';
+import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import type { FileAttachment, MessageContentPart } from './types';
 
 /**
@@ -98,11 +99,8 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  // Helper to check if a file is a text file
   const isTextFile = (attachment: FileAttachment) =>
-    attachment.fileType.startsWith('text/plain') ||
-    attachment.fileName.toLowerCase().endsWith('.txt') ||
-    attachment.fileName.toLowerCase().endsWith('.log');
+    isTextBasedFile(attachment.fileName, attachment.fileType);
 
   // Separate images, text files, and other documents
   const imageAttachments = attachments.filter((a) =>

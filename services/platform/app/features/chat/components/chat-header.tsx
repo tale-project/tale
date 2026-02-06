@@ -115,7 +115,7 @@ export function ChatHeader({ organizationId }: ChatHeaderProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="hidden md:flex items-center gap-1 px-5 py-2 border-b border-border">
+      <div className="hidden md:flex items-center gap-1 px-5 h-13 border-b border-border">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
