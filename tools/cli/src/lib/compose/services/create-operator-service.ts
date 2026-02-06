@@ -1,13 +1,13 @@
 import type { ComposeService, DeploymentColor, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
-export function createSearchService(
+export function createOperatorService(
   config: ServiceConfig,
   color: DeploymentColor
 ): ComposeService {
   return {
-    image: `${config.registry}/tale-search:${config.version}`,
-    container_name: `${config.projectName}-search-${color}`,
+    image: `${config.registry}/tale-operator:${config.version}`,
+    container_name: `${config.projectName}-operator-${color}`,
     env_file: [".env"],
     restart: "unless-stopped",
     healthcheck: {
@@ -28,7 +28,7 @@ export function createSearchService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`search-${color}`],
+        aliases: [`operator-${color}`],
       },
     },
   };

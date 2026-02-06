@@ -108,7 +108,7 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 │ platform-blue     │               │ platform-green    │
 │ rag-blue          │               │ rag-green         │
 │ crawler-blue      │               │ crawler-green     │
-│ search-blue       │               │ search-green      │
+│ operator-blue     │               │ operator-green    │
 │ graph-db-blue     │               │ graph-db-green    │
 └───────────────────┘               └───────────────────┘
         │                                   │
