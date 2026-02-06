@@ -2,13 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { formatDistanceToNow } from 'date-fns';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { cn } from '@/lib/utils/cn';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
-import { useDateFormat } from '@/app/hooks/use-date-format';
 import type { AuditLogItem } from '@/convex/audit_logs/types';
 
 interface AuditLogTableProps {
@@ -16,8 +15,8 @@ interface AuditLogTableProps {
 }
 
 export function AuditLogTable({ logs }: AuditLogTableProps) {
+  const { formatDate, formatRelative } = useFormatDate();
   const { t } = useT('settings');
-  const { formatDate } = useDateFormat();
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
   const columns = useMemo<ColumnDef<AuditLogItem>[]>(
@@ -27,9 +26,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         header: t('logs.audit.columns.timestamp'),
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {formatDistanceToNow(new Date(row.original.timestamp), {
-              addSuffix: true,
-            })}
+            {formatRelative(new Date(row.original.timestamp))}
           </span>
         ),
         size: 140,
@@ -96,7 +93,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
         size: 100,
       },
     ],
-    [t],
+    [t, formatRelative],
   );
 
   return (
@@ -124,7 +121,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
             <div className="space-y-4 pr-4">
               <DetailRow
                 label={t('logs.audit.columns.timestamp')}
-                value={formatDate(selectedLog.timestamp, 'long')}
+                value={formatDate(new Date(selectedLog.timestamp), 'long')}
               />
               <DetailRow
                 label={t('logs.audit.columns.action')}

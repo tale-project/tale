@@ -6,6 +6,7 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { ApiKeyRowActions } from './api-key-row-actions';
 import { Key } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { useDateFormat } from '@/app/hooks/use-date-format';
 import type { ApiKey } from '../types';
@@ -21,6 +22,7 @@ export function ApiKeyTable({
   isLoading,
   organizationId,
 }: ApiKeyTableProps) {
+  const { formatDate } = useFormatDate();
   const { t: tSettings } = useT('settings');
   const { formatDate } = useDateFormat();
 
@@ -51,7 +53,9 @@ export function ApiKeyTable({
         header: tSettings('apiKeys.columns.created'),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {formatDate(row.original.createdAt)}
+            {row.original.createdAt
+              ? formatDate(new Date(row.original.createdAt), 'short')
+              : '-'}
           </span>
         ),
         size: 150,
@@ -62,7 +66,7 @@ export function ApiKeyTable({
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.lastRequest
-              ? formatDate(row.original.lastRequest)
+              ? formatDate(new Date(row.original.lastRequest), 'short')
               : tSettings('apiKeys.neverUsed')}
           </span>
         ),
@@ -74,7 +78,7 @@ export function ApiKeyTable({
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.expiresAt
-              ? formatDate(row.original.expiresAt)
+              ? formatDate(new Date(row.original.expiresAt), 'short')
               : tSettings('apiKeys.never')}
           </span>
         ),

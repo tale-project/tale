@@ -19,7 +19,7 @@ import {
   Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { useDateFormat } from '@/app/hooks/use-date-format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 
 interface HumanInputRequestCardProps {
   approvalId: Id<'approvals'>;
@@ -36,7 +36,7 @@ function HumanInputRequestCardComponent({
   className,
   onResponseSubmitted,
 }: HumanInputRequestCardProps) {
-  const { formatDate } = useDateFormat();
+  const { formatDate } = useFormatDate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('');

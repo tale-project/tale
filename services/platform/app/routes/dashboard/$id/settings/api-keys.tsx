@@ -29,10 +29,11 @@ function ApiKeysSettingsSkeleton() {
       <DataTableSkeleton
         rows={3}
         columns={[
-          { header: t('apiKeys.columns.name') },
+          { header: t('apiKeys.columns.name'), size: 200 },
           { header: t('apiKeys.columns.prefix'), size: 150 },
           { header: t('apiKeys.columns.created'), size: 150 },
           { header: t('apiKeys.columns.lastUsed'), size: 150 },
+          { header: t('apiKeys.columns.expires'), size: 150 },
           { isAction: true, size: 80 },
         ]}
         showHeader

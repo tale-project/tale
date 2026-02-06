@@ -86,7 +86,7 @@ export interface DataTableProps<TData> {
     isInitialLoading?: boolean;
     /** Enable automatic loading on scroll (default: true) */
     autoLoad?: boolean;
-    /** Distance from bottom to trigger load in px (default: 300) */
+    /** Distance from bottom to trigger load in px (default: 500) */
     threshold?: number;
   };
   /** Sorting configuration from useDataTable hook */
@@ -207,6 +207,9 @@ export function DataTable<TData>({
     },
   );
 
+  // Ref to the scroll container for sticky layout (needed for IntersectionObserver root)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   // Track previous row count for animation on load more
   const prevRowCountRef = useRef(0);
   const [animatingRows, setAnimatingRows] = useState<Set<string>>(new Set());
@@ -237,8 +240,9 @@ export function DataTable<TData>({
     onLoadMore: infiniteScroll?.onLoadMore ?? noop,
     hasMore: infiniteScroll?.hasMore ?? false,
     isLoading: infiniteScroll?.isLoadingMore ?? false,
-    threshold: infiniteScroll?.threshold ?? 300,
+    threshold: infiniteScroll?.threshold ?? 500,
     enabled: !!(infiniteScroll && infiniteScroll.autoLoad !== false),
+    root: stickyLayout ? scrollContainerRef : undefined,
   });
 
   // Use controlled or internal state
@@ -607,7 +611,10 @@ export function DataTable<TData>({
         {showFilteredEmptyState ? (
           filteredEmptyContent
         ) : (
-          <div className="min-h-0 overflow-auto rounded-xl border border-border">
+          <div
+            ref={scrollContainerRef}
+            className="min-h-0 overflow-auto rounded-xl border border-border"
+          >
             {tableContent}
             {infiniteScrollContent}
           </div>

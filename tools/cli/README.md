@@ -21,7 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/inst
 
 ```bash
 # Download latest binary
-curl -L https://github.com/tale-project/tale/releases/latest/download/tale-linux \
+curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
   -o /usr/local/bin/tale
 chmod +x /usr/local/bin/tale
 ```

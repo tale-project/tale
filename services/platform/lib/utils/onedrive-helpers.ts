@@ -1,5 +1,4 @@
 import type { DriveItem } from '@/types/microsoft-graph';
-import { formatDate as formatDateUtil } from '@/lib/utils/date/format';
 
 /**
  * Utility functions for working with OneDrive files
@@ -30,11 +29,4 @@ export function formatFileSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-/**
- * Format date in a readable format
- */
-export function formatDate(dateString: string): string {
-  return formatDateUtil(dateString, { preset: 'long' });
 }

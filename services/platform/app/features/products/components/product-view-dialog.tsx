@@ -5,9 +5,9 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { Separator } from '@/app/components/ui/layout/separator';
 import { Stack, HStack, Grid } from '@/app/components/ui/layout/layout';
 import { ProductImage } from './product-image';
-import { formatDate } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { formatCurrency } from '@/lib/utils/format/number';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useT } from '@/lib/i18n/client';
 
 interface ViewProductDialogProps {
   isOpen: boolean;
@@ -33,7 +33,7 @@ export function ProductViewDialog({
   onClose,
   product,
 }: ViewProductDialogProps) {
-  const locale = useLocale();
+  const { formatDate, locale } = useFormatDate();
   const { t: tCommon } = useT('common');
   const { t: tProducts } = useT('products');
 
@@ -126,9 +126,7 @@ export function ProductViewDialog({
                 {tProducts('view.labels.lastUpdated')}
               </label>
               <p className="text-sm text-foreground mt-1">
-                {formatDate(new Date(product.lastUpdated), {
-                  preset: 'long',
-                })}
+                {formatDate(new Date(product.lastUpdated), 'long')}
               </p>
             </div>
           )}

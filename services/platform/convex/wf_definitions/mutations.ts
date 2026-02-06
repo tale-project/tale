@@ -7,6 +7,7 @@ import { createDraftFromActive } from '../workflows/definitions/create_draft_fro
 import {
   deleteWorkflow,
   cancelAndDeleteExecutionsBatch,
+  deleteAuditLogsBatch,
   deleteStepsAndDefinition,
 } from '../workflows/definitions/delete_workflow';
 import { duplicateWorkflow } from '../workflows/definitions/duplicate_workflow';
@@ -190,7 +191,6 @@ export const batchDeleteWorkflowExecutions = internalMutation({
     const result = await cancelAndDeleteExecutionsBatch(ctx, currentDefinitionId);
 
     if (result.hasMore) {
-      // More executions to delete for this definition, schedule another batch
       await ctx.scheduler.runAfter(
         0,
         internal.wf_definitions.mutations.batchDeleteWorkflowExecutions,
@@ -200,10 +200,50 @@ export const batchDeleteWorkflowExecutions = internalMutation({
         },
       );
     } else {
-      // All executions deleted for this definition, delete steps and definition
+      // All executions deleted, proceed to audit log cleanup
+      await ctx.scheduler.runAfter(
+        0,
+        internal.wf_definitions.mutations.batchDeleteWorkflowAuditLogs,
+        {
+          wfDefinitionIds,
+          currentIndex,
+        },
+      );
+    }
+  },
+});
+
+export const batchDeleteWorkflowAuditLogs = internalMutation({
+  args: {
+    wfDefinitionIds: v.array(v.id('wfDefinitions')),
+    currentIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { wfDefinitionIds, currentIndex } = args;
+
+    if (currentIndex >= wfDefinitionIds.length) {
+      return;
+    }
+
+    const currentDefinitionId = wfDefinitionIds[currentIndex];
+    if (!currentDefinitionId) {
+      return;
+    }
+
+    const result = await deleteAuditLogsBatch(ctx, currentDefinitionId);
+
+    if (result.hasMore) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.wf_definitions.mutations.batchDeleteWorkflowAuditLogs,
+        {
+          wfDefinitionIds,
+          currentIndex,
+        },
+      );
+    } else {
       await deleteStepsAndDefinition(ctx, currentDefinitionId);
 
-      // Move to next definition
       if (currentIndex + 1 < wfDefinitionIds.length) {
         await ctx.scheduler.runAfter(
           0,

@@ -13,7 +13,7 @@ export const Route = createFileRoute('/dashboard/$id/settings/organization')({
 });
 
 function OrganizationSettingsSkeleton() {
-  const { t } = useT('settings');
+  const { t: tTables } = useT('tables');
 
   return (
     <Stack>
@@ -39,10 +39,10 @@ function OrganizationSettingsSkeleton() {
         <DataTableSkeleton
           rows={5}
           columns={[
-            { header: t('organization.members.columns.name') },
-            { header: t('organization.members.columns.email'), size: 200 },
-            { header: t('organization.members.columns.role'), size: 120 },
-            { isAction: true, size: 80 },
+            { header: tTables('headers.member'), size: 348 },
+            { header: tTables('headers.role'), size: 200 },
+            { header: tTables('headers.joined'), align: 'right' },
+            { isAction: true, size: 140 },
           ]}
           showHeader
         />
