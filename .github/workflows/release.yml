@@ -18,7 +18,7 @@ name: Release All Services
 #   - ghcr.io/tale-project/tale/tale-db:1.0.0
 #   - ghcr.io/tale-project/tale/tale-graph-db:1.0.0
 #   - ghcr.io/tale-project/tale/tale-proxy:1.0.0
-#   - ghcr.io/tale-project/tale/tale-search:1.0.0
+#   - ghcr.io/tale-project/tale/tale-operator:1.0.0
 #   - CLI binaries (via cli.yml workflow)
 # ============================================================================
 

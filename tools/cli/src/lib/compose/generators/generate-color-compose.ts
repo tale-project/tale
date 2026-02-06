@@ -3,7 +3,7 @@ import type { ComposeConfig, DeploymentColor, ServiceConfig } from "../types";
 import { createCrawlerService } from "../services/create-crawler-service";
 import { createPlatformService } from "../services/create-platform-service";
 import { createRagService } from "../services/create-rag-service";
-import { createSearchService } from "../services/create-search-service";
+import { createOperatorService } from "../services/create-operator-service";
 
 export function generateColorCompose(
   config: ServiceConfig,
@@ -14,7 +14,7 @@ export function generateColorCompose(
       [`platform-${color}`]: createPlatformService(config, color),
       [`rag-${color}`]: createRagService(config, color),
       [`crawler-${color}`]: createCrawlerService(config, color),
-      [`search-${color}`]: createSearchService(config, color),
+      [`operator-${color}`]: createOperatorService(config, color),
     },
     volumes: {
       "platform-convex-data": {
