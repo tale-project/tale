@@ -40,9 +40,22 @@ async function getRegistryToken(image: string): Promise<string | null> {
   }
 }
 
+const ARCH_SUFFIXES = new Set([
+  "amd64",
+  "arm64",
+  "arm",
+  "386",
+  "ppc64le",
+  "s390x",
+  "mips64le",
+  "riscv64",
+]);
+
 function isSemanticVersion(tag: string): boolean {
-  // Match semver with optional prerelease suffix (e.g., 1.0.0, v1.0.0, 1.0.0-rc16, 1.0.0-alpha.1)
-  return /^v?\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(tag);
+  const match = tag.match(/^v?\d+\.\d+\.\d+(-([a-zA-Z0-9.]+))?$/);
+  if (!match) return false;
+  if (match[2] && ARCH_SUFFIXES.has(match[2])) return false;
+  return true;
 }
 
 async function getManifestDigest(
