@@ -17,43 +17,6 @@ async function promptForManualVersion(): Promise<string> {
   return version.replace(/^v/, "");
 }
 
-async function promptForLogin(): Promise<boolean> {
-  const { confirm } = await import("@inquirer/prompts");
-
-  logger.blank();
-  logger.warn("Docker authentication required for ghcr.io");
-  logger.blank();
-  logger.info("To authenticate, you need a GitHub Personal Access Token (PAT)");
-  logger.info("with 'read:packages' scope.");
-  logger.blank();
-  logger.info("Create a token at: https://github.com/settings/tokens");
-  logger.blank();
-
-  const shouldLogin = await confirm({
-    message: "Would you like to login now?",
-    default: true,
-  });
-
-  if (!shouldLogin) {
-    return false;
-  }
-
-  logger.blank();
-  logger.info("Run the following command to login:");
-  logger.blank();
-  logger.info("  docker login ghcr.io -u YOUR_GITHUB_USERNAME");
-  logger.blank();
-  logger.info("When prompted for password, paste your Personal Access Token.");
-  logger.blank();
-
-  const done = await confirm({
-    message: "Press Enter after you have logged in...",
-    default: true,
-  });
-
-  return done;
-}
-
 function formatVersionChoice(version: VersionInfo): { name: string; value: string } {
   const aliases = version.aliases.length > 0
     ? ` → ${version.aliases.join(", ")}`
@@ -84,23 +47,10 @@ export async function selectVersion(registry: string): Promise<string | null> {
   }
 
   logger.info("Fetching available versions...");
-  let result = await getAvailableVersions(registry, 10);
+  const result = await getAvailableVersions(registry, 10);
 
-  // Handle authentication errors
-  if (result.error === "no_auth" || result.error === "auth_failed") {
-    const loggedIn = await promptForLogin();
-    if (loggedIn) {
-      logger.blank();
-      logger.info("Retrying...");
-      result = await getAvailableVersions(registry, 10);
-    }
-  }
-
-  // If still no versions, fall back to manual input
   if (result.versions.length === 0) {
-    if (result.error === "no_auth" || result.error === "auth_failed") {
-      logger.warn("Still unable to fetch versions. Please enter manually.");
-    } else if (result.error === "network") {
+    if (result.error === "network") {
       logger.warn("Network error. Please check your connection.");
     } else {
       logger.warn("Could not fetch available versions from registry.");

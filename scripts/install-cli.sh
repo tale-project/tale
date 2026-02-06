@@ -41,7 +41,7 @@ download() {
 }
 
 install_binary() {
-    local tmp_dir binary_url tmp_file
+    local binary_url tmp_file
 
     tmp_dir=$(mktemp -d)
     trap 'rm -rf "$tmp_dir"' EXIT
