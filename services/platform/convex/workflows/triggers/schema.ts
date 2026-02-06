@@ -19,7 +19,6 @@ export const wfWebhooksTable = defineTable({
   organizationId: v.string(),
   workflowRootId: v.id('wfDefinitions'),
   token: v.string(),
-  secretHash: v.string(),
   isActive: v.boolean(),
   lastTriggeredAt: v.optional(v.number()),
   createdAt: v.number(),

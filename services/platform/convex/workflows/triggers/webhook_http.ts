@@ -1,6 +1,9 @@
 /**
  * Webhook HTTP handler for workflow triggers.
  * Endpoint: POST /api/workflows/wh/{token}
+ *
+ * Authentication: The unique token in the URL path acts as the credential.
+ * No additional signature or API key is required.
  */
 
 import { httpAction } from '../../_generated/server';
@@ -10,9 +13,7 @@ import {
   checkIpRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate_limiter/helpers';
-import { verifyHmac } from './helpers/crypto';
 import {
-  extractSignature,
   extractIdempotencyKey,
   extractClientIp,
 } from './helpers/validate';
@@ -27,14 +28,12 @@ function jsonResponse(data: Record<string, unknown>, status: number) {
 export const webhookHandler = httpAction(async (ctx, req) => {
   const url = new URL(req.url);
   const pathParts = url.pathname.split('/');
-  // Expected: /api/workflows/wh/{token}
   const token = pathParts[pathParts.length - 1];
 
   if (!token) {
     return jsonResponse({ error: 'Missing webhook token' }, 400);
   }
 
-  // Rate limit by IP
   const ip = extractClientIp(req.headers);
   try {
     await checkIpRateLimit(ctx, 'workflow:webhook', ip);
@@ -45,7 +44,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     throw error;
   }
 
-  // Look up webhook config by token
   const webhook = await ctx.runQuery(
     internal.workflows.triggers.webhooks.getWebhookByToken,
     { token },
@@ -59,22 +57,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'Webhook is disabled' }, 403);
   }
 
-  // Verify HMAC signature
-  const signature = extractSignature(req.headers);
-  if (!signature) {
-    await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
-      organizationId: webhook.organizationId,
-      workflowRootId: webhook.workflowRootId,
-      wfDefinitionId: webhook.workflowRootId,
-      triggerType: 'webhook',
-      status: 'rejected',
-      ipAddress: ip,
-      errorMessage: 'Missing X-Webhook-Signature header',
-    });
-    return jsonResponse({ error: 'Missing X-Webhook-Signature header' }, 401);
-  }
-
-  // Read request body
   let bodyText: string;
   try {
     bodyText = await req.text();
@@ -82,31 +64,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'Invalid request body' }, 400);
   }
 
-  // Verify the signature using the stored secret hash as lookup,
-  // but we need the original secret for HMAC. Since we store a hash,
-  // the client must sign with the original secret and we verify by
-  // recomputing from the stored hash.
-  // Actually: we need to store the secret in a retrievable form for HMAC.
-  // The secretHash stored is a SHA-256 of the secret. For HMAC verification,
-  // we use the secretHash itself as the HMAC key (the webhook creator gets
-  // the original secret to use for signing, and we use the hash as the
-  // symmetric key on both sides — this works because the hash IS the shared
-  // secret, not the original random value).
-  const isValid = await verifyHmac(bodyText, signature, webhook.secretHash);
-  if (!isValid) {
-    await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
-      organizationId: webhook.organizationId,
-      workflowRootId: webhook.workflowRootId,
-      wfDefinitionId: webhook.workflowRootId,
-      triggerType: 'webhook',
-      status: 'rejected',
-      ipAddress: ip,
-      errorMessage: 'Invalid signature',
-    });
-    return jsonResponse({ error: 'Invalid signature' }, 401);
-  }
-
-  // Check idempotency
   const idempotencyKey = extractIdempotencyKey(req.headers);
   if (idempotencyKey) {
     const existing = await ctx.runQuery(
@@ -121,7 +78,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     }
   }
 
-  // Resolve active workflow version
   const activeVersionId = await ctx.runQuery(
     internal.workflows.triggers.queries.getActiveVersion,
     { workflowRootId: webhook.workflowRootId },
@@ -141,7 +97,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     return jsonResponse({ error: 'No active workflow version' }, 404);
   }
 
-  // Parse payload
   let payload: Record<string, unknown> = {};
   if (bodyText.trim()) {
     try {
@@ -151,7 +106,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     }
   }
 
-  // Start workflow execution
   const executionId = await ctx.runMutation(
     api.workflow_engine.engine.startWorkflow,
     {
@@ -168,7 +122,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     },
   );
 
-  // Log successful trigger
   await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
     organizationId: webhook.organizationId,
     workflowRootId: webhook.workflowRootId,
@@ -180,7 +133,6 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     ipAddress: ip,
   });
 
-  // Update webhook last triggered time
   await ctx.runMutation(
     internal.workflows.triggers.webhooks.updateLastTriggered,
     { webhookId: webhook._id, lastTriggeredAt: Date.now() },
@@ -201,7 +153,7 @@ export const webhookOptionsHandler = httpAction(async () => {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers':
-        'Content-Type, X-Webhook-Signature, X-Idempotency-Key',
+        'Content-Type, X-Idempotency-Key',
     },
   });
 });

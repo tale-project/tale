@@ -1,6 +1,6 @@
 /**
  * Validation helpers for workflow triggers.
- * Handles idempotency checks and signature extraction.
+ * Handles idempotency checks and header extraction.
  */
 
 import type { QueryCtx } from '../../../_generated/server';
@@ -22,14 +22,6 @@ export async function checkIdempotency(
     .first();
 
   return existing;
-}
-
-/**
- * Extract the HMAC signature from webhook request headers.
- * Supports the X-Webhook-Signature header format.
- */
-export function extractSignature(headers: Headers): string | null {
-  return headers.get('x-webhook-signature');
 }
 
 /**

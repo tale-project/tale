@@ -85,6 +85,10 @@ export function AutomationNavigation({
           label: t('configuration.title'),
           href: `/dashboard/${organizationId}/automations/${automationId}/configuration`,
         },
+        {
+          label: t('triggers.title'),
+          href: `/dashboard/${organizationId}/automations/${automationId}/triggers`,
+        },
       ]
     : [];
 

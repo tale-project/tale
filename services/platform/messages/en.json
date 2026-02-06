@@ -1027,6 +1027,72 @@
         "message": "Saving workflow configuration is not yet wired to a public API. Please update this workflow via backend/admin tools for now."
       }
     },
+    "triggers": {
+      "title": "Triggers",
+      "tabsLabel": "Trigger type selection",
+      "schedules": {
+        "title": "Schedules",
+        "createButton": "Add schedule",
+        "emptyTitle": "No schedules",
+        "emptyDescription": "Create a schedule to automatically trigger this automation on a recurring basis.",
+        "columns": {
+          "cronExpression": "Cron expression",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Create schedule",
+          "editTitle": "Edit schedule",
+          "cronExpression": "Cron expression",
+          "cronPlaceholder": "0 * * * *",
+          "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
+          "timezoneNote": "All schedules run in UTC timezone.",
+          "presets": {
+            "everyMinute": "Every minute",
+            "hourly": "Every hour",
+            "daily": "Daily at midnight",
+            "weekly": "Weekly on Monday"
+          }
+        },
+        "toast": {
+          "created": "Schedule created",
+          "updated": "Schedule updated",
+          "deleted": "Schedule deleted",
+          "enabled": "Schedule enabled",
+          "disabled": "Schedule disabled"
+        },
+        "deleteTitle": "Delete schedule",
+        "deleteDescription": "This will permanently delete this schedule. This action cannot be undone."
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "createButton": "Add webhook",
+        "emptyTitle": "No webhooks",
+        "emptyDescription": "Create a webhook to trigger this automation via HTTP POST requests.",
+        "columns": {
+          "url": "Webhook URL",
+          "active": "Active",
+          "lastTriggered": "Last triggered"
+        },
+        "createdTitle": "Webhook created",
+        "urlWarning": "Save this webhook URL. The token in the URL acts as the authentication credential.",
+        "webhookUrl": "Webhook URL",
+        "deleteTitle": "Delete webhook",
+        "deleteDescription": "This will permanently delete this webhook endpoint. Any integrations using this URL will stop working.",
+        "toast": {
+          "created": "Webhook created",
+          "deleted": "Webhook deleted",
+          "enabled": "Webhook enabled",
+          "disabled": "Webhook disabled",
+          "urlCopied": "Webhook URL copied"
+        }
+      },
+      "common": {
+        "never": "Never",
+        "copied": "Copied"
+      }
+    },
     "executions": {
       "title": "Executions",
       "columns": {

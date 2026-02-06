@@ -1,10 +1,6 @@
 import { mutation, internalMutation, internalQuery } from '../../_generated/server';
 import { v } from 'convex/values';
-import {
-  generateToken,
-  generateWebhookSecret,
-  hashSecret,
-} from './helpers/crypto';
+import { generateToken } from './helpers/crypto';
 
 export const createWebhook = mutation({
   args: {
@@ -15,7 +11,6 @@ export const createWebhook = mutation({
   returns: v.object({
     webhookId: v.id('wfWebhooks'),
     token: v.string(),
-    secret: v.string(),
   }),
   handler: async (ctx, args) => {
     const rootDef = await ctx.db.get(args.workflowRootId);
@@ -25,35 +20,17 @@ export const createWebhook = mutation({
     }
 
     const token = generateToken();
-    const secret = generateWebhookSecret();
-    const secretHashed = await hashSecret(secret);
 
     const webhookId = await ctx.db.insert('wfWebhooks', {
       organizationId: args.organizationId,
       workflowRootId: args.workflowRootId,
       token,
-      secretHash: secretHashed,
       isActive: true,
       createdAt: Date.now(),
       createdBy: args.createdBy,
     });
 
-    return { webhookId, token, secret };
-  },
-});
-
-export const regenerateSecret = mutation({
-  args: { webhookId: v.id('wfWebhooks') },
-  returns: v.object({ secret: v.string() }),
-  handler: async (ctx, args) => {
-    const webhook = await ctx.db.get(args.webhookId);
-    if (!webhook) throw new Error('Webhook not found');
-
-    const secret = generateWebhookSecret();
-    const secretHashed = await hashSecret(secret);
-
-    await ctx.db.patch(args.webhookId, { secretHash: secretHashed });
-    return { secret };
+    return { webhookId, token };
   },
 });
 
