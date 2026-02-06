@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
 
-export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+export { DOCUMENT_MAX_FILE_SIZE as MAX_FILE_SIZE_BYTES } from '@/lib/shared/file-types';
 
 /**
  * Calculate SHA-256 hash of a file using Web Crypto API

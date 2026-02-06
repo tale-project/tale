@@ -10,12 +10,10 @@ import { Users, Upload, X, FileText } from 'lucide-react';
 import { Button } from '@/app/components/ui/primitives/button';
 import { useT } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
-import {
-  useDocumentUpload,
-  MAX_FILE_SIZE_BYTES,
-} from '../hooks/use-document-upload';
+import { useDocumentUpload } from '../hooks/use-document-upload';
 import { cn } from '@/lib/utils/cn';
 import { toast } from '@/app/hooks/use-toast';
+import { DOCUMENT_UPLOAD_ACCEPT, DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
 
 interface DocumentUploadDialogProps {
   open: boolean;
@@ -80,12 +78,12 @@ export function DocumentUploadDialog({
     (files: File[]) => {
       if (files.length === 0) return;
 
-      const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
+      const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
       const validFiles: File[] = [];
       const rejectedFiles: File[] = [];
 
       for (const file of files) {
-        if (file.size <= MAX_FILE_SIZE_BYTES) {
+        if (file.size <= DOCUMENT_MAX_FILE_SIZE) {
           validFiles.push(file);
         } else {
           rejectedFiles.push(file);
@@ -154,7 +152,7 @@ export function DocumentUploadDialog({
         <FileUpload.Root>
           <FileUpload.DropZone
             onFilesSelected={processFiles}
-            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt"
+            accept={DOCUMENT_UPLOAD_ACCEPT}
             multiple
             disabled={isUploading}
             inputId="document-file-upload"

@@ -3,6 +3,8 @@
  * Used across import dialogs for customers, vendors, and products.
  */
 
+import { isSpreadsheet } from '@/lib/shared/file-types';
+
 export type FileParseResult<T> = {
   data: T[];
   errors: string[];
@@ -119,19 +121,12 @@ async function parseExcelFile(
   return XLSX.utils.sheet_to_json(worksheet);
 }
 
-/**
- * Check if a file is a CSV file based on extension.
- */
 function isCSVFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.csv');
 }
 
-/**
- * Check if a file is an Excel file based on extension.
- */
 function isExcelFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-  return name.endsWith('.xlsx') || name.endsWith('.xls');
+  return isSpreadsheet(file.name) && !isCSVFile(file);
 }
 
 /**

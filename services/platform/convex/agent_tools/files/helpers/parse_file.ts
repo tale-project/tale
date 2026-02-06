@@ -6,6 +6,7 @@
 
 import { createDebugLog } from '../../../lib/debug_log';
 import { getCrawlerServiceUrl } from '../../web/helpers/get_crawler_service_url';
+import { getParseEndpoint } from '../../../../lib/shared/file-types';
 import type { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
 
@@ -27,24 +28,6 @@ export interface ParseFileResult {
   error?: string;
 }
 
-/**
- * Get the parse endpoint path based on file extension.
- * Routes to the appropriate file-type-specific endpoint.
- */
-function getParseEndpoint(filename: string): string {
-  const lowerFilename = filename.toLowerCase();
-
-  if (lowerFilename.endsWith('.pdf')) {
-    return '/api/v1/pdf/parse';
-  } else if (lowerFilename.endsWith('.docx')) {
-    return '/api/v1/docx/parse';
-  } else if (lowerFilename.endsWith('.pptx')) {
-    return '/api/v1/pptx/parse';
-  }
-
-  // Default to PDF for unknown extensions
-  return '/api/v1/pdf/parse';
-}
 
 /**
  * Parse a file by getting it from Convex storage and sending it to the crawler service.
