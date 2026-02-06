@@ -7,6 +7,10 @@ import { compressImage } from '@/lib/utils/compress-image';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
+import {
+  CHAT_UPLOAD_ALLOWED_TYPES,
+  CHAT_MAX_FILE_SIZE,
+} from '@/lib/shared/file-types';
 
 interface FileAttachment {
   fileId: Id<'_storage'>;
@@ -22,19 +26,8 @@ interface ConvexFileUploadConfig {
 }
 
 const DEFAULT_CONFIG: Required<ConvexFileUploadConfig> = {
-  maxFileSize: 10 * 1024 * 1024, // 10MB
-  allowedTypes: [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'application/pdf',
-    'text/plain',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ],
+  maxFileSize: CHAT_MAX_FILE_SIZE,
+  allowedTypes: [...CHAT_UPLOAD_ALLOWED_TYPES],
 };
 
 export function useConvexFileUpload(config?: ConvexFileUploadConfig) {

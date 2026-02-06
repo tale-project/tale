@@ -16,6 +16,7 @@ import { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { toast } from '@/app/hooks/use-toast';
+import { isSpreadsheet, SPREADSHEET_IMPORT_ACCEPT } from '@/lib/shared/file-types';
 
 interface VendorImportFormProps {
   hideTabs?: boolean;
@@ -48,12 +49,7 @@ export function VendorImportForm({
     const file = files[0];
     if (!file) return;
 
-    const fileName = file.name.toLowerCase();
-    if (
-      fileName.endsWith('.xlsx') ||
-      fileName.endsWith('.xls') ||
-      fileName.endsWith('.csv')
-    ) {
+    if (isSpreadsheet(file.name)) {
       setValue('file', file);
     } else {
       toast({
@@ -106,7 +102,7 @@ export function VendorImportForm({
           <FileUpload.Root>
             <FileUpload.DropZone
               onFilesSelected={handleFilesSelected}
-              accept=".xlsx,.xls,.csv"
+              accept={SPREADSHEET_IMPORT_ACCEPT}
               inputId="vendor-file-upload"
               className={cn(
                 'relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors',

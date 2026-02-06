@@ -3,16 +3,12 @@
 import { FileIcon, defaultStyles } from 'react-file-icon';
 import type { DefaultExtensionType } from 'react-file-icon';
 import { cn } from '@/lib/utils/cn';
+import { extractExtension } from '@/lib/shared/file-types';
 
 interface DocumentIconProps {
   fileName: string;
   className?: string;
   isFolder?: boolean;
-}
-
-function getExtension(fileName: string) {
-  const dotIndex = fileName.lastIndexOf('.');
-  return dotIndex > 0 ? fileName.slice(dotIndex + 1).toLowerCase() : '';
 }
 
 function OneDriveFolderIcon({ className }: { className?: string }) {
@@ -48,7 +44,7 @@ export function DocumentIcon({
     );
   }
 
-  const ext = getExtension(fileName);
+  const ext = extractExtension(fileName) ?? '';
   const styles = defaultStyles[ext as DefaultExtensionType] || {};
 
   return (
