@@ -19,6 +19,10 @@ import {
   webhookHandler,
   webhookOptionsHandler,
 } from './workflows/triggers/webhook_http';
+import {
+  apiTriggerHandler,
+  apiTriggerOptionsHandler,
+} from './workflows/triggers/api_http';
 
 const http = httpRouter();
 
@@ -140,6 +144,19 @@ http.route({
   pathPrefix: '/api/workflows/wh/',
   method: 'OPTIONS',
   handler: webhookOptionsHandler,
+});
+
+// Workflow API Trigger Route
+http.route({
+  path: '/api/workflows/trigger',
+  method: 'POST',
+  handler: apiTriggerHandler,
+});
+
+http.route({
+  path: '/api/workflows/trigger',
+  method: 'OPTIONS',
+  handler: apiTriggerOptionsHandler,
 });
 
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication
