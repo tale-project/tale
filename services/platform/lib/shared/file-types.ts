@@ -224,5 +224,7 @@ export function getFileTypeLabelKey(mimeType: string): string {
   if (mimeType.includes('presentation') || mimeType.includes('powerpoint')) return 'pptx';
   if (mimeType === MIME_TYPES.PLAIN) return 'txt';
   if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType === MIME_TYPES.XLS || mimeType === MIME_TYPES.XLSX) return 'xlsx';
+  if (mimeType === MIME_TYPES.CSV) return 'csv';
   return 'file';
 }
