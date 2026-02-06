@@ -13,22 +13,19 @@ export function createOperatorService(
     healthcheck: {
       test: [
         "CMD",
-        "wget",
-        "--no-verbose",
-        "--tries=1",
-        "--spider",
-        "--header=X-Real-IP: 127.0.0.1",
-        "http://localhost:8080/healthz",
+        "curl",
+        "-f",
+        "http://localhost:8004/health",
       ],
-      interval: "5s",
-      timeout: "3s",
-      retries: 2,
-      start_period: "30s",
+      interval: "30s",
+      timeout: "10s",
+      retries: 3,
+      start_period: "60s",
     },
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`operator-${color}`],
+        aliases: ["operator", `operator-${color}`],
       },
     },
   };

@@ -20,7 +20,7 @@ export function createCrawlerService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`crawler-${color}`],
+        aliases: ["crawler", `crawler-${color}`],
       },
     },
   };

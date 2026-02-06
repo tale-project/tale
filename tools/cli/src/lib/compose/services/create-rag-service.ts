@@ -21,7 +21,7 @@ export function createRagService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`rag-${color}`],
+        aliases: ["rag", `rag-${color}`],
       },
     },
   };
