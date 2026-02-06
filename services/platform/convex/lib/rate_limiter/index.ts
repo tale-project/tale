@@ -136,6 +136,18 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 25,
   },
+  'workflow:webhook': {
+    kind: 'token bucket',
+    rate: 60,
+    period: MINUTE,
+    capacity: 100,
+  },
+  'workflow:api': {
+    kind: 'token bucket',
+    rate: 100,
+    period: MINUTE,
+    capacity: 150,
+  },
   'email:send': {
     kind: 'token bucket',
     rate: 100,
