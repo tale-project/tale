@@ -11,8 +11,8 @@ import { parseFile } from '../../agent_tools/files/helpers/parse_file';
 import { analyzeImageCached } from '../../agent_tools/files/helpers/analyze_image';
 import { analyzeTextContent } from '../../agent_tools/files/helpers/analyze_text';
 import { registerFilesWithAgent } from './register_files';
-import { isTextBasedFile } from '../../../lib/utils/text-file-types';
 import type { FileAttachment, MessageContentPart } from './types';
+import { isImage, isTextFile } from '../../../lib/shared/file-types';
 
 /**
  * Parsed document with extracted text content
@@ -99,18 +99,15 @@ export async function processAttachments(
     files: attachments.map((a) => ({ name: a.fileName, type: a.fileType })),
   });
 
-  const isTextFile = (attachment: FileAttachment) =>
-    isTextBasedFile(attachment.fileName, attachment.fileType);
-
   // Separate images, text files, and other documents
   const imageAttachments = attachments.filter((a) =>
-    a.fileType.startsWith('image/'),
+    isImage(a.fileType),
   );
   const textFileAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/') && isTextFile(a),
+    (a) => !isImage(a.fileType) && isTextFile(a.fileType, a.fileName),
   );
   const documentAttachments = attachments.filter(
-    (a) => !a.fileType.startsWith('image/') && !isTextFile(a),
+    (a) => !isImage(a.fileType) && !isTextFile(a.fileType, a.fileName),
   );
 
   // Parse document files to extract their text content (in parallel)

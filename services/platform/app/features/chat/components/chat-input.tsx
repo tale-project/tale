@@ -13,12 +13,8 @@ import {
   useConvexFileUpload,
   type FileAttachment,
 } from '../hooks/use-convex-file-upload';
-import {
-  isTextBasedFile,
-  getFileExtensionLower,
-  TEXT_FILE_ACCEPT,
-} from '@/lib/utils/text-file-types';
 import { ImagePreviewDialog } from './message-bubble';
+import { CHAT_UPLOAD_ACCEPT, getFileTypeLabelKey } from '@/lib/shared/file-types';
 
 interface ChatInputProps extends Omit<
   ComponentPropsWithoutRef<'div'>,
@@ -136,7 +132,7 @@ export function ChatInput({
           ref={fileInputRef}
           type="file"
           multiple
-          accept={TEXT_FILE_ACCEPT}
+          accept={CHAT_UPLOAD_ACCEPT}
           onChange={handleFileInputChange}
           style={{ display: 'none' }}
         />
@@ -194,18 +190,7 @@ export function ChatInput({
                         {attachment.fileName}
                       </div>
                       <div className="text-xs text-muted-foreground/50">
-                        {attachment.fileType === 'application/pdf'
-                          ? tChat('fileTypes.pdf')
-                          : attachment.fileType.includes('word')
-                            ? tChat('fileTypes.doc')
-                            : attachment.fileType.includes('presentation') ||
-                                attachment.fileType.includes('powerpoint')
-                              ? tChat('fileTypes.pptx')
-                              : attachment.fileType === 'text/plain'
-                                ? tChat('fileTypes.txt')
-                                : isTextBasedFile(attachment.fileName, attachment.fileType)
-                                  ? getFileExtensionLower(attachment.fileName).toUpperCase() || tChat('fileTypes.txt')
-                                  : tChat('fileTypes.file')}
+                        {tChat(`fileTypes.${getFileTypeLabelKey(attachment.fileType)}`)}
                       </div>
                     </div>
                     <button
