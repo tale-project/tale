@@ -2,6 +2,7 @@ import type { DeploymentColor } from "../compose/types";
 import { ALL_SERVICES, isRotatableService, isValidService } from "../compose/types";
 import { containerExists } from "../docker/container-exists";
 import { getCurrentColor } from "../state/get-current-color";
+import { PROJECT_NAME } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
 interface LogsOptions {
@@ -11,12 +12,10 @@ interface LogsOptions {
   since?: string;
   tail?: number;
   deployDir: string;
-  projectName: string;
 }
 
 export async function logs(options: LogsOptions): Promise<void> {
-  const { service, color, follow, since, tail, deployDir, projectName } =
-    options;
+  const { service, color, follow, since, tail, deployDir } = options;
 
   // Validate service name
   if (!isValidService(service)) {
@@ -46,7 +45,7 @@ export async function logs(options: LogsOptions): Promise<void> {
       logger.info(`Auto-detected active color: ${targetColor}`);
     }
 
-    containerName = `${projectName}-${service}-${targetColor}`;
+    containerName = `${PROJECT_NAME}-${service}-${targetColor}`;
   } else {
     // Stateful services don't have colors
     if (color) {
@@ -54,7 +53,7 @@ export async function logs(options: LogsOptions): Promise<void> {
         `Ignoring --color for stateful service ${service} (stateful services don't use blue/green)`
       );
     }
-    containerName = `${projectName}-${service}`;
+    containerName = `${PROJECT_NAME}-${service}`;
   }
 
   // Check if container exists (docker logs works for both running and stopped containers)

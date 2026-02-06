@@ -1,17 +1,9 @@
 import { Command } from "commander";
 import { ensureConfig } from "../lib/config/ensure-config";
 import { ensureEnv } from "../lib/config/ensure-env";
-import { getDefaultDeployDir } from "../lib/config/get-default-deploy-dir";
 import { loadEnv } from "../utils/load-env";
 import * as logger from "../utils/logger";
 import { reset } from "../lib/actions/reset";
-
-function getDirOptionDescription(): string {
-  const defaultDir = getDefaultDeployDir();
-  return defaultDir
-    ? `Deployment directory (default: ${defaultDir})`
-    : "Deployment directory";
-}
 
 export function createResetCommand(): Command {
   return new Command("reset")
@@ -23,10 +15,9 @@ export function createResetCommand(): Command {
       false
     )
     .option("--dry-run", "Preview reset without making changes", false)
-    .option("-d, --dir <path>", getDirOptionDescription())
     .action(async (options) => {
       try {
-        const deployDir = await ensureConfig({ explicitDir: options.dir });
+        const deployDir = await ensureConfig();
         const envSetupSuccess = await ensureEnv({ deployDir });
         if (!envSetupSuccess) {
           process.exit(1);

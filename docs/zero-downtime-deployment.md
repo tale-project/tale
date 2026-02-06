@@ -53,25 +53,6 @@ Blue-green deployment runs two versions of stateless services simultaneously:
 | `reset` | Remove ALL blue-green containers and return to normal mode |
 | `help` | Show usage information |
 
-### logs.sh
-
-View logs for blue-green deployments. Automatically detects the active deployment color.
-
-```bash
-./scripts/logs.sh                    # All active services (follow mode)
-./scripts/logs.sh platform           # Only platform service
-./scripts/logs.sh platform rag       # Multiple services
-./scripts/logs.sh -n --tail 50       # Last 50 lines, no follow
-./scripts/logs.sh --stateful         # Include db, proxy, graph-db
-./scripts/logs.sh db                 # View database logs
-```
-
-| Option | Description |
-|--------|-------------|
-| `-f, --follow` | Follow log output (default) |
-| `-n, --no-follow` | Show existing logs only |
-| `-t, --tail N` | Number of lines to show (default: 100) |
-| `-s, --stateful` | Include stateful services |
 
 ## Configuration
 
@@ -108,7 +89,7 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 │ platform-blue     │               │ platform-green    │
 │ rag-blue          │               │ rag-green         │
 │ crawler-blue      │               │ crawler-green     │
-│ search-blue       │               │ search-green      │
+│ operator-blue     │               │ operator-green    │
 │ graph-db-blue     │               │ graph-db-green    │
 └───────────────────┘               └───────────────────┘
         │                                   │
@@ -141,7 +122,6 @@ HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 | `compose.blue.yml` | Blue environment overlay (container names, network aliases) |
 | `compose.green.yml` | Green environment overlay |
 | `scripts/deploy.sh` | Deployment automation script |
-| `scripts/logs.sh` | Log viewer for blue-green deployments |
 | `.deployment-color` | Tracks current active deployment (auto-generated) |
 
 ## Database Migrations
@@ -212,8 +192,6 @@ For a fresh deployment after cleanup:
 # Increase timeout
 HEALTH_CHECK_TIMEOUT=300 ./scripts/deploy.sh deploy v1.0.0
 
-# Check container logs
-./scripts/logs.sh platform
 ```
 
 ### Deployment failed

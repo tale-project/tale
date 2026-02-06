@@ -1,10 +1,11 @@
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeService, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
 export function createGraphDbService(config: ServiceConfig): ComposeService {
   return {
     image: `${config.registry}/tale-graph-db:${config.version}`,
-    container_name: `${config.projectName}-graph-db`,
+    container_name: `${PROJECT_NAME}-graph-db`,
     volumes: ["graph-db-data:/var/lib/falkordb/data"],
     env_file: [".env"],
     restart: "unless-stopped",

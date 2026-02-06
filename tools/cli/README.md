@@ -11,11 +11,17 @@ A self-contained CLI tool for managing Tale deployments and services.
 
 ## Installation
 
+### Quick Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
 ### From GitHub Releases
 
 ```bash
 # Download latest binary
-curl -L https://github.com/tale-project/tale/releases/latest/download/tale-linux \
+curl -fsSL https://github.com/tale-project/tale/releases/latest/download/tale_linux \
   -o /usr/local/bin/tale
 chmod +x /usr/local/bin/tale
 ```
@@ -34,7 +40,10 @@ bun run build:linux
 ### Deploy Commands
 
 ```bash
-# Deploy a new version (blue-green, zero-downtime)
+# Deploy with interactive version selection
+tale deploy
+
+# Deploy a specific version (blue-green, zero-downtime)
 tale deploy 1.0.0
 
 # Deploy with stateful services update
@@ -45,36 +54,40 @@ tale deploy 1.0.0 --services platform,rag
 
 # Dry run to preview changes
 tale deploy 1.0.0 --dry-run
+```
 
-# Rollback to previous version
-tale deploy rollback
+### Management Commands
 
-# Rollback to a specific version
-tale deploy rollback --version 0.9.0
-
+```bash
 # Show current deployment status
-tale deploy status
+tale status
 
 # View service logs
-tale deploy logs platform
-tale deploy logs platform --follow
-tale deploy logs db --tail 100
+tale logs platform
+tale logs platform --follow
+tale logs db --tail 100
+
+# Rollback to previous version
+tale rollback
+
+# Rollback to a specific version
+tale rollback --version 0.9.0
 
 # Remove inactive (non-current) color containers
-tale deploy cleanup
+tale cleanup
 
 # Remove ALL blue-green containers (requires confirmation)
-tale deploy reset --force
+tale reset --force
 
 # Also remove stateful services
-tale deploy reset --force --all
+tale reset --force --all
 ```
 
 ## Command Reference
 
-### `tale deploy <version>`
+### `tale deploy [version]`
 
-Deploy a new version with blue-green strategy.
+Deploy a new version with blue-green strategy. If no version is specified, an interactive version selector is shown.
 
 | Option | Description |
 |--------|-------------|
@@ -84,20 +97,11 @@ Deploy a new version with blue-green strategy.
 | `-d, --dir <path>` | Deployment directory (default: current directory) |
 | `--host <hostname>` | Host alias for proxy (default: `tale.local` or `$HOST`) |
 
-### `tale deploy rollback`
-
-Rollback to previous or specific version.
-
-| Option | Description |
-|--------|-------------|
-| `-v, --version <version>` | Specific version to rollback to |
-| `-d, --dir <path>` | Deployment directory |
-
-### `tale deploy status`
+### `tale status`
 
 Show current deployment status including active color, running containers, and health.
 
-### `tale deploy logs <service>`
+### `tale logs <service>`
 
 View logs from a service.
 
@@ -108,11 +112,20 @@ View logs from a service.
 | `--since <duration>` | Show logs since duration (e.g., 1h, 30m) |
 | `-n, --tail <lines>` | Number of lines to show from end |
 
-### `tale deploy cleanup`
+### `tale rollback`
+
+Rollback to previous or specific version.
+
+| Option | Description |
+|--------|-------------|
+| `-v, --version <version>` | Specific version to rollback to |
+| `-d, --dir <path>` | Deployment directory |
+
+### `tale cleanup`
 
 Remove inactive (non-current) color containers.
 
-### `tale deploy reset`
+### `tale reset`
 
 Remove ALL blue-green containers.
 
@@ -145,7 +158,7 @@ Remove ALL blue-green containers.
 - `platform` - TanStack Start + Convex
 - `rag` - RAG service (Cognee)
 - `crawler` - Crawl4AI web crawler
-- `search` - SearXNG meta search engine
+- `operator` - Browser automation (Chromium + Playwright)
 
 ### Deployment Flow
 

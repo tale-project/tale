@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import * as logger from "../../utils/logger";
 
 interface TagsListResponse {
@@ -12,14 +9,6 @@ interface TokenResponse {
   token: string;
 }
 
-interface DockerConfig {
-  auths?: {
-    [registry: string]: {
-      auth?: string;
-    };
-  };
-}
-
 export interface VersionInfo {
   tag: string;
   aliases: string[];
@@ -27,20 +16,7 @@ export interface VersionInfo {
 
 export interface VersionsResult {
   versions: VersionInfo[];
-  error?: "no_auth" | "auth_failed" | "network" | "unknown";
-}
-
-function getDockerAuth(registry: string): string | null {
-  const configPath = join(homedir(), ".docker", "config.json");
-  if (!existsSync(configPath)) return null;
-
-  try {
-    const content = readFileSync(configPath, "utf-8");
-    const config = JSON.parse(content) as DockerConfig;
-    return config.auths?.[registry]?.auth ?? null;
-  } catch {
-    return null;
-  }
+  error?: "network" | "unknown";
 }
 
 function parseRegistry(registry: string): string | null {
@@ -49,38 +25,37 @@ function parseRegistry(registry: string): string | null {
   return `${match[1]}/tale-platform`;
 }
 
-async function getRegistryToken(
-  image: string,
-  auth: string | null
-): Promise<{ token: string | null; authRequired: boolean }> {
+async function getRegistryToken(image: string): Promise<string | null> {
   try {
-    const headers: Record<string, string> = {};
-    if (auth) {
-      headers.Authorization = `Basic ${auth}`;
-    }
-
     const response = await fetch(
-      `https://ghcr.io/token?scope=repository:${image}:pull`,
-      { headers }
+      `https://ghcr.io/token?scope=repository:${image}:pull`
     );
 
-    if (!response.ok) {
-      return { token: null, authRequired: response.status === 401 };
-    }
+    if (!response.ok) return null;
 
     const data = (await response.json()) as TokenResponse;
-    if (data.token && data.token.length > 20) {
-      return { token: data.token, authRequired: false };
-    }
-    return { token: null, authRequired: !auth };
+    return data.token && data.token.length > 20 ? data.token : null;
   } catch {
-    return { token: null, authRequired: false };
+    return null;
   }
 }
 
+const ARCH_SUFFIXES = new Set([
+  "amd64",
+  "arm64",
+  "arm",
+  "386",
+  "ppc64le",
+  "s390x",
+  "mips64le",
+  "riscv64",
+]);
+
 function isSemanticVersion(tag: string): boolean {
-  // Match semver with optional prerelease suffix (e.g., 1.0.0, v1.0.0, 1.0.0-rc16, 1.0.0-alpha.1)
-  return /^v?\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(tag);
+  const match = tag.match(/^v?\d+\.\d+\.\d+(-([a-zA-Z0-9.]+))?$/);
+  if (!match) return false;
+  if (match[2] && ARCH_SUFFIXES.has(match[2])) return false;
+  return true;
 }
 
 async function getManifestDigest(
@@ -157,16 +132,11 @@ export async function getAvailableVersions(
   }
 
   try {
-    const auth = getDockerAuth("ghcr.io");
-    const { token, authRequired } = await getRegistryToken(image, auth);
+    const token = await getRegistryToken(image);
 
     if (!token) {
-      if (authRequired || !auth) {
-        logger.debug("Authentication required for registry");
-        return { versions: [], error: "no_auth" };
-      }
       logger.debug("Failed to get registry token");
-      return { versions: [], error: "auth_failed" };
+      return { versions: [], error: "network" };
     }
 
     const response = await fetch(`https://ghcr.io/v2/${image}/tags/list?n=1000`, {
@@ -179,9 +149,6 @@ export async function getAvailableVersions(
       logger.debug(
         `Failed to fetch tags: ${response.status} ${response.statusText}`
       );
-      if (response.status === 401 || response.status === 403) {
-        return { versions: [], error: "auth_failed" };
-      }
       return { versions: [], error: "network" };
     }
 

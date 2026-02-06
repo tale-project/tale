@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../../utils/load-env";
 import type { ComposeService, DeploymentColor, ServiceConfig } from "../types";
 import { DEFAULT_LOGGING } from "../types";
 
@@ -7,7 +8,7 @@ export function createRagService(
 ): ComposeService {
   return {
     image: `${config.registry}/tale-rag:${config.version}`,
-    container_name: `${config.projectName}-rag-${color}`,
+    container_name: `${PROJECT_NAME}-rag-${color}`,
     volumes: ["rag-data:/app/data"],
     env_file: [".env"],
     restart: "unless-stopped",
@@ -21,7 +22,7 @@ export function createRagService(
     logging: DEFAULT_LOGGING,
     networks: {
       internal: {
-        aliases: [`rag-${color}`],
+        aliases: ["rag", `rag-${color}`],
       },
     },
   };

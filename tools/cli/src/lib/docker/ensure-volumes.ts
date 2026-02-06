@@ -1,3 +1,4 @@
+import { PROJECT_NAME } from "../../utils/load-env";
 import { docker } from "./docker";
 import * as logger from "../../utils/logger";
 
@@ -18,12 +19,9 @@ async function createVolume(volumeName: string): Promise<boolean> {
   return result.success;
 }
 
-export async function ensureVolumes(
-  projectName: string,
-  volumeNames: string[]
-): Promise<boolean> {
+export async function ensureVolumes(volumeNames: string[]): Promise<boolean> {
   for (const name of volumeNames) {
-    const fullName = `${projectName}_${name}`;
+    const fullName = `${PROJECT_NAME}_${name}`;
     const success = await createVolume(fullName);
     if (!success) {
       logger.error(`Failed to create volume: ${fullName}`);

@@ -5,13 +5,11 @@ on:
     inputs:
       release_tag:
         description: 'Release tag to attach binary to (e.g., v1.0.0)'
-        required: false
+        required: true
         type: string
   push:
     branches:
       - main
-    tags:
-      - 'v*'
     paths:
       - 'tools/cli/**'
       - '.github/workflows/cli.yml'
@@ -20,8 +18,47 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            VERSION="${{ github.event.inputs.release_tag }}"
+          else
+            VERSION="dev"
+          fi
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
   build:
-    runs-on: self-hosted
+    name: Build (${{ matrix.platform }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            build_script: build:linux
+            binary: tale
+            artifact: tale_linux
+          - os: macos-latest
+            platform: macos
+            build_script: build:mac
+            binary: tale
+            artifact: tale_macos
+          - os: windows-latest
+            platform: windows
+            build_script: build:windows
+            binary: tale.exe
+            artifact: tale_windows.exe
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -36,92 +73,69 @@ jobs:
         run: bun install
 
       - name: Type check
+        if: matrix.platform == 'linux'
         working-directory: tools/cli
         run: bun run typecheck
 
-      - name: Determine version
-        id: version
+      - name: Inject version into package.json
+        working-directory: tools/cli
+        shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
-            VERSION="${{ github.event.inputs.release_tag }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${{ github.ref_name }}"
+          if command -v jq &>/dev/null; then
+            jq '.version = "${{ needs.prepare.outputs.version }}"' package.json > package.json.tmp
+            mv package.json.tmp package.json
           else
-            VERSION="dev"
+            # Windows fallback using node
+            node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${{ needs.prepare.outputs.version }}';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
           fi
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build Linux binary
+      - name: Build binary
         working-directory: tools/cli
-        run: |
-          bun run build:linux
-          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_linux
+        run: bun run ${{ matrix.build_script }}
 
-      - name: Build macOS binary
-        working-directory: tools/cli
-        run: |
-          bun run build:mac
-          mv dist/tale dist/tale_${{ steps.version.outputs.version }}_macos
-
-      - name: Build Windows binary
-        working-directory: tools/cli
-        run: |
-          bun run build:windows
-          mv dist/tale.exe dist/tale_${{ steps.version.outputs.version }}_windows.exe
-
-      - name: Verify Linux binary
+      - name: Rename binary
         working-directory: tools/cli/dist
+        shell: bash
+        run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
+
+      - name: Verify binary
+        working-directory: tools/cli/dist
+        shell: bash
         run: |
-          chmod +x tale_${{ steps.version.outputs.version }}_linux
-          ./tale_${{ steps.version.outputs.version }}_linux --version
-          ./tale_${{ steps.version.outputs.version }}_linux --help
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x ${{ matrix.artifact }}
+          fi
+          ./${{ matrix.artifact }} --version
 
-      - name: Upload Linux artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: tale_${{ steps.version.outputs.version }}_linux
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux
+          name: ${{ matrix.artifact }}
+          path: tools/cli/dist/${{ matrix.artifact }}
           retention-days: 30
 
-      - name: Upload macOS artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: tale_${{ steps.version.outputs.version }}_macos
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos
-          retention-days: 30
+  release:
+    name: Upload to Release
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
 
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v6
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
         with:
-          name: tale_${{ steps.version.outputs.version }}_windows
-          path: tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe
-          retention-days: 30
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
 
       - name: Upload to release
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.inputs.release_tag }} \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
-            tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
+            artifacts/tale_linux/* \
+            artifacts/tale_macos/* \
+            artifacts/tale_windows.exe/* \
+            --repo ${{ github.repository }} \
             --clobber
-
-      - name: Upload to latest release
-        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || echo "")
-          if [ -n "$LATEST_TAG" ]; then
-            echo "Uploading to release: $LATEST_TAG"
-            gh release upload "$LATEST_TAG" \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_linux \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_macos \
-              tools/cli/dist/tale_${{ steps.version.outputs.version }}_windows.exe \
-              --clobber || echo "Failed to upload to release, skipping"
-          else
-            echo "No releases found, skipping upload"
-          fi

@@ -6,7 +6,7 @@ import { docker } from "../docker/docker";
 import { removeContainer } from "../docker/remove-container";
 import { withLock } from "../state/with-lock";
 import { confirm } from "../../utils/confirm";
-import type { DeploymentEnv } from "../../utils/load-env";
+import { PROJECT_NAME, type DeploymentEnv } from "../../utils/load-env";
 import * as logger from "../../utils/logger";
 
 interface ResetOptions {
@@ -40,7 +40,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     for (const color of ["blue", "green"] as DeploymentColor[]) {
       logger.step(`${prefix}Removing ${color} containers...`);
       for (const service of ROTATABLE_SERVICES) {
-        const containerName = `${env.PROJECT_NAME}-${service}-${color}`;
+        const containerName = `${PROJECT_NAME}-${service}-${color}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
@@ -53,7 +53,7 @@ export async function reset(options: ResetOptions): Promise<void> {
     if (includeStateful) {
       logger.step(`${prefix}Removing stateful containers...`);
       for (const service of STATEFUL_SERVICES) {
-        const containerName = `${env.PROJECT_NAME}-${service}`;
+        const containerName = `${PROJECT_NAME}-${service}`;
         if (dryRun) {
           logger.info(`${prefix}Would remove: ${containerName}`);
         } else {
@@ -87,9 +87,9 @@ export async function reset(options: ResetOptions): Promise<void> {
     // Prune unused networks for this project only
     logger.step(`${prefix}Pruning unused Docker networks...`);
     if (!dryRun) {
-      await docker("network", "prune", "-f", "--filter", `label=project=${env.PROJECT_NAME}`);
+      await docker("network", "prune", "-f", "--filter", `label=project=${PROJECT_NAME}`);
     } else {
-      logger.info(`${prefix}Would prune unused Docker networks for project ${env.PROJECT_NAME}`);
+      logger.info(`${prefix}Would prune unused Docker networks for project ${PROJECT_NAME}`);
     }
 
     if (dryRun) {
