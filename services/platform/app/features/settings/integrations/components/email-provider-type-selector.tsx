@@ -55,8 +55,8 @@ export function EmailProviderTypeSelector({
       description: t('integrations.configureCustom'),
       icon: Mail,
       onClick: () => {
-        // TODO: Open custom SMTP dialog when implemented
-        console.log('Custom SMTP not yet implemented');
+        // TODO: Open custom SMTP/IMAP dialog when implemented
+        console.log('Custom SMTP/IMAP not yet implemented');
       },
       disabled: true,
     },
