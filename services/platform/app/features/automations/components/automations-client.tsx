@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Workflow } from 'lucide-react';
@@ -12,6 +12,7 @@ import { AutomationsActionMenu } from './automations-action-menu';
 import { useAutomationsTableConfig } from './use-automations-table-config';
 import { useT } from '@/lib/i18n/client';
 import { AutomationsTableSkeleton } from './automations-table-skeleton';
+import { useListPage } from '@/app/hooks/use-list-page';
 
 interface AutomationsClientProps {
   organizationId: string;
@@ -32,8 +33,6 @@ export function AutomationsClient({
   const { columns, searchPlaceholder, stickyLayout, pageSize } =
     useAutomationsTableConfig();
 
-  const [displayCount, setDisplayCount] = useState(pageSize);
-
   const queryArgs = useMemo(
     () => ({
       organizationId,
@@ -49,23 +48,6 @@ export function AutomationsClient({
     queryArgs,
   );
 
-  const allAutomations = useMemo(
-    () => automationsResult ?? [],
-    [automationsResult],
-  );
-
-  const displayedAutomations = useMemo(
-    () => allAutomations.slice(0, displayCount),
-    [allAutomations, displayCount],
-  );
-
-  const hasMore = displayCount < allAutomations.length;
-
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => prev + pageSize);
-  }, [pageSize]);
-
-  // Define handlers with useCallback before any early returns
   const handleRowClick = useCallback(
     (row: Row<Doc<'wfDefinitions'>>) => {
       navigate({
@@ -122,6 +104,23 @@ export function AutomationsClient({
     [status, tTables, tCommon, handleStatusChange],
   );
 
+  const list = useListPage({
+    dataSource: {
+      type: 'query',
+      data: automationsResult ?? undefined,
+    },
+    pageSize,
+    search: {
+      value: searchTerm ?? '',
+      onChange: handleSearchChange,
+      placeholder: searchPlaceholder,
+    },
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
+    },
+  });
+
   if (automationsResult === undefined) {
     return <AutomationsTableSkeleton organizationId={organizationId} />;
   }
@@ -130,29 +129,15 @@ export function AutomationsClient({
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={displayedAutomations}
-      getRowId={(row) => row._id}
       onRowClick={handleRowClick}
       stickyLayout={stickyLayout}
-      search={{
-        value: searchTerm ?? '',
-        onChange: handleSearchChange,
-        placeholder: searchPlaceholder,
-      }}
-      filters={filterConfigs}
-      onClearFilters={handleClearFilters}
       actionMenu={<AutomationsActionMenu organizationId={organizationId} />}
       emptyState={{
         icon: Workflow,
         title: tEmpty('automations.title'),
         description: tEmpty('automations.description'),
       }}
-      infiniteScroll={{
-        hasMore,
-        onLoadMore: handleLoadMore,
-        isLoadingMore: false,
-        isInitialLoading: false,
-      }}
+      {...list.tableProps}
     />
   );
 }

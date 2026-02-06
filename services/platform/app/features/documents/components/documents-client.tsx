@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from 'convex/react';
 import { Monitor, ClipboardList, RefreshCw } from 'lucide-react';
-import { type ColumnDef } from '@tanstack/react-table';
+import { type ColumnDef, type Row } from '@tanstack/react-table';
 import { api } from '@/convex/_generated/api';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableSkeleton } from '@/app/components/ui/data-table/data-table-skeleton';
@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { useDebounce } from '@/app/hooks/use-debounce';
 import { useListTeams } from '@/app/features/settings/teams/hooks/use-list-teams';
+import { useListPage } from '@/app/hooks/use-list-page';
 
 interface DocumentsClientProps {
   organizationId: string;
@@ -73,18 +74,15 @@ export function DocumentsClient({
   const { t: tTables } = useT('tables');
 
   const [query, setQuery] = useState(searchQuery ?? '');
-  const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
   const debouncedQuery = useDebounce(query, 300);
 
-  // Fetch all teams for mapping team IDs to names
-  // In trusted headers mode, teams come from JWT claims
-  // In normal auth mode, teams come from the teamMember database table
   const { teams, isLoading: isLoadingTeams } = useListTeams(organizationId);
 
-  // Create a map of team ID to team name for efficient lookups
   const teamMap = useMemo(() => {
     if (!teams) return new Map<string, string>();
-    return new Map(teams.map((team: { id: string; name: string }) => [team.id, team.name]));
+    return new Map(
+      teams.map((team: { id: string; name: string }) => [team.id, team.name]),
+    );
   }, [teams]);
 
   const queryArgs = useMemo(
@@ -98,23 +96,45 @@ export function DocumentsClient({
     [organizationId, debouncedQuery, currentFolderPath],
   );
 
-  const documentsResult = useQuery(api.documents.queries.getDocumentsCursor, queryArgs);
+  const documentsResult = useQuery(
+    api.documents.queries.getDocumentsCursor,
+    queryArgs,
+  );
 
   const allDocuments = useMemo(
     () => (documentsResult?.page as DocumentItem[]) ?? [],
     [documentsResult],
   );
 
-  const displayedDocuments = useMemo(
-    () => allDocuments.slice(0, displayCount),
-    [allDocuments, displayCount],
-  );
-
-  const hasMore = displayCount < allDocuments.length;
-
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => prev + PAGE_SIZE);
-  }, []);
+  const list = useListPage({
+    dataSource: {
+      type: 'query',
+      data:
+        allDocuments.length > 0
+          ? allDocuments
+          : documentsResult === undefined
+            ? undefined
+            : allDocuments,
+    },
+    pageSize: PAGE_SIZE,
+    search: {
+      value: query,
+      onChange: (value: string) => {
+        setQuery(value);
+        navigate({
+          to: '/dashboard/$id/documents',
+          params: { id: organizationId },
+          search: {
+            query: value.trim() || undefined,
+            folderPath: currentFolderPath,
+            doc: docId,
+          },
+        });
+      },
+      placeholder: tDocuments('searchPlaceholder'),
+    },
+    getRowId: (row) => row.id,
+  });
 
   const previewDocument = useMemo(() => {
     if (!docId || !allDocuments.length) return null;
@@ -124,20 +144,10 @@ export function DocumentsClient({
   const previewPath = previewDocument?.storagePath ?? null;
   const previewFileName = previewDocument?.name ?? null;
 
-  const handleSearchChange = useCallback(
-    (value: string) => {
-      setQuery(value);
-      navigate({
-        to: '/dashboard/$id/documents',
-        params: { id: organizationId },
-        search: {
-          query: value.trim() || undefined,
-          folderPath: currentFolderPath,
-          doc: docId,
-        },
-      });
-    },
-    [navigate, organizationId, currentFolderPath, docId],
+  const getRowClassName = useCallback(
+    (row: Row<DocumentItem>) =>
+      row.original.type === 'folder' ? 'cursor-pointer' : '',
+    [],
   );
 
   const handleFolderClick = useCallback(
@@ -167,6 +177,17 @@ export function DocumentsClient({
       });
     },
     [navigate, organizationId, query, currentFolderPath],
+  );
+
+  const handleRowClick = useCallback(
+    (row: Row<DocumentItem>) => {
+      if (row.original.type === 'folder' && row.original.storagePath) {
+        handleFolderClick(row.original);
+      } else if (row.original.type === 'file') {
+        openPreview(row.original.id);
+      }
+    },
+    [handleFolderClick, openPreview],
   );
 
   const closePreview = useCallback(() => {
@@ -394,15 +415,9 @@ export function DocumentsClient({
 
       <DataTable
         columns={columns}
-        data={displayedDocuments}
-        getRowId={(row) => row.id}
+        onRowClick={handleRowClick}
+        rowClassName={getRowClassName}
         stickyLayout
-        search={{
-          value: query,
-          onChange: handleSearchChange,
-          placeholder: tDocuments('searchPlaceholder'),
-          className: 'w-full sm:w-[300px]',
-        }}
         actionMenu={
           <DocumentsActionMenu
             organizationId={organizationId}
@@ -414,12 +429,7 @@ export function DocumentsClient({
           title: tDocuments('emptyState.title'),
           description: tDocuments('emptyState.description'),
         }}
-        infiniteScroll={{
-          hasMore,
-          onLoadMore: handleLoadMore,
-          isLoadingMore: false,
-          isInitialLoading: false,
-        }}
+        {...list.tableProps}
       />
 
       <DocumentPreviewDialog

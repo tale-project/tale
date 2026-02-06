@@ -1,5 +1,12 @@
 /** RAG ingestion status for a document */
-export type RagStatus = 'pending' | 'queued' | 'running' | 'completed' | 'failed' | 'not_indexed' | 'stale';
+export type RagStatus =
+  | 'pending'
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'not_indexed'
+  | 'stale';
 
 export interface DocumentItem {
   id: string;
@@ -7,7 +14,7 @@ export interface DocumentItem {
   type: 'file' | 'folder';
   size?: number;
   storagePath?: string;
-  sourceProvider?: 'onedrive' | 'upload';
+  sourceProvider?: 'onedrive' | 'upload' | 'sharepoint';
   sourceMode?: 'auto' | 'manual';
   lastModified?: number;
   syncConfigId?: string;

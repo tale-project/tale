@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
+import { useListPage } from '@/app/hooks/use-list-page';
 
 interface ExecutionsClientProps {
   amId: Id<'wfDefinitions'>;
@@ -51,7 +52,11 @@ const ExecutionDetails = memo(function ExecutionDetails({
     execution._id ? { executionId: execution._id } : 'skip',
   );
 
-  const { metadata, parsedVariables, variables: _variables } = useMemo(() => {
+  const {
+    metadata,
+    parsedVariables,
+    variables: _variables,
+  } = useMemo(() => {
     const meta = execution.metadata
       ? (() => {
           try {
@@ -123,14 +128,13 @@ export function ExecutionsClient({
   const { searchPlaceholder, stickyLayout, pageSize } =
     useExecutionsTableConfig();
 
-  const [displayCount, setDisplayCount] = useState(pageSize);
-
   const queryArgs = useMemo(
     () => ({
       wfDefinitionId: amId,
       searchTerm: searchTerm || undefined,
       status: status && status.length > 0 ? status : undefined,
-      triggeredBy: triggeredBy && triggeredBy.length > 0 ? triggeredBy : undefined,
+      triggeredBy:
+        triggeredBy && triggeredBy.length > 0 ? triggeredBy : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       cursor: undefined,
@@ -148,17 +152,6 @@ export function ExecutionsClient({
     () => executionsResult?.page ?? [],
     [executionsResult],
   );
-
-  const displayedExecutions = useMemo(
-    () => allExecutions.slice(0, displayCount),
-    [allExecutions, displayCount],
-  );
-
-  const hasMore = displayCount < allExecutions.length;
-
-  const handleLoadMore = useCallback(() => {
-    setDisplayCount((prev) => prev + pageSize);
-  }, [pageSize]);
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -315,7 +308,9 @@ export function ExecutionsClient({
     [navigate, organizationId, amId, searchTerm, triggeredBy, dateFrom, dateTo],
   );
 
-  const handleDateRangeChange = (range: { from?: Date; to?: Date } | undefined) => {
+  const handleDateRangeChange = (
+    range: { from?: Date; to?: Date } | undefined,
+  ) => {
     navigate({
       to: '/dashboard/$id/automations/$amId/executions',
       params: { id: organizationId, amId },
@@ -323,8 +318,12 @@ export function ExecutionsClient({
         query: searchTerm,
         status: status?.[0],
         triggeredBy: triggeredBy?.[0],
-        dateFrom: range?.from ? formatISO(range.from, { representation: 'date' }) : undefined,
-        dateTo: range?.to ? formatISO(range.to, { representation: 'date' }) : undefined,
+        dateFrom: range?.from
+          ? formatISO(range.from, { representation: 'date' })
+          : undefined,
+        dateTo: range?.to
+          ? formatISO(range.to, { representation: 'date' })
+          : undefined,
       },
     });
   };
@@ -355,6 +354,23 @@ export function ExecutionsClient({
     [status, tTables, tCommon, handleStatusChange],
   );
 
+  const list = useListPage({
+    dataSource: {
+      type: 'query',
+      data: executionsResult === undefined ? undefined : allExecutions,
+    },
+    pageSize,
+    search: {
+      value: searchTerm ?? '',
+      onChange: handleSearchChange,
+      placeholder: searchPlaceholder,
+    },
+    filters: {
+      configs: filterConfigs,
+      onClear: handleClearFilters,
+    },
+  });
+
   const renderExpandedRow = useCallback(
     (row: Row<Execution>) => <ExecutionDetails execution={row.original} />,
     [],
@@ -368,18 +384,9 @@ export function ExecutionsClient({
     <DataTable
       className="py-6 px-4"
       columns={columns}
-      data={displayedExecutions}
-      getRowId={(row) => row._id}
       enableExpanding
       renderExpandedRow={renderExpandedRow}
       stickyLayout={stickyLayout}
-      search={{
-        value: searchTerm ?? '',
-        onChange: handleSearchChange,
-        placeholder: searchPlaceholder,
-      }}
-      filters={filterConfigs}
-      onClearFilters={handleClearFilters}
       dateRange={{
         from: dateFrom ? parseISO(dateFrom) : undefined,
         to: dateTo ? parseISO(dateTo) : undefined,
@@ -389,12 +396,7 @@ export function ExecutionsClient({
         title: tCommon('search.noResults'),
         description: tCommon('search.tryAdjusting'),
       }}
-      infiniteScroll={{
-        hasMore,
-        onLoadMore: handleLoadMore,
-        isLoadingMore: false,
-        isInitialLoading: false,
-      }}
+      {...list.tableProps}
     />
   );
 }
