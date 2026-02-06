@@ -293,3 +293,7 @@ npm run dev
 ---
 
 **Ready to build?** Start exploring at your configured domain!
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tale-project/tale&type=date&legend=top-left)](https://www.star-history.com/#tale-project/tale&type=date&legend=top-left)
