@@ -52,6 +52,12 @@ jobs:
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Inject version into package.json
+        working-directory: tools/cli
+        run: |
+          jq '.version = "${{ steps.version.outputs.version }}"' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
       - name: Build Linux binary
         working-directory: tools/cli
         run: |
