@@ -33,9 +33,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: () => tTables('headers.title'),
       size: 192,
       cell: ({ row }) => (
-        <span className="text-sm text-foreground truncate">
+        <div className="max-w-sm truncate text-sm text-foreground">
           {row.original.title || tTables('cells.empty')}
-        </span>
+        </div>
       ),
     },
     {
@@ -43,9 +43,9 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
       header: () => tTables('headers.description'),
       size: 256,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground truncate">
-          {row.original.description || tTables('cells.empty')}
-        </span>
+        <div className="max-w-sm truncate text-xs text-muted-foreground">
+          {row.original.description ? `"${row.original.description}"` : tTables('cells.empty')}
+        </div>
       ),
     },
     {

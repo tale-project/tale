@@ -6,7 +6,7 @@ import { Badge } from '@/app/components/ui/feedback/badge';
 import { HStack } from '@/app/components/ui/layout/layout';
 import striptags from 'striptags';
 import { decode } from 'he';
-import { useDateFormat } from '@/app/hooks/use-date-format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Conversation } from '../types';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useT } from '@/lib/i18n/client';
@@ -192,7 +192,7 @@ export function ConversationsList({
   onConversationCheck,
   isConversationSelected,
 }: ConversationsListProps) {
-  const { formatDateSmart } = useDateFormat();
+  const { formatDateSmart } = useFormatDate();
   const { t } = useT('conversations');
   const { t: tDialogs } = useT('dialogs');
 

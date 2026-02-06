@@ -18,6 +18,7 @@ from ..models import (
 )
 from ..services import job_store_db as job_store
 from ..services.cognee import cognee_service
+from ..secret_scanner import scan_file_for_secrets
 from ..utils import cleanup_memory
 
 router = APIRouter(prefix="/api/v1", tags=["Documents"])
@@ -230,9 +231,29 @@ async def upload_document(
     team_id_list = _parse_team_ids(team_ids, required=True)
 
     SUPPORTED_EXTENSIONS = {
-        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
-        ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
-        ".txt", ".md", ".csv"
+        # Documents
+        ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+        # Images
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".webp",
+        # Text / markup
+        ".txt", ".md", ".mdx", ".rst", ".tex", ".csv", ".tsv",
+        ".html", ".htm", ".css", ".scss", ".sass", ".less",
+        # Data / config
+        ".json", ".yaml", ".yml", ".toml", ".xml", ".ini", ".cfg",
+        ".conf", ".properties",
+        # Code
+        ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+        ".py", ".pyi",
+        ".c", ".h", ".cpp", ".hpp", ".cc", ".cxx",
+        ".rs", ".go", ".swift", ".kt", ".java",
+        ".rb", ".php", ".pl", ".lua", ".r",
+        ".scala", ".groovy", ".dart", ".ex", ".exs",
+        # Shell / scripts
+        ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd",
+        # Query / schema
+        ".sql", ".graphql", ".gql", ".proto",
+        # Build / project
+        ".gradle", ".cmake", ".lock",
     }
 
     tmp_path: str | None = None
@@ -281,6 +302,20 @@ async def upload_document(
                         detail=f"File size exceeds maximum allowed size of {max_size_mb}MB",
                     )
                 await tmp.write(chunk)
+
+        # Scan for embedded secrets before ingestion
+        async with aiofiles.open(tmp_path, "rb") as f:
+            file_bytes = await f.read()
+        rejected, reason = scan_file_for_secrets(file_bytes)
+        if rejected:
+            logger.warning(
+                "Upload rejected by secret scanner",
+                extra={"filename": file.filename, "reason": reason},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"File rejected: {reason}",
+            )
 
         # Parse metadata
         parsed_metadata: dict[str, Any] = {}

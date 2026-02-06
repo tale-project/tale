@@ -34,6 +34,7 @@ import { ImagePreviewDialog } from '@/app/features/chat/components/message-bubbl
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useConvexFileUpload } from '@/app/features/chat/hooks/use-convex-file-upload';
 import { useT } from '@/lib/i18n/client';
+import { TEXT_FILE_ACCEPT } from '@/lib/utils/text-file-types';
 
 // Module-level guard to prevent duplicate sends (survives component remounts)
 const recentSends = new Map<string, number>();
@@ -262,7 +263,6 @@ function AutomationAssistantContent({
   onClearChatStateChange,
 }: AutomationAssistantProps) {
   const { t } = useT('automations');
-  const { t: tCommon } = useT('common');
 
   const {
     attachments,
@@ -776,7 +776,7 @@ function AutomationAssistantContent({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.txt"
+        accept={TEXT_FILE_ACCEPT}
         onChange={handleFileInputChange}
         style={{ display: 'none' }}
       />

@@ -13,9 +13,8 @@ import { useT } from '@/lib/i18n/client';
 import { ApprovalDetailDialog } from './approval-detail-dialog';
 import { ApprovalDetail } from '../types/approval-detail';
 import { Button } from '@/app/components/ui/primitives/button';
-import { formatDate } from '@/lib/utils/date/format';
+import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useQuery } from 'convex/react';
-import { useLocale } from '@/lib/i18n/client';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useUpdateApprovalStatus } from '../hooks/use-update-approval-status';
@@ -58,7 +57,7 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
   const columns =
     status === 'resolved'
       ? [
-          { header: t('columns.approvalRecipient') },
+          { header: t('columns.approvalRecipient'), size: 256 },
           { header: t('columns.event'), size: 256 },
           { header: t('columns.action'), size: 256 },
           { header: t('columns.reviewer') },
@@ -66,7 +65,7 @@ function ApprovalsSkeleton({ status }: { status?: 'pending' | 'resolved' }) {
           { header: t('columns.approved'), size: 100 },
         ]
       : [
-          { header: t('columns.approvalRecipient') },
+          { header: t('columns.approvalRecipient'), size: 256 },
           { header: t('columns.event'), size: 256 },
           { header: t('columns.action'), size: 256 },
           { header: t('columns.confidence'), size: 100 },
@@ -90,7 +89,7 @@ export function ApprovalsClient({
   search,
 }: ApprovalsClientProps) {
   const { t } = useT('approvals');
-  const locale = useLocale();
+  const { formatDate } = useFormatDate();
 
   const getApprovalTypeLabel = useCallback(
     (resourceType: string): string => {
@@ -723,10 +722,7 @@ export function ApprovalsClient({
       cell: ({ row }) => (
         <span className="text-sm text-right block">
           {row.original.reviewedAt
-            ? formatDate(new Date(row.original.reviewedAt).toISOString(), {
-                preset: 'short',
-                locale,
-              })
+            ? formatDate(new Date(row.original.reviewedAt), 'short')
             : ''}
         </span>
       ),

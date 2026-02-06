@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { toast } from '@/app/hooks/use-toast';
 import { useGenerateUploadUrl } from './use-generate-upload-url';
 import { compressImage } from '@/lib/utils/compress-image';
+import { isTextBasedFile } from '@/lib/utils/text-file-types';
 import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
 
@@ -53,10 +54,11 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
       const invalidFiles: File[] = [];
 
       for (const file of files) {
-        if (
-          file.size > mergedConfig.maxFileSize ||
-          !mergedConfig.allowedTypes.includes(file.type)
-        ) {
+        const isAllowedType =
+          mergedConfig.allowedTypes.includes(file.type) ||
+          isTextBasedFile(file.name, file.type);
+
+        if (file.size > mergedConfig.maxFileSize || !isAllowedType) {
           invalidFiles.push(file);
         } else {
           validFiles.push(file);
@@ -89,7 +91,9 @@ export function useConvexFileUpload(config?: ConvexFileUploadConfig) {
 
           const result = await fetch(uploadUrl, {
             method: 'POST',
-            headers: { 'Content-Type': fileToUpload.type },
+            headers: {
+              'Content-Type': fileToUpload.type || 'application/octet-stream',
+            },
             body: fileToUpload,
           });
 

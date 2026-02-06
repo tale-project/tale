@@ -13,7 +13,8 @@ import { HStack } from '@/app/components/ui/layout/layout';
 import { Button } from '@/app/components/ui/primitives/button';
 import { Badge } from '@/app/components/ui/feedback/badge';
 import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
-import { useT, useLocale } from '@/lib/i18n/client';
+import { useLocale } from '@/app/hooks/use-locale';
+import { useT } from '@/lib/i18n/client';
 import { formatDuration } from '@/lib/utils/format/number';
 import { useExecutionsTableConfig } from './use-executions-table-config';
 import { ExecutionsTableSkeleton } from './executions-table-skeleton';
@@ -115,7 +116,7 @@ export function ExecutionsClient({
 }: ExecutionsClientProps) {
   const navigate = useNavigate();
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const locale = useLocale();
+  const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { t: tTables } = useT('tables');
 

@@ -19,7 +19,7 @@ interface UseInfiniteScrollOptions {
    */
   isLoading: boolean;
   /**
-   * Distance from bottom in pixels to trigger loading (default: 300px)
+   * Distance from bottom in pixels to trigger loading (default: 500px)
    * Positive value means trigger BEFORE reaching the sentinel
    */
   threshold?: number;
@@ -27,6 +27,13 @@ interface UseInfiniteScrollOptions {
    * Whether the hook is enabled (default: true)
    */
   enabled?: boolean;
+  /**
+   * Scroll container to observe intersections against.
+   * When provided, the IntersectionObserver uses this as its root
+   * instead of the viewport. Required for nested scroll containers
+   * (e.g., sticky layout with overflow-auto).
+   */
+  root?: React.RefObject<HTMLElement | null>;
 }
 
 interface UseInfiniteScrollReturn {
@@ -60,7 +67,7 @@ interface UseInfiniteScrollReturn {
  *   onLoadMore: handleLoadMore,
  *   hasMore: status === 'CanLoadMore',
  *   isLoading: status === 'LoadingMore',
- *   threshold: 300,
+ *   threshold: 500,
  * });
  *
  * return (
@@ -75,8 +82,9 @@ export function useInfiniteScroll({
   onLoadMore,
   hasMore,
   isLoading,
-  threshold = 300,
+  threshold = 500,
   enabled = true,
+  root,
 }: UseInfiniteScrollOptions): UseInfiniteScrollReturn {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -94,9 +102,10 @@ export function useInfiniteScroll({
         }
       },
       {
-        rootMargin: `${threshold}px`,
+        root: root?.current ?? null,
+        rootMargin: `0px 0px ${threshold}px 0px`,
         threshold: 0,
-      }
+      },
     );
 
     observer.observe(sentinel);
@@ -104,7 +113,7 @@ export function useInfiniteScroll({
     return () => {
       observer.disconnect();
     };
-  }, [enabled, hasMore, isLoading, onLoadMore, threshold]);
+  }, [enabled, hasMore, isLoading, onLoadMore, threshold, root]);
 
   return {
     sentinelRef,
