@@ -59,6 +59,7 @@ export const validateStep = queryWithRLS({
     const warnings = [...stepResult.warnings];
 
     if (args.wfDefinitionId) {
+      // eslint-disable-next-line no-restricted-syntax -- Need all steps for circular dependency validation
       const allSteps = await ctx.db
         .query('wfStepDefs')
         .withIndex('by_definition', (q) =>

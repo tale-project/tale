@@ -23,6 +23,7 @@ import { internalMutation } from '../_generated/server';
 export const removeDeprecatedLLMFields = internalMutation({
   args: {},
   handler: async (ctx) => {
+    // eslint-disable-next-line no-restricted-syntax -- One-time migration needs all rows
     const steps = await ctx.db.query('wfStepDefs').collect();
     let updated = 0;
     const details: Array<{ stepId: string; stepSlug: string; removed: string[] }> = [];

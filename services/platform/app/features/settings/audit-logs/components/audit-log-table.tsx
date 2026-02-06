@@ -84,7 +84,7 @@ export function AuditLogTable({ logs }: AuditLogTableProps) {
           const status = row.original.status;
           return (
             <Badge
-              variant={status === 'success' ? 'success' : status === 'denied' ? 'warning' : 'destructive'}
+              variant={status === 'success' ? 'green' : status === 'denied' ? 'yellow' : 'destructive'}
             >
               {status}
             </Badge>
