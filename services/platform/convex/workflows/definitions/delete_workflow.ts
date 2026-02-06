@@ -1,9 +1,17 @@
 /**
  * Delete workflow
  *
- * Uses scheduled mutations to delete executions in batches across separate
- * mutation contexts. Cleanup of component workflows is done asynchronously
- * to avoid hitting Convex's 4096 read operations limit.
+ * Uses scheduled mutations to delete executions, audit logs, steps, and the
+ * definition in batches across separate mutation contexts. Each phase runs
+ * in its own batch loop to stay under Convex's 16MB byte-read limit.
+ *
+ * Flow per definition:
+ * 1. Cancel & delete executions (batch size: 10, cancel is expensive)
+ * 2. Delete step audit logs (batch size: 500, delete-only)
+ * 3. Delete step definitions + workflow definition (inline)
+ *
+ * Cleanup of component workflows is scheduled asynchronously to avoid
+ * hitting read/operation limits.
  */
 
 import type { MutationCtx } from '../../_generated/server';
@@ -12,7 +20,8 @@ import type { WorkflowId } from '@convex-dev/workflow';
 import { internal } from '../../_generated/api';
 import { workflowManager } from '../../workflow_engine/engine';
 
-const EXECUTION_BATCH_SIZE = 100;
+const EXECUTION_BATCH_SIZE = 10;
+const AUDIT_LOG_BATCH_SIZE = 500;
 
 export async function deleteWorkflow(
   ctx: MutationCtx,
@@ -109,21 +118,35 @@ async function scheduleCleanupBatch(
   }
 }
 
+export async function deleteAuditLogsBatch(
+  ctx: MutationCtx,
+  wfDefinitionId: Id<'wfDefinitions'>,
+): Promise<{ hasMore: boolean }> {
+  let deletedCount = 0;
+
+  for await (const log of ctx.db
+    .query('wfStepAuditLogs')
+    .withIndex('by_workflow', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
+    await ctx.db.delete(log._id);
+    deletedCount++;
+
+    if (deletedCount >= AUDIT_LOG_BATCH_SIZE) {
+      return { hasMore: true };
+    }
+  }
+
+  return { hasMore: false };
+}
+
 export async function deleteStepsAndDefinition(
   ctx: MutationCtx,
   wfDefinitionId: Id<'wfDefinitions'>,
 ): Promise<void> {
-  // Collect all step IDs first (steps are typically few and small)
-  const stepIds: Array<Id<'wfStepDefs'>> = [];
   for await (const step of ctx.db
     .query('wfStepDefs')
     .withIndex('by_definition', (q) => q.eq('wfDefinitionId', wfDefinitionId))) {
-    stepIds.push(step._id);
+    await ctx.db.delete(step._id);
   }
 
-  // Delete all steps in parallel
-  await Promise.all(stepIds.map((id) => ctx.db.delete(id)));
-
-  // Delete the workflow definition
   await ctx.db.delete(wfDefinitionId);
 }
