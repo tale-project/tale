@@ -7,7 +7,7 @@
 
 import type { Doc } from '../../_generated/dataModel';
 
-type StepType = 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+type StepType = 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
 
 interface StepDef {
   stepSlug: string;
@@ -37,8 +37,8 @@ export interface DryRunResult {
   warnings: string[];
 }
 
-function findTriggerStep(steps: StepDef[]): StepDef | null {
-  return steps.find((s) => s.stepType === 'trigger') || null;
+function findStartStep(steps: StepDef[]): StepDef | null {
+  return steps.find((s) => s.stepType === 'start' || s.stepType === 'trigger') || null;
 }
 
 function findStepBySlug(steps: StepDef[], slug: string): StepDef | null {
@@ -53,9 +53,10 @@ function simulateStepOutput(
   branch: string;
 } {
   switch (step.stepType) {
+    case 'start':
     case 'trigger':
       return {
-        output: { type: 'trigger', data: { triggered: true } },
+        output: { type: 'start', data: { triggered: true } },
         branch: 'success',
       };
 
@@ -142,14 +143,14 @@ export function executeDryRun(
     nextSteps: s.nextSteps,
   }));
 
-  const triggerStep = findTriggerStep(stepDefs);
-  if (!triggerStep) {
-    errors.push('No trigger step found in workflow');
+  const startStep = findStartStep(stepDefs);
+  if (!startStep) {
+    errors.push('No start step found in workflow');
     return { success: false, executionPath, stepResults, errors, warnings };
   }
 
   const visited = new Set<string>();
-  let currentStep: StepDef | null = triggerStep;
+  let currentStep: StepDef | null = startStep;
   let currentInput = input;
   const maxSteps = 100;
   let stepCount = 0;

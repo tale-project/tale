@@ -25,6 +25,7 @@ interface NextStepsEditorProps {
 
 const TRANSITION_KEYS_BY_TYPE: Record<Doc<'wfStepDefs'>['stepType'], string[]> =
   {
+    start: ['success'],
     trigger: ['success'],
     llm: ['success', 'failure'],
     condition: ['true', 'false'],

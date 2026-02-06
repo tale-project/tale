@@ -76,6 +76,7 @@ export const wfStepDefsTable = defineTable({
   name: v.string(),
   description: v.optional(v.string()),
   stepType: v.union(
+    v.literal('start'),
     v.literal('trigger'),
     v.literal('llm'),
     v.literal('condition'),

@@ -82,7 +82,7 @@ export async function provisionWebsiteScanWorkflow(
       },
     },
     (step) =>
-      step.stepType === 'trigger'
+      step.stepType === 'start' || step.stepType === 'trigger'
         ? { ...step, config: { type: 'scheduled', schedule, timezone } }
         : step,
   );

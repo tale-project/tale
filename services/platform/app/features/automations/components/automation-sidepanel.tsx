@@ -47,6 +47,7 @@ interface AutomationSidePanelProps {
 
 const getStepTypeColor = (stepType: string) => {
   switch (stepType) {
+    case 'start':
     case 'trigger':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300';
     case 'llm':

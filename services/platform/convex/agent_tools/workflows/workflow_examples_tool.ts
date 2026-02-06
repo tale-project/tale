@@ -70,7 +70,7 @@ export const workflowExamplesTool: ToolDefinition = {
 **SYNTAX CATEGORIES (for get_syntax_reference):**
 • ⭐ 'quick_start': Decision tree, common mistakes, step type reference
 • ⭐ 'common_patterns': Pattern skeletons (Entity Processing, Email, LLM Analysis, Data Sync, RAG)
-• 'trigger': Trigger step config (manual, scheduled, webhook)
+• 'trigger': Start/Trigger step config (manual, scheduled, webhook) - use 'start' for new workflows
 • 'llm': LLM step config (requires name + systemPrompt)
 • 'action': Action types (workflow_processing_records, customer, approval, etc.)
 • 'condition': JEXL condition expressions

@@ -24,6 +24,7 @@ const stepValidators: Record<
   StepType,
   (config: Record<string, unknown>) => ValidationResult
 > = {
+  start: validateTriggerStep,
   trigger: validateTriggerStep,
   llm: validateLlmStep,
   condition: validateConditionStep,

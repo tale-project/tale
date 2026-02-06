@@ -60,7 +60,7 @@ export async function saveRelatedWorkflows(
       },
       // Transform trigger steps to enable scheduling
       (step) =>
-        step.stepType === 'trigger'
+        step.stepType === 'start' || step.stepType === 'trigger'
           ? {
               ...step,
               config: {

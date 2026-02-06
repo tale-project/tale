@@ -40,7 +40,7 @@ export interface WorkflowCreationMetadata {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
+    stepType: 'start' | 'trigger' | 'llm' | 'action' | 'condition' | 'loop';
     order: number;
     config: Record<string, unknown>;
     nextSteps: Record<string, string>;

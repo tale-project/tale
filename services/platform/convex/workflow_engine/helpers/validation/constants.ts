@@ -18,6 +18,7 @@
  * - validate_step_config.ts (add to switch statement)
  */
 export const VALID_STEP_TYPES = [
+  'start',
   'trigger',
   'llm',
   'condition',

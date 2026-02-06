@@ -5,7 +5,7 @@
 import { Id } from '../../../_generated/dataModel';
 import { StepExecutionResult } from '../../types';
 
-export type StepType = 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+export type StepType = 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
 
 export interface StepDefinition {
   stepSlug: string;

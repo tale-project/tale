@@ -50,10 +50,10 @@ workflow_examples(operation='get_syntax_reference', category='trigger|llm|action
         .object({
           name: z.string().optional().describe('New step name'),
           stepType: z
-            .enum(['trigger', 'llm', 'action', 'condition', 'loop'])
+            .enum(['start', 'trigger', 'llm', 'action', 'condition', 'loop'])
             .optional()
             .describe(
-              'New step type. Options: trigger (starts workflow - scheduled/manual/event), llm (AI agent with tools), action (database/API operations), condition (branching logic), loop (iterate over collections)',
+              'New step type. Options: start (starts workflow - scheduled/manual/event), trigger (deprecated, use start), llm (AI agent with tools), action (database/API operations), condition (branching logic), loop (iterate over collections)',
             ),
           order: z.number().optional().describe('New order number'),
           config: z

@@ -21,7 +21,7 @@ export type ExecuteStepArgs = {
   organizationId: string;
   executionId: string;
   stepSlug: string;
-  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
   stepName?: string;
   threadId?: string;
   initialInput?: unknown;

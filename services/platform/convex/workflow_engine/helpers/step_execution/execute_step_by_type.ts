@@ -16,6 +16,18 @@ export async function executeStepByType(
   threadId?: string,
 ): Promise<StepExecutionResult> {
   switch (stepDef.stepType) {
+    case 'start':
+      return await ctx.runAction(internal.workflow_engine.nodes.executeStartNode, {
+        stepDef: {
+          stepSlug: stepDef.stepSlug,
+          stepType: 'start' as const,
+          config: {},
+        },
+        variables,
+        executionId,
+        threadId,
+      });
+
     case 'trigger':
       return await ctx.runAction(internal.workflow_engine.internal_actions.executeTriggerNode, {
         stepDef: {

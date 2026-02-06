@@ -41,6 +41,7 @@ const getDefaultTemplates = (
   stepType: Doc<'wfStepDefs'>['stepType'],
 ): { config: string } => {
   switch (stepType) {
+    case 'start':
     case 'trigger': {
       const cfg = { type: 'manual', context: {} };
       return {
@@ -111,7 +112,7 @@ export function CreateStepDialog({
             /^[a-zA-Z_][a-zA-Z0-9_-]*$/,
             t('createStep.validation.nameFormat'),
           ),
-        stepType: z.enum(['trigger', 'llm', 'condition', 'action', 'loop']),
+        stepType: z.enum(['start', 'trigger', 'llm', 'condition', 'action', 'loop']),
         config: z.string(),
       }),
     [t],

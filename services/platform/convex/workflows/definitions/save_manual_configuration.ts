@@ -19,7 +19,7 @@ export interface SaveManualConfigurationArgs {
   stepsConfig: Array<{
     stepSlug: string;
     name: string;
-    stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+    stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
     order: number;
     config: StepConfig;
     nextSteps: Record<string, string>;

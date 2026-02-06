@@ -89,13 +89,14 @@ export interface StepOutputWrapper {
  * Get the base output schema for a step type
  */
 export function getStepTypeOutputSchema(
-  stepType: 'trigger' | 'llm' | 'action' | 'condition' | 'loop',
+  stepType: 'start' | 'trigger' | 'llm' | 'action' | 'condition' | 'loop',
 ): OutputSchema {
   switch (stepType) {
     case 'condition':
       return conditionOutputSchema;
     case 'loop':
       return loopOutputSchema;
+    case 'start':
     case 'trigger':
       return triggerOutputSchema;
     case 'llm':

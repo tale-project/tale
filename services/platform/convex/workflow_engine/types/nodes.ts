@@ -204,7 +204,39 @@ export const loopNodeConfigValidator = v.object({
 });
 
 // =============================================================================
-// TRIGGER NODE TYPES (VALIDATOR)
+// START NODE TYPES (VALIDATOR)
+// =============================================================================
+
+/**
+ * Start node config defines the input schema for a workflow.
+ * Trigger sources (schedule, webhook, API) are configured separately
+ * in the wfSchedules, wfWebhooks, and wfApiKeys tables.
+ */
+export const startNodeConfigValidator = v.object({
+  inputSchema: v.optional(
+    v.object({
+      properties: v.record(
+        v.string(),
+        v.object({
+          type: v.union(
+            v.literal('string'),
+            v.literal('number'),
+            v.literal('integer'),
+            v.literal('boolean'),
+            v.literal('array'),
+            v.literal('object'),
+          ),
+          description: v.optional(v.string()),
+        }),
+      ),
+      required: v.optional(v.array(v.string())),
+    }),
+  ),
+});
+
+// =============================================================================
+// TRIGGER NODE TYPES (VALIDATOR) — kept for backward compatibility with
+// existing workflow data. New workflows should use 'start' step type.
 // =============================================================================
 
 export const triggerNodeConfigValidator = v.union(
@@ -299,6 +331,7 @@ export const llmStepConfigValidator = v.union(
 
 // Unified step-config validator used in schema/API
 export const stepConfigValidator = v.union(
+  startNodeConfigValidator,
   triggerNodeConfigValidator,
   llmStepConfigValidator,
   conditionNodeConfigValidator,

@@ -39,7 +39,8 @@ Processing multiple entities (customers/products/conversations/approvals)?
 ❌ Missing "type" in action step → ✅ Action config requires "type" field
 
 **STEP TYPE QUICK REFERENCE:**
-- trigger: Start workflow (scheduled/manual/webhook/event)
+- start: Start workflow (scheduled/manual/webhook/event) - use for new workflows
+- trigger: Start workflow (deprecated, use 'start' instead)
 - action: CRUD operations, set_variables, integrations, approvals
 - llm: AI decision-making and content generation (requires name + systemPrompt)
 - condition: JEXL expression branching (nextSteps: true/false)
@@ -55,12 +56,12 @@ Processing multiple entities (customers/products/conversations/approvals)?
 ### Pattern 1: Entity Processing (Most Common)
 Process customers/products/conversations one at a time. Each execution handles ONE entity.
 
-**Structure:** trigger → find_unprocessed → condition → process → record_processed → noop
+**Structure:** start → find_unprocessed → condition → process → record_processed → noop
 
 **Skeleton:**
 \`\`\`json
 [
-  { "stepSlug": "start", "stepType": "trigger", "config": { "type": "scheduled", "schedule": "0 */2 * * *", "timezone": "UTC" }, "nextSteps": { "success": "find_entity" } },
+  { "stepSlug": "start", "stepType": "start", "config": { "type": "scheduled", "schedule": "0 */2 * * *", "timezone": "UTC" }, "nextSteps": { "success": "find_entity" } },
   { "stepSlug": "find_entity", "stepType": "action", "config": { "type": "workflow_processing_records", "parameters": { "operation": "find_unprocessed", "tableName": "customers", "backoffHours": "{{backoffHours}}", "filterExpression": "status == \\"active\\"" } }, "nextSteps": { "success": "check_found" } },
   { "stepSlug": "check_found", "stepType": "condition", "config": { "expression": "steps.find_entity.output.data != null" }, "nextSteps": { "true": "extract_data", "false": "noop" } },
   { "stepSlug": "extract_data", "stepType": "action", "config": { "type": "set_variables", "parameters": { "variables": [{ "name": "entityId", "value": "{{steps.find_entity.output.data._id}}" }] } }, "nextSteps": { "success": "process" } },
@@ -115,12 +116,14 @@ Upload documents/products/customers to knowledge base.
 { "stepSlug": "upload_to_rag", "stepType": "action", "config": { "type": "rag", "parameters": { "operation": "upload", "content": "{{documentContent}}", "metadata": { "sourceId": "{{documentId}}", "sourceType": "document" } } }, "nextSteps": { "success": "record_processed" } }
 \`\`\``,
 
-  trigger: `## Trigger Step (stepType: 'trigger')
+  trigger: `## Start/Trigger Step (stepType: 'start' or 'trigger')
+
+Use 'start' for new workflows. 'trigger' is deprecated but still supported.
 
 Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, timezone?, context? }
 NextSteps: { success: 'next_step_slug' }
 
-**Scheduled Trigger Example:**
+**Scheduled Start Example:**
 \`\`\`json
 {
   "type": "scheduled",
@@ -129,7 +132,7 @@ NextSteps: { success: 'next_step_slug' }
 }
 \`\`\`
 
-**Manual Trigger Example:**
+**Manual Start Example:**
 \`\`\`json
 {
   "type": "manual",
@@ -355,7 +358,7 @@ For workflows that process multiple entities (customers, products, conversations
 
 ### Standard Structure
 \`\`\`
-Step 1: Scheduled Trigger (e.g., "0 */2 * * *")
+Step 1: Scheduled Start (e.g., "0 */2 * * *")
 Step 2: workflow_processing_records(find_unprocessed)
 Step 3: Condition (data != null)
 Step 4-N: Process entity (LLM steps for business logic)

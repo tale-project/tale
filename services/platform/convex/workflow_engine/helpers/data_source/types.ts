@@ -65,7 +65,7 @@ export interface StepDefinition {
   wfDefinitionId: Id<'wfDefinitions'> | string;
   stepSlug: string;
   name: string;
-  stepType: 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
+  stepType: 'start' | 'trigger' | 'llm' | 'condition' | 'action' | 'loop';
   order: number;
   config: unknown;
   nextSteps: Record<string, string>;

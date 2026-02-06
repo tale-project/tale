@@ -12,9 +12,15 @@ export const WORKFLOW_SYNTAX_COMPACT = `
 
 ## Step Types
 
+### start (stepType: 'start')
+Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, context? }
+NextSteps: { success: 'next_step' }
+Note: 'start' is the modern step type. 'trigger' is maintained for backward compatibility.
+
 ### trigger (stepType: 'trigger')
 Config: { type: 'manual'|'scheduled'|'webhook'|'event', inputs?, schedule?, context? }
 NextSteps: { success: 'next_step' }
+Note: Use 'start' for new workflows. This is maintained for backward compatibility.
 
 ### llm (stepType: 'llm')
 Config: { name (REQUIRED), systemPrompt (REQUIRED), userPrompt?, tools?: string[], outputFormat?: 'text'|'json', outputSchema?: JsonSchemaDefinition, contextVariables? }

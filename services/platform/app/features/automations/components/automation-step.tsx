@@ -42,6 +42,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
   const bottomSourceLeft = data.hasBidirectionalBottom ? '55%' : '50%';
 
   const STEP_TYPE_STYLES: Record<string, string> = {
+    start: 'bg-blue-100 text-blue-600',
     trigger: 'bg-blue-100 text-blue-600',
     llm: 'bg-purple-100 text-purple-600',
     condition: 'bg-amber-100 text-amber-600',
@@ -70,6 +71,7 @@ export function AutomationStep({ data }: AutomationStepProps) {
 
   const getStepTypeLabel = (stepType: Doc<'wfStepDefs'>['stepType']) => {
     const labels: Record<string, string> = {
+      start: t('stepTypes.trigger'),
       trigger: t('stepTypes.trigger'),
       llm: t('stepTypes.llm'),
       condition: t('stepTypes.condition'),

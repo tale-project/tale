@@ -63,7 +63,7 @@ export function validateStepConfig(stepDef: StepDefinitionInput): StepConfigVali
   // 3. Validate step type
   if (!stepDef.stepType) {
     errors.push(
-      `Step type is required. FIX: Add stepType = "trigger" | "llm" | "action" | "condition" | "loop"`,
+      `Step type is required. FIX: Add stepType = "start" | "trigger" | "llm" | "action" | "condition" | "loop"`,
     );
     return { valid: false, errors, warnings };
   }
