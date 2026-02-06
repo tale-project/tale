@@ -68,7 +68,9 @@ Once Tale is running, you can:
 
 ## Deploy to Production
 
-Ready to go live? Update your `.env` file:
+### Using Docker Compose (Simple)
+
+Update your `.env` file and start:
 
 ```bash
 HOST=yourdomain.com
@@ -76,13 +78,27 @@ SITE_URL=https://yourdomain.com
 TLS_MODE=letsencrypt
 ```
 
-Then build and start:
-
 ```bash
 docker compose up --build -d
 ```
 
 SSL certificates are automatically provisioned via Let's Encrypt.
+
+### Using the Tale CLI (Recommended)
+
+For zero-downtime blue-green deployments, install the [Tale CLI](tools/cli/README.md) (macOS / Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.sh | bash
+```
+
+Then deploy:
+
+```bash
+tale deploy
+```
+
+On first run, the CLI interactively configures your domain, TLS, API keys, and security secrets. See [Tale CLI documentation](tools/cli/README.md) for the full command reference.
 
 ## Authentication Options
 
@@ -92,22 +108,19 @@ Tale supports multiple authentication methods. By default, users sign up with em
 
 Enable single sign-on with Microsoft 365 / Azure AD:
 
-```bash
-# Add to .env
-AUTH_MICROSOFT_ENTRA_ID_ID=your-client-id
-AUTH_MICROSOFT_ENTRA_ID_SECRET=your-client-secret
-AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=your-tenant-id
-AUTH_MICROSOFT_ENTRA_ID_ISSUER=https://login.microsoftonline.com/your-tenant-id/v2.0
-```
-
-To get these values:
+**Azure setup:**
 
 1. Go to [Azure Portal](https://portal.azure.com) → Microsoft Entra ID → App registrations
 2. Create a new registration (or use existing)
-3. Add redirect URI: `https://yourdomain.com/api/auth/callback/microsoft`
-4. Copy Application (client) ID → `AUTH_MICROSOFT_ENTRA_ID_ID`
-5. Create a client secret → `AUTH_MICROSOFT_ENTRA_ID_SECRET`
-6. Copy Directory (tenant) ID → `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`
+3. Add redirect URI: `https://yourdomain.com/api/sso/callback`
+4. Note the Application (client) ID, Directory (tenant) ID, and create a client secret
+
+**Tale setup:**
+
+1. Go to **Settings → Integrations** in the Tale admin panel
+2. Select **Microsoft Entra ID** as the SSO provider
+3. Enter your client ID, client secret, and issuer URL
+4. Optionally enable group sync, role mapping, auto-provisioning, and OneDrive access
 
 ### Trusted Headers Authentication
 
@@ -133,43 +146,51 @@ Your proxy must send these headers with every request:
 
 ## Updating Tale
 
-### Using Pre-built Images (Recommended for Production)
+### Using the Tale CLI (Recommended for Production)
 
 ```bash
-# Deploy specific version with zero downtime
-./scripts/deploy.sh deploy v1.0.0
+# Deploy with interactive version selection
+tale deploy
 
-# Or deploy latest version
-./scripts/deploy.sh deploy latest
+# Or deploy a specific version
+tale deploy v1.0.0
+
+# Check current deployment status
+tale status
+
+# Rollback to the previous version if needed
+tale rollback
 ```
 
-See [Zero-Downtime Deployment](docs/zero-downtime-deployment.md) for more details on blue-green deployment.
+See [Zero-Downtime Deployment](docs/zero-downtime-deployment.md) and [Tale CLI documentation](tools/cli/README.md) for details.
 
 ### From Source (Development)
 
 ```bash
-# Pull latest changes
 git pull
-
-# Rebuild and restart
 docker compose down
 docker compose up --build -d
 ```
 
 ## Essential Commands
 
+### Local Development
+
 ```bash
-# Start Tale
-docker compose up --build
+docker compose up --build        # Start Tale
+docker compose down              # Stop Tale (keeps data)
+docker compose logs -f           # View logs
+docker compose down -v           # Fresh start (deletes all data)
+```
 
-# Stop Tale (keeps data)
-docker compose down
+### Production (Tale CLI)
 
-# View logs
-docker compose logs -f
-
-# Fresh start (deletes all data)
-docker compose down -v
+```bash
+tale deploy                      # Deploy (interactive version selection)
+tale status                      # Show deployment status
+tale logs platform --follow      # View service logs
+tale rollback                    # Rollback to previous version
+tale cleanup                     # Remove inactive containers
 ```
 
 ## Convex Dashboard Access
@@ -257,14 +278,17 @@ npm run dev
 
 ### Operations
 
-- **[Zero-Downtime Deployment](docs/zero-downtime-deployment.md)** - Blue-green deployment strategy for production environments requiring zero downtime
+- **[Tale CLI](tools/cli/README.md)** - CLI tool for production deployment, management, and zero-downtime updates
+- **[Zero-Downtime Deployment](docs/zero-downtime-deployment.md)** - Blue-green deployment strategy details
 
 ## Need Help?
 
-- **Logs**: `docker compose logs -f` to see what's happening
+- **Logs (dev)**: `docker compose logs -f` to see what's happening
+- **Logs (production)**: `tale logs <service>` to view service logs
 - **Health checks**: Visit `{SITE_URL}/api/health`
+- **Deployment status**: `tale status` to check production deployment
 - **Convex Dashboard**: Generate admin key (see above) for backend data and logs
-- **Detailed docs**: Check `services/*/README.md` for each component
+- **Detailed docs**: Check `services/*/README.md` for each component and [tools/cli/README.md](tools/cli/README.md) for CLI reference
 
 ---
 
