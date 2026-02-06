@@ -45,14 +45,17 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
+            build_script: build:linux
             binary: tale
             artifact: tale_linux
           - os: macos-latest
             platform: macos
+            build_script: build:mac
             binary: tale
             artifact: tale_macos
           - os: windows-latest
             platform: windows
+            build_script: build:windows
             binary: tale.exe
             artifact: tale_windows.exe
 
@@ -88,7 +91,7 @@ jobs:
 
       - name: Build binary
         working-directory: tools/cli
-        run: bun run build
+        run: bun run ${{ matrix.build_script }}
 
       - name: Rename binary (Unix)
         if: matrix.platform != 'windows'
