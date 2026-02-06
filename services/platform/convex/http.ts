@@ -15,6 +15,10 @@ import {
   ssoSetSessionHandler,
 } from './sso_providers/http_handlers';
 import { apiGatewayOptions, apiGatewayRun } from './api_gateway';
+import {
+  webhookHandler,
+  webhookOptionsHandler,
+} from './workflows/triggers/webhook_http';
 
 const http = httpRouter();
 
@@ -123,6 +127,19 @@ http.route({
   path: '/api/sso/set-session',
   method: 'GET',
   handler: ssoSetSessionHandler,
+});
+
+// Workflow Webhook Trigger Routes
+http.route({
+  pathPrefix: '/api/workflows/wh/',
+  method: 'POST',
+  handler: webhookHandler,
+});
+
+http.route({
+  pathPrefix: '/api/workflows/wh/',
+  method: 'OPTIONS',
+  handler: webhookOptionsHandler,
 });
 
 // API Gateway Routes - Handle /api/run/* paths with session cookie or API key authentication

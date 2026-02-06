@@ -27,6 +27,21 @@ export async function getActiveWorkflowVersion(
   return activeVersion;
 }
 
+export const checkIdempotencyQuery = internalQuery({
+  args: {
+    organizationId: v.string(),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('wfTriggerLogs')
+      .withIndex('by_idempotencyKey', (q) =>
+        q.eq('organizationId', args.organizationId).eq('idempotencyKey', args.idempotencyKey),
+      )
+      .first();
+  },
+});
+
 export const getActiveVersion = internalQuery({
   args: { workflowRootId: v.id('wfDefinitions') },
   returns: v.union(v.id('wfDefinitions'), v.null()),
