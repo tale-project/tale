@@ -290,10 +290,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
             const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
             const stopped = await stopContainer(containerName);
             if (stopped) {
-              logger.info(`Stopped stale container ${containerName}`);
               await removeContainer(containerName);
             }
           }
+          logger.step(`Starting ${nextColor} services...`);
           const coloredServices = rotatableToUpdate.map((s) => `${s}-${nextColor}`);
           const deployResult = await dockerCompose(
             colorCompose,
