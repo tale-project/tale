@@ -13,6 +13,7 @@ import { dockerCompose } from "../docker/docker-compose";
 import { ensureNetwork } from "../docker/ensure-network";
 import { ensureVolumes } from "../docker/ensure-volumes";
 import { getContainerVersion } from "../docker/get-container-version";
+import { isContainerRunning } from "../docker/is-container-running";
 import { pullImage } from "../docker/pull-image";
 import { removeContainer } from "../docker/remove-container";
 import { stopContainer } from "../docker/stop-container";
@@ -80,13 +81,32 @@ export async function deploy(options: DeployOptions): Promise<void> {
       statefulToUpdate = services.filter(isStatefulService);
     } else {
       // Default: all rotatable services
-      // Stateful services: always on first deploy, otherwise only if --all
       rotatableToUpdate = [...ROTATABLE_SERVICES];
-      const includeStateful = isFirstDeploy || updateStateful;
-      statefulToUpdate = includeStateful ? [...STATEFUL_SERVICES] : [];
 
-      if (isFirstDeploy) {
-        logger.notice("First deployment detected - including infrastructure services");
+      if (isFirstDeploy || updateStateful) {
+        statefulToUpdate = [...STATEFUL_SERVICES];
+        if (isFirstDeploy) {
+          logger.notice("First deployment detected - including infrastructure services");
+        }
+      } else {
+        // Check if any required stateful services are not running
+        const missingStateful: StatefulService[] = [];
+        for (const service of STATEFUL_SERVICES) {
+          const containerName = `${PROJECT_NAME}-${service}`;
+          const running = await isContainerRunning(containerName);
+          if (!running) {
+            missingStateful.push(service);
+          }
+        }
+
+        if (missingStateful.length > 0) {
+          logger.notice(
+            `Infrastructure services not running: ${missingStateful.join(", ")} - including automatically`
+          );
+          statefulToUpdate = missingStateful;
+        } else {
+          statefulToUpdate = [];
+        }
       }
     }
 
@@ -254,6 +274,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
         if (dryRun) {
           for (const service of rotatableToUpdate) {
+            logger.info(`${prefix}Would clean up stale: ${PROJECT_NAME}-${service}-${nextColor}`);
             logger.info(`${prefix}Would deploy: ${PROJECT_NAME}-${service}-${nextColor}`);
           }
           logger.step(`${prefix}Would switch traffic to ${nextColor}`);
@@ -264,6 +285,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
         } else {
+          // Clean up any stale next-color containers from a previous failed deployment
+          for (const service of rotatableToUpdate) {
+            const containerName = `${PROJECT_NAME}-${service}-${nextColor}`;
+            const stopped = await stopContainer(containerName);
+            if (stopped) {
+              logger.info(`Stopped stale container ${containerName}`);
+              await removeContainer(containerName);
+            }
+          }
           const coloredServices = rotatableToUpdate.map((s) => `${s}-${nextColor}`);
           const deployResult = await dockerCompose(
             colorCompose,
