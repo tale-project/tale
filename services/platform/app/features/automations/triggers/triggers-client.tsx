@@ -26,7 +26,7 @@ export function TriggersClient({
 }: TriggersClientProps) {
   const { t } = useT('automations');
 
-  const workflow = useQuery(api.wf_definitions.queries.getWorkflowPublic, {
+  const workflow = useQuery(api.wf_definitions.queries.getWorkflow, {
     wfDefinitionId: automationId,
   });
 

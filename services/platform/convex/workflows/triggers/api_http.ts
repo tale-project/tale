@@ -5,7 +5,7 @@
  */
 
 import { httpAction } from '../../_generated/server';
-import { internal, api } from '../../_generated/api';
+import { internal } from '../../_generated/api';
 import type { Doc } from '../../_generated/dataModel';
 import {
   checkIpRateLimit,
@@ -50,7 +50,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   // Look up API key by hash
   const keyHash = await hashSecret(apiKey);
   const apiKeyRecord = await ctx.runQuery(
-    internal.workflows.triggers.api_keys.getApiKeyByHash,
+    internal.workflows.triggers.internal_queries.getApiKeyByHash,
     { keyHash },
   ) as Doc<'wfApiKeys'> | null;
 
@@ -77,7 +77,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   // Validate workflowRootId matches the API key
   const workflowRootId = body.workflowRootId || apiKeyRecord.workflowRootId;
   if (workflowRootId !== apiKeyRecord.workflowRootId) {
-    await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
+    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
       organizationId: apiKeyRecord.organizationId,
       workflowRootId: apiKeyRecord.workflowRootId,
       wfDefinitionId: apiKeyRecord.workflowRootId,
@@ -93,7 +93,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   const idempotencyKey = body.idempotencyKey || extractIdempotencyKey(req.headers);
   if (idempotencyKey) {
     const existing = await ctx.runQuery(
-      internal.workflows.triggers.queries.checkIdempotencyQuery,
+      internal.workflows.triggers.internal_queries.checkIdempotencyQuery,
       { organizationId: apiKeyRecord.organizationId, idempotencyKey },
     );
     if (existing) {
@@ -106,12 +106,12 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Resolve active workflow version
   const activeVersionId = await ctx.runQuery(
-    internal.workflows.triggers.queries.getActiveVersion,
+    internal.workflows.triggers.internal_queries.getActiveVersion,
     { workflowRootId: apiKeyRecord.workflowRootId },
   );
 
   if (!activeVersionId) {
-    await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
+    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
       organizationId: apiKeyRecord.organizationId,
       workflowRootId: apiKeyRecord.workflowRootId,
       wfDefinitionId: apiKeyRecord.workflowRootId,
@@ -126,7 +126,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
 
   // Start workflow execution
   const executionId = await ctx.runMutation(
-    api.workflow_engine.engine.startWorkflow,
+    internal.workflow_engine.internal_mutations.startWorkflow,
     {
       organizationId: apiKeyRecord.organizationId,
       wfDefinitionId: activeVersionId,
@@ -142,7 +142,7 @@ export const apiTriggerHandler = httpAction(async (ctx, req) => {
   );
 
   // Log successful trigger
-  await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
+  await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
     organizationId: apiKeyRecord.organizationId,
     workflowRootId: apiKeyRecord.workflowRootId,
     wfDefinitionId: activeVersionId,

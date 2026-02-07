@@ -7,7 +7,7 @@
  */
 
 import { httpAction } from '../../_generated/server';
-import { internal, api } from '../../_generated/api';
+import { internal } from '../../_generated/api';
 import type { Doc } from '../../_generated/dataModel';
 import {
   checkIpRateLimit,
@@ -45,7 +45,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   }
 
   const webhook = await ctx.runQuery(
-    internal.workflows.triggers.webhooks.getWebhookByToken,
+    internal.workflows.triggers.internal_queries.getWebhookByToken,
     { token },
   ) as Doc<'wfWebhooks'> | null;
 
@@ -67,7 +67,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   const idempotencyKey = extractIdempotencyKey(req.headers);
   if (idempotencyKey) {
     const existing = await ctx.runQuery(
-      internal.workflows.triggers.queries.checkIdempotencyQuery,
+      internal.workflows.triggers.internal_queries.checkIdempotencyQuery,
       { organizationId: webhook.organizationId, idempotencyKey },
     );
     if (existing) {
@@ -79,12 +79,12 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   }
 
   const activeVersionId = await ctx.runQuery(
-    internal.workflows.triggers.queries.getActiveVersion,
+    internal.workflows.triggers.internal_queries.getActiveVersion,
     { workflowRootId: webhook.workflowRootId },
   );
 
   if (!activeVersionId) {
-    await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
+    await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
       organizationId: webhook.organizationId,
       workflowRootId: webhook.workflowRootId,
       wfDefinitionId: webhook.workflowRootId,
@@ -107,7 +107,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   }
 
   const executionId = await ctx.runMutation(
-    api.workflow_engine.engine.startWorkflow,
+    internal.workflow_engine.internal_mutations.startWorkflow,
     {
       organizationId: webhook.organizationId,
       wfDefinitionId: activeVersionId,
@@ -122,7 +122,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
     },
   );
 
-  await ctx.runMutation(internal.workflows.triggers.trigger_logs.createTriggerLog, {
+  await ctx.runMutation(internal.workflows.triggers.internal_mutations.createTriggerLog, {
     organizationId: webhook.organizationId,
     workflowRootId: webhook.workflowRootId,
     wfDefinitionId: activeVersionId,
@@ -134,7 +134,7 @@ export const webhookHandler = httpAction(async (ctx, req) => {
   });
 
   await ctx.runMutation(
-    internal.workflows.triggers.webhooks.updateLastTriggered,
+    internal.workflows.triggers.internal_mutations.updateWebhookLastTriggered,
     { webhookId: webhook._id, lastTriggeredAt: Date.now() },
   );
 

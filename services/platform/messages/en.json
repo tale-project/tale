@@ -1049,10 +1049,17 @@
           "cronHelp": "Standard 5-field cron format: minute hour day month weekday",
           "timezoneNote": "All schedules run in UTC timezone.",
           "presets": {
-            "everyMinute": "Every minute",
+            "every5Minutes": "Every 5 minutes",
             "hourly": "Every hour",
-            "daily": "Daily at midnight",
-            "weekly": "Weekly on Monday"
+            "daily": "Every day",
+            "weekly": "Every week",
+            "monthly": "Every month"
+          },
+          "ai": {
+            "label": "Describe your schedule",
+            "placeholder": "e.g., every weekday at 9am, twice a day at 8am and 6pm",
+            "generateButton": "Generate",
+            "generateError": "Could not generate cron expression. Please try again or enter manually."
           }
         },
         "toast": {

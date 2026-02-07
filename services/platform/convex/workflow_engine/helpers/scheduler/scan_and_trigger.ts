@@ -76,7 +76,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
           if (scheduleId) {
             await ctx.runMutation(
-              internal.workflows.triggers.schedules.updateLastTriggered,
+              internal.workflows.triggers.internal_mutations.updateScheduleLastTriggered,
               { scheduleId, lastTriggeredAt: Date.now() },
             );
           }

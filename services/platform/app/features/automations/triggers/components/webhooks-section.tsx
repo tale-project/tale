@@ -14,6 +14,7 @@ import { Plus, Webhook, Copy, Check, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from '@/app/hooks/use-toast';
 import { useAuth } from '@/app/hooks/use-convex-auth';
+import { useSiteUrl } from '@/lib/site-url-context';
 import {
   useCreateWebhook,
   useToggleWebhook,
@@ -52,11 +53,11 @@ export function WebhooksSection({
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
-  const convexSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL ?? '';
+  const siteUrl = useSiteUrl();
 
   const getWebhookUrl = useCallback(
-    (token: string) => `${convexSiteUrl}/api/workflows/wh/${token}`,
-    [convexSiteUrl],
+    (token: string) => `${siteUrl}/api/workflows/wh/${token}`,
+    [siteUrl],
   );
 
   const handleCreate = useCallback(async () => {

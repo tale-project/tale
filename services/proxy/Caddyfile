@@ -79,17 +79,6 @@
 		reverse_proxy platform:3211
 	}
 
-	# HTTP: better-auth (/api/auth/* -> platform:3211)
-	handle /api/auth/* {
-		reverse_proxy platform:3211
-	}
-
-	# HTTP: API Gateway run requests (/api/run/* -> platform:3211)
-	# Handles OpenAPI/Swagger calls with cookie or x-api-key authentication
-	handle /api/run/* {
-		reverse_proxy platform:3211
-	}
-
 	# HTTP: Convex Dashboard static assets at root paths (logo, icons)
 	# Dashboard HTML references these at root but they're served under /convex-dashboard/
 	@convexDashboardAssets {
@@ -118,17 +107,19 @@
 		reverse_proxy platform:3210
 	}
 
-	# HTTP: Convex API with admin auth header (Dashboard API calls)
+	# HTTP: Convex Dashboard admin API (Authorization: Convex* header -> platform:3210)
 	@convexAdminApi {
 		path /api/*
-		not path /api/auth/*
-		not path /api/*/sync
-		not path /api/health
-		not path /api/actions/*
 		header Authorization Convex*
 	}
 	handle @convexAdminApi {
 		reverse_proxy platform:3210
+	}
+
+	# HTTP: All other /api/* requests -> Convex HTTP endpoint (platform:3211)
+	# Covers auth, SSO, documents, API gateway, workflow triggers, etc.
+	handle /api/* {
+		reverse_proxy platform:3211
 	}
 
 	# ============================================================================

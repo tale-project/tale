@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { Sparkles } from 'lucide-react';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Stack } from '@/app/components/ui/layout/layout';
@@ -16,6 +17,7 @@ import {
   useCreateSchedule,
   useUpdateSchedule,
 } from '../hooks/use-trigger-mutations';
+import { useGenerateCron } from '../hooks/use-generate-cron';
 
 interface ScheduleData {
   _id: Id<'wfSchedules'>;
@@ -36,10 +38,11 @@ type ScheduleFormData = {
 };
 
 const CRON_PRESETS = [
-  { label: 'everyMinute', value: '* * * * *' },
+  { label: 'every5Minutes', value: '*/5 * * * *' },
   { label: 'hourly', value: '0 * * * *' },
   { label: 'daily', value: '0 0 * * *' },
   { label: 'weekly', value: '0 0 * * 1' },
+  { label: 'monthly', value: '0 0 1 * *' },
 ];
 
 export function ScheduleCreateDialog({
@@ -55,8 +58,13 @@ export function ScheduleCreateDialog({
   const { user } = useAuth();
   const createSchedule = useCreateSchedule();
   const updateSchedule = useUpdateSchedule();
+  const generateCron = useGenerateCron();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [naturalLanguage, setNaturalLanguage] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [cronDescription, setCronDescription] = useState('');
+  const [generateError, setGenerateError] = useState('');
   const isEdit = !!schedule;
 
   const schema = useMemo(
@@ -88,8 +96,35 @@ export function ScheduleCreateDialog({
       reset({
         cronExpression: schedule?.cronExpression ?? '',
       });
+      setNaturalLanguage('');
+      setCronDescription('');
+      setGenerateError('');
     }
   }, [open, schedule, reset]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!naturalLanguage.trim() || isGenerating) return;
+
+    setIsGenerating(true);
+    setGenerateError('');
+    setCronDescription('');
+
+    try {
+      const result = await generateCron({
+        naturalLanguage: naturalLanguage.trim(),
+      });
+      setValue('cronExpression', result.cronExpression, {
+        shouldValidate: true,
+      });
+      setCronDescription(result.description);
+    } catch {
+      setGenerateError(
+        t('triggers.schedules.form.ai.generateError' as any),
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [naturalLanguage, isGenerating, generateCron, setValue, t]);
 
   const onSubmit = async (data: ScheduleFormData) => {
     setIsSubmitting(true);
@@ -143,6 +178,53 @@ export function ScheduleCreateDialog({
       onSubmit={handleSubmit(onSubmit)}
     >
       <Stack gap={4}>
+        <Stack gap={2}>
+          <div className="flex gap-2">
+            <Input
+              id="naturalLanguage"
+              label={t('triggers.schedules.form.ai.label' as any)}
+              placeholder={t(
+                'triggers.schedules.form.ai.placeholder' as any,
+              )}
+              value={naturalLanguage}
+              onChange={(e) => setNaturalLanguage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleGenerate();
+                }
+              }}
+              disabled={isGenerating}
+              wrapperClassName="flex-1"
+              errorMessage={generateError}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              onClick={handleGenerate}
+              disabled={!naturalLanguage.trim() || isGenerating}
+              isLoading={isGenerating}
+              icon={Sparkles}
+              className="mt-7 shrink-0"
+              aria-label={t(
+                'triggers.schedules.form.ai.generateButton' as any,
+              )}
+            >
+              {t('triggers.schedules.form.ai.generateButton' as any)}
+            </Button>
+          </div>
+          {cronDescription && (
+            <p
+              className="text-xs text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {cronDescription}
+            </p>
+          )}
+        </Stack>
+
         <Stack gap={2}>
           <Input
             id="cronExpression"

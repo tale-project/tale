@@ -1,12 +1,8 @@
-import { query, internalQuery } from '../../_generated/server';
+import { query } from '../../_generated/server';
 import { v } from 'convex/values';
 import type { Id, Doc } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
 
-/**
- * Resolve the active workflow version for a given root workflow ID.
- * Used by all trigger types to determine which version to execute.
- */
 export async function getActiveWorkflowVersion(
   ctx: QueryCtx,
   workflowRootId: Id<'wfDefinitions'>,
@@ -26,30 +22,6 @@ export async function getActiveWorkflowVersion(
 
   return activeVersion;
 }
-
-export const checkIdempotencyQuery = internalQuery({
-  args: {
-    organizationId: v.string(),
-    idempotencyKey: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query('wfTriggerLogs')
-      .withIndex('by_idempotencyKey', (q) =>
-        q.eq('organizationId', args.organizationId).eq('idempotencyKey', args.idempotencyKey),
-      )
-      .first();
-  },
-});
-
-export const getActiveVersion = internalQuery({
-  args: { workflowRootId: v.id('wfDefinitions') },
-  returns: v.union(v.id('wfDefinitions'), v.null()),
-  handler: async (ctx, args) => {
-    const version = await getActiveWorkflowVersion(ctx, args.workflowRootId);
-    return version?._id ?? null;
-  },
-});
 
 export const getSchedules = query({
   args: { workflowRootId: v.id('wfDefinitions') },
