@@ -52,7 +52,7 @@ export const listByTeam = query({
       model: 'teamMember',
       paginationOpts: {
         cursor: null,
-        numItems: 100,
+        numItems: 1000,
       },
       where: [
         {
