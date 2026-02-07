@@ -125,7 +125,7 @@ export function ApprovalsClient({
       status: status === 'pending' ? 'pending' : undefined,
       resourceType: ['product_recommendation'],
       search: search || undefined,
-      limit: 1000,
+      limit: 200,
     },
   );
 
