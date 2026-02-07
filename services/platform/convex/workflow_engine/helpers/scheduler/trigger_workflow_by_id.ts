@@ -3,7 +3,7 @@
  */
 
 import { ActionCtx } from '../../../_generated/server';
-import { internal, api } from '../../../_generated/api';
+import { internal } from '../../../_generated/api';
 import type { Id, Doc } from '../../../_generated/dataModel';
 import { Infer } from 'convex/values';
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
@@ -37,7 +37,7 @@ export async function triggerWorkflowById(
   }
 
   const handle: string = await ctx.runMutation(
-    api.workflow_engine.mutations.startWorkflow,
+    internal.workflow_engine.mutations.internalStartWorkflow,
     {
       organizationId: workflow.organizationId,
       wfDefinitionId: args.wfDefinitionId,

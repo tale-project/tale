@@ -4,7 +4,7 @@
 
 import type { MutationCtx } from '../_generated/server';
 import type { Id, Doc } from '../_generated/dataModel';
-import { api } from '../_generated/api';
+import { internal } from '../_generated/api';
 
 /**
  * Trigger a manual rescan of a website
@@ -52,7 +52,7 @@ export async function rescanWebsite(
   }
 
   // Start the workflow immediately using the engine executor directly
-  await ctx.runMutation(api.workflow_engine.mutations.startWorkflow, {
+  await ctx.runMutation(internal.workflow_engine.mutations.internalStartWorkflow, {
     organizationId: website.organizationId,
     wfDefinitionId: workflowId,
     input: { websiteId: website._id, domain: normalizedDomain },

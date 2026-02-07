@@ -6,7 +6,7 @@
 
 import type { ActionCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
-import { api, internal } from '../_generated/api';
+import { internal } from '../_generated/api';
 import websiteScanWorkflow from '../predefined_workflows/website_scan';
 import { toPredefinedWorkflowPayload } from '../workflows/definitions/types';
 import type { ConvexJsonRecord } from '../../lib/shared/schemas/utils/json-value';
@@ -127,7 +127,7 @@ export async function provisionWebsiteScanWorkflow(
       lastScannedAt: Date.now(),
     });
 
-    await ctx.scheduler.runAfter(0, api.workflow_engine.mutations.startWorkflow, {
+    await ctx.scheduler.runAfter(0, internal.workflow_engine.mutations.internalStartWorkflow, {
       organizationId: args.organizationId,
       wfDefinitionId: saved.workflowId,
       input: { websiteId: args.websiteId, domain: websiteDomain },

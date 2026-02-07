@@ -4,7 +4,7 @@
 
 import { ActionCtx } from '../../../_generated/server';
 import type { Id } from '../../../_generated/dataModel';
-import { internal, api } from '../../../_generated/api';
+import { internal } from '../../../_generated/api';
 import { shouldTriggerWorkflow } from './should_trigger_workflow';
 
 import { createDebugLog } from '../../../lib/debug_log';
@@ -64,7 +64,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
           );
 
           // Start workflow execution using the engine executor directly
-          await ctx.runMutation(api.workflow_engine.mutations.startWorkflow, {
+          await ctx.runMutation(internal.workflow_engine.mutations.internalStartWorkflow, {
             organizationId,
             wfDefinitionId,
             input: {},
