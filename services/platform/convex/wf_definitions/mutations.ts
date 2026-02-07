@@ -3,14 +3,14 @@ import { internalMutation } from '../_generated/server';
 import { internal } from '../_generated/api';
 import { mutationWithRLS } from '../lib/rls';
 import { createWorkflowWithSteps as createWorkflowWithStepsHelper } from '../workflows/definitions/create_workflow_with_steps';
-import { createDraftFromActive } from '../workflows/definitions/create_draft_from_active';
+import { createDraftFromActive as createDraftFromActiveHelper } from '../workflows/definitions/create_draft_from_active';
 import {
-  deleteWorkflow,
+  deleteWorkflow as deleteWorkflowHelper,
   cancelAndDeleteExecutionsBatch,
   deleteAuditLogsBatch,
   deleteStepsAndDefinition,
 } from '../workflows/definitions/delete_workflow';
-import { duplicateWorkflow } from '../workflows/definitions/duplicate_workflow';
+import { duplicateWorkflow as duplicateWorkflowHelper } from '../workflows/definitions/duplicate_workflow';
 import { publishDraft as publishDraftLogic } from '../workflows/definitions/publish_draft';
 import { saveWorkflowWithSteps as saveWorkflowWithStepsHelper } from '../workflows/definitions/save_workflow_with_steps';
 import { updateWorkflow as updateWorkflowHelper } from '../workflows/definitions/update_workflow';
@@ -44,7 +44,7 @@ const stepsConfigArg = v.array(
   }),
 );
 
-export const createWorkflowWithStepsPublic = mutationWithRLS({
+export const createWorkflowWithSteps = mutationWithRLS({
   args: {
     organizationId: v.string(),
     workflowConfig: workflowConfigArg,
@@ -55,7 +55,7 @@ export const createWorkflowWithStepsPublic = mutationWithRLS({
   },
 });
 
-export const createWorkflowWithSteps = internalMutation({
+export const provisionWorkflowWithSteps = internalMutation({
   args: {
     organizationId: v.string(),
     workflowConfig: workflowConfigArg,
@@ -66,36 +66,36 @@ export const createWorkflowWithSteps = internalMutation({
   },
 });
 
-export const createDraftFromActivePublic = mutationWithRLS({
+export const createDraftFromActive = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     createdBy: v.string(),
   },
   handler: async (ctx, args) => {
-    return await createDraftFromActive(ctx, args);
+    return await createDraftFromActiveHelper(ctx, args);
   },
 });
 
-export const deleteWorkflowPublic = mutationWithRLS({
+export const deleteWorkflow = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
   },
   handler: async (ctx, args) => {
-    return await deleteWorkflow(ctx, args.wfDefinitionId);
+    return await deleteWorkflowHelper(ctx, args.wfDefinitionId);
   },
 });
 
-export const duplicateWorkflowPublic = mutationWithRLS({
+export const duplicateWorkflow = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     newName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    return await duplicateWorkflow(ctx, args);
+    return await duplicateWorkflowHelper(ctx, args);
   },
 });
 
-export const publishDraftPublic = mutationWithRLS({
+export const publishDraft = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     publishedBy: v.string(),
@@ -106,7 +106,7 @@ export const publishDraftPublic = mutationWithRLS({
   },
 });
 
-export const publishDraft = internalMutation({
+export const provisionPublishDraft = internalMutation({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     publishedBy: v.string(),
@@ -117,7 +117,7 @@ export const publishDraft = internalMutation({
   },
 });
 
-export const updateWorkflowPublic = mutationWithRLS({
+export const updateWorkflow = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     updates: workflowUpdateValidator,

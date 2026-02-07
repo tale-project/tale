@@ -502,7 +502,7 @@ import type * as predefined_workflows_website_pages_rag_sync from "../predefined
 import type * as predefined_workflows_website_scan from "../predefined_workflows/website_scan.js";
 import type * as predefined_workflows_workflow_rag_sync from "../predefined_workflows/workflow_rag_sync.js";
 import type * as products_create_product from "../products/create_product.js";
-import type * as products_create_product_public from "../products/create_product_public.js";
+import type * as products_create_product_with_translations from "../products/create_product_with_translations.js";
 import type * as products_delete_product from "../products/delete_product.js";
 import type * as products_filter_products from "../products/filter_products.js";
 import type * as products_get_product from "../products/get_product.js";
@@ -588,7 +588,6 @@ import type * as tone_of_voice_internal_actions from "../tone_of_voice/internal_
 import type * as tone_of_voice_load_example_messages_for_generation from "../tone_of_voice/load_example_messages_for_generation.js";
 import type * as tone_of_voice_mutations from "../tone_of_voice/mutations.js";
 import type * as tone_of_voice_queries from "../tone_of_voice/queries.js";
-import type * as tone_of_voice_regenerate_tone_of_voice from "../tone_of_voice/regenerate_tone_of_voice.js";
 import type * as tone_of_voice_save_generated_tone from "../tone_of_voice/save_generated_tone.js";
 import type * as tone_of_voice_types from "../tone_of_voice/types.js";
 import type * as tone_of_voice_update_example_message from "../tone_of_voice/update_example_message.js";
@@ -1380,7 +1379,7 @@ declare const fullApi: ApiFromModules<{
   "predefined_workflows/website_scan": typeof predefined_workflows_website_scan;
   "predefined_workflows/workflow_rag_sync": typeof predefined_workflows_workflow_rag_sync;
   "products/create_product": typeof products_create_product;
-  "products/create_product_public": typeof products_create_product_public;
+  "products/create_product_with_translations": typeof products_create_product_with_translations;
   "products/delete_product": typeof products_delete_product;
   "products/filter_products": typeof products_filter_products;
   "products/get_product": typeof products_get_product;
@@ -1466,7 +1465,6 @@ declare const fullApi: ApiFromModules<{
   "tone_of_voice/load_example_messages_for_generation": typeof tone_of_voice_load_example_messages_for_generation;
   "tone_of_voice/mutations": typeof tone_of_voice_mutations;
   "tone_of_voice/queries": typeof tone_of_voice_queries;
-  "tone_of_voice/regenerate_tone_of_voice": typeof tone_of_voice_regenerate_tone_of_voice;
   "tone_of_voice/save_generated_tone": typeof tone_of_voice_save_generated_tone;
   "tone_of_voice/types": typeof tone_of_voice_types;
   "tone_of_voice/update_example_message": typeof tone_of_voice_update_example_message;

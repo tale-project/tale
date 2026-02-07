@@ -45,7 +45,7 @@ export async function get(ctx: GenericQueryCtx<DataModel>): Promise<GetResult> {
 				where: [{ field: 'userId', value: String(authUser._id), operator: 'eq' }],
 			},
 		);
-		organizationId = (memberResult?.page?.[0]?.organizationId as string) || null;
+		organizationId = memberResult?.page?.[0]?.organizationId ? String(memberResult.page[0].organizationId) : null;
 	}
 
 	if (!organizationId) {

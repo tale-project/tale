@@ -18,7 +18,7 @@ type UpsertSsoProviderArgs = {
 };
 
 export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: UpsertSsoProviderArgs): Promise<string> {
-	const authUser: { _id: string; email: string; name: string } | null = await ctx.runQuery(
+	const authUser = await ctx.runQuery(
 		internal.sso_providers.internal_queries.getAuthUser,
 		{},
 	);
@@ -26,7 +26,7 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 		throw new Error('Unauthenticated');
 	}
 
-	const callerRole: string | null = await ctx.runQuery(internal.sso_providers.internal_queries.getCallerRole, {
+	const callerRole = await ctx.runQuery(internal.sso_providers.internal_queries.getCallerRole, {
 		organizationId: args.organizationId,
 		userId: authUser._id,
 	});
@@ -67,7 +67,7 @@ export async function upsertSsoProvider(ctx: GenericActionCtx<DataModel>, args: 
 		throw new Error('Client secret is required for new SSO configuration');
 	}
 
-	const providerId: string = await ctx.runMutation(internal.sso_providers.internal_mutations.upsertProvider, {
+	const providerId = await ctx.runMutation(internal.sso_providers.internal_mutations.upsertProvider, {
 		organizationId: args.organizationId,
 		providerId: args.providerId,
 		issuer: args.issuer,

@@ -69,7 +69,7 @@ export const removeMember = mutation({
       throw new Error('Team member not found');
     }
 
-    const teamId = memberToRemove.teamId as string;
+    const teamId = String(memberToRemove.teamId);
 
     await ctx.runMutation(components.betterAuth.adapter.deleteOne, {
       input: {

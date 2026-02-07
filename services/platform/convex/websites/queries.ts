@@ -1,9 +1,3 @@
-/**
- * Websites Queries
- *
- * Internal and public queries for website operations.
- */
-
 import { v } from 'convex/values';
 import { internalQuery, query } from '../_generated/server';
 import type { Doc } from '../_generated/dataModel';
@@ -12,12 +6,8 @@ import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { hasRecordsInOrg } from '../lib/helpers/has_records_in_org';
-import { websiteValidator } from './validators';
 
-/**
- * Get a website by ID (internal query)
- */
-export const getWebsiteInternal = internalQuery({
+export const getWebsite = internalQuery({
   args: {
     websiteId: v.id('websites'),
   },
@@ -26,10 +16,7 @@ export const getWebsiteInternal = internalQuery({
   },
 });
 
-/**
- * Get a website by domain within an organization (internal query)
- */
-export const getWebsiteByDomainInternal = internalQuery({
+export const getWebsiteByDomain = internalQuery({
   args: {
     organizationId: v.string(),
     domain: v.string(),
@@ -39,10 +26,7 @@ export const getWebsiteByDomainInternal = internalQuery({
   },
 });
 
-/**
- * Get a website page by URL (internal query)
- */
-export const getWebsitePageByUrlInternal = internalQuery({
+export const getWebsitePageByUrl = internalQuery({
   args: {
     organizationId: v.string(),
     url: v.string(),
@@ -51,10 +35,6 @@ export const getWebsitePageByUrlInternal = internalQuery({
     return await WebsitesHelpers.getPageByUrl(ctx, args);
   },
 });
-
-// =============================================================================
-// PUBLIC QUERIES (for frontend via api.websites.queries.*)
-// =============================================================================
 
 /**
  * Check if organization has any websites.

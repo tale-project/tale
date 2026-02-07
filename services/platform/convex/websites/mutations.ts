@@ -1,9 +1,3 @@
-/**
- * Websites Mutations
- *
- * Internal and public mutations for website operations.
- */
-
 import { v } from 'convex/values';
 import { internalMutation, internalAction, mutation } from '../_generated/server';
 import { jsonRecordValidator, jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
@@ -17,10 +11,7 @@ const websiteStatusValidator = v.union(
   v.literal('error'),
 );
 
-/**
- * Create a website (internal mutation for workflow engine)
- */
-export const createWebsiteInternal = internalMutation({
+export const provisionWebsite = internalMutation({
   args: {
     organizationId: v.string(),
     domain: v.string(),
@@ -35,10 +26,7 @@ export const createWebsiteInternal = internalMutation({
   },
 });
 
-/**
- * Update a website (internal mutation)
- */
-export const updateWebsiteInternal = internalMutation({
+export const patchWebsite = internalMutation({
   args: {
     websiteId: v.id('websites'),
     domain: v.optional(v.string()),
@@ -54,10 +42,7 @@ export const updateWebsiteInternal = internalMutation({
   },
 });
 
-/**
- * Bulk upsert website pages (internal mutation)
- */
-export const bulkUpsertPagesInternal = internalMutation({
+export const bulkUpsertPages = internalMutation({
   args: {
     organizationId: v.string(),
     websiteId: v.string(),
@@ -77,9 +62,6 @@ export const bulkUpsertPagesInternal = internalMutation({
   },
 });
 
-/**
- * Provision a website scan workflow (internal action)
- */
 export const provisionWebsiteScanWorkflow = internalAction({
   args: {
     organizationId: v.string(),
@@ -92,10 +74,6 @@ export const provisionWebsiteScanWorkflow = internalAction({
     return await WebsitesHelpers.provisionWebsiteScanWorkflow(ctx, args);
   },
 });
-
-// =============================================================================
-// PUBLIC MUTATIONS (for frontend via api.websites.mutations.*)
-// =============================================================================
 
 export const createWebsite = mutation({
   args: {
