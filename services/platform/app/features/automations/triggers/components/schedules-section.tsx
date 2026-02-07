@@ -91,7 +91,9 @@ export function SchedulesSection({
             <code className="text-sm font-mono bg-muted px-2 py-0.5 rounded">
               {row.original.cronExpression}
             </code>
-            <span className="text-xs text-muted-foreground">UTC</span>
+            <span className="text-xs text-muted-foreground">
+              {row.original.timezone}
+            </span>
           </div>
         ),
         size: 220,

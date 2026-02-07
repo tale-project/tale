@@ -389,6 +389,8 @@ import type * as members_types from "../members/types.js";
 import type * as members_validators from "../members/validators.js";
 import type * as message_metadata_internal_mutations from "../message_metadata/internal_mutations.js";
 import type * as message_metadata_queries from "../message_metadata/queries.js";
+import type * as migrations_remove_deprecated_llm_fields from "../migrations/remove_deprecated_llm_fields.js";
+import type * as migrations_trigger_steps_to_start from "../migrations/trigger_steps_to_start.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_email_providers_internal_actions from "../node_only/email_providers/internal_actions.js";
 import type * as node_only_gmail_internal_actions from "../node_only/gmail/internal_actions.js";
@@ -772,6 +774,7 @@ import type * as workflow_engine_helpers_validation_steps_condition from "../wor
 import type * as workflow_engine_helpers_validation_steps_index from "../workflow_engine/helpers/validation/steps/index.js";
 import type * as workflow_engine_helpers_validation_steps_llm from "../workflow_engine/helpers/validation/steps/llm.js";
 import type * as workflow_engine_helpers_validation_steps_loop from "../workflow_engine/helpers/validation/steps/loop.js";
+import type * as workflow_engine_helpers_validation_steps_start from "../workflow_engine/helpers/validation/steps/start.js";
 import type * as workflow_engine_helpers_validation_steps_trigger from "../workflow_engine/helpers/validation/steps/trigger.js";
 import type * as workflow_engine_helpers_validation_types from "../workflow_engine/helpers/validation/types.js";
 import type * as workflow_engine_helpers_validation_validate_action_parameters from "../workflow_engine/helpers/validation/validate_action_parameters.js";
@@ -841,7 +844,6 @@ import type * as workflows_executions_update_execution_status from "../workflows
 import type * as workflows_executions_update_execution_variables from "../workflows/executions/update_execution_variables.js";
 import type * as workflows_executions_validators from "../workflows/executions/validators.js";
 import type * as workflows_helpers from "../workflows/helpers.js";
-import type * as workflows_internal_mutations from "../workflows/internal_mutations.js";
 import type * as workflows_processing_records_ast_helpers_extract_comparison from "../workflows/processing_records/ast_helpers/extract_comparison.js";
 import type * as workflows_processing_records_ast_helpers_extract_literal_value from "../workflows/processing_records/ast_helpers/extract_literal_value.js";
 import type * as workflows_processing_records_ast_helpers_get_full_field_path from "../workflows/processing_records/ast_helpers/get_full_field_path.js";
@@ -1282,6 +1284,8 @@ declare const fullApi: ApiFromModules<{
   "members/validators": typeof members_validators;
   "message_metadata/internal_mutations": typeof message_metadata_internal_mutations;
   "message_metadata/queries": typeof message_metadata_queries;
+  "migrations/remove_deprecated_llm_fields": typeof migrations_remove_deprecated_llm_fields;
+  "migrations/trigger_steps_to_start": typeof migrations_trigger_steps_to_start;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/email_providers/internal_actions": typeof node_only_email_providers_internal_actions;
   "node_only/gmail/internal_actions": typeof node_only_gmail_internal_actions;
@@ -1665,6 +1669,7 @@ declare const fullApi: ApiFromModules<{
   "workflow_engine/helpers/validation/steps/index": typeof workflow_engine_helpers_validation_steps_index;
   "workflow_engine/helpers/validation/steps/llm": typeof workflow_engine_helpers_validation_steps_llm;
   "workflow_engine/helpers/validation/steps/loop": typeof workflow_engine_helpers_validation_steps_loop;
+  "workflow_engine/helpers/validation/steps/start": typeof workflow_engine_helpers_validation_steps_start;
   "workflow_engine/helpers/validation/steps/trigger": typeof workflow_engine_helpers_validation_steps_trigger;
   "workflow_engine/helpers/validation/types": typeof workflow_engine_helpers_validation_types;
   "workflow_engine/helpers/validation/validate_action_parameters": typeof workflow_engine_helpers_validation_validate_action_parameters;
@@ -1734,7 +1739,6 @@ declare const fullApi: ApiFromModules<{
   "workflows/executions/update_execution_variables": typeof workflows_executions_update_execution_variables;
   "workflows/executions/validators": typeof workflows_executions_validators;
   "workflows/helpers": typeof workflows_helpers;
-  "workflows/internal_mutations": typeof workflows_internal_mutations;
   "workflows/processing_records/ast_helpers/extract_comparison": typeof workflows_processing_records_ast_helpers_extract_comparison;
   "workflows/processing_records/ast_helpers/extract_literal_value": typeof workflows_processing_records_ast_helpers_extract_literal_value;
   "workflows/processing_records/ast_helpers/get_full_field_path": typeof workflows_processing_records_ast_helpers_get_full_field_path;

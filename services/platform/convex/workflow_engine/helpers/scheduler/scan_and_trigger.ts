@@ -1,6 +1,6 @@
 /**
  * Helper function to scan for workflows that need to be triggered based on their schedule.
- * Supports both wfSchedules table entries and legacy trigger step configs.
+ * Reads from the wfSchedules table via getScheduledWorkflows.
  */
 
 import { ActionCtx } from '../../../_generated/server';
@@ -17,8 +17,8 @@ interface ScheduledWorkflow {
   organizationId: string;
   name: string;
   schedule: string;
-  timezone?: string;
-  scheduleId?: Id<'wfSchedules'>;
+  timezone: string;
+  scheduleId: Id<'wfSchedules'>;
 }
 
 export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
@@ -53,7 +53,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
 
         const shouldTrigger = await shouldTriggerWorkflow(
           schedule,
-          timezone || 'UTC',
+          timezone,
           typeof lastExecutionMs === 'number' ? lastExecutionMs : null,
         );
 
@@ -74,12 +74,10 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
             },
           });
 
-          if (scheduleId) {
-            await ctx.runMutation(
-              internal.workflows.triggers.internal_mutations.updateScheduleLastTriggered,
-              { scheduleId, lastTriggeredAt: Date.now() },
-            );
-          }
+          await ctx.runMutation(
+            internal.workflows.triggers.internal_mutations.updateScheduleLastTriggered,
+            { scheduleId, lastTriggeredAt: Date.now() },
+          );
 
           triggeredCount++;
         }

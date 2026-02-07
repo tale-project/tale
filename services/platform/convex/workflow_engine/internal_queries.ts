@@ -8,7 +8,7 @@ const scheduledWorkflowValidator = v.object({
   name: v.string(),
   schedule: v.string(),
   timezone: v.string(),
-  scheduleId: v.optional(v.id('wfSchedules')),
+  scheduleId: v.id('wfSchedules'),
 });
 
 export const getScheduledWorkflows = internalQuery({

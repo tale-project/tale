@@ -252,9 +252,6 @@ export function ScheduleCreateDialog({
             ))}
           </div>
         </Stack>
-        <p className="text-xs text-muted-foreground">
-          {t('triggers.schedules.form.timezoneNote')}
-        </p>
       </Stack>
     </FormDialog>
   );
