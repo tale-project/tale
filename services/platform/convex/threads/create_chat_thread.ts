@@ -11,7 +11,7 @@ export async function createChatThread(
 ): Promise<string> {
   const summary = JSON.stringify({ chatType });
 
-  return await createThread(ctx, components.agent, {
+  return createThread(ctx, components.agent, {
     userId,
     title: title ?? 'New Chat',
     summary,
