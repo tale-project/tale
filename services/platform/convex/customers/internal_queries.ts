@@ -36,7 +36,9 @@ export const queryCustomers = internalQuery({
     status: v.optional(
       v.union(customerStatusValidator, v.array(customerStatusValidator)),
     ),
-    source: v.optional(v.union(customerSourceValidator, v.array(v.string()))),
+    source: v.optional(
+      v.union(customerSourceValidator, v.array(customerSourceValidator)),
+    ),
     locale: v.optional(v.array(v.string())),
     searchTerm: v.optional(v.string()),
     paginationOpts: cursorPaginationOptsValidator,

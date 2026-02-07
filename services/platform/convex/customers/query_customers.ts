@@ -14,7 +14,7 @@ export interface QueryCustomersArgs {
   organizationId: string;
   externalId?: string | number;
   status?: CustomerStatus | CustomerStatus[];
-  source?: CustomerSource | string[];
+  source?: CustomerSource | CustomerSource[];
   locale?: string[];
   searchTerm?: string;
   paginationOpts: {
