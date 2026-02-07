@@ -245,7 +245,12 @@ export const getMyTeams = query({
     ),
   }),
   handler: async (ctx, args) => {
-    const authUser = await authComponent.getAuthUser(ctx);
+    let authUser;
+    try {
+      authUser = await authComponent.getAuthUser(ctx);
+    } catch {
+      return { teams: [] };
+    }
     if (!authUser) {
       return { teams: [] };
     }
