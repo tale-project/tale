@@ -14,6 +14,10 @@ function findOneUser(res: BetterAuthFindManyResult<BetterAuthUser> | undefined) 
   return res?.page?.[0];
 }
 
+function isBetterAuthCreateResult(value: unknown): value is BetterAuthCreateResult {
+  return typeof value === 'object' && value !== null && '_id' in value;
+}
+
 export const addMember = mutation({
   args: {
     organizationId: v.string(),
@@ -62,7 +66,7 @@ export const addMember = mutation({
       },
     });
 
-    const memberId = String((created as BetterAuthCreateResult)._id ?? created);
+    const memberId = String(isBetterAuthCreateResult(created) ? created._id : created);
 
     await AuditLogHelpers.logSuccess(
       ctx,
