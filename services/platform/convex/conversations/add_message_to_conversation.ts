@@ -45,6 +45,10 @@ export async function addMessageToConversation(
     throw new Error('Parent conversation not found');
   }
 
+  if (parentConversation.organizationId !== args.organizationId) {
+    throw new Error('Conversation does not belong to organization');
+  }
+
   const direction: 'inbound' | 'outbound' = args.isCustomer
     ? 'inbound'
     : 'outbound';
