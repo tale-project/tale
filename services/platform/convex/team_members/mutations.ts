@@ -93,7 +93,7 @@ export const removeMember = mutation({
       throw new Error('Unauthenticated');
     }
 
-    await getOrganizationMember(ctx, args.organizationId, {
+    const callerMember = await getOrganizationMember(ctx, args.organizationId, {
       userId: String(authUser._id),
       email: authUser.email,
       name: authUser.name,
@@ -109,6 +109,15 @@ export const removeMember = mutation({
 
     if (!memberToRemove) {
       throw new Error('Team member not found');
+    }
+
+    const isSelfRemoval = String(memberToRemove.userId) === String(authUser._id);
+    if (
+      callerMember.role !== 'admin' &&
+      callerMember.role !== 'owner' &&
+      !isSelfRemoval
+    ) {
+      throw new Error('Only admins can remove other team members');
     }
 
     const teamId = String(memberToRemove.teamId);
