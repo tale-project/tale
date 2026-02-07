@@ -38,7 +38,6 @@ export function AutomationsClient({
       organizationId,
       searchTerm: searchTerm || undefined,
       status: status && status.length > 0 ? status : undefined,
-      paginationOpts: { cursor: null, numItems: 1000 },
     }),
     [organizationId, searchTerm, status],
   );
