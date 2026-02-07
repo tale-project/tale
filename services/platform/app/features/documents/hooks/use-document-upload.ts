@@ -39,7 +39,6 @@ interface UploadFilesOptions {
 interface CreateDocumentResult {
   success: boolean;
   documentId: Id<'documents'>;
-  error?: string;
 }
 
 interface UploadOptions {
@@ -164,7 +163,7 @@ export function useDocumentUpload(options: UploadOptions) {
         (result: CreateDocumentResult) => !result.success,
       );
       if (failedUploads.length > 0) {
-        throw new Error(failedUploads[0].error || t('upload.uploadFailed'));
+        throw new Error(t('upload.uploadFailed'));
       }
 
       // Show success toast

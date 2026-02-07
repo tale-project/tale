@@ -115,7 +115,6 @@ export const createDocumentFromUpload = mutation({
 	returns: v.object({
 		success: v.boolean(),
 		documentId: v.id('documents'),
-		error: v.optional(v.string()),
 	}),
 	handler: async (ctx, args) => {
 		const authUser = await authComponent.getAuthUser(ctx);
