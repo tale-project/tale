@@ -40,6 +40,7 @@ export const createTriggerLog = internalMutation({
       v.literal('schedule'),
       v.literal('webhook'),
       v.literal('api'),
+      v.literal('event'),
     ),
     status: v.union(
       v.literal('accepted'),

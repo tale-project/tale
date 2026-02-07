@@ -1095,6 +1095,37 @@
           "urlCopied": "Webhook URL copied"
         }
       },
+      "events": {
+        "title": "Events",
+        "createButton": "Add event trigger",
+        "emptyTitle": "No event triggers",
+        "emptyDescription": "Subscribe to system events to automatically trigger this automation when specific actions occur.",
+        "columns": {
+          "eventType": "Event type",
+          "active": "Active",
+          "lastTriggered": "Last triggered",
+          "createdBy": "Created by"
+        },
+        "form": {
+          "title": "Add event trigger",
+          "editTitle": "Edit event trigger",
+          "eventType": "Event type",
+          "eventTypePlaceholder": "Select an event type",
+          "filtersLabel": "Filters (optional)",
+          "filterAll": "All (no filter)",
+          "filterAllPlaceholder": "Select a filter value"
+        },
+        "toast": {
+          "created": "Event trigger created",
+          "updated": "Event trigger updated",
+          "deleted": "Event trigger deleted",
+          "enabled": "Event trigger enabled",
+          "disabled": "Event trigger disabled"
+        },
+        "editTitle": "Edit event trigger",
+        "deleteTitle": "Delete event trigger",
+        "deleteDescription": "This will permanently delete this event trigger. The automation will no longer be triggered by this event."
+      },
       "common": {
         "never": "Never",
         "copied": "Copied"

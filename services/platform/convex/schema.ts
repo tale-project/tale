@@ -26,6 +26,7 @@ import {
 } from './workflows/schema';
 import {
   wfApiKeysTable,
+  wfEventSubscriptionsTable,
   wfSchedulesTable,
   wfTriggerLogsTable,
   wfWebhooksTable,
@@ -51,6 +52,7 @@ export default defineSchema({
   websites: websitesTable,
   wfApiKeys: wfApiKeysTable,
   wfDefinitions: wfDefinitionsTable,
+  wfEventSubscriptions: wfEventSubscriptionsTable,
   wfExecutions: wfExecutionsTable,
   wfSchedules: wfSchedulesTable,
   wfStepAuditLogs: wfStepAuditLogsTable,

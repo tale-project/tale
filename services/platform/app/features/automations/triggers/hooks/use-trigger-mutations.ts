@@ -28,3 +28,19 @@ export function useToggleWebhook() {
 export function useDeleteWebhook() {
   return useMutation(api.workflows.triggers.mutations.deleteWebhook);
 }
+
+export function useCreateEventSubscription() {
+  return useMutation(api.workflows.triggers.mutations.createEventSubscription);
+}
+
+export function useUpdateEventSubscription() {
+  return useMutation(api.workflows.triggers.mutations.updateEventSubscription);
+}
+
+export function useToggleEventSubscription() {
+  return useMutation(api.workflows.triggers.mutations.toggleEventSubscription);
+}
+
+export function useDeleteEventSubscription() {
+  return useMutation(api.workflows.triggers.mutations.deleteEventSubscription);
+}

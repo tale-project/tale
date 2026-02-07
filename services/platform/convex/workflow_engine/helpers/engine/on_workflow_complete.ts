@@ -11,6 +11,7 @@ import type { Id, Doc } from '../../../_generated/dataModel';
 import type { ComponentRunResult } from '../../types';
 import { Infer } from 'convex/values';
 import { jsonValueValidator } from '../../../../lib/shared/schemas/utils/json-value';
+import { emitEvent } from '../../../workflows/triggers/emit_event';
 
 type ConvexJsonValue = Infer<typeof jsonValueValidator>;
 
@@ -44,16 +45,45 @@ export async function handleWorkflowComplete(
       executionId: exec._id as Id<'wfExecutions'>,
       output: result.returnValue as unknown as ConvexJsonValue,
     });
+    await emitEvent(ctx, {
+      organizationId: exec.organizationId,
+      eventType: 'workflow.completed',
+      eventData: {
+        executionId: exec._id as string,
+        wfDefinitionId: exec.wfDefinitionId as string,
+        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+      },
+    });
   } else if (kind === 'failed') {
     await ctx.runMutation(internal.wf_executions.internal_mutations.failExecution, {
       executionId: exec._id as Id<'wfExecutions'>,
       error: result.error || 'failed',
+    });
+    await emitEvent(ctx, {
+      organizationId: exec.organizationId,
+      eventType: 'workflow.failed',
+      eventData: {
+        executionId: exec._id as string,
+        wfDefinitionId: exec.wfDefinitionId as string,
+        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+        error: result.error || 'failed',
+      },
     });
   } else if (kind === 'canceled') {
     await ctx.runMutation(internal.wf_executions.internal_mutations.updateExecutionStatus, {
       executionId: exec._id as Id<'wfExecutions'>,
       status: 'failed',
       error: 'canceled',
+    });
+    await emitEvent(ctx, {
+      organizationId: exec.organizationId,
+      eventType: 'workflow.failed',
+      eventData: {
+        executionId: exec._id as string,
+        wfDefinitionId: exec.wfDefinitionId as string,
+        rootWfDefinitionId: exec.rootWfDefinitionId as string | undefined,
+        error: 'canceled',
+      },
     });
   }
 }

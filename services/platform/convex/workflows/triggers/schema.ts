@@ -43,6 +43,20 @@ export const wfApiKeysTable = defineTable({
   .index('by_workflowRoot', ['workflowRootId'])
   .index('by_keyHash', ['keyHash']);
 
+export const wfEventSubscriptionsTable = defineTable({
+  organizationId: v.string(),
+  workflowRootId: v.id('wfDefinitions'),
+  eventType: v.string(),
+  eventFilter: v.optional(v.record(v.string(), v.string())),
+  isActive: v.boolean(),
+  lastTriggeredAt: v.optional(v.number()),
+  createdAt: v.number(),
+  createdBy: v.string(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_workflowRoot', ['workflowRootId'])
+  .index('by_org_eventType', ['organizationId', 'eventType']);
+
 export const wfTriggerLogsTable = defineTable({
   organizationId: v.string(),
   workflowRootId: v.id('wfDefinitions'),
@@ -53,6 +67,7 @@ export const wfTriggerLogsTable = defineTable({
     v.literal('schedule'),
     v.literal('webhook'),
     v.literal('api'),
+    v.literal('event'),
   ),
   status: v.union(
     v.literal('accepted'),

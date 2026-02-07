@@ -48,6 +48,7 @@ export const executeStep = internalAction({
     executionId: v.string(),
     stepSlug: v.string(),
     stepType: v.union(
+      v.literal('start'),
       v.literal('trigger'),
       v.literal('llm'),
       v.literal('condition'),

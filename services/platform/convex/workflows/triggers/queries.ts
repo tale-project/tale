@@ -82,6 +82,22 @@ export const getApiKeys = query({
   },
 });
 
+export const getEventSubscriptions = query({
+  args: { workflowRootId: v.id('wfDefinitions') },
+  handler: async (ctx, args) => {
+    const results = [];
+    const query = ctx.db
+      .query('wfEventSubscriptions')
+      .withIndex('by_workflowRoot', (q) =>
+        q.eq('workflowRootId', args.workflowRootId),
+      );
+    for await (const sub of query) {
+      results.push(sub);
+    }
+    return results;
+  },
+});
+
 export const getTriggerLogs = query({
   args: {
     workflowRootId: v.id('wfDefinitions'),

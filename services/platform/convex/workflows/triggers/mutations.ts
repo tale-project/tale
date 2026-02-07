@@ -1,6 +1,7 @@
 import { mutation } from '../../_generated/server';
 import { v } from 'convex/values';
 import { generateToken, generateApiKey, hashSecret } from './helpers/crypto';
+import { isValidEventType } from './event_types';
 
 export const createSchedule = mutation({
   args: {
@@ -199,6 +200,100 @@ export const deleteApiKey = mutation({
     if (!apiKey) throw new Error('API key not found');
 
     await ctx.db.delete(args.keyId);
+    return null;
+  },
+});
+
+export const createEventSubscription = mutation({
+  args: {
+    organizationId: v.string(),
+    workflowRootId: v.id('wfDefinitions'),
+    eventType: v.string(),
+    eventFilter: v.optional(v.record(v.string(), v.string())),
+    createdBy: v.string(),
+  },
+  returns: v.id('wfEventSubscriptions'),
+  handler: async (ctx, args) => {
+    if (!isValidEventType(args.eventType)) {
+      throw new Error(`Invalid event type: ${args.eventType}`);
+    }
+
+    const rootDef = await ctx.db.get(args.workflowRootId);
+    if (!rootDef) throw new Error('Workflow not found');
+    if (rootDef.organizationId !== args.organizationId) {
+      throw new Error('Workflow does not belong to this organization');
+    }
+
+    const existing = await ctx.db
+      .query('wfEventSubscriptions')
+      .withIndex('by_workflowRoot', (q) =>
+        q.eq('workflowRootId', args.workflowRootId),
+      )
+      .filter((q) => q.eq(q.field('eventType'), args.eventType))
+      .first();
+
+    if (existing) {
+      throw new Error(`Event subscription for "${args.eventType}" already exists on this workflow`);
+    }
+
+    const cleanFilter = args.eventFilter && Object.keys(args.eventFilter).length > 0
+      ? args.eventFilter
+      : undefined;
+
+    return await ctx.db.insert('wfEventSubscriptions', {
+      organizationId: args.organizationId,
+      workflowRootId: args.workflowRootId,
+      eventType: args.eventType,
+      eventFilter: cleanFilter,
+      isActive: true,
+      createdAt: Date.now(),
+      createdBy: args.createdBy,
+    });
+  },
+});
+
+export const updateEventSubscription = mutation({
+  args: {
+    subscriptionId: v.id('wfEventSubscriptions'),
+    eventFilter: v.optional(v.record(v.string(), v.string())),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const sub = await ctx.db.get(args.subscriptionId);
+    if (!sub) throw new Error('Event subscription not found');
+
+    const cleanFilter = args.eventFilter && Object.keys(args.eventFilter).length > 0
+      ? args.eventFilter
+      : undefined;
+
+    await ctx.db.patch(args.subscriptionId, { eventFilter: cleanFilter });
+    return null;
+  },
+});
+
+export const toggleEventSubscription = mutation({
+  args: {
+    subscriptionId: v.id('wfEventSubscriptions'),
+    isActive: v.boolean(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const sub = await ctx.db.get(args.subscriptionId);
+    if (!sub) throw new Error('Event subscription not found');
+
+    await ctx.db.patch(args.subscriptionId, { isActive: args.isActive });
+    return null;
+  },
+});
+
+export const deleteEventSubscription = mutation({
+  args: { subscriptionId: v.id('wfEventSubscriptions') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const sub = await ctx.db.get(args.subscriptionId);
+    if (!sub) throw new Error('Event subscription not found');
+
+    await ctx.db.delete(args.subscriptionId);
     return null;
   },
 });

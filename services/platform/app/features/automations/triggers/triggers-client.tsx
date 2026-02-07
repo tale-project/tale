@@ -14,6 +14,7 @@ import { Skeleton } from '@/app/components/ui/feedback/skeleton';
 import { useT } from '@/lib/i18n/client';
 import { SchedulesSection } from './components/schedules-section';
 import { WebhooksSection } from './components/webhooks-section';
+import { EventsSection } from './components/events-section';
 
 interface TriggersClientProps {
   automationId: Id<'wfDefinitions'>;
@@ -54,6 +55,9 @@ export function TriggersClient({
           <TabsTrigger value="webhooks">
             {t('triggers.webhooks.title')}
           </TabsTrigger>
+          <TabsTrigger value="events">
+            {t('triggers.events.title')}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="schedules" className="w-full">
@@ -65,6 +69,13 @@ export function TriggersClient({
 
         <TabsContent value="webhooks" className="w-full">
           <WebhooksSection
+            workflowRootId={workflowRootId}
+            organizationId={organizationId}
+          />
+        </TabsContent>
+
+        <TabsContent value="events" className="w-full">
+          <EventsSection
             workflowRootId={workflowRootId}
             organizationId={organizationId}
           />

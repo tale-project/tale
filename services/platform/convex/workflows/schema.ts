@@ -150,6 +150,7 @@ export const wfExecutionsTable = defineTable({
   .index('by_definition_startedAt', ['wfDefinitionId', 'startedAt'])
   .index('by_status', ['status'])
   .index('by_org_status', ['organizationId', 'status'])
+  .index('by_org_triggeredBy', ['organizationId', 'triggeredBy'])
   .index('by_component_workflow', ['componentWorkflowId']);
 
 export const workflowProcessingRecordsTable = defineTable({

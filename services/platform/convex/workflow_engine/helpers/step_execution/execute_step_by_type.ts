@@ -17,16 +17,14 @@ export async function executeStepByType(
 ): Promise<StepExecutionResult> {
   switch (stepDef.stepType) {
     case 'start':
-      return await ctx.runAction(internal.workflow_engine.nodes.executeStartNode, {
-        stepDef: {
-          stepSlug: stepDef.stepSlug,
-          stepType: 'start' as const,
-          config: {},
+      return {
+        port: 'success',
+        output: {
+          type: 'start',
+          data: 'Workflow started',
         },
-        variables,
-        executionId,
         threadId,
-      });
+      };
 
     case 'trigger':
       return await ctx.runAction(internal.workflow_engine.internal_actions.executeTriggerNode, {
