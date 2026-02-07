@@ -73,7 +73,7 @@ export function EventCreateDialog({
   const hasWorkflowSelect = filterFields.some((f) => f.inputType === 'workflow-select');
 
   const workflows = useQuery(
-    api.wf_definitions.queries.listAutomations,
+    api.wf_definitions.queries.listAutomationRoots,
     hasWorkflowSelect ? { organizationId } : 'skip',
   );
 

@@ -67,7 +67,8 @@ export const wfDefinitionsTable = defineTable({
   .index('by_org_and_name', ['organizationId', 'name'])
   .index('by_org_name_version', ['organizationId', 'name', 'versionNumber'])
   .index('by_org_name_status', ['organizationId', 'name', 'status'])
-  .index('by_rootVersionId', ['rootVersionId']);
+  .index('by_rootVersionId', ['rootVersionId'])
+  .index('by_org_versionNumber', ['organizationId', 'versionNumber']);
 
 export const wfStepDefsTable = defineTable({
   organizationId: v.string(),

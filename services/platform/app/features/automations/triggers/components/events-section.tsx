@@ -53,7 +53,7 @@ export function EventsSection({
   );
 
   const workflows = useQuery(
-    api.wf_definitions.queries.listAutomations,
+    api.wf_definitions.queries.listAutomationRoots,
     hasWorkflowFilter ? { organizationId } : 'skip',
   );
 
