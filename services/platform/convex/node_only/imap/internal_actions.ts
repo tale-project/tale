@@ -87,6 +87,12 @@ export const retrieveImapEmails = internalAction({
       threadSearchFolders,
     } = args;
 
+    if (!credentials.password && !credentials.accessToken) {
+      throw new Error(
+        'Either password or accessToken must be provided in credentials',
+      );
+    }
+
     debugLog('Connecting', {
       host: credentials.host,
       port: credentials.port,
