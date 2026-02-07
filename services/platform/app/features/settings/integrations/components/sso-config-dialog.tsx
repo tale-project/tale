@@ -34,14 +34,6 @@ const DEFAULT_SCOPES = [
 	'https://graph.microsoft.com/Files.Read',
 ];
 
-const PLATFORM_ROLES: { value: PlatformRole; label: string }[] = [
-	{ value: 'admin', label: 'Admin' },
-	{ value: 'developer', label: 'Developer' },
-	{ value: 'editor', label: 'Editor' },
-	{ value: 'member', label: 'Member' },
-	{ value: 'disabled', label: 'Disabled' },
-];
-
 const DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
 	{ source: 'jobTitle', pattern: '*admin*', targetRole: 'admin' },
 	{ source: 'jobTitle', pattern: '*manager*', targetRole: 'admin' },
@@ -53,6 +45,14 @@ const DEFAULT_MAPPING_RULES: RoleMappingRule[] = [
 export function SSOConfigDialog({ open, onOpenChange, organizationId, existingProvider }: SSOConfigDialogProps) {
 	const { t } = useT('settings');
 	const { t: tCommon } = useT('common');
+
+	const platformRoles = useMemo(() => [
+		{ value: 'admin' as PlatformRole, label: t('integrations.sso.roleAdmin') },
+		{ value: 'developer' as PlatformRole, label: t('integrations.sso.roleDeveloper') },
+		{ value: 'editor' as PlatformRole, label: t('integrations.sso.roleEditor') },
+		{ value: 'member' as PlatformRole, label: t('integrations.sso.roleMember') },
+		{ value: 'disabled' as PlatformRole, label: t('integrations.sso.roleDisabled') },
+	], [t]);
 
 	const [issuer, setIssuer] = useState('');
 	const [clientId, setClientId] = useState('');
@@ -523,7 +523,7 @@ export function SSOConfigDialog({ open, onOpenChange, organizationId, existingPr
 										onValueChange={(value) => updateMappingRule(index, { targetRole: value as PlatformRole })}
 										disabled={isSubmitting || isLoadingConfig}
 										className="w-28 shrink-0"
-										options={PLATFORM_ROLES}
+										options={platformRoles}
 									/>
 
 									<Button
@@ -561,7 +561,7 @@ export function SSOConfigDialog({ open, onOpenChange, organizationId, existingPr
 						disabled={isSubmitting || isLoadingConfig}
 						id="default-role-select"
 						className="w-48"
-						options={PLATFORM_ROLES}
+						options={platformRoles}
 					/>
 					<Description className="text-xs">
 						{autoProvisionRole
