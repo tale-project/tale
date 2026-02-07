@@ -417,16 +417,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/FailedResponse"
 
-  /api/run/approvals/queries/getApprovalsByOrganization:
+  /api/run/approvals/queries/listApprovalsByOrganization:
     post:
-      summary: Calls a query at the path approvals/queries.js:getApprovalsByOrganization
+      summary: Calls a query at the path approvals/queries.js:listApprovalsByOrganization
       tags:
         - query
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Request_approvals.queries.getApprovalsByOrganization"
+              $ref: "#/components/schemas/Request_approvals.queries.listApprovalsByOrganization"
         required: true
       responses:
         "200":
@@ -434,7 +434,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Response_approvals.queries.getApprovalsByOrganization"
+                $ref: "#/components/schemas/Response_approvals.queries.listApprovalsByOrganization"
         "400":
           description: Failed operation
           content:
@@ -1192,37 +1192,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/FailedResponse"
 
-  /api/run/customers/queries/getCustomers:
-    post:
-      summary: Calls a query at the path customers/queries.js:getCustomers
-      tags:
-        - query
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_customers.queries.getCustomers"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_customers.queries.getCustomers"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
   /api/run/customers/queries/hasCustomers:
     post:
       summary: Calls a query at the path customers/queries.js:hasCustomers
@@ -1471,16 +1440,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/FailedResponse"
 
-  /api/run/documents/queries/getDocumentsCursor:
+  /api/run/documents/queries/listDocuments:
     post:
-      summary: Calls a query at the path documents/queries.js:getDocumentsCursor
+      summary: Calls a query at the path documents/queries.js:listDocuments
       tags:
         - query
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Request_documents.queries.getDocumentsCursor"
+              $ref: "#/components/schemas/Request_documents.queries.listDocuments"
         required: true
       responses:
         "200":
@@ -1488,7 +1457,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Response_documents.queries.getDocumentsCursor"
+                $ref: "#/components/schemas/Response_documents.queries.listDocuments"
         "400":
           description: Failed operation
           content:
@@ -1954,37 +1923,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Response_integrations.actions.create.create"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
-  /api/run/integrations/actions/test/test:
-    post:
-      summary: Calls a action at the path integrations/actions/test.js:test
-      tags:
-        - action
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_integrations.actions.test.test"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_integrations.actions.test.test"
         "400":
           description: Failed operation
           content:
@@ -2494,37 +2432,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/FailedResponse"
 
-  /api/run/message_metadata/mutations/saveMessageMetadata:
-    post:
-      summary: Calls a mutation at the path message_metadata/mutations.js:saveMessageMetadata
-      tags:
-        - mutation
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_message_metadata.mutations.saveMessageMetadata"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_message_metadata.mutations.saveMessageMetadata"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
   /api/run/message_metadata/queries/getMessageMetadata:
     post:
       summary: Calls a query at the path message_metadata/queries.js:getMessageMetadata
@@ -2543,68 +2450,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Response_message_metadata.queries.getMessageMetadata"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
-  /api/run/oauth2/getUserEmail:
-    post:
-      summary: Calls a action at the path oauth2.js:getUserEmail
-      tags:
-        - action
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_oauth2.getUserEmail"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_oauth2.getUserEmail"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
-  /api/run/oauth2/refreshToken:
-    post:
-      summary: Calls a action at the path oauth2.js:refreshToken
-      tags:
-        - action
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_oauth2.refreshToken"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_oauth2.refreshToken"
         "400":
           description: Failed operation
           content:
@@ -4602,37 +4447,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/FailedResponse"
 
-  /api/run/wf_definitions/queries/getAutomations:
-    post:
-      summary: Calls a query at the path wf_definitions/queries.js:getAutomations
-      tags:
-        - query
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Request_wf_definitions.queries.getAutomations"
-        required: true
-      responses:
-        "200":
-          description: Convex executed your request and returned a result
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Response_wf_definitions.queries.getAutomations"
-        "400":
-          description: Failed operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-        "500":
-          description: Convex Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/FailedResponse"
-
   /api/run/wf_definitions/queries/getWorkflowPublic:
     post:
       summary: Calls a query at the path wf_definitions/queries.js:getWorkflowPublic
@@ -4682,6 +4496,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Response_wf_definitions.queries.hasAutomations"
+        "400":
+          description: Failed operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+        "500":
+          description: Convex Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FailedResponse"
+
+  /api/run/wf_definitions/queries/listAutomations:
+    post:
+      summary: Calls a query at the path wf_definitions/queries.js:listAutomations
+      tags:
+        - query
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request_wf_definitions.queries.listAutomations"
+        required: true
+      responses:
+        "200":
+          description: Convex executed your request and returned a result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response_wf_definitions.queries.listAutomations"
         "400":
           description: Failed operation
           content:
@@ -5617,7 +5462,7 @@ components:
           type: string
           nullable: true
 
-    Request_approvals.queries.getApprovalsByOrganization:
+    Request_approvals.queries.listApprovalsByOrganization:
       type: object
       required:
         - args
@@ -5681,7 +5526,7 @@ components:
                   enum:
                     - "rejected"
 
-    Response_approvals.queries.getApprovalsByOrganization:
+    Response_approvals.queries.listApprovalsByOrganization:
       type: object
       required:
         - status
@@ -7014,6 +6859,8 @@ components:
                 - type: string
                   enum:
                     - "outbound"
+            externalMessageId:
+              type: string
             lastMessageAt:
               type: number
             metadata: {}
@@ -7372,6 +7219,20 @@ components:
                   type: number
                 numItems:
                   type: number
+            status:
+              oneOf:
+                - type: string
+                  enum:
+                    - "open"
+                - type: string
+                  enum:
+                    - "closed"
+                - type: string
+                  enum:
+                    - "spam"
+                - type: string
+                  enum:
+                    - "archived"
 
     Response_conversations.queries.listConversations:
       type: object
@@ -7823,7 +7684,9 @@ components:
           type: string
         errorData:
           type: object
-        value: {}
+        value:
+          type: string
+          nullable: true
 
     Request_customers.mutations.updateCustomer:
       type: object
@@ -8029,308 +7892,6 @@ components:
         errorData:
           type: object
         value: {}
-
-    Request_customers.queries.getCustomers:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - organizationId
-            - paginationOpts
-          properties:
-            externalId:
-              oneOf:
-                - type: string
-                - type: number
-            locale:
-              type: array
-              items:
-                type: string
-            organizationId:
-              type: string
-            paginationOpts:
-              type: object
-              required:
-                - cursor
-                - numItems
-              properties:
-                cursor:
-                  type: string
-                  nullable: true
-                id:
-                  type: number
-                numItems:
-                  type: number
-            searchTerm:
-              type: string
-            source:
-              oneOf:
-                - oneOf:
-                    - type: string
-                      enum:
-                        - "manual_import"
-                    - type: string
-                      enum:
-                        - "file_upload"
-                    - type: string
-                      enum:
-                        - "api_import"
-                    - type: string
-                      enum:
-                        - "shopify"
-                    - type: string
-                      enum:
-                        - "woocommerce"
-                    - type: string
-                      enum:
-                        - "magento"
-                    - type: string
-                      enum:
-                        - "bigcommerce"
-                    - type: string
-                      enum:
-                        - "prestashop"
-                    - type: string
-                      enum:
-                        - "circuly"
-                    - type: string
-                      enum:
-                        - "chargebee"
-                    - type: string
-                      enum:
-                        - "stripe"
-                    - type: string
-                      enum:
-                        - "recurly"
-                    - type: string
-                      enum:
-                        - "salesforce"
-                    - type: string
-                      enum:
-                        - "hubspot"
-                    - type: string
-                      enum:
-                        - "pipedrive"
-                    - type: string
-                      enum:
-                        - "zoho"
-                    - type: string
-                      enum:
-                        - "sap"
-                    - type: string
-                      enum:
-                        - "protel"
-                    - type: string
-                      enum:
-                        - "oracle"
-                    - type: string
-                      enum:
-                        - "netsuite"
-                    - type: string
-                      enum:
-                        - "mailchimp"
-                    - type: string
-                      enum:
-                        - "klaviyo"
-                    - type: string
-                      enum:
-                        - "sendgrid"
-                    - type: string
-                      enum:
-                        - "webhook"
-                    - type: string
-                      enum:
-                        - "zapier"
-                    - type: string
-                      enum:
-                        - "custom"
-                - type: array
-                  items:
-                    type: string
-            status:
-              oneOf:
-                - oneOf:
-                    - type: string
-                      enum:
-                        - "active"
-                    - type: string
-                      enum:
-                        - "churned"
-                    - type: string
-                      enum:
-                        - "potential"
-                - type: array
-                  items:
-                    oneOf:
-                      - type: string
-                        enum:
-                          - "active"
-                      - type: string
-                        enum:
-                          - "churned"
-                      - type: string
-                        enum:
-                          - "potential"
-
-    Response_customers.queries.getCustomers:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value:
-          type: object
-          required:
-            - continueCursor
-            - isDone
-            - page
-          properties:
-            continueCursor:
-              type: string
-            isDone:
-              type: boolean
-            page:
-              type: array
-              items:
-                type: object
-                required:
-                  - _creationTime
-                  - _id
-                  - organizationId
-                  - source
-                properties:
-                  _creationTime:
-                    type: number
-                  _id:
-                    type: string
-                  address:
-                    type: object
-                    properties:
-                      city:
-                        type: string
-                      country:
-                        type: string
-                      postalCode:
-                        type: string
-                      state:
-                        type: string
-                      street:
-                        type: string
-                  email:
-                    type: string
-                  externalId:
-                    oneOf:
-                      - type: string
-                      - type: number
-                  locale:
-                    type: string
-                  metadata: {}
-                  name:
-                    type: string
-                  organizationId:
-                    type: string
-                  source:
-                    oneOf:
-                      - type: string
-                        enum:
-                          - "manual_import"
-                      - type: string
-                        enum:
-                          - "file_upload"
-                      - type: string
-                        enum:
-                          - "api_import"
-                      - type: string
-                        enum:
-                          - "shopify"
-                      - type: string
-                        enum:
-                          - "woocommerce"
-                      - type: string
-                        enum:
-                          - "magento"
-                      - type: string
-                        enum:
-                          - "bigcommerce"
-                      - type: string
-                        enum:
-                          - "prestashop"
-                      - type: string
-                        enum:
-                          - "circuly"
-                      - type: string
-                        enum:
-                          - "chargebee"
-                      - type: string
-                        enum:
-                          - "stripe"
-                      - type: string
-                        enum:
-                          - "recurly"
-                      - type: string
-                        enum:
-                          - "salesforce"
-                      - type: string
-                        enum:
-                          - "hubspot"
-                      - type: string
-                        enum:
-                          - "pipedrive"
-                      - type: string
-                        enum:
-                          - "zoho"
-                      - type: string
-                        enum:
-                          - "sap"
-                      - type: string
-                        enum:
-                          - "protel"
-                      - type: string
-                        enum:
-                          - "oracle"
-                      - type: string
-                        enum:
-                          - "netsuite"
-                      - type: string
-                        enum:
-                          - "mailchimp"
-                      - type: string
-                        enum:
-                          - "klaviyo"
-                      - type: string
-                        enum:
-                          - "sendgrid"
-                      - type: string
-                        enum:
-                          - "webhook"
-                      - type: string
-                        enum:
-                          - "zapier"
-                      - type: string
-                        enum:
-                          - "custom"
-                  status:
-                    oneOf:
-                      - type: string
-                        enum:
-                          - "active"
-                      - type: string
-                        enum:
-                          - "churned"
-                      - type: string
-                        enum:
-                          - "potential"
 
     Request_customers.queries.hasCustomers:
       type: object
@@ -8655,7 +8216,7 @@ components:
           type: object
         value: {}
 
-    Request_documents.queries.getDocumentsCursor:
+    Request_documents.queries.listDocuments:
       type: object
       required:
         - args
@@ -8678,7 +8239,7 @@ components:
             query:
               type: string
 
-    Response_documents.queries.getDocumentsCursor:
+    Response_documents.queries.listDocuments:
       type: object
       required:
         - status
@@ -9348,6 +8909,7 @@ components:
           properties:
             fileId:
               type: string
+              description: ID from table "_storage"
 
     Response_files.queries.getFileUrl:
       type: object
@@ -9599,45 +9161,6 @@ components:
         value:
           type: string
           description: ID from table "integrations"
-
-    Request_integrations.actions.test.test:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - integrationId
-          properties:
-            integrationId:
-              type: string
-              description: ID from table "integrations"
-
-    Response_integrations.actions.test.test:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value:
-          type: object
-          required:
-            - message
-            - success
-          properties:
-            message:
-              type: string
-            success:
-              type: boolean
 
     Request_integrations.actions.test_connection.testConnection:
       type: object
@@ -10618,107 +10141,6 @@ components:
               role:
                 type: string
 
-    Request_message_metadata.mutations.saveMessageMetadata:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - messageId
-            - threadId
-          properties:
-            cachedInputTokens:
-              type: number
-            contextStats:
-              type: object
-              required:
-                - approvalCount
-                - hasIntegrations
-                - hasRag
-                - messageCount
-                - totalTokens
-              properties:
-                approvalCount:
-                  type: number
-                hasIntegrations:
-                  type: boolean
-                hasRag:
-                  type: boolean
-                hasSummary:
-                  type: boolean
-                messageCount:
-                  type: number
-                totalTokens:
-                  type: number
-            contextWindow:
-              type: string
-            durationMs:
-              type: number
-            inputTokens:
-              type: number
-            messageId:
-              type: string
-            model:
-              type: string
-            outputTokens:
-              type: number
-            provider:
-              type: string
-            providerMetadata: {}
-            reasoning:
-              type: string
-            reasoningTokens:
-              type: number
-            subAgentUsage:
-              type: array
-              items:
-                type: object
-                required:
-                  - toolName
-                properties:
-                  durationMs:
-                    type: number
-                  input:
-                    type: string
-                  inputTokens:
-                    type: number
-                  model:
-                    type: string
-                  output:
-                    type: string
-                  outputTokens:
-                    type: number
-                  provider:
-                    type: string
-                  toolName:
-                    type: string
-                  totalTokens:
-                    type: number
-            threadId:
-              type: string
-            timeToFirstTokenMs:
-              type: number
-            totalTokens:
-              type: number
-
-    Response_message_metadata.mutations.saveMessageMetadata:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value: {}
-
     Request_message_metadata.queries.getMessageMetadata:
       type: object
       required:
@@ -10733,91 +10155,6 @@ components:
               type: string
 
     Response_message_metadata.queries.getMessageMetadata:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value: {}
-
-    Request_oauth2.getUserEmail:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - accessToken
-            - provider
-          properties:
-            accessToken:
-              type: string
-            provider:
-              type: string
-
-    Response_oauth2.getUserEmail:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value: {}
-
-    Request_oauth2.refreshToken:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - clientId
-            - clientSecret
-            - provider
-            - refreshToken
-          properties:
-            accountType:
-              oneOf:
-                - type: string
-                  enum:
-                    - "personal"
-                - type: string
-                  enum:
-                    - "organizational"
-                - type: string
-                  enum:
-                    - "both"
-            clientId:
-              type: string
-            clientSecret:
-              type: string
-            provider:
-              type: string
-            refreshToken:
-              type: string
-            scope:
-              type: string
-            tokenUrl:
-              type: string
-
-    Response_oauth2.refreshToken:
       type: object
       required:
         - status
@@ -12464,7 +11801,9 @@ components:
           type: string
         errorData:
           type: object
-        value: {}
+        value:
+          type: string
+          nullable: true
 
     Request_threads.mutations.createChatThread:
       type: object
@@ -13398,7 +12737,9 @@ components:
           type: string
         errorData:
           type: object
-        value: {}
+        value:
+          type: string
+          nullable: true
 
     Request_vendors.mutations.updateVendor:
       type: object
@@ -14496,53 +13837,6 @@ components:
           type: object
         value: {}
 
-    Request_wf_definitions.queries.getAutomations:
-      type: object
-      required:
-        - args
-      properties:
-        args:
-          type: object
-          required:
-            - organizationId
-            - paginationOpts
-          properties:
-            organizationId:
-              type: string
-            paginationOpts:
-              type: object
-              required:
-                - cursor
-                - numItems
-              properties:
-                cursor:
-                  type: string
-                  nullable: true
-                numItems:
-                  type: number
-            searchTerm:
-              type: string
-            status:
-              type: array
-              items:
-                type: string
-
-    Response_wf_definitions.queries.getAutomations:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - "success"
-            - "error"
-        errorMessage:
-          type: string
-        errorData:
-          type: object
-        value: {}
-
     Request_wf_definitions.queries.getWorkflowPublic:
       type: object
       required:
@@ -14587,6 +13881,53 @@ components:
               type: string
 
     Response_wf_definitions.queries.hasAutomations:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - "success"
+            - "error"
+        errorMessage:
+          type: string
+        errorData:
+          type: object
+        value: {}
+
+    Request_wf_definitions.queries.listAutomations:
+      type: object
+      required:
+        - args
+      properties:
+        args:
+          type: object
+          required:
+            - organizationId
+            - paginationOpts
+          properties:
+            organizationId:
+              type: string
+            paginationOpts:
+              type: object
+              required:
+                - cursor
+                - numItems
+              properties:
+                cursor:
+                  type: string
+                  nullable: true
+                numItems:
+                  type: number
+            searchTerm:
+              type: string
+            status:
+              type: array
+              items:
+                type: string
+
+    Response_wf_definitions.queries.listAutomations:
       type: object
       required:
         - status
