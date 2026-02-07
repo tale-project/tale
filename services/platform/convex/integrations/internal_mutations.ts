@@ -84,12 +84,9 @@ export const updateIntegration = internalMutation({
 	handler: async (ctx, args) => {
 		const { integrationId, ...updates } = args;
 
-		const cleanUpdates: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(updates)) {
-			if (value !== undefined) {
-				cleanUpdates[key] = value;
-			}
-		}
+		const cleanUpdates = Object.fromEntries(
+			Object.entries(updates).filter(([_, value]) => value !== undefined),
+		);
 
 		await ctx.db.patch(integrationId, cleanUpdates);
 	},
