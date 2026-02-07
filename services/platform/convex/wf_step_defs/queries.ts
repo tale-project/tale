@@ -37,6 +37,15 @@ export const getStepById = internalQuery({
   },
 });
 
+export const getWorkflowStepsPublic = queryWithRLS({
+  args: {
+    wfDefinitionId: v.id('wfDefinitions'),
+  },
+  handler: async (ctx, args) => {
+    return await listWorkflowStepsHelper(ctx, args);
+  },
+});
+
 export const validateStep = queryWithRLS({
   args: {
     stepConfig: v.object({

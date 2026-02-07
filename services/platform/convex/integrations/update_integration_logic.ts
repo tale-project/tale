@@ -94,7 +94,7 @@ export async function updateIntegrationLogic(
   args: UpdateIntegrationLogicArgs,
 ): Promise<void> {
   // Get integration (with RLS check)
-  const integration = await ctx.runQuery(api.integrations.queries.get.get, {
+  const integration = await ctx.runQuery(api.integrations.queries.get, {
     integrationId: args.integrationId,
   });
 

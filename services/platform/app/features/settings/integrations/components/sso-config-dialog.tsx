@@ -82,11 +82,11 @@ export function SSOConfigDialog({ open, onOpenChange, organizationId, existingPr
 		enableOneDriveAccess: boolean;
 	} | null>(null);
 
-	const upsertSSOProvider = useAction(api.sso_providers.mutations.upsert);
-	const removeSSOProvider = useAction(api.sso_providers.mutations.remove);
-	const getFullConfig = useAction(api.sso_providers.queries.getWithClientId);
-	const testSSOConfig = useAction(api.sso_providers.mutations.testConfig);
-	const testExistingSSOConfig = useAction(api.sso_providers.mutations.testExistingConfig);
+	const upsertSSOProvider = useAction(api.sso_providers.actions.upsert);
+	const removeSSOProvider = useAction(api.sso_providers.actions.remove);
+	const getFullConfig = useAction(api.sso_providers.actions.getWithClientId);
+	const testSSOConfig = useAction(api.sso_providers.actions.testConfig);
+	const testExistingSSOConfig = useAction(api.sso_providers.actions.testExistingConfig);
 
 	const isConnected = !!existingProvider;
 

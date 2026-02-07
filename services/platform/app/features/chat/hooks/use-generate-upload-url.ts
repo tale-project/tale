@@ -3,5 +3,5 @@ import { api } from '@/convex/_generated/api';
 
 // Note: Utility - returns URL, doesn't affect any query
 export function useGenerateUploadUrl() {
-  return useMutation(api.file.mutations.generateUploadUrl);
+  return useMutation(api.files.mutations.generateUploadUrl);
 }

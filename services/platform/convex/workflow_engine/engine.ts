@@ -7,7 +7,6 @@
  */
 
 import {
-	mutation,
 	internalMutation,
 	internalAction,
 } from '../_generated/server';
@@ -15,7 +14,6 @@ import { v } from 'convex/values';
 import { vWorkflowId } from '@convex-dev/workflow';
 import { WorkflowManager } from '@convex-dev/workflow';
 import { components } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 
 import * as EngineHelpers from './helpers/engine';
@@ -48,34 +46,6 @@ export const dynamicWorkflow = workflowManager.define({
 	},
 	handler: async (step, args): Promise<void> => {
 		await EngineHelpers.handleDynamicWorkflow(step, args);
-	},
-});
-
-// =============================================================================
-// START WORKFLOW
-// =============================================================================
-
-/**
- * Start workflow execution with component engine (async mode)
- *
- * This is the unified entry point for all workflow executions.
- * It starts database-backed workflows by definition ID.
- *
- * The workflow is scheduled to start immediately (0ms delay) but executes
- * in a separate transaction to break the mutation call chain and prevent
- * deep nesting in the mutation response logLines.
- */
-export const startWorkflow = mutation({
-	args: {
-		organizationId: v.string(),
-		wfDefinitionId: v.id('wfDefinitions'),
-		input: v.optional(jsonValueValidator),
-		triggeredBy: v.string(),
-		triggerData: v.optional(jsonValueValidator),
-	},
-	returns: v.id('wfExecutions'),
-	handler: async (ctx, args): Promise<Id<'wfExecutions'>> => {
-		return await EngineHelpers.handleStartWorkflow(ctx, args, workflowManager);
 	},
 });
 

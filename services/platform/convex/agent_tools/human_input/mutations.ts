@@ -1,12 +1,4 @@
-/**
- * Internal Mutation: Submit Human Input Response
- *
- * Updates the approval record with the user's response and resumes agent execution.
- * The response is stored in the metadata and will be picked up
- * by the structured context builder when the agent resumes.
- */
-
-import { internalMutation, mutation } from '../../_generated/server';
+import { mutation } from '../../_generated/server';
 import { v } from 'convex/values';
 import { components } from '../../_generated/api';
 import { saveMessage } from '@convex-dev/agent';
@@ -20,49 +12,6 @@ import {
   getChatAgentRuntimeConfig,
   createChatHookHandles,
 } from '../../agents/chat/config';
-
-export const submitHumanInputResponseInternal = internalMutation({
-  args: {
-    approvalId: v.id('approvals'),
-    response: v.union(v.string(), v.array(v.string())),
-    respondedBy: v.string(),
-  },
-  returns: v.object({ success: v.boolean() }),
-  handler: async (ctx, args) => {
-    const approval = await ctx.db.get(args.approvalId);
-    if (!approval) {
-      throw new Error('Approval not found');
-    }
-
-    if (approval.status !== 'pending') {
-      throw new Error('Human input request has already been responded to');
-    }
-
-    if (approval.resourceType !== 'human_input_request') {
-      throw new Error('Invalid approval type');
-    }
-
-    const existingMetadata = (approval.metadata || {}) as HumanInputRequestMetadata;
-
-    const updatedMetadata: HumanInputRequestMetadata = {
-      ...existingMetadata,
-      response: {
-        value: args.response,
-        respondedBy: args.respondedBy,
-        timestamp: Date.now(),
-      },
-    };
-
-    await ctx.db.patch(args.approvalId, {
-      status: 'approved',
-      approvedBy: args.respondedBy,
-      reviewedAt: Date.now(),
-      metadata: updatedMetadata,
-    });
-
-    return { success: true };
-  },
-});
 
 export const submitHumanInputResponse = mutation({
   args: {
@@ -100,7 +49,6 @@ export const submitHumanInputResponse = mutation({
       throw new Error('Human input request is not associated with a thread');
     }
 
-    // Verify user is a member of the organization
     await getOrganizationMember(ctx, organizationId);
 
     const existingMetadata = (approval.metadata || {}) as HumanInputRequestMetadata;
@@ -123,9 +71,6 @@ export const submitHumanInputResponse = mutation({
       metadata: updatedMetadata,
     });
 
-    // Resume agent execution by saving a system notification and scheduling the agent
-    // The system message notifies the AI that a human response is available
-    // Map response value(s) back to their labels for better readability
     const mapValueToLabel = (value: string): string => {
       if (existingMetadata.options) {
         const option = existingMetadata.options.find(
@@ -141,7 +86,6 @@ export const submitHumanInputResponse = mutation({
     const responseDisplay = Array.isArray(responseValue)
       ? responseValue.map(mapValueToLabel).join(', ')
       : mapValueToLabel(responseValue);
-    // Use 'user' role for user-provided content to avoid prompt injection risks
     const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
     const { messageId: promptMessageId } = await saveMessage(
@@ -153,10 +97,8 @@ export const submitHumanInputResponse = mutation({
       },
     );
 
-    // Create a persistent text stream for the AI response
     const streamId = await persistentStreaming.createStream(ctx);
 
-    // Get thread to retrieve userId and user's team IDs
     const thread = await ctx.runQuery(components.agent.threads.getThread, {
       threadId,
     });
@@ -164,11 +106,9 @@ export const submitHumanInputResponse = mutation({
       ? await getUserTeamIds(ctx, thread.userId)
       : [];
 
-    // Get runtime config and create FunctionHandles for hooks
     const runtimeConfig = getChatAgentRuntimeConfig();
     const hooks = await createChatHookHandles(ctx);
 
-    // Schedule the agent to continue processing using the generic action
     await ctx.scheduler.runAfter(0, getRunAgentGenerationRef(), {
       agentType: 'chat',
       agentConfig: CHAT_AGENT_CONFIG,

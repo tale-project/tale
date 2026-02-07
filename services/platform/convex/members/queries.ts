@@ -11,6 +11,26 @@ import { components } from '../_generated/api';
 import { authComponent } from '../auth';
 import { getOrganizationMember, getUserOrganizations } from '../lib/rls';
 
+interface BetterAuthTeam {
+  _id: string;
+  name: string;
+  organizationId: string;
+  createdAt?: number | null;
+}
+
+interface BetterAuthTeamMember {
+  _id: string;
+  teamId: string;
+  userId: string;
+  createdAt?: number | null;
+}
+
+interface BetterAuthFindManyResult<T> {
+  page: T[];
+  continueCursor?: string;
+  isDone?: boolean;
+}
+
 const VALID_ROLES = ['disabled', 'member', 'editor', 'developer', 'admin'] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
@@ -268,5 +288,63 @@ export const getUserOrganizationsList = query({
       organizationId: o.organizationId,
       role: o.role,
     }));
+  },
+});
+
+export const getMyTeams = query({
+  args: {
+    organizationId: v.string(),
+  },
+  returns: v.object({
+    teams: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+      }),
+    ),
+  }),
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      return { teams: [] };
+    }
+
+    const membershipsResult: BetterAuthFindManyResult<BetterAuthTeamMember> =
+      await ctx.runQuery(components.betterAuth.adapter.findMany, {
+        model: 'teamMember',
+        paginationOpts: { cursor: null, numItems: 100 },
+        where: [{ field: 'userId', operator: 'eq', value: String(authUser._id) }],
+      });
+
+    if (!membershipsResult || membershipsResult.page.length === 0) {
+      return { teams: [] };
+    }
+
+    const teamIds = membershipsResult.page.map((m) => m.teamId);
+    const teams: Array<{ id: string; name: string }> = [];
+
+    for (const teamId of teamIds) {
+      const teamResult: BetterAuthFindManyResult<BetterAuthTeam> = await ctx.runQuery(
+        components.betterAuth.adapter.findMany,
+        {
+          model: 'team',
+          paginationOpts: { cursor: null, numItems: 1 },
+          where: [
+            { field: '_id', operator: 'eq', value: teamId },
+            { field: 'organizationId', operator: 'eq', value: args.organizationId },
+          ],
+        },
+      );
+
+      if (teamResult && teamResult.page.length > 0) {
+        const team = teamResult.page[0];
+        teams.push({
+          id: team._id,
+          name: team.name,
+        });
+      }
+    }
+
+    return { teams };
   },
 });

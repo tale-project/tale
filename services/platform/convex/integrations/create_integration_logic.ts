@@ -54,7 +54,7 @@ export async function createIntegrationLogic(
 ): Promise<Id<'integrations'>> {
   // Verify access (RLS check)
   // @ts-ignore TS2589: Convex API type instantiation is excessively deep
-  await ctx.runQuery(api.integrations.queries.list.list, {
+  await ctx.runQuery(api.integrations.queries.list, {
     organizationId: args.organizationId,
   });
 
@@ -85,7 +85,7 @@ export async function createIntegrationLogic(
   // Create integration - type assertions needed due to schema mismatches between shared types and mutation
   // The generated API types need regeneration (run `npx convex dev`)
   const integrationId: Id<'integrations'> = await (ctx.runMutation as any)(
-    internal.integrations.mutations.create_integration_internal.createIntegrationInternal,
+    internal.integrations.internal_mutations.create_integration_internal.createIntegrationInternal,
     {
       organizationId: args.organizationId,
       name: args.name,

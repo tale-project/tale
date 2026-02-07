@@ -126,7 +126,7 @@ export async function provisionWebsiteScanWorkflow(
       websiteId: args.websiteId,
     });
 
-    await ctx.scheduler.runAfter(0, api.workflow_engine.engine.startWorkflow, {
+    await ctx.scheduler.runAfter(0, api.workflow_engine.mutations.startWorkflow, {
       organizationId: args.organizationId,
       wfDefinitionId: saved.workflowId,
       input: { websiteId: args.websiteId, domain: websiteDomain },

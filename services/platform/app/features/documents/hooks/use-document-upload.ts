@@ -52,7 +52,7 @@ export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
   const [isUploading, setIsUploading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const generateUploadUrl = useMutation(api.file.mutations.generateUploadUrl);
+  const generateUploadUrl = useMutation(api.files.mutations.generateUploadUrl);
   const createDocumentFromUpload = useMutation(
     api.documents.mutations.createDocumentFromUpload,
   );

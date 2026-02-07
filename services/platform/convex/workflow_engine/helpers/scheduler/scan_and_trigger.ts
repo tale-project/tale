@@ -64,7 +64,7 @@ export async function scanAndTrigger(ctx: ActionCtx): Promise<void> {
           );
 
           // Start workflow execution using the engine executor directly
-          await ctx.runMutation(api.workflow_engine.engine.startWorkflow, {
+          await ctx.runMutation(api.workflow_engine.mutations.startWorkflow, {
             organizationId,
             wfDefinitionId,
             input: {},

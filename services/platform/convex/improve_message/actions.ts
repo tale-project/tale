@@ -1,13 +1,9 @@
 'use node';
 
-/**
- * Public action to improve a message using AI
- */
-
 import { v } from 'convex/values';
-import { action } from './_generated/server';
-import { authComponent } from './auth';
-import { getEnvOrThrow, getEnvWithDefault } from './lib/get_or_throw';
+import { action } from '../_generated/server';
+import { authComponent } from '../auth';
+import { getEnvOrThrow, getEnvWithDefault } from '../lib/get_or_throw';
 
 export const improveMessage = action({
   args: {
