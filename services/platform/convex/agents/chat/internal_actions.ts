@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { internalAction } from '../../_generated/server';
 import { internal } from '../../_generated/api';
 import { agentResponseReturnsValidator, generateAgentResponse } from '../../lib/agent_response';
+import { getDefaultAgentRuntimeConfig } from '../../lib/agent_runtime_config';
 import { processAttachments } from '../../lib/attachments/index';
 import {
   estimateTokens,
@@ -32,17 +33,14 @@ export const generateResponse = internalAction({
   },
   returns: agentResponseReturnsValidator,
   handler: async (ctx, args) => {
-    const model = process.env.OPENAI_MODEL;
-    if (!model) {
-      throw new Error('OPENAI_MODEL environment variable is not configured');
-    }
+    const { model, provider } = getDefaultAgentRuntimeConfig();
 
     return generateAgentResponse(
       {
         agentType: 'chat',
         createAgent: createChatAgent,
         model,
-        provider: 'openai',
+        provider,
         debugTag: '[ChatAgent]',
         enableStreaming: !!args.streamId,
         instructions: CHAT_AGENT_INSTRUCTIONS,
