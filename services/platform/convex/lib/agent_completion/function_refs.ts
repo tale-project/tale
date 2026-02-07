@@ -49,5 +49,5 @@ export type SaveMessageMetadataRef = FunctionReference<
  * Get the function reference for saveMessageMetadata.
  */
 export function getSaveMessageMetadataRef(): SaveMessageMetadataRef {
-  return createRef<SaveMessageMetadataRef>('internal', ['message_metadata', 'mutations', 'saveMessageMetadata']);
+  return createRef<SaveMessageMetadataRef>('internal', ['message_metadata', 'internal_mutations', 'saveMessageMetadata']);
 }
