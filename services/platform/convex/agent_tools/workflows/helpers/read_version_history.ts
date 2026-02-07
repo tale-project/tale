@@ -34,7 +34,7 @@ export async function readVersionHistory(
   try {
     // Get all versions of the workflow
     const allVersions = (await ctx.runQuery(
-      internal.wf_definitions.queries.listVersions,
+      internal.wf_definitions.queries.listVersionsByName,
       {
         organizationId,
         name: args.workflowName,

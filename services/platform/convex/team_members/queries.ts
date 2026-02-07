@@ -45,7 +45,7 @@ export const listByTeam = query({
 
     const userIds = new Set<string>();
     for (const m of result.page) {
-      userIds.add(String((m as Record<string, unknown>).userId));
+      userIds.add(String(m.userId));
     }
 
     const userMap = new Map<string, { name?: string; email?: string }>();
@@ -66,14 +66,15 @@ export const listByTeam = query({
       }),
     );
 
-    return result.page.map((member: any) => {
-      const user = userMap.get(member.userId);
+    return result.page.map((member: Record<string, unknown>) => {
+      const userId = String(member.userId);
+      const user = userMap.get(userId);
       return {
-        _id: member._id,
-        teamId: member.teamId,
-        userId: member.userId,
-        role: member.role || 'member',
-        joinedAt: member.createdAt,
+        _id: String(member._id),
+        teamId: String(member.teamId),
+        userId,
+        role: typeof member.role === 'string' ? member.role : 'member',
+        joinedAt: typeof member.createdAt === 'number' ? member.createdAt : 0,
         displayName: user?.name,
         email: user?.email,
       };

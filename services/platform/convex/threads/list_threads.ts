@@ -9,7 +9,7 @@ function isGeneralThread(summary?: string): boolean {
     const parsed: unknown = JSON.parse(summary);
 
     if (parsed && typeof parsed === 'object' && 'chatType' in parsed) {
-      return (parsed as { chatType?: unknown }).chatType === 'general';
+      return parsed.chatType === 'general';
     }
 
     return false;

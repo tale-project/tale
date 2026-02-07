@@ -116,7 +116,7 @@ export async function saveRelatedWorkflows(
     // Create all new workflows in parallel
     const results = await Promise.all(
       payloads.map((payload) =>
-        ctx.runMutation(internal.wf_definitions.mutations.createWorkflowWithSteps, {
+        ctx.runMutation(internal.wf_definitions.mutations.provisionWorkflowWithSteps, {
           organizationId: args.organizationId,
           ...payload,
         }),

@@ -14,7 +14,7 @@ import {
   registerFilesWithAgent,
   type FileAttachment,
 } from '../../lib/attachments';
-import { getGetWorkflowInternalRef } from '../../lib/function_refs';
+import { getResolveWorkflowRef } from '../../lib/function_refs';
 import { authComponent } from '../../auth';
 import { generateWorkflowResponse } from './generate_response';
 
@@ -73,7 +73,7 @@ export const chatWithWorkflowAssistant = action({
     try {
       const additionalContext: Record<string, string> = {};
       if (args.workflowId) {
-        const workflow = await ctx.runQuery(getGetWorkflowInternalRef(), {
+        const workflow = await ctx.runQuery(getResolveWorkflowRef(), {
           wfDefinitionId: args.workflowId,
         });
         if (workflow) {

@@ -6,13 +6,13 @@ import type { FunctionReference } from 'convex/server';
 import type { Id } from '../../_generated/dataModel';
 import { createRef } from './create_ref';
 
-export type GetWorkflowInternalRef = FunctionReference<
+export type ResolveWorkflowRef = FunctionReference<
   'query',
   'internal',
   { wfDefinitionId: Id<'wfDefinitions'> },
   { name: string; description?: string } | null
 >;
 
-export function getGetWorkflowInternalRef(): GetWorkflowInternalRef {
-  return createRef<GetWorkflowInternalRef>('internal', ['wf_definitions', 'queries', 'getWorkflowInternal']);
+export function getResolveWorkflowRef(): ResolveWorkflowRef {
+  return createRef<ResolveWorkflowRef>('internal', ['wf_definitions', 'queries', 'resolveWorkflow']);
 }

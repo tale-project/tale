@@ -28,7 +28,7 @@ async function queryVersionsByOrgAndName(
   return versions.sort((a, b) => b.versionNumber - a.versionNumber);
 }
 
-export const getWorkflowPublic = queryWithRLS({
+export const getWorkflow = queryWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
   },
@@ -37,7 +37,7 @@ export const getWorkflowPublic = queryWithRLS({
   },
 });
 
-export const getWorkflowInternal = internalQuery({
+export const resolveWorkflow = internalQuery({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
   },
@@ -66,7 +66,7 @@ export const getWorkflowByName = internalQuery({
   },
 });
 
-export const listVersionsPublic = queryWithRLS({
+export const listVersions = queryWithRLS({
   args: {
     organizationId: v.string(),
     name: v.string(),
@@ -76,7 +76,7 @@ export const listVersionsPublic = queryWithRLS({
   },
 });
 
-export const listVersions = internalQuery({
+export const listVersionsByName = internalQuery({
   args: {
     organizationId: v.string(),
     name: v.string(),

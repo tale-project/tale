@@ -1,7 +1,3 @@
-/**
- * Mutations for workflow step definitions
- */
-
 import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import { mutationWithRLS } from '../lib/rls';
@@ -12,7 +8,7 @@ import { stepConfigValidator } from '../workflow_engine/types/nodes';
 import { auditStepChange } from './audit';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 
-export const updateStep = internalMutation({
+export const patchStep = internalMutation({
   args: {
     stepRecordId: v.id('wfStepDefs'),
     updates: jsonRecordValidator,
@@ -22,7 +18,7 @@ export const updateStep = internalMutation({
   },
 });
 
-export const updateStepPublic = mutationWithRLS({
+export const updateStep = mutationWithRLS({
   args: {
     stepRecordId: v.id('wfStepDefs'),
     updates: jsonRecordValidator,
@@ -76,7 +72,7 @@ export const updateStepPublic = mutationWithRLS({
   },
 });
 
-export const createStepPublic = mutationWithRLS({
+export const createStep = mutationWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
     stepSlug: v.string(),

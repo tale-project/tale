@@ -1,7 +1,3 @@
-/**
- * Queries for workflow step definitions
- */
-
 import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { queryWithRLS } from '../lib/rls';
@@ -37,7 +33,7 @@ export const getStepById = internalQuery({
   },
 });
 
-export const getWorkflowStepsPublic = queryWithRLS({
+export const getWorkflowSteps = queryWithRLS({
   args: {
     wfDefinitionId: v.id('wfDefinitions'),
   },

@@ -20,7 +20,7 @@ type GetWithClientIdResult = {
 } | null;
 
 export async function getWithClientId(ctx: GenericActionCtx<DataModel>): Promise<GetWithClientIdResult> {
-	const authUser: { _id: string } | null = await ctx.runQuery(internal.sso_providers.internal_queries.getAuthUser, {});
+	const authUser = await ctx.runQuery(internal.sso_providers.internal_queries.getAuthUser, {});
 
 	if (!authUser) {
 		return null;

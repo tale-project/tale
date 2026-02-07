@@ -157,7 +157,7 @@ export const bulkCreateVendors = mutationWithRLS({
         results.errors.push({
           index: i,
           error: error instanceof Error ? error.message : 'Unknown error',
-          vendor: vendorData as ConvexJsonValue,
+          vendor: vendorData,
         });
       }
     }

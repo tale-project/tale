@@ -51,10 +51,6 @@ export async function rescanWebsite(
     throw new Error('Attached workflowId missing from website metadata');
   }
 
-  if (!workflowId) {
-    throw new Error('Attached workflow not found for this website');
-  }
-
   // Start the workflow immediately using the engine executor directly
   await ctx.runMutation(api.workflow_engine.mutations.startWorkflow, {
     organizationId: website.organizationId,
