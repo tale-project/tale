@@ -57,7 +57,7 @@ export const updateCustomers = internalMutation({
       name: v.optional(v.string()),
       email: v.optional(v.string()),
       status: v.optional(customerStatusValidator),
-      source: v.optional(v.string()),
+      source: v.optional(customerSourceValidator),
       locale: v.optional(v.string()),
       address: v.optional(customerAddressValidator),
       metadata: v.optional(jsonRecordValidator),
