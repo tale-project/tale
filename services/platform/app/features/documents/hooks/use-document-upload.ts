@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import type { Id } from '@/convex/_generated/dataModel';
 
-export { DOCUMENT_MAX_FILE_SIZE as MAX_FILE_SIZE_BYTES } from '@/lib/shared/file-types';
+import { DOCUMENT_MAX_FILE_SIZE } from '@/lib/shared/file-types';
 
 /**
  * Calculate SHA-256 hash of a file using Web Crypto API
@@ -81,8 +81,8 @@ export function useDocumentUpload(options: UploadOptions) {
 
     // Check file sizes
     for (const file of files) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        const maxSizeMB = MAX_FILE_SIZE_BYTES / (1024 * 1024);
+      if (file.size > DOCUMENT_MAX_FILE_SIZE) {
+        const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
         const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const error = t('upload.fileSizeExceeded', {
           name: file.name,
