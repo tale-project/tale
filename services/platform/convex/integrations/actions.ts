@@ -39,6 +39,11 @@ export const create = action({
   },
   returns: v.id('integrations'),
   handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
     return await createIntegrationLogic(ctx, args);
   },
 });
@@ -58,6 +63,11 @@ export const update = action({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const authUser = await authComponent.getAuthUser(ctx);
+    if (!authUser) {
+      throw new Error('Unauthenticated');
+    }
+
     await updateIntegrationLogic(ctx, args);
     return null;
   },
