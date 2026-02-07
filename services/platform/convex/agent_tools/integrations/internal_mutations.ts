@@ -33,13 +33,14 @@ export const updateApprovalWithResult = internalMutation({
 		if (!approval) return;
 
 		const metadata = (approval.metadata || {}) as unknown as IntegrationOperationMetadataLocal;
+		const executedAt = Date.now();
 
 		await ctx.db.patch(args.approvalId, {
-			executedAt: Date.now(),
+			executedAt,
 			executionError: args.executionError || undefined,
 			metadata: {
 				...metadata,
-				executedAt: Date.now(),
+				executedAt,
 				executionResult: args.executionResult as ConvexJsonValue,
 				executionError: args.executionError || undefined,
 			} as ConvexJsonRecord,
