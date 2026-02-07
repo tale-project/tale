@@ -57,6 +57,13 @@ export async function addMessageToConversation(
   const deliveredAt = args.deliveredAt
     ?? (direction === 'inbound' && args.sentAt ? args.sentAt : undefined);
 
+  const safeMetadata =
+    typeof args.metadata === 'object' &&
+    args.metadata !== null &&
+    !Array.isArray(args.metadata)
+      ? (args.metadata as Record<string, unknown>)
+      : {};
+
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
@@ -72,7 +79,7 @@ export async function addMessageToConversation(
       sender: args.sender,
       isCustomer: args.isCustomer,
       ...(args.attachment ? { attachment: args.attachment } : {}),
-      ...((args.metadata as Record<string, unknown>) || {}),
+      ...safeMetadata,
     },
   });
 
@@ -84,7 +91,11 @@ export async function addMessageToConversation(
 
   const now = Date.now();
   const existingMetadata =
-    (parentConversation.metadata as Record<string, unknown>) || {};
+    typeof parentConversation.metadata === 'object' &&
+    parentConversation.metadata !== null &&
+    !Array.isArray(parentConversation.metadata)
+      ? (parentConversation.metadata as Record<string, unknown>)
+      : {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
     metadata: {
