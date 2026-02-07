@@ -133,6 +133,7 @@ import type * as audit_logs_types from "../audit_logs/types.js";
 import type * as audit_logs_validators from "../audit_logs/validators.js";
 import type * as auth from "../auth.js";
 import type * as constants from "../constants.js";
+import type * as conversations_actions from "../conversations/actions.js";
 import type * as conversations_add_message_to_conversation from "../conversations/add_message_to_conversation.js";
 import type * as conversations_bulk_close_conversations from "../conversations/bulk_close_conversations.js";
 import type * as conversations_bulk_reopen_conversations from "../conversations/bulk_reopen_conversations.js";
@@ -146,6 +147,7 @@ import type * as conversations_get_conversation_by_id from "../conversations/get
 import type * as conversations_get_conversation_with_messages from "../conversations/get_conversation_with_messages.js";
 import type * as conversations_get_message_by_external_id from "../conversations/get_message_by_external_id.js";
 import type * as conversations_helpers from "../conversations/helpers.js";
+import type * as conversations_improve_message from "../conversations/improve_message.js";
 import type * as conversations_internal_mutations from "../conversations/internal_mutations.js";
 import type * as conversations_internal_queries from "../conversations/internal_queries.js";
 import type * as conversations_mark_conversation_as_read from "../conversations/mark_conversation_as_read.js";
@@ -263,7 +265,6 @@ import type * as files_mutations from "../files/mutations.js";
 import type * as files_queries from "../files/queries.js";
 import type * as http from "../http.js";
 import type * as http_streaming from "../http/streaming.js";
-import type * as improve_message_actions from "../improve_message/actions.js";
 import type * as integrations_actions from "../integrations/actions.js";
 import type * as integrations_create_integration_internal from "../integrations/create_integration_internal.js";
 import type * as integrations_create_integration_logic from "../integrations/create_integration_logic.js";
@@ -1028,6 +1029,7 @@ declare const fullApi: ApiFromModules<{
   "audit_logs/validators": typeof audit_logs_validators;
   auth: typeof auth;
   constants: typeof constants;
+  "conversations/actions": typeof conversations_actions;
   "conversations/add_message_to_conversation": typeof conversations_add_message_to_conversation;
   "conversations/bulk_close_conversations": typeof conversations_bulk_close_conversations;
   "conversations/bulk_reopen_conversations": typeof conversations_bulk_reopen_conversations;
@@ -1041,6 +1043,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/get_conversation_with_messages": typeof conversations_get_conversation_with_messages;
   "conversations/get_message_by_external_id": typeof conversations_get_message_by_external_id;
   "conversations/helpers": typeof conversations_helpers;
+  "conversations/improve_message": typeof conversations_improve_message;
   "conversations/internal_mutations": typeof conversations_internal_mutations;
   "conversations/internal_queries": typeof conversations_internal_queries;
   "conversations/mark_conversation_as_read": typeof conversations_mark_conversation_as_read;
@@ -1158,7 +1161,6 @@ declare const fullApi: ApiFromModules<{
   "files/queries": typeof files_queries;
   http: typeof http;
   "http/streaming": typeof http_streaming;
-  "improve_message/actions": typeof improve_message_actions;
   "integrations/actions": typeof integrations_actions;
   "integrations/create_integration_internal": typeof integrations_create_integration_internal;
   "integrations/create_integration_logic": typeof integrations_create_integration_logic;

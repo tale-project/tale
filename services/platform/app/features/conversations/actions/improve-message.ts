@@ -8,7 +8,7 @@ export async function improveMessage(
   instruction?: string,
 ): Promise<{ improvedMessage: string; error?: string }> {
   try {
-    const result = await fetchAction(api.improve_message.actions.improveMessage, {
+    const result = await fetchAction(api.conversations.actions.improveMessage, {
       originalMessage,
       instruction,
     });
