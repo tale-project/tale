@@ -28,9 +28,20 @@ export const createHumanInputRequest = internalMutation({
 		messageId: v.optional(v.string()),
 	},
 	handler: async (ctx, args) => {
+		const options =
+			args.options ??
+			(args.format === 'yes_no'
+				? [
+						{ label: 'Yes', value: 'yes' },
+						{ label: 'No', value: 'no' },
+					]
+				: undefined);
+
 		if (
-			(args.format === 'single_select' || args.format === 'multi_select') &&
-			(!args.options || args.options.length === 0)
+			(args.format === 'single_select' ||
+				args.format === 'multi_select' ||
+				args.format === 'yes_no') &&
+			(!options || options.length === 0)
 		) {
 			throw new Error(`options are required for ${args.format} format`);
 		}
@@ -39,7 +50,7 @@ export const createHumanInputRequest = internalMutation({
 			question: args.question,
 			format: args.format,
 			context: args.context,
-			options: args.options,
+			options,
 			placeholder: args.placeholder,
 			requestedAt: Date.now(),
 		};
