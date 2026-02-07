@@ -1,4 +1,3 @@
-import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import type { CreateProductResult, ProductStatus } from './types';
 
@@ -34,7 +33,7 @@ export async function createProduct(
     status: args.status,
     externalId: args.externalId,
      
-    metadata: args.metadata as Doc<'products'>['metadata'],
+    metadata: args.metadata as any,
   });
 
   return {
