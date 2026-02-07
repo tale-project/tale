@@ -24,12 +24,12 @@ const DEFAULT_WORKFLOWS: Array<{
   schedule: string;
   timezone: string;
 }> = [
-  { workflow: documentRagSync as PredefinedWorkflowDefinition, schedule: '*/20 * * * *', timezone: 'UTC' },
-  { workflow: onedriveSync as PredefinedWorkflowDefinition, schedule: '0 */1 * * *', timezone: 'UTC' },
-  { workflow: generalCustomerStatusAssessmentWorkflow as PredefinedWorkflowDefinition, schedule: '0 */6 * * *', timezone: 'UTC' },
-  { workflow: generalProductRecommendationWorkflow as PredefinedWorkflowDefinition, schedule: '0 */12 * * *', timezone: 'UTC' },
-  { workflow: productRecommendationEmailWorkflow as PredefinedWorkflowDefinition, schedule: '0 10 * * *', timezone: 'UTC' },
-  { workflow: conversationAutoArchiveWorkflow as PredefinedWorkflowDefinition, schedule: '0 0 * * *', timezone: 'UTC' },
+  { workflow: documentRagSync, schedule: '*/20 * * * *', timezone: 'UTC' },
+  { workflow: onedriveSync, schedule: '0 */1 * * *', timezone: 'UTC' },
+  { workflow: generalCustomerStatusAssessmentWorkflow, schedule: '0 */6 * * *', timezone: 'UTC' },
+  { workflow: generalProductRecommendationWorkflow, schedule: '0 */12 * * *', timezone: 'UTC' },
+  { workflow: productRecommendationEmailWorkflow, schedule: '0 10 * * *', timezone: 'UTC' },
+  { workflow: conversationAutoArchiveWorkflow, schedule: '0 0 * * *', timezone: 'UTC' },
 ];
 
 export async function saveDefaultWorkflows(
