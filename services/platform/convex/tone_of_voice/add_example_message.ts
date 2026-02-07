@@ -2,18 +2,18 @@
  * Add an example message
  */
 
-import { MutationCtx } from '../_generated/server';
 import { Id } from '../_generated/dataModel';
+import { MutationCtx } from '../_generated/server';
+import type { JsonRecord } from '../../lib/shared/schemas/utils/json-value';
 
 export async function addExampleMessage(
   ctx: MutationCtx,
   args: {
     organizationId: string;
     content: string;
-    metadata?: unknown;
+    metadata?: JsonRecord;
   },
 ): Promise<Id<'exampleMessages'>> {
-  // Ensure tone of voice exists
   let toneOfVoice = await ctx.db
     .query('toneOfVoice')
     .withIndex('by_organizationId', (q) =>
@@ -22,7 +22,6 @@ export async function addExampleMessage(
     .first();
 
   if (!toneOfVoice) {
-    // Create tone of voice if it doesn't exist
     const toneOfVoiceId = await ctx.db.insert('toneOfVoice', {
       organizationId: args.organizationId,
       lastUpdated: Date.now(),
@@ -34,14 +33,12 @@ export async function addExampleMessage(
   }
 
   const now = Date.now();
-  const id = await ctx.db.insert('exampleMessages', {
+  return await ctx.db.insert('exampleMessages', {
     organizationId: args.organizationId,
     toneOfVoiceId: toneOfVoice._id,
     content: args.content,
     createdAt: now,
     updatedAt: now,
-    metadata: args.metadata as any,
+    metadata: args.metadata,
   });
-
-  return id;
 }

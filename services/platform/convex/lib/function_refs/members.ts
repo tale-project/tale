@@ -5,13 +5,13 @@
 import type { FunctionReference } from 'convex/server';
 import { createRef } from './create_ref';
 
-export type GetMemberRoleInternalRef = FunctionReference<
+export type GetMemberRoleRef = FunctionReference<
   'query',
   'internal',
   { userId: string; organizationId: string },
   string | null
 >;
 
-export function getGetMemberRoleInternalRef(): GetMemberRoleInternalRef {
-  return createRef<GetMemberRoleInternalRef>('internal', ['members', 'queries', 'getMemberRoleInternal']);
+export function getGetMemberRoleRef(): GetMemberRoleRef {
+  return createRef<GetMemberRoleRef>('internal', ['members', 'queries', 'getMemberRole']);
 }

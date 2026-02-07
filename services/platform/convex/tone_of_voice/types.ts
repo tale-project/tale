@@ -11,10 +11,6 @@ import {
   toneOfVoiceWithExamplesValidator,
 } from './validators';
 
-// =============================================================================
-// INFERRED TYPES (from validators)
-// =============================================================================
-
 export type ToneOfVoice = Infer<typeof toneOfVoiceValidator>;
 export type ExampleMessage = Infer<typeof exampleMessageValidator>;
 export type ToneOfVoiceWithExamples = Infer<

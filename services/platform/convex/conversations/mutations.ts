@@ -328,7 +328,7 @@ export const reopenConversation = mutationWithRLS({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ConversationsHelpers.reopenConversation(ctx, args.conversationId);
+    await ConversationsHelpers.reopenConversation(ctx, args);
     return null;
   },
 });
@@ -339,7 +339,7 @@ export const markConversationAsSpam = mutationWithRLS({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ConversationsHelpers.markConversationAsSpam(ctx, args.conversationId);
+    await ConversationsHelpers.markConversationAsSpam(ctx, args);
     return null;
   },
 });
@@ -350,7 +350,7 @@ export const markConversationAsRead = mutationWithRLS({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ConversationsHelpers.markConversationAsRead(ctx, args.conversationId);
+    await ConversationsHelpers.markConversationAsRead(ctx, args);
     return null;
   },
 });
@@ -372,9 +372,6 @@ export const bulkReopenConversations = mutationWithRLS({
   },
   returns: bulkOperationResultValidator,
   handler: async (ctx, args) => {
-    return await ConversationsHelpers.bulkReopenConversations(
-      ctx,
-      args.conversationIds,
-    );
+    return await ConversationsHelpers.bulkReopenConversations(ctx, args);
   },
 });

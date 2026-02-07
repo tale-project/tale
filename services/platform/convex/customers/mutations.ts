@@ -3,9 +3,10 @@ import { internalMutation } from '../_generated/server';
 import { mutationWithRLS } from '../lib/rls';
 import * as CustomersHelpers from './helpers';
 import {
-  customerStatusValidator,
-  customerSourceValidator,
   customerAddressValidator,
+  customerSourceValidator,
+  customerStatusValidator,
+  customerValidator,
 } from './validators';
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 
@@ -86,6 +87,7 @@ export const updateCustomer = mutationWithRLS({
     address: v.optional(customerAddressValidator),
     metadata: v.optional(jsonRecordValidator),
   },
+  returns: v.union(customerValidator, v.null()),
   handler: async (ctx, args) => {
     return await CustomersHelpers.updateCustomer(ctx, args);
   },
@@ -117,6 +119,17 @@ export const bulkCreateCustomers = mutationWithRLS({
       }),
     ),
   },
+  returns: v.object({
+    success: v.number(),
+    failed: v.number(),
+    errors: v.array(
+      v.object({
+        index: v.number(),
+        error: v.string(),
+        customer: v.any(),
+      }),
+    ),
+  }),
   handler: async (ctx, args) => {
     return await CustomersHelpers.bulkCreateCustomers(
       ctx,

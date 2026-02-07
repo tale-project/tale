@@ -51,7 +51,7 @@ Call after write operations to confirm approval was created.`,
         // The ID comes from LLM output, so we cast it to the expected type
         // The query will throw if the ID format is invalid
         const approval = await ctx.runQuery(
-          internal.approvals.queries.getApprovalInternal,
+          internal.approvals.queries.getApprovalById,
           {
             approvalId: approvalId as Id<'approvals'>,
           },

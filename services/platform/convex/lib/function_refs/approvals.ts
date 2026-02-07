@@ -6,7 +6,7 @@ import type { FunctionReference } from 'convex/server';
 import type { Id } from '../../_generated/dataModel';
 import { createRef } from './create_ref';
 
-export type GetApprovalsForThreadInternalRef = FunctionReference<
+export type GetApprovalsForThreadRef = FunctionReference<
   'query',
   'internal',
   { threadId: string },
@@ -32,8 +32,8 @@ export type LinkApprovalsToMessageRef = FunctionReference<
   number
 >;
 
-export function getGetApprovalsForThreadInternalRef(): GetApprovalsForThreadInternalRef {
-  return createRef<GetApprovalsForThreadInternalRef>('internal', ['approvals', 'queries', 'getApprovalsForThreadInternal']);
+export function getGetApprovalsForThreadRef(): GetApprovalsForThreadRef {
+  return createRef<GetApprovalsForThreadRef>('internal', ['approvals', 'queries', 'getApprovalsForThread']);
 }
 
 export function getLinkApprovalsToMessageRef(): LinkApprovalsToMessageRef {

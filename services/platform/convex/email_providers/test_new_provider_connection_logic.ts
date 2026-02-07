@@ -1,7 +1,3 @@
-/**
- * High-level helper that runs both SMTP and IMAP tests and returns a combined result.
- */
-
 import type { TestResult } from './test_existing_provider';
 import type { TestConnectionArgs, TestConnectionDeps } from './test_connection_types';
 import { testSmtpConnectionLogic } from './test_smtp_connection_logic';

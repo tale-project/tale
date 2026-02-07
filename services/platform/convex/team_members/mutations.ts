@@ -23,7 +23,7 @@ export const addMember = mutation({
       name: authUser.name,
     });
 
-    const createInput = {
+    const input = {
       model: 'teamMember' as const,
       data: {
         teamId: args.teamId,
@@ -31,12 +31,11 @@ export const addMember = mutation({
         createdAt: Date.now(),
       },
     };
-    const dataWithRole = { ...createInput.data, role: args.role ?? 'member' };
-    const result = await ctx.runMutation(components.betterAuth.adapter.create, {
-      input: { ...createInput, data: dataWithRole } as typeof createInput,
-    });
+    const data = { ...input.data, role: args.role ?? 'member' };
 
-    return result;
+    return await ctx.runMutation(components.betterAuth.adapter.create, {
+      input: { ...input, data } as typeof input,
+    });
   },
 });
 

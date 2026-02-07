@@ -11,6 +11,7 @@ export const get = query({
   args: {
     integrationId: v.id('integrations'),
   },
+  returns: v.union(integrationDocValidator, v.null()),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -67,6 +68,7 @@ export const list = query({
     organizationId: v.string(),
     name: v.optional(v.string()),
   },
+  returns: v.array(integrationDocValidator),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {

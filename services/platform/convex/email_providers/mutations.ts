@@ -1,13 +1,9 @@
-/**
- * Email Providers Public Mutations
- */
-
 import { v } from 'convex/values';
 import { mutation } from '../_generated/server';
-import { deleteProvider as deleteProviderHelper } from './delete_provider';
-import { updateProvider as updateProviderHelper } from './update_provider';
 import { authComponent } from '../auth';
 import { getOrganizationMember } from '../lib/rls';
+import { deleteProvider as deleteProviderHelper } from './delete_provider';
+import { updateProvider as updateProviderHelper } from './update_provider';
 
 export const deleteProvider = mutation({
   args: {

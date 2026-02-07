@@ -200,7 +200,7 @@ import type * as documents_generate_docx_from_template from "../documents/genera
 import type * as documents_generate_pptx from "../documents/generate_pptx.js";
 import type * as documents_generate_signed_url from "../documents/generate_signed_url.js";
 import type * as documents_get_document_by_id from "../documents/get_document_by_id.js";
-import type * as documents_get_document_by_id_public from "../documents/get_document_by_id_public.js";
+import type * as documents_get_document_by_id_transformed from "../documents/get_document_by_id_transformed.js";
 import type * as documents_get_document_by_path from "../documents/get_document_by_path.js";
 import type * as documents_get_documents from "../documents/get_documents.js";
 import type * as documents_get_documents_cursor from "../documents/get_documents_cursor.js";
@@ -341,6 +341,7 @@ import type * as lib_function_refs_streaming from "../lib/function_refs/streamin
 import type * as lib_function_refs_wf_definitions from "../lib/function_refs/wf_definitions.js";
 import type * as lib_get_or_throw from "../lib/get_or_throw.js";
 import type * as lib_get_user_teams from "../lib/get_user_teams.js";
+import type * as lib_helpers_build_audit_context from "../lib/helpers/build_audit_context.js";
 import type * as lib_helpers_has_records_in_org from "../lib/helpers/has_records_in_org.js";
 import type * as lib_message_deduplication from "../lib/message_deduplication.js";
 import type * as lib_metadata_get_metadata_string from "../lib/metadata/get_metadata_string.js";
@@ -1077,7 +1078,7 @@ declare const fullApi: ApiFromModules<{
   "documents/generate_pptx": typeof documents_generate_pptx;
   "documents/generate_signed_url": typeof documents_generate_signed_url;
   "documents/get_document_by_id": typeof documents_get_document_by_id;
-  "documents/get_document_by_id_public": typeof documents_get_document_by_id_public;
+  "documents/get_document_by_id_transformed": typeof documents_get_document_by_id_transformed;
   "documents/get_document_by_path": typeof documents_get_document_by_path;
   "documents/get_documents": typeof documents_get_documents;
   "documents/get_documents_cursor": typeof documents_get_documents_cursor;
@@ -1218,6 +1219,7 @@ declare const fullApi: ApiFromModules<{
   "lib/function_refs/wf_definitions": typeof lib_function_refs_wf_definitions;
   "lib/get_or_throw": typeof lib_get_or_throw;
   "lib/get_user_teams": typeof lib_get_user_teams;
+  "lib/helpers/build_audit_context": typeof lib_helpers_build_audit_context;
   "lib/helpers/has_records_in_org": typeof lib_helpers_has_records_in_org;
   "lib/message_deduplication": typeof lib_message_deduplication;
   "lib/metadata/get_metadata_string": typeof lib_metadata_get_metadata_string;

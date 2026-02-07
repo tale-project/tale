@@ -1,9 +1,5 @@
 'use node';
 
-/**
- * Email Providers Internal Actions
- */
-
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { internal } from '../_generated/api';
@@ -361,11 +357,9 @@ export const storeOAuth2TokensInternal = internalAction({
     expiresIn: v.optional(v.number()),
     scope: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<null> => {
-    return await storeOAuth2TokensLogic(ctx, args, {
-      encryptString: async (plaintext: string): Promise<string> => {
-        return await encryptString(plaintext);
-      },
+  handler: async (ctx, args) => {
+    return await storeOAuth2TokensLogic(args, {
+      encryptString,
       updateTokens: async (params) => {
         await ctx.runMutation(
           internal.email_providers.internal_mutations.updateOAuth2Tokens,

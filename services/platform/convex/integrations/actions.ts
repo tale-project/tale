@@ -2,7 +2,6 @@
 
 import { v } from 'convex/values';
 import { action } from '../_generated/server';
-import type { Id } from '../_generated/dataModel';
 import { authComponent } from '../auth';
 import { createIntegrationLogic } from './create_integration_logic';
 import { updateIntegrationLogic } from './update_integration_logic';
@@ -39,7 +38,7 @@ export const create = action({
     metadata: v.optional(jsonValueValidator),
   },
   returns: v.id('integrations'),
-  handler: async (ctx, args): Promise<Id<'integrations'>> => {
+  handler: async (ctx, args) => {
     return await createIntegrationLogic(ctx, args);
   },
 });
@@ -58,7 +57,7 @@ export const update = action({
     metadata: v.optional(jsonRecordValidator),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (ctx, args) => {
     await updateIntegrationLogic(ctx, args);
     return null;
   },

@@ -1,9 +1,3 @@
-/**
- * Approvals Queries
- *
- * Internal and public queries for approval operations.
- */
-
 import { v } from 'convex/values';
 import { internalQuery, query } from '../_generated/server';
 import * as ApprovalsHelpers from './helpers';
@@ -24,20 +18,7 @@ export const getApprovalById = internalQuery({
   },
 });
 
-export const getApprovalInternal = internalQuery({
-  args: {
-    approvalId: v.id('approvals'),
-  },
-  handler: async (ctx, args) => {
-    return await ApprovalsHelpers.getApproval(ctx, args.approvalId);
-  },
-});
-
-/**
- * Get all approvals for a thread (internal use for context building).
- * Returns all approvals regardless of status or type.
- */
-export const getApprovalsForThreadInternal = internalQuery({
+export const getApprovalsForThread = internalQuery({
   args: {
     threadId: v.string(),
   },
@@ -53,13 +34,6 @@ export const getApprovalsForThreadInternal = internalQuery({
   },
 });
 
-// =============================================================================
-// PUBLIC QUERIES (for frontend via api.approvals.queries.*)
-// =============================================================================
-
-/**
- * Get approvals by organization with optional filters.
- */
 export const listApprovalsByOrganization = query({
   args: {
     organizationId: v.string(),
@@ -77,7 +51,6 @@ export const listApprovalsByOrganization = query({
       return [];
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: authUser._id,
@@ -92,9 +65,6 @@ export const listApprovalsByOrganization = query({
   },
 });
 
-/**
- * Get pending integration approvals for a specific thread.
- */
 export const getPendingIntegrationApprovalsForThread = query({
   args: {
     threadId: v.string(),
@@ -126,9 +96,6 @@ export const getPendingIntegrationApprovalsForThread = query({
   },
 });
 
-/**
- * Get workflow creation approvals for a specific thread.
- */
 export const getWorkflowCreationApprovalsForThread = query({
   args: {
     threadId: v.string(),
@@ -160,10 +127,6 @@ export const getWorkflowCreationApprovalsForThread = query({
   },
 });
 
-/**
- * Get human input request approvals for a specific thread.
- * Returns pending requests that need user response.
- */
 export const getHumanInputRequestsForThread = query({
   args: {
     threadId: v.string(),

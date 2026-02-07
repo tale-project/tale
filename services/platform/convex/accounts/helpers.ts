@@ -60,7 +60,7 @@ export async function getMicrosoftAccount(
 
     debugLog('getMicrosoftAccount: Query result', {
       foundAccounts: microsoftAccounts.length,
-      accounts: microsoftAccounts.map((acc: any) => ({
+      accounts: microsoftAccounts.map((acc: Record<string, unknown>) => ({
         accountId: acc.accountId,
         providerId: acc.providerId,
         userId: acc.userId,
@@ -125,11 +125,9 @@ export async function getMicrosoftAccountByUserId(
       },
     );
 
-    const microsoftAccounts: any[] =
-      (microsoftResult as any)?.page ??
-      (Array.isArray(microsoftResult) ? (microsoftResult as any[]) : []);
+    const microsoftAccounts = microsoftResult?.page || [];
 
-    if (!microsoftAccounts || microsoftAccounts.length === 0) {
+    if (microsoftAccounts.length === 0) {
       console.warn(
         `getMicrosoftAccountByUserId: No Microsoft account found for user ${userId}`,
       );
@@ -139,18 +137,16 @@ export async function getMicrosoftAccountByUserId(
     const account = microsoftAccounts[0];
 
     return {
-      accountId: account.accountId as string,
-      userId: account.userId as string,
-      providerId: account.providerId as string,
-      accessToken: (account.accessToken as string | null) ?? null,
-      accessTokenExpiresAt:
-        (account.accessTokenExpiresAt as number | null) ?? null,
-      refreshToken: (account.refreshToken as string | null) ?? null,
-      refreshTokenExpiresAt:
-        (account.refreshTokenExpiresAt as number | null) ?? null,
-      scope: (account.scope as string | null) ?? null,
-      createdAt: account.createdAt as number,
-      updatedAt: account.updatedAt as number,
+      accountId: account.accountId,
+      userId: account.userId,
+      providerId: account.providerId,
+      accessToken: account.accessToken ?? null,
+      accessTokenExpiresAt: account.accessTokenExpiresAt ?? null,
+      refreshToken: account.refreshToken ?? null,
+      refreshTokenExpiresAt: account.refreshTokenExpiresAt ?? null,
+      scope: account.scope ?? null,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
     };
   } catch (error) {
     console.error(

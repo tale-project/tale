@@ -1,11 +1,27 @@
-/**
- * Add a message to a conversation (business logic)
- */
-
 import type { MutationCtx } from '../_generated/server';
 import type { Id } from '../_generated/dataModel';
 import * as AuditLogHelpers from '../audit_logs/helpers';
-import { getAuthenticatedUser } from '../lib/rls/auth/get_authenticated_user';
+import { buildAuditContext } from '../lib/helpers/build_audit_context';
+
+type DeliveryState = 'queued' | 'sent' | 'delivered' | 'failed';
+
+const VALID_DELIVERY_STATES = new Set<string>([
+  'queued',
+  'sent',
+  'delivered',
+  'failed',
+]);
+
+function resolveDeliveryState(
+  status: string | undefined,
+  direction: 'inbound' | 'outbound',
+): DeliveryState {
+  const normalized = (status || '').toLowerCase();
+  if (VALID_DELIVERY_STATES.has(normalized)) {
+    return normalized as DeliveryState;
+  }
+  return direction === 'inbound' ? 'delivered' : 'sent';
+}
 
 export async function addMessageToConversation(
   ctx: MutationCtx,
@@ -17,94 +33,68 @@ export async function addMessageToConversation(
     isCustomer: boolean;
     status?: string;
     attachment?: unknown;
-    providerId?: Id<'emailProviders'>; // Email provider ID (stored on conversation, not message)
+    providerId?: Id<'emailProviders'>;
     externalMessageId?: string;
     metadata?: unknown;
-    sentAt?: number; // Timestamp when message was sent (for outbound) or received (for inbound)
-    deliveredAt?: number; // Timestamp when message was delivered (for email sync)
+    sentAt?: number;
+    deliveredAt?: number;
   },
 ): Promise<Id<'conversations'>> {
-  // Verify parent conversation exists
   const parentConversation = await ctx.db.get(args.conversationId);
   if (!parentConversation) {
     throw new Error('Parent conversation not found');
   }
 
-  // Insert into conversationMessages instead of creating a child conversation row
   const direction: 'inbound' | 'outbound' = args.isCustomer
     ? 'inbound'
     : 'outbound';
-  const deliveryStateCandidates = [
-    'queued',
-    'sent',
-    'delivered',
-    'failed',
-  ] as const;
-  const explicit = (args.status || '').toLowerCase();
-  const deliveryState = (deliveryStateCandidates as readonly string[]).includes(
-    explicit,
-  )
-    ? (explicit as 'queued' | 'sent' | 'delivered' | 'failed')
-    : direction === 'inbound'
-      ? 'delivered'
-      : 'sent';
+  const deliveryState = resolveDeliveryState(args.status, direction);
 
-  // Only set sentAt/deliveredAt if we have an actual timestamp
+  const deliveredAt = args.deliveredAt
+    ?? (direction === 'inbound' && args.sentAt ? args.sentAt : undefined);
+
   const messageId = await ctx.db.insert('conversationMessages', {
     organizationId: args.organizationId,
     conversationId: args.conversationId,
-    providerId: args.providerId || parentConversation.providerId, // Use provided or inherit from parent conversation
+    providerId: args.providerId || parentConversation.providerId,
     channel: parentConversation.channel || 'unknown',
     direction,
     externalMessageId: args.externalMessageId,
     deliveryState,
     content: args.content,
-    sentAt: args.sentAt ? args.sentAt : undefined,
-    deliveredAt: args.deliveredAt
-      ? args.deliveredAt
-      : direction === 'inbound' && args.sentAt
-        ? args.sentAt
-        : undefined,
-     
+    sentAt: args.sentAt,
+    deliveredAt,
     metadata: {
       sender: args.sender,
       isCustomer: args.isCustomer,
       ...(args.attachment ? { attachment: args.attachment } : {}),
-      ...(args.metadata || {}),
-    } as any,
+      ...((args.metadata as Record<string, unknown>) || {}),
+    },
   });
 
-  // Update conversation's providerId if provided and not already set
   if (args.providerId && !parentConversation.providerId) {
     await ctx.db.patch(args.conversationId, {
       providerId: args.providerId,
     });
   }
 
-  // Update parent conversation with last message info
-  // Set both the indexed lastMessageAt field and metadata for backwards compatibility
   const now = Date.now();
-  const existingMetadata = parentConversation.metadata || {};
+  const existingMetadata =
+    (parentConversation.metadata as Record<string, unknown>) || {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt: now,
     metadata: {
       ...existingMetadata,
       last_message_at: now,
       unread_count:
-        ((existingMetadata as Record<string, unknown>).unread_count as number || 0) +
+        ((existingMetadata.unread_count as number) || 0) +
         (args.isCustomer ? 1 : 0),
     },
   });
 
-  const authUser = await getAuthenticatedUser(ctx);
   await AuditLogHelpers.logSuccess(
     ctx,
-    {
-      organizationId: args.organizationId,
-      actor: authUser
-        ? { id: authUser.userId, email: authUser.email, type: 'user' as const }
-        : { id: 'system', type: 'system' as const },
-    },
+    await buildAuditContext(ctx, args.organizationId),
     'add_message_to_conversation',
     'data',
     'conversationMessage',
@@ -119,6 +109,5 @@ export async function addMessageToConversation(
     },
   );
 
-  // Maintain return type contract (conversation id)
   return args.conversationId;
 }

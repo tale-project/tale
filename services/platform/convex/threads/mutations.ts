@@ -1,9 +1,3 @@
-/**
- * Threads Mutations
- *
- * Internal and public mutations for thread operations.
- */
-
 import { v } from 'convex/values';
 import { internalMutation, mutation } from '../_generated/server';
 import { getOrCreateSubThread } from './get_or_create_sub_thread';
@@ -27,10 +21,6 @@ export const getOrCreateSubThreadAtomic = internalMutation({
     );
   },
 });
-
-// =============================================================================
-// PUBLIC MUTATIONS
-// =============================================================================
 
 export const createChatThread = mutation({
   args: {

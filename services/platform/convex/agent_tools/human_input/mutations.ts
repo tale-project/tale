@@ -52,13 +52,12 @@ export const submitHumanInputResponse = mutation({
     await getOrganizationMember(ctx, organizationId);
 
     const existingMetadata = (approval.metadata || {}) as HumanInputRequestMetadata;
-    const responseValue = args.response;
     const respondedBy = identity.email ?? identity.subject;
 
     const updatedMetadata: HumanInputRequestMetadata = {
       ...existingMetadata,
       response: {
-        value: responseValue,
+        value: args.response,
         respondedBy,
         timestamp: Date.now(),
       },
@@ -83,9 +82,9 @@ export const submitHumanInputResponse = mutation({
       return value;
     };
 
-    const responseDisplay = Array.isArray(responseValue)
-      ? responseValue.map(mapValueToLabel).join(', ')
-      : mapValueToLabel(responseValue);
+    const responseDisplay = Array.isArray(args.response)
+      ? args.response.map(mapValueToLabel).join(', ')
+      : mapValueToLabel(args.response);
     const responseMessage = `User responded to question "${existingMetadata.question}": ${responseDisplay}`;
 
     const { messageId: promptMessageId } = await saveMessage(

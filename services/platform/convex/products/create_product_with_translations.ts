@@ -1,12 +1,8 @@
-/**
- * Create a new product (public API)
- */
+import type { MutationCtx } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import type { ProductStatus, ProductTranslation } from './types';
 
-import { MutationCtx } from '../_generated/server';
-import { Id } from '../_generated/dataModel';
-import { ProductStatus, ProductTranslation } from './types';
-
-export interface CreateProductPublicArgs {
+export interface CreateProductWithTranslationsArgs {
   organizationId: string;
   name: string;
   description?: string;
@@ -21,13 +17,13 @@ export interface CreateProductPublicArgs {
   metadata?: unknown;
 }
 
-export async function createProductPublic(
+export async function createProductWithTranslations(
   ctx: MutationCtx,
-  args: CreateProductPublicArgs,
+  args: CreateProductWithTranslationsArgs,
 ): Promise<Id<'products'>> {
   const now = Date.now();
 
-  const productId = await ctx.db.insert('products', {
+  return await ctx.db.insert('products', {
     organizationId: args.organizationId,
     name: args.name,
     description: args.description,
@@ -39,10 +35,7 @@ export async function createProductPublic(
     tags: args.tags || [],
     status: args.status || 'draft',
     translations: args.translations || [],
-     
-    metadata: args.metadata as any,
+    metadata: args.metadata as Record<string, unknown>,
     lastUpdated: now,
   });
-
-  return productId;
 }

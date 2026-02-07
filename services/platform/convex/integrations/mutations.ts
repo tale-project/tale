@@ -9,6 +9,7 @@ export const deleteIntegration = mutation({
   args: {
     integrationId: v.id('integrations'),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const authUser = await authComponent.getAuthUser(ctx);
     if (!authUser) {
@@ -52,5 +53,7 @@ export const deleteIntegration = mutation({
       },
       undefined,
     );
+
+    return null;
   },
 });

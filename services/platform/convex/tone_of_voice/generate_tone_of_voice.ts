@@ -2,21 +2,19 @@
  * Generate tone of voice from example messages using AI
  */
 
-import { ActionCtx } from '../_generated/server';
 import { internal } from '../_generated/api';
-import { generateObject } from 'ai';
+import { ActionCtx } from '../_generated/server';
 import { openai } from '../lib/openai_provider';
+import { generateObject } from 'ai';
 import { z } from 'zod/v4';
-import { GenerateToneResponse } from './types';
-import { getEnvOrThrow } from '../lib/get_or_throw';
+import { ExampleMessageContent, GenerateToneResponse } from './types';
 
 export async function generateToneOfVoice(
   ctx: ActionCtx,
   args: { organizationId: string },
 ): Promise<GenerateToneResponse> {
   try {
-    // Load example messages
-    const examples = await ctx.runQuery(
+    const examples: ExampleMessageContent[] = await ctx.runQuery(
       internal.tone_of_voice.queries.loadExampleMessagesForGeneration,
       {
         organizationId: args.organizationId,
@@ -30,17 +28,10 @@ export async function generateToneOfVoice(
       };
     }
 
-    // Prepare examples for AI
     const examplesText = examples
-      .map(
-        (ex: { content: string }, idx: number) =>
-          `Example ${idx + 1}:\n${ex.content}`,
-      )
+      .map((ex, idx) => `Example ${idx + 1}:\n${ex.content}`)
       .join('\n\n---\n\n');
 
-    const openaiKey = getEnvOrThrow('OPENAI_API_KEY', 'OpenAI API key');
-
-    // Generate tone using AI
     const result = await generateObject({
       model: openai('gpt-4o'),
       schema: z.object({
@@ -71,9 +62,8 @@ ${examplesText}
 Format your response with proper line breaks between sections for readability. Use \\n\\n for paragraph breaks and \\n for single line breaks. Make it clear, actionable, and well-structured.`,
     });
 
-    const generatedTone: string = result.object.tone;
+    const generatedTone = result.object.tone;
 
-    // Save the generated tone
     await ctx.runMutation(internal.tone_of_voice.mutations.saveGeneratedTone, {
       organizationId: args.organizationId,
       generatedTone,

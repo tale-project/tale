@@ -66,7 +66,7 @@ export const documentAction: ActionDefinition<DocumentActionParams> = {
 
         // Fetch and return the updated entity
         const updatedDocument = await ctx.runQuery!(
-          internal.documents.queries.getDocumentById,
+          internal.documents.queries.getDocumentByIdRaw,
           { documentId },
         );
 

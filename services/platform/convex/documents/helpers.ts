@@ -13,7 +13,7 @@ export * from './transform_to_document_item';
 export * from './get_user_names_batch';
 export * from './get_documents';
 export * from './get_documents_cursor';
-export * from './get_document_by_id_public';
+export * from './get_document_by_id_transformed';
 export * from './get_document_by_path';
 export * from './update_document';
 export * from './delete_document';

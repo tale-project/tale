@@ -3,7 +3,7 @@
  */
 
 import type { ToolCtx } from '@convex-dev/agent';
-import { getGetMemberRoleInternalRef } from '../../../lib/function_refs';
+import { getGetMemberRoleRef } from '../../../lib/function_refs';
 import { errorResponse, type ToolResponse } from './tool_response';
 
 const PRIVILEGED_ROLES = ['admin', 'developer'] as const;
@@ -25,7 +25,7 @@ export async function checkRoleAccess(
   organizationId: string,
   toolName: string,
 ): Promise<RoleCheckResult> {
-  const userRole = await ctx.runQuery(getGetMemberRoleInternalRef(), {
+  const userRole = await ctx.runQuery(getGetMemberRoleRef(), {
     userId,
     organizationId,
   });

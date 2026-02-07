@@ -95,6 +95,11 @@ export const listProducts = queryWithRLS({
     organizationId: v.string(),
     paginationOpts: cursorPaginationOptsValidator,
   },
+  returns: v.object({
+    page: v.array(productDocValidator),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     return await ProductsHelpers.listByOrganization(ctx, args);
   },

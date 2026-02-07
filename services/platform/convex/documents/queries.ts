@@ -13,9 +13,9 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { sourceProviderValidator } from './validators';
 
 /**
- * Get a document by ID (internal query)
+ * Get a raw document by ID (internal query)
  */
-export const getDocumentById = internalQuery({
+export const getDocumentByIdRaw = internalQuery({
   args: {
     documentId: v.id('documents'),
   },
@@ -73,9 +73,9 @@ export const findDocumentByExternalId = internalQuery({
 // =============================================================================
 
 /**
- * Get a document by ID (public query).
+ * Get a document by ID with auth and transformation (public query).
  */
-export const getDocumentByIdPublic = query({
+export const getDocumentById = query({
   args: {
     documentId: v.id('documents'),
   },
@@ -85,7 +85,7 @@ export const getDocumentByIdPublic = query({
       return { success: false, error: 'Unauthenticated' };
     }
 
-    return await DocumentsHelpers.getDocumentByIdPublic(ctx, args.documentId);
+    return await DocumentsHelpers.getDocumentByIdTransformed(ctx, args.documentId);
   },
 });
 
@@ -103,7 +103,6 @@ export const getDocumentByPath = query({
       return { success: false, error: 'Unauthenticated' };
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: String(authUser._id),
@@ -135,7 +134,6 @@ export const listDocuments = query({
       return { page: [], isDone: true, continueCursor: '' };
     }
 
-    // Verify user has access to this organization
     try {
       await getOrganizationMember(ctx, args.organizationId, {
         userId: String(authUser._id),
